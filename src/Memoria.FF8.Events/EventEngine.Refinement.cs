@@ -33,7 +33,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Refinement selected a character outside the current native menu roster.");
         }
-        NativeRefinementResult next = definitions.Refine(services.CharacterVitals ?? throw new NotSupportedException("Refinement has no character owner."), services.Economy ?? throw new NotSupportedException("Refinement has no inventory owner."), services.CardInventory, action.Value, recipe, row, action.Quantity!.Value, services.GameplayPreferences.CardModOnce, services.RefinedCardIds);
+        NativeRefinementResult next = definitions.Refine(services.CharacterVitals ?? throw new NotSupportedException("Refinement has no character owner."), services.Economy ?? throw new NotSupportedException("Refinement has no inventory owner."), services.CardInventory, action.Value, recipe, row, action.Quantity!.Value, services.GameplayPreferences.CardModOnce, services.RefinedCardIds, NativeItemOrderAliases.From(services));
         if (activeMenu)
         {
             PublishPartyMenuCallback(next.Vitals, next.Economy, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, cardInventory: next.Cards);

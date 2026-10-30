@@ -57,7 +57,7 @@ internal static class SaveTransferCommand
                     throw new DirectoryNotFoundException("Export requires the selected installed game directory.");
                 }
                 using GameAssets assets = new(gameDirectory);
-                original = NativePcSaveConverter.Export(state, assets.ReadNewGameCharacterVitals(), options.AllowGuardianForceLoss);
+                original = NativePcSaveConverter.Export(state, assets.ReadNewGameCharacterVitals(), options.AllowGuardianForceLoss, OriginalSaveExportPlace.Read(state, gameDirectory));
             }
             else
             {
@@ -164,7 +164,7 @@ internal static class SaveTransferCommand
             write(temporary);
             if (original)
             {
-                OriginalSavePublication.Publish(temporary, output, overwrite: false);
+                OriginalSavePublication.Publish(temporary, output, overwrite: false, refreshPreview: true);
             }
             else
             {

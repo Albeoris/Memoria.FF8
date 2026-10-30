@@ -8,6 +8,15 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
     public const string PacketRule = "ff8-en-world-config-471f70-byte1-v1";
     public const string ReturnRule = "ff8-en-world-config-53fac0-byte1-v1";
 
+    public const string OriginalSaveRule = "ff8-original-save-world-configuration-v1";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginalSaveSha256 { get; init; }
+
+    public static NativeWorldConfiguration FromOriginalSave(byte entity, int fieldId, string sourceHash)
+    {
+        return new(1, OriginalSaveRule, entity, checked((ushort)fieldId)) { OriginalSaveSha256 = sourceHash };
+    }
+
     public static NativeWorldConfiguration FromFieldPacket(WorldTransition transition, int fieldId)
     {
         return new NativeWorldConfiguration(1, PacketRule, unchecked((byte)transition.Mode), checked((ushort)fieldId), FieldPacket: transition);
@@ -56,7 +65,7 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
 
     public void Validate()
     {
-        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 2 or 32 or 33 or 35 or 48 or 50 or >= 16 and <= 22 or 65 or 66)) || Rule != PacketRule && Rule != ReturnRule)
+        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 2 or 32 or 33 or 35 or 48 or 50 or >= 16 and <= 22 or 65 or 66)) || Rule == OriginalSaveRule && (SourceWorldFrame is not null || FieldPacket is not null || OriginalSaveSha256 is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit)) || Rule != OriginalSaveRule && OriginalSaveSha256 is not null || Rule != PacketRule && Rule != ReturnRule && Rule != OriginalSaveRule)
         {
             throw new InvalidDataException("Native world configuration lacks its original executed packet/entity authority.");
         }

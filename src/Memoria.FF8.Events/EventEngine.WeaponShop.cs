@@ -34,7 +34,7 @@ public sealed partial class EventEngine
         }
         //4EAF56 commits the same local counts/gil;4EAF5B normalizes the saved pairs.
         //The weapon window never invokes4ABF10, so Cancel retains result0/kind6.
-        NativeEconomy economy = current.WeaponShop.Commit(services.Economy!);
+        NativeEconomy economy = current.WeaponShop.Commit(services.Economy!, NativeItemOrderAliases.From(services));
         NativePartyMenuState next = current with { Phase = NativePartyMenuPhase.Closing, Callbacks = checked(current.Callbacks + 1) };
         PublishPartyMenuCallback(services.CharacterVitals!, economy, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
         partyMenu = next;

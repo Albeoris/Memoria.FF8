@@ -70,6 +70,7 @@ public static class NativeCharacterInitialization
         int[] abilityCounts = [20, 19, 19, 20, 5, 9, 24];
         byte[] commandMappings = new byte[19];
         byte[] partyAbilityFlags = new byte[5];
+        uint[] characterStatusFlags = new uint[20];
         for (int section = 11; section <= 17; section++)
         {
             ReadOnlySpan<byte> table = Section(section, 8, abilityCounts[section - 11]);
@@ -84,8 +85,13 @@ public static class NativeCharacterInitialization
                 {
                     partyAbilityFlags[id] = table[8 * id + 5];
                 }
+                if (section == 14)
+                {
+                    characterStatusFlags[id] = (uint)(table[8 * id + 5] | table[8 * id + 6] << 8 | table[8 * id + 7] << 16);
+                }
             }
         }
+        definitions = definitions with { CharacterStatusPassiveFlags = characterStatusFlags.ToImmutableArray() };
         NativeGuardianForceMenuDefinitions menuDefinitions = new(learning.ToImmutableArray(), abilityPoints.ToImmutableArray(), commandMappings.ToImmutableArray(), partyAbilityFlags.ToImmutableArray());
         NativeCharacterVital[] records = new NativeCharacterVital[8];
         for (int index = 0; index < records.Length; index++)

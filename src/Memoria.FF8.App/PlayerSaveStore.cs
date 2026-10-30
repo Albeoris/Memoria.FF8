@@ -147,7 +147,7 @@ internal sealed partial class PlayerSaveStore
         return state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
-    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null)
     {
         if (slot < 0 || slot > TotalSlotCount)
         {
@@ -167,8 +167,12 @@ internal sealed partial class PlayerSaveStore
                 {
                     throw new InvalidOperationException("Reviewed GF conversion requires the target game's source definitions.");
                 }
-                byte[] bytes = targetSource is null ? NativePcSaveConverter.Export(snapshot) : NativePcSaveConverter.Export(snapshot, targetSource, allowGuardianForceLoss);
-                SaveOriginal(target, bytes, validateContinuation);
+                if (originalPlaceId.HasValue && targetSource is null)
+                {
+                    throw new InvalidOperationException("Original world preview projection requires target game definitions.");
+                }
+                byte[] bytes = targetSource is null ? NativePcSaveConverter.Export(snapshot) : NativePcSaveConverter.Export(snapshot, targetSource, allowGuardianForceLoss, originalPlaceId);
+                SaveOriginal(target, bytes, validateContinuation, refreshPreview: true);
             }
             else
             {

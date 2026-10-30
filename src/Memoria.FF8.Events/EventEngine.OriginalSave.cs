@@ -34,13 +34,13 @@ public sealed partial class EventEngine
         Scene.NativeLayerZeroScrollCurrent = new NativeLayerZeroScrollCurrent(1, 0, 0);
         Scene.NativeBackgroundScrollCurrents = Enumerable.Range(1, 7).ToDictionary(layer => layer, _ => new NativeBackgroundScrollCurrent(1, 0, 0));
         Scene.NativeDrawPointDisplayMask = 0;
-        Scene.DrawPointIndex = 0;
+        Scene.DrawPointIndex = block[NativePcSaveData.EventBankOffset + 242];
         if (DrawPointParticleTables is not null)
         {
             Scene.NativeDrawPointParticles = NativeDrawPointParticles.Initialize(null, DrawPointParticlePhase(), DrawPointParticleTables);
         }
         // Save files contain no resident music buffers or pending I/O. The new process starts silent.
-        Scene.MusicProcess = new NativeMusicProcessState(1, false, 0, 0, 0, 255, new NativeMusicBootstrap(1, NativeMusicBootstrap.OriginalSaveRule, profile.ExecutableHash));
+        Scene.MusicProcess = new NativeMusicProcessState(1, false, block[NativePcSaveData.EventBankOffset + 213], block[NativePcSaveData.EventBankOffset + 214], 0, 255, new NativeMusicBootstrap(1, NativeMusicBootstrap.OriginalSaveRule, profile.ExecutableHash));
         Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
         Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
         Scene.NativeBattleMusic203 = block[NativePcSaveData.EventBankOffset + 203];

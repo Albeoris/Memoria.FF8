@@ -9,6 +9,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class OriginalSaveBankTests
 {
     [Fact]
+    public void Store_transfer_passes_reviewed_candidate_place_to_original_export()
+    {
+        PlayerSaveStore store = CreateStore();
+        GameState candidate = Defaults();
+        store.Save(1, new GameSession(candidate));
+        byte[] source = File.ReadAllBytes(store.GetPath(1));
+        store.Transfer(1, 101, targetSource: candidate.CharacterVitals, originalPlaceId: 321);
+        byte[] block = NativePcSaveCodec.Decode(File.ReadAllBytes(store.GetPath(101))).Block;
+        Assert.Equal((short)321, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(block.AsSpan(388)));
+        Assert.Equal(source, File.ReadAllBytes(store.GetPath(1)));
+    }
+
+    [Fact]
     public void Store_transfer_to_original_profile_updates_signature_and_keeps_unrelated_xml()
     {
         string original = Directory.CreateDirectory(Path.Combine(directory, "user_123abcd")).FullName;
@@ -20,6 +33,9 @@ public sealed partial class OriginalSaveBankTests
         store.Transfer(1, 131);
         string destination = store.GetPath(131);
         byte[] native = File.ReadAllBytes(destination);
+        byte[] block = NativePcSaveCodec.Decode(native).Block;
+        Assert.Equal((ushort)1, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(block.AsSpan(394)));
+        Assert.Equal(1u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(block.AsSpan(460)));
         byte[] salted = native.Concat(Encoding.ASCII.GetBytes("123abcd")).ToArray();
         XDocument metadata = XDocument.Load(metadataPath);
         XElement target = metadata.Root!.Elements("savefile").Single();

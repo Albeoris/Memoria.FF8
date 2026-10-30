@@ -4,15 +4,15 @@ internal static class OriginalSavePublication
 {
     private static readonly object PublicationLock = new();
 
-    public static void Publish(string temporarySavePath, string destinationPath, bool overwrite)
+    public static void Publish(string temporarySavePath, string destinationPath, bool overwrite, bool refreshPreview = false)
     {
         lock (PublicationLock)
         {
-            PublishCore(Path.GetFullPath(temporarySavePath), Path.GetFullPath(destinationPath), overwrite);
+            PublishCore(Path.GetFullPath(temporarySavePath), Path.GetFullPath(destinationPath), overwrite, refreshPreview);
         }
     }
 
-    private static void PublishCore(string temporarySavePath, string destinationPath, bool overwrite)
+    private static void PublishCore(string temporarySavePath, string destinationPath, bool overwrite, bool refreshPreview)
     {
         if (string.Equals(temporarySavePath, destinationPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -36,6 +36,13 @@ internal static class OriginalSavePublication
             if (!overwrite && (previousSave is not null || Directory.Exists(destinationPath)))
             {
                 throw new IOException("The original save destination already exists.");
+            }
+            if (refreshPreview)
+            {
+                content = OriginalSavePreviewSequence.Refresh(content, destinationPath);
+                using FileStream staged = new(temporarySavePath, FileMode.Truncate, FileAccess.Write, FileShare.None);
+                staged.Write(content);
+                staged.Flush(flushToDisk: true);
             }
             OriginalSaveMetadataUpdate? metadata = OriginalSaveMetadata.Prepare(destinationPath, content);
             if (metadata is not null)

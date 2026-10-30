@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
 
@@ -67,7 +68,7 @@ public static partial class NativePcSaveConverter
         NativeEconomy economy = defaults.Economy ?? throw new InvalidDataException("Original save import requires initialized inventory definitions.");
         NativeItemStock[] items = Enumerable.Range(0, NativeEconomy.ItemSlotCount).Select(slot => new NativeItemStock(B(2804 + 2 * slot), B(2805 + 2 * slot))).ToArray();
         NativeCharacterAppearance? appearance = defaults.CharacterAppearance is { } dress ? dress with { Records = Enumerable.Range(0, 8).Select(row => new NativeCharacterDress(B(1088 + 152 * row + 91))).ToArray() } : null;
-        NativeInputConfiguration? configuration = defaults.InputConfiguration is { } input ? input with { Options = (input.Options & 0x00FFFFFF) | (D(2708) & 0xFF000000), NativeBattleSpeedByte = B(2704), BattleMessageSpeed = B(2705), FieldMessageSpeedByte = B(2706), SoundVolume = B(2707) } : null;
+        NativeInputConfiguration? configuration = defaults.InputConfiguration is { } input ? input with { Options = (input.Options & 0x00FFFFFF) | (D(2708) & 0xFF000000), NativeBattleSpeedByte = B(2704), BattleMessageSpeed = B(2705), FieldMessageSpeedByte = B(2706), SoundVolume = B(2707) < 20 ? (byte)100 : B(2707) } : null;
         NativeCardInventory cards = NativeCardInventory.CreateNewGame() with
         {
             Cards = block.AsSpan(Main + 4752, 110).ToArray(),
@@ -99,6 +100,7 @@ public static partial class NativePcSaveConverter
             FieldId = fieldId,
             FieldName = resolveFieldName(fieldId),
             PreviousFieldId = module == 1 ? W(3316) : EW(84),
+            WorldConfiguration = NativeWorldConfiguration.FromOriginalSave(E(86), fieldId, Convert.ToHexString(SHA256.HashData(block))),
             FieldLoadContext = module == 1 ? NativeFieldLoadContext.FromOriginalSave(fieldId) : null,
             FieldArrival = module == 1 ? new FieldTransition(fieldId, unchecked((short)W(3318)), unchecked((short)W(3324)), W(3330), B(3336)) : null,
             X = module == 1 ? unchecked((short)W(3318)) : 0,

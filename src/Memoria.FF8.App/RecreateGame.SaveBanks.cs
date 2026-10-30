@@ -78,8 +78,8 @@ internal sealed partial class RecreateGame
         if (source <= PlayerSaveStore.MemoriaSlotCount && destination > PlayerSaveStore.MemoriaSlotCount)
         {
             GameState candidate = playerSaves.Load(source);
-            NativeCharacterVitals targetSource = await ReviewOriginalGuardianForceExportAsync(candidate);
-            playerSaves.Transfer(source, destination, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, reviewedSource: candidate);
+            (NativeCharacterVitals targetSource, short? placeId) = await ReviewOriginalGuardianForceExportAsync(candidate);
+            playerSaves.Transfer(source, destination, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, reviewedSource: candidate, originalPlaceId: placeId);
         }
         else
         {

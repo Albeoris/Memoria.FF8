@@ -14,7 +14,7 @@ public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, N
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
 public static partial class BattleResultProjection
 {
-    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience)
+    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience, NativeItemOrderAliases? itemOrderAliases = null)
     {
         result.Validate();
         sourceVitals.Validate();
@@ -145,7 +145,7 @@ public static partial class BattleResultProjection
         {
             experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
-            loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems);
+            loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems, itemOrderAliases);
             List<byte> grantedCards = [.. loot.CardsGranted];
             foreach (byte id in result.NativeScriptEffects.Cards)
             {

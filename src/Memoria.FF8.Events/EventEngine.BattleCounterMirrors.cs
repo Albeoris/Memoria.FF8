@@ -11,13 +11,28 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (session.State.BattleStatistics is not { } statistics)
+        NativeEventMemory memory = EventMemory;
+        if (session.State.BattleStatistics is { } statistics)
         {
-            return null;
+            memory = memory.Write(20, 4, NativeScalarValue.Exact(unchecked((int)statistics.Victories)))
+                .Write(24, 2, NativeScalarValue.Exact(statistics.Defeats))
+                .Write(26, 2, NativeScalarValue.Exact(statistics.Escapes));
         }
-        //52BC00 copies these totals once into ordinary mutable field memory before init scripts run.
-        return EventMemory.Write(20, 4, NativeScalarValue.Exact(unchecked((int)statistics.Victories)))
-            .Write(24, 2, NativeScalarValue.Exact(statistics.Defeats))
-            .Write(26, 2, NativeScalarValue.Exact(statistics.Escapes));
+        if (session.State.CharacterVitals is { } vitals)
+        {
+            uint total = 0;
+            for (int row = 0; row < 8; row++)
+            {
+                NativeCharacterVital character = vitals.Records[row];
+                memory = memory.Write(28 + 2 * row, 2, NativeScalarValue.Exact(character.KillCount));
+                total += character.KillCount;
+                if (character.DeathCount is ushort deaths)
+                {
+                    memory = memory.Write(44 + 2 * row, 2, NativeScalarValue.Exact(deaths));
+                }
+            }
+            memory = memory.Write(68, 4, NativeScalarValue.Exact(unchecked((int)total)));
+        }
+        return memory;
     }
 }

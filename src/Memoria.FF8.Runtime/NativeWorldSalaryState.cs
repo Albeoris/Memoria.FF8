@@ -117,6 +117,7 @@ public sealed partial record NativeWorldSalaryState
 
     private GameState ApplyOwnersTo(GameState candidate)
     {
+        candidate = ApplyMovementProgress(candidate);
         SeeD?.Validate();
         Economy?.Validate();
         Presentation?.Validate();

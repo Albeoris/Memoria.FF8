@@ -35,8 +35,33 @@ public sealed record NativeGuardianForceVital([property: JsonRequired] uint Expe
 /// <summary>Immutable inputs decoded from the authenticated current kernel sections, not a cache of a saved character's identity-dependent maximum.</summary>
 public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArray<NativeStatCurve> Characters, [property: JsonRequired] ImmutableArray<byte> MagicHitPoints, [property: JsonRequired] ImmutableArray<NativeStatModifier> CharacterPassives, [property: JsonRequired] ImmutableArray<NativeStatCurve> GuardianForces, [property: JsonRequired] ImmutableArray<NativeStatModifier> GuardianForceModifiers)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<uint> CharacterStatusPassiveFlags { get; init; }
+
+    public uint EquippedStatusPassiveFlags(uint abilities)
+    {
+        uint result = 0;
+        for (int slot = 0; slot < 4; slot++)
+        {
+            int ability = (byte)(abilities >> (slot * 8));
+            if (ability is >= 58 and < 78)
+            {
+                if (CharacterStatusPassiveFlags.IsDefault || CharacterStatusPassiveFlags.Length != 20)
+                {
+                    throw new NotSupportedException("Movement recovery requires the original equipped character-ability flag definitions.");
+                }
+                result |= CharacterStatusPassiveFlags[ability - 58];
+            }
+        }
+        return result;
+    }
+
     public void Validate()
     {
+        if (!CharacterStatusPassiveFlags.IsDefault && CharacterStatusPassiveFlags.Length != 20)
+        {
+            throw new InvalidDataException("Character status abilities require all twenty kernel flag records.");
+        }
         if (Characters.IsDefault || Characters.Length != 11 || MagicHitPoints.IsDefault || MagicHitPoints.Length != 57 || CharacterPassives.IsDefault || CharacterPassives.Length != 19 || GuardianForces.IsDefault || GuardianForces.Length != 16 || GuardianForceModifiers.IsDefault || GuardianForceModifiers.Length != 9 || Characters.Concat(GuardianForces).Any(curve => curve is null || curve.HitPointDivisor == 0) || CharacterPassives.Concat(GuardianForceModifiers).Any(modifier => modifier is null))
         {
             throw new InvalidDataException("Native saved-stat definitions require the eleven character, magic, passive and sixteen GF kernel tables.");

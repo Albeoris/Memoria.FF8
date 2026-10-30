@@ -378,14 +378,28 @@ public sealed partial class EventEngine
         ValidateNativeShakeCallback();
         NativeEventRandomState? randomSample = PrepareNativeEventRandomBeforeVm();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
+        NativeMovementProgressResult? movementSample = PrepareNativeFieldMovementProgress();
         NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
         NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
+        if (movementSample?.LearnedAngelo == true)
+        {
+            NativeGlobalSoundProcess process = salaryEffects?.SoundProcess ?? services.GlobalSoundProcess ?? throw new NotSupportedException("Native Angelo learning requires its global sound allocator.");
+            PreparedGlobalSoundEmission learned = PrepareGlobalSound(131, 0, 128, 127, process);
+            salaryEffects = new NativeSalaryEffects(salaryEffects?.Presentation ?? services.SalaryPresentation, learned.Process, [.. (salaryEffects?.Requests ?? []), learned.Request]);
+        }
         Action? nativePlayerInput = pendingNativePlayerInput;
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
-        if (randomSample is not null || salarySample is not null && (salarySample.SeeD != services.SeeD || economySample != services.Economy || salaryEffects!.Presentation != services.SalaryPresentation || salaryEffects.SoundProcess != services.GlobalSoundProcess))
+        if (randomSample is not null || movementSample is not null && (movementSample.Memory != EventMemory || movementSample.Vitals != services.CharacterVitals || movementSample.Limits != services.LimitProgress) || salarySample is not null && (salarySample.SeeD != services.SeeD || economySample != services.Economy || salaryEffects!.Presentation != services.SalaryPresentation || salaryEffects.SoundProcess != services.GlobalSoundProcess))
         {
-            services.SetNativeEventOwners(services.WorldControls!, seeD: salarySample?.SeeD, economy: economySample, salaryPresentation: salaryEffects?.Presentation, globalSoundProcess: salaryEffects?.SoundProcess, eventRandom: randomSample);
+            if (movementSample is not null)
+            {
+                services.SetNativeMovementOwners(movementSample, services.WorldControls!, seeD: salarySample?.SeeD, economy: economySample, salaryPresentation: salaryEffects?.Presentation, globalSoundProcess: salaryEffects?.SoundProcess, eventRandom: randomSample);
+            }
+            else
+            {
+                services.SetNativeEventOwners(services.WorldControls!, seeD: salarySample?.SeeD, economy: economySample, salaryPresentation: salaryEffects?.Presentation, globalSoundProcess: salaryEffects?.SoundProcess, eventRandom: randomSample);
+            }
         }
         else if (economySample is not null && economySample != services.Economy)
         {

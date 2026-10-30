@@ -10,7 +10,7 @@ internal sealed partial class GameWorld
 {
     // This creates initial fixture stock through the existing inventory owner before encounter allocation.
     // It never edits a live battle inventory or repairs stock between focal executions.
-    internal static DiagnosticInventoryPreparationResult PrepareDiagnosticInventory(NativeEconomy source, DiagnosticBattlePreparation recipe)
+    internal static DiagnosticInventoryPreparationResult PrepareDiagnosticInventory(NativeEconomy source, DiagnosticBattlePreparation recipe, NativeItemOrderAliases? aliases = null)
     {
         recipe.Validate();
         source.Validate();
@@ -24,7 +24,7 @@ internal sealed partial class GameWorld
             }
             int before = matches.FirstOrDefault()?.Count ?? 0;
             next = next.AddItem(item.Id, item.Count - before, out _);
-            next = next.UpdateItemOrder(item.Id);
+            next = next.UpdateItemOrder(item.Id, aliases);
             if (next.Items.Where(stock => stock.ItemId == item.Id).Sum(stock => stock.Count) != item.Count)
             {
                 throw new InvalidOperationException("Diagnostic inventory acquisition could not satisfy the exact declared quantity.");

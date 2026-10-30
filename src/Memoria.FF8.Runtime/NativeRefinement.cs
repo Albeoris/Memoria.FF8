@@ -120,7 +120,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         return maximum;
     }
 
-    public NativeRefinementResult Refine(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, int batches, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null)
+    public NativeRefinementResult Refine(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, int batches, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null, NativeItemOrderAliases? itemOrderAliases = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batches, 1);
         int maximum = MaximumBatches(vitals, economy, cards, abilityId, recipeIndex, row, cardModOnce, refinedCardIds);
@@ -153,7 +153,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             //4D7B34/4D7C2C/4D7CBE grant output before removing the input.
             nextEconomy = nextEconomy.AddItem(recipe.Output, produced, out _);
-            nextEconomy = nextEconomy.UpdateItemOrder(recipe.Output);
+            nextEconomy = nextEconomy.UpdateItemOrder(recipe.Output, itemOrderAliases);
         }
         if (kind == 4 && !cardModOnce)
         {

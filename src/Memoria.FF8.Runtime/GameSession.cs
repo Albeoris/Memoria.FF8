@@ -446,6 +446,11 @@ public sealed partial class GameSession : IEventServices
 
     public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null)
     {
+        State = PrepareNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory, inputConfiguration);
+    }
+
+    private GameState PrepareNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null)
+    {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
         seeD?.Validate();
@@ -485,7 +490,7 @@ public sealed partial class GameSession : IEventServices
         candidate = StageOriginalAchievementNativeMutations(candidate);
         candidate = AdvanceNativePlaytime(candidate);
         ValidateLiveEventMemoryOwners(candidate, nextMemory);
-        State = candidate;
+        return candidate;
     }
 
     public void SetExamTimer(NativeExamTimerState timer)

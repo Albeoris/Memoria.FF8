@@ -54,6 +54,7 @@ internal sealed partial class GameWorld
         scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
+        scene.PrepareGlobalSound = Events.PrepareGlobalSound;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;
         ConfigureWorldRandomEncounters(scene);
     }

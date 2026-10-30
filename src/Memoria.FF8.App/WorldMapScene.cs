@@ -23,6 +23,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private bool rebound;
     public Func<WorldFieldSelection, WorldState, short, NativeWorldSalaryState, Action>? PrepareFieldEntry { get; set; }
     public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
+    public Func<uint, uint, uint, uint, NativeGlobalSoundProcess, PreparedGlobalSoundEmission>? PrepareGlobalSound { get; set; }
     public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
     public Func<WorldState, int, RandomEncounterSessionState?, (WorldState World, RandomEncounterSessionState? Encounters)>? ProcessRandomEncounters { get; set; }
     private int encounterMovementMagnitude;
@@ -496,12 +497,13 @@ internal sealed partial class WorldMapScene : IDisposable
                     var cameraWords = carCameraTransition.StepWords(false, forest.CameraPitch, -341, -7168, transitioningCar.PriorTerrainOcclusion!.Value, false);
                     candidate = candidate with { NativeCarRuntime = transitioningCar with { CameraTransition = cameraWords.Transition, Forest = forest with { CameraPitch = cameraWords.Pitch } } };
                 }
-                if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
+                bool samplesMovementProgress = fieldEntry?.ReturnsBeforeMovementProgress != true && (candidate.NativeFootRuntime is not null || candidate.NativeCarRuntime is not null) && candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null;
+                if (samplesMovementProgress)
                 {
                     //6519D0 still consumes the retained accepted magnitude when script12 skips the position query.
-                    salary = salary.PrepareDrawPointAging(movementUnits);
+                    salary = salary.PrepareDrawPointAging(movementUnits).PrepareMovementProgress(movementUnits);
                 }
-                NativeSalaryResult? salaryResult = candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
+                NativeSalaryResult? salaryResult = samplesMovementProgress ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
                 NativeSalaryEffects effects;
                 if (salaryResult?.Payment is not null)
                 {
@@ -519,6 +521,16 @@ internal sealed partial class WorldMapScene : IDisposable
                         presentation = presentation?.Close() ?? throw new NotSupportedException("Native world salary closure requires its actual retained UI process.");
                     }
                     effects = new NativeSalaryEffects(presentation, salary.SoundProcess, []);
+                }
+                if (samplesMovementProgress && salary.LearnedAngelo)
+                {
+                    NativeGlobalSoundProcess process = effects.SoundProcess ?? throw new NotSupportedException("Native Angelo learning requires its global sound allocator.");
+                    PreparedGlobalSoundEmission learned = (PrepareGlobalSound ?? throw new NotSupportedException("Native Angelo learning requires its original global sound producer."))(131, 0, 128, 127, process);
+                    if (PublishSalaryEffects is null)
+                    {
+                        throw new NotSupportedException("Native Angelo learning requires its global sound publication handler.");
+                    }
+                    effects = effects with { SoundProcess = learned.Process, Requests = [.. effects.Requests, learned.Request] };
                 }
                 //53FAC0 calls49A970 after ordinary body update; its already-requested departure fade returns before that call.
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);

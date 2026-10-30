@@ -38,14 +38,20 @@ The command-line converters remain available. Run these commands from an extract
 ```powershell
 ./Data/Memoria.FF8.exe --import-save ./original/slot1_save01.ff8 --output ./saves/imported.json --game-dir "$env:MEMORIA_FF8_GAME_DIR"
 ./Data/Memoria.FF8.exe --state ./saves/imported.json
-./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8
+./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8 --game-dir "$env:MEMORIA_FF8_GAME_DIR"
 ```
 
 Import reads one original PC `.ff8` save, restores its progress and saved location using the installed resources and selected mods, and validates the resulting engine continuation before writing a compact standalone snapshot. Use `--mods-dir <directory>` to choose the mod root; resume the snapshot with the same resource selection. Properties absent from the original format and transient process state are initialized with defaults. For example, resident music buffers and pending playback are not transferred. `--game-dir` may be omitted when `MEMORIA_FF8_GAME_DIR` or `FF8_GAME_DIRECTORY` is set. Malformed save data, a failed mod resource publication or unsupported gameplay continuation fails with an error and no output file.
 
-Export writes one original PC save with the snapshot's persistent progress and a saved field or world location. For an imported game, original bytes without a supported Memoria owner are retained from its source file. A game started in Memoria uses defaults for original-only properties. Properties that cannot be transferred receive defaults; an active movie, battle or event is not resumed at its exact processing point. The original game loads the saved location through its normal initialization.
+Export writes one original PC save with the snapshot's persistent progress and a saved field or world location. Use `--game-dir` to declare the installed original game's initialization and GF definitions. Imported native bytes and explicit saved owners are preserved; missing native initialization bytes use the declared target resources. Memoria gameplay rules and usage histories are discarded in the exported copy. An active movie, battle or event is not resumed at its exact processing point. Unsupported or uncertain state that cannot be represented exactly is rejected. The original game loads the saved location through its normal initialization.
 
-Both commands require `--output` with a new filename. They refuse an existing destination or the source path, preserve the source file, and return exit code 1 on failure. Keep a backup and copy an exported file into the original game's save directory only when ready to use it.
+When GF configuration or progression cannot fit the original format, export reports its conversion losses. Review that message before repeating the command with `--allow-gf-loss`; this export-only flag requires an explicit `--game-dir`. It authorizes the reported GF projection and preserves the full Memoria source.
+
+For direct use by the Steam release, choose the actual `user_...` save profile and an unused native filename such as `slot1_save23.ff8` as `--output`. Memoria signs the final compressed file in that profile's `metadata.xml`, preserving unrelated metadata. If metadata is absent, it creates the complete profile catalog and signs existing native files too. Copying a raw exported file into a Steam profile by hand does not update this required signature; publish directly into the profile instead. A raw save directory outside a recognized profile receives only the `.ff8` file.
+
+Memoria exports refresh the original wrapping save count and bank ordering serial so the original game can identify the newly written save. Native-to-native bank copies preserve the source file bytes exactly. The save and profile metadata are staged and flushed before publication. Invalid metadata leaves the destination unchanged; if metadata replacement fails after the save replacement, the previous save is restored and temporary files are removed.
+
+Both commands require `--output` with a new filename. They refuse an existing destination or the source path, preserve the source file, and return exit code 1 on failure. Use the in-game save browser when replacing an occupied original slot.
 
 ## Explicit snapshot files
 

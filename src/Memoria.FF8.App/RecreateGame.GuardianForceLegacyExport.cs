@@ -8,11 +8,11 @@ internal sealed partial class RecreateGame
     private async Task SaveOriginalPlayerSlotWithGuardianForceReviewAsync(int slot)
     {
         GameState snapshot = session.PrepareSnapshot();
-        NativeCharacterVitals targetSource = await ReviewOriginalGuardianForceExportAsync(snapshot);
-        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true);
+        (NativeCharacterVitals targetSource, short? placeId) = await ReviewOriginalGuardianForceExportAsync(snapshot);
+        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId);
     }
 
-    private async Task<NativeCharacterVitals> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
+    private async Task<(NativeCharacterVitals Source, short? PlaceId)> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
     {
         using GameAssets assets = new(options.GameDirectory, resources: resourceHost?.Resources);
         NativeCharacterVitals targetSource = assets.ReadNewGameCharacterVitals();
@@ -33,7 +33,7 @@ internal sealed partial class RecreateGame
                 throw new OperationCanceledException("Original save export cancelled.");
             }
         }
-        return targetSource;
+        return (targetSource, OriginalSaveExportPlace.Read(snapshot, options.GameDirectory, resourceHost?.Resources));
     }
 }
 

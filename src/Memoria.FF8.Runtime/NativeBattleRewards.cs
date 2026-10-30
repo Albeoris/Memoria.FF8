@@ -97,7 +97,7 @@ public static class NativeBattleRewardDistribution
         }
     }
 
-    public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards, IReadOnlyList<BattleStock>? orderedItems = null)
+    public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards, IReadOnlyList<BattleStock>? orderedItems = null, NativeItemOrderAliases? itemOrderAliases = null)
     {
         NativeEconomy nextEconomy = economy.DeepCopy();
         NativeCardInventory? nextCards = cards?.DeepCopy();
@@ -132,7 +132,7 @@ public static class NativeBattleRewardDistribution
             int before = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
             nextEconomy = nextEconomy.AddItem(item.Id, item.Count, out int nativeResult);
             offers.Add(new BattleRewardOffer(false, item.Id, item.Count, nativeResult == 0));
-            nextEconomy = nextEconomy.UpdateItemOrder(item.Id);
+            nextEconomy = nextEconomy.UpdateItemOrder(item.Id, itemOrderAliases);
             int after = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
             if (after > before)
             {

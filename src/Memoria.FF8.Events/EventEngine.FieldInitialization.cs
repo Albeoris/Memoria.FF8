@@ -1,4 +1,4 @@
-﻿using Albeoris.Games.FF8.Jsm;
+using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -93,6 +93,10 @@ public sealed partial class EventEngine
         if (DrawPointParticleTables is not null && Scene.NativeDrawPointParticles is NativeDrawPointParticles particles)
         {
             Scene.NativeDrawPointParticles = particles.InitializeCurves(DrawPointParticlePhase(), DrawPointParticleTables);
+        }
+        if (NativeRuntimeProfile is { IsVerified: true } && Scene.MusicProcess is { } music)
+        {
+            Scene.MusicProcess = music with { Complete214 = 1 };
         }
         defaultsStarted = true;
         foreach (EventObject obj in program!.Objects)

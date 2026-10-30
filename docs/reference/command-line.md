@@ -75,7 +75,7 @@ Driver completion is `CANDIDATE_COMPLETED` with `PREPARATION_ONLY` coverage. It 
 
 ```powershell
 ./Data/Memoria.FF8.exe --import-save ./original/slot1_save01.ff8 --output ./saves/imported.json --game-dir "$env:MEMORIA_FF8_GAME_DIR"
-./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8
+./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8 --game-dir "$env:MEMORIA_FF8_GAME_DIR"
 ```
 
 The mode selector must be first and the source file must follow it immediately. Transfer runs without a game window. These modes accept only:
@@ -83,10 +83,16 @@ The mode selector must be first and the source file must follow it immediately. 
 | Option | Meaning |
 | --- | --- |
 | `--output FILE` | Required new destination file. Existing destinations and the source path are refused. |
-| `--game-dir DIRECTORY` | Import only: installed game resources used to initialize and validate the imported state. Defaults to `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
+| `--game-dir DIRECTORY` | Import: installed resources used to initialize and validate the state; defaults to `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. Export: explicitly declare the target game's initialization and GF definitions. |
+| `--allow-gf-loss` | Export only: accept the reported GF configuration/progression conversion losses. Requires explicit `--game-dir`; review the loss report before adding this flag. |
 | `--mods-dir DIRECTORY` | Import only: select the mod root used for resource initialization and continuation validation, with the same behavior as ordinary application startup. |
+| `--model-source-dir DIRECTORY` | Import only: select model resources independently of the primary installed game directory. |
 
-Import accepts one original PC save, validates its standalone engine continuation, and writes a compact snapshot. Export transfers persistent progress and the saved field or world location. Imported games preserve original bytes without a supported engine owner; games started in Memoria use defaults for original-only properties. Missing process state and properties that cannot transfer receive defaults. Exact movie, battle and event processing is not transferred; the original game initializes the saved location normally. Malformed data or unsupported gameplay continuation fails with exit code 1 and leaves the source and existing output untouched. See [save transfer](../players/saves.md#original-pc-save-transfer) for preservation and compatibility limits.
+Import accepts one original PC save, validates its standalone engine continuation, and writes a compact snapshot. Export transfers persistent progress and the saved field or world location, discarding Memoria gameplay rules and usage histories. It preserves native saved bytes and uses declared target resources for missing initialization bytes. Unsupported or uncertain state that cannot be represented exactly is rejected. Exact movie, battle and event processing is not transferred; the original game initializes the saved location normally.
+
+For a native slot filename in a recognized Steam `user_...` profile, export also updates `metadata.xml` with the signature of the final compressed file. Existing unrelated metadata is retained; missing metadata is initialized for the complete profile. Memoria exports refresh native save count and ordering fields before signing. Raw directories outside such profiles receive only the native save. Publication stages both files, rejects invalid or concurrently changed metadata, and restores the prior native file if metadata replacement fails. CLI output still requires an unused filename.
+
+Malformed data or unsupported gameplay continuation fails with exit code 1 and leaves the source and existing output untouched. See [save transfer](../players/saves.md#original-pc-save-transfer) for preservation and compatibility limits.
 
 ## Automatic exploration
 

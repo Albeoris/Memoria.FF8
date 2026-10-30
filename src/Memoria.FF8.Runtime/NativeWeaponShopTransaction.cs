@@ -256,9 +256,9 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         return (uint)(Definitions.Recipes[recipeId].CostBase * RemodelRate / 100);
     }
 
-    public NativeEconomy Commit(NativeEconomy economy)
+    public NativeEconomy Commit(NativeEconomy economy, NativeItemOrderAliases? aliases = null)
     {
         Validate();
-        return NativeShopTransaction.NormalizeInventory(NativeShopTransaction.CommitCounts(economy, InitOutSha256, Counts, Gil, Past));
+        return NativeShopTransaction.NormalizeInventory(NativeShopTransaction.CommitCounts(economy, InitOutSha256, Counts, Gil, Past, aliases));
     }
 }

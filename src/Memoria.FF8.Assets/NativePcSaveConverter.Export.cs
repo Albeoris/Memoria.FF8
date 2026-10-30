@@ -7,14 +7,14 @@ namespace Memoria.FF8.Assets;
 
 public static partial class NativePcSaveConverter
 {
-    public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false)
+    public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false, short? originalPlaceId = null)
     {
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state, targetSource);
         if (plan.RequiresConfirmation && !allowGuardianForceLoss)
         {
             throw new NotSupportedException("Original FF8 export requires confirmation of GF configuration/progression losses: " + string.Join("; ", plan.Losses.Select(loss => loss.Description)));
         }
-        return ExportCore(CompleteOpaqueExportState(plan.ProjectedState, targetSource));
+        return ExportCore(CompleteOpaqueExportState(plan.ProjectedState, targetSource), originalPlaceId);
     }
 
     public static byte[] Export(GameState state)
@@ -50,7 +50,7 @@ public static partial class NativePcSaveConverter
         return state with { CharacterVitals = projected };
     }
 
-    private static byte[] ExportCore(GameState state)
+    private static byte[] ExportCore(GameState state, short? originalPlaceId = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.CharacterVitals?.GuardianForces.Any(gf => gf.MoveFindDisabled) == true)
@@ -62,6 +62,14 @@ public static partial class NativePcSaveConverter
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");
         }
         state = ProjectNativeGameplay(state);
+        if (state.CharacterVitals!.Records.Any(record => record.HitPoints.Minimum != record.HitPoints.Maximum))
+        {
+            throw new NotSupportedException("Original FF8 export requires exact current character HP values.");
+        }
+        if (state.ExamTimer is { } exactTimer && exactTimer.Alternatives.Select(alternative => alternative.Remaining).Distinct().Skip(1).Any())
+        {
+            throw new NotSupportedException("Original FF8 export requires one exact saved countdown value.");
+        }
         byte[] block = state.OriginalSave?.Block.ToArray() ?? CreateDefaultBlock();
         void W(int offset, ushort value) => WriteWord(block, Main + offset, value);
         void D(int offset, uint value) => WriteDWord(block, Main + offset, value);
@@ -71,6 +79,10 @@ public static partial class NativePcSaveConverter
         void EventCopy(int address, IEnumerable<byte> bytes) => bytes.ToArray().CopyTo(block, Event + address);
         foreach ((int address, NativeMemoryValue cell) in state.EventMemory.Cells)
         {
+            if (address < 1408 && address + cell.Width > 1280)
+            {
+                throw new NotSupportedException("Original FF8 export cannot project generic event memory aliases into the native world state bank.");
+            }
             if (address >= 1536 || address + cell.Width > 1536 || address is >= 1024 and < 1408)
             {
                 continue;
@@ -83,6 +95,10 @@ public static partial class NativePcSaveConverter
             {
                 block[Event + address + index] = unchecked((byte)((uint)cell.Value.Values[0] >> (8 * index)));
             }
+        }
+        if (state.EventState is { } eventState && eventState.TryGetProperty("Scene", out JsonElement flagScene) && flagScene.TryGetProperty("NativeBattleFlagWrites", out JsonElement writes) && writes.ValueKind == JsonValueKind.Array && writes.GetArrayLength() != 0 && writes[writes.GetArrayLength() - 1].TryGetProperty("PersistentFlags", out JsonElement flagsValue) && flagsValue.TryGetUInt16(out ushort persistentFlags))
+        {
+            EW(182, persistentFlags);
         }
         if (state.CharacterVitals is { } vitals)
         {
@@ -223,6 +239,10 @@ public static partial class NativePcSaveConverter
                 block[Event + 183] = (byte)((block[Event + 183] & ~1) | (flag183 ? 1 : 0));
             }
         }
+        if (state.WorldConfiguration is { } configuration)
+        {
+            block[Event + 86] = configuration.EntityByte;
+        }
         block[Event + 204] = state.DiscProcess?.SavedDisc204 ?? 1;
         D(3200, state.Playtime?.Seconds ?? 0);
         if (state.BattleStatistics is { } statistics)
@@ -299,6 +319,10 @@ public static partial class NativePcSaveConverter
         ExportSavedWorld(block, state);
         ExportLocation(block, state);
         UpdatePreview(block, state);
+        if (originalPlaceId is { } placeId)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(block.AsSpan(388), unchecked((ushort)placeId));
+        }
         return NativePcSaveCodec.Encode(new NativePcSaveData(block));
     }
 
@@ -309,6 +333,8 @@ public static partial class NativePcSaveConverter
         block[1] = (byte)'C';
         block[2] = 0x11;
         block[3] = 1;
+        WriteWord(block, 80, 1);
+        "CRD0"u8.CopyTo(block.AsSpan(82, 4));
         WriteWord(block, 386, 0x08FF);
         FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         void Name(int offset, int subject)
@@ -463,6 +489,16 @@ public static partial class NativePcSaveConverter
                 if (source.TryGetProperty(property, out JsonElement value) && value.TryGetByte(out byte number))
                 {
                     block[Event + offset] = number;
+                }
+            }
+            if (source.TryGetProperty("MusicProcess", out JsonElement process) && process.ValueKind == JsonValueKind.Object)
+            {
+                foreach ((string property, int address) in new[] { ("Requested213", 213), ("Complete214", 214) })
+                {
+                    if (process.TryGetProperty(property, out JsonElement value) && value.TryGetByte(out byte number))
+                    {
+                        block[Event + address] = number;
+                    }
                 }
             }
             if (source.TryGetProperty("WorldMusicSelection", out JsonElement selection) && selection.ValueKind == JsonValueKind.Object && selection.TryGetProperty("Music", out JsonElement music) && music.TryGetByte(out byte musicId))
@@ -635,6 +671,6 @@ public static partial class NativePcSaveConverter
         }
         WriteDWord(block, 396, vitals?.DreamEnabled == true ? state.Economy?.PastGil ?? 0 : state.Economy?.Gil ?? 0);
         WriteDWord(block, 400, state.Playtime?.Seconds ?? 0);
-        WriteDWord(block, 456, state.DiscProcess?.CurrentDiscIndex ?? 0);
+        block[456] = unchecked((byte)(state.DiscProcess?.CurrentDiscIndex ?? 0));
     }
 }

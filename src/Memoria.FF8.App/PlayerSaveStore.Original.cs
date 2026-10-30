@@ -35,7 +35,7 @@ internal sealed partial class PlayerSaveStore
         return bank == 0 ? MemoriaSlotCount : OriginalSlotsPerBank;
     }
 
-    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null)
+    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null)
     {
         if (destinationSlot <= 0 || destinationSlot > TotalSlotCount)
         {
@@ -57,7 +57,7 @@ internal sealed partial class PlayerSaveStore
             {
                 throw new InvalidOperationException("A reviewed conversion state is supported only when copying a Memoria save to original FF8.");
             }
-            Save(destinationSlot, new GameSession(reviewedSource ?? Load(sourceSlot)), validateContinuation, targetSource, allowGuardianForceLoss);
+            Save(destinationSlot, new GameSession(reviewedSource ?? Load(sourceSlot)), validateContinuation, targetSource, allowGuardianForceLoss, originalPlaceId);
         }
         entries.Remove(destination);
     }
@@ -87,7 +87,7 @@ internal sealed partial class PlayerSaveStore
         return state;
     }
 
-    private void SaveOriginal(string path, byte[] bytes, Action<GameState>? validateContinuation)
+    private void SaveOriginal(string path, byte[] bytes, Action<GameState>? validateContinuation, bool refreshPreview = false)
     {
         ValidatePath(path);
         NativePcSaveCodec.Decode(bytes);
@@ -101,7 +101,7 @@ internal sealed partial class PlayerSaveStore
             }
             GameState candidate = LoadOriginal(temporary);
             validateContinuation?.Invoke(candidate);
-            OriginalSavePublication.Publish(temporary, path, overwrite: true);
+            OriginalSavePublication.Publish(temporary, path, overwrite: true, refreshPreview);
             entries.Remove(path);
         }
         finally

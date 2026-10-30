@@ -6,7 +6,10 @@ namespace Memoria.FF8.Assets;
 public readonly record struct WorldFieldSelectionInput(int X, int RawZ, ushort StoryWord, int EntityType);
 public readonly record struct WorldFieldEntry(int Index, short X, short Y, ushort Triangle, ushort FieldId, byte Direction);
 public readonly record struct WorldFieldPredicateEvaluation(int Offset, ushort Opcode, ushort Operand, bool? Passed);
-public sealed record WorldFieldSelection(int ClauseIndex, int ClauseOffset, int InstructionOffset, WorldFieldEntry Entry, IReadOnlyList<WorldFieldPredicateEvaluation> Predicates);
+public sealed record WorldFieldSelection(int ClauseIndex, int ClauseOffset, int InstructionOffset, WorldFieldEntry Entry, IReadOnlyList<WorldFieldPredicateEvaluation> Predicates)
+{
+    public bool ReturnsBeforeMovementProgress { get; init; }
+}
 
 /// <summary>Original WMSET section7/36 selection (545F10/546100/545EA0/54D7E0) and wm2field.tbl packets (4706B0).</summary>
 public sealed partial class WorldFieldEntryReader
@@ -258,7 +261,7 @@ public sealed partial class WorldFieldEntryReader
                             else
                             {
                                 WorldFieldEntry? entry = ReadSelectedPacket(position, executeRuntimeCommand);
-                                return entry is WorldFieldEntry packet ? new WorldFieldSelection(clauseIndex, clauses[clauseIndex], position, packet, trace.ToArray()) : null;
+                                return entry is WorldFieldEntry packet ? new WorldFieldSelection(clauseIndex, clauses[clauseIndex], position, packet, trace.ToArray()) { ReturnsBeforeMovementProgress = sectionIndex == 36 } : null;
                             }
                         }
                         else

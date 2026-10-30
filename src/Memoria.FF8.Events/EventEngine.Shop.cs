@@ -120,7 +120,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native shop cannot commit after its current saved dream/gil selector changed.");
         }
-        NativeEconomy economy = current.Shop.Commit(services.Economy!);
+        NativeEconomy economy = current.Shop.Commit(services.Economy!, NativeItemOrderAliases.From(services));
         NativePartyMenuState nextMenu = current with { Phase = NativePartyMenuPhase.Closing, Callbacks = checked(current.Callbacks + 1) };
         PublishPartyMenuCallback(services.CharacterVitals!, economy, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
         partyMenu = nextMenu;

@@ -30,6 +30,19 @@ public sealed partial class EventEngine
         return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
     }
 
+    private NativeMovementProgressResult? PrepareNativeFieldMovementProgress()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return null;
+        }
+        if (!services.CanStoreNativeEventOwners || Scene.NativeSalaryMovementUnits is not (0 or 3 or 5))
+        {
+            throw new NotSupportedException("Native field movement progress requires its preceding accepted movement sample and atomic owner publication.");
+        }
+        return NativeMovementProgress.Sample(EventMemory, services.CharacterVitals, services.LimitProgress, Scene.Party.Select(value => unchecked((byte)value)).ToArray(), (services as GameSession)?.State.SavedBattleFlags, Scene.NativeSalaryMovementUnits.Value);
+    }
+
     private void ValidateNativePlayerInput(ActorState player)
     {
         if (Scene.RunEnabled && (services.InputConfiguration is null || ButtonInput is null))

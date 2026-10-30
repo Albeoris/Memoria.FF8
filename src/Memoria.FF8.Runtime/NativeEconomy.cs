@@ -49,7 +49,7 @@ public sealed record NativeEconomy
     }
 
     /// <summary>4AD0C0 assigns an unowned battle item the first unused saved display rank.</summary>
-    public NativeEconomy UpdateItemOrder(int itemId)
+    public NativeEconomy UpdateItemOrder(int itemId, NativeItemOrderAliases? aliases = null)
     {
         Validate();
         if (itemId >= 33)
@@ -60,7 +60,7 @@ public sealed record NativeEconomy
         {
             throw new NotSupportedException("Native battle-item ordering would address outside its retained item1..32 permutation.");
         }
-        //The original scan returns on an owned matching row, discarding every prior mask read.
+        // The original scan returns on an owned matching row, discarding every prior mask read.
         if (Items.Any(item => item.ItemId == itemId && item.Count != 0))
         {
             return this;
@@ -75,12 +75,17 @@ public sealed record NativeEconomy
             }
             if (item.ItemId >= 128)
             {
-                //4AD0DA sign-extends IDs; those mask reads precede1CFE77C and require separate saved owners.
-                throw new NotSupportedException("Native battle-item ordering reached a signed inventory ID whose mask source lies before the retained permutation.");
+                byte value = (aliases ?? throw new NotSupportedException("Native signed item-order reads require their canonical saved shop/input projection.")).Read(item.ItemId);
+                used |= 1u << value;
+                continue;
             }
             used |= 1u << order[item.ItemId - 1];
         }
-        int rank = Enumerable.Range(0, 32).First(candidate => (used & 1u << candidate) == 0);
+        int rank = Enumerable.Range(0, 32).FirstOrDefault(candidate => (used & 1u << candidate) == 0, -1);
+        if (rank < 0)
+        {
+            return this;
+        }
         int displaced = Array.IndexOf(order, (byte)rank);
         (order[itemId - 1], order[displaced]) = (order[displaced], order[itemId - 1]);
         return this with { ItemOrder = order };

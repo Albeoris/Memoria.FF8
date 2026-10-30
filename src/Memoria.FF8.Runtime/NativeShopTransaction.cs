@@ -112,13 +112,13 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
         return this with { Gil = Math.Min(unchecked(Gil + income), NativeEconomy.GilCeiling), Counts = Counts.SetItem(itemId, unchecked((byte)(Counts[itemId] - quantity))) };
     }
 
-    public NativeEconomy Commit(NativeEconomy economy)
+    public NativeEconomy Commit(NativeEconomy economy, NativeItemOrderAliases? aliases = null)
     {
         Validate();
-        return CommitCounts(economy, InitOutSha256, Counts, Gil, Past);
+        return CommitCounts(economy, InitOutSha256, Counts, Gil, Past, aliases);
     }
 
-    public static NativeEconomy CommitCounts(NativeEconomy economy, string initOutSha256, ImmutableArray<byte> cache, uint gil, bool past)
+    public static NativeEconomy CommitCounts(NativeEconomy economy, string initOutSha256, ImmutableArray<byte> cache, uint gil, bool past, NativeItemOrderAliases? aliases = null)
     {
         if (cache.IsDefault || cache.Length != 200)
         {
@@ -157,7 +157,7 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
                 throw new NotSupportedException("Native shop commit would write beyond the retained198 physical item pairs.");
             }
             result.Items[destination] = new NativeItemStock((byte)id, counts[id]);
-            result = result.UpdateItemOrder(id);
+            result = result.UpdateItemOrder(id, aliases);
         }
         return past ? result with { PastGil = gil } : result with { Gil = gil };
     }
