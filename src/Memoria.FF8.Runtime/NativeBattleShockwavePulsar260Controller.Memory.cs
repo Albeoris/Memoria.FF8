@@ -131,7 +131,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         NativeBattleShockwavePulsar260Frame current = frame;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Act(sourceAddress), 0, (unchanged, node) =>
         {
-            current = inputs.Execute(current, new NativeBattleShockwavePulsar260ActNode(sourceAddress, node, context20));
+            current = inputs.Execute(current, new NativeBattleShockwavePulsar260ActNode(sourceAddress, node, context20) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, task, node.ResourceOffset) with { ResourceGeneration = ((long)sourceAddress << 32) | (uint)offset } });
             return unchanged;
         });
         current = Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(current, address), offset, advanced.Workspace));

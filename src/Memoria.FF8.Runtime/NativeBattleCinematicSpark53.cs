@@ -115,6 +115,10 @@ public static class NativeBattleCinematicSpark53
             {
                 NativeBattlePilotVisualIdentity particleIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, records, index);
                 primitive = primitive with { PilotGeometry = new(particleIdentity, anchor, anchor, anchor, anchor, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)] } };
+                if (identity.Effect == 258)
+                {
+                    primitive = primitive with { PilotGeometry = primitive.PilotGeometry! with { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } };
+                }
             }
             frame = services.Append(frame, output, ordering, new([new(0, packet.ToImmutableArray(), mask, primitive)], 12));
             StoreByte(record + 24, unchecked((byte)(Byte(record + 24) - 1)));

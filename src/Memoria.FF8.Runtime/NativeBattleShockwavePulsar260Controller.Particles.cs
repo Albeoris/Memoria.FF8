@@ -66,6 +66,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             frame = DrawRandom(frame, out _);
             row = row.Write(12, new byte[] { 0, unchecked((byte)((remaining & 1) != 0 ? -12 : 12)), 0, 80 });
             frame = WriteView(frame, address, row, 16);
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, address, 0);
         }
         return frame;
     }
@@ -94,6 +95,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 frame = WriteWord(frame, address + 4, unchecked((ushort)half));
                 frame = WriteWord(frame, address + 8, unchecked((ushort)(half >> 4)));
                 frame = WriteWord(frame, address + 10, unchecked((ushort)(half >> 2)));
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, address, 0);
             }
         }
         return frame;

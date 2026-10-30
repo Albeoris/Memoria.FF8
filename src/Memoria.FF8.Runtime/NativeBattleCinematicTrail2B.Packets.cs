@@ -98,6 +98,10 @@ public static partial class NativeBattleCinematicTrail2B
             {
                 System.Numerics.Vector2 Offset(uint endpoint, uint center) => new(Word(endpoint) - Word(center), Word(endpoint + 2) - Word(center + 2));
                 primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((int)first.Source) }, first.World, first.World, second.World, second.World, 4) { ScreenOffsets = [Offset(current + 8, current), Offset(current + 12, current), Offset(next + 8, next), Offset(next + 12, next)], DepthDivisor = 4 } };
+                if (identity.Effect == 258)
+                {
+                    primitive = primitive with { PilotGeometry = primitive.PilotGeometry! with { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } };
+                }
             }
             frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], length));
             output = unchecked(output + (uint)length);

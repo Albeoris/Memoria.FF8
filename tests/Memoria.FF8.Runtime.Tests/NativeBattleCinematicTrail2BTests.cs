@@ -97,6 +97,76 @@ public sealed class NativeBattleCinematicTrail2BTests
         Assert.Equal(expected, NativeBattleCinematicTrail2B.JoinAngle(first, second, previous));
     }
 
+    [Fact]
+    public void Effect258_capture_preserves_native_centerline_packets_random_and_zero_payload_during_sampling()
+    {
+        var native = CaptureRun(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+        string[] nativePackets = native.Batches.Select(batch => NativeBattleTestSnapshots.Json(batch)).ToArray();
+        var captured = CaptureRun(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(nativePackets, captured.Batches.Select(batch => NativeBattleTestSnapshots.Json(batch)));
+        Assert.Equal(native.Frame.Random, captured.Frame.Random);
+        Assert.Equal(5, captured.Batches.Count);
+        foreach (NativeBattleGfGeometryBatch batch in captured.Batches)
+        {
+            NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts).Primitive!;
+            Assert.Equal(new[] { 0, 0, 0, 0 }, primitive.VertexPayload4);
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal((ushort)258, geometry.Identity.Effect);
+            Assert.True(geometry.Identity.Generation > 0);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            Assert.Equal(4, geometry.ScreenOffsets.Length);
+            Assert.Equal(geometry.A, geometry.B);
+            Assert.Equal(geometry.C, geometry.D);
+            string beforeSampling = NativeBattleTestSnapshots.Json(captured.Frame);
+            NativeBattlePilotVisualGeometry sampled = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + System.Numerics.Vector3.One }, 0.5f);
+            Assert.Equal(System.Numerics.Vector4.Zero, sampled.SourceDepths);
+            Assert.True(sampled.UseSourceDepths);
+            Assert.Equal(beforeSampling, NativeBattleTestSnapshots.Json(captured.Frame));
+        }
+        Assert.Equal(captured.Batches.Count, captured.Batches.Select(batch => Assert.Single(batch.Attempts).Primitive!.PilotGeometry!.Identity.Primitive).Distinct().Count());
+        var otherCaller = CaptureRun(true, 77);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(otherCaller.Frame));
+        Assert.All(otherCaller.Batches, batch =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.Single(batch.Attempts).Primitive!.PilotGeometry!;
+            Assert.False(geometry.UseSourceDepths);
+            Assert.Null(geometry.SourceDepths);
+        });
+    }
+
+    private static (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches) CaptureRun(bool capture, ushort effect = 258)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(false);
+        List<NativeBattleGfGeometryBatch> batches = [];
+        Dictionary<uint, NativeBattleCinematicTrail2BSample> samples = [];
+        int projected = 0;
+        NativeBattleCinematicTrail2BServices services = new((current, _) => current.WriteTemporaryDword(0xFC, 0x1234), (_, _) => 0xABCD, (_, shape) => Address(shape == 1 ? 0x3100 : 0x3300), current => current, (current, point, output) =>
+        {
+            if (capture)
+            {
+                samples.Add(output, new(new(Word(current, point), Word(current, point + 2), Word(current, point + 4)), point));
+            }
+            current = Dword(current, output, unchecked((uint)(projected * 10)));
+            current = SetWord(current, output + 4, 20);
+            current = SetWord(current, output + 0x10, 3);
+            projected++;
+            return current;
+        }, (current, _, _) => new(current, 0x111111), (current, _, _, batch) =>
+        {
+            batches.Add(batch);
+            return current;
+        });
+        if (capture)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, Address(0x2000), 0);
+            services = services with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(effect, frame.Arena, Address(0x2000), 0), PilotSamples = samples };
+        }
+        return (NativeBattleCinematicTrail2B.Draw(frame, services), batches);
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(bool reverse)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryDword(0x14C, 0x1000).WriteTemporaryDword(0x70, 0);

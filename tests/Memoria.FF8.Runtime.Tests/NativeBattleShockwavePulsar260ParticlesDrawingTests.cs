@@ -147,6 +147,179 @@ public sealed class NativeBattleShockwavePulsar260ParticlesDrawingTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
+    [Theory]
+    [InlineData(0, 2000)]
+    [InlineData(1, 2000)]
+    [InlineData(0, 0)]
+    public void Presentation_puff_keeps_exact_separate_projection_full_native_ledger_and_lazy_fourth(byte extended, int z)
+    {
+        NativeBattleShockwavePulsar260PuffStep plain = Capture(null);
+        NativeBattleShockwavePulsar260PuffStep captured = Capture(new(260, 0x100, 0, 123, 12));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        if (z != 0)
+        {
+            NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+            NativeBattlePilotVisualGeometry geometry = primitive.PilotGeometry!;
+            Assert.Equal(new System.Numerics.Vector3(0, 0, 2000), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(128, 128, 2000), geometry.D);
+            Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 2000), geometry.SourceDepths);
+            Assert.NotNull(geometry.Sprite);
+        }
+        else
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+            Assert.Throws<NotSupportedException>(() => captured.Temporary180.Read(0x62, 2));
+        }
+
+        NativeBattleShockwavePulsar260PuffStep Capture(NativeBattlePilotVisualIdentity? identity)
+        {
+            NativeBattleEffectArena temporary = Temporary(extended, z);
+            if (z == 0)
+            {
+                temporary = temporary.MarkUnknown(0x25, 1).MarkUnknown(0x62, 2);
+            }
+            return NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), temporary, Sprite(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), pilotIdentity: identity);
+        }
+    }
+
+    [Fact]
+    public void Presentation_puff_phase_shape_is_discrete_while_actual_row_origin_moves()
+    {
+        NativeBattlePilotVisualIdentity identity = new(260, 0x100, 0, 123, 12);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleShockwavePulsar260PuffStep first = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), Temporary(0), Sprite(), projection, pilotIdentity: identity);
+        byte[] changed = Sprite().Bytes.ToArray();
+        changed[16] = 10;
+        BinaryPrimitives.WriteInt16LittleEndian(changed.AsSpan(24), 4);
+        NativeBattleEffectArena later = Temporary(0).Write(0x98, BitConverter.GetBytes(100));
+        NativeBattleShockwavePulsar260PuffStep second = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), later, Sprite() with { Bytes = changed.ToImmutableArray() }, projection, pilotIdentity: identity);
+        NativeBattlePilotVisualGeometry a = Assert.Single(first.Batch.Attempts).Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry b = Assert.Single(second.Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(a.Identity, b.Identity);
+        Assert.Equal(0, a.Sprite!.Origin.X);
+        Assert.Equal(100, b.Sprite!.Origin.X);
+        Assert.NotEqual(a.Sprite.LocalA, b.Sprite.LocalA);
+        Assert.Equal(50, NativeBattlePilotVisualGeometry.SampleCorner(a, b, 0, 0.5f).X);
+        Assert.NotEqual(System.Numerics.Vector3.Lerp(a.A, b.A, 0.5f), NativeBattlePilotVisualGeometry.SampleCorner(a, b, 0, 0.5f));
+    }
+
+    [Fact]
+    public void Presentation_covers_all128_native_puff_rows_with_independent_row_birth_identities()
+    {
+        List<NativeBattleGfGeometryBatch> plainBatches = [];
+        List<NativeBattleGfGeometryBatch> capturedBatches = [];
+        NativeBattleShockwavePulsar260Frame plain = Capture(null, plainBatches);
+        NativeBattleShockwavePulsar260Frame captured = Capture(new(260, 0x100, 0, 123, 12), capturedBatches);
+        Assert.Equal(PuffsCount, capturedBatches.Count);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plainBatches), NativeBattleTestSnapshots.Json(capturedBatches));
+        NativeBattlePilotVisualIdentity[] identities = capturedBatches.SelectMany(batch => batch.Attempts).Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).ToArray();
+        Assert.Equal(PuffsCount, identities.Distinct().Count());
+
+        NativeBattleShockwavePulsar260Frame Capture(NativeBattlePilotVisualIdentity? identity, List<NativeBattleGfGeometryBatch> batches)
+        {
+            NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+            for (int index = 0; index < PuffsCount; index++)
+            {
+                int row = PuffsOffset + index * 16;
+                arena = arena.Write(row, BitConverter.GetBytes(SpriteAddress)).Write(row + 10, BitConverter.GetBytes((short)4096)).Write(row + 15, [1]);
+            }
+            return NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffs(Frame(arena), Resources(), Camera, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), (current, batch) =>
+            {
+                batches.Add(batch);
+                return current;
+            }, pilotIdentity: identity);
+        }
+    }
+
+    [Fact]
+    public void Presentation_covers_all64_secondary_rows_and_preserves_full_native_context_and_packets()
+    {
+        List<NativeBattleGfGeometryBatch> plainBatches = [];
+        List<NativeBattleGfGeometryBatch> capturedBatches = [];
+        NativeBattleShockwavePulsar260Frame plain = Capture(null, plainBatches);
+        string nativeFrame = NativeBattleTestSnapshots.Json(plain);
+        string nativeBatches = NativeBattleTestSnapshots.Json(plainBatches);
+        Assert.Equal(SecondaryParticlesCount, plainBatches.Count);
+        Assert.All(plainBatches, batch =>
+        {
+            NativeBattleGeometryPrimitive polygon = Assert.Single(batch.Attempts, attempt => attempt.Primitive is { } primitive && primitive.Words[1] >> 24 == 0x2C).Primitive!;
+            Assert.Equal(new[] { 5000, 5000, 5000, 5000 }, polygon.VertexPayload4);
+            Assert.Null(polygon.PilotGeometry);
+        });
+        NativeBattleShockwavePulsar260Frame captured = Capture(new(260, 0x100, 0, 123, 13), capturedBatches);
+        Assert.Equal(SecondaryParticlesCount, capturedBatches.Count);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeBatches, NativeBattleTestSnapshots.Json(capturedBatches));
+        NativeBattlePilotVisualIdentity[] identities = capturedBatches.SelectMany(batch => batch.Attempts).Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).ToArray();
+        Assert.Equal(SecondaryParticlesCount, identities.Distinct().Count());
+        Assert.All(capturedBatches, batch =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.Single(batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+            Assert.Equal(new System.Numerics.Vector3(500, -2, 3000), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(-300, -2, 3000), geometry.B);
+            Assert.Equal(new System.Numerics.Vector3(500, 398, 3000), geometry.C);
+            Assert.Equal(new System.Numerics.Vector3(-300, 398, 3000), geometry.D);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(5000, 5000, 5000, 5000), geometry.SourceDepths);
+        });
+
+        NativeBattleShockwavePulsar260Frame Capture(NativeBattlePilotVisualIdentity? identity, List<NativeBattleGfGeometryBatch> batches)
+        {
+            NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+            for (int index = 0; index < SecondaryParticlesCount; index++)
+            {
+                int row = SecondaryParticlesOffset + index * 16;
+                arena = arena.Write(row, BitConverter.GetBytes((short)1)).Write(row + 4, BitConverter.GetBytes((short)2048)).Write(row + 6, BitConverter.GetBytes((short)4096)).Write(row + 12, BitConverter.GetBytes(0x2500000u));
+                Assert.Equal((short)1, BinaryPrimitives.ReadInt16LittleEndian(arena.Read(row, 2)));
+            }
+            NativeBattleEffectArena target = NativeBattleEffectArena.Clear().MarkUnknown(0, 36).Write(0, BitConverter.GetBytes(0x1D972C0u)).Write(0x20, BitConverter.GetBytes((short)-3)).Write(0x22, BitConverter.GetBytes((short)-2));
+            NativeBattleShockwavePulsar260Resources resources = Resources() with { ParticleMesh = Mesh(face: true) };
+            int targetReads = 0;
+            int positionReads = 0;
+            NativeBattleShockwavePulsar260Frame frame = Frame(arena);
+            NativeBattleShockwavePulsar260Frame result = NativeBattleShockwavePulsar260ParticlesDrawing.DrawSecondaryParticles(frame, resources, Camera, new(Camera.ReadMatrix(), 100, 160, 108), Constants, address =>
+            {
+                Assert.Equal(0x2500000u, address);
+                targetReads++;
+                return target;
+            }, model =>
+            {
+                Assert.Equal(0x1D972C0u, model);
+                positionReads++;
+                return new(100, 200, 3000);
+            }, (current, batch) =>
+            {
+                batches.Add(batch);
+                return current;
+            }, pilotIdentity: identity);
+            Assert.Equal(SecondaryParticlesCount, targetReads);
+            Assert.Equal(SecondaryParticlesCount, positionReads);
+            Assert.Equal(frame.Memory.Arena!.Read(SecondaryParticlesOffset, SecondaryParticlesCount * 16), result.Memory.Arena!.Read(SecondaryParticlesOffset, SecondaryParticlesCount * 16));
+            Assert.Equal(NativeBattleTemporaryMemory.Address, Read32(result.Staging!, NativeBattleTemporaryMemory.Cursor));
+            return result;
+        }
+    }
+
+    [Theory]
+    [InlineData((byte)0x2C, 2000, 2000)]
+    [InlineData((byte)0x24, 2000, 0)]
+    [InlineData((byte)0, 0, 0)]
+    public void Presentation_retains_opcode_specific_native_puff_depth_sidecars(byte opcode, int firstDepth, int fourthDepth)
+    {
+        byte[] bytes = Sprite().Bytes.ToArray();
+        bytes[19] = opcode;
+        NativeBattleModuleResource source = Sprite() with { Bytes = bytes.ToImmutableArray() };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleShockwavePulsar260PuffStep plain = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), Temporary(0), source, projection);
+        NativeBattleShockwavePulsar260PuffStep captured = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), Temporary(0), source, projection, pilotIdentity: new(260, 0x100, 0, 123, 12));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        Assert.Equal(firstDepth, primitive.VertexPayload4[0]);
+        Assert.Equal(fourthDepth, primitive.VertexPayload4[3]);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), primitive.PilotGeometry!.SourceDepths);
+    }
+
     private const uint SpriteAddress = 0x111CF4C;
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static NativeBattleSummonColors Constants => NativeBattleGteColorInterpolation.CodeConstants45F270;

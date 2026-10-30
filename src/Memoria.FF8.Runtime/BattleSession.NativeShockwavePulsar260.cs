@@ -147,7 +147,7 @@ public sealed partial class BattleSession
                     NativeStage = stageFlags with { Groups = stageFlags.Groups.Select((group, index) => (flags.GroupMask & (1 << index)) != 0 ? group with { Flags = unchecked((byte)((group.Flags & ~flags.ClearMask) | flags.SetMask)) } : group).ToImmutableArray() };
                     return current;
                 case NativeBattleShockwavePulsar260Flash flash:
-                    return Deliver(current, NativeBattleRinoa89FadeDrawing.Draw7040B0(flash.Red, flash.Green, flash.Blue, flash.Factor));
+                    return Deliver(current, NativeBattleRinoa89FadeDrawing.Draw7040B0(flash.Red, flash.Green, flash.Blue, flash.Factor, pilotIdentity: flash.PilotIdentity));
                 case NativeBattleShockwavePulsar260SoundPlay sound:
                     PublishNativeModuleSound(new(sound.Value, sound.Flags, null) { Pan = 128, RawPan = 128, Volume = unchecked((uint)sound.Volume) });
                     return Import(current);
@@ -187,11 +187,11 @@ public sealed partial class BattleSession
                     }
                     uint dispatchAddress = BinaryPrimitives.ReadUInt32LittleEndian(act.Context20.Read(8, 4));
                     ImmutableArray<byte> dispatch = dispatchAddress switch { 0x112D190 => resources.DefaultDispatch, 0x112D1B4 => resources.MainDispatch, _ => throw new NotSupportedException("Shockwave Pulsar requires its original addressed dispatch mask.") };
-                    return NativeBattleShockwavePulsar260ActDrawing.EmitNode(current, resources.Act(act.SourceAddress), act.Node, act.Context20, Camera().CapturePackedView1D97778(), dispatch[act.Node.GeometryIndex], Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its ACT projection."), colors, Deliver);
-                case NativeBattleShockwavePulsar260DrawPuffs:
-                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffs(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its puff projection."), Deliver);
-                case NativeBattleShockwavePulsar260DrawSecondaryParticles:
-                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawSecondaryParticles(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its secondary projection."), colors, address => NativeBattleShockwavePulsar260Controller.ReadView(current, address, 36), pointer => (graphics.Models[Actor(pointer)].Transform ?? throw new NotSupportedException("Shockwave Pulsar requires its target position.")).Position28, Deliver);
+                    return NativeBattleShockwavePulsar260ActDrawing.EmitNode(current, resources.Act(act.SourceAddress), act.Node, act.Context20, Camera().CapturePackedView1D97778(), dispatch[act.Node.GeometryIndex], Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its ACT projection."), colors, Deliver, pilotIdentity: act.PilotIdentity);
+                case NativeBattleShockwavePulsar260DrawPuffs puffs:
+                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffs(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its puff projection."), Deliver, pilotIdentity: puffs.PilotIdentity);
+                case NativeBattleShockwavePulsar260DrawSecondaryParticles secondary:
+                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawSecondaryParticles(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its secondary projection."), colors, address => NativeBattleShockwavePulsar260Controller.ReadView(current, address, 36), pointer => (graphics.Models[Actor(pointer)].Transform ?? throw new NotSupportedException("Shockwave Pulsar requires its target position.")).Position28, Deliver, pilotIdentity: secondary.PilotIdentity);
                 default:
                     throw new NotSupportedException("Shockwave Pulsar selected an unsupported native service.");
             }

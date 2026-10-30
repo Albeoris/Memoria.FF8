@@ -52,6 +52,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 bytes[14] = unchecked((byte)(unchecked(NativeBattleCameraMath.Cosine(angle) * radius) >> 11));
                 bytes[15] = 16;
                 frame = WriteView(frame, puffAddress, NativeBattleEffectArena.Clear().Write(0, bytes), 16);
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, puffAddress, 0);
             }
         }
         int remaining = unchecked(4096 - factor);
@@ -133,7 +134,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             {
                 if ((inputs.ReadModel(linked).Flags0 & 2) != 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)linked, rotation, bodyOffset, currentScale));
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)linked, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), linked) });
                 }
             }
             foreach (int linked in TargetRing(actor, inputs))
@@ -146,7 +147,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         }
         else
         {
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)actor, rotation, bodyOffset, currentScale));
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)actor, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), actor) });
             frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 0, 4));
         }
         frame = Write(frame, address, Read(frame, address).WriteWord(0x10, unchecked((ushort)(age + 1))));

@@ -9,7 +9,7 @@ public static class NativeBattleShockwavePulsar260ActDrawing
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleShockwavePulsar260Frame EmitNode(NativeBattleShockwavePulsar260Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context20, NativeBattlePackedMatrix32 camera, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate)
+    public static NativeBattleShockwavePulsar260Frame EmitNode(NativeBattleShockwavePulsar260Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context20, NativeBattlePackedMatrix32 camera, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -24,7 +24,7 @@ public static class NativeBattleShockwavePulsar260ActDrawing
             retainedView = new(bytes.ToImmutableArray(), known.ToImmutableArray());
         }
         uint morph = checked(frame.State.ReadDword(NativeBattleShockwavePulsar260Profile.WorkingGlobal) + NativeBattleShockwavePulsar260Profile.MorphOffset);
-        NativeBattleShockwavePulsar260ActDrawingStep drawn = Draw(source, node, context20, camera, retainedView, temporary, frame.Memory, morph, NativeBattleShockwavePulsar260Profile.MorphBytes, dispatch, projection, constants);
+        NativeBattleShockwavePulsar260ActDrawingStep drawn = Draw(source, node, context20, camera, retainedView, temporary, frame.Memory, morph, NativeBattleShockwavePulsar260Profile.MorphBytes, dispatch, projection, constants, pilotIdentity: pilotIdentity);
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88) };
         frame = deliverPrivate(frame, drawn.Batch);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 88) };
@@ -32,7 +32,7 @@ public static class NativeBattleShockwavePulsar260ActDrawing
 
     private static NativeBattleFileStaging RequireStaging(NativeBattleShockwavePulsar260Frame frame) => frame.Staging ?? throw new NotSupportedException("Shockwave Pulsar requires its current physical temporary memory.");
 
-    public static NativeBattleShockwavePulsar260ActDrawingStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context20, NativeBattlePackedMatrix32 camera, NativeBattlePackedMatrix32 retainedView, NativeBattleEffectArena temporary88, NativeBattleEffectMemory memory, uint morphAddress, int morphLength, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? localVectorW = null)
+    public static NativeBattleShockwavePulsar260ActDrawingStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context20, NativeBattlePackedMatrix32 camera, NativeBattlePackedMatrix32 retainedView, NativeBattleEffectArena temporary88, NativeBattleEffectMemory memory, uint morphAddress, int morphLength, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -145,10 +145,10 @@ public static class NativeBattleShockwavePulsar260ActDrawing
         memory = memory with { Arena = arena, GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors };
         if (dispatch == (byte)'1')
         {
-            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(memory, source, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W);
+            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(memory, source, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W, pilotIdentity: pilotIdentity);
             return new(drawn.Memory, drawn.Context88, drawn.Batch);
         }
-        var ordinary = NativeBattleDefaultActMesh.Draw(memory, source.Data, source.Address, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W);
+        var ordinary = NativeBattleDefaultActMesh.Draw(memory, source.Data, source.Address, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W, pilotIdentity: pilotIdentity);
         return new(ordinary.Memory, ordinary.Context88, ordinary.Batch);
 
         (NativeBattleVector Vertex, short? W) ReadVertex(int offset)

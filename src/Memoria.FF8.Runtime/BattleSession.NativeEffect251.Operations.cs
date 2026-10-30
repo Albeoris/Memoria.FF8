@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                 int target = NativeEffect301Actor(graphics, body.ModelAddress);
                 NativeBattleActionMatrix world = graphics.Models[target].GeometryWorldMatrix ?? throw new NotSupportedException("Effect251 transformed body requires its actual current world matrix.");
                 NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, inputs.ReadView(frame).ReadMatrix(), NativeBattleEffect251Controller.Vector(body.Angles8), NativeBattleEffect251Controller.Vector(body.Pivot8));
-                graphics = DrawNativeEffectModelContext92(graphics, target, matrix, NativeBattleEffect251Controller.Vector(body.Pivot8), inputs.ReadProjection(frame), -47, 4);
+                graphics = DrawNativeEffectModelContext92(graphics, target, matrix, NativeBattleEffect251Controller.Vector(body.Pivot8), inputs.ReadProjection(frame), -47, 4, pilotIdentity: body.PilotIdentity);
                 return ImportNativeEffect251Frame(frame);
             case NativeBattleEffect251DrawBatch draw:
                 return DeliverNativeEffect251Batch(ref graphics, frame, draw);

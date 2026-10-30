@@ -21,31 +21,31 @@ public static class NativeBattleEffect251Programme
         return frame;
     }
 
-    public static NativeBattleEffect251Step Advance(NativeBattleEffect251Frame frame, uint workspace, uint sourceAddress, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
+    public static NativeBattleEffect251Step Advance(NativeBattleEffect251Frame frame, uint workspace, uint sourceAddress, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int index = NativeBattleEffect251Profile.ProgrammeAddresses.IndexOf(sourceAddress);
         if (index < 0)
         {
             throw new NotSupportedException("Effect251 requires its selected programme workspace.");
         }
-        return AdvanceWorkspace(frame, workspace, NativeBattleEffect251Profile.ProgrammeWorkspaceLengths[index], caller56, resources, inputs);
+        return AdvanceWorkspace(frame, workspace, NativeBattleEffect251Profile.ProgrammeWorkspaceLengths[index], caller56, resources, inputs, pilotIdentity: pilotIdentity);
     }
 
-    public static NativeBattleEffect251Step AdvanceWorkspace(NativeBattleEffect251Frame frame, uint workspace, int length, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
+    public static NativeBattleEffect251Step AdvanceWorkspace(NativeBattleEffect251Frame frame, uint workspace, int length, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         NativeBattleGfAnimationSource source = Source(frame, resources, Current().ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = Current().Advance701970(source, unchecked((int)ReadCurrentPause(frame)), (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
-            frame = DrawNode(frame, source, node, caller56, resources, inputs);
+            frame = DrawNode(frame, source, node, caller56, resources, inputs, pilotIdentity: pilotIdentity is { } owner ? owner with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | workspace } : null);
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, advanced.Workspace);
         return new(frame, advanced.Remaining);
     }
 
-    public static NativeBattleEffect251Frame DrawNode(NativeBattleEffect251Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
+    public static NativeBattleEffect251Frame DrawNode(NativeBattleEffect251Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -157,7 +157,7 @@ public static class NativeBattleEffect251Programme
             (byte[] data, bool[] known) = row.ReadSnapshot(0, 8);
             return (Vector(row), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(6)) : null);
         }
-        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, geometry, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: Row);
+        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, geometry, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: Row, pilotIdentity: pilotIdentity);
         frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, 108);
         frame = inputs.Execute(frame, new NativeBattleEffect251DrawBatch(drawn.Batch));
         return Release(frame, 108);

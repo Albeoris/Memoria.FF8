@@ -39,10 +39,10 @@ public static partial class NativeBattleEffect251Lower
         return Publish(frame, registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } });
     }
 
-    private static NativeBattleEffect251Frame DrawSprite251(NativeBattleEffect251Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs, bool paletteOverride = false)
+    private static NativeBattleEffect251Frame DrawSprite251(NativeBattleEffect251Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs, bool paletteOverride = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = WriteBytes(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowFirstPaletteOverride: paletteOverride);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowFirstPaletteOverride: paletteOverride, pilotIdentity: pilotIdentity is { } owner ? owner with { ResourceGeneration = Dword251(context, 0) } : null);
         frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect251DrawBatch(drawn.Batch));
     }
@@ -116,10 +116,10 @@ public static partial class NativeBattleEffect251Lower
         return slot == 0 ? registers with { Colors = registers.Colors with { NormalInput = data.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } } : registers;
     }
 
-    public static NativeBattleEffect251Frame Fade6020(NativeBattleEffect251Frame frame, int red, int green, int blue, int age, int fadeIn, int hold, int fadeOut, NativeBattleEffect251Inputs inputs)
+    public static NativeBattleEffect251Frame Fade6020(NativeBattleEffect251Frame frame, int red, int green, int blue, int age, int fadeIn, int hold, int fadeOut, NativeBattleEffect251Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int amount = NativeBattleRinoa89FadeDrawing.Factor6FC450(age, fadeIn, hold, fadeOut);
-        return inputs.Execute(frame, new NativeBattleEffect251DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, amount)));
+        return inputs.Execute(frame, new NativeBattleEffect251DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, amount, pilotIdentity: pilotIdentity)));
     }
 
     private static NativeBattleEffect251Step Particle(NativeBattleEffect251Frame frame, uint address, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
@@ -138,7 +138,7 @@ public static partial class NativeBattleEffect251Lower
         {
             context = context.Write(32, [4]);
         }
-        frame = DrawSprite251(frame, temporary, context, resources, inputs, !rising);
+        frame = DrawSprite251(frame, temporary, context, resources, inputs, !rising, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, task));
         frame = Release(frame, 180);
         if (Paused251(frame))
         {
@@ -174,7 +174,7 @@ public static partial class NativeBattleEffect251Lower
         frame = Setup251(frame, TaskView(task, 16, 8), scale, -(scale >> 4), inputs);
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord251(PutWord251(Put251(ReadBytes(frame, temporary, 180), 0, 0x143878C), 4, task.ReadWord(12)), 36, 0);
-        frame = DrawSprite251(frame, temporary, context, resources, inputs);
+        frame = DrawSprite251(frame, temporary, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, task));
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Euler56CD50(new(1024, 0, 0)) with { X = Signed(task, 16), Y = Signed(task, 22), Z = Signed(task, 20) };
         matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale, scale, 4096);
         matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), matrix);
@@ -182,7 +182,7 @@ public static partial class NativeBattleEffect251Lower
         int q = unchecked(Math.Max((int)Signed(task, 18), -2000) << 12) / 2000;
         byte color = unchecked((byte)(160 + q * 160 / 4096));
         context = PutWord251(PutWord251(Put251(ReadBytes(frame, temporary, 180), 0, 0x1438938), 4, task.ReadWord(12)), 36, 12).Write(28, [color, color, color]);
-        frame = DrawSprite251(frame, temporary, context, resources, inputs);
+        frame = DrawSprite251(frame, temporary, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, task));
         frame = Release(frame, 180);
         if (Paused251(frame))
         {
@@ -226,7 +226,7 @@ public static partial class NativeBattleEffect251Lower
         frame = frame with { State = frame.State with { CallbackStackWord58 = 0xB4 } };
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord251(PutWord251(Put251(ReadBytes(frame, temporary, 180), 0, 0x142D744), 4, task.ReadWord(18)), 36, 0);
-        frame = DrawSprite251(frame, temporary, context, resources, inputs);
+        frame = DrawSprite251(frame, temporary, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, task));
         frame = Release(frame, 180);
         if (Paused251(frame))
         {

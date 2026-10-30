@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect251Controller
                 frame = BindProgramme(frame, address + 0x50, 0x142FB40, 0x1C8, resources);
             }
             context = MainContext(ref frame, context, Word251(point, 0), 0, Word251(point, 4), inputs).Write(0x20, BitConverter.GetBytes(0x1438778u)).Write(0x24, BitConverter.GetBytes((ushort)0)).Write(0x28, BitConverter.GetBytes(unchecked((ushort)(local > 10 ? (local - 10) * 4096 / 10 : 0)))).Write(0x34, BitConverter.GetBytes(checked(buffer + 0xA880)));
-            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x142FB40, context, resources, inputs).Frame;
+            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x142FB40, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address))).Frame;
         }
         local = age - 83;
         if ((uint)local < 95)
@@ -70,7 +70,7 @@ public static partial class NativeBattleEffect251Controller
                 frame = WriteModelWord(frame, caster, 0x1E, Signed(Read(frame, address), 0x12) - drop, inputs);
                 frame = WriteModelWord(frame, target, 0x1E, Signed(Read(frame, address), 0x1A) - drop, inputs);
             }
-            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x218, 0x1434430, context, resources, inputs).Frame;
+            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x218, 0x1434430, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address))).Frame;
         }
         local = age - 83;
         if ((uint)local < 31)
@@ -89,7 +89,7 @@ public static partial class NativeBattleEffect251Controller
             }
             NativeBattleModulePoolTask task = Read(frame, address);
             context = MainContext(ref frame, context, Signed(task, 0x38), 0, Signed(task, 0x3C), inputs).Write(0x20, BitConverter.GetBytes(0x145D2B0u)).Write(0x24, BitConverter.GetBytes((ushort)0)).Write(0x26, BitConverter.GetBytes(unchecked((ushort)(local * 32)))).Write(0x28, BitConverter.GetBytes((ushort)0)).Write(0x34, BitConverter.GetBytes(checked(buffer + 0xA880)));
-            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x1433318, context, resources, inputs).Frame;
+            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x1433318, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address))).Frame;
         }
         local = age - 163;
         if ((uint)local < 14)
@@ -102,7 +102,7 @@ public static partial class NativeBattleEffect251Controller
             }
             NativeBattleModulePoolTask task = Read(frame, address);
             context = MainContext(ref frame, context, Signed(task, 0x30), -4096, Signed(task, 0x34), inputs).Write(0x20, BitConverter.GetBytes(0x1438778u)).Write(0x24, BitConverter.GetBytes((ushort)0)).Write(0x28, BitConverter.GetBytes((ushort)0)).Write(0x34, BitConverter.GetBytes(checked(buffer + 0xA880)));
-            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x1432448, context, resources, inputs).Frame;
+            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x50, 0x1432448, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address))).Frame;
             if (ReadCurrentPause(frame) == 0)
             {
                 NativeBattleEffectArena actor = inputs.ReadModelArena9C(frame, target);
@@ -127,13 +127,13 @@ public static partial class NativeBattleEffect251Controller
             }
             NativeBattleModulePoolTask task = Read(frame, address);
             context = MainContext(ref frame, context, Signed(task, 0x18), 0, Signed(task, 0x1C), inputs).Write(0x20, BitConverter.GetBytes(0x1438778u)).Write(0x24, BitConverter.GetBytes((ushort)0)).Write(0x28, BitConverter.GetBytes((ushort)0)).Write(0x34, BitConverter.GetBytes(checked(buffer + 0xA880)));
-            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x218, 0x142D8A4, context, resources, inputs).Frame;
+            frame = NativeBattleEffect251Programme.Advance(frame, address + 0x218, 0x142D8A4, context, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address))).Frame;
         }
         foreach (int start in new[] { 114, 163 })
         {
             if ((uint)(age - start) < 4)
             {
-                frame = NativeBattleEffect251Lower.Fade6020(frame, 255, 255, 255, age - start, 0, 1, 3, inputs);
+                frame = NativeBattleEffect251Lower.Fade6020(frame, 255, 255, 255, age - start, 0, 1, 3, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address), 0x6020));
             }
         }
         local = age - 192;
@@ -162,7 +162,7 @@ public static partial class NativeBattleEffect251Controller
             int midpoint = (Word251(bounds.Output8, 0) + Word251(bounds.Output8, 2)) >> 1;
             NativeBattleEffectArena angles = PutPoint(NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, new(2048, 0, 0));
             NativeBattleEffectArena pivot = PutPoint(point, 0, new(0, unchecked((short)midpoint), 0));
-            frame = inputs.Execute(frame, new NativeBattleEffect251DrawTarget6A2F60(target, angles, pivot));
+            frame = inputs.Execute(frame, new NativeBattleEffect251DrawTarget6A2F60(target, angles, pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address), unchecked((int)target)) });
             frame = inputs.Execute(frame, new NativeBattleEffect251ModelFlags(target, 1, 0xFF, 4));
         }
         else if (local == 27)

@@ -11,7 +11,11 @@ public sealed record NativeBattleEffect251PollStep(NativeBattleEffect251Frame Fr
 
 public sealed partial record NativeBattleEffect251Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect251Frame, uint, int, NativeBattleEffectArena> ReadPhysical, Func<NativeBattleEffect251Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect251Frame, uint, int, int, NativeBattleEffectArena, NativeBattleEffect251PointStep> Point502170, Func<NativeBattleEffect251Frame, uint, NativeBattleEffectArena, NativeBattleEffect251PointStep> Point571400, Func<NativeBattleEffect251Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect251Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect251Frame, short> ReadCameraRoll, Func<NativeBattleEffect251Frame, NativeBattleEffect251PollStep> IsIoBusy534270, Func<NativeBattleEffect251Frame, NativeBattleEffect251Operation, NativeBattleEffect251Frame> Execute);
 
-public abstract record NativeBattleEffect251Operation;
+public abstract record NativeBattleEffect251Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect251UploadTim505E30(uint SourceAddress) : NativeBattleEffect251Operation;
 public sealed record NativeBattleEffect251RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect251Operation;
 public sealed record NativeBattleEffect251WriteModelBytes(uint ModelAddress, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect251Operation;

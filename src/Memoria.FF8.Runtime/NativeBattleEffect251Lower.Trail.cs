@@ -44,6 +44,7 @@ public static partial class NativeBattleEffect251Lower
             ring = ring == 0 ? 6 : ring - 1;
         }
         frame = WriteBytes(frame, address, record, 0x34C);
+        NativeBattleEffect251TrailBirths.Observe(frame.State.Storage, address, Read(frame, address), age % 7, age);
         if (count > 1)
         {
             (frame, uint workAddress) = Allocate(frame, 400);
@@ -65,7 +66,7 @@ public static partial class NativeBattleEffect251Lower
             record = NormalizeDifference251(record, 0x31C, 0x324, 0x33C);
             frame = WriteBytes(frame, address, record, 0x34C);
             frame = LoadMatrix(frame, inputs.ReadView(frame));
-            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, CopyBytes(record, 0x11C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), CopyBytes(record, 0x21C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), scratch, inputs.ReadProjection(frame), inputs.Colors, 0x3A185820);
+            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, CopyBytes(record, 0x11C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), CopyBytes(record, 0x21C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), scratch, inputs.ReadProjection(frame), inputs.Colors, 0x3A185820, pilotIdentity: NativeBattleEffect251TrailBirths.Identity(frame.State.Storage, address, Read(frame, address), age % 7, (age - count + 1) % 7));
             frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary64, 64);
             frame = inputs.Execute(frame, new NativeBattleEffect251DrawBatch(drawn.Batch));
         }
@@ -93,7 +94,7 @@ public static partial class NativeBattleEffect251Lower
         caller = Put251(PutWord251(Put251(caller, 0x20, 0x1438778), 0x24, -128), 0x34, checked(frame.State.ReadDword(0x2556450) + 0xA880));
         caller = PutWord251(caller, 0x28, frame.State.ReadCallbackStackWord58());
         uint source = Dword251(ReadBytes(frame, address + 0x14, 4), 0);
-        NativeBattleEffect251Step result = NativeBattleEffect251Programme.Advance(frame, address + 0x14, source, caller, resources, inputs);
+        NativeBattleEffect251Step result = NativeBattleEffect251Programme.Advance(frame, address + 0x14, source, caller, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address)));
         return new(result.Frame, result.Result == 0 ? 2 : 0);
     }
 }

@@ -228,7 +228,15 @@ public static class NativeBattleCinematicRibbon37
                     {
                         int newerSegment = checked((int)((Segment(Word(state) - strip + 1) - state - 32) / 72));
                         NativeBattlePilotVisualIdentity segmentIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, state + 32, newerSegment, face);
-                        primitive = primitive with { PilotGeometry = new(segmentIdentity, pilotVertices[addresses[0]], pilotVertices[addresses[1]], pilotVertices[addresses[2]], pilotVertices[addresses[3]], 4) };
+                        NativeBattlePilotVisualGeometry geometry = new(segmentIdentity, pilotVertices[addresses[0]], pilotVertices[addresses[1]], pilotVertices[addresses[2]], pilotVertices[addresses[3]], 4);
+                        if (identity.Effect == 229)
+                        {
+                            int olderSegment = checked((int)((segment - state - 32) / 72));
+                            NativeBattlePilotVisualIdentity olderIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, state + 32, olderSegment);
+                            NativeBattlePilotVisualIdentity ownerIdentity = identity with { Primitive = unchecked(identity.Primitive * 397 + newerSegment * 8 + face), ResourceGeneration = unchecked((identity.ResourceGeneration * 397 ^ segmentIdentity.Generation) * 397 ^ olderIdentity.Generation) };
+                            geometry = geometry with { Identity = ownerIdentity, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+                        }
+                        primitive = primitive with { PilotGeometry = geometry };
                     }
                     frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 44));
                     output = unchecked(output + 44);

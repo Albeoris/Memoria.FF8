@@ -65,6 +65,45 @@ public sealed class NativeBattleEffect251ControllerTests
         Assert.Single(operations.OfType<NativeBattleEffect251AdvanceIo534210>());
     }
 
+    [Fact]
+    public void Trail_capture_uses_actual_task_and_both_history_births_without_new_paused_births()
+    {
+        NativeBattleEffect251Frame frame = Create(0) with { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(PauseAddress, new byte[4])) };
+        frame = frame with { Memory = frame.Memory with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() } };
+        frame = InitializeCommonPool(frame, TrailDescriptor);
+        (frame, uint trail) = TrySpawn(frame, TrailDescriptor, 0x6F5B20);
+        List<NativeBattleEffect251Operation> operations = [];
+        int samples = 0;
+        NativeBattleEffect251Inputs inputs = Inputs(operations, false) with
+        {
+            ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108),
+            BoneWorld5FC0 = (current, _, _, _, _) =>
+            {
+                int x = samples++ == 0 ? -100 : 100;
+                NativeBattleEffectArena point = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)x)).Write(2, new byte[2]).Write(4, BitConverter.GetBytes((short)2000));
+                NativeBattleEffectArena direction = NativeBattleEffectArena.Clear().Write(0, new byte[8]).Write(8, BitConverter.GetBytes(-4096));
+                return new(current, direction, point);
+            }
+        };
+        frame = NativeBattleEffect251Lower.Advance(frame, trail, null!, inputs).Frame;
+        Assert.Empty(operations);
+        frame = NativeBattleEffect251Lower.Advance(frame, trail, null!, inputs).Frame;
+        NativeBattlePilotVisualIdentity first = Assert.IsType<NativeBattleEffect251DrawBatch>(Assert.Single(operations)).Batch.Attempts.First(attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!.Identity;
+        Assert.Equal(TrailDescriptor, first.Bank);
+        Assert.Equal((ushort)251, first.Effect);
+        Assert.Equal(0, first.Slot);
+        frame = frame with { Staging = frame.Staging!.Write(PauseAddress, BitConverter.GetBytes(1u)) };
+        operations.Clear();
+        frame = NativeBattleEffect251Lower.Advance(frame, trail, null!, inputs).Frame;
+        NativeBattlePilotVisualIdentity paused = Assert.IsType<NativeBattleEffect251DrawBatch>(Assert.Single(operations)).Batch.Attempts.First(attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!.Identity;
+        Assert.NotEqual(first.ResourceGeneration, paused.ResourceGeneration);
+        operations.Clear();
+        frame = NativeBattleEffect251Lower.Advance(frame, trail, null!, inputs).Frame;
+        NativeBattlePilotVisualIdentity repeated = Assert.IsType<NativeBattleEffect251DrawBatch>(Assert.Single(operations)).Batch.Attempts.First(attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!.Identity;
+        Assert.Equal(paused, repeated);
+        Assert.Equal(new NativeCrtRandomState(42), frame.Random);
+    }
+
     private const uint MainAddress = CommonAddress + 0xA294;
 
     private static NativeBattleEffect251Frame Create(short phase)

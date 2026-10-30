@@ -126,6 +126,27 @@ public sealed class NativeBattleShockwavePulsar260ActDrawingTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
+    [Theory]
+    [InlineData((byte)'1')]
+    [InlineData((byte)'0')]
+    public void Presentation_ACT_preserves_actual_morph_scratch_selected_W_and_native_dispatch(byte dispatch)
+    {
+        NativeBattleShockwavePulsar260ActDrawingStep plain = Capture(null);
+        NativeBattleShockwavePulsar260ActDrawingStep captured = Capture(new(260, 0x100, 0, 123, 9));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(-350, -400, 2000), geometry.A);
+        Assert.False(captured.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
+        Assert.False(captured.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
+
+        NativeBattleShockwavePulsar260ActDrawingStep Capture(NativeBattlePilotVisualIdentity? identity)
+        {
+            NativeBattlePackedMatrix32 camera = Packed(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 });
+            NativeBattleEffectMemory memory = Memory(NativeBattleEffectArena.Clear().MarkUnknown(MorphOffset, MorphBytes));
+            return NativeBattleShockwavePulsar260ActDrawing.Draw(Source(4, 2, true), Node(blend: 2048, second: 1), Context(), camera, camera, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), memory, MorphAddress, MorphBytes, dispatch, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Constants, pilotIdentity: identity);
+        }
+    }
+
     private const uint SourceAddress = 0x112015C;
     private const int MorphOffset = 0x1EE0;
     private const int MorphBytes = 640;

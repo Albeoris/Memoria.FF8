@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -16,7 +16,9 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
         Fixture fixture = new(age);
         NativeBattleShockwavePulsar260TaskStep step = fixture.Advance();
         NativeBattleShockwavePulsar260Flash flash = Assert.Single(fixture.Operations.OfType<NativeBattleShockwavePulsar260Flash>());
-        Assert.Equal(new NativeBattleShockwavePulsar260Flash(255, 255, 255, factor), flash);
+        Assert.Equal(new NativeBattleShockwavePulsar260Flash(255, 255, 255, factor), flash with { PilotIdentity = null });
+        Assert.Equal((ushort)260, flash.PilotIdentity!.Value.Effect);
+        Assert.DoesNotContain("PilotIdentity", JsonSerializer.Serialize(flash));
         Assert.True(fixture.Operations.IndexOf(flash) < fixture.Operations.FindIndex(operation => operation is NativeBattleShockwavePulsar260ActNode));
         Assert.Equal((ushort)(age + 1), NativeBattleShockwavePulsar260Controller.Read(step.Frame, MainAddress).ReadWord(0xC));
     }

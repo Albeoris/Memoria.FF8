@@ -8,7 +8,7 @@ public sealed record NativeBattleShockwavePulsar260PuffStep(NativeBattleEffectMe
 
 public static class NativeBattleShockwavePulsar260ParticlesDrawing
 {
-    public static NativeBattleShockwavePulsar260Frame DrawPuffs(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate)
+    public static NativeBattleShockwavePulsar260Frame DrawPuffs(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(Staging(frame), 180);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 180);
@@ -55,7 +55,7 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
                 temporary = Put(temporary, 0x30, count & 0x7FFFFFFF);
             }
             temporary = Put(temporary, 0x2C, unchecked(sourceAddress + (uint)selected + 4));
-            NativeBattleShockwavePulsar260PuffStep drawn = DrawPuffQuads(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary, source, projection);
+            NativeBattleShockwavePulsar260PuffStep drawn = DrawPuffQuads(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary, source, projection, pilotIdentity: pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 397 + index), ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.Identity(260, arena, checked((uint)(ArenaAddress + offset)), 0).Generation * 397 ^ sourceAddress) } : null);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, drawn.Temporary180, 180) };
             frame = deliverPrivate(frame, drawn.Batch);
             temporary = NativeBattleTemporaryMemory.ReadView(Staging(frame), allocation.Address, 180);
@@ -64,7 +64,7 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(Staging(frame), 180) };
     }
 
-    public static NativeBattleShockwavePulsar260Frame DrawSecondaryParticles(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<uint, NativeBattleEffectArena> readTargetRecord, Func<uint, NativeBattleVector> readModelPosition, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate)
+    public static NativeBattleShockwavePulsar260Frame DrawSecondaryParticles(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<uint, NativeBattleEffectArena> readTargetRecord, Func<uint, NativeBattleVector> readModelPosition, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(Staging(frame), 120);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 120);
@@ -95,7 +95,7 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, current, true, true, Padding(temporary, 18)) };
             temporary = Put(temporary, 0x20, resources.ParticleMesh.Address);
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, new(resources.ParticleMesh.Address, resources.ParticleMesh.Bytes), 0, context, projection, constants);
+            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, new(resources.ParticleMesh.Address, resources.ParticleMesh.Bytes), 0, context, projection, constants, pilotIdentity: pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 397 + index), ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.Identity(260, arena, checked((uint)(ArenaAddress + offset)), 0).Generation * 397 ^ resources.ParticleMesh.Address) } : null);
             temporary = NativeBattleEffectNodeContextMemory.Copy(drawn.Context88, 0, temporary, 0x20, 88);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, temporary, 120) };
             frame = deliverPrivate(frame, drawn.Batch);
@@ -105,7 +105,7 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(Staging(frame), 120) };
     }
 
-    public static NativeBattleShockwavePulsar260PuffStep DrawPuffQuads(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection)
+    public static NativeBattleShockwavePulsar260PuffStep DrawPuffQuads(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = unchecked((int)U32(temporary, 0x30));
         uint address = U32(temporary, 0x2C);
@@ -154,9 +154,14 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
             {
                 temporary = Word(Word(temporary, 0x44 + corner * 8, corners[corner].X), 0x46 + corner * 8, corners[corner].Y);
             }
+            System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[4];
             for (int corner = 0; corner < 3; corner++)
             {
                 registers = NativeBattleGeometry.LoadVector(registers, corner, corners[corner], Padding(temporary, 0x4A + corner * 8));
+                if (world is not null)
+                {
+                    world[corner] = World(corners[corner]);
+                }
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             uint flags = registers.Colors.Flags!.Value;
@@ -184,6 +189,10 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
                 Store32(8 + corner * 8, screens[corner]);
             }
             registers = NativeBattleGeometry.LoadVector(registers, 0, corners[3], Padding(temporary, 0x62));
+            if (world is not null)
+            {
+                world[3] = World(corners[3]);
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             screens[3] = registers.Geometry.Sxy[2]!.Value;
             depths[3] = unchecked((ushort)registers.Geometry.Sz[3]!.Value);
@@ -194,6 +203,14 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? depths.ToImmutableArray() : [depths[1], depths[2], depths[3], 0];
             NativeBattleGeometryPrimitive primitive = new(19, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray(), payload);
+            if (pilotIdentity is { } identity && world is not null)
+            {
+                System.Numerics.Vector3 origin = new(main.X, main.Y, main.Z);
+                System.Numerics.Vector3 Local(int corner) => NativeBattlePilotVisualGeometry.Transform(matrix, corners[corner]) - origin;
+                NativeBattlePilotSpriteGeometry sprite = new(Local(0), Local(1), Local(2), Local(3), NativeBattlePilotVisualGeometry.CameraToWorld(origin, projection), NativeBattlePilotVisualGeometry.CameraToWorldDirection(System.Numerics.Vector3.UnitX, projection), NativeBattlePilotVisualGeometry.CameraToWorldDirection(System.Numerics.Vector3.UnitY, projection), NativeBattlePilotVisualGeometry.CameraToWorldDirection(System.Numerics.Vector3.UnitZ, projection));
+                byte cornerCount = (byte)((opcode & 8) != 0 ? 4 : 3);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, world[0], world[1], world[2], cornerCount == 4 ? world[3] : default, cornerCount) { Sprite = sprite, SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
             if ((temporary.Read(0x25, 1)[0] & 1) != 0)
             {
                 attempts.Add(Attempt(null));
@@ -209,6 +226,12 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
                 attempts.Add(Attempt(primitive));
                 allocated = checked(allocated + 40);
             }
+            System.Numerics.Vector3 World(NativeBattleVector vertex)
+            {
+                NativeBattleActionMatrix loaded = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
+                return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(loaded, vertex), projection);
+            }
+
             NativeBattleGfGeometryAttempt Attempt(NativeBattleGeometryPrimitive? linked) => new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), linked);
             void Store8(int at, byte value)
             {

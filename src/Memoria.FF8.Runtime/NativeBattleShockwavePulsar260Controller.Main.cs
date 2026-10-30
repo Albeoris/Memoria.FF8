@@ -27,7 +27,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             {
                 int flashAge = elapsed - 126;
                 int factor = flashAge < 7 ? ((flashAge + 1) << 12) / 7 : 4096;
-                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260Flash(255, 255, 255, factor));
+                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260Flash(255, 255, 255, factor) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), 0x7040) });
             }
             if (elapsed == 0)
             {
@@ -107,10 +107,10 @@ public static partial class NativeBattleShockwavePulsar260Controller
             }
             frame = AdvanceAct(frame, address, 0x198, 0x1100, 0x112015C, MainContext(frame, y, zOffset, 0x112D1B4, depth), resources, inputs).Frame;
         }
-        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawPuffs());
+        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawPuffs() { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), 0x5055) });
         if (age < 213)
         {
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawSecondaryParticles());
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawSecondaryParticles() { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), 0x5345) });
         }
         frame = UpdatePuffs(frame);
         frame = UpdateSecondaryParticles(frame);
@@ -208,7 +208,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 }
                 if (!linked || (inputs.ReadModel(current).Flags0 & 2) != 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)current, ReadView(frame, record + 0xC, 8), pivot, unchecked((short)ReadWord(frame, record + 0x1C))));
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)current, ReadView(frame, record + 0xC, 8), pivot, unchecked((short)ReadWord(frame, record + 0x1C))) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), index * 8 + current) });
                 }
                 int? next = linked ? inputs.ReadLinkedActor(current) : null;
                 if (next is null || next == actor)

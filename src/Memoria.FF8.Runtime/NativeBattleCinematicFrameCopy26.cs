@@ -8,7 +8,7 @@ public sealed record NativeBattleCinematicFrameCopy26Services(NativeBattleCinema
 /// <summary>A first-frame five-strip capture followed by its grayscale screen overlay.</summary>
 public static class NativeBattleCinematicFrameCopy26
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicFrameCopy26Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicFrameCopy26Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint payload = SlotDword(0xB8);
         frame = frame.WriteTemporaryDword(0x90, unchecked((uint)(int)SignedWord(payload)));
@@ -48,6 +48,10 @@ public static class NativeBattleCinematicFrameCopy26
             packet.Word(16, Screen(left, bottom));
             packet.Word(20, Screen(right, bottom));
             NativeBattlePilotVisualGeometry geometry = new(new(0, 0, 0, 0, strip), new(left, top, 0), new(right, top, 0), new(left, bottom, 0), new(right, bottom, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 };
+            if (pilotIdentity is { } identity)
+            {
+                geometry = geometry with { Identity = identity with { Primitive = unchecked(identity.Primitive * 397 + strip) }, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
+            }
             NativeBattleGeometryPrimitive primitive = new(0, packet.Words(), []) { PilotGeometry = geometry };
             frame = services.Append(frame, output, ordering, new([packet.Attempt(primitive)], 24));
             output = unchecked(output + 24);

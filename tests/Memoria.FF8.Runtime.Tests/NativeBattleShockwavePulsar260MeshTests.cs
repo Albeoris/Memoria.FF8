@@ -114,10 +114,63 @@ public sealed class NativeBattleShockwavePulsar260MeshTests
         Assert.Throws<NotSupportedException>(() => Draw(3, Context(0x32)));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(7)]
+    public void Presentation_custom_mesh_keeps_full_native_ledger_modes_registers_and_actual_selected_source(int group)
+    {
+        List<int> plainReads = [];
+        List<int> capturedReads = [];
+        NativeBattleShockwavePulsar260MeshStep plain = Draw(group, readVertex: offset =>
+        {
+            plainReads.Add(offset);
+            return Vertex(offset);
+        });
+        NativeBattleShockwavePulsar260MeshStep captured = Draw(group, readVertex: offset =>
+        {
+            capturedReads.Add(offset);
+            return Vertex(offset);
+        }, pilotIdentity: new(260, 0x100, 0, 123, 8));
+        Assert.Equal(plainReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive polygon = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = polygon.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(polygon.VertexPayload4.Length == 4 ? new System.Numerics.Vector4(polygon.VertexPayload4[0], polygon.VertexPayload4[1], polygon.VertexPayload4[2], polygon.VertexPayload4[3]) : System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.Null(captured.Batch.Attempts[0].Primitive);
+        Assert.Null(captured.Batch.Attempts[1].Primitive!.PilotGeometry);
+    }
+
+    [Fact]
+    public void Presentation_rejection_never_reads_fourth_source_and_retains_partial_writes()
+    {
+        List<int> plainReads = [];
+        List<int> capturedReads = [];
+        NativeBattleShockwavePulsar260MeshStep plain = Draw(3, memory: Memory(0), readVertex: offset =>
+        {
+            Assert.NotEqual(24, offset);
+            plainReads.Add(offset);
+            return Vertex(offset);
+        });
+        NativeBattleShockwavePulsar260MeshStep captured = Draw(3, memory: Memory(0), readVertex: offset =>
+        {
+            Assert.NotEqual(24, offset);
+            capturedReads.Add(offset);
+            return Vertex(offset);
+        }, pilotIdentity: new(260, 0x100, 0, 123, 8));
+        Assert.Equal(plainReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
     private const uint Address = 0x112015C;
     private const uint SelectedAddress = 0x20E19B8;
 
-    private static NativeBattleShockwavePulsar260MeshStep Draw(int group, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null) => NativeBattleShockwavePulsar260Mesh.Draw(memory ?? Memory(2000), Source(group), 0, context ?? Context(), new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, readVertex ?? Vertex, readW ?? (_ => null));
+    private static NativeBattleShockwavePulsar260MeshStep Draw(int group, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleShockwavePulsar260Mesh.Draw(memory ?? Memory(2000), Source(group), 0, context ?? Context(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, readVertex ?? Vertex, readW ?? (_ => null), pilotIdentity: pilotIdentity);
 
     private static NativeBattleEffectMemory Memory(int z)
     {

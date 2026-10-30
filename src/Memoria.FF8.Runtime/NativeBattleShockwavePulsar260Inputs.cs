@@ -1,6 +1,10 @@
 namespace Memoria.FF8.Runtime;
 
-public abstract record NativeBattleShockwavePulsar260Operation;
+public abstract record NativeBattleShockwavePulsar260Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleShockwavePulsar260BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260RingSequence(byte Actor, byte Sequence) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleShockwavePulsar260Operation;

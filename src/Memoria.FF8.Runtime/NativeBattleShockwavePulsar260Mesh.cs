@@ -8,7 +8,7 @@ public sealed record NativeBattleShockwavePulsar260MeshStep(NativeBattleEffectMe
 
 public static class NativeBattleShockwavePulsar260Mesh
 {
-    public static NativeBattleShockwavePulsar260MeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleShockwavePulsar260MeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context88.Validate();
         if (context88.ExceedsExtent(88) || depthShift > 31)
@@ -63,10 +63,16 @@ public static class NativeBattleShockwavePulsar260Mesh
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, lengths[group]).ToArray();
+                System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[quad ? 4 : 3];
                 for (int corner = 0; corner < 3; corner++)
                 {
                     int offset = VertexOffset(corner);
-                    registers = NativeBattleGeometry.LoadVector(registers, corner, Vertex(offset), VertexW(offset));
+                    NativeBattleVector vertex = Vertex(offset);
+                    registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, VertexW(offset));
+                    if (world is not null)
+                    {
+                        world[corner] = World(vertex);
+                    }
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint projectedFlags = registers.Colors.Flags!.Value;
@@ -90,7 +96,12 @@ public static class NativeBattleShockwavePulsar260Mesh
                     if (corner == 3)
                     {
                         int offset = VertexOffset(corner);
-                        registers = NativeBattleGeometry.LoadVector(registers, 0, Vertex(offset), VertexW(offset));
+                        NativeBattleVector vertex = Vertex(offset);
+                        registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, VertexW(offset));
+                        if (world is not null)
+                        {
+                            world[3] = World(vertex);
+                        }
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Shockwave Pulsar requires its current ZSF4 control."));
@@ -120,6 +131,10 @@ public static class NativeBattleShockwavePulsar260Mesh
                     context88 = Put(context88, 0x2C, unchecked((uint)biased));
                     int bucket = unchecked(tableBaseBucket + (biased >> depthShift));
                     polygon = polygon with { Bucket = bucket };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        polygon = polygon with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)world.Length) { SourceDepths = polygon.VertexPayload4.Length == 4 ? new(polygon.VertexPayload4[0], polygon.VertexPayload4[1], polygon.VertexPayload4[2], polygon.VertexPayload4[3]) : System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+                    }
                     attempts.Add(attempt with { Primitive = null });
                     attempts.Add(Mode(allocated + attempt.PacketLength, 0xE1000220, bucket));
                     attempts.Add(attempt with { WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, attempt.PacketLength).ToImmutableArray(), Primitive = polygon });
@@ -137,6 +152,12 @@ public static class NativeBattleShockwavePulsar260Mesh
                 }
                 cursor = checked(cursor + lengths[group]);
                 context88 = Put(context88, 0x20, checked(source.Address + (uint)cursor));
+
+                System.Numerics.Vector3 World(NativeBattleVector vertex)
+                {
+                    NativeBattleActionMatrix matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
+                    return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                }
 
                 int VertexOffset(int corner) => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4;
             }
