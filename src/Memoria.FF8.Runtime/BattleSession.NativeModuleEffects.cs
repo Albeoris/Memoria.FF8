@@ -4,6 +4,16 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeModuleEffects(NativeBattleGraphicsState graphics)
     {
+        if (graphics.OriginalEffect is { Binding.Effect: 18 } effect)
+        {
+            graphics = graphics with { OriginalEffect = effect with { PresentationPackets = [], PresentationPacketScope = null } };
+        }
+        if (graphics.OriginalEffect is { Binding.Effect: 18, ReturnedDescriptor: not null } && graphics.ModuleEffects.CastingPresentation?.Cinematic18Birth is not > 0)
+        {
+            throw new NotSupportedException("The selected cinematic18 context requires explicit casting presentation provenance; migrate that selected older snapshot before use.");
+        }
+        NativeBattleModuleState restoredModules = graphics.ModuleEffects.RestoreCastingPresentation(actor => graphics.Models[actor].Sequence);
+        graphics = graphics with { ModuleEffects = restoredModules };
         NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags) { Resources = definition.NativeModuleResources, CrtRandom = nativeCrtRandom, ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index), ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount), ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."), TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.Models[index], local), ReadModelTransform = index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.") }, Dispatch, ObserveNativeModuleStack);
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleModuleDraw draw in step.Draws)
@@ -40,7 +50,12 @@ public sealed partial class BattleSession
     private static NativeBattleGraphicsState ScheduleNativeModelEffect(NativeBattleGraphicsState graphics, int index, byte operand)
     {
         (byte effect, uint flags) = NativeBattleModuleState.SelectModelEffect(operand, graphics.Flags);
-        NativeBattleModuleState modules = graphics.ModuleEffects.AppendModelEffect(index, effect);
+        NativeBattleCastingSequenceProvenance? source = null;
+        if (graphics.ModuleEffects.CastingPresentation is { } presentation && presentation.Sequences.TryGetValue(index, out NativeBattleCastingSequenceProvenance? selected) && graphics.Models[index].Sequence == selected.Sequence)
+        {
+            source = selected;
+        }
+        NativeBattleModuleState modules = graphics.ModuleEffects.AppendModelEffect(index, effect, effect == 0 ? source : null);
         return graphics with { ModuleEffects = modules, Flags = flags };
     }
 

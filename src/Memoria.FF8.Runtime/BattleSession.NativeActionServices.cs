@@ -69,9 +69,10 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, int requestedSequence)
+    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, int requestedSequence, NativeBattleCastingSequenceProvenance? presentationSource = null)
     {
-        return ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
+        graphics = ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
+        return graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingSequence(index, presentationSource) };
     }
 
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeOrdinaryGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)

@@ -123,13 +123,14 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null };
-        ImmutableArray<NativeBattleModuleTask> slots = Slots.SetItem(slot, task);
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null, PresentationOwnerEffect = null };
+        NativeBattleModuleState allocation = ForgetCastingSlot(slot);
+        ImmutableArray<NativeBattleModuleTask> slots = allocation.Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
             slots = slots.SetItem(tail, slots[tail] with { Next = slot, UnlinkedNextPointer = null });
         }
-        return (this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot }, slot);
+        return (allocation with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot }, slot);
     }
 
     public NativeBattleModuleState AppendFlash(short rise, short hold, short fall, short intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
@@ -202,7 +203,8 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
             {
                 inputs = inputs with { CrtRandom = crt };
             }
-            draws.AddRange(callback.Draws);
+            NativeBattleModuleTask producer = state.Slots[index];
+            draws.AddRange(producer.PresentationOwnerEffect == 18 ? callback.Draws.Select(draw => draw with { PresentationOwnerEffect = producer.PresentationOwnerEffect, PresentationSourceSlot = index, PresentationSourceKind = producer.Kind, PresentationSource = state.CastingPresentation!.Tasks[index] }) : callback.Draws);
             NativeBattleModuleTask task = state.Slots[index];
             //508420 reads Next after the callback, including any task appended by that callback.
             next = task.Next;

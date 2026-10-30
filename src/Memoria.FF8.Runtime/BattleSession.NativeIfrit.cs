@@ -27,6 +27,10 @@ public sealed partial class BattleSession
         NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header?.ReadByte(0x10) ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
         NativeBattleCinematicEntryStep initialized = presentation is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
+        if (effect.Binding.Effect == 18)
+        {
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.EnterCinematic18Presentation() };
+        }
         return graphics with { OriginalEffect = initialized.Effect };
 
         NativeBattleWaterInitializationResource Resource(int index, uint publication)
@@ -96,7 +100,15 @@ public sealed partial class BattleSession
         NativeBattleCinematicFrame advanced = NativeBattleCinematicController.Advance(profile, new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native cinematic callback requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
-        return graphics with { OriginalEffect = advanced.Effect with { Parameters = outputParameters } };
+        NativeBattleCinematicPacketScope? packetScope = null;
+        if (effect.Binding.Effect == 18)
+        {
+            NativeBattleScriptedEffectMemory core = NativeEffectMemory!.ScriptedEffects!;
+            uint manager = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));
+            uint Read(uint address) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
+            packetScope = new(process.PacketBank!, process.PacketBuffer, checked((int)input.CommonCursor), checked((int)Read(manager + 0x7C)), Read(manager + 0xD4), Read(manager + 0xD8));
+        }
+        return graphics with { OriginalEffect = advanced.Effect with { Parameters = outputParameters, PresentationPacketScope = packetScope } };
 
         NativeBattleWaterInitializationResource CurrentResource(int index, uint publication)
         {
@@ -749,7 +761,18 @@ public sealed partial class BattleSession
                     {
                         return current;
                     }
-                    return NativeBattleCinematicSequence42.Execute(current, program, new((actor, sequence) => graphics = SelectNativeHeaderSequence(graphics, PhysicalActor42(actor), sequence), actor =>
+                    return NativeBattleCinematicSequence42.Execute(current, program, new((actor, sequence) =>
+                    {
+                        byte physical = PhysicalActor42(actor);
+                        NativeBattleCastingSequenceProvenance? source = null;
+                        if (profile.Effect == 18)
+                        {
+                            uint script = CoreDword(current, 0x2797450);
+                            uint file = program.Address;
+                            source = new(NativeBattleCinematicVisualIdentity.Identity(18, current, bank, index), script, file, checked((int)(script - file)), physical, sequence, graphics.ModuleEffects.CastingPresentation!.Cinematic18Birth!.Value);
+                        }
+                        graphics = SelectNativeHeaderSequence(graphics, physical, sequence, source);
+                    }, actor =>
                     {
                         NativeBattleSequenceState state = graphics.Models[PhysicalActor42(actor)].SequenceState ?? throw new NotSupportedException("Native sequence branch requires its current pose state.");
                         return (state.PoseFrame114 ?? throw new NotSupportedException("Native sequence branch requires its pose frame.")) == (state.PoseLimit115 ?? throw new NotSupportedException("Native sequence branch requires its pose limit."));

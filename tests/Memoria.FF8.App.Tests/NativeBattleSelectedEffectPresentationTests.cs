@@ -72,6 +72,9 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         HashSet<string> restoredBoundaries = [];
         int completions = 0;
         int callbacks = 0;
+        bool casting18Seen = false;
+        bool casting18Tail = false;
+        int casting18Frames = 0;
         int peakChanged = 0;
         int renderedCommandCount = 0;
         int renderedSamples = 0;
@@ -89,6 +92,25 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effect == 18 && current.NativeGraphics!.OriginalEffect?.Binding.Effect == 18)
+                {
+                    casting18Frames += NativeBattleControl18CastingAssertions.AssertFrame(current) > 0 ? 1 : 0;
+                    bool casting = NativeBattleControl18CastingAssertions.HasCasting(current);
+                    casting18Seen |= casting;
+                    if (casting && current.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CastingSeed574C80 && System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan(0, 2)) >= 29))
+                    {
+                        casting18Tail = true;
+                        Cold("casting18-tail", current);
+                    }
+                    if (NativeBattleControl18CastingAssertions.HasCasting(prior) && !casting)
+                    {
+                        Cold("casting18-released", current);
+                    }
+                    if (casting && !boundaries.Contains("casting18-live"))
+                    {
+                        Cold("casting18-live", current);
+                    }
+                }
                 if (effect == 7)
                 {
                     recoveryCapturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 7);
@@ -216,13 +238,20 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     }
                 }
                 prior = current;
-                if (Released(current))
+                if (Released(current) && (effect != 18 || !NativeBattleControl18CastingAssertions.HasCasting(current)))
                 {
                     break;
                 }
             }
             Assert.True(callbacks < maximum, "The selected component exceeded its diagnostic callback budget.");
             Assert.Equal(1, completions);
+            if (effect == 18)
+            {
+                Assert.True(casting18Seen, "The original18 sequence30 must reach its authored casting seed and children.");
+                Assert.True(casting18Frames > 1);
+                Assert.True(casting18Tail, "The original18 casting seed must reach its final native counters before release.");
+                Assert.False(NativeBattleControl18CastingAssertions.HasCasting(battle.Capture()));
+            }
             if (effect is 9 or 17 or 18)
             {
                 Assert.True(capturedOwnedFrames > 1, "The standalone component must reach captured physical geometry on multiple callbacks.");
@@ -259,7 +288,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Cold("caller-ready", completed);
             observer?.Write(output!);
             observer314?.Accept(completed, output!);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, Casting18Seen = casting18Seen, Casting18Tail = casting18Tail, Casting18Frames = casting18Frames, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
         }
         catch (Exception error)
         {
@@ -284,7 +313,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 return;
             }
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, null);
-            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8"))
+            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8" or "casting18-live" or "casting18-tail" or "casting18-released"))
             {
                 return;
             }
@@ -296,6 +325,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            if (effect == 18 && cold.NativeGraphics?.OriginalEffect?.Binding.Effect == 18)
+            {
+                NativeBattleControl18CastingAssertions.AssertFrame(cold.Capture());
+                NativeBattleControl18CastingAssertions.AssertFrame(direct.Capture());
+            }
             Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray());
         }
 

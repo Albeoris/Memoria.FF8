@@ -25,6 +25,11 @@ public sealed partial record NativeBattleModuleState
 
     public NativeBattleModuleState AppendModelEffect(int model, byte effect)
     {
+        return AppendModelEffect(model, effect, null);
+    }
+
+    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource)
+    {
         if ((uint)model >= 7)
         {
             throw new InvalidDataException("Native571840 requires its physical graphics model pointer.");
@@ -35,6 +40,15 @@ public sealed partial record NativeBattleModuleState
         }
         NativeBattleModuleKind kind = effect switch { 0 => NativeBattleModuleKind.CastingSeed574C80, 1 => NativeBattleModuleKind.GuardianCastingSeed5742A0, 2 => NativeBattleModuleKind.SpectralCastingSeed5737C0, 3 => NativeBattleModuleKind.SpectralCastingSeed574260, 4 => NativeBattleModuleKind.BoneSpriteSeed573560, 5 => NativeBattleModuleKind.BoneSpriteLargeSeed5736E0, _ => throw new InvalidOperationException() };
         (NativeBattleModuleState state, int slot) = Append(kind);
+        if (effect == 0 && presentationSource is { } source)
+        {
+            NativeBattleControl18Presentation.Validate(source);
+            if (source.Actor != model)
+            {
+                throw new InvalidDataException("Casting source disagrees with its actual model operand.");
+            }
+            state = state.RecordCastingTask(slot, source, source.Identity);
+        }
         byte[] payload = NativeBattleTelemetry.Materialize(1057, state.Slots[slot].Payload.AsSpan());
         W(payload, 0, 0);
         W(payload, 2, 0);
@@ -66,6 +80,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 5; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingRing5753A0);
+                state = state.InheritCastingPresentation(child, task);
                 byte[] bytes = NativeBattleTelemetry.Materialize(1059, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, 0);
                 W(bytes, 2, index * 3);
@@ -78,6 +93,7 @@ public sealed partial record NativeBattleModuleState
                 state = state.StoreCastingPayload(child, bytes);
             }
             (state, int ground) = state.Append(NativeBattleModuleKind.CastingGround575250);
+            state = state.InheritCastingPresentation(ground, task);
             byte[] groundBytes = NativeBattleTelemetry.Materialize(1060, state.Slots[ground].Payload.AsSpan());
             W(groundBytes, 0, 0);
             WriteAnchor(groundBytes.AsSpan(4), anchor);
@@ -90,6 +106,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 6; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingParticle574F50);
+                state = state.InheritCastingPresentation(child, task);
                 byte[] bytes = NativeBattleTelemetry.Materialize(1061, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, 0);
                 W(bytes, 2, Draw(ref crt) % 6 + index);
@@ -122,7 +139,7 @@ public sealed partial record NativeBattleModuleState
             return new(StoreCastingPayload(slot, payload), false, []);
         }
         short phase = S16(task.Payload, 0);
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { Anchor = ReadAnchor(task.Payload, 4), MeshId = 1, MeshRotation = new(0, S16(task.Payload, 12), 0), MeshScale = new(S16(task.Payload, 16), S16(task.Payload, 20), S16(task.Payload, 16)), MeshFlags = phase >= 5 ? 0x2F0u : 0x230u, MeshClut = 0x3867, MeshFade = phase >= 5 ? (phase - 5) * 409 : 0 };
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { Anchor = ReadAnchor(task.Payload, 4), MeshId = 1, MeshRotation = new(0, S16(task.Payload, 12), 0), MeshScale = new(S16(task.Payload, 16), S16(task.Payload, 20), S16(task.Payload, 16)), MeshFlags = phase >= 5 ? 0x2F0u : 0x230u, MeshClut = 0x3867, MeshFade = phase >= 5 ? (phase - 5) * 409 : 0, PilotIdentity = task.PilotIdentity };
         if ((inputs.GraphicsFlags & 1) == 0)
         {
             short speed = S16(task.Payload, 22);
@@ -138,7 +155,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleTask task = Slots[slot];
         byte[] payload = NativeBattleTelemetry.Materialize(1063, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { Anchor = ReadAnchor(task.Payload, 4), MeshId = 7, MeshRotation = new(0, 0, 0), MeshScale = new(S16(task.Payload, 16), 4096, S16(task.Payload, 16)), MeshFlags = phase >= 0 ? 0xF3u : 0x33u, MeshFade = phase >= 0 ? phase * 292 : 0 };
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { Anchor = ReadAnchor(task.Payload, 4), MeshId = 7, MeshRotation = new(0, 0, 0), MeshScale = new(S16(task.Payload, 16), 4096, S16(task.Payload, 16)), MeshFlags = phase >= 0 ? 0xF3u : 0x33u, MeshFade = phase >= 0 ? phase * 292 : 0, PilotIdentity = task.PilotIdentity };
         if ((inputs.GraphicsFlags & 1) == 0)
         {
             short delta = S16(task.Payload, 18);
@@ -165,7 +182,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleVector offset = NativeBattlePoseMatrices.RotateVector(new(0, S16(task.Payload, 12), 0), new(0, 0, unchecked((short)-S16(task.Payload, 20))));
         NativeBattleModuleAnchor anchor = ReadAnchor(task.Payload, 4);
         anchor = anchor with { X = unchecked((short)(anchor.X + offset.X)), Y = unchecked((short)(anchor.Y + offset.Y)), Z = unchecked((short)(anchor.Z + offset.Z)) };
-        NativeBattleModuleDraw draw = CastingSprite(inputs, anchor, S16(task.Payload, 16), unchecked((ushort)S16(task.Payload, 22)));
+        NativeBattleModuleDraw draw = CastingSprite(inputs, anchor, S16(task.Payload, 16), unchecked((ushort)S16(task.Payload, 22)), task.PilotIdentity);
         if ((inputs.GraphicsFlags & 1) != 0)
         {
             return new(this, false, [draw]);
@@ -178,6 +195,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 3; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingTrail5751A0);
+                state = state.InheritCastingPresentation(child, task);
                 byte[] bytes = NativeBattleTelemetry.Materialize(1065, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, Draw(ref crt) % 3 + 4);
                 WriteAnchor(bytes.AsSpan(4), anchor);
@@ -208,7 +226,7 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceCastingTrail(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
-        NativeBattleModuleDraw draw = CastingSprite(inputs, ReadAnchor(task.Payload, 4), S16(task.Payload, 16), unchecked((ushort)(9 - S16(task.Payload, 0))));
+        NativeBattleModuleDraw draw = CastingSprite(inputs, ReadAnchor(task.Payload, 4), S16(task.Payload, 16), unchecked((ushort)(9 - S16(task.Payload, 0))), task.PilotIdentity);
         if ((inputs.GraphicsFlags & 1) != 0)
         {
             return new(this, false, [draw]);
@@ -223,10 +241,20 @@ public sealed partial record NativeBattleModuleState
         return new(StoreCastingPayload(slot, payload), next < 0, [draw]);
     }
 
-    private static NativeBattleModuleDraw CastingSprite(NativeBattleModuleInputs inputs, NativeBattleModuleAnchor anchor, short scale, ushort phase)
+    private static NativeBattleModuleDraw CastingSprite(NativeBattleModuleInputs inputs, NativeBattleModuleAnchor anchor, short scale, ushort phase, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModuleResource resource = inputs.Resources.SingleOrDefault(resource => resource.Id == 5) ?? throw new NotSupportedException("Native casting requires its original5710B0 resource5.");
-        return new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = anchor, Scale = scale, DepthOffset = -(scale >> 3), Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = phase, SpriteFlags = 0 };
+        return new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = anchor, Scale = scale, DepthOffset = -(scale >> 3), Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = phase, SpriteFlags = 0, PilotIdentity = pilotIdentity is { } owner ? owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ resource.Address) } : null };
+    }
+
+    private NativeBattleModuleState InheritCastingPresentation(int slot, NativeBattleModuleTask parent)
+    {
+        if (parent.PresentationOwnerEffect != 18 || parent.PilotIdentity is not { Effect: 18 } owner)
+        {
+            return this;
+        }
+        NativeBattleCastingTaskProvenance source = CastingPresentation!.Tasks[owner.Slot];
+        return RecordCastingTask(slot, source.Source, owner);
     }
 
     private NativeBattleModuleState StoreCastingPayload(int slot, byte[] payload) => this with { Slots = Slots.SetItem(slot, Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1067, payload) }) };

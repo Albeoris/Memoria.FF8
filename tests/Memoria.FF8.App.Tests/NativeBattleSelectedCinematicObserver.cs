@@ -225,8 +225,16 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         Assert.NotNull(before.ByteCursor);
         Assert.Equal(before.PacketBank, after.PacketBank);
         Assert.Equal(before.PacketBuffer, after.PacketBuffer);
-        Assert.All(prior.NativeGraphics!.ModuleEffects.Slots, task => Assert.Equal(0, task.Flags & 1));
-        Assert.All(prior.NativeGraphics.Auxiliary.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleAuxiliaryKind.CameraBlend509930, NativeBattleAuxiliaryKind.StageFade501F90 }));
+        if (selectedEffect == 18)
+        {
+            NativeBattleControl18CastingAssertions.AssertTasks(prior);
+            NativeBattleControl18CastingAssertions.AssertTasks(current);
+        }
+        else
+        {
+            Assert.All(prior.NativeGraphics!.ModuleEffects.Slots, task => Assert.Equal(0, task.Flags & 1));
+        }
+        Assert.All(prior.NativeGraphics!.Auxiliary.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleAuxiliaryKind.CameraBlend509930, NativeBattleAuxiliaryKind.StageFade501F90 }));
         Assert.All(prior.NativeGraphics.Descriptors.Queue, index => Assert.Equal((ushort)104, prior.NativeGraphics.Descriptors.Packets[index].Command));
         Assert.All(prior.NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleDescriptorTaskKind.Pump500CC0, NativeBattleDescriptorTaskKind.Action104, NativeBattleDescriptorTaskKind.DeferredCompletion500BC0 }));
         observations.Add(new
@@ -317,6 +325,10 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         if (snapshot.NativeGraphics?.OriginalEffect is not { } selected || (!includeCompleted && selected.ReturnedDescriptor is not > 0) || snapshot.NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.NativeGraphics.PrimitiveFrame is not { } primitive)
         {
             return [];
+        }
+        if (selected.Binding.Effect == 18)
+        {
+            return NativeBattleControl18CastingAssertions.Commands(snapshot);
         }
         uint manager = Dword(core, 0x27973EC);
         uint arenaStart = Dword(core, manager + 0xD4);

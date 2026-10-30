@@ -17,6 +17,25 @@ public sealed partial class BattleSession
             {
                 continue;
             }
+            NativeBattleStaticMeshResource? meshResource = draw.Kind == NativeBattleModuleDrawKind.Mesh ? definition.NativeEffectMeshes.Single(resource => resource.Id == draw.MeshId) : null;
+            if (draw.PresentationOwnerEffect == 18)
+            {
+                int slot = draw.PresentationSourceSlot ?? throw new InvalidDataException("Casting draw requires its actual native producer slot.");
+                NativeBattleModuleKind kind = draw.PresentationSourceKind ?? throw new InvalidDataException("Casting draw requires its actual native producer kind.");
+                NativeBattleCastingTaskProvenance source = draw.PresentationSource ?? throw new InvalidDataException("Casting draw lost its actual native callback receipt.");
+                if (source.Kind != kind || !NativeBattleControl18Presentation.IsCasting(kind))
+                {
+                    throw new InvalidDataException("Casting draw differs from its explicit native allocation provenance.");
+                }
+                uint resource = draw.Kind switch
+                {
+                    NativeBattleModuleDrawKind.Mesh => meshResource!.Address,
+                    NativeBattleModuleDrawKind.Sprite => draw.Resource!.Address,
+                    _ => throw new InvalidDataException("Casting geometric receipt requires its original mesh or sprite resource.")
+                };
+                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingResource(slot, source, resource) };
+                draw = draw with { PilotIdentity = source.Identity with { ResourceGeneration = unchecked(source.Identity.ResourceGeneration * 397 ^ resource) } };
+            }
             NativeBattleModulePacketBatch batch;
             if (draw.Kind == NativeBattleModuleDrawKind.Flash)
             {
@@ -32,11 +51,24 @@ public sealed partial class BattleSession
                 }
                 batch = draw.Kind switch
                 {
-                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, definition.NativeEffectMeshes.Single(resource => resource.Id == draw.MeshId), projection, 17, 2, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
+                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, meshResource!, projection, 17, 2, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
                     NativeBattleModuleDrawKind.Sprite => NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera!.Roll, 17, 2),
                     NativeBattleModuleDrawKind.Defensive => NativeBattleDefensivePackets.Emit570650(draw, definition.NativeDefensiveResources.Single(resource => resource.Variant == draw.Variant), projection, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native570650 requires its authenticated interpolation constants.")),
                     _ => throw new NotSupportedException($"Native module draw{draw.Kind} requires its original primitive emission contract.")
                 };
+            }
+            if (draw.PresentationOwnerEffect == 18)
+            {
+                NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
+                string bank = draw.NativeEffectArenaOffset.HasValue ? "20DFAB8" : process.PacketBank!;
+                byte buffer = draw.NativeEffectArenaOffset.HasValue ? (byte)0 : process.PacketBuffer;
+                int start = draw.NativeEffectArenaOffset ?? process.ByteCursor!.Value;
+                batch = batch with
+                {
+                    Primitives = batch.Primitives.Select(item => item.Primitive.PilotGeometry is { } visual ? item with { Primitive = item.Primitive with { PilotGeometry = visual with { SourceDepths = new(item.Primitive.VertexPayload4[0], item.Primitive.VertexPayload4[1], item.Primitive.VertexPayload4[2], item.Primitive.VertexPayload4[3]), UseSourceDepths = true } } } : item).ToImmutableArray(),
+                    CapturedWrites = batch.CapturedWrites is { } captured ? NativeBattleCinematicActorPresentation.NativeDepths(captured) : null
+                };
+                graphics = graphics with { OriginalEffect = NativeBattleControl18Presentation.RecordCurrentPackets(graphics.OriginalEffect, graphics.ModuleEffects.CastingPresentation?.Cinematic18Birth, draw.PresentationSource!, bank, buffer, start, batch) };
             }
             graphics = AppendNativeModulePacketBatch(graphics, batch, index, draw.NativeEffectArenaOffset);
         }
