@@ -20,11 +20,31 @@ internal sealed partial class RecreateGame
         diagnosticSlotsAdmissions.Add(receipt);
         DiagnosticSlotsAdmission admission = new(source, receipt);
         List<DiagnosticSlotsRollReceipt> rolls = [];
+        List<DiagnosticSlotsReselectionReceipt> reselections = [];
         DiagnosticSlotsDoReceipt? accepted = null;
         try
         {
             for (int attempt = 1; attempt <= declaration.MaximumRolls; attempt++)
             {
+                if (admission.RequiresReselection)
+                {
+                    DiagnosticSlotsObservation beforeSelection = DiagnosticSlotsObservations.Observe(active, source.BattleInstanceId, source.ActorId, source);
+                    if (beforeSelection.Seconds - start.Seconds > declaration.MaximumSeconds)
+                    {
+                        throw new NotSupportedException("The declared ordinary Slots roll deadline expired.");
+                    }
+                    if (admission.RemainingSelections <= 0)
+                    {
+                        throw new NotSupportedException("The declared ordinary native selection bound is exhausted.");
+                    }
+                    BattleDiagnosticLimitSelection policy = diagnosticDriverRecipe.LimitSelection! with { MaximumSelections = admission.RemainingSelections };
+                    BattleDiagnosticLimitSelectionReceipt selected = active.SelectDiagnosticLimit(source.ActorId, policy);
+                    diagnosticLimitSelections.Add(selected);
+                    DiagnosticSlotsObservation afterSelection = DiagnosticSlotsObservations.Observe(active, source.BattleInstanceId, source.ActorId, source);
+                    DiagnosticSlotsReselectionReceipt transition = new(attempt - 1, beforeSelection, selected, afterSelection);
+                    reselections.Add(transition);
+                    admission.Reselected(transition);
+                }
                 DiagnosticSlotsObservation before = DiagnosticSlotsObservations.Observe(active, source.BattleInstanceId, source.ActorId, source);
                 if (before.Seconds - start.Seconds > declaration.MaximumSeconds)
                 {
@@ -56,7 +76,7 @@ internal sealed partial class RecreateGame
         finally
         {
             // Preserve every observed genuine roll, including a failing validation, without reconstructing the native battle.
-            diagnosticSlotsAdmissions[^1] = receipt with { Rolls = rolls.ToArray(), Do = accepted };
+            diagnosticSlotsAdmissions[^1] = receipt with { Rolls = rolls.ToArray(), Reselections = reselections.ToArray(), Do = accepted };
         }
     }
 }

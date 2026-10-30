@@ -201,6 +201,287 @@ public sealed class DiagnosticSlotsAdmissionTests
         Assert.False(admission.Matched);
     }
 
+    [Fact]
+    public void Batch_two_reselection_replays_each_native_epoch_and_binds_the_independent_selection_log()
+    {
+        var fixture = BatchFixture();
+        string sourceBefore = JsonSerializer.Serialize(fixture.Source);
+        string receiptBefore = JsonSerializer.Serialize(fixture.Receipt);
+        DiagnosticSlotsAdmission admission = ReplayBatch(fixture.Source, fixture.Receipt);
+        Assert.True(admission.Matched);
+        Assert.True(fixture.Receipt.Reselections.Length >= 2);
+        Assert.Equal(fixture.Receipt.Reselections.Length, admission.Receipt.Reselections.Length);
+        Assert.All(admission.Receipt.Reselections, transition =>
+        {
+            Assert.Equal(0, transition.AfterRollIndex % 2);
+            Assert.NotNull(transition.Before.OwnedRoll);
+            Assert.Null(transition.After.OwnedRoll);
+            Assert.True(transition.Before.Ready);
+            Assert.True(transition.After.Ready);
+            Assert.Equal(transition.Before.HitPoints, transition.After.HitPoints);
+            Assert.Equal(transition.Before.LearnedFlags, transition.After.LearnedFlags);
+        });
+        int draws = fixture.Receipt.Selection.CrisisSelections.Length + fixture.Receipt.Reselections.Sum(value => value.Selection.CrisisSelections.Length);
+        Assert.Equal(fixture.Receipt.Policy.MaximumSelections - draws, admission.RemainingSelections);
+        DiagnosticSlotsAdmissionValidation.ValidateReceipt(fixture.Receipt, fixture.Source, fixture.Receipt.Start, fixture.Receipt.Selection, fixture.Receipt.Policy, fixture.Receipt.Input, fixture.Log);
+        Assert.Equal(sourceBefore, JsonSerializer.Serialize(fixture.Source));
+        Assert.Equal(receiptBefore, JsonSerializer.Serialize(fixture.Receipt));
+        Assert.Throws<InvalidDataException>(() => admission.Reselected(fixture.Receipt.Reselections[^1]));
+        Assert.Throws<InvalidDataException>(() => admission.Did(fixture.Receipt.Do!));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("extra")]
+    [InlineData("order")]
+    [InlineData("independent-missing")]
+    [InlineData("independent-random")]
+    [InlineData("independent-owner")]
+    public void Batch_receipt_cannot_substitute_or_omit_ordered_independent_reselection_evidence(string fault)
+    {
+        var fixture = BatchFixture();
+        DiagnosticSlotsAdmissionReceipt receipt = fixture.Receipt;
+        BattleDiagnosticLimitSelectionReceipt[] log = fixture.Log;
+        if (fault == "missing")
+        {
+            receipt = receipt with { Reselections = receipt.Reselections.Skip(1).ToArray() };
+            log = log.Skip(1).ToArray();
+        }
+        else if (fault == "extra")
+        {
+            receipt = receipt with { Reselections = [.. receipt.Reselections, receipt.Reselections[^1]] };
+            log = [.. log, log[^1]];
+        }
+        else if (fault == "order")
+        {
+            receipt = receipt with { Reselections = receipt.Reselections.Reverse().ToArray() };
+            log = log.Reverse().ToArray();
+        }
+        else if (fault == "independent-missing")
+        {
+            log = [];
+        }
+        else if (fault == "independent-random")
+        {
+            log = [log[0] with { RandomAfter = log[0].RandomBefore }, .. log.Skip(1)];
+        }
+        else
+        {
+            log = [log[0] with { ActorId = "squall" }, .. log.Skip(1)];
+        }
+        Assert.Throws<InvalidDataException>(() => DiagnosticSlotsAdmissionValidation.ValidateReceipt(receipt, fixture.Source, fixture.Receipt.Start, fixture.Receipt.Selection, fixture.Receipt.Policy, fixture.Receipt.Input, log));
+    }
+
+    [Theory]
+    [InlineData("early")]
+    [InlineData("late")]
+    [InlineData("actor")]
+    [InlineData("physical")]
+    [InlineData("lifecycle")]
+    [InlineData("restore")]
+    [InlineData("hp")]
+    [InlineData("learned")]
+    [InlineData("callback")]
+    [InlineData("deadline")]
+    [InlineData("random-before")]
+    [InlineData("random-after")]
+    [InlineData("crisis")]
+    [InlineData("failed-clear")]
+    [InlineData("ready")]
+    [InlineData("rejected")]
+    [InlineData("past-first-selection")]
+    public void Reselection_requires_exact_two_misses_same_ready_owner_and_actual_native_refresh(string fault)
+    {
+        var fixture = BatchFixture();
+        DiagnosticSlotsAdmission admission = new(fixture.Source, fixture.Receipt with { Rolls = [], Reselections = [], Do = null });
+        admission.Rolled(fixture.Receipt.Rolls[0]);
+        DiagnosticSlotsReselectionReceipt transition = fixture.Receipt.Reselections[0];
+        if (fault != "early")
+        {
+            admission.Rolled(fixture.Receipt.Rolls[1]);
+            Assert.True(admission.RequiresReselection);
+        }
+        transition = fault switch
+        {
+            "early" => transition with { AfterRollIndex = 1, Before = fixture.Receipt.Rolls[0].After },
+            "late" => transition with { AfterRollIndex = 3 },
+            "actor" => transition with { After = transition.After with { ActorId = "squall" } },
+            "physical" => transition with { After = transition.After with { ActorIndex = 0 } },
+            "lifecycle" => transition with { After = transition.After with { LifecycleId = Guid.NewGuid() } },
+            "restore" => transition with { After = transition.After with { RestoreCount = 1 } },
+            "hp" => transition with { After = transition.After with { HitPoints = 2 } },
+            "learned" => transition with { After = transition.After with { LearnedFlags = 1 } },
+            "callback" => transition with { After = transition.After with { Callback = 11 } },
+            "deadline" => transition with { After = transition.After with { Seconds = 106 } },
+            "random-before" => transition with { Selection = transition.Selection with { RandomBefore = fixture.Receipt.Start.Random } },
+            "random-after" => transition with { Selection = transition.Selection with { RandomAfter = transition.Selection.RandomBefore } },
+            "crisis" => transition with { After = transition.After with { Crisis = 3 } },
+            "failed-clear" => transition with { After = transition.After with { OwnedRoll = transition.Before.OwnedRoll } },
+            "ready" => transition with { After = transition.After with { Ready = false } },
+            "rejected" => transition with { Selection = transition.Selection with { Accepted = false } },
+            "past-first-selection" => transition with { Selection = transition.Selection with { CrisisSelections = transition.Selection.CrisisSelections.Add(4) } },
+            _ => throw new InvalidDataException()
+        };
+        Assert.Throws<InvalidDataException>(() => admission.Reselected(transition));
+        Assert.Empty(admission.Receipt.Reselections);
+    }
+
+    [Fact]
+    public void Batch_boundary_forbids_a_third_roll_without_refresh_and_forbids_the_previous_owned_roll_after_refresh()
+    {
+        var fixture = BatchFixture();
+        DiagnosticSlotsAdmission admission = new(fixture.Source, fixture.Receipt with { Rolls = [], Reselections = [], Do = null });
+        admission.Rolled(fixture.Receipt.Rolls[0]);
+        admission.Rolled(fixture.Receipt.Rolls[1]);
+        Assert.True(admission.RequiresReselection);
+        Assert.Throws<InvalidDataException>(() => admission.Rolled(fixture.Receipt.Rolls[2]));
+        admission.Reselected(fixture.Receipt.Reselections[0]);
+        Assert.False(admission.RequiresReselection);
+        Assert.Throws<InvalidDataException>(() => admission.Reselected(fixture.Receipt.Reselections[0]));
+        Assert.Throws<InvalidDataException>(() => admission.Rolled(fixture.Receipt.Rolls[2] with { Before = fixture.Receipt.Rolls[1].After }));
+        admission.Rolled(fixture.Receipt.Rolls[2]);
+        Assert.Equal(3, admission.Receipt.Rolls.Length);
+    }
+
+    [Fact]
+    public void Selection_budget_is_global_across_initial_selection_and_all_reselection_epochs()
+    {
+        var fixture = BatchFixture();
+        int first = fixture.Receipt.Selection.CrisisSelections.Length;
+        DiagnosticSlotsAdmissionReceipt empty = fixture.Receipt with { Rolls = [], Reselections = [], Do = null, Policy = fixture.Receipt.Policy with { MaximumSelections = first } };
+        DiagnosticSlotsAdmission admission = new(fixture.Source, empty);
+        admission.Rolled(fixture.Receipt.Rolls[0]);
+        admission.Rolled(fixture.Receipt.Rolls[1]);
+        Assert.Equal(0, admission.RemainingSelections);
+        Assert.Throws<InvalidDataException>(() => admission.Reselected(fixture.Receipt.Reselections[0]));
+        int total = first + fixture.Log.Sum(value => value.CrisisSelections.Length);
+        DiagnosticSlotsAdmissionReceipt shortened = fixture.Receipt with { Policy = fixture.Receipt.Policy with { MaximumSelections = total - 1 } };
+        Assert.Throws<InvalidDataException>(() => DiagnosticSlotsAdmissionValidation.ValidateReceipt(shortened, fixture.Source, shortened.Start, shortened.Selection, shortened.Policy, shortened.Input, fixture.Log));
+        DiagnosticSlotsAdmission rollLimited = new(fixture.Source, fixture.Receipt with { Rolls = [], Reselections = [], Do = null, Declaration = fixture.Receipt.Declaration with { MaximumRolls = 2 } });
+        rollLimited.Rolled(fixture.Receipt.Rolls[0]);
+        rollLimited.Rolled(fixture.Receipt.Rolls[1]);
+        rollLimited.Reselected(fixture.Receipt.Reselections[0]);
+        Assert.Throws<InvalidDataException>(() => rollLimited.Rolled(fixture.Receipt.Rolls[2]));
+    }
+
+    [Fact]
+    public void Reselection_is_closed_optin_and_cannot_reuse_a_once_per_turn_crisis_latch()
+    {
+        var fixture = Fixture(1);
+        DiagnosticSlotsDeclaration batch = fixture.Empty.Declaration with { Reselection = DiagnosticSlotsDeclaration.ReadySelfBatch2 };
+        batch.Validate(fixture.Empty.Input, batch.Effect, batch.MagicAction, 16);
+        Assert.Throws<InvalidDataException>(() => (batch with { Reselection = "arbitrary-refresh" }).Validate(fixture.Empty.Input, batch.Effect, batch.MagicAction, 16));
+        Assert.Throws<InvalidDataException>(() => new DiagnosticSlotsAdmission(fixture.Source, fixture.Empty with { Declaration = batch }));
+        DiagnosticSlotsAdmission ordinary = new(fixture.Source, fixture.Empty);
+        Assert.False(ordinary.Receipt.Declaration.ReselectsAfterTwoMisses);
+        Assert.Null(ordinary.Receipt.Declaration.Reselection);
+        Assert.Empty(ordinary.Receipt.Reselections);
+        Assert.False(ordinary.RequiresReselection);
+        Assert.Throws<InvalidDataException>(() => ordinary.Reselected(BatchFixture().Receipt.Reselections[0]));
+    }
+
+    [Fact]
+    public void First_matching_roll_after_multiple_epochs_is_latched_until_its_own_Do_consumes_it()
+    {
+        var fixture = BatchFixture();
+        DiagnosticSlotsAdmission admission = ReplayBatch(fixture.Source, fixture.Receipt, false);
+        Assert.True(admission.Matched);
+        Assert.False(admission.RequiresReselection);
+        Assert.Null(admission.Receipt.Do);
+        Assert.Throws<InvalidDataException>(() => admission.Reselected(fixture.Receipt.Reselections[^1]));
+        Assert.Throws<InvalidDataException>(() => admission.Rolled(fixture.Receipt.Rolls[^1] with { Index = fixture.Receipt.Rolls.Length + 1 }));
+        Assert.Throws<InvalidDataException>(() => admission.Did(fixture.Receipt.Do! with { UsedRoll = fixture.Receipt.Rolls[0].Result }));
+        Assert.Throws<InvalidDataException>(() => admission.Did(fixture.Receipt.Do! with { Before = fixture.Receipt.Rolls[0].After }));
+        admission.Did(fixture.Receipt.Do!);
+        Assert.Null(admission.Receipt.Do!.After.OwnedRoll);
+        Assert.False(admission.Receipt.Do.After.Ready);
+        Assert.Equal((byte)0, admission.Receipt.Do.After.Crisis);
+    }
+
+    private static DiagnosticSlotsAdmission ReplayBatch(DiagnosticSlotsSource source, DiagnosticSlotsAdmissionReceipt receipt, bool doCommand = true)
+    {
+        DiagnosticSlotsAdmission admission = new(source, receipt with { Rolls = [], Reselections = [], Do = null });
+        int next = 0;
+        foreach (DiagnosticSlotsRollReceipt roll in receipt.Rolls)
+        {
+            if (next < receipt.Reselections.Length && receipt.Reselections[next].AfterRollIndex == roll.Index - 1)
+            {
+                admission.Reselected(receipt.Reselections[next++]);
+            }
+            admission.Rolled(roll);
+        }
+        if (doCommand)
+        {
+            admission.Did(receipt.Do!);
+        }
+        return admission;
+    }
+
+    private static (DiagnosticSlotsSource Source, DiagnosticSlotsAdmissionReceipt Receipt, BattleDiagnosticLimitSelectionReceipt[] Log) BatchFixture()
+    {
+        var original = Fixture(1);
+        byte[] spells = original.Source.SpellTable.ToArray();
+        //Synthetic pair1 first matches after multiple epochs; all observations below use the native rule functions.
+        spells[2] = 51;
+        DiagnosticSlotsSource source = original.Source with { SpellTable = spells.ToImmutableArray(), Rules = original.Source.Rules with { SlotsSpellBytes = spells.ToImmutableArray(), SlotsSelectionBytes = original.Source.SelectionTable.Concat(spells).ToImmutableArray() } };
+        source = source with { Fingerprint = source.ComputeFingerprint() };
+        source.Validate();
+        DiagnosticSlotsObservation start = original.Empty.Start with { LimitOncePerTurn = false, RetainedCrisis = null };
+        BattleDiagnosticLimitSelection policy = new(4, 4, 256);
+        (BattleDiagnosticLimitSelectionReceipt selection, DiagnosticSlotsObservation current) = SelectBatch(source, start, policy);
+        List<DiagnosticSlotsRollReceipt> rolls = [];
+        List<DiagnosticSlotsReselectionReceipt> transitions = [];
+        int epochRolls = 0;
+        int selections = selection.CrisisSelections.Length;
+        while (rolls.Count < 256)
+        {
+            if (epochRolls == 2)
+            {
+                (BattleDiagnosticLimitSelectionReceipt next, DiagnosticSlotsObservation after) = SelectBatch(source, current, policy with { MaximumSelections = 256 - selections });
+                transitions.Add(new(rolls.Count, current, next, after));
+                selections += next.CrisisSelections.Length;
+                current = after;
+                epochRolls = 0;
+            }
+            NativeBattleRandomState random = current.Random.Draw(out byte a).Draw(out byte b).Draw(out byte c).Draw(out byte d);
+            BattleNativeSlotsRoll result = NativeBattleSlotsRules.Roll(source.Rules, current.Level, current.Crisis, a, b, c, d);
+            DiagnosticSlotsObservation afterRoll = current with { Seconds = current.Seconds + 0.001, Random = random, OwnedRoll = result };
+            rolls.Add(new(rolls.Count + 1, current, afterRoll, result));
+            current = afterRoll;
+            epochRolls++;
+            if (result.MagicId == source.MagicAction)
+            {
+                break;
+            }
+        }
+        Assert.Equal(source.MagicAction, rolls[^1].Result.MagicId);
+        Assert.Equal(12, rolls.Count);
+        Assert.Equal(5, transitions.Count);
+        Assert.Equal(36, selections);
+        DiagnosticSlotsDoReceipt accepted = new(current, current with { Seconds = current.Seconds + 0.001, OwnedRoll = null, Crisis = 0, RetainedCrisis = null, Ready = false }, source.ActorId, source.ActorId, source.ActorIndex, 16, source.MagicAction, 280, 0x8007, rolls[^1].Result);
+        DiagnosticSlotsAdmissionReceipt receipt = original.Empty with { SourceFingerprint = source.Fingerprint, Declaration = original.Empty.Declaration with { Reselection = DiagnosticSlotsDeclaration.ReadySelfBatch2 }, Start = start, Policy = policy, Selection = selection, Rolls = rolls.ToArray(), Reselections = transitions.ToArray(), Do = accepted };
+        return (source, receipt, transitions.Select(value => value.Selection).ToArray());
+    }
+
+    private static (BattleDiagnosticLimitSelectionReceipt Selection, DiagnosticSlotsObservation After) SelectBatch(DiagnosticSlotsSource source, DiagnosticSlotsObservation before, BattleDiagnosticLimitSelection policy)
+    {
+        NativeBattleRandomState random = before.Random;
+        List<byte> choices = [];
+        for (int index = 0; index < policy.MaximumSelections; index++)
+        {
+            random = random.Draw(out byte draw);
+            byte crisis = NativeBattleLimitRules.CrisisLevel(source.Rules, before.HitPoints, before.MaximumHitPoints, before.Statuses0, before.Statuses1, before.DeadParty, draw, before.LimitsDisabled);
+            choices.Add(crisis);
+            if (crisis >= policy.MinimumCrisisLevel && crisis <= policy.MaximumCrisisLevel)
+            {
+                break;
+            }
+        }
+        Assert.InRange(choices[^1], policy.MinimumCrisisLevel, policy.MaximumCrisisLevel);
+        BattleDiagnosticLimitSelectionReceipt selection = new(source.ActorId, 5, 16, true, choices.ToImmutableArray(), before.Random, random);
+        return (selection, before with { Seconds = before.Seconds + 0.001, Crisis = choices[^1], Random = random, OwnedRoll = null });
+    }
+
     private static BattleInput Input(byte action) => new(BattleInputKind.Action, ActorId: "selphie", TargetId: "selphie", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | action);
 
     private static (DiagnosticSlotsSource Source, DiagnosticSlotsAdmissionReceipt Empty, DiagnosticSlotsRollReceipt Roll, DiagnosticSlotsDoReceipt Do) Fixture(byte rolledMagic = 51)

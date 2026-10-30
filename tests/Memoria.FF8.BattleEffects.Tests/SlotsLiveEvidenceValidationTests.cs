@@ -100,6 +100,218 @@ public sealed class SlotsLiveEvidenceValidationTests
         Assert.Throws<InvalidDataException>(() => Validate(report));
     }
 
+    [Fact]
+    public void Ready_self_batch2_binds_real_reselections_to_the_flat_independent_selection_log()
+    {
+        JsonObject report = Batch2Report();
+        string before = report.ToJsonString();
+        DiagnosticSlotsAdmissionReceipt first = report["slots_admissions"]![0]!.Deserialize<DiagnosticSlotsAdmissionReceipt>(Json)!;
+        Assert.Equal(3, first.Rolls.Length);
+        Assert.Single(first.Reselections);
+        Assert.Equal(2, first.Reselections[0].AfterRollIndex);
+        Assert.Equal(51, first.Rolls[^1].Result.MagicId);
+        Assert.All(first.Rolls.Take(2), roll => Assert.NotEqual(51, roll.Result.MagicId));
+        Validate(report);
+        Assert.Equal(before, report.ToJsonString());
+    }
+
+    [Theory]
+    [InlineData("unknown-mode")]
+    [InlineData("missing-request-mode")]
+    [InlineData("missing-selection-log")]
+    [InlineData("extra-selection-log")]
+    [InlineData("selection-log-order")]
+    [InlineData("missing-transition")]
+    [InlineData("extra-transition")]
+    [InlineData("wrong-after-roll")]
+    [InlineData("foreign-selection-owner")]
+    [InlineData("unchanged-owned-roll")]
+    [InlineData("changed-selection-rng")]
+    [InlineData("global-selection-bound")]
+    [InlineData("native-roll-bound")]
+    [InlineData("deadline")]
+    [InlineData("first-match")]
+    [InlineData("once-per-turn")]
+    public void Batch2_requires_exact_declared_native_transitions_and_global_bounds(string fault)
+    {
+        JsonObject report = Batch2Report();
+        JsonObject receipt = report["slots_admissions"]![0]!.AsObject();
+        JsonObject transition = receipt["reselections"]![0]!.AsObject();
+        JsonArray selections = report["limit_selections"]!.AsArray();
+        switch (fault)
+        {
+            case "unknown-mode":
+                SetDeclaration(report, declaration => declaration with { Reselection = "advance-random" });
+                break;
+            case "missing-request-mode":
+                report["initialization"]!["preparation"]!["driver"]!["slots_admission"]!["reselection"] = null;
+                break;
+            case "missing-selection-log":
+                selections.RemoveAt(1);
+                break;
+            case "extra-selection-log":
+                selections.Add(selections[^1]!.DeepClone());
+                break;
+            case "selection-log-order":
+                JsonNode initial = selections[0]!.DeepClone();
+                selections[0] = selections[1]!.DeepClone();
+                selections[1] = initial;
+                break;
+            case "missing-transition":
+                receipt["reselections"] = new JsonArray();
+                break;
+            case "extra-transition":
+                receipt["reselections"]!.AsArray().Add(transition.DeepClone());
+                break;
+            case "wrong-after-roll":
+                transition["after_roll_index"] = 1;
+                break;
+            case "foreign-selection-owner":
+                transition["selection"]!["actor_id"] = "squall";
+                break;
+            case "unchanged-owned-roll":
+                transition["after"]!["owned_roll"] = transition["before"]!["owned_roll"]!.DeepClone();
+                break;
+            case "changed-selection-rng":
+                transition["after"]!["random"] = transition["before"]!["random"]!.DeepClone();
+                break;
+            case "global-selection-bound":
+                DiagnosticSlotsAdmissionReceipt current = receipt.Deserialize<DiagnosticSlotsAdmissionReceipt>(Json)!;
+                int initialCount = current.Selection.CrisisSelections.Length;
+                report["initialization"]!["preparation"]!["driver"]!["limit_selection"]!["maximum_selections"] = initialCount;
+                foreach (JsonNode? entry in report["slots_admissions"]!.AsArray())
+                {
+                    entry!["policy"]!["maximum_selections"] = initialCount;
+                }
+                break;
+            case "native-roll-bound":
+                SetDeclaration(report, declaration => declaration with { MaximumRolls = 2 });
+                break;
+            case "deadline":
+                transition["after"]!["seconds"] = 106;
+                break;
+            case "first-match":
+                receipt["rolls"]![0]!["result"]!["magic_id"] = 51;
+                receipt["rolls"]![0]!["after"]!["owned_roll"]!["magic_id"] = 51;
+                break;
+            case "once-per-turn":
+                report["executions"]![0]!["slots_start"]!["limit_once_per_turn"] = true;
+                receipt["start"]!["limit_once_per_turn"] = true;
+                break;
+        }
+        Assert.Throws<InvalidDataException>(() => Validate(report));
+    }
+
+    private static void SetDeclaration(JsonObject report, Func<DiagnosticSlotsDeclaration, DiagnosticSlotsDeclaration> change)
+    {
+        DiagnosticSlotsDeclaration declaration = change(report["slots_admission"]!.Deserialize<DiagnosticSlotsDeclaration>(Json)!);
+        report["slots_admission"] = Node(declaration);
+        report["initialization"]!["preparation"]!["driver"]!["slots_admission"] = Node(declaration);
+        foreach (JsonNode? receipt in report["slots_admissions"]!.AsArray())
+        {
+            receipt!["declaration"] = Node(declaration);
+        }
+    }
+
+    // Invented component tables and pure native rule replay, never installed-resource or gameplay evidence.
+    private static JsonObject Batch2Report()
+    {
+        JsonObject report = Report();
+        DiagnosticSlotsSource original = report["initialization"]!["slots_source"]!.Deserialize<DiagnosticSlotsSource>(Json)!;
+        DiagnosticSlotsObservation model = report["executions"]![0]!["slots_start"]!.Deserialize<DiagnosticSlotsObservation>(Json)! with { LimitOncePerTurn = false, RetainedCrisis = null, Crisis = 0 };
+        BattleDiagnosticLimitSelection policy = new(1, 4, 256);
+        byte[] spells = Enumerable.Range(0, 256).Select(index => (byte)(index % 2 == 0 ? 52 : 1)).ToArray();
+        NativeBattleRandomState initial = NativeBattleRandomState.Initialize(0);
+        bool found = false;
+        for (int seed = 0; seed < 256 && !found; seed++)
+        {
+            NativeBattleRandomState candidate = NativeBattleRandomState.Initialize((byte)seed);
+            BattleDiagnosticLimitSelectionReceipt selected = Select(original.Rules, model with { Random = candidate }, policy);
+            NativeBattleRandomState random = selected.RandomAfter!;
+            random = random.Draw(out _).Draw(out _).Draw(out byte first).Draw(out _);
+            random = random.Draw(out _).Draw(out _).Draw(out byte second).Draw(out _);
+            BattleDiagnosticLimitSelectionReceipt next = Select(original.Rules, model with { Random = random }, policy);
+            random = next.RandomAfter!.Draw(out _).Draw(out _).Draw(out byte third).Draw(out _);
+            if ((third & 7) != (first & 7) && (third & 7) != (second & 7))
+            {
+                spells[2 * (third & 7)] = 51;
+                initial = candidate;
+                found = true;
+            }
+        }
+        Assert.True(found);
+        BattleNativeLimitDefinition rules = original.Rules with { SlotsSpellBytes = spells.ToImmutableArray(), SlotsSelectionBytes = original.SelectionTable.Concat(spells).ToImmutableArray() };
+        DiagnosticSlotsSource source = original with { Rules = rules, SpellTable = spells.ToImmutableArray() };
+        source = source with { Fingerprint = source.ComputeFingerprint() };
+        source.Validate();
+        report["initialization"]!["slots_source"] = Node(source);
+        DiagnosticSlotsDeclaration declaration = new(51, 256, 5) { Reselection = DiagnosticSlotsDeclaration.ReadySelfBatch2 };
+        SetDeclaration(report, _ => declaration);
+        report["initialization"]!["preparation"]!["driver"]!["limit_selection"] = Node(policy);
+        List<DiagnosticSlotsAdmissionReceipt> receipts = [];
+        List<BattleDiagnosticLimitSelectionReceipt> selections = [];
+        NativeBattleRandomState currentRandom = initial;
+        for (int execution = 0; execution < 2; execution++)
+        {
+            JsonObject window = report["executions"]![execution]!.AsObject();
+            DiagnosticSlotsObservation start = window["slots_start"]!.Deserialize<DiagnosticSlotsObservation>(Json)! with { LimitOncePerTurn = false, RetainedCrisis = null, Crisis = 0, Random = currentRandom, OwnedRoll = null };
+            BattleDiagnosticLimitSelectionReceipt selected = Select(rules, start, policy);
+            selections.Add(selected);
+            BattleInput input = report["input"]!.Deserialize<BattleInput>(Json)!;
+            DiagnosticSlotsAdmission admission = new(source, new(execution + 1, source.Fingerprint, declaration, input, start, policy, selected));
+            DiagnosticSlotsObservation before = start with { Seconds = start.Seconds + 0.01, Crisis = selected.CrisisSelections[^1], Random = selected.RandomAfter! };
+            for (int index = 1; index <= declaration.MaximumRolls; index++)
+            {
+                NativeBattleRandomState next = before.Random.Draw(out byte a).Draw(out byte b).Draw(out byte c).Draw(out byte d);
+                BattleNativeSlotsRoll rolled = NativeBattleSlotsRules.Roll(rules, before.Level, before.Crisis, a, b, c, d);
+                DiagnosticSlotsObservation after = before with { Random = next, OwnedRoll = rolled, Seconds = before.Seconds + 0.01 };
+                admission.Rolled(new(index, before, after, rolled));
+                if (admission.Matched)
+                {
+                    DiagnosticSlotsObservation afterDo = after with { Seconds = after.Seconds + 0.01, Ready = false, Crisis = 0, RetainedCrisis = null, OwnedRoll = null };
+                    admission.Did(new(after, afterDo, "selphie", "selphie", 1, 16, 51, 280, 0x8007, rolled));
+                    receipts.Add(admission.Receipt);
+                    window["slots_start"] = Node(start);
+                    window["slots_end"] = Node(afterDo with { Callback = start.Callback + 5, SimulationFrame = start.SimulationFrame + 5, Seconds = start.Seconds + 4, LearnedFlags = 1 });
+                    currentRandom = next;
+                    break;
+                }
+                if (admission.RequiresReselection)
+                {
+                    BattleDiagnosticLimitSelectionReceipt selection = Select(rules, after, policy with { MaximumSelections = admission.RemainingSelections });
+                    selections.Add(selection);
+                    DiagnosticSlotsObservation reselected = after with { Seconds = after.Seconds + 0.01, Crisis = selection.CrisisSelections[^1], Random = selection.RandomAfter!, OwnedRoll = null };
+                    admission.Reselected(new(index, after, selection, reselected));
+                    before = reselected;
+                }
+                else
+                {
+                    before = after;
+                }
+            }
+        }
+        Assert.Equal(2, receipts.Count);
+        report["slots_admissions"] = Node(receipts);
+        report["limit_selections"] = Node(selections);
+        return report;
+    }
+
+    private static BattleDiagnosticLimitSelectionReceipt Select(BattleNativeLimitDefinition rules, DiagnosticSlotsObservation before, BattleDiagnosticLimitSelection policy)
+    {
+        NativeBattleRandomState random = before.Random;
+        ImmutableArray<byte>.Builder choices = ImmutableArray.CreateBuilder<byte>();
+        for (int index = 0; index < policy.MaximumSelections; index++)
+        {
+            random = random.Draw(out byte draw);
+            byte crisis = NativeBattleLimitRules.CrisisLevel(rules, before.HitPoints, before.MaximumHitPoints, before.Statuses0, before.Statuses1, before.DeadParty, draw, false);
+            choices.Add(crisis);
+            if (crisis >= policy.MinimumCrisisLevel && crisis <= policy.MaximumCrisisLevel)
+            {
+                return new(before.ActorId, 5, 16, true, choices.ToImmutable(), before.Random, random);
+            }
+        }
+        throw new InvalidDataException("Synthetic component selection exhausted its unchanged native bound.");
+    }
     private static void Validate(JsonObject report)
     {
         using JsonDocument document = JsonDocument.Parse(report.ToJsonString());

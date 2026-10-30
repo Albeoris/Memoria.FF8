@@ -8,6 +8,13 @@ namespace Memoria.FF8.BattleEffects;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticSlotsDeclaration([property: JsonRequired] byte MagicAction, [property: JsonRequired] int MaximumRolls, [property: JsonRequired] double MaximumSeconds)
 {
+    public const string ReadySelfBatch2 = "native-ready-self-after-two-misses";
+
+    public string? Reselection { get; init; }
+
+    [JsonIgnore]
+    public bool ReselectsAfterTwoMisses => Reselection == ReadySelfBatch2;
+
     [JsonIgnore]
     public ushort Effect => MagicAction switch
     {
@@ -20,7 +27,7 @@ public sealed record DiagnosticSlotsDeclaration([property: JsonRequired] byte Ma
 
     public void Validate(BattleInput input, ushort effect, int? action, byte? command)
     {
-        if (MaximumRolls is < 1 or > 256 || !double.IsFinite(MaximumSeconds) || MaximumSeconds <= 0 || MaximumSeconds > 5 || effect != Effect || input.Kind != BattleInputKind.Action || input.Ability != BattleAbility.LimitBreak || input.ActionId != (16 << 16 | MagicAction) || action != MagicAction || command != 16 || string.IsNullOrWhiteSpace(input.ActorId) || string.IsNullOrWhiteSpace(input.TargetId))
+        if (Reselection is not null && Reselection != ReadySelfBatch2 || MaximumRolls is < 1 or > 256 || !double.IsFinite(MaximumSeconds) || MaximumSeconds <= 0 || MaximumSeconds > 5 || effect != Effect || input.Kind != BattleInputKind.Action || input.Ability != BattleAbility.LimitBreak || input.ActionId != (16 << 16 | MagicAction) || action != MagicAction || command != 16 || string.IsNullOrWhiteSpace(input.ActorId) || string.IsNullOrWhiteSpace(input.TargetId))
         {
             throw new InvalidDataException("Slots diagnostics require bounded ordinary rolls and a matching command16 Limit input.");
         }
@@ -64,12 +71,16 @@ public sealed record DiagnosticSlotsObservation([property: JsonRequired] Guid Ba
 public sealed record DiagnosticSlotsRollReceipt([property: JsonRequired] int Index, [property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] BattleNativeSlotsRoll Result);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DiagnosticSlotsReselectionReceipt([property: JsonRequired] int AfterRollIndex, [property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] BattleDiagnosticLimitSelectionReceipt Selection, [property: JsonRequired] DiagnosticSlotsObservation After);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticSlotsDoReceipt([property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] string ActorId, [property: JsonRequired] string TargetId, [property: JsonRequired] byte TargetIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, [property: JsonRequired] ushort TargetMask, [property: JsonRequired] BattleNativeSlotsRoll UsedRoll);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticSlotsAdmissionReceipt([property: JsonRequired] int Execution, [property: JsonRequired] string SourceFingerprint, [property: JsonRequired] DiagnosticSlotsDeclaration Declaration, [property: JsonRequired] BattleInput Input, [property: JsonRequired] DiagnosticSlotsObservation Start, [property: JsonRequired] BattleDiagnosticLimitSelection Policy, [property: JsonRequired] BattleDiagnosticLimitSelectionReceipt Selection)
 {
     public DiagnosticSlotsRollReceipt[] Rolls { get; init; } = [];
+    public DiagnosticSlotsReselectionReceipt[] Reselections { get; init; } = [];
     public DiagnosticSlotsDoReceipt? Do { get; init; }
 }
 
@@ -78,14 +89,19 @@ public sealed class DiagnosticSlotsAdmission
 {
     private readonly DiagnosticSlotsSource source;
     private readonly byte? selectedRetainedCrisis;
+    private int selectionCount;
+    private int lastSelectionAfterRollIndex;
+    private DiagnosticSlotsObservation? reselectionAnchor;
     public DiagnosticSlotsAdmissionReceipt Receipt { get; private set; }
     public bool Matched => Receipt.Rolls.LastOrDefault()?.Result.MagicId == Receipt.Declaration.MagicAction;
+    public bool RequiresReselection => Receipt.Declaration.ReselectsAfterTwoMisses && Receipt.Do is null && !Matched && Receipt.Rolls.Length - lastSelectionAfterRollIndex == 2;
+    public int RemainingSelections => Receipt.Policy.MaximumSelections - selectionCount;
 
     public DiagnosticSlotsAdmission(DiagnosticSlotsSource source, DiagnosticSlotsAdmissionReceipt receipt)
     {
         source.Validate();
         receipt.Declaration.Validate(receipt.Input, receipt.Declaration.Effect, receipt.Declaration.MagicAction, 16);
-        if (receipt.Execution is < 1 or > 2 || receipt.SourceFingerprint != source.Fingerprint || source.MagicAction != receipt.Declaration.MagicAction || receipt.Input.ActorId != source.ActorId || receipt.Rolls.Length != 0 || receipt.Do is not null)
+        if (receipt.Execution is < 1 or > 2 || receipt.SourceFingerprint != source.Fingerprint || source.MagicAction != receipt.Declaration.MagicAction || receipt.Input.ActorId != source.ActorId || receipt.Rolls is null || receipt.Reselections is null || receipt.Rolls.Length != 0 || receipt.Reselections.Length != 0 || receipt.Do is not null)
         {
             throw new InvalidDataException("Slots admission requires a new initialized source-owned execution.");
         }
@@ -94,50 +110,60 @@ public sealed class DiagnosticSlotsAdmission
         ValidatePoint(receipt.Start, false);
         receipt.Policy.Validate();
         BattleDiagnosticLimitSelectionReceipt selection = receipt.Selection;
-        if (!selection.Accepted || selection.ActorId != source.ActorId || selection.CommandOwner != 5 || selection.Command != 16 || selection.CrisisSelections.IsDefaultOrEmpty || selection.CrisisSelections.Length > 256 || selection.CrisisSelections.Any(level => level > 4) || selection.CrisisSelections[^1] == 0 || selection.RandomBefore is null || selection.RandomAfter is null || !RandomEqual(receipt.Start.Random, selection.RandomBefore) || receipt.Start.OwnedRoll is not null || !receipt.Start.Ready)
+        if (receipt.Declaration.ReselectsAfterTwoMisses && receipt.Start.LimitOncePerTurn)
+        {
+            throw new InvalidDataException("Ready-owner reselection requires the original repeatable crisis-selection policy.");
+        }
+        selectedRetainedCrisis = ValidateSelection(receipt.Start, selection, true);
+        selectionCount = selection.CrisisSelections.Length;
+    }
+
+    private byte? ValidateSelection(DiagnosticSlotsObservation before, BattleDiagnosticLimitSelectionReceipt selection, bool initial)
+    {
+        if (selection is null || !selection.Accepted || selection.ActorId != source.ActorId || selection.CommandOwner != 5 || selection.Command != 16 || selection.CrisisSelections.IsDefaultOrEmpty || selection.CrisisSelections.Length > 256 || selection.CrisisSelections.Any(level => level > 4) || selection.CrisisSelections[^1] == 0 || selection.RandomBefore is null || selection.RandomAfter is null || !RandomEqual(before.Random, selection.RandomBefore) || initial && before.OwnedRoll is not null || !before.Ready)
         {
             throw new InvalidDataException("Slots admission does not follow its independent start and real Limit selection.");
         }
         selection.RandomBefore.Validate();
         selection.RandomAfter.Validate();
-        NativeBattleRandomState selectionRandom = receipt.Start.Random;
-        byte? retained = receipt.Start.RetainedCrisis;
+        NativeBattleRandomState selectionRandom = before.Random;
+        byte? retained = before.RetainedCrisis;
         for (int index = 0; index < selection.CrisisSelections.Length; index++)
         {
             byte crisis;
-            if (receipt.Start.LimitOncePerTurn && retained is byte saved)
+            if (before.LimitOncePerTurn && retained is byte saved)
             {
                 crisis = saved;
             }
             else
             {
                 byte draw = 0;
-                if (!receipt.Start.LimitsDisabled && (receipt.Start.Statuses1 & 0x200) == 0)
+                if (!before.LimitsDisabled && (before.Statuses1 & 0x200) == 0)
                 {
                     selectionRandom = selectionRandom.Draw(out draw);
                 }
-                crisis = NativeBattleLimitRules.CrisisLevel(source.Rules, receipt.Start.HitPoints, receipt.Start.MaximumHitPoints, receipt.Start.Statuses0, receipt.Start.Statuses1, receipt.Start.DeadParty, draw, receipt.Start.LimitsDisabled);
-                if (receipt.Start.LimitOncePerTurn)
+                crisis = NativeBattleLimitRules.CrisisLevel(source.Rules, before.HitPoints, before.MaximumHitPoints, before.Statuses0, before.Statuses1, before.DeadParty, draw, before.LimitsDisabled);
+                if (before.LimitOncePerTurn)
                 {
                     retained = crisis;
                 }
             }
-            bool matched = crisis >= receipt.Policy.MinimumCrisisLevel && crisis <= receipt.Policy.MaximumCrisisLevel;
-            if (selection.CrisisSelections[index] != crisis || index + 1 < selection.CrisisSelections.Length && (matched || retained is not null && receipt.Start.LimitOncePerTurn))
+            bool matched = crisis >= Receipt.Policy.MinimumCrisisLevel && crisis <= Receipt.Policy.MaximumCrisisLevel;
+            if (selection.CrisisSelections[index] != crisis || index + 1 < selection.CrisisSelections.Length && (matched || retained is not null && before.LimitOncePerTurn))
             {
                 throw new InvalidDataException("Slots crisis receipt differs from native selection or its first accepted result.");
             }
         }
-        selectedRetainedCrisis = retained;
-        if (selection.CrisisSelections.Length > receipt.Policy.MaximumSelections || selection.CrisisSelections[^1] < receipt.Policy.MinimumCrisisLevel || selection.CrisisSelections[^1] > receipt.Policy.MaximumCrisisLevel || !RandomEqual(selectionRandom, selection.RandomAfter))
+        if (selection.CrisisSelections.Length > Receipt.Policy.MaximumSelections || selection.CrisisSelections[^1] < Receipt.Policy.MinimumCrisisLevel || selection.CrisisSelections[^1] > Receipt.Policy.MaximumCrisisLevel || !RandomEqual(selectionRandom, selection.RandomAfter))
         {
             throw new InvalidDataException("Slots crisis selection changed its source HP/status inputs, random stream or bounds.");
         }
+        return retained;
     }
 
     public void Rolled(DiagnosticSlotsRollReceipt roll)
     {
-        if (Receipt.Do is not null || Matched || roll.Index != Receipt.Rolls.Length + 1 || roll.Index > Receipt.Declaration.MaximumRolls || roll.Result is null)
+        if (Receipt.Do is not null || Matched || RequiresReselection || roll.Index != Receipt.Rolls.Length + 1 || roll.Index > Receipt.Declaration.MaximumRolls || roll.Result is null)
         {
             throw new InvalidDataException("Slots roll exceeded its bound, index or matched-result latch.");
         }
@@ -156,7 +182,7 @@ public sealed class DiagnosticSlotsAdmission
         }
         else
         {
-            RequireSameObservation(Receipt.Rolls[^1].After, roll.Before);
+            RequireSameObservation(reselectionAnchor is not null && lastSelectionAfterRollIndex == Receipt.Rolls.Length ? reselectionAnchor : Receipt.Rolls[^1].After, roll.Before);
         }
         NativeBattleRandomState next = roll.Before.Random.Draw(out byte level).Draw(out byte bucket).Draw(out byte spell).Draw(out byte repetitions);
         BattleNativeSlotsRoll expected = NativeBattleSlotsRules.Roll(source.Rules, roll.Before.Level, roll.Before.Crisis, level, bucket, spell, repetitions);
@@ -165,6 +191,29 @@ public sealed class DiagnosticSlotsAdmission
             throw new InvalidDataException("Slots result or random cursor differs from the four actual native draws.");
         }
         Receipt = Receipt with { Rolls = [.. Receipt.Rolls, roll] };
+    }
+
+    public void Reselected(DiagnosticSlotsReselectionReceipt transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        if (!RequiresReselection || RemainingSelections <= 0 || transition.AfterRollIndex != Receipt.Rolls.Length)
+        {
+            throw new InvalidDataException("Ready-owner reselection is allowed only after exactly two unmatched ordinary rolls.");
+        }
+        ValidatePoint(transition.Before, true);
+        ValidatePoint(transition.After, true);
+        RequireSameObservation(Receipt.Rolls[^1].After, transition.Before);
+        byte? retained = ValidateSelection(transition.Before, transition.Selection, false);
+        if (transition.Selection.CrisisSelections.Length > RemainingSelections)
+        {
+            throw new InvalidDataException("Slots reselections exceeded the global native crisis-selection bound.");
+        }
+        DiagnosticSlotsObservation expected = transition.Before with { Crisis = transition.Selection.CrisisSelections[^1], RetainedCrisis = retained, Random = transition.Selection.RandomAfter!, OwnedRoll = null };
+        RequireSameObservation(expected, transition.After);
+        selectionCount += transition.Selection.CrisisSelections.Length;
+        lastSelectionAfterRollIndex = Receipt.Rolls.Length;
+        reselectionAnchor = transition.After;
+        Receipt = Receipt with { Reselections = [.. Receipt.Reselections, transition] };
     }
 
     public void Did(DiagnosticSlotsDoReceipt accepted)
@@ -213,7 +262,7 @@ public sealed class DiagnosticSlotsAdmission
 
 public static class DiagnosticSlotsAdmissionValidation
 {
-    public static void ValidateReceipt(DiagnosticSlotsAdmissionReceipt receipt, DiagnosticSlotsSource initializedSource, DiagnosticSlotsObservation independentStart, BattleDiagnosticLimitSelectionReceipt actualSelection, BattleDiagnosticLimitSelection policy, BattleInput input)
+    public static void ValidateReceipt(DiagnosticSlotsAdmissionReceipt receipt, DiagnosticSlotsSource initializedSource, DiagnosticSlotsObservation independentStart, BattleDiagnosticLimitSelectionReceipt actualSelection, BattleDiagnosticLimitSelection policy, BattleInput input, IReadOnlyList<BattleDiagnosticLimitSelectionReceipt>? actualReselections = null)
     {
         if (receipt.Policy != policy)
         {
@@ -227,10 +276,29 @@ public static class DiagnosticSlotsAdmissionValidation
                 throw new InvalidDataException("Slots receipt differs from its independent live start, semantic input or Limit selection.");
             }
         }
-        DiagnosticSlotsAdmission replay = new(initializedSource, receipt with { Rolls = [], Do = null });
+        if (receipt.Reselections is null || receipt.Reselections.Length != (actualReselections?.Count ?? 0))
+        {
+            throw new InvalidDataException("Slots reselections differ from their independent actual native selection log.");
+        }
+        DiagnosticSlotsAdmission replay = new(initializedSource, receipt with { Rolls = [], Reselections = [], Do = null });
+        int nextReselection = 0;
         foreach (DiagnosticSlotsRollReceipt roll in receipt.Rolls)
         {
+            if (nextReselection < receipt.Reselections.Length && receipt.Reselections[nextReselection].AfterRollIndex == roll.Index - 1)
+            {
+                DiagnosticSlotsReselectionReceipt transition = receipt.Reselections[nextReselection];
+                if (System.Text.Json.JsonSerializer.Serialize(transition.Selection) != System.Text.Json.JsonSerializer.Serialize(actualReselections![nextReselection]))
+                {
+                    throw new InvalidDataException("Slots reselection changed its actual native selection receipt.");
+                }
+                replay.Reselected(transition);
+                nextReselection++;
+            }
             replay.Rolled(roll);
+        }
+        if (nextReselection != receipt.Reselections.Length)
+        {
+            throw new InvalidDataException("Slots reselection log is extra, duplicated or out of order.");
         }
         replay.Did(receipt.Do ?? throw new InvalidDataException("Slots receipt has no real Do admission."));
     }

@@ -64,10 +64,11 @@ public static class SlotsLiveEvidenceValidation
         BattleDiagnosticLimitSelection policy = driver.GetProperty("limit_selection").Deserialize<BattleDiagnosticLimitSelection>(Json) ?? throw new InvalidDataException("Slots Limit policy is absent.");
         BattleDiagnosticLimitSelectionReceipt[] selections = report.GetProperty("limit_selections").Deserialize<BattleDiagnosticLimitSelectionReceipt[]>(Json) ?? throw new InvalidDataException("Slots Limit selections are absent.");
         JsonElement[] executions = report.GetProperty("executions").EnumerateArray().ToArray();
-        if (selections.Length != expectedExecutions || executions.Length != expectedExecutions)
+        if (receipts.Any(receipt => receipt.Reselections is null) || selections.Length != expectedExecutions + receipts.Sum(receipt => receipt.Reselections.Length) || executions.Length != expectedExecutions)
         {
-            throw new InvalidDataException("Slots requires exactly two actual Limit selections and scored executions.");
+            throw new InvalidDataException("Slots requires its exact actual initial and reselection log and scored executions.");
         }
+        int selectionIndex = 0;
         for (int index = 0; index < expectedExecutions; index++)
         {
             JsonElement execution = executions[index];
@@ -86,7 +87,10 @@ public static class SlotsLiveEvidenceValidation
             {
                 throw new InvalidDataException("Slots admission anchor differs from independent execution/actor lineage.");
             }
-            DiagnosticSlotsAdmissionValidation.ValidateReceipt(receipt, source, anchor, selections[index], policy, input);
+            BattleDiagnosticLimitSelectionReceipt initialSelection = selections[selectionIndex++];
+            BattleDiagnosticLimitSelectionReceipt[] reselections = selections.Skip(selectionIndex).Take(receipt.Reselections.Length).ToArray();
+            selectionIndex += reselections.Length;
+            DiagnosticSlotsAdmissionValidation.ValidateReceipt(receipt, source, anchor, initialSelection, policy, input, reselections);
             DiagnosticSlotsDoReceipt accepted = receipt.Do!;
             if (accepted.After.Callback > execution.GetProperty("end_callback").GetInt64())
             {
