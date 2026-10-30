@@ -1026,7 +1026,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(state.RootBankStorage);
                 Assert.NotNull(state.ChildBankStorage);
                 Assert.Equal(0u, state.ReadDword(NativeBattleAdditional181Profile.WorkingGlobal));
-                additional181Observations.Add(new { Boundary = "original-caster-and-target", Caster = source.NativeGraphics.Models[0], Target = source.NativeGraphics.Models[3] });
+                additional181Observations.Add(new { Boundary = "original-caster-and-target", Caster = NativeBattleStorageSnapshots.Capture(source.NativeGraphics.Models[0]), Target = NativeBattleStorageSnapshots.Capture(source.NativeGraphics.Models[3]) });
             }
             if (effectId == 182)
             {
@@ -4184,7 +4184,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         string? phase = age switch { 1 => "after-main-old0-bone-XYZ", 4 => "before-main-old4-mouth", 6 => "mouth-bursts-completed", 14 => "before-main-old14-flash", 16 => "after-main-old15-anchor", 17 => "rings-and-particles-started", 38 => "before-main-old38-single-contact", 50 => "before-main-old50-retire", _ => null };
                         if (phase is not null && additional181Boundaries.Add(phase))
                         {
-                            additional181Observations.Add(new { Boundary = phase, Main = main });
+                            additional181Observations.Add(new { Boundary = phase, Main = NativeBattleStorageSnapshots.Capture(main) });
                             ColdNext(phase, current);
                         }
                         if (age == 1)
@@ -4223,7 +4223,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         if (row >= 0 && additional181ParticleFlags.Add(flag))
                         {
                             uint address = NativeBattleAdditional181Profile.ParticleBase + (uint)(row * 24);
-                            additional181Observations.Add(new { Boundary = "shared-particle-flag" + flag, Row = row, Bytes = state.ReadView(address, 24) });
+                            additional181Observations.Add(new { Boundary = "shared-particle-flag" + flag, Row = row, Bytes = NativeBattleStorageSnapshots.Capture(state.ReadView(address, 24)) });
                             ColdNext("shared-particle-flag" + flag, current);
                         }
                     }
@@ -4234,7 +4234,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         {
                             additional181FlashSeen = true;
                             Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(flash.Payload.AsSpan()));
-                            additional181Observations.Add(new { Boundary = "native-flash-0-1-4-255", Flash = flash });
+                            additional181Observations.Add(new { Boundary = "native-flash-0-1-4-255", Flash = NativeBattleStorageSnapshots.Capture(flash) });
                             ColdNext("native-flash-queued", current);
                         }
                         if (additional181FlashSeen && (flash.Flags & 1) == 0 && !additional181FlashCompleted)
@@ -7593,7 +7593,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(additional181FlashCompleted);
                 Assert.DoesNotContain(completed.NativeGraphics!.ModuleEffects.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CriticalFlash571300);
                 Assert.False(stageChanged);
-                File.WriteAllText(Path.Combine(output!, "additional181-native-observations.json"), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new { Boundaries = additional181Boundaries.Order().ToArray(), BodyAges = additional181BodyAges.Order().ToArray(), Callbacks = additional181Callbacks.Order().ToArray(), EffectArenaBanks = additional181PacketBanks.Order().ToArray(), SharedParticleFlags = additional181ParticleFlags.Order().ToArray(), FlashSeen = additional181FlashSeen, FlashCompleted = additional181FlashCompleted, Observations = additional181Observations, CompletionScope = "Actual caster body+linked paired COMMON packets and current bone restore, separately owned C000 static/sprite ranges, first physical contact old38, native main51 and exclusive task/particle drain" })));
+                File.WriteAllText(Path.Combine(output!, "additional181-native-observations.json"), JsonSerializer.Serialize(new { Boundaries = additional181Boundaries.Order().ToArray(), BodyAges = additional181BodyAges.Order().ToArray(), Callbacks = additional181Callbacks.Order().ToArray(), EffectArenaBanks = additional181PacketBanks.Order().ToArray(), SharedParticleFlags = additional181ParticleFlags.Order().ToArray(), FlashSeen = additional181FlashSeen, FlashCompleted = additional181FlashCompleted, Observations = additional181Observations, CompletionScope = "Actual caster body+linked paired COMMON packets and current bone restore, separately owned C000 static/sprite ranges, first physical contact old38, native main51 and exclusive task/particle drain" }));
             }
             if (effectId == 182)
             {
