@@ -10,6 +10,10 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticPacingSummary? PresentationPacing { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticSlotsObservation? SlotsStart { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticSlotsObservation? SlotsEnd { get; init; }
     public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticVisualChangesSummary? VisualChanges { get; init; }
@@ -19,6 +23,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
 internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDisposable
 {
     private readonly BattleSession battle;
+    private readonly DiagnosticSlotsSource? slotsSource;
+    internal DiagnosticSlotsObservation? SlotsStart { get; private set; }
     private readonly string instance;
     private readonly ushort expectedEffect;
     private readonly byte? expectedNativeCommand;
@@ -98,9 +104,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     }
 
 
-    internal DiagnosticLiveTelemetry(BattleSession battle, Guid instance, ushort expectedEffect = 1, byte? expectedNativeCommand = null)
+    internal DiagnosticLiveTelemetry(BattleSession battle, Guid instance, ushort expectedEffect = 1, byte? expectedNativeCommand = null, DiagnosticSlotsSource? slotsSource = null)
     {
         this.battle = battle;
+        this.slotsSource = slotsSource;
         this.instance = instance.ToString();
         this.expectedEffect = expectedEffect;
         this.expectedNativeCommand = expectedNativeCommand;
@@ -129,6 +136,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         rendererOwner = rendererId;
         before = battle.ObserveDiagnosticCombatants();
+        SlotsStart = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource);
         preceding = timestamp;
         pacing = pacingEnabled ? new(Stopwatch.Frequency, 65536, timestamp, pacingObservation) : null;
         if (visualChangesEnabled)
@@ -209,7 +217,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks) });
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
         start = null;
         pacing = null;
         visualChanges = null;

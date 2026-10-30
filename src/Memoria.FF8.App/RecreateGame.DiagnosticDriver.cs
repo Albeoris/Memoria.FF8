@@ -39,8 +39,9 @@ internal sealed partial class RecreateGame
         diagnosticDriverRecipe = recipe;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
+        diagnosticSlotsAdmissions.Clear();
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
-        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.ShotCycle is not null ? (byte)237 : recipe.CounterCycle is not null ? (byte)8 : null);
+        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.SlotsAdmission is not null ? (byte)16 : recipe.ShotCycle is not null ? (byte)237 : recipe.CounterCycle is not null ? (byte)8 : null, recipe.SlotsAdmission is not null ? world.DiagnosticReceipt.SlotsSource : null);
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
         diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
@@ -140,7 +141,14 @@ internal sealed partial class RecreateGame
                         {
                             BeginDiagnosticShot(active, driver, selectedLimit ?? throw new InvalidDataException("Shot cycle did not select its real Limit."));
                         }
-                        ApplyBattleCommand(diagnosticDriverRecipe.Input);
+                        if (diagnosticDriverRecipe.SlotsAdmission is not null)
+                        {
+                            AdmitDiagnosticSlots(active, driver, selectedLimit ?? throw new InvalidDataException("Slots admission did not select its real Limit."));
+                        }
+                        else
+                        {
+                            ApplyBattleCommand(diagnosticDriverRecipe.Input);
+                        }
                         if (diagnosticDriverRecipe.ShotCycle is not null)
                         {
                             driver.ShotCycle!.Opened(ObserveDiagnosticShot(active));
@@ -309,6 +317,8 @@ internal sealed partial class RecreateGame
                 input = diagnosticDriverRecipe.Input,
                 expected_native_action = diagnosticDriverRecipe.ExpectedNativeAction,
                 expected_native_command = diagnosticDriverRecipe.ExpectedNativeCommand,
+                slots_admission = diagnosticDriverRecipe.SlotsAdmission,
+                slots_admissions = diagnosticSlotsAdmissions.ToArray(),
                 shot_cycle = diagnosticDriverRecipe.ShotCycle,
                 shot_cycles = diagnosticDriver!.ShotReceipts,
                 counter_cycle = diagnosticDriverRecipe.CounterCycle,

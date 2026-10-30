@@ -19,6 +19,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
     public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
     public DiagnosticShotCycleDeclaration? ShotCycle { get; init; }
+    public DiagnosticSlotsDeclaration? SlotsAdmission { get; init; }
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
@@ -55,6 +56,11 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             {
                 throw new InvalidDataException("Diagnostic supporting invocations must belong to another actor and preserve the focal effect identity.");
             }
+        }
+        SlotsAdmission?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
+        if (SlotsAdmission is not null && (LimitSelection is null || ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null))
+        {
+            throw new InvalidDataException("Slots admission requires its real Limit selection and cannot use other protocols, supporting invocations, repairs or terminal holds.");
         }
         ShotCycle?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
         CounterCycle?.ValidateComposition(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand, ShotCycle is not null, EnemyAbility is not null, LimitSelection is not null, SupportingEffects, SupportingInvocations);
