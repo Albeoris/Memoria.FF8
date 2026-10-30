@@ -9,6 +9,62 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect30BeamLowerTests
 {
     [Fact]
+    public void Three_authored_beam_meshes_capture_their_resource_identity_without_changing_detached_native_state()
+    {
+        Fixture nativeFixture = new();
+        List<NativeBattleGfGeometryBatch> nativePackets = [];
+        NativeBattleEffect30Frame native = Draw(nativeFixture, false, nativePackets);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        string frozenPackets = NativeBattleTestSnapshots.Json(nativePackets);
+        Fixture visualFixture = new();
+        List<NativeBattleGfGeometryBatch> visualPackets = [];
+        NativeBattleEffect30Frame visual = Draw(visualFixture, true, visualPackets);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(frozenPackets, NativeBattleTestSnapshots.Json(visualPackets));
+        NativeBattlePilotVisualGeometry[] captures = visualPackets.SelectMany(batch => batch.Attempts).Where(attempt => attempt.Primitive is not null).Select(attempt => Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry)).ToArray();
+        Assert.Equal(3, captures.Length);
+        Assert.Equal(3, captures.Select(geometry => geometry.Identity.ResourceGeneration).Distinct().Count());
+        Assert.All(captures, geometry =>
+        {
+            Assert.Equal((ushort)30, geometry.Identity.Effect);
+            Assert.True(geometry.Identity.Generation > 0);
+            Assert.Equal(4, geometry.CornerCount);
+        });
+
+        NativeBattleEffect30Frame Draw(Fixture fixture, bool capture, List<NativeBattleGfGeometryBatch> packets)
+        {
+            NativeBattleEffect30Frame frame = Write(fixture.Frame, fixture.Beam, Read(fixture.Frame, fixture.Beam).WriteWord(0x8C, 2048).WriteWord(0x8E, 600));
+            ImmutableDictionary<uint, ImmutableArray<byte>> meshes = fixture.Resources.Meshes.ToImmutableDictionary(entry => entry.Key, entry => Mesh());
+            NativeBattleEffect30Resources resources = fixture.Resources with { Meshes = meshes };
+            NativeBattleEffect30LowerInputs inputs = fixture.Inputs with { CapturePresentation = capture, Projection = fixture.Inputs.Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() }, DeliverPrivate = (current, batch) =>
+            {
+                packets.Add(batch);
+                return current;
+            } };
+            return NativeBattleEffect30BeamLower.Draw(frame, fixture.Beam, resources, inputs);
+        }
+
+        ImmutableArray<byte> Mesh()
+        {
+            byte[] bytes = new byte[96];
+            BinaryPrimitives.WriteInt32LittleEndian(bytes, 40);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 4);
+            short[] points = [-100, -100, 8000, 0, 100, -100, 8000, 0, -100, 100, 8000, 0, 100, 100, 8000, 0];
+            for (int index = 0; index < points.Length; index++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8 + index * 2), points[index]);
+            }
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(52), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(56), 0x2C112233);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(60 + corner * 2), (ushort)(corner * 2));
+            }
+            return bytes.ToImmutableArray();
+        }
+    }
+
+    [Fact]
     public void Initial144_byte_beam_keeps_all_three_scales4096_and_packed_unknown_W()
     {
         Fixture fixture = new();

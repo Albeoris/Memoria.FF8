@@ -132,7 +132,7 @@ public static class NativeBattleEffect30BeamLower
         uint meshAddress = task.ReadDword(0x4C);
         temporary = temporary.Write(0, BitConverter.GetBytes(meshAddress));
         temporary = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x40, 4), 0, temporary, 8, 4).Write(12, BitConverter.GetBytes((int)Signed(task, 0x50))).Write(0x1C, BitConverter.GetBytes(0xF0u));
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, resources.Meshes.TryGetValue(meshAddress, out ImmutableArray<byte> mesh) ? new NativeBattleStaticMeshResource(0, meshAddress, mesh) : throw new NotSupportedException("Effect30 beam selected an unsupported mesh."), composed, inputs.Projection, temporary, inputs.Colors);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, resources.Meshes.TryGetValue(meshAddress, out ImmutableArray<byte> mesh) ? new NativeBattleStaticMeshResource(0, meshAddress, mesh) : throw new NotSupportedException("Effect30 beam selected an unsupported mesh."), composed, inputs.Projection, temporary, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(30, task) with { ResourceGeneration = meshAddress } : null);
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Context, 88) };
         frame = inputs.DeliverPrivate(frame, drawn.Batch);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(Staging(frame), 88) };

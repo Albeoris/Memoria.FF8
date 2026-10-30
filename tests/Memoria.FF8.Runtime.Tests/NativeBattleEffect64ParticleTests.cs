@@ -7,6 +7,39 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect64ParticleTests
 {
     [Fact]
+    public void Fixed_overlay_capture_preserves_original_packet_and_holds_screen_operation_discrete()
+    {
+        NativeBattleGfGeometryBatch? plain = null;
+        NativeBattleGfGeometryBatch? captured = null;
+        NativeBattleEffect64Inputs a = Inputs() with
+        {
+            Execute = (frame, operation) =>
+            {
+                plain = Assert.IsType<NativeBattleEffect64DeliverBatch>(operation).Batch;
+                return frame;
+            }
+        };
+        NativeBattleEffect64Inputs b = Inputs() with
+        {
+            Execute = (frame, operation) =>
+            {
+                captured = Assert.IsType<NativeBattleEffect64DeliverBatch>(operation).Batch;
+                return frame;
+            }
+        };
+        _ = NativeBattleEffect64Particles.Overlay6E6B60(Frame(12, 34, 56), Script, a);
+        _ = NativeBattleEffect64Particles.Overlay6E6B60(Frame(12, 34, 56), Script, b, new(64, 1, 0, 1, 0));
+        NativeBattleGfGeometryAttempt x = Assert.Single(plain!.Attempts);
+        NativeBattleGfGeometryAttempt y = Assert.Single(captured!.Attempts);
+        Assert.Equal(x.Data.ToArray(), y.Data.ToArray());
+        Assert.Equal(x.WriteMask.ToArray(), y.WriteMask.ToArray());
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(y.Primitive!.PilotGeometry);
+        Assert.False(visual.Continuous);
+        Assert.True(visual.ScreenSpace);
+        Assert.Equal(new System.Numerics.Vector3(320, 216, 0), visual.D);
+    }
+
+    [Fact]
     public void Zero_range_does_not_advance_CRT_and_negative_ranges_use_signed_shift()
     {
         NativeBattleEffect64Frame frame = Frame();

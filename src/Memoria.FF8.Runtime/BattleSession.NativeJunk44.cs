@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Junk44 requires its actual process memory.");
         NativeBattleJunk44Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Junk44 requires its actual CRT stream."), (memory.Junk44 ?? throw new NotSupportedException("Junk44 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Junk44 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Junk44 requires its original arithmetic constants.");
-        NativeBattleJunk44Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, Bone, _ => nativeActionPackets, ReloadComplete, Execute);
+        NativeBattleJunk44Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, Bone, _ => nativeActionPackets, ReloadComplete, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleJunk44Controller.Initialize(frame, resources, inputs) : NativeBattleJunk44Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -172,7 +172,7 @@ public sealed partial class BattleSession
             bool selected = flags is 0x2000 or 0x20C0;
             NativeBattleStaticMeshResource mesh = selected ? resources.ReadGeometry(operation.SourceAddress) : resources.ReadMesh(operation.SourceAddress);
             uint vertexAddress = selected ? BinaryPrimitives.ReadUInt32LittleEndian(context.Read(4, 4)) : 0;
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), selectedVerticesAddress: selected ? vertexAddress : null, readSelectedVertex: selected ? ReadVertex : null);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), selectedVerticesAddress: selected ? vertexAddress : null, readSelectedVertex: selected ? ReadVertex : null, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -211,7 +211,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Junk sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Junk sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Junk sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

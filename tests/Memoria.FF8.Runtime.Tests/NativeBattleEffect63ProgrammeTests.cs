@@ -10,6 +10,41 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect63ProgrammeTests
 {
     [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)2048)]
+    [InlineData((short)4096)]
+    public void Captured_programme_keeps_selected_packed_W_morph_scratch_and_native_packet_outputs(short factor)
+    {
+        Fixture nativeFixture = new();
+        NativeBattleEffect63Frame native = Draw(nativeFixture, null);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        string frozenPackets = NativeBattleTestSnapshots.Json(nativeFixture.Draws);
+        Fixture visualFixture = new();
+        NativeBattlePilotVisualIdentity identity = new(63, MainDescriptor, 0, 1, 0x18);
+        NativeBattleEffect63Frame visual = Draw(visualFixture, identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(frozenPackets, NativeBattleTestSnapshots.Json(visualFixture.Draws));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(Assert.Single(visualFixture.Draws).Batch.Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)63, geometry.Identity.Effect);
+        Assert.Equal(0x1350068, geometry.Identity.ResourceGeneration);
+        Assert.Equal(1000, geometry.A.Z);
+
+        NativeBattleEffect63Frame Draw(Fixture fixture, NativeBattlePilotVisualIdentity? capture)
+        {
+            (NativeBattleGfAnimationSource source, NativeBattleStaticMeshResource mesh) = Source(true);
+            NativeBattleEffect63Resources resources = fixture.Resources with { Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh) };
+            uint scratch = Fixture.Common + MorphOffset;
+            NativeBattleEffect63Frame frame = fixture.Frame;
+            for (int vertex = 0; vertex < 4; vertex++)
+            {
+                frame = WriteBytes(frame, scratch + (uint)(vertex * 8), NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(6, [(byte)(0xA0 + vertex)]), 8);
+            }
+            NativeBattleEffect63Inputs inputs = fixture.Inputs with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) };
+            return NativeBattleEffect63Programme.DrawNode(frame, source, Node(0, 0, 0, 1, factor), Caller(NativeBattleCuragaMatrices.Identity8DD770()), resources, inputs, capture);
+        }
+    }
+
+    [Theory]
     [InlineData(0, 8192)]
     [InlineData(0x8000, 4096)]
     public void Translation_always_uses_full_MAC_even_when_header_skips_rotation_composition(uint header, short expectedRotation)

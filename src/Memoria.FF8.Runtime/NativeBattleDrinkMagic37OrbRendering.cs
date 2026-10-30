@@ -7,7 +7,7 @@ public sealed record NativeBattleDrinkMagic37OrbPreparation(NativeBattleActionMa
 
 public static class NativeBattleDrinkMagic37OrbRendering
 {
-    public static NativeBattleActorWaveMeshStep EmitBatch(NativeBattleEffectArena mesh, NativeBattleDrinkMagic37OrbPreparation prepared, NativeBattleCameraProjection projection, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short zsf4, NativeBattleSummonColors constants)
+    public static NativeBattleActorWaveMeshStep EmitBatch(NativeBattleEffectArena mesh, NativeBattleDrinkMagic37OrbPreparation prepared, NativeBattleCameraProjection projection, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short zsf4, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         (byte[] data, bool[] known) = mesh.ReadSnapshot(0, NativeBattleDrinkMagic37Profile.OrbLength);
@@ -19,7 +19,7 @@ public static class NativeBattleDrinkMagic37OrbRendering
                 throw new NotSupportedException("Drink Magic orb drawing requires its actual known coordinates, header and polygon bytes.");
             }
         }
-        return NativeBattleActorWaveMesh.EmitBatch(data.ToImmutableArray(), NativeBattleDrinkMagic37Profile.OrbAddress, prepared.Matrix, projection, prepared.Context104, registers, farControls, dqa, dqb, zsf4, constants, null, null, offset => known[offset + 6] && known[offset + 7] ? BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset + 6, 2)) : null);
+        return NativeBattleActorWaveMesh.EmitBatch(data.ToImmutableArray(), NativeBattleDrinkMagic37Profile.OrbAddress, prepared.Matrix, projection, prepared.Context104, registers, farControls, dqa, dqb, zsf4, constants, null, null, offset => known[offset + 6] && known[offset + 7] ? BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset + 6, 2)) : null, pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleDrinkMagic37OrbPreparation Prepare(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleEffectArena retained104, ushort? cameraPadding18 = null)

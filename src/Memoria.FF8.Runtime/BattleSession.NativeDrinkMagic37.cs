@@ -162,7 +162,7 @@ public sealed partial class BattleSession
                 case NativeBattleDrawStock15SparkleSprite sparkle:
                     return DrawSprite(current, sparkle.Task, false);
                 case NativeBattleDrawStock15Ribbon ribbon:
-                    NativeBattleDrawStock15RibbonStep drawn = NativeBattleDrinkMagic37Rendering.Ribbon(ribbon.Task, view, projection, camera.CanonicalViewPadding);
+                    NativeBattleDrawStock15RibbonStep drawn = NativeBattleDrinkMagic37Rendering.Ribbon(ribbon.Task, view, projection, camera.CanonicalViewPadding, NativeBattlePilotVisualLifetimes.Identity(37, ribbon.Task));
                     foreach (NativeBattleDrawStock15ParticleOperation instruction in drawn.Operations)
                     {
                         current = ExecuteParticle(current, instruction, NativeBattleDrawStock15Particles.ReadPadding(ribbon.Task, 0x72));
@@ -196,7 +196,7 @@ public sealed partial class BattleSession
             NativeBattleDrinkMagic37OrbPreparation prepared = NativeBattleDrinkMagic37OrbRendering.Prepare(task, view, context, camera.CanonicalViewPadding);
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Drink Magic orb requires its actual common packet owner.");
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Drink Magic orb requires its actual projection controls.");
-            NativeBattleActorWaveMeshStep emitted = NativeBattleDrinkMagic37OrbRendering.EmitBatch(current.State.OrbMesh, prepared, projection, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters ?? throw new NotSupportedException("Drink Magic orb requires its retained far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4 ?? throw new NotSupportedException("Drink Magic orb requires its actual ZSF4."), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Drink Magic orb requires its original geometry constants."));
+            NativeBattleActorWaveMeshStep emitted = NativeBattleDrinkMagic37OrbRendering.EmitBatch(current.State.OrbMesh, prepared, projection, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters ?? throw new NotSupportedException("Drink Magic orb requires its retained far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4 ?? throw new NotSupportedException("Drink Magic orb requires its actual ZSF4."), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Drink Magic orb requires its original geometry constants."), NativeBattlePilotVisualLifetimes.Identity(37, task) with { ResourceGeneration = NativeBattleDrinkMagic37Profile.OrbAddress });
             NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging, allocation.Address, emitted.Context104, 104);
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging, 104);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Drink Magic orb requires its current ordering table.");
@@ -224,7 +224,7 @@ public sealed partial class BattleSession
             }
             NativeBattleTemporaryAllocation active = allocation ?? throw new InvalidOperationException("Drink Magic sprite did not allocate its original frame.");
             NativeBattlePackedMatrix32 captured = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Drink Magic sprite requires its prepared matrix controls."));
-            NativeBattleDrawStock15SpriteTemporaryResult emitted = NativeBattleDrinkMagic37Rendering.Emit180(NativeFileStaging!, active.Address, task, resources, view, projection, camera.Roll, captured);
+            NativeBattleDrawStock15SpriteTemporaryResult emitted = NativeBattleDrinkMagic37Rendering.Emit180(NativeFileStaging!, active.Address, task, resources, view, projection, camera.Roll, captured, NativeBattlePilotVisualLifetimes.Identity(37, task) with { ResourceGeneration = task.ReadDword(0x4C) });
             NativeFileStaging = emitted.Staging;
             spriteTemporary = active.Address;
             foreach (NativeBattleDrawStock15ParticleOperation instruction in emitted.Operations)

@@ -4,13 +4,13 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDrinkMagic37Rendering
 {
-    public static NativeBattleDrawStock15RibbonStep Ribbon(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding18 = null)
+    public static NativeBattleDrawStock15RibbonStep Ribbon(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding18 = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task.Callback != 0x85E930)
         {
             throw new InvalidDataException("Drink Magic ribbon requires its original trajectory task.");
         }
-        return NativeBattleDrawStock15Rendering.RibbonTrajectory(task, camera, projection, cameraPadding18);
+        return NativeBattleDrawStock15Rendering.RibbonTrajectory(task, camera, projection, cameraPadding18, pilotIdentity);
     }
 
     public static ImmutableArray<NativeBattleDrawStock15ParticleOperation> SpritePreparation(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, ushort? cameraPadding18 = null)
@@ -68,10 +68,10 @@ public static class NativeBattleDrinkMagic37Rendering
         return new(draw, setup, main, NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, 17, 2, main));
     }
 
-    public static NativeBattleDrawStock15SpriteTemporaryResult Emit180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrinkMagic37Resources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null)
+    public static NativeBattleDrawStock15SpriteTemporaryResult Emit180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrinkMagic37Resources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleDrawStock15SpriteComposition composition = ComposeSprite(task, resources, camera, projection, cameraRoll);
-        return NativeBattleDrawStock15SpriteRendering.EmitPrepared180(staging, temporary, task, composition, projection, cameraRoll, capturedMatrix);
+        return NativeBattleDrawStock15SpriteRendering.EmitPrepared180(staging, temporary, task, composition, projection, cameraRoll, capturedMatrix, pilotIdentity);
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset)

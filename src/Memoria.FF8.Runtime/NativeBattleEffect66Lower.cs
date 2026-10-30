@@ -152,7 +152,7 @@ public static partial class NativeBattleEffect66Lower
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect66ModelFlags((int)frame.State.ReadDword(CasterGlobal), 0xFFFF, 4));
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect66DrawBody176(temporary));
+            frame = inputs.Execute(frame, new NativeBattleEffect66DrawBody176(temporary) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(66, Read(frame, task)) });
             frame = Release(frame, 176);
         }
         if (Paused(frame, inputs))
@@ -171,7 +171,7 @@ public static partial class NativeBattleEffect66Lower
             (frame, uint temporary) = Allocate(frame, 44);
             NativeBattleEffectArena context = Context(frame, temporary, 44).Write(0x14, new byte[4]).Write(0x18, BitConverter.GetBytes((short)320)).Write(0x1A, BitConverter.GetBytes((short)216)).Write(0x20, BitConverter.GetBytes(uint.MaxValue));
             frame = PublishContext(frame, temporary, context, 44);
-            frame = inputs.Execute(frame, new NativeBattleEffect66DrawStageBody44(temporary));
+            frame = inputs.Execute(frame, new NativeBattleEffect66DrawStageBody44(temporary) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(66, Read(frame, task)) });
             frame = Release(frame, 44);
         }
         if (Paused(frame, inputs))

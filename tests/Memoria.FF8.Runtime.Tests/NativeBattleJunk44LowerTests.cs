@@ -9,6 +9,40 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleJunk44LowerTests
 {
     [Fact]
+    public void Sprite_immediate_operation_retains_actual_task_birth_and_source_before_temporary_reuse()
+    {
+        NativeBattleJunk44DrawSprite180? nativeDraw = null;
+        NativeBattleJunk44Frame native = Draw(false, draw => nativeDraw = draw);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleJunk44DrawSprite180? capturedDraw = null;
+        NativeBattleJunk44Frame captured = Draw(true, draw => capturedDraw = draw);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.NotNull(nativeDraw);
+        Assert.NotNull(capturedDraw);
+        Assert.Null(nativeDraw.PilotIdentity);
+        NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(capturedDraw.PilotIdentity);
+        Assert.Equal((ushort)44, identity.Effect);
+        Assert.Equal(0x2545130u, identity.Bank);
+        Assert.Equal(0x1354B80, identity.ResourceGeneration);
+        Assert.True(identity.Generation > 0);
+        Assert.Equal(nativeDraw.TemporaryAddress, capturedDraw.TemporaryAddress);
+        Assert.Equal(nativeDraw.SourceAddress, capturedDraw.SourceAddress);
+
+        NativeBattleJunk44Frame Draw(bool capture, Action<NativeBattleJunk44DrawSprite180> receive)
+        {
+            NativeBattleJunk44Frame frame = Frame();
+            (frame, uint address) = Append(frame, 0x2545130, 0x6E82C0);
+            frame = Write(frame, address, Read(frame, address).WriteWord(0x0C, 100).WriteWord(0x0E, 200).WriteWord(0x10, 300).WriteWord(0x12, 13).WriteWord(0x1C, 4001));
+            NativeBattleJunk44Inputs inputs = Inputs((current, operation) =>
+            {
+                receive(Assert.IsType<NativeBattleJunk44DrawSprite180>(operation));
+                return current;
+            }) with { CapturePresentation = capture };
+            return AdvanceSprite6E82C0(frame, address, NativeBattleJunk44StateTests.Resources(), inputs).Frame;
+        }
+    }
+
+    [Fact]
     public void Bone_producer_publishes_once_even_when_sprite_pool_is_full_and_consumes_no_CRT()
     {
         var frame = Frame();

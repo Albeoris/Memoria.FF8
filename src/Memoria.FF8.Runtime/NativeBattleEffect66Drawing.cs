@@ -4,28 +4,28 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect66Drawing
 {
-    public static NativeBattleEffect66Frame DrawWindowed144(NativeBattleEffect66Frame frame, uint temporaryAddress, uint source, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    public static NativeBattleEffect66Frame DrawWindowed144(NativeBattleEffect66Frame frame, uint temporaryAddress, uint source, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporaryAddress, 144);
-        NativeBattleEffect66Windowed144Step drawn = NativeBattleEffect66Windowed144.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, depthShift);
+        NativeBattleEffect66Windowed144Step drawn = NativeBattleEffect66Windowed144.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, depthShift, pilotIdentity: pilotIdentity);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporaryAddress, drawn.Context144, 144);
         return inputs.Execute(frame, new NativeBattleEffect66DeliverBatch(drawn.Batch, cursorGlobal));
     }
 
-    public static NativeBattleEffect66Frame DrawStatic(NativeBattleEffect66Frame frame, uint temporaryAddress, uint source, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    public static NativeBattleEffect66Frame DrawStatic(NativeBattleEffect66Frame frame, uint temporaryAddress, uint source, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporaryAddress, 88);
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, depthShift);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, depthShift, pilotIdentity: pilotIdentity);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporaryAddress, drawn.Context, 88);
         return inputs.Execute(frame, new NativeBattleEffect66DeliverBatch(drawn.Batch, cursorGlobal));
     }
 
-    public static NativeBattleEffect66Frame DrawSprite(NativeBattleEffect66Frame frame, uint temporaryAddress, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    public static NativeBattleEffect66Frame DrawSprite(NativeBattleEffect66Frame frame, uint temporaryAddress, byte depthShift, uint cursorGlobal, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporaryAddress, NativeBattleModuleSpriteDrawing.TemporaryLength);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, depthShift);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, depthShift, pilotIdentity: pilotIdentity);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporaryAddress, drawn.Temporary180, NativeBattleModuleSpriteDrawing.TemporaryLength);
         return inputs.Execute(frame, new NativeBattleEffect66DeliverBatch(drawn.Batch, cursorGlobal));

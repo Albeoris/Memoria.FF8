@@ -128,7 +128,7 @@ public static partial class NativeBattleEffect66Lower
             context = context.Write(12, BitConverter.GetBytes(depthCue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = NativeBattleEffect66Drawing.DrawStatic(frame, temporary, source, callback is 0x627510 or 0x627730 ? (byte)14 : callback == 0x626E20 ? (byte)3 : (byte)2, CursorGlobal, resources, inputs);
+        frame = NativeBattleEffect66Drawing.DrawStatic(frame, temporary, source, callback is 0x627510 or 0x627730 ? (byte)14 : callback == 0x626E20 ? (byte)3 : (byte)2, CursorGlobal, resources, inputs, NativeBattlePilotVisualLifetimes.Identity(66, record) with { ResourceGeneration = source });
         frame = Release(frame, 88);
         if (Paused(frame, inputs))
         {

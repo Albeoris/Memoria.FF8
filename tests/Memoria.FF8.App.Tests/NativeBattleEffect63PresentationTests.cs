@@ -46,6 +46,7 @@ public sealed class NativeBattleEffect63PresentationTests
         byte[]? geometryPixels = null;
         byte[]? geometryPlain = null;
         int callbacks = 0;
+        int capturedGeometry = 0;
         int completions = 0;
         int changedRgb = 0;
         int geometryChangedRgb = 0;
@@ -61,6 +62,7 @@ public sealed class NativeBattleEffect63PresentationTests
                 boundary = "callback-" + callbacks;
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                capturedGeometry += NativeBattleModuleCaptureAssertions.AssertPrivateGeometry(current, 63);
                 NativeBattleGraphicsState currentGraphics = current.NativeGraphics ?? throw new InvalidDataException("Effect63 lost its graphics state.");
                 Assert.Equal(source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), current.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());
 
@@ -104,6 +106,7 @@ public sealed class NativeBattleEffect63PresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(callbacks < 2400, "The original effect63 component did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            Assert.True(capturedGeometry > 0);
             Assert.True(cameraChanged);
             Assert.True(stageObserved);
             Assert.True(changedRgb > 100, "No actual effect63 primitive changed the rendered RGB output.");

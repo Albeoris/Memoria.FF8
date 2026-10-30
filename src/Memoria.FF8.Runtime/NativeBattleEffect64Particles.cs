@@ -92,7 +92,7 @@ public static class NativeBattleEffect64Particles
         uint sourceAddress = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0x13433C0u + (uint)(sprite * 4), 4).AsSpan());
         NativeBattleModuleResource source = resources.Sprite(sourceAddress);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(sourceAddress)).Write(4, BitConverter.GetBytes((ushort)task.ReadByte(0x14))).Write(0x24, new byte[2]);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, pointer => pointer == sourceAddress ? source : throw new InvalidDataException("Effect64 sprite source changed during its draw."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowCallerScale: true);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, pointer => pointer == sourceAddress ? source : throw new InvalidDataException("Effect64 sprite source changed during its draw."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowCallerScale: true, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(64, task) with { ResourceGeneration = sourceAddress });
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect64DeliverBatch(drawn.Batch, 0x254508C));
         frame = Release(frame, 180);
@@ -107,7 +107,7 @@ public static class NativeBattleEffect64Particles
         return new(frame, next < BinaryPrimitives.ReadInt16LittleEndian(source.Bytes.AsSpan().Slice(8, 2)) ? 0 : 2);
     }
 
-    public static (NativeBattleEffect64Frame Frame, uint Next) Overlay6E6B60(NativeBattleEffect64Frame frame, uint script, NativeBattleEffect64Inputs inputs)
+    public static (NativeBattleEffect64Frame Frame, uint Next) Overlay6E6B60(NativeBattleEffect64Frame frame, uint script, NativeBattleEffect64Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         byte[] bytes = new byte[24];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x05000000);
@@ -126,6 +126,10 @@ public static class NativeBattleEffect64Particles
         }
         ImmutableArray<uint> words = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
         NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity)
+        {
+            primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+        }
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(), primitive);
         return (inputs.Execute(frame, new NativeBattleEffect64DeliverBatch(new([attempt], 24), 0x254508C)), script + 6);
     }

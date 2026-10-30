@@ -56,6 +56,7 @@ public static partial class NativeBattleEffect66Clouds
             uint address = checked(start + (uint)(index * 24));
             if (U32(ReadBytes(frame, address, 4), 0) == 0)
             {
+                NativeBattleEffect66VisualIdentity.Allocated(frame, address);
                 return address;
             }
         }

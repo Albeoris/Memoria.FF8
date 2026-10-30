@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect64BodyStep(NativeBattleEffectMemory Memor
 
 public static class NativeBattleEffect64BodyDrawing
 {
-    public static NativeBattleEffect64BodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary152, NativeBattleEffectArena vertexScratch, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0)
+    public static NativeBattleEffect64BodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary152, NativeBattleEffectArena vertexScratch, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (U32(temporary152, 4) != scratchAddress || scratchLength < 0 || depthShift > 31)
         {
@@ -27,6 +27,7 @@ public static class NativeBattleEffect64BodyDrawing
             int groups = ReadWord(cursor);
             cursor += 2;
             int vertices = 0;
+            List<System.Numerics.Vector3?>? world = pilotIdentity.HasValue ? [] : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = ReadWord(cursor);
@@ -52,11 +53,13 @@ public static class NativeBattleEffect64BodyDrawing
                     if (!visible)
                     {
                         vertexScratch = vertexScratch.Write(destination + 6, [0x10]);
+                        world?.Add(null);
                     }
                     else
                     {
                         byte[] xyz = readGeometry(cursor, 6).Read(0, 6);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), 0);
+                        world?.Add(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bones[bone].ReadMatrix(), new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)))), projection));
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect64 offset-body projection requires current screen output.");
                         uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("Effect64 offset-body projection requires current depth output."))) >> 2));
@@ -148,7 +151,14 @@ public static class NativeBattleEffect64BodyDrawing
                             registers = quad ? NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect64 offset-body AVSZ4 requires current ZSF4.")) : NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Effect64 offset-body AVSZ3 requires current ZSF3."));
                             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Effect64 offset-body averaging requires current OTZ.");
                             temporary152 = temporary152.Write(0x44, BitConverter.GetBytes(depth));
-                            attempts.Add(EmitProjectedFace64(source, quad, corners, U32(temporary152, 0x14), registers.Geometry, unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)), allocated));
+                            NativeBattleGfGeometryAttempt attempt = EmitProjectedFace64(source, quad, corners, U32(temporary152, 0x14), registers.Geometry, unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)), allocated);
+                            if (pilotIdentity is { } identity)
+                            {
+                                System.Numerics.Vector3 Corner(int corner) => world![BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF] ?? throw new InvalidDataException("Effect64 admitted an unprojected body corner.");
+                                NativeBattleGeometryPrimitive primitive = attempt.Primitive!;
+                                attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + index) * 65537 + (quad ? 32768 : 0) + face) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, checked((byte)corners.Length)) { SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true } } };
+                            }
+                            attempts.Add(attempt);
                             allocated += quad ? 40 : 32;
                         }
                     }

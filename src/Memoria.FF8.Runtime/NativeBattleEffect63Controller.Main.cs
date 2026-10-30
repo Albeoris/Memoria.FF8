@@ -19,12 +19,12 @@ public static partial class NativeBattleEffect63Controller
         NativeBattleEffectArena caller = NativeBattleEffectArena.Clear().MarkUnknown(0, 52);
         if ((ushort)age < 45)
         {
-            (frame, caller) = AdvanceAtPoint(frame, address + 0x1E8, 0x6A0, midpoint, caller, resources, inputs);
+            (frame, caller) = AdvanceAtPoint(frame, address + 0x1E8, 0x6A0, midpoint, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0x1E8) : null);
         }
         if ((ushort)age < 48)
         {
-            (frame, caller) = AdvanceAtPoint(frame, address + 0x18, 0xE8, a, caller, resources, inputs);
-            (frame, caller) = AdvanceAtPoint(frame, address + 0x100, 0xE8, b, caller, resources, inputs);
+            (frame, caller) = AdvanceAtPoint(frame, address + 0x18, 0xE8, a, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0x18) : null);
+            (frame, caller) = AdvanceAtPoint(frame, address + 0x100, 0xE8, b, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0x100) : null);
         }
         NativeBattleEffectArena anchor = TaskView(Read(frame, address), 0x10, 8);
         if ((uint)(age - 16) < 20)
@@ -38,20 +38,20 @@ public static partial class NativeBattleEffect63Controller
             int yaw = product >> 15;
             int length = unchecked(fraction + 4 * NativeBattleCameraMath.Sine(fraction / 2));
             int fade = relative < 8 ? 4096 - (relative << 9) : 0;
-            frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, first.Output8, anchor, relative << 5, -pitch, yaw, length, fade, resources, inputs);
-            frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, second.Output8, anchor, relative << 5, pitch, -yaw, length, fade, resources, inputs);
+            frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, first.Output8, anchor, relative << 5, -pitch, yaw, length, fade, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0) : null);
+            frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, second.Output8, anchor, relative << 5, pitch, -yaw, length, fade, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 1) : null);
         }
         int late = age - 36;
         if ((uint)late < 28)
         {
             if ((uint)(late - 1) < 4)
             {
-                frame = NativeBattleEffect63Lower.Envelope6E7A30(frame, late - 1, 255, 255, 255, 0, 1, 3, inputs);
+                frame = NativeBattleEffect63Lower.Envelope6E7A30(frame, late - 1, 255, 255, 255, 0, 1, 3, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0x7040B0) : null);
             }
             if (late < 8)
             {
-                frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, first.Output8, anchor, late << 5, 0, 0, 4096, late << 9, resources, inputs);
-                frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, second.Output8, anchor, late << 5, 0, 0, 4096, late << 9, resources, inputs);
+                frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, first.Output8, anchor, late << 5, 0, 0, 4096, late << 9, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0) : null);
+                frame = NativeBattleEffect63Lower.DrawBeam6E7790(frame, second.Output8, anchor, late << 5, 0, 0, 4096, late << 9, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 1) : null);
             }
             if (late < 3)
             {
@@ -66,7 +66,7 @@ public static partial class NativeBattleEffect63Controller
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), matrix);
             ushort? padding = age < 48 ? (ushort)0 : null;
             caller = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(composed, padding)), 0, caller, 0, 32).Write(0x20, BitConverter.GetBytes(SecondSelectorsAddress)).Write(0x24, BitConverter.GetBytes(unchecked((short)-128))).Write(0x26, BitConverter.GetBytes(unchecked((ushort)(late << 5)))).Write(0x30, BitConverter.GetBytes(checked(frame.State.ReadDword(WorkGlobal) + MorphOffset)));
-            frame = NativeBattleEffect63Programme.Advance(frame, address + 0x888, 0x580, caller, resources, inputs).Frame;
+            frame = NativeBattleEffect63Programme.Advance(frame, address + 0x888, 0x580, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, Read(frame, address), 0x888) : null).Frame;
         }
         if (age == 0)
         {
@@ -86,12 +86,12 @@ public static partial class NativeBattleEffect63Controller
         return new(Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
     }
 
-    private static (NativeBattleEffect63Frame Frame, NativeBattleEffectArena Caller) AdvanceAtPoint(NativeBattleEffect63Frame frame, uint workspace, int length, NativeBattleVector point, NativeBattleEffectArena caller, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs)
+    private static (NativeBattleEffect63Frame Frame, NativeBattleEffectArena Caller) AdvanceAtPoint(NativeBattleEffect63Frame frame, uint workspace, int length, NativeBattleVector point, NativeBattleEffectArena caller, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix local = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], point.X, point.Y, point.Z, 4096);
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         caller = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(composed, 0)), 0, caller, 0, 32).Write(0x20, BitConverter.GetBytes(FirstSelectorsAddress)).Write(0x24, BitConverter.GetBytes(unchecked((short)-128))).Write(0x30, BitConverter.GetBytes(checked(frame.State.ReadDword(WorkGlobal) + MorphOffset)));
-        return (NativeBattleEffect63Programme.Advance(frame, workspace, length, caller, resources, inputs).Frame, caller);
+        return (NativeBattleEffect63Programme.Advance(frame, workspace, length, caller, resources, inputs, pilotIdentity).Frame, caller);
     }
 
     public static int StageStrength(int age)

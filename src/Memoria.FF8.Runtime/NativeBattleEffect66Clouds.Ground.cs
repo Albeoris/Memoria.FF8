@@ -57,7 +57,7 @@ public static partial class NativeBattleEffect66Clouds
             uint color = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xDEA454 + (uint)(S16(row, 8) * 4), 4));
             context = Put(context, 0x20, unchecked((int)color));
             frame = PublishContext(PublishContext(frame, outerAddress, outer, 104), contextAddress, context, 108);
-            frame = DrawCustom(frame, contextAddress, resources, inputs);
+            frame = DrawCustom(frame, contextAddress, resources, inputs, NativeBattleEffect66VisualIdentity.Point(frame, address, 0xDE90CC));
             context = Context(frame, contextAddress, 108);
             if (!Paused(frame, inputs))
             {

@@ -41,7 +41,7 @@ public static partial class NativeBattleJunk44Controller
         NativeBattleModuleResource sprite = resources.ReadSprite(0x1354B80);
         ushort phase = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(sprite.Bytes.AsSpan().Slice(8)) - task.ReadWord(0x12)));
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0x1354B80u)).Write(4, BitConverter.GetBytes(phase)).Write(0x24, new byte[2]);
-        frame = inputs.Execute(PublishContext(frame, temporary, context, 180), new NativeBattleJunk44DrawSprite180(temporary, 0x1354B80));
+        frame = inputs.Execute(PublishContext(frame, temporary, context, 180), new NativeBattleJunk44DrawSprite180(temporary, 0x1354B80) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(44, task) with { ResourceGeneration = sprite.Address } : null });
         frame = Release(frame, 180);
         task = Read(frame, address).WriteWord(0x12, unchecked((ushort)(Read(frame, address).ReadWord(0x12) - 1)));
         if (task.ReadWord(0x12) == 0)

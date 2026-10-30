@@ -257,7 +257,7 @@ public sealed class NativeBattleLifeControllerTests
     }
 
     [Fact]
-    public void Phoenix_particles_capture_each_real_sprite_and_wedge_without_changing_native_draws_or_CRT()
+    public void Life_and_Phoenix_particles_capture_each_real_sprite_and_wedge_without_changing_native_draws_or_CRT()
     {
         var phoenix = Fixture(5);
         var life = Fixture(35);
@@ -315,14 +315,21 @@ public sealed class NativeBattleLifeControllerTests
                     Assert.Equal(native.Primitive.Words.ToArray(), actual.Primitive.Words.ToArray());
                     Assert.Equal(native.Primitive.VertexPayload4.ToArray(), actual.Primitive.VertexPayload4.ToArray());
                     Assert.Equal(native.Primitive.Bucket, actual.Primitive.Bucket);
-                    Assert.Null(native.Primitive.PilotGeometry);
                     byte opcode = (byte)(actual.Primitive.Words[1] >> 24);
                     if (opcode < 0x20 || opcode >= 0x60)
                     {
                         Assert.Null(actual.Primitive.PilotGeometry);
                         continue;
                     }
+                    NativeBattlePilotVisualGeometry nativeGeometry = Assert.IsType<NativeBattlePilotVisualGeometry>(native.Primitive.PilotGeometry);
+                    Assert.Equal((ushort)35, nativeGeometry.Identity.Effect);
                     NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive.PilotGeometry);
+                    Assert.Equal(nativeGeometry.CornerCount, geometry.CornerCount);
+                    Assert.Equal(nativeGeometry.A, geometry.A);
+                    Assert.Equal(nativeGeometry.B, geometry.B);
+                    Assert.Equal(nativeGeometry.C, geometry.C);
+                    Assert.Equal(nativeGeometry.D, geometry.D);
+                    Assert.NotEqual(nativeGeometry.Identity.Generation, geometry.Identity.Generation);
                     Assert.Equal((ushort)5, geometry.Identity.Effect);
                     Assert.True(geometry.Identity.Generation > 0);
                     if (geometry.Sprite is not null)

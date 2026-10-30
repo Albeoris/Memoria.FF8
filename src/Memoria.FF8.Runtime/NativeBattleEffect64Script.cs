@@ -93,7 +93,7 @@ public static class NativeBattleEffect64Script
                     (frame, cursor) = NativeBattleEffect64Particles.Birth6E68C0(frame, cursor, model, rows, resources, inputs);
                     break;
                 case 0x10B0:
-                    (frame, cursor) = NativeBattleEffect64Particles.Overlay6E6B60(frame, cursor, inputs);
+                    (frame, cursor) = NativeBattleEffect64Particles.Overlay6E6B60(frame, cursor, inputs, NativeBattlePilotVisualLifetimes.Identity(64, task, unchecked((int)origin)) with { ResourceGeneration = task.ReadDword(0x14) });
                     break;
                 case 0x10F0:
                     short count = unchecked((short)frame.State.ReadWord(cursor));

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect66Frame Frame) DrawNativeEffect66Body(NativeBattleGraphicsState graphics, NativeBattleEffect66Frame frame, uint temporaryAddress, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect66Frame Frame) DrawNativeEffect66Body(NativeBattleGraphicsState graphics, NativeBattleEffect66Frame frame, uint temporaryAddress, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         int actor = checked((int)frame.State.ReadDword(CasterGlobal));
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect66 body requires its current temporary memory.");
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer geometry = NativeDeformedGeometryPointer(bridge, false);
         uint geometryAddress = geometry.Cpu?.PhysicalAddress ?? geometry.StagingAddress ?? throw new NotSupportedException("Effect66 body requires its current addressed geometry.");
         ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
-        NativeBattleEffect66BodyStep drawn = NativeBattleEffect66BodyDrawing.Draw(frame, geometryAddress, ReadGeometry, bones, (NativeCamera ?? throw new NotSupportedException("Effect66 body requires its current camera.")).CapturePackedView1D97778(), temporary, NativeDeformedBodyView(frame.Staging, scratchAddress, scratchLength), scratchLength, resources, inputs);
+        NativeBattleEffect66BodyStep drawn = NativeBattleEffect66BodyDrawing.Draw(frame, geometryAddress, ReadGeometry, bones, (NativeCamera ?? throw new NotSupportedException("Effect66 body requires its current camera.")).CapturePackedView1D97778(), temporary, NativeDeformedBodyView(frame.Staging, scratchAddress, scratchLength), scratchLength, resources, inputs, pilotIdentity is { } identity ? identity with { ResourceGeneration = geometryAddress } : null);
         frame = drawn.Frame with { Staging = NativeBattleTemporaryMemory.PublishView(drawn.Frame.Staging ?? throw new InvalidDataException("Effect66 body lost its temporary memory."), scratchAddress, drawn.Scratch, scratchLength) };
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging, temporaryAddress, drawn.Temporary176, 176) };
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 88);

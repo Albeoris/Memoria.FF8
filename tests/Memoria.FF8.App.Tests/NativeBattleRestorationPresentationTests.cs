@@ -240,6 +240,7 @@ public sealed class NativeBattleRestorationPresentationTests
             Assert.NotNull(expectedContactCopy);
         }
         int peakRgb = 0;
+        int captured57Geometry = 0;
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
         BattleSession? clone = null;
@@ -253,6 +254,10 @@ public sealed class NativeBattleRestorationPresentationTests
                 audio.Update(battle);
                 BattleSnapshot after = battle.Capture();
                 NativeBattleGraphicsState graphics = after.NativeGraphics!;
+                if (effect == 57)
+                {
+                    captured57Geometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(after, 57);
+                }
                 selectedCasting |= graphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedEffect |= graphics.OriginalEffect is { Restoration: not null } current && current.Binding.Entry == profile.Entry;
                 faded |= battle.NativeStage?.Groups.Any(group => group.ColorDepth > 0) == true;
@@ -338,6 +343,10 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.True(faded || !requireCasting);
         Assert.True(peakRgb > 0, "Original restoration effect-bank packets changed no RGB pixels.");
         Assert.True(clonePassed);
+        if (effect == 57)
+        {
+            Assert.True(captured57Geometry > 0);
+        }
         Assert.Equal(expectedStatusTransitions, statusTransitions);
         Assert.Equal(expectedHpTransitions, hpTransitions);
         Assert.Equal((ushort)0, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved);

@@ -9,6 +9,43 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect30ParticleTests
 {
     [Fact]
+    public void Actual_particle_capture_uses_physical_birth_and_resource_without_changing_CRT_or_temporary_bytes()
+    {
+        Fixture nativeFixture = new();
+        List<NativeBattleGfGeometryBatch> nativePackets = [];
+        NativeBattleEffect30TaskStep native = Draw(nativeFixture, false, nativePackets);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        string frozenPackets = NativeBattleTestSnapshots.Json(nativePackets);
+        Fixture capturedFixture = new();
+        List<NativeBattleGfGeometryBatch> capturedPackets = [];
+        NativeBattleEffect30TaskStep captured = Draw(capturedFixture, true, capturedPackets);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozenPackets, NativeBattleTestSnapshots.Json(capturedPackets));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(Assert.Single(capturedPackets).Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)30, geometry.Identity.Effect);
+        Assert.Equal(capturedFixture.Resources.ParticleSprite.Address, geometry.Identity.ResourceGeneration);
+        Assert.True(geometry.Identity.Generation > 0);
+        Assert.NotNull(geometry.Sprite);
+
+        NativeBattleEffect30TaskStep Draw(Fixture fixture, bool capture, List<NativeBattleGfGeometryBatch> packets)
+        {
+            byte[] sprite = new byte[50];
+            fixture.Resources.ParticleSprite.Bytes.CopyTo(sprite);
+            BinaryPrimitives.WriteUInt32LittleEndian(sprite.AsSpan(26), 1);
+            sprite[30] = 8;
+            sprite[32] = 8;
+            NativeBattleEffect30Resources resources = fixture.Resources with { ParticleSprite = fixture.Resources.ParticleSprite with { Bytes = sprite.ToImmutableArray() } };
+            NativeBattleEffect30Frame frame = Write(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteByte(0x26, 0).MarkPayloadUnknown(0x22, 2));
+            NativeBattleEffect30ParticleInputs inputs = fixture.Inputs with { CapturePresentation = capture, Projection = fixture.Inputs.Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() }, DeliverPrivate = (current, batch) =>
+            {
+                packets.Add(batch);
+                return current;
+            } };
+            return NativeBattleEffect30Particles.Advance(frame, fixture.Address, resources, inputs);
+        }
+    }
+
+    [Fact]
     public void Initialization_draws_three_CRT_values_without_advancing_animation_or_position()
     {
         Fixture fixture = new();

@@ -7048,7 +7048,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
-                if (effectId is 8 or 20 or 23 && (before?.ReturnedDescriptor is > 0 || after?.ReturnedDescriptor is > 0))
+                if (effectId is 8 or 20 or 23 or 37 or 44 or 61 && (before?.ReturnedDescriptor is > 0 || after?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned24 = ActorDirectorPacketReferences(prior, current);
                     foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => owned24.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
@@ -7154,7 +7154,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
-            if (effectId is 8 or 20 or 23)
+            if (effectId is 8 or 20 or 23 or 37 or 44 or 61)
             {
                 Assert.True(smooth24Captured > 0);
             }

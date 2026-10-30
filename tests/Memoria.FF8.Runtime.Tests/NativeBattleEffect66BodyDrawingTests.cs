@@ -72,13 +72,19 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         byte[] geometry = Geometry();
         BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(52), 0xFFF);
         List<NativeBattleEffect66Operation> operations = [];
-        NativeBattleEffect66BodyStep result = Draw(frame, geometry, Temporary(100), Packed(), Inputs(operations));
+        NativeBattleEffect66BodyStep result = Draw(frame, geometry, Temporary(100), Packed(), Inputs(operations), new(66, 1, 0, 1, 0));
         Assert.Equal(2, operations.Count);
         NativeBattleEffect66DeliverBatch body = Assert.IsType<NativeBattleEffect66DeliverBatch>(operations[0]);
         NativeBattleEffect66DeliverBatch overlay = Assert.IsType<NativeBattleEffect66DeliverBatch>(operations[1]);
         Assert.Equal(32, body.Batch.AllocationBytes);
         Assert.Equal(20, overlay.Batch.AllocationBytes);
         Assert.Equal(0x22FFFFFFu, overlay.Batch.Attempts[0].Primitive!.Words[1]);
+        NativeBattlePilotVisualGeometry bodyVisual = Assert.IsType<NativeBattlePilotVisualGeometry>(body.Batch.Attempts[0].Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry overlayVisual = Assert.IsType<NativeBattlePilotVisualGeometry>(overlay.Batch.Attempts[0].Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 0), bodyVisual.A);
+        Assert.Equal(bodyVisual.A, overlayVisual.A);
+        Assert.Equal(System.Numerics.Vector4.Zero, overlayVisual.SourceDepths);
+        Assert.NotEqual(bodyVisual.Identity.Primitive, overlayVisual.Identity.Primitive);
         Assert.Equal(body.Batch.Attempts[0].Primitive!.Bucket - 1, overlay.Batch.Attempts[0].Primitive!.Bucket);
         Assert.Equal(new[] { 0, 0, 0, 0 }, overlay.Batch.Attempts[0].Primitive!.VertexPayload4);
         Assert.Equal(0x8000, U16(ReadBytes(result.Frame, FlagAddress, 2), 0));
@@ -98,6 +104,36 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         Assert.Equal(FlagAddress + 4, U32(result.Temporary176, 0x2C));
     }
 
+    [Fact]
+    public void Capture_keeps_original_body_packets_native_registers_and_pre_projection_world_rows()
+    {
+        List<NativeBattleEffect66Operation> plainOperations = [];
+        List<NativeBattleEffect66Operation> capturedOperations = [];
+        NativeBattleEffect66BodyStep plain = Draw(Frame(), Geometry(), Temporary(1), Packed(), Inputs(plainOperations));
+        NativeBattleEffect66BodyStep captured = Draw(Frame(), Geometry(), Temporary(1), Packed(), Inputs(capturedOperations), new(66, 1, 0, 1, 0));
+        NativeBattleGfGeometryAttempt a = Assert.Single(Assert.IsType<NativeBattleEffect66DeliverBatch>(Assert.Single(plainOperations)).Batch.Attempts);
+        NativeBattleGfGeometryAttempt b = Assert.Single(Assert.IsType<NativeBattleEffect66DeliverBatch>(Assert.Single(capturedOperations)).Batch.Attempts);
+        Assert.Equal(a.Data.ToArray(), b.Data.ToArray());
+        Assert.Equal(a.WriteMask.ToArray(), b.WriteMask.ToArray());
+        Assert.Equal(a.Primitive!.VertexPayload4, b.Primitive!.VertexPayload4);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(b.Primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 0), visual.A);
+        Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 0), visual.SourceDepths);
+    }
+
+    [Fact]
+    public void Retired_body_capture_skips_invalid_original_face_indices()
+    {
+        NativeBattleEffect66Frame frame = Frame();
+        frame = WriteBytes(frame, FlagAddress, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)0x8000)), 2);
+        byte[] geometry = Geometry();
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(52), 0xFFF);
+        List<NativeBattleEffect66Operation> operations = [];
+        _ = Draw(frame, geometry, Temporary(1), Packed(), Inputs(operations), new(66, 1, 0, 1, 0));
+        Assert.Empty(operations);
+    }
+
     private const uint Common = 0x20DFAB8;
     private const uint FlagAddress = Common + 0x28000;
     private static NativeBattleEffect66Frame Frame()
@@ -114,7 +150,7 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         operations.Add(operation);
         return execute is null ? frame : execute(frame);
     });
-    private static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 bone, NativeBattleEffect66Inputs? inputs = null) => NativeBattleEffect66BodyDrawing.Draw(frame, 0x100000, (address, count) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan(checked((int)(address - 0x100000)), count)), [bone], Packed(z: 2000), temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), 24, null!, inputs ?? Inputs([]));
+    private static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 bone, NativeBattleEffect66Inputs? inputs = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleEffect66BodyDrawing.Draw(frame, 0x100000, (address, count) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan(checked((int)(address - 0x100000)), count)), [bone], Packed(z: 2000), temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), 24, null!, inputs ?? Inputs([]), pilotIdentity);
     private static byte[] Geometry(short secondY = -100, int faces = 1)
     {
         byte[] bytes = new byte[52 + faces * 16];

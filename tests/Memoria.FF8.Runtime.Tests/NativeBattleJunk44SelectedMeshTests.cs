@@ -5,6 +5,43 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleJunk44SelectedMeshTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Captured_selected_programme_keeps_native_read_order_rejection_and_sparse_masks(bool rejected)
+    {
+        List<int> nativeReads = [];
+        NativeBattleStaticMeshContext88Step native = DrawSelected(null, nativeReads);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        List<int> capturedReads = [];
+        NativeBattlePilotVisualIdentity identity = new(44, 0x2545110, 0, 1, 7) { ResourceGeneration = Address };
+        NativeBattleStaticMeshContext88Step visual = DrawSelected(identity, capturedReads);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(nativeReads, capturedReads);
+        if (rejected)
+        {
+            Assert.DoesNotContain(24, capturedReads);
+            Assert.Null(Assert.Single(visual.Batch.Attempts).Primitive);
+        }
+        else
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(visual.Batch.Attempts).Primitive!.PilotGeometry);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal(Address, geometry.Identity.ResourceGeneration);
+            Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        }
+
+        NativeBattleStaticMeshContext88Step DrawSelected(NativeBattlePilotVisualIdentity? capture, List<int> reads)
+        {
+            NativeBattleVector[] points = rejected ? [new(-400, -400, 0), new(-400, 400, 0), new(400, -400, 0), new(400, 400, 0)] : [new(-400, -400, 0), new(400, -400, 0), new(-400, 400, 0), new(400, 400, 0)];
+            return NativeBattleStaticMeshContext88.DrawLoaded(Memory(2000), Mesh(3), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(0x20C0).MarkUnknown(0x10, 4), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: Selected, readSelectedVertex: offset =>
+            {
+                reads.Add(offset);
+                return (points[offset / 8], null);
+            }, pilotIdentity: capture);
+        }
+    }
+
     private const uint Address = 0x10000000;
     private const uint Selected = 0x20000000;
 

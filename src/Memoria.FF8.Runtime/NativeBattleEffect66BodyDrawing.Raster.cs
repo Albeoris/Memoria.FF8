@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect66BodyDrawing
 {
-    private static NativeBattleEffect66BodyStep DrawFaces(NativeBattleEffect66Frame frame, NativeBattleEffectArena temporary, NativeBattleEffectArena scratch, int scratchLength, Func<uint, int, NativeBattleEffectArena> readGeometry, NativeBattleEffect66Inputs inputs)
+    private static NativeBattleEffect66BodyStep DrawFaces(NativeBattleEffect66Frame frame, NativeBattleEffectArena temporary, NativeBattleEffectArena scratch, int scratchLength, Func<uint, int, NativeBattleEffectArena> readGeometry, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity, int objectIndex)
     {
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect66 body requires current projection controls.");
@@ -24,6 +24,7 @@ public static partial class NativeBattleEffect66BodyDrawing
                 {
                     NativeBattleEffectArena face = readGeometry(source, stride);
                     bool existing = (flag & 0x4000) == 0;
+                    uint? shardOwner = existing ? checked(frame.State.ReadDword(0x24C917C) + (uint)(flag * 68)) : null;
                     if (!existing)
                     {
                         for (int corner = 0; corner < corners; corner++)
@@ -39,6 +40,10 @@ public static partial class NativeBattleEffect66BodyDrawing
                         {
                             (frame, temporary, bool allocated) = BirthShard(frame, temporary, flagAddress, corners);
                             allowBirth = allocated;
+                            if (allocated)
+                            {
+                                shardOwner = checked(frame.State.ReadDword(0x24C917C) + frame.State.ReadDword(0x24C9180) * 68);
+                            }
                         }
                     }
                     else
@@ -95,6 +100,18 @@ public static partial class NativeBattleEffect66BodyDrawing
                         }
                     }
                     NativeBattleGfGeometryAttempt attempt = packet.Attempt(0, bucket, depths.ToImmutableArray());
+                    NativeBattlePilotVisualGeometry? visual = null;
+                    if (bucket is not null && pilotIdentity is { } identity)
+                    {
+                        NativeBattlePilotVisualIdentity owner = shardOwner is uint shard ? NativeBattleEffect66VisualIdentity.Point(frame, shard, checked((uint)identity.ResourceGeneration)) : identity;
+                        System.Numerics.Vector3 Corner(int corner)
+                        {
+                            NativeBattleVector point = Vector(temporary, 0x58 + corner * 8);
+                            return new(point.X, point.Y, point.Z);
+                        }
+                        visual = new(owner with { Primitive = unchecked((identity.Primitive * 397 + objectIndex) * 65537 + group * 32768 + faceIndex) }, Corner(0), Corner(1), Corner(2), corners == 4 ? Corner(3) : default, checked((byte)corners)) { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true };
+                        attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = visual } };
+                    }
                     frame = inputs.Execute(Publish(frame, registers), new NativeBattleEffect66DeliverBatch(new([attempt], bucket is null ? 0 : corners == 3 ? 32 : 40), 0x1D8E054));
                     registers = Registers(frame);
                     if (bucket is int accepted && existing)
@@ -107,6 +124,10 @@ public static partial class NativeBattleEffect66BodyDrawing
                             overlay.Dword(8 + corner * 4, screens[corner]);
                         }
                         NativeBattleGfGeometryAttempt extra = overlay.Attempt(0, Math.Max(17, accepted - 1), [0, 0, 0, 0]);
+                        if (visual is not null)
+                        {
+                            extra = extra with { Primitive = extra.Primitive! with { PilotGeometry = visual with { Identity = visual.Identity with { Primitive = unchecked(visual.Identity.Primitive ^ int.MinValue) }, SourceDepths = System.Numerics.Vector4.Zero } } };
+                        }
                         frame = inputs.Execute(Publish(frame, registers), new NativeBattleEffect66DeliverBatch(new([extra], corners == 3 ? 20 : 24), 0x1D8E054));
                         registers = Registers(frame);
                     }

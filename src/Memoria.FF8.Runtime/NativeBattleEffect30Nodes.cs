@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect30NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleEffect30MatrixStep> LookBasis8DDA50, Func<NativeBattleEffect30Frame, NativeBattleGfGeometryBatch, NativeBattleEffect30Frame> DeliverPrivate)
 {
+    public bool CapturePresentation { get; init; }
     public Func<NativeBattleEffect30Frame, int, byte, NativeBattleEffect30Frame>? ObserveBone { get; init; }
 }
 
@@ -73,7 +74,7 @@ public static class NativeBattleEffect30Nodes
             };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, operands);
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
+            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(30, NativeBattleEffect30Controller.Read(frame, address)) : null, inputs.CapturePresentation ? PreparePilotMesh : null);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = nodeSource } };
@@ -99,6 +100,12 @@ public static class NativeBattleEffect30Nodes
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
             {
+                NativeBattleEffectNodePilotMeshInstance prepared = PreparePilotMesh(node, descriptor);
+                return (bytes, matrix) => prepared(bytes, matrix, default);
+            }
+
+            NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] descriptor)
+            {
                 if (frame.State.ReadDword(0x26D6A28) != 0x2793E58)
                 {
                     throw new NotSupportedException("Effect30 mesh requires its actual copied-view reservation pointer.");
@@ -118,7 +125,7 @@ public static class NativeBattleEffect30Nodes
                 {
                     frame = frame with { State = frame.State.WriteDword(0x26D6A28, 0x2793E58) };
                 }
-                return (bytes, matrix) =>
+                return (bytes, matrix, identity) =>
                 {
                     NativeBattleEffectNodeMemoryWrite current = memory.FlushStorage();
                     (byte[] padding, bool[] known) = current.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
@@ -127,7 +134,7 @@ public static class NativeBattleEffect30Nodes
                     NativeBattlePrimitiveProcess primitive = live.PrimitiveProcess ?? throw new NotSupportedException("Effect30 mesh requires its retained renderer process.");
                     NativeBattleScriptedGraphicsMemory controls = live.ScriptedGraphics ?? throw new NotSupportedException("Effect30 mesh requires its current projection controls.");
                     NativeBattleEffectArena liveView = NativeBattleEffectNodeContextMemory.Capture(live);
-                    NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(bytes, meshAddress, matrix, inputs.Projection, Context(liveView), new(live.GeometryRegisters ?? throw new NotSupportedException("Effect30 mesh requires its geometry registers."), live.ScriptedColorRegisters ?? throw new NotSupportedException("Effect30 mesh requires its data registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("Effect30 mesh requires its FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, matrixPadding, controls.Zsf3);
+                    NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(bytes, meshAddress, matrix, inputs.Projection, Context(liveView), new(live.GeometryRegisters ?? throw new NotSupportedException("Effect30 mesh requires its geometry registers."), live.ScriptedColorRegisters ?? throw new NotSupportedException("Effect30 mesh requires its data registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("Effect30 mesh requires its FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, matrixPadding, controls.Zsf3, pilotIdentity: inputs.CapturePresentation ? identity : null);
                     liveView = NativeBattleEffectNodeContextMemory.Copy(emitted.Context88, 0, liveView, NativeBattleCuraga88Mesh.SharedViewOffset, 88);
                     live = NativeBattleEffectNodeContextMemory.Publish(live, liveView);
                     memory.PublishProcessMemory(live with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } });

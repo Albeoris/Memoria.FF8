@@ -52,13 +52,41 @@ public sealed class NativeBattleEffect64BodyDrawingTests
         Assert.Empty(result.Batch.Attempts);
     }
 
-    private static NativeBattleEffect64BodyStep Draw(byte[] geometry, short visibility)
+    [Fact]
+    public void Captured_offset_body_preserves_exact_native_scratch_registers_packets_and_quarter_depths()
+    {
+        NativeBattleEffect64BodyStep plain = Draw(Geometry(), 0);
+        NativeBattleEffect64BodyStep captured = Draw(Geometry(), 0, new(64, 1, 0, 1, 0));
+        NativeBattleGfGeometryAttempt a = Assert.Single(plain.Batch.Attempts);
+        NativeBattleGfGeometryAttempt b = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(a.Data.ToArray(), b.Data.ToArray());
+        Assert.Equal(a.WriteMask.ToArray(), b.WriteMask.ToArray());
+        Assert.Equal(a.Primitive!.VertexPayload4, b.Primitive!.VertexPayload4);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Memory)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Memory)));
+        Assert.Equal(plain.VertexScratch.Read(0, 24), captured.VertexScratch.Read(0, 24));
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(b.Primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 8000), visual.A);
+        Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 0), visual.SourceDepths);
+        Assert.True(visual.UseSourceDepths);
+    }
+
+    [Fact]
+    public void Capture_does_not_read_unknown_hidden_body_rows_or_masked_face_indices()
+    {
+        Assert.Empty(Draw(Geometry(), 128, new(64, 1, 0, 1, 0)).Batch.Attempts);
+        byte[] geometry = Geometry();
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(44), 0xFFF);
+        geometry[59] |= 0x80;
+        Assert.Empty(Draw(geometry, 0, new(64, 1, 0, 1, 0)).Batch.Attempts);
+    }
+
+    private static NativeBattleEffect64BodyStep Draw(byte[] geometry, short visibility, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattlePackedMatrix32 identity = NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 8000, 4096), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity.ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes(0x2000u)).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x18, BitConverter.GetBytes(1u));
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096 };
-        return NativeBattleEffect64BodyDrawing.DrawBody(memory, temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), Read, 0x1000, [identity], NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes(visibility)), new(null, 100, 160, 108), controls, 0x2000, 24);
+        return NativeBattleEffect64BodyDrawing.DrawBody(memory, temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), Read, 0x1000, [identity], NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes(visibility)), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, 0x2000, 24, pilotIdentity: pilotIdentity);
         NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length));
     }
 

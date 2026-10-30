@@ -22,6 +22,7 @@ public sealed class NativeBattleEffect66PresentationTests
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect66PresentationObserver observer = new();
+        NativeBattleHeavyAllocatedCaptureAssertions capture = new(66);
         HashSet<string> restored = [];
         BattleSnapshot prior = source;
         BattleSnapshot peak = source;
@@ -46,6 +47,7 @@ public sealed class NativeBattleEffect66PresentationTests
                 boundary = "callback-" + callbacks;
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                capture.Observe(prior, current);
                 NativeBattleGraphicsState currentGraphics = current.NativeGraphics ?? throw new InvalidDataException("Effect66 lost its graphics state.");
                 Assert.Equal(source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), current.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());
 
@@ -89,6 +91,7 @@ public sealed class NativeBattleEffect66PresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(callbacks < 1800, "The original effect66 component did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            capture.Accept();
             Assert.True(cameraChanged);
             Assert.True(stageChanged);
             Assert.True(changedRgb > 100, "No actual effect66 primitive changed the rendered RGB output.");

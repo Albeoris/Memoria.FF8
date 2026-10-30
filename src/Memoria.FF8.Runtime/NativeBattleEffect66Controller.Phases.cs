@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect66Controller
         {
             return new(frame, 2);
         }
-        return new(inputs.Execute(frame, new NativeBattleEffect66Rectangle571250(color, color, color)), 0);
+        return new(inputs.Execute(frame, new NativeBattleEffect66Rectangle571250(color, color, color) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(66, task) }), 0);
     }
 
     public static NativeBattleEffect66Frame BirthWhite622DC0(NativeBattleEffect66Frame frame, int mode, short duration)

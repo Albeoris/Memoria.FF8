@@ -74,7 +74,7 @@ public static partial class NativeBattleEffect66Clouds
             context = Cue(context, phase, 18);
             context = Put(context, 0x20, unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xDEA3DC + (uint)((phase % 18) * 4), 4))));
             frame = PublishContext(PublishContext(frame, outerAddress, outer, 128), contextAddress, context, 108);
-            frame = DrawCustom(frame, contextAddress, resources, inputs);
+            frame = DrawCustom(frame, contextAddress, resources, inputs, NativeBattleEffect66VisualIdentity.Point(frame, address, 0xDE90CC));
             context = Context(frame, contextAddress, 108);
             if (!Paused(frame, inputs))
             {
@@ -110,9 +110,9 @@ public static partial class NativeBattleEffect66Clouds
         return context;
     }
 
-    private static NativeBattleEffect66Frame DrawCustom(NativeBattleEffect66Frame frame, uint contextAddress, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    private static NativeBattleEffect66Frame DrawCustom(NativeBattleEffect66Frame frame, uint contextAddress, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity pilotIdentity)
     {
-        NativeBattleEffect66Mesh108Step drawn = NativeBattleEffect66Mesh108.DrawLoaded(frame.Memory, resources.ReadMesh(0xDE90CC), inputs.ReadProjection(frame), Context(frame, contextAddress, 108), inputs.Colors);
+        NativeBattleEffect66Mesh108Step drawn = NativeBattleEffect66Mesh108.DrawLoaded(frame.Memory, resources.ReadMesh(0xDE90CC), inputs.ReadProjection(frame), Context(frame, contextAddress, 108), inputs.Colors, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, contextAddress, drawn.Context108, 108);
         return inputs.Execute(frame, new NativeBattleEffect66DeliverBatch(drawn.Batch, CursorGlobal));
     }

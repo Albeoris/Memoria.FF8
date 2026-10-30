@@ -51,7 +51,33 @@ public sealed class NativeBattleEffect66Mesh108Tests
         Assert.Equal(48u, result.Memory.PrimitiveProcess.ModelRendererRegisters.FarBlue);
     }
 
-    private static NativeBattleEffect66Mesh108Step Draw(bool degenerate = false, int z = 2000)
+    [Fact]
+    public void Capture_preserves_actual_lazy_G4_native_stores_tint_registers_and_depths()
+    {
+        NativeBattleEffect66Mesh108Step plain = Draw();
+        NativeBattleEffect66Mesh108Step captured = Draw(pilotIdentity: new(66, 1, 0, 1, 0));
+        Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        for (int index = 0; index < plain.Batch.Attempts.Length; index++)
+        {
+            Assert.Equal(plain.Batch.Attempts[index].Data.ToArray(), captured.Batch.Attempts[index].Data.ToArray());
+            Assert.Equal(plain.Batch.Attempts[index].WriteMask.ToArray(), captured.Batch.Attempts[index].WriteMask.ToArray());
+        }
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Memory)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Memory)));
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Batch.Attempts[0].Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(100, 100, 2000), visual.D);
+        Assert.True(visual.UseSourceDepths);
+    }
+
+    [Fact]
+    public void Capture_does_not_read_an_invalid_fourth_index_after_native_first_triple_rejection()
+    {
+        NativeBattleEffect66Mesh108Step result = Draw(degenerate: true, invalidFourth: true, pilotIdentity: new(66, 1, 0, 1, 0));
+        Assert.Equal(0, result.Batch.AllocationBytes);
+        Assert.All(result.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
+    private static NativeBattleEffect66Mesh108Step Draw(bool degenerate = false, int z = 2000, bool invalidFourth = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         byte[] mesh = new byte[1752];
         BinaryPrimitives.WriteInt32LittleEndian(mesh, 568);
@@ -71,7 +97,7 @@ public sealed class NativeBattleEffect66Mesh108Tests
             {
                 int colorOffset = corner == 0 ? 0 : 8 + corner * 4;
                 BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(start + colorOffset), 0x383264C8u);
-                BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(start + 4 + corner * 2), (ushort)(face == 0 && !degenerate ? corner * 2 : 0));
+                BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(start + 4 + corner * 2), (ushort)(invalidFourth && corner == 3 ? 0xFFFF : face == 0 && !degenerate ? corner * 2 : 0));
             }
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with
@@ -82,7 +108,7 @@ public sealed class NativeBattleEffect66Mesh108Tests
             PrimitiveProcess = new(null, null, null, 0, null) { ModelRendererRegisters = new(null, null, null, null, null) }
         };
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 108).Write(0, BitConverter.GetBytes(0xDE90CCu)).Write(8, [1, 2, 3]).Write(0x18, BitConverter.GetBytes(12345)).Write(0x1C, BitConverter.GetBytes(0x33u)).Write(0x20, BitConverter.GetBytes(0x00FF8040u));
-        return NativeBattleEffect66Mesh108.DrawLoaded(memory, new(0, 0xDE90CC, mesh.ToImmutableArray()), new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect66Mesh108.DrawLoaded(memory, new(0, 0xDE90CC, mesh.ToImmutableArray()), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));

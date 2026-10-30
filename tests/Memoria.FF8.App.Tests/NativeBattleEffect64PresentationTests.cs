@@ -22,6 +22,7 @@ public sealed class NativeBattleEffect64PresentationTests
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect64PresentationObserver observer = new();
+        NativeBattleHeavyAllocatedCaptureAssertions capture = new(64);
         HashSet<string> restored = [];
         BattleSnapshot prior = source;
         BattleSnapshot peak = source;
@@ -42,6 +43,7 @@ public sealed class NativeBattleEffect64PresentationTests
                 boundary = "callback-" + callbacks;
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                capture.Observe(prior, current);
                 Assert.Equal(source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), current.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());
                 Assert.DoesNotContain(current.NativeGraphics!.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
                 cameraChanged |= JsonSerializer.Serialize(source.NativeCamera) != JsonSerializer.Serialize(current.NativeCamera);
@@ -77,6 +79,7 @@ public sealed class NativeBattleEffect64PresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(callbacks < 1800, "The original effect64 component did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            capture.Accept();
             Assert.True(cameraChanged);
             Assert.True(stageChanged);
             Assert.True(changedRgb > 100, "No actual effect64 primitive changed the rendered RGB output.");

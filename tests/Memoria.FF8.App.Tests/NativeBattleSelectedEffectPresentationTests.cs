@@ -79,6 +79,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int renderedCommandCount = 0;
         int renderedSamples = 0;
         int capturedOwnedFrames = 0;
+        int captured30 = 0;
         HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
@@ -185,6 +186,17 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     ownedCommands = primitive.LastCommands.Select(command => command.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor).ToArray();
                 }
+                if (effect == 30 && currentEffect?.Binding.Effect == 30 && currentEffect.DrawArenaOffset is int cursor30 && primitive is not null)
+                {
+                    NativeBattleLogicalCommand[] geometry30 = primitive.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor30 && command.Opcode is >= 0x20 and < 0x60).ToArray();
+                    foreach (NativeBattleLogicalCommand command in geometry30)
+                    {
+                        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
+                        Assert.Equal((ushort)30, geometry.Identity.Effect);
+                        Assert.True(geometry.Identity.Generation > 0);
+                        captured30++;
+                    }
+                }
                 if (effect is 9 or 17 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> appended = currentEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
@@ -251,6 +263,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.True(casting18Frames > 1);
                 Assert.True(casting18Tail, "The original18 casting seed must reach its final native counters before release.");
                 Assert.False(NativeBattleControl18CastingAssertions.HasCasting(battle.Capture()));
+            }
+            if (effect == 30)
+            {
+                Assert.True(captured30 > 0);
             }
             if (effect is 9 or 17 or 18)
             {

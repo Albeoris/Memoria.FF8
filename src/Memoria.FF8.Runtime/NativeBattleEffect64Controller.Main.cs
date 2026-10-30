@@ -74,7 +74,7 @@ public static partial class NativeBattleEffect64Controller
             int phase = age - first;
             if ((uint)phase < 4)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect64DeliverBatch(NativeBattleModuleRenderCommands.Emit700150(phase, 255, 255, 255, 0, 1, 3), CursorGlobal));
+                frame = inputs.Execute(frame, new NativeBattleEffect64DeliverBatch(NativeBattleModuleRenderCommands.Emit700150(phase, 255, 255, 255, 0, 1, 3, NativeBattlePilotVisualLifetimes.Identity(64, Read(frame, address), first)), CursorGlobal));
             }
         }
         if (age >= 0)

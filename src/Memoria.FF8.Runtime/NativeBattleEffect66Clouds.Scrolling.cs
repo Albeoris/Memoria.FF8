@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect66Clouds
             context = Put(context, 0x14, S16(row, 18));
             context = Put(context, 0x24, unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xDEA424 + (uint)(S16(row, 16) * 4), 4))));
             frame = PublishContext(PublishContext(frame, outerAddress, outer, 104), contextAddress, context, 144);
-            frame = NativeBattleEffect66Drawing.DrawWindowed144(frame, contextAddress, 0xDE97A4, 2, 0x1D8E054, resources, inputs);
+            frame = NativeBattleEffect66Drawing.DrawWindowed144(frame, contextAddress, 0xDE97A4, 2, 0x1D8E054, resources, inputs, NativeBattleEffect66VisualIdentity.Point(frame, address, 0xDE97A4));
             context = Context(frame, contextAddress, 144);
             if (!Paused(frame, inputs))
             {

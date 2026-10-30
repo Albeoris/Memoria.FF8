@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect66Frame Frame) DrawNativeEffect66Stage(NativeBattleGraphicsState graphics, NativeBattleEffect66Frame frame, uint temporaryAddress)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect66Frame Frame) DrawNativeEffect66Stage(NativeBattleGraphicsState graphics, NativeBattleEffect66Frame frame, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect66 requires its current stage rows.");
         NativeBattleStageGroup group = stage.Groups[1] with { Flags = (byte)(stage.Groups[1].Flags & 0xFD) };
@@ -35,11 +35,12 @@ public sealed partial class BattleSession
         process = gate.Process.PublishModelColor(group.ColorFlags);
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect66 stage drawing requires its current color arithmetic.");
         ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+        int meshIndex = 0;
         foreach (NativeBattleRawMesh mesh in meshes)
         {
             staging = frame.Staging ?? throw new InvalidDataException("Effect66 stage drawing lost its current addressed memory.");
             (byte[] retained, _) = staging.ReadSnapshot(scratchAddress, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, group.Matrices, camera.Projection ?? throw new NotSupportedException("Effect66 stage drawing requires its current projection registers."), group.ColorFlags, 1, retained.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, group.ColorDepth);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, group.Matrices, camera.Projection ?? throw new NotSupportedException("Effect66 stage drawing requires its current projection registers."), group.ColorFlags, 1, retained.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + meshIndex++), ResourceGeneration = definition.StageId ?? throw new NotSupportedException("Effect66 stage capture requires its original stage identity.") } : null);
             frame = frame with { Memory = NativeBattleEffect66StageRegisters.Publish5099D0(frame.Memory with { PrimitiveProcess = process }, mesh, group.Matrices, drawn.ProjectedScratch, group.ColorFlags, temporary, colors) };
             if (drawn.ProjectedBytesWritten != 0)
             {
@@ -58,6 +59,7 @@ public sealed partial class BattleSession
             }
             frame = NativeBattleEffect66Controller.PublishContext(frame with { Staging = staging }, temporaryAddress, temporary, 44);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect66 stage drawing requires its current ordinary ordering table.");
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, drawn.Packets) } };
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, drawn.Packets);
             process = written.Process;
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };

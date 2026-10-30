@@ -89,6 +89,125 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
         Assert.Equal(0x8B5C70u, stock.Callback);
     }
 
+    [Theory]
+    [InlineData(0x85BD50u, 0x15D9624u, 10)]
+    [InlineData(0x85E930u, 0x15D92F4u, 5)]
+    [InlineData(0x85F060u, 0x15D9504u, 5)]
+    public void Sprite_capture_preserves_detached_temporary_operations_packets_and_actual_authored_corners(uint callback, uint resource, ushort phase)
+    {
+        var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
+        NativeBattleModulePoolTask task = Task(callback).WriteDword(0x4C, resource).WriteWord(0x50, phase).WriteWord(0x54, 0);
+        NativeBattleActionMatrix camera = Camera();
+        NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        uint temporary = NativeBattleTemporaryMemory.Address;
+        NativeBattleFileStaging nativeStaging = NativeBattleFileStaging.Unknown().Write(temporary, Enumerable.Repeat((byte)0xA5, 180).ToArray());
+        NativeBattleFileStaging visualStaging = NativeBattleTestSnapshots.Independent(nativeStaging);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(37, task) with { ResourceGeneration = resource };
+        NativeBattleDrawStock15SpriteTemporaryResult native = NativeBattleDrinkMagic37Rendering.Emit180(nativeStaging, temporary, task, fixture.Resources, camera, projection, 0);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleDrawStock15SpriteTemporaryResult visual = NativeBattleDrinkMagic37Rendering.Emit180(visualStaging, temporary, task, fixture.Resources, camera, projection, 0, pilotIdentity: identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleAllocatedPrimitive[] polygons = visual.Batch.Primitives.Where(item => ((item.Primitive.Words[1] >> 24) & 0xE0) == 0x20).ToArray();
+        Assert.NotEmpty(polygons);
+        Assert.All(polygons, item =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(item.Primitive.PilotGeometry);
+            Assert.Equal((ushort)37, geometry.Identity.Effect);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal((long)resource, geometry.Identity.ResourceGeneration);
+            Assert.Equal((byte)4, geometry.CornerCount);
+            Assert.NotNull(geometry.Sprite);
+        });
+        Assert.Equal(polygons.Length, polygons.Select(item => item.Primitive.PilotGeometry!.Identity).Distinct().Count());
+    }
+
+    [Fact]
+    public void Ribbon_capture_uses_actual_history_points_depths_and_birth_without_changing_native_operations_or_masks()
+    {
+        NativeBattleModulePoolTask task = Task(0x85E930).WriteWord(0x128, 1).WriteWord(0x12A, 3);
+        for (int lane = 0; lane < 9; lane++)
+        {
+            task = task.WriteWord(0x60 + lane * 2, (ushort)(lane is 0 or 4 or 8 ? 4096 : 0));
+        }
+        for (int row = 1; row <= 3; row++)
+        {
+            task = task.WriteWord(0x90 + row * 8, (ushort)(row * 30)).WriteWord(0x94 + row * 8, (ushort)(1000 + row * 10));
+        }
+        NativeBattleActionMatrix camera = Camera();
+        NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(37, task);
+        NativeBattleDrawStock15RibbonStep native = NativeBattleDrinkMagic37Rendering.Ribbon(task, camera, projection);
+        NativeBattleDrawStock15RibbonStep visual = NativeBattleDrinkMagic37Rendering.Ribbon(task, camera, projection, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(4, visual.Batch.Attempts.Length);
+        Assert.All(visual.Batch.Attempts, attempt =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal((ushort)37, geometry.Identity.Effect);
+            Assert.Equal((byte)3, geometry.CornerCount);
+            Assert.NotNull(geometry.SourceDepths);
+            Assert.Equal(4, geometry.DepthQuantum);
+            Assert.Equal(4, geometry.DepthDivisor);
+            Assert.Equal(0.25f, geometry.DepthScale);
+        });
+        Assert.Equal(4, visual.Batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+    }
+
+    [Fact]
+    public void Orb_capture_preserves_detached_mesh_context_registers_far_controls_and_native_partial_writes()
+    {
+        var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        NativeBattleEffectHierarchyAppend allocated = hierarchy.Append8DC540(4, NativeBattleDrinkMagic37Profile.OrbCallback, 96, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        NativeBattleModulePoolTask task = allocated.Hierarchy.Read(allocated.Address).WriteDword(0x4C, NativeBattleDrinkMagic37Profile.OrbAddress).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteWord(0x5E, 120);
+        NativeBattleActionMatrix camera = Camera();
+        NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        NativeBattleDrinkMagic37OrbPreparation nativePrepared = NativeBattleDrinkMagic37OrbRendering.Prepare(task, camera, NativeBattleEffectArena.Clear());
+        NativeBattleDrinkMagic37OrbPreparation visualPrepared = NativeBattleTestSnapshots.Independent(nativePrepared);
+        byte[] meshBytes = fixture.Resources.OrbInitial.ToArray();
+        short[] coordinates = [-100, -100, 100, -100, -100, 100, 100, 100];
+        for (int vertex = 0; vertex < 4; vertex++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(meshBytes.AsSpan(8 + vertex * 8), coordinates[vertex * 2]);
+            BinaryPrimitives.WriteInt16LittleEndian(meshBytes.AsSpan(10 + vertex * 8), coordinates[vertex * 2 + 1]);
+        }
+        int cursor = BinaryPrimitives.ReadInt32LittleEndian(meshBytes);
+        int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
+        for (int group = 0; group < 8; group++)
+        {
+            int count = BinaryPrimitives.ReadInt32LittleEndian(meshBytes.AsSpan(cursor));
+            cursor += 4;
+            for (int face = 0; face < count; face++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(meshBytes.AsSpan(cursor), group == 3 ? 0x2C808080u : 0x3C808080u);
+                for (int corner = 0; corner < 4; corner++)
+                {
+                    BinaryPrimitives.WriteUInt16LittleEndian(meshBytes.AsSpan(cursor + 4 + corner * 2), (ushort)(corner * 2));
+                }
+                cursor += strides[group];
+            }
+        }
+        NativeBattleEffectArena nativeMesh = NativeBattleEffectArena.Clear().Write(0, meshBytes);
+        NativeBattleEffectArena visualMesh = NativeBattleTestSnapshots.Independent(nativeMesh);
+        NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(37, task) with { ResourceGeneration = NativeBattleDrinkMagic37Profile.OrbAddress };
+        NativeBattleActorWaveMeshStep native = NativeBattleDrinkMagic37OrbRendering.EmitBatch(nativeMesh, nativePrepared, projection, registers, new(1, 2, 3, 4, 5), 0, 0, 0x100, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleActorWaveMeshStep visual = NativeBattleDrinkMagic37OrbRendering.EmitBatch(visualMesh, visualPrepared, projection, registers, new(1, 2, 3, 4, 5), 0, 0, 0x100, NativeBattleGteColorInterpolation.CodeConstants45F270, identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleGeometryPrimitive[] polygons = visual.Batch.Attempts.Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!).ToArray();
+        Assert.NotEmpty(polygons);
+        Assert.All(polygons, primitive =>
+        {
+            Assert.Equal((ushort)37, primitive.PilotGeometry!.Identity.Effect);
+            Assert.Equal(identity.Generation, primitive.PilotGeometry.Identity.Generation);
+            Assert.Equal(identity.ResourceGeneration, primitive.PilotGeometry.Identity.ResourceGeneration);
+        });
+    }
+
     private static NativeBattleModulePoolTask Task(uint callback)
     {
         var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();

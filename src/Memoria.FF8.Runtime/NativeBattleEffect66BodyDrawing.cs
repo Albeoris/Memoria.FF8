@@ -9,7 +9,7 @@ public sealed record NativeBattleEffect66BodyStep(NativeBattleEffect66Frame Fram
 
 public static partial class NativeBattleEffect66BodyDrawing
 {
-    public static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, uint geometryAddress, Func<uint, int, NativeBattleEffectArena> readGeometry, ImmutableArray<NativeBattlePackedMatrix32> currentBones, NativeBattlePackedMatrix32 view, NativeBattleEffectArena temporary176, NativeBattleEffectArena scratch, int scratchLength, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs)
+    public static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, uint geometryAddress, Func<uint, int, NativeBattleEffectArena> readGeometry, ImmutableArray<NativeBattlePackedMatrix32> currentBones, NativeBattlePackedMatrix32 view, NativeBattleEffectArena temporary176, NativeBattleEffectArena scratch, int scratchLength, NativeBattleEffect66Resources resources, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || (scratchLength & 7) != 0 || currentBones.IsDefaultOrEmpty)
         {
@@ -77,7 +77,7 @@ public static partial class NativeBattleEffect66BodyDrawing
             }
             else
             {
-                NativeBattleEffect66BodyStep result = DrawFaces(frame, temporary176, scratch, scratchLength, readGeometry, inputs);
+                NativeBattleEffect66BodyStep result = DrawFaces(frame, temporary176, scratch, scratchLength, readGeometry, inputs, pilotIdentity, item);
                 frame = result.Frame;
                 temporary176 = result.Temporary176;
                 scratch = result.Scratch;

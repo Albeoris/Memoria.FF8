@@ -30,6 +30,7 @@ public static partial class NativeBattleEffect66BodyDrawing
         frame = WriteBytes(frame, flagAddress, Word(NativeBattleEffectArena.Clear(), 0, slot), 2);
         frame = frame with { State = frame.State.WriteDword(0x24C9180, (uint)slot) };
         uint address = checked(start + (uint)(slot * 68));
+        NativeBattleEffect66VisualIdentity.Allocated(frame, address);
         NativeBattleEffectArena shard = Word(ReadBytes(frame, address, 68), 0, 1);
         (frame, int random) = Random(frame);
         shard = Word(shard, 2, random % 24 + 16);
@@ -80,6 +81,7 @@ public static partial class NativeBattleEffect66BodyDrawing
         }
         frame = frame with { State = frame.State.WriteDword(0x24C66B0, (uint)slot) };
         uint address = checked(start + (uint)(slot * 24));
+        NativeBattleEffect66VisualIdentity.Allocated(frame, address);
         NativeBattleEffectArena spark = Put(Word(ReadBytes(frame, address, 24), 4, 0), 0, 1);
         (frame, int random) = Random(frame);
         spark = Word(spark, 6, random % 0x880 + 0x880);

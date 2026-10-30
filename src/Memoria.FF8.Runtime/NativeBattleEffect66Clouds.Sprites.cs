@@ -86,7 +86,7 @@ public static partial class NativeBattleEffect66Clouds
             (frame, outer) = SpritePoint(frame, outer, row, 8, S16(row, 6), radius);
             sprite = Word(sprite, 4, S16(row, 4));
             frame = PublishContext(PublishContext(frame, outerAddress, outer, 72), spriteAddress, sprite, 180);
-            frame = NativeBattleEffect66Drawing.DrawSprite(frame, spriteAddress, 2, 0x1D8E054, resources, inputs);
+            frame = NativeBattleEffect66Drawing.DrawSprite(frame, spriteAddress, 2, 0x1D8E054, resources, inputs, NativeBattleEffect66VisualIdentity.Point(frame, address, U32(sprite, 0)));
             sprite = Context(frame, spriteAddress, 180);
             if (!Paused(frame, inputs))
             {

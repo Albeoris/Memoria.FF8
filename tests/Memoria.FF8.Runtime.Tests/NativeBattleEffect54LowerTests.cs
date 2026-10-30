@@ -9,6 +9,44 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect54LowerTests
 {
     [Fact]
+    public void Sprite_capture_preserves_detached_native_scratch_and_distinguishes_instance_and_reallocated_row()
+    {
+        Fixture nativeFixture = new();
+        NativeBattleEffect54Frame native = DrawSprite80F2B0(nativeFixture.Frame, ModelBank, nativeFixture.Node, nativeFixture.Resources, nativeFixture.Inputs);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        string frozenPackets = NativeBattleTestSnapshots.Json(nativeFixture.Draws);
+        Fixture visualFixture = new();
+        NativeBattleEffect54Inputs inputs = visualFixture.Inputs with { CapturePresentation = true, ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) };
+        NativeBattleEffect54Frame visual = DrawSprite80F2B0(visualFixture.Frame, ModelBank, visualFixture.Node, visualFixture.Resources, inputs);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        Assert.Equal(frozenPackets, NativeBattleTestSnapshots.Json(visualFixture.Draws));
+        NativeBattlePilotVisualGeometry first = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(Assert.Single(visualFixture.Draws).Batch.Attempts).Primitive!.PilotGeometry);
+        visualFixture.Draws.Clear();
+        visual = DrawSprite80F2B0(visual, ModelBank, visualFixture.Node, visualFixture.Resources, inputs, 1);
+        NativeBattlePilotVisualGeometry second = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(Assert.Single(visualFixture.Draws).Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)54, first.Identity.Effect);
+        Assert.Equal(first.Identity.Generation, second.Identity.Generation);
+        Assert.Equal(first.Identity.ResourceGeneration, second.Identity.ResourceGeneration);
+        Assert.NotEqual(first.Identity.Primitive, second.Identity.Primitive);
+        Assert.Equal(2000, first.A.Z);
+        visualFixture.Frame = visual;
+        visualFixture.Byte(visualFixture.Node + 0x1D7, 0);
+        visualFixture.Dword(ModelBank + 0x34 + 0x2C, 0);
+        visualFixture.Dword(ModelBank + 0x34 + 0x30, 0);
+        visualFixture.Word(ModelBank + 0x34 + 0x16, 0);
+        visualFixture.Frame = visualFixture.Frame with { State = visualFixture.Frame.State.WriteWord(DrawHintGlobal, 0) };
+        (NativeBattleEffect54Frame allocated, uint row) = AllocateDraw810EE0(visualFixture.Frame, visualFixture.Emitters, 0);
+        Assert.Equal(visualFixture.Node, row);
+        int emitterOffset = checked((int)(visualFixture.Emitters - 0x20DFAB8));
+        int nodeOffset = checked((int)(row - 0x20DFAB8));
+        using NativeBattleEffectNodeMemory memory = new(allocated.Memory, allocated.Effect, ModelBank, emitterOffset, EmitterCount * EmitterStride, nodeOffset, DrawCount * DrawStride, true);
+        string before = NativeBattleTestSnapshots.Json(memory.CaptureProcessMemory());
+        NativeBattlePilotVisualIdentity reborn = memory.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(54, Read(allocated, ModelBank)), nodeOffset, 0);
+        Assert.NotEqual(first.Identity.ResourceGeneration, reborn.ResourceGeneration);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(memory.CaptureProcessMemory()));
+    }
+
+    [Fact]
     public void Relocation_updates_live_nullable_tables_and_all_channels_once()
     {
         Fixture f = new(false);

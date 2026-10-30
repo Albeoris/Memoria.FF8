@@ -53,7 +53,7 @@ public static class NativeBattleEffect64Programme
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x20, current);
-            frame = DrawNode6E63E0(frame, source, node, caller, resources, inputs);
+            frame = DrawNode6E63E0(frame, source, node, caller, resources, inputs, NativeBattlePilotVisualLifetimes.Identity(64, task, node.NodeIndex) with { ResourceGeneration = source.Address });
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x20, advanced.Workspace);
@@ -65,7 +65,7 @@ public static class NativeBattleEffect64Programme
         return new(Write(frame, address, task.WriteWord(0x18, unchecked((ushort)(task.ReadWord(0x18) + 1)))), 0);
     }
 
-    public static NativeBattleEffect64Frame DrawNode6E63E0(NativeBattleEffect64Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller68, NativeBattleEffect64Resources resources, NativeBattleEffect64Inputs inputs)
+    public static NativeBattleEffect64Frame DrawNode6E63E0(NativeBattleEffect64Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller68, NativeBattleEffect64Resources resources, NativeBattleEffect64Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -143,7 +143,7 @@ public static class NativeBattleEffect64Programme
         {
             ReadOnlySpan<byte> row = source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + vertexOffset, 8);
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..])), BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
-        });
+        }, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = geometryAddress } : null);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, 108);
         frame = inputs.Execute(frame, new NativeBattleEffect64DeliverBatch(drawn.Batch, 0x254508C));
         return Release(frame, 108);

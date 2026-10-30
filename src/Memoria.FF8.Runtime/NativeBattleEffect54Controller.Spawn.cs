@@ -27,6 +27,7 @@ public static partial class NativeBattleEffect54Controller
                 uint context = frame.State.ReadDword(CurrentContextGlobal);
                 frame = PutW54(frame, context + 0x16, unchecked((ushort)(ReadW54(frame, context + 0x16) + 1)));
                 frame = Link811790(frame, row, 1);
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new NotSupportedException("Drawable birth requires its current presentation storage owner."), row, 0);
                 result = row;
                 break;
             }

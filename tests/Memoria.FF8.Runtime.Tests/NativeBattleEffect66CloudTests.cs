@@ -117,7 +117,7 @@ public sealed class NativeBattleEffect66CloudTests
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]);
         return new(memory, new(66, 65, new(66, Entry, Initializer), null, null) { Pools = [root, child] }, new(123), NativeBattleEffect66State.FromColdProcess().DetachBank(0).DetachBank(1)) { Staging = staging };
     }
-    private static NativeBattleEffect66Inputs Inputs(List<NativeBattleEffect66DeliverBatch>? deliveries = null, uint flags = 0) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, _ => flags, null!, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), _ => 0, null!, null!, null!, null!, null!, null!, (frame, operation) =>
+    private static NativeBattleEffect66Inputs Inputs(List<NativeBattleEffect66DeliverBatch>? deliveries = null, uint flags = 0) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, _ => flags, null!, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), 100, 160, 108), _ => 0, null!, null!, null!, null!, null!, null!, (frame, operation) =>
     {
         deliveries?.Add(Assert.IsType<NativeBattleEffect66DeliverBatch>(operation));
         return frame;

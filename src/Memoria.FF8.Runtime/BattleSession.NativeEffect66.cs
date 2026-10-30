@@ -9,6 +9,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect66(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect66 requires its selected original effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect66Resources resources = effect.Binding.Effect66Resources ?? throw new NotSupportedException("Effect66 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect66 requires its current process memory.");
         NativeBattleEffect66Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect66 requires its current CRT stream."), memory.Effect66 ?? throw new NotSupportedException("Effect66 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect66 requires its current temporary memory.") };
@@ -114,7 +115,14 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleEffect66Rectangle571250 rectangle:
                     Publish(current);
-                    graphics = AppendNativeModulePacketBatch(graphics, NativeBattleFlashPackets.Emit571250(rectangle.Red, rectangle.Green, rectangle.Blue), null, null);
+                    NativeBattleModulePacketBatch rectangleBatch = NativeBattleFlashPackets.Emit571250(rectangle.Red, rectangle.Green, rectangle.Blue);
+                    if (rectangle.PilotIdentity is { } rectangleIdentity)
+                    {
+                        rectangleBatch = rectangleBatch with { Primitives = rectangleBatch.Primitives.Select(item => item with { Primitive = item.Primitive with { PilotGeometry = item.Primitive.PilotGeometry! with { Identity = rectangleIdentity, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } }).ToImmutableArray() };
+                    }
+                    NativeBattlePrimitiveProcess rectangleProcess = current.Memory.PrimitiveProcess!;
+                    current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(rectangleBatch.Primitives.Select(item => new NativeBattlePrimitiveReference(rectangleProcess.PacketBank!, rectangleProcess.PacketBuffer, checked(rectangleProcess.ByteCursor!.Value + item.ByteOffset)))) } };
+                    graphics = AppendNativeModulePacketBatch(graphics, rectangleBatch, null, null);
                     return Import(current);
                 case NativeBattleEffect66PcRender47CF50 render:
                     return current with { Memory = current.Memory with { PcRenderRequest = (current.Memory.PcRenderRequest ?? throw new NotSupportedException("Effect66 requires its current PC render request.")).Request47CF50(render.Mode, render.Red, render.Green, render.Blue, render.Alpha) } };
@@ -138,18 +146,20 @@ public sealed partial class BattleSession
                     events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, string.Empty) { NativeStopAllSounds = true });
                     return current;
                 case NativeBattleEffect66DrawBody176 body:
-                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect66Frame bodyFrame) = DrawNativeEffect66Body(graphics, current, body.TemporaryAddress, resources, inputs);
+                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect66Frame bodyFrame) = DrawNativeEffect66Body(graphics, current, body.TemporaryAddress, resources, inputs, body.PilotIdentity);
                     graphics = graphics with { Models = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect66DrawStageBody44 stage:
-                    (NativeBattleGraphicsState stageGraphics, NativeBattleEffect66Frame stageFrame) = DrawNativeEffect66Stage(graphics, current, stage.TemporaryAddress);
+                    (NativeBattleGraphicsState stageGraphics, NativeBattleEffect66Frame stageFrame) = DrawNativeEffect66Stage(graphics, current, stage.TemporaryAddress, stage.PilotIdentity);
                     graphics = stageGraphics;
                     return stageFrame;
                 case NativeBattleEffect66DeliverBatch packets:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect66 requires its current ordering table.");
                     if (packets.CursorGlobal == 0x1D8E054)
                     {
-                        NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect66 requires its current ordinary packet process."), primitive.Pending, packets.Batch, packets.Flags);
+                        NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect66 requires its current ordinary packet process.");
+                        current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, packets.Batch) } };
+                        NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, packets.Batch, packets.Flags);
                         graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                         return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
                     }
@@ -164,6 +174,7 @@ public sealed partial class BattleSession
                         (byte[] bytes, bool[] known) = arena.ReadSnapshot(offset, 1);
                         return (bytes[0], known[0]);
                     });
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
                     NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, packets.Flags);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, State = current.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };

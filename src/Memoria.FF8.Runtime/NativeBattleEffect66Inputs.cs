@@ -24,7 +24,10 @@ public sealed record NativeBattleEffect66UploadTim505E30(uint SourceAddress) : N
 public sealed record NativeBattleEffect66Text4876F0(int Actor, int Text, int Duration) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66Flash5712C0(int Rise, int Hold, int Fall, int Intensity) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66Stage5713E0(int Intensity, int Selector) : NativeBattleEffect66Operation;
-public sealed record NativeBattleEffect66Rectangle571250(int Red, int Green, int Blue) : NativeBattleEffect66Operation;
+public sealed record NativeBattleEffect66Rectangle571250(int Red, int Green, int Blue) : NativeBattleEffect66Operation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect66PcRender47CF50(int Mode, int Red, int Green, int Blue, int Alpha) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66Contact506690(int ContactIndex) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66StopVibration4A2940(int Handle) : NativeBattleEffect66Operation;
@@ -34,7 +37,13 @@ public sealed record NativeBattleEffect66StopSound46B450(int Voice, int Mode) : 
 public sealed record NativeBattleEffect66DeliverBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect66Operation;
 
 public sealed record NativeBattleEffect66PublishCameraPose(NativeBattleCameraPose Pose) : NativeBattleEffect66Operation;
-public sealed record NativeBattleEffect66DrawBody176(uint TemporaryAddress) : NativeBattleEffect66Operation;
-public sealed record NativeBattleEffect66DrawStageBody44(uint TemporaryAddress) : NativeBattleEffect66Operation;
+public sealed record NativeBattleEffect66DrawBody176(uint TemporaryAddress) : NativeBattleEffect66Operation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleEffect66DrawStageBody44(uint TemporaryAddress) : NativeBattleEffect66Operation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect66ModelFlags(int Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66StageGroupFlags(byte AndMask, byte OrMask) : NativeBattleEffect66Operation;

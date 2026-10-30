@@ -23,7 +23,7 @@ public static class NativeBattleEffect63Lower
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord63(PutWord63(Put63(Context(frame, temporary, 180), 0, SpriteAddress), 4, unchecked((sbyte)task.ReadByte(0x1B))), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(63, task) with { ResourceGeneration = SpriteAddress } : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect63DrawBatch(draw.Batch, CursorGlobal));
         frame = Release(frame, 180);
@@ -48,9 +48,9 @@ public static class NativeBattleEffect63Lower
         return new(unchecked((short)(NativeWorldScriptedPathMath.NativeAngle(y, horizontal) & 0xFFF)), unchecked((short)-NativeWorldScriptedPathMath.NativeAngle(x, z)), 0);
     }
 
-    public static NativeBattleEffect63Frame Envelope6E7A30(NativeBattleEffect63Frame frame, int age, int red, int green, int blue, int rise, int hold, int fall, NativeBattleEffect63Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect63DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, NativeBattleRinoa89FadeDrawing.Factor6FC450(age, rise, hold, fall)), CursorGlobal));
+    public static NativeBattleEffect63Frame Envelope6E7A30(NativeBattleEffect63Frame frame, int age, int red, int green, int blue, int rise, int hold, int fall, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null) => inputs.Execute(frame, new NativeBattleEffect63DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, NativeBattleRinoa89FadeDrawing.Factor6FC450(age, rise, hold, fall), pilotIdentity), CursorGlobal));
 
-    public static NativeBattleEffect63Frame DrawBeam6E7790(NativeBattleEffect63Frame frame, NativeBattleEffectArena start8, NativeBattleEffectArena end8, int palette, int pitch, int yaw, int scale, int fade, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs)
+    public static NativeBattleEffect63Frame DrawBeam6E7790(NativeBattleEffect63Frame frame, NativeBattleEffectArena start8, NativeBattleEffectArena end8, int palette, int pitch, int yaw, int scale, int fade, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector start = Vector(start8);
         NativeBattleVector end = Vector(end8);
@@ -80,11 +80,11 @@ public static class NativeBattleEffect63Lower
         context = PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(PutWord63(context, 0x20, 0), 0x22, palette & 0x7F), 0x24, 0), 0x26, 0), 0x28, 256), 0x2A, 256), 0x2C, 0), 0x2E, 128), 0x30, 256), 0x32, 128);
         NativeBattleStaticMeshResource mesh = resources.ReadMesh(BeamAddress);
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
-        frame = DrawWindow108(frame, temporary + 0x50, context, mesh, count, offset => NativeBattleEffectArena.Clear().Write(0, mesh.Bytes.AsSpan().Slice(8 + offset, 8)), inputs);
+        frame = DrawWindow108(frame, temporary + 0x50, context, mesh, count, offset => NativeBattleEffectArena.Clear().Write(0, mesh.Bytes.AsSpan().Slice(8 + offset, 8)), inputs, pilotIdentity is { } identity ? identity with { ResourceGeneration = BeamAddress } : null);
         return Release(frame, 188);
     }
 
-    public static NativeBattleEffect63Frame DrawWindow108(NativeBattleEffect63Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleStaticMeshResource mesh, int count, Func<int, NativeBattleEffectArena> readPacked, NativeBattleEffect63Inputs inputs)
+    public static NativeBattleEffect63Frame DrawWindow108(NativeBattleEffect63Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleStaticMeshResource mesh, int count, Func<int, NativeBattleEffectArena> readPacked, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = PublishContext(frame, temporary, context, 108);
         (NativeBattleVector Vertex, short? W) ReadRow(int offset)
@@ -93,7 +93,7 @@ public static class NativeBattleEffect63Lower
             (byte[] bytes, bool[] known) = row.ReadSnapshot(6, 2);
             return (Vector(row), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null);
         }
-        NativeBattleWindowedMeshContext108Step draw = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: readPacked);
+        NativeBattleWindowedMeshContext108Step draw = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: readPacked, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context108, 108);
         return inputs.Execute(frame, new NativeBattleEffect63DrawBatch(draw.Batch, CursorGlobal));
     }

@@ -7,7 +7,10 @@ public sealed record NativeBattleEffect63Frame(NativeBattleEffectMemory Memory, 
 
 public sealed record NativeBattleEffect63Step(NativeBattleEffect63Frame Frame, int Result);
 public sealed record NativeBattleEffect63PointStep(NativeBattleEffect63Frame Frame, NativeBattleEffectArena Output8);
-public sealed record NativeBattleEffect63Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect63Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect63Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect63Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect63Frame, short> ReadCameraRoll, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena, NativeBattleEffect63PointStep> Anchor571400, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect63PointStep> Point6E7710, Func<NativeBattleEffect63Frame, NativeBattleEffect63Operation, NativeBattleEffect63Frame> Execute);
+public sealed record NativeBattleEffect63Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect63Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect63Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect63Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect63Frame, short> ReadCameraRoll, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena, NativeBattleEffect63PointStep> Anchor571400, Func<NativeBattleEffect63Frame, uint, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect63PointStep> Point6E7710, Func<NativeBattleEffect63Frame, NativeBattleEffect63Operation, NativeBattleEffect63Frame> Execute)
+{
+    public bool CapturePresentation { get; init; }
+}
 
 public abstract record NativeBattleEffect63Operation;
 public sealed record NativeBattleEffect63UploadTim505E30(uint SourceAddress) : NativeBattleEffect63Operation;

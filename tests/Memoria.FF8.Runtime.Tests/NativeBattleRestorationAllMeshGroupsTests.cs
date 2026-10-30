@@ -55,19 +55,20 @@ public sealed class NativeBattleRestorationAllMeshGroupsTests
     [Theory]
     [InlineData((ushort)7)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
     public void Recovery_and_Full_life_capture_all_supported_native_groups_with_identical_packets_and_masks(ushort effect)
     {
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleActionMatrix matrix = camera with { X = 120, Y = -30, Z = 4096 };
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
-        NativeBattlePilotVisualIdentity identity = new(effect, effect == 7 ? NativeBattleRecoveryProfile.ForEffect(7).Descriptors[2] : NativeBattleRestorationProfile.FullLife.Descriptors[2], 2, 17, 0) { ResourceGeneration = 23 };
+        NativeBattlePilotVisualIdentity identity = new(effect, effect == 7 ? NativeBattleRecoveryProfile.ForEffect(7).Descriptors[2] : NativeBattleRestorationProfile.ForEffect(effect).Descriptors[2], 2, 17, 0) { ResourceGeneration = 23 };
         NativeBattleTextureWindow window = new(0, 0, 128, 128);
         NativeBattleEsunaMeshContext esuna = new(0xF0, 0, 2048, -4, 3, 5, window, window, 17, 2);
         NativeBattleFullLifeMeshContext fullLife = new(0xF0, 0, 2048, null, null, null, 17, 2);
         for (int group = effect == 27 ? 1 : 0; group < 8; group++)
         {
             ImmutableArray<byte> source = Mesh(group);
-            NativeBattleGfGeometryBatch Emit(NativeBattlePilotVisualIdentity? owner) => effect == 7
+            NativeBattleGfGeometryBatch Emit(NativeBattlePilotVisualIdentity? owner) => effect != 27
                 ? NativeBattleRestorationMeshPackets.EmitBatch88E240(source, matrix, projection, esuna, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: owner)
                 : NativeBattleRestorationMeshPackets.EmitBatch884370(source, matrix, projection, fullLife, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: owner);
             NativeBattleGfGeometryBatch plain = Emit(null);

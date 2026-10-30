@@ -38,6 +38,24 @@ public sealed class NativeBattleEffect66StageRegistersTests
         Assert.Equal(result.GeometryRegisters!.Translation, imported.Translation);
     }
 
+    [Fact]
+    public void Stage_raw_body_capture_preserves_projection_scratch_packets_and_deformed_current_matrices()
+    {
+        NativeBattleRawMesh mesh = Mesh() with { Vertices = [new(new(-10, -10, 0), 0), new(new(10, -10, 0), 0), new(new(-10, 10, 0), 0), new(new(10, 10, 0), 0)], PackedVertexGroups = null };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleRawModelBodyDraw plain = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, Matrices(), projection, 0x808080, 1, new byte[32].ToImmutableArray(), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleRawModelBodyDraw captured = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, Matrices(), projection, 0x808080, 1, new byte[32].ToImmutableArray(), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: new(66, 1, 0, 1, 0) { ResourceGeneration = 142 });
+        Assert.Equal(plain.ProjectedScratch.ToArray(), captured.ProjectedScratch.ToArray());
+        Assert.Equal(plain.Packets.AllocationBytes, captured.Packets.AllocationBytes);
+        Assert.NotEmpty(captured.Packets.Attempts);
+        for (int index = 0; index < plain.Packets.Attempts.Length; index++)
+        {
+            Assert.Equal(plain.Packets.Attempts[index].Data.ToArray(), captured.Packets.Attempts[index].Data.ToArray());
+            Assert.Equal(plain.Packets.Attempts[index].WriteMask.ToArray(), captured.Packets.Attempts[index].WriteMask.ToArray());
+            Assert.NotNull(captured.Packets.Attempts[index].Primitive!.PilotGeometry);
+        }
+    }
+
     private static NativeBattleEffectArena Context(short cue) => NativeBattleEffectArena.Clear().Write(0x24, BitConverter.GetBytes(cue));
 
     private static NativeBattleEffectMemory Memory()

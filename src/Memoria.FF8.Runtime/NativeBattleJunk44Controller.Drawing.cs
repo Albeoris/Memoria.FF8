@@ -36,7 +36,7 @@ public static partial class NativeBattleJunk44Controller
         }
         uint mesh = BinaryPrimitives.ReadUInt32LittleEndian(table.AsSpan(selected * 4));
         context = context.Write(0, BitConverter.GetBytes(mesh));
-        frame = inputs.Execute(PublishContext(frame, temporary + 32, context, 88), new NativeBattleJunk44DrawStatic88(temporary + 32, mesh));
+        frame = inputs.Execute(PublishContext(frame, temporary + 32, context, 88), new NativeBattleJunk44DrawStatic88(temporary + 32, mesh) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(44, task) with { ResourceGeneration = mesh } : null });
         frame = Release(frame, 120);
         task = Read(frame, address).WriteWord(0x12, unchecked((ushort)(Read(frame, address).ReadWord(0x12) - 1)));
         if (task.ReadWord(0x12) == 0)

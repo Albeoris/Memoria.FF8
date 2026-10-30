@@ -15,21 +15,21 @@ public static class NativeBattleEffect63Programme
         return frame;
     }
 
-    public static NativeBattleEffect63Step Advance(NativeBattleEffect63Frame frame, uint workspace, int length, NativeBattleEffectArena caller52, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs)
+    public static NativeBattleEffect63Step Advance(NativeBattleEffect63Frame frame, uint workspace, int length, NativeBattleEffectArena caller52, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         NativeBattleGfAnimationSource source = resources.Act(Current().ResourceAddress);
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, 0, (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
-            frame = DrawNode(frame, source, node, caller52, resources, inputs);
+            frame = DrawNode(frame, source, node, caller52, resources, inputs, pilotIdentity);
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
         return new(frame, result.Remaining);
     }
 
-    public static NativeBattleEffect63Frame DrawNode(NativeBattleEffect63Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller52, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs)
+    public static NativeBattleEffect63Frame DrawNode(NativeBattleEffect63Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller52, NativeBattleEffect63Resources resources, NativeBattleEffect63Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -100,7 +100,7 @@ public static class NativeBattleEffect63Programme
             context = PutWord63(context, 0x22, caller52.Read(0x26, 1)[0] & 0x7F);
         }
         NativeBattleEffectArena Row(int offset) => morph ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8));
-        frame = DrawWindow108(frame, temporary, context, mesh, count, Row, inputs);
+        frame = DrawWindow108(frame, temporary, context, mesh, count, Row, inputs, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset), ResourceGeneration = geometry } : null);
         return Release(frame, 108);
 
         NativeBattleVector Shape(int shape, int vertex)

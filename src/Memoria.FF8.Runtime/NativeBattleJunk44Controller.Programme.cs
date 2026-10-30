@@ -17,7 +17,7 @@ public static partial class NativeBattleJunk44Controller
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, current);
-                frame = DrawProgrammeNode6E88B0(frame, source, node, caller, resources, inputs);
+                frame = DrawProgrammeNode6E88B0(frame, source, node, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(44, task) : null);
                 return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, 64);
             });
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, advanced.Workspace);
@@ -31,7 +31,7 @@ public static partial class NativeBattleJunk44Controller
         return (Write(frame, address, task), 0);
     }
 
-    public static NativeBattleJunk44Frame DrawProgrammeNode6E88B0(NativeBattleJunk44Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs)
+    public static NativeBattleJunk44Frame DrawProgrammeNode6E88B0(NativeBattleJunk44Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, NativeBattleJunk44Resources resources, NativeBattleJunk44Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -74,7 +74,7 @@ public static partial class NativeBattleJunk44Controller
         {
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
-        frame = inputs.Execute(PublishContext(frame, temporary, context, 88), new NativeBattleJunk44DrawStatic88(temporary, geometryAddress));
+        frame = inputs.Execute(PublishContext(frame, temporary, context, 88), new NativeBattleJunk44DrawStatic88(temporary, geometryAddress) { PilotIdentity = pilotIdentity is { } identity ? identity with { Primitive = node.ResourceOffset, ResourceGeneration = geometryAddress } : null });
         return Release(frame, 88);
     }
 

@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect54Lower
                                 Store32(ref frame, node + 0xC0 + (uint)(axis * 4), unchecked((uint)(int)Read16(frame, node + 0x19C + (uint)(instance * 8 + axis * 2))));
                             }
                         }
-                        frame = DrawSprite80F2B0(frame, taskAddress, node, resources, inputs);
+                        frame = DrawSprite80F2B0(frame, taskAddress, node, resources, inputs, instance);
                     }
                 }
             }
@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect54Lower
         return frame;
     }
 
-    public static NativeBattleEffect54Frame DrawSprite80F2B0(NativeBattleEffect54Frame frame, uint taskAddress, uint node, NativeBattleEffect54Resources resources, NativeBattleEffect54Inputs inputs)
+    public static NativeBattleEffect54Frame DrawSprite80F2B0(NativeBattleEffect54Frame frame, uint taskAddress, uint node, NativeBattleEffect54Resources resources, NativeBattleEffect54Inputs inputs, int instance = 0)
     {
         uint scratch = unchecked(frame.State.ReadDword(ScratchPointerGlobal) - 180);
         if (scratch != NativeBattleEffectNodeContextMemory.Address)
@@ -51,7 +51,7 @@ public static partial class NativeBattleEffect54Lower
         using NativeBattleEffectNodeMemory physical = new(frame.Memory, frame.Effect, taskAddress, first, EmitterStride * EmitterCount, second, DrawStride * DrawCount, true);
         NativeBattleActionMatrix matrix = Packed(ReadBytes(frame, node + 0xAC, 32)).ReadMatrix();
         NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
-        NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(sprite, phase, matrix, projection, inputs.ReadCameraRoll(frame), 17, 2, geometry: physical.ProjectedSpriteGeometry(checked((int)(node - 0x20DFAB8)), source, sprite, phase, projection));
+        NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(sprite, phase, matrix, projection, inputs.ReadCameraRoll(frame), 17, 2, geometry: physical.ProjectedSpriteGeometry(checked((int)(node - 0x20DFAB8)), source, sprite, phase, projection), pilotIdentity: inputs.CapturePresentation ? physical.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(54, Read(frame, taskAddress)), checked((int)(node - 0x20DFAB8)), instance) : null);
         frame = frame with { Memory = physical.CaptureProcessMemory() };
         frame = inputs.Execute(frame, new NativeBattleEffect54DrawBatch(batch, PrimaryCursorGlobal));
         return frame with { State = frame.State.WriteDword(ScratchPointerGlobal, unchecked(frame.State.ReadDword(ScratchPointerGlobal) + 180)) };

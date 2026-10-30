@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect30 requires its current projection.");
         NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect30 requires its current actor skeleton.");
         NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
-        NativeBattleEffect30LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect30 requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors);
+        NativeBattleEffect30LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect30 requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors) { CapturePresentation = true };
 
         void Publish(NativeBattleEffect30Frame current)
         {
@@ -93,6 +93,7 @@ public sealed partial class BattleSession
         {
             NativeBattleEffect30NodeInputs nodeInputs = new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, colors, Look, Deliver)
             {
+                CapturePresentation = true,
                 ObserveBone = (value, actor, selector) => ObserveAnchor(value, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0))
             };
             return NativeBattleEffect30Nodes.Advance(current, address, resources, nodeInputs);
@@ -100,7 +101,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect30TaskStep AdvanceParticles(NativeBattleEffect30Frame current, uint address)
         {
-            return NativeBattleEffect30Particles.Advance(current, address, resources, new(Camera().CapturePackedView1D97778(), Projection(), Camera().Roll, Deliver));
+            return NativeBattleEffect30Particles.Advance(current, address, resources, new(Camera().CapturePackedView1D97778(), Projection(), Camera().Roll, Deliver) { CapturePresentation = true });
         }
 
         NativeBattleEffect30Frame Deliver(NativeBattleEffect30Frame current, NativeBattleGfGeometryBatch batch)
