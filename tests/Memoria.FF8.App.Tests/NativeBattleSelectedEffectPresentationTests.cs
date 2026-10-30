@@ -139,7 +139,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
                 NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
                 NativeBattleLogicalCommand[] ownedCommands = [];
-                if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 187)
+                if (effect == 7 && currentEffect?.Recovery?.PrimaryDrawCursor is int recoveryCursor && primitive is not null)
+                {
+                    ownedCommands = primitive.LastCommands.Select(command => command.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < recoveryCursor).ToArray();
+                }
+                else if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 187)
                 {
                     ownedCommands = NativeBattleSelectedEffect187Packets.CurrentCommands(current);
                 }
