@@ -82,4 +82,38 @@ public sealed class NativeBattleCinematicSessionPublicationTests
         Assert.Equal(expectedBytes, session.NativeEffectMemory!.PrimitiveProcess!.ByteCursor);
         Assert.NotEqual((byte)9, session.NativeEffectMemory.PrimitiveProcess.ReadCommonPacket(3, 1)[0]);
     }
+
+    [Theory]
+    [InlineData((ushort)208, true)]
+    [InlineData((ushort)211, true)]
+    [InlineData((ushort)75, false)]
+    public void Finished_capture_owner_does_not_claim_reused_common_addresses_on_the_next_poll(ushort effectId, bool clearsLedger)
+    {
+        NativeBattlePrimitiveReference reusedAddress = new("off_B6D070", 0, 52);
+        NativeBattleOriginalEffectState selected = new(effectId, effectId - 1, new(effectId, 1, 0), null, 0) { PresentationPackets = [reusedAddress] };
+        NativeBattleOriginalEffectState coldSelected = System.Text.Json.JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(System.Text.Json.JsonSerializer.Serialize(selected))!;
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
+        NativeBattleGraphicsState graphics = new([], [], 28, 329) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
+        typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
+        MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        NativeBattleGraphicsState direct = (NativeBattleGraphicsState)poll.Invoke(session, [graphics])!;
+        NativeBattleGraphicsState cold = (NativeBattleGraphicsState)poll.Invoke(session, [graphics with { OriginalEffect = coldSelected }])!;
+        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Equal(NativeBattleTestSnapshots.Json(graphics), NativeBattleTestSnapshots.Json(direct));
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(cold));
+        Assert.Contains(reusedAddress, selected.PresentationPackets);
+        Assert.Empty(cold.OriginalEffect!.PresentationPackets);
+        if (clearsLedger)
+        {
+            Assert.DoesNotContain(reusedAddress, direct.OriginalEffect!.PresentationPackets);
+            Assert.Equal(cold.OriginalEffect.PresentationPackets, direct.OriginalEffect.PresentationPackets);
+        }
+        else
+        {
+            Assert.Same(selected, direct.OriginalEffect);
+            Assert.Contains(reusedAddress, direct.OriginalEffect!.PresentationPackets);
+        }
+    }
+
 }

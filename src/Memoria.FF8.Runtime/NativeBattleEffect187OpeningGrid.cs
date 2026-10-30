@@ -7,7 +7,9 @@ public sealed record NativeBattleEffect187OpeningGridStep(NativeBattleEffectMemo
 
 public static class NativeBattleEffect187OpeningGrid
 {
-    public static NativeBattleEffect187OpeningGridStep Draw647B10(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleCameraProjection projection)
+    public static NativeBattleEffect187OpeningGridStep Draw647B10(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleCameraProjection projection) => Draw647B10(memory, context, projection, null);
+
+    public static NativeBattleEffect187OpeningGridStep Draw647B10(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         int size = Int(context, 0);
         int uvStep = Int(context, 4);
@@ -29,6 +31,7 @@ public static class NativeBattleEffect187OpeningGrid
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Effect187 opening grid requires its current projection controls.");
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[4];
         for (int row = 0; row < count; row++)
         {
             int currentY = Int(context, 0x18);
@@ -101,7 +104,12 @@ public static class NativeBattleEffect187OpeningGrid
                 uint depth = registers.Geometry.Otz!.Value;
                 context = Put(context, 0x4C, unchecked((int)depth));
                 ImmutableArray<int> depths = registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray();
-                attempts.Add(packet.Attempt(new(unchecked(17 + ((int)depth >> 2)), packet.Words(), depths)));
+                NativeBattleGeometryPrimitive primitive = new(unchecked(17 + ((int)depth >> 2)), packet.Words(), depths);
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + row * count + column) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } };
+                }
+                attempts.Add(packet.Attempt(primitive));
                 allocated = checked(allocated + 40);
             }
         }
@@ -114,6 +122,11 @@ public static class NativeBattleEffect187OpeningGrid
             NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(context.Read(offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(context.Read(offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(context.Read(offset + 4, 2)));
             short? w = known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null;
             registers = NativeBattleGeometry.LoadVector(registers, slot, point, w);
+            if (world is not null)
+            {
+                NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+            }
         }
     }
 

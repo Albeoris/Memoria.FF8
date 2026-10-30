@@ -7,6 +7,10 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeOriginalEffect(NativeBattleGraphicsState graphics)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500900 requires its retained returned-task pointer.");
+        if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } captureOwner)
+        {
+            graphics = graphics with { OriginalEffect = captureOwner with { PresentationPackets = [] } };
+        }
         if (memory.ReadReturnedTask5044B0() == 0)
         {
             return graphics;

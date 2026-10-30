@@ -80,6 +80,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int renderedSamples = 0;
         int capturedOwnedFrames = 0;
         int captured218Frames = 0;
+        int contact218Services = 0;
+        int text218Count = 0;
         int captured30 = 0;
         HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
@@ -121,6 +123,16 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 observer?.Observe(prior, current, Cold);
                 observer314?.Observe(prior, current, Cold);
                 NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
+                if (effect == 218 && prior.NativeGraphics!.OriginalEffect is { Binding.Effect: 218 } before218 && currentEffect is { Binding.Effect: 218 })
+                {
+                    NativeBattleModulePoolTask? oldMain218 = before218.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x6328A0);
+                    NativeBattleModulePoolTask? newMain218 = currentEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x6328A0);
+                    if (oldMain218?.ReadWord(12) == 383 && newMain218?.ReadWord(12) == 384)
+                    {
+                        contact218Services++;
+                        Cold("contact218-self", current);
+                    }
+                }
                 if (selectedContact.Primary.ActorIndex < 3)
                 {
                     int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
@@ -310,6 +322,19 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.True(recoveryCapturedGeometry > 0);
             }
             BattleSnapshot completed = battle.Capture();
+            if (effect == 218)
+            {
+                Assert.Equal(selectedHeader.ReadByte(0), selectedContact.Primary.ActorIndex);
+                string textActor218 = source.NativeGraphics!.ActorIds[selectedContact.Primary.ActorIndex]!;
+                BattleCombatantDefinition textDefinition218 = source.Definition.Combatants.Single(actor => actor.Id == textActor218);
+                Assert.Equal(128, textDefinition218.ModelId);
+                NativeBattleGraphicsResource textResource218 = assets.ReadNativeGraphicsResource(textDefinition218);
+                BattleEvent[] textEvents218 = completed.Events.Where(item => item.Kind == "NativeText" && item.ActorId == textActor218).ToArray();
+                Assert.Equal(new[] { 0, 1, 2, 3, 5, 6 }.Select(textResource218.ReadText91), textEvents218.Select(item => item.Message));
+                Assert.Equal(new[] { 45, 45, 45, 15, 20, 45 }, textEvents218.Select(item => item.Amount));
+                Assert.Equal(1, contact218Services);
+                text218Count = textEvents218.Length;
+            }
             if (peak is not null)
             {
                 Cold("peak", peak);
@@ -321,7 +346,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Cold("caller-ready", completed);
             observer?.Write(output!);
             observer314?.Accept(completed, output!);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, Casting18Seen = casting18Seen, Casting18Tail = casting18Tail, Casting18Frames = casting18Frames, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, Casting18Seen = casting18Seen, Casting18Tail = casting18Tail, Casting18Frames = casting18Frames, Self218ContactServices = contact218Services, Original218TextMessages = text218Count, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
         }
         catch (Exception error)
         {
