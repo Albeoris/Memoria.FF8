@@ -150,7 +150,7 @@ public sealed class NativeBattleEffect76PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect76State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect76));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect76State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect76));
         Assert.Equal(0x193A998u, original.NativeStage!.SourceAddress1D9A820);
         Assert.Equal(0u, original.NativeStage.ReloadColorSeed1D9A828);
         Assert.NotNull(original.Definition.NativeStageSource!.PhysicalSource);

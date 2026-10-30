@@ -130,7 +130,7 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect69State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect69));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect69State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect69));
         BattleCombatantDefinition definition = original.Definition.Combatants.Single(actor => actor.Id == graphics.ActorIds[4]);
         Assert.Equal(122, definition.ModelId);
         Assert.Null(definition.NativeAi);
