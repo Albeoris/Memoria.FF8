@@ -156,7 +156,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                     foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => smoothOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
                     {
                         Assert.True(command.PilotGeometry is not null, $"Effect77 uncaptured pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
-                        Assert.Equal(effectId, command.PilotGeometry!.Identity.Effect);
+                        Assert.True(command.PilotGeometry!.Identity.Effect == effectId, $"Effect77 identity mismatch at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}, identity {command.PilotGeometry.Identity}.");
                     }
                 }
                 if ((capturePeak || visibleChangedRgb == 0) && after?.ReturnedDescriptor is > 0 && current.NativeEffectMemory?.Cinematic?.Effect == effectId)
