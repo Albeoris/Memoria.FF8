@@ -17,6 +17,7 @@ public sealed class NativeMovementProgressWorldTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.InitializeNewGameSavedBattleFlags(assets.ReadNewGameSavedBattleFlags());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
         NativeLimitProgress limits = new(session.CharacterVitals!.InitOutSha256, 0, 0, 0, 3, ImmutableArray.CreateRange(new byte[] { 0, 0, 0, 1, 0, 0, 0, 0 }));

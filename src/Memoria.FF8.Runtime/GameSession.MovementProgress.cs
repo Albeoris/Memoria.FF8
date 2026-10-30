@@ -11,6 +11,6 @@ public sealed partial class GameSession
         }
         GameState candidate = PrepareNativeEventOwners(controls, seeD: seeD, characterVitals: progress.Vitals, economy: economy, globalSoundProcess: globalSoundProcess, salaryPresentation: salaryPresentation, eventRandom: eventRandom, eventMemory: progress.Memory);
         candidate = candidate with { LimitProgress = progress.Limits ?? State.LimitProgress };
-        State = StageOriginalAchievementNativeMutations(candidate);
+        State = candidate;
     }
 }

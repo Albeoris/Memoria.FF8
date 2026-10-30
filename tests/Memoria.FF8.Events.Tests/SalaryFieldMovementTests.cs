@@ -18,6 +18,7 @@ internal static partial class Program
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             session.InitializeNewGameCharacterVitals(initial.DeepCopy());
+            session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), seeD: session.SeeD!.WithSalaryUiEnabled(true));
@@ -41,7 +42,7 @@ internal static partial class Program
                 NativePlayerGroundProbe[] fans = [new(x, query.FixedY, 0), new(x, query.FixedY, 0), new(x, query.FixedY, 0)];
                 return new NativePlayerMovementResult(blocked ? query.FixedX : x, query.FixedY, query.FixedZ, 0, query.Direction, [new(x, query.FixedY, query.Direction)], [fans], !blocked);
             };
-            byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.FADEIN, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (forcedWalk ? Jsm.Opcode.RUNDISABLE : Jsm.Opcode.RUNENABLE, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]]);
+            byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.FADEIN, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (forcedWalk ? Jsm.Opcode.RUNDISABLE : Jsm.Opcode.RUNENABLE, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]]);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();
             void Set(string property, object value) => typeof(SceneEventState).GetProperty(property)!.SetValue(engine.Scene, value);
@@ -49,6 +50,8 @@ internal static partial class Program
             PartyTraceSample sample = new(0, 0, 0, 0, 0);
             Set(nameof(SceneEventState.PartyTrace), new PartyTraceState(0, 0, 0, Enumerable.Repeat<PartyTraceSample?>(sample, 64).ToArray(), Enumerable.Repeat<PartyTraceSample?>(sample, 64).ToArray()));
             Set(nameof(SceneEventState.NativePartyTraceVersion), 1);
+            engine.Scene.FieldPartyNativeActorIds.Clear();
+            engine.Scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
             Set(nameof(SceneEventState.NativePlayerPosition), new FieldFixedPosition(0, 0, 0));
             Set(nameof(SceneEventState.NativePlayerEarlyRetryState), (byte)0);
             typeof(ActorState).GetProperty(nameof(ActorState.WalkmeshTriangle))!.SetValue(engine.Actors[0], 0);
@@ -138,8 +141,7 @@ internal static partial class Program
         JsonElement unknownBefore = unknown.Capture();
         try
         {
-            unknown.Apply(move);
-            throw new InvalidOperationException("Unknown native movement admitted the obsolete walkmesh controller.");
+            Require(!unknown.Apply(move).Accepted, "Unknown native movement admitted the obsolete walkmesh controller.");
         }
         catch (NotSupportedException)
         {

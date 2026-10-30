@@ -49,17 +49,20 @@ public sealed class PlayerSaveTests : IDisposable
         byte[] bytes = Enumerable.Range(0, 16384).Select(index => (byte)(index % 256)).ToArray();
         NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.FromColdProcess() with { FileStaging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, bytes) };
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 180, FieldName = "bghoke_2", X = 12.5f, Y = 41, NativeBattleMemory = memory });
+        string expected = JsonSerializer.Serialize(session.PrepareSnapshot());
         string indentedPath = Path.Combine(directory, "indented.json");
         session.Save(indentedPath);
         int validations = 0;
         store.Save(slot, session, candidate =>
         {
             validations++;
-            Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(candidate));
+            Assert.Equal(expected, JsonSerializer.Serialize(candidate));
         });
         GameState restored = store.Load(slot);
         Assert.Equal(1, validations);
-        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restored));
+        Assert.Equal(expected, JsonSerializer.Serialize(restored));
+        Assert.Same(memory, session.State.NativeBattleMemory);
+        Assert.False(session.State.NativeBattleMemory!.FileStaging!.IsSnapshot);
         Assert.Equal(bytes, restored.NativeBattleMemory!.FileStaging!.Read(NativeBattleFileStaging.Address, bytes.Length));
         Assert.True(new FileInfo(store.GetPath(slot)).Length < new FileInfo(indentedPath).Length / 2);
         Assert.False(File.Exists(store.GetPath(slot) + ".tmp"));

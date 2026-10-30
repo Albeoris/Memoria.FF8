@@ -20,15 +20,16 @@ public sealed partial class GameSession
     /// <summary>Captures the current field owner for persistence or battle entry without changing the live owner.</summary>
     public NativeBattleRetainedMemory? CaptureNativeFieldMemory()
     {
-        if (liveFieldMemory is null)
+        NativeBattleRetainedMemory? memory = liveFieldMemory ?? State.NativeBattleMemory;
+        if (memory is null)
         {
-            return State.NativeBattleMemory;
+            return null;
         }
         if (preparingSnapshot && preparedFieldMemory is { } prepared)
         {
             return prepared;
         }
-        NativeBattleRetainedMemory captured = NativeBattleStorageSnapshots.Capture(liveFieldMemory);
+        NativeBattleRetainedMemory captured = NativeBattleStorageSnapshots.Capture(memory);
         if (preparingSnapshot)
         {
             preparedFieldMemory = captured;
@@ -36,7 +37,14 @@ public sealed partial class GameSession
         return captured;
     }
 
-    private GameState CaptureLiveFieldMemory(GameState source) => liveFieldMemory is null ? source : source with { NativeBattleMemory = CaptureNativeFieldMemory() };
+    private GameState CaptureLiveFieldMemory(GameState source)
+    {
+        if (liveFieldMemory is not null || ReferenceEquals(source.NativeBattleMemory, State.NativeBattleMemory))
+        {
+            return source with { NativeBattleMemory = CaptureNativeFieldMemory() };
+        }
+        return source.NativeBattleMemory is { } memory ? source with { NativeBattleMemory = NativeBattleStorageSnapshots.Capture(memory) } : source;
+    }
 
     public void SetNativeFieldEyeOwners(NativeBattleRetainedMemory memory, NativeCrtRandomState? crtRandom)
     {
