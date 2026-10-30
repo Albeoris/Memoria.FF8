@@ -11,6 +11,7 @@ public sealed partial class BattleSession
             LifecycleId = DiagnosticLifecycleId,
             SimulationFrame = Frame,
             Callback = NativeHostCallbacks,
+            LastInvocationCompletion = LastDiagnosticInvocationCompletion,
             Clock = nativeBattleClock,
             EffectIoResult = NativeEffectIoResult,
             CameraMask = NativeCamera?.Mask,
