@@ -30,6 +30,7 @@ public sealed partial class BattleSession
         BattleAttackCommand packet = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = callback };
         (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.EnqueueCallback(bank, callback.ActorIndex, callback.Stage);
         nativeCommandBanks = state.BindCommand(location, 0, packet);
+        ObserveDiagnosticInvocationCallbackQueued(actor, stage, location);
         ObserveDiagnosticCounterCallbackQueued(actor, stage, diagnosticPending, location);
     }
 
@@ -62,6 +63,7 @@ public sealed partial class BattleSession
         //48E830 consumes commands produced by this event before later484720 events. Newly requested events append to the existing tail.
         //The temporary CPU-dispatch list cannot span a snapshot or presentation callback; one persistent FIFO remains authoritative.
         ObserveDiagnosticCounterCallback(actor, callback.Stage, BattleDiagnosticCounterCallbackPhase.Started);
+        BeginDiagnosticInvocationAftercareHandler(callback, actor);
         List<BattleAttackCommand> tail = actions.ToList();
         nativeCallbackTail = tail;
         actions.Clear();
@@ -114,6 +116,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            EndDiagnosticInvocationAftercareHandler();
             foreach (BattleAttackCommand packet in tail)
             {
                 actions.Enqueue(packet);

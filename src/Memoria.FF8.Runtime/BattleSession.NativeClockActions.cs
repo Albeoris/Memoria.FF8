@@ -34,7 +34,18 @@ public sealed partial class BattleSession
         DiagnosticInvocationCompletion? diagnosticCompletion = CaptureDiagnosticInvocationCompletion(graphics, callback);
         NativeGraphics = graphics;
         ReleaseNativeRawRenzokukenActionOwners(callback);
-        bool completed = CompleteNativeActionEvent(callback);
+        bool aftercareCompletion = IsDiagnosticInvocationAftercareCompletion(graphics, callback);
+        bool completed;
+        BeginDiagnosticInvocationFocalCompletion(diagnosticCompletion);
+        try
+        {
+            completed = CompleteNativeActionEvent(callback);
+        }
+        finally
+        {
+            EndDiagnosticInvocationFocalCompletion();
+        }
+        ObserveDiagnosticInvocationAftercareNativeEvent(aftercareCompletion, completed);
         bool diagnosticAcknowledged = diagnosticCompletion is { } observed && completed && (presentation is not null && ReferenceEquals(ActiveAction, presentation) && presentation.ActorId == observed.Dispatch.ActorId && presentation.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex || queuedPresentations.Any(command => command.ActorId == observed.Dispatch.ActorId && command.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex));
         if (completed)
         {

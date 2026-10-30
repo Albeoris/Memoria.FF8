@@ -19,12 +19,14 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
 {
     public const string ExecutingBoundary = "executing-completion";
     public const string GraphicsFrameBoundary = "completed-graphics-frame";
+    public const string AftercareBoundary = "completed-graphics-frame-aftercare";
+    public BattleDiagnosticInvocationAftercarePlan? Aftercare { get; init; }
     public string Boundary { get; init; } = ExecutingBoundary;
     public bool PacketRemoved { get; init; }
     public long? GraphicsCallback { get; init; }
     public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
     public BattleDiagnosticInvocationRelease? ExecutingCompletion { get; init; }
-    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && Blockers.IsEmpty;
+    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || Aftercare is not null);
 }
 
 public sealed partial class BattleSession
@@ -51,6 +53,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticInvocationDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
+        ObserveDiagnosticInvocationAftercareEffectDispatch();
         if (diagnosticPendingFrameAttempt is not null)
         {
             LastDiagnosticInvocationPendingOwners = new { Reason = "dispatch-before-graphics-frame-end", dispatch.Serial, FocalSerial = diagnosticPendingFrameAttempt.Dispatch.Serial };
@@ -93,23 +96,11 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidDataException("Focal completion lost its actual graphical owner.");
-        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Focal completion lost its returned-task owner.");
-        int? files = NativeFileIo?.ActiveCount;
         bool frameEnd = executingCertificate is not null;
         bool exactPacket = !frameEnd && attempt.PacketSlot >= 0 && graphics.Descriptors.Queue.Length == 1 && graphics.Descriptors.Queue[0] == attempt.PacketSlot && graphics.Descriptors.Packets[attempt.PacketSlot] is { Command: 10 } packet && packet.Serial == attempt.PacketSerial && packet.Argument == attempt.Callback;
         NativeBattleDescriptorPacket? retiredPacket = frameEnd && attempt.PacketSlot >= 0 ? graphics.Descriptors.Packets[attempt.PacketSlot] : null;
         bool removed = frameEnd && retiredWitness is not null && ReferenceEquals(retiredPacket, retiredWitness) && executingCertificate!.CompletionPacket is { } original && retiredPacket is not null && !graphics.Descriptors.Queue.Contains(attempt.PacketSlot) && retiredPacket.UnknownByteMask == original.UnknownByteMask && retiredPacket.Bytes.AsSpan().SequenceEqual(original.Bytes.SetItem(1, 0).AsSpan());
-        BattleDiagnosticInvocationOwners owners = new(graphics.Descriptors.Queue.Length, graphics.Descriptors.Tasks.Count(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0), graphics.PendingContacts.Length, graphics.Effects.PublishedCount, graphics.Effects.Head is not null, graphics.Auxiliary.Head is not null, graphics.ModuleEffects.PublishedCount, graphics.ModuleEffects.Head is not null, files, memory.ReturnedTaskPointer1D96AAC, memory.DetachedReturnedTask is not null, NativeCameraTaskMask, NativeOriginalSoundBusy(), graphics.Models.Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)), ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(), nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
-        {
-            ActionHeaders = nativeActionPackets.ActionCount,
-            ContactRows = nativeActionPackets.ContactCount,
-            RetainedActiveHeader = nativeActionPackets.ActiveHeaderIndex,
-            RetainedActiveContact = nativeActionPackets.ActiveContactIndex,
-            ObservedOriginalEffect = graphics.OriginalEffect is not null,
-            SelectedReturnedDescriptor = graphics.OriginalEffect?.ReturnedDescriptor,
-            HeaderGraphicsBusy = (graphics.Flags & 0x10) != 0,
-            OriginalPools = graphics.OriginalEffect is { } selected ? selected.Pools.Select(pool => new BattleDiagnosticInvocationPool(pool.DescriptorAddress, pool.BankAddress, pool.Stride, pool.Slots.Count(task => (task.Flags & 1) != 0), pool.Head is not null, pool.Tail is not null)).ToImmutableArray() : []
-        };
+        BattleDiagnosticInvocationOwners owners = CaptureDiagnosticInvocationOwnerState(graphics);
         ImmutableArray<string>.Builder blockers = ImmutableArray.CreateBuilder<string>();
         if (!completed)
         {
@@ -155,6 +146,14 @@ public sealed partial class BattleSession
             RemovedCompletionPacket = retiredPacket,
             ExecutingCompletion = executingCertificate
         };
+        if (frameEnd && !LastDiagnosticInvocationCompletion.Released)
+        {
+            BattleDiagnosticInvocationRelease? scoped = TrySealDiagnosticInvocationAftercare(attempt, LastDiagnosticInvocationCompletion, graphics);
+            if (scoped is not null)
+            {
+                LastDiagnosticInvocationCompletion = scoped;
+            }
+        }
         if (LastDiagnosticInvocationCompletion.Released)
         {
             DiagnosticInvocationReleased?.Invoke(LastDiagnosticInvocationCompletion);
@@ -172,6 +171,7 @@ public sealed partial class BattleSession
     }
     private void ObserveDiagnosticInvocationPacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket original)
     {
+        ObserveDiagnosticInvocationAftercarePacketRemoved(state, slot, original);
         if (diagnosticPendingFrameAttempt is not { } attempt || slot != attempt.PacketSlot || !ReferenceEquals(original, attempt.Packet))
         {
             return;
@@ -258,6 +258,23 @@ public sealed partial class BattleSession
             CapturedSequence = sequence,
             Program = program is null ? null : new { program.Offset, SourceLength = sourceLength, ActualByteAtOffset = deadline },
             Model = model is null ? null : new { model.Index, model.Flags0, model.ResourceFlags44, model.Sequence }
+        };
+    }
+
+    private BattleDiagnosticInvocationOwners CaptureDiagnosticInvocationOwnerState(NativeBattleGraphicsState graphics)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Focal completion lost its returned-task owner.");
+        int? files = NativeFileIo?.ActiveCount;
+        return new(graphics.Descriptors.Queue.Length, graphics.Descriptors.Tasks.Count(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0), graphics.PendingContacts.Length, graphics.Effects.PublishedCount, graphics.Effects.Head is not null, graphics.Auxiliary.Head is not null, graphics.ModuleEffects.PublishedCount, graphics.ModuleEffects.Head is not null, files, memory.ReturnedTaskPointer1D96AAC, memory.DetachedReturnedTask is not null, NativeCameraTaskMask, NativeOriginalSoundBusy(), graphics.Models.Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)), ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(), nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
+        {
+            ActionHeaders = nativeActionPackets.ActionCount,
+            ContactRows = nativeActionPackets.ContactCount,
+            RetainedActiveHeader = nativeActionPackets.ActiveHeaderIndex,
+            RetainedActiveContact = nativeActionPackets.ActiveContactIndex,
+            ObservedOriginalEffect = graphics.OriginalEffect is not null,
+            SelectedReturnedDescriptor = graphics.OriginalEffect?.ReturnedDescriptor,
+            HeaderGraphicsBusy = (graphics.Flags & 0x10) != 0,
+            OriginalPools = graphics.OriginalEffect is { } selected ? selected.Pools.Select(pool => new BattleDiagnosticInvocationPool(pool.DescriptorAddress, pool.BankAddress, pool.Stride, pool.Slots.Count(task => (task.Flags & 1) != 0), pool.Head is not null, pool.Tail is not null)).ToImmutableArray() : []
         };
     }
 

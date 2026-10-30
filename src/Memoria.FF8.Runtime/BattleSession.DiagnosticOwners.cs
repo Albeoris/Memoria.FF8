@@ -12,6 +12,8 @@ public sealed partial class BattleSession
             SimulationFrame = Frame,
             Callback = NativeHostCallbacks,
             LastInvocationCompletion = LastDiagnosticInvocationCompletion,
+            LastInvocationAftercare = LastDiagnosticInvocationAftercare,
+            InvocationAftercareProgress = DiagnosticInvocationAftercareProgress,
             LastInvocationPendingOwners = LastDiagnosticInvocationPendingOwners,
             Clock = nativeBattleClock,
             EffectIoResult = NativeEffectIoResult,

@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -64,7 +64,9 @@ public sealed partial class BattleSession
     {
         if (nativeDispatchCommandLocation is { } location)
         {
+            NativeBattleCommandPacket? diagnosticOriginal = diagnosticAftercare is null ? null : nativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot];
             nativeCommandBanks = nativeCommandBanks.Release(location);
+            ObserveDiagnosticInvocationAftercareBankReleased(location, diagnosticOriginal);
             nativeDispatchCommandLocation = null;
             diagnosticCounterCurrentCallback = null;
         }

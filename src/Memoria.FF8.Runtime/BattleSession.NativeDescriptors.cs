@@ -15,7 +15,12 @@ public sealed partial class BattleSession
         {
             StopTurnAdvance();
         }
-        return graphics with { Descriptors = graphics.Descriptors.Enqueue(command, priority, argument, index, value).State };
+        (NativeBattleDescriptorState queued, int slot) = graphics.Descriptors.Enqueue(command, priority, argument, index, value);
+        if (diagnosticAftercare is { HandlerActive: true })
+        {
+            ObserveDiagnosticInvocationAftercareDescriptorQueued(slot, command, argument, queued.Packets[slot]);
+        }
+        return graphics with { Descriptors = queued };
     }
 
     private NativeBattleGraphicsState QueueNativeEntryLoads(NativeBattleGraphicsState graphics)

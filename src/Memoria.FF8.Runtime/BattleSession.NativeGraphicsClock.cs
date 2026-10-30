@@ -401,6 +401,7 @@ public sealed partial class BattleSession
         NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
         NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
         ObserveDiagnosticInvocationGraphicsFrameEnd();
+        ObserveDiagnosticInvocationAftercareFrameEnd();
     }
 
     private NativeBattleEffectMemory DrainNativeTextureUploads(NativeBattleEffectMemory memory, NativeBattleEffectTextureState textures)
