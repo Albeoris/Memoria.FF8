@@ -41,7 +41,7 @@ public static class NativeBattleEffect65Programme
                 }
                 node = node with { Data = output.ToImmutableArray() };
             }
-            frame = DrawNode(frame, source, node, caller48, resources, inputs, cursorGlobal);
+            frame = DrawNode(frame, source, node, caller48, resources, inputs with { PilotIdentity = NativeBattleEffect65Presentation.Source(frame, inputs, source.Address, unchecked((int)workspaceAddress)) }, cursorGlobal);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, advanced.Workspace);
@@ -150,7 +150,7 @@ public static class NativeBattleEffect65Programme
                 throw new NotSupportedException("Effect65 ACT requires its reached current vertex XYZ.");
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
-        });
+        }, pilotIdentity: NativeBattleEffect65Presentation.Source(frame, inputs, source.Address, node.ResourceOffset));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporaryAddress, drawn.Context108, 108);
         frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(drawn.Batch, cursorGlobal));
         return Release(frame, 108);

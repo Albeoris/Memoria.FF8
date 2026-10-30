@@ -76,6 +76,7 @@ public sealed partial class BattleSession
                 identity = NativeBattleCinematicVisualIdentity.Identity(checked((ushort)profile.Effect), current, bank, index);
             }
             NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket, matrix, identity);
+            drawn = drawn with { Packets = NativeBattleEffect249Presentation.FinalizeCapturedBatch(profile.Effect, kind, drawn.Packets) };
             current = PublishRegisters(drawn.Frame, drawn.Registers);
             if (drawn.Packets.Attempts.IsEmpty)
             {

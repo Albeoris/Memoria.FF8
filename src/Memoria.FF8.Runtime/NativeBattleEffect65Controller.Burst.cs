@@ -19,13 +19,13 @@ public static partial class NativeBattleEffect65Controller
             frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(frame.State.ReadDword(CasterGlobal), 0xFFFF, 4));
             NativeBattleVector center = Vector(TaskView(Read(frame, main), 0x1C, 6));
             center = V(center.X, center.Y, center.Z + 2000);
-            frame = BirthShards(frame, center);
+            frame = BirthShards(frame, center, inputs.CapturePresentation);
         }
         if (frame.State.ReadDword(ControlGlobal) == 0)
         {
             for (int count = 0; count < 2; count++)
             {
-                (frame, uint row) = NativeBattleEffect65Particles.Allocate6E35B0(frame);
+                (frame, uint row) = NativeBattleEffect65Particles.Allocate6E35B0(frame, inputs.CapturePresentation);
                 if (row == 0)
                 {
                     break;
@@ -53,11 +53,11 @@ public static partial class NativeBattleEffect65Controller
         return NativeBattleEffect65Programme.Advance(frame, main + 0x48, 0xC8, caller, unchecked((int)frame.State.ReadDword(ControlGlobal)), resources, inputs, true, 0x1D8E054).Frame;
     }
 
-    public static NativeBattleEffect65Frame BirthShards(NativeBattleEffect65Frame frame, NativeBattleVector center)
+    public static NativeBattleEffect65Frame BirthShards(NativeBattleEffect65Frame frame, NativeBattleVector center, bool capturePresentation = false)
     {
         for (int count = 0; count < 128; count++)
         {
-            (frame, uint row) = NativeBattleEffect65Particles.Allocate6E2E50(frame);
+            (frame, uint row) = NativeBattleEffect65Particles.Allocate6E2E50(frame, capturePresentation);
             if (row == 0)
             {
                 throw new InvalidDataException("Effect65 exhausted its freshly initialized mandatory shard records.");

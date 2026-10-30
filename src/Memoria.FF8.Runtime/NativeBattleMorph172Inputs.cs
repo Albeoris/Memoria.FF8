@@ -6,9 +6,17 @@ public sealed record NativeBattleMorph172Frame(NativeBattleEffectMemory Memory, 
 }
 
 public sealed record NativeBattleMorph172PointStep(NativeBattleMorph172Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleMorph172Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMorph172Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMorph172Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMorph172Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMorph172Frame, int, NativeBattleMorph172PointStep> ReadAnchor571400, Func<NativeBattleMorph172Frame, int, int> ReadBoneCount, Func<NativeBattleMorph172Frame, int, int, int, NativeBattleMorph172PointStep> ReadBone502170, Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame> Execute);
+public sealed record NativeBattleMorph172Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMorph172Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMorph172Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMorph172Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMorph172Frame, int, NativeBattleMorph172PointStep> ReadAnchor571400, Func<NativeBattleMorph172Frame, int, int> ReadBoneCount, Func<NativeBattleMorph172Frame, int, int, int, NativeBattleMorph172PointStep> ReadBone502170, Func<NativeBattleMorph172Frame, NativeBattleMorph172Operation, NativeBattleMorph172Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleMorph172Operation;
+public abstract record NativeBattleMorph172Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleMorph172Sound5013A0(uint Packed, uint Flags, NativeBattleEffectArena Point8) : NativeBattleMorph172Operation;
 public sealed record NativeBattleMorph172ActorFlags(int Actor, ushort ClearMask, ushort SetMask) : NativeBattleMorph172Operation;
 public sealed record NativeBattleMorph172DrawBody220(int Actor, uint TemporaryAddress) : NativeBattleMorph172Operation;

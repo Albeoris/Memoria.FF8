@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect65Particles
             uint polygon = BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(frame, source, 4).Read(0, 4));
             temporary = temporary.Write(0x60, BitConverter.GetBytes(source + 8)).Write(0x64, BitConverter.GetBytes(checked(source + polygon + 0x18)));
             frame = PublishContext(Publish(frame, registers), temporaryAddress, temporary, 120);
-            frame = DrawFaces(frame, temporaryAddress, 120, 0x60, 12, false, 0x1D8E054, 2, inputs);
+            frame = DrawFaces(frame, temporaryAddress, 120, 0x60, 12, false, 0x1D8E054, 2, inputs, NativeBattleEffect65Presentation.Row(frame, inputs, 0x3B530, index, source));
             temporary = Context(frame, temporaryAddress, 120);
         }
         return Release(frame, 120);
@@ -94,7 +94,7 @@ public static partial class NativeBattleEffect65Particles
             uint polygon = BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(frame, source, 4).Read(0, 4));
             temporary = temporary.Write(0x10, BitConverter.GetBytes(source + 8)).Write(0x14, BitConverter.GetBytes(checked(source + polygon + 0x1C)));
             frame = PublishContext(Publish(frame, registers), temporaryAddress, temporary, 40);
-            frame = DrawFaces(frame, temporaryAddress, 40, 0x10, 14, true, CursorGlobal, 4, inputs);
+            frame = DrawFaces(frame, temporaryAddress, 40, 0x10, 14, true, CursorGlobal, 4, inputs, NativeBattleEffect65Presentation.Row(frame, inputs, 0x27690, index, source));
         }
         return Release(frame, 40);
     }
@@ -140,7 +140,7 @@ public static partial class NativeBattleEffect65Particles
                 count &= int.MaxValue;
             }
             temporary = temporary.Write(0x2C, BitConverter.GetBytes(selected + 4)).Write(0x30, BitConverter.GetBytes(count));
-            NativeBattleShockwavePulsar260PuffStep drawn = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Publish(frame, registers).Memory, temporary, sprite, inputs.ReadProjection(frame));
+            NativeBattleShockwavePulsar260PuffStep drawn = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Publish(frame, registers).Memory, temporary, sprite, inputs.ReadProjection(frame), pilotIdentity: NativeBattleEffect65Presentation.Row(frame, inputs, 0x3E1F0, index, SpriteAddress));
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporaryAddress, drawn.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(drawn.Batch, CursorGlobal));
             temporary = Context(frame, temporaryAddress, 180);

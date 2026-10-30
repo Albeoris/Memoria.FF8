@@ -236,4 +236,23 @@ public sealed class NativeBattleEffect65ControllerTests
     });
 
     private static NativeBattleEffect65Resources Resources() => new(new("texture", []), new("vibration", [], []), new(0, SpriteAddress, 0, 0, []), ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, ImmutableDictionary<short, NativeBattleEffectFileAsset>.Empty);
+    [Fact]
+    public void Presentation_identity_uses_actual_task_copy_and_loaded_file_epoch_without_native_writes()
+    {
+        NativeBattleEffect65Frame frame = Frame();
+        NativeBattleEffect65Inputs inputs = NativeBattleEffect65Presentation.ForTask(frame, ArenaAddress, Inputs() with { CapturePresentation = true });
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(65, Read(frame, ArenaAddress)), inputs.PilotIdentity);
+        uint source = ArenaAddress + 0x36620;
+        NativeBattlePilotVisualIdentity first = NativeBattleEffect65Presentation.Source(frame, inputs, source, 1)!.Value;
+        Assert.NotEqual(first, NativeBattleEffect65Presentation.Source(frame, inputs, source, 2));
+        Assert.NotEqual(first, NativeBattleEffect65Presentation.Source(frame, inputs, source + 8, 1));
+        string before = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, ArenaAddress + FileOffset, -1);
+        NativeBattlePilotVisualIdentity next = NativeBattleEffect65Presentation.Source(frame, inputs, source, 1)!.Value;
+        Assert.NotEqual(first.ResourceGeneration, next.ResourceGeneration);
+        Assert.Equal(first.Generation, next.Generation);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
+        Assert.Null(NativeBattleEffect65Presentation.Source(frame, inputs with { CapturePresentation = false }, source, 1));
+    }
+
 }

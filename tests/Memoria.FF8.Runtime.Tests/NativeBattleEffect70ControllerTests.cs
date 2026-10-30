@@ -178,4 +178,47 @@ public sealed class NativeBattleEffect70ControllerTests
             }
         };
     }
+    [Fact]
+    public void Presentation_ACT_identity_is_actual_task_generation_workspace_source_and_node_copy()
+    {
+        NativeBattleEffect70Frame frame = Common();
+        uint address = Pools[1].Bank;
+        NativeBattleEffect70Inputs inputs = new Harness().Inputs() with { CapturePresentation = true };
+        string before = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(70, Read(frame, address)), inputs.PilotIdentity);
+        NativeBattlePilotVisualIdentity first = NativeBattleEffect70Presentation.Source(inputs, 0x1324FF0, 0x20)!.Value;
+        Assert.NotEqual(first, NativeBattleEffect70Presentation.Source(inputs, 0x1324FF0, 0x120));
+        Assert.NotEqual(first, NativeBattleEffect70Presentation.Source(inputs, 0x1325A88, 0x20));
+        Assert.Null(NativeBattleEffect70Presentation.Source(inputs with { CapturePresentation = false }, 0x1324FF0, 0x20));
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
+    }
+
+    [Fact]
+    public void Presentation_concurrent_actor_records_remain_distinct_when_actual_geometry_source_is_shared()
+    {
+        NativeBattleEffect70Frame frame = Common();
+        NativeBattleEffect70Inputs inputs = NativeBattleEffect70Presentation.ForTask(frame, Pools[1].Bank, new Harness().Inputs() with { CapturePresentation = true });
+        NativeBattleEffectArena rotation = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)123));
+        NativeBattleEffectArena offset = NativeBattleEffectArena.Clear().Write(2, BitConverter.GetBytes((short)-45));
+        uint firstRecord = Pools[1].Bank + 0x14;
+        NativeBattleEffect70DrawActor693170 first = NativeBattleEffect70Presentation.Actor(inputs, firstRecord, 3, rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 second = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 24, 4, rotation, offset, 2048);
+        NativeBattleEffect70DrawActor693170 repeatedActor = NativeBattleEffect70Presentation.Actor(inputs, firstRecord + 48, 3, rotation, offset, 2048);
+        const uint sharedGeometry = 0x1234000;
+        NativeBattlePilotVisualIdentity a = first.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
+        NativeBattlePilotVisualIdentity b = second.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
+        NativeBattlePilotVisualIdentity c = repeatedActor.PilotIdentity!.Value with { ResourceGeneration = sharedGeometry };
+        Assert.NotEqual(a, b);
+        Assert.NotEqual(a, c);
+        Assert.Equal(first.PilotIdentity, NativeBattleEffect70Presentation.Actor(inputs, firstRecord, 3, rotation, offset, 2048).PilotIdentity);
+        Assert.Equal(3, first.Actor);
+        Assert.Equal((short)2048, first.Scale);
+        Assert.Same(rotation, first.Rotation8);
+        Assert.Same(offset, first.Offset8);
+        NativeBattleEffect70DrawActor693170 native = NativeBattleEffect70Presentation.Actor(inputs with { CapturePresentation = false }, firstRecord, 3, rotation, offset, 2048);
+        Assert.Null(native.PilotIdentity);
+        Assert.Equal(first with { PilotIdentity = null }, native);
+    }
+
 }

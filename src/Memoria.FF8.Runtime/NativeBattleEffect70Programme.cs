@@ -25,7 +25,7 @@ public static class NativeBattleEffect70Programme
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, current);
-            frame = DrawNode6DE860(frame, source, node, caller36, resources, inputs);
+            frame = DrawNode6DE860(frame, source, node, caller36, resources, inputs with { PilotIdentity = NativeBattleEffect70Presentation.Source(inputs, source.Address, unchecked((int)workspaceAddress)) });
             return current;
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, advanced.Workspace);
@@ -47,13 +47,13 @@ public static class NativeBattleEffect70Programme
         uint dispatchAddress = Dword(caller36, 0x18) + node.GeometryIndex;
         byte dispatch = resources.ReadStatic(dispatchAddress, 1)[0];
         uint morph = checked(frame.State.ReadDword(ArenaGlobal) + MorphOffset);
-        NativeBattleEffect70ProgrammeDrawingStep drawn = Draw(source, node, caller36, camera, retained, temporary, frame.Memory, morph, MorphLength, dispatch, inputs.ReadProjection(frame), inputs.Colors);
+        NativeBattleEffect70ProgrammeDrawingStep drawn = Draw(source, node, caller36, camera, retained, temporary, frame.Memory, morph, MorphLength, dispatch, inputs.ReadProjection(frame), inputs.Colors, pilotIdentity: NativeBattleEffect70Presentation.Source(inputs, source.Address, node.ResourceOffset));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporaryAddress, drawn.Temporary88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect70DeliverPrivate(drawn.Batch, CursorGlobal));
         return Release(frame, 88);
     }
 
-    public static NativeBattleEffect70ProgrammeDrawingStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller36, NativeBattlePackedMatrix32 camera, NativeBattlePackedMatrix32 retainedView, NativeBattleEffectArena temporary88, NativeBattleEffectMemory memory, uint morphAddress, int morphLength, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? localVectorW = null)
+    public static NativeBattleEffect70ProgrammeDrawingStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller36, NativeBattlePackedMatrix32 camera, NativeBattlePackedMatrix32 retainedView, NativeBattleEffectArena temporary88, NativeBattleEffectMemory memory, uint morphAddress, int morphLength, byte dispatch, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -174,10 +174,10 @@ public static class NativeBattleEffect70Programme
         memory = memory with { Arena = arena, GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors };
         if (dispatch == (byte)'1')
         {
-            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(memory, source, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W);
+            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(memory, source, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W, pilotIdentity: pilotIdentity);
             return new(drawn.Memory, drawn.Context88, drawn.Batch);
         }
-        var ordinary = NativeBattleDefaultActMesh.Draw(memory, source.Data, source.Address, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W);
+        var ordinary = NativeBattleDefaultActMesh.Draw(memory, source.Data, source.Address, geometry, temporary88, projection, constants, offset => ReadVertex(offset).Vertex, offset => ReadVertex(offset).W, pilotIdentity: pilotIdentity);
         return new(ordinary.Memory, ordinary.Context88, ordinary.Batch);
 
         (NativeBattleVector Vertex, short? W) ReadVertex(int offset)

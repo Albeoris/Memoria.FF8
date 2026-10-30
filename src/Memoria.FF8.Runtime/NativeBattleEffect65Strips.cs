@@ -28,7 +28,7 @@ public static partial class NativeBattleEffect65Strips
         return (frame with { State = frame.State.WriteDword(RandomGlobal, value) }, checked((int)value));
     }
 
-    public static (NativeBattleEffect65Frame Frame, uint Address) AllocatePoint6E41D0(NativeBattleEffect65Frame frame)
+    public static (NativeBattleEffect65Frame Frame, uint Address) AllocatePoint6E41D0(NativeBattleEffect65Frame frame, bool capturePresentation = false)
     {
         uint start = checked(frame.State.ReadDword(ArenaGlobal) + 0x3B530);
         uint address = frame.State.ReadDword(0x2544FBC);
@@ -50,11 +50,15 @@ public static partial class NativeBattleEffect65Strips
                 }
             }
         }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, start, checked((int)((address - start) / 24)));
+        }
         uint next = address >= start + 255 * 24 ? start : address + 24;
         return (frame with { State = frame.State.WriteDword(0x2544FBC, next) }, address);
     }
 
-    public static (NativeBattleEffect65Frame Frame, uint Address) Birth6E4F60(NativeBattleEffect65Frame frame, NativeBattleEffectArena descriptor56)
+    public static (NativeBattleEffect65Frame Frame, uint Address) Birth6E4F60(NativeBattleEffect65Frame frame, NativeBattleEffectArena descriptor56, bool capturePresentation = false)
     {
         uint common = frame.State.ReadDword(ArenaGlobal);
         uint start = common + 0x3CD30;
@@ -78,7 +82,7 @@ public static partial class NativeBattleEffect65Strips
             }
         }
         frame = frame with { State = frame.State.WriteDword(0x2544FC0, address >= start + 31 * 56 ? start : address + 56) };
-        (frame, uint pointAddress) = AllocatePoint6E41D0(frame);
+        (frame, uint pointAddress) = AllocatePoint6E41D0(frame, capturePresentation);
         if (pointAddress == 0)
         {
             return (frame, 0);
@@ -92,6 +96,10 @@ public static partial class NativeBattleEffect65Strips
         record = NativeBattleEffectNodeContextMemory.Copy(descriptor56, 0x30, record, 0x30, 4);
         record = PutWord(record, 0x34, 1);
         record = NativeBattleEffectNodeContextMemory.Copy(descriptor56, 0x36, record, 0x36, 2);
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, start, checked((int)((address - start) / 56)));
+        }
         return (WriteBytes(frame, address, record, 56), address);
     }
 
@@ -124,7 +132,7 @@ public static partial class NativeBattleEffect65Strips
             descriptor = PutWord(descriptor, 0x28 + index * 2, (unchecked(draw * 1000) >> 15) - 500);
         }
         descriptor = PutWord(PutWord(PutWord(PutWord(descriptor, 0x2E, 0), 0x30, 12288), 0x32, -512), 0x36, 4096);
-        return Birth6E4F60(frame, descriptor).Frame;
+        return Birth6E4F60(frame, descriptor, inputs.CapturePresentation).Frame;
 
         NativeBattleVector Circle(int orientation, int radius) => new(unchecked((short)(Word(center8, 0) + (unchecked(unchecked((short)NativeBattleCameraMath.Sine(orientation)) * radius) >> 12))), Word(center8, 2), unchecked((short)(Word(center8, 4) + (unchecked(unchecked((short)NativeBattleCameraMath.Cosine(orientation)) * radius) >> 12))));
     }
@@ -190,7 +198,7 @@ public static partial class NativeBattleEffect65Strips
                     registers = Weight(registers, Vector(record, 0x18), fraction, true, inputs.Colors);
                     output = Point(NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, Ir(registers));
                 }
-                (frame, uint pointAddress) = AllocatePoint6E41D0(frame);
+                (frame, uint pointAddress) = AllocatePoint6E41D0(frame, inputs.CapturePresentation);
                 if (pointAddress == 0)
                 {
                     frame = WriteBytes(frame, address, PutWord(record, 0x1E, 4096), 56);

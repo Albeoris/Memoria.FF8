@@ -50,6 +50,7 @@ public static partial class NativeBattleEffect65Controller
 
     public static NativeBattleEffect65Step AdvanceChild6E50A0(NativeBattleEffect65Frame frame, uint address, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs)
     {
+        inputs = NativeBattleEffect65Presentation.ForTask(frame, address, inputs);
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(0) with { X = Signed(task, 12), Y = Signed(task, 14), Z = Signed(task, 16) };
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);

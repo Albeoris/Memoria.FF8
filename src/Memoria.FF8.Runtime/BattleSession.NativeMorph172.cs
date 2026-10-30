@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Morph172 requires its actual process memory.");
         NativeBattleMorph172Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Morph172 requires its actual CRT stream."), memory.Morph172 ?? throw new NotSupportedException("Morph172 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Morph172 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 requires its interpolation constants.");
-        NativeBattleMorph172Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute);
+        NativeBattleMorph172Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, (_, actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its actual current skeleton byte owner.")).BoneCount, Bone, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleMorph172Controller.Initialize(frame, resources, inputs) : NativeBattleMorph172Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -82,19 +82,19 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleMorph172DrawBody220 body:
                     Publish(current);
-                    var drawnBody = DrawNativeMorph172Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress);
+                    var drawnBody = DrawNativeMorph172Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress, body.PilotIdentity);
                     graphics = drawnBody.Graphics;
                     return drawnBody.Frame;
                 case NativeBattleMorph172DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), sprite.PilotIdentity);
                 case NativeBattleMorph172DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Morph172 emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleMorph172Frame DrawSprite(NativeBattleMorph172Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleMorph172Frame DrawSprite(NativeBattleMorph172Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Morph172 sprite requires its actual temporary memory.");
@@ -103,21 +103,21 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Morph172 sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Morph172 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Morph172 sprite requires its projection."), Camera().Roll, bucket, shift, allowCallerScale: true);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Morph172 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Morph172 sprite requires its projection."), Camera().Roll, bucket, shift, allowCallerScale: true, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
-            return Deliver(current, drawn.Batch);
+            return Deliver(current, pilotIdentity.HasValue ? NativeBattleMorph172Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch);
         }
 
-        NativeBattleMorph172Frame DrawMesh(NativeBattleMorph172Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleMorph172Frame DrawMesh(NativeBattleMorph172Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Morph172 mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
             uint flags = BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(0x1C, 4));
             uint? selected = (flags & 0x2000) != 0 ? BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(4, 4)) : null;
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Morph172 requires its current projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
-            return Deliver(current, drawn.Batch);
+            return Deliver(current, pilotIdentity.HasValue ? NativeBattleMorph172Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch);
         }
 
         (NativeBattleVector Vertex, short? W) SelectedVertex(NativeBattleMorph172Frame current, uint address, int offset)

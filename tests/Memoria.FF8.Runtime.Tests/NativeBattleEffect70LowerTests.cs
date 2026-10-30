@@ -200,4 +200,54 @@ public sealed class NativeBattleEffect70LowerTests
         }
         return new(SourceAddress, bytes.ToImmutableArray());
     }
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public void Presentation_reuses_actual_ACT_selected_operands_and_preserves_both_native_mesh_leaves(bool special, bool morph)
+    {
+        NativeBattleEffect70ProgrammeDrawingStep Run(bool capture)
+        {
+            NativeBattlePackedMatrix32 view = Packed(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 });
+            return NativeBattleEffect70Programme.Draw(Source(4, 2, true), Node(blend: (short)(morph ? 2048 : 0), second: (short)(morph ? 1 : 0)), Context(), view, view, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), Memory(), MorphAddress, MorphBytes, special ? (byte)'1' : (byte)'0', new(view.ReadMatrix(), 100, 160, 108), Constants, pilotIdentity: capture ? new(70, 0x2544EA8, 0, 37, 4) { ResourceGeneration = SourceAddress } : null);
+        }
+        NativeBattleEffect70ProgrammeDrawingStep native = Run(false);
+        NativeBattleEffect70ProgrammeDrawingStep captured = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(morph ? -350 : -400, -400, 0), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(morph ? 450 : 400, 400, 0), geometry.D);
+        NativeBattleGfGeometryBatch retained = NativeBattleEffect70Presentation.FinalizeCapturedBatch(captured.Batch);
+        NativeBattlePilotVisualGeometry depths = Assert.Single(retained.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+        Assert.True(depths.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), depths.SourceDepths);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured));
+        Assert.Equal(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { Identity = geometry.Identity with { Generation = 38 }, A = new(900, 900, 900) }, 0.5f));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+    }
+
+    [Fact]
+    public void Presentation_flash_matches_unchanged_private_flags_zero_pixel_words_and_actual_zero_payload()
+    {
+        NativeBattleEffect70Inputs inputs = new(null!, null!, null!, null!, null!, null!, null!, null!, null!) { CapturePresentation = true, PilotIdentity = new(70, 1, 2, 3, 0) };
+        NativeBattleGfGeometryBatch native = NativeBattleEffect70Presentation.Flash(inputs with { CapturePresentation = false }, 2340);
+        NativeBattleGfGeometryBatch captured = NativeBattleEffect70Presentation.FinalizeCapturedBatch(NativeBattleEffect70Presentation.Flash(inputs, 2340));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = primitive.PilotGeometry!;
+        Assert.False(geometry.Continuous);
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(1, geometry.ScreenScale);
+        Assert.Equal(new System.Numerics.Vector3(320, 216, 0), geometry.D);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            uint encoded = primitive.Words[2 + corner];
+            Assert.Equal(unchecked((short)encoded), geometry.Corner(corner).X * geometry.ScreenScale);
+            Assert.Equal(unchecked((short)(encoded >> 16)), geometry.Corner(corner).Y * geometry.ScreenScale);
+        }
+    }
+
 }

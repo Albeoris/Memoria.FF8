@@ -85,4 +85,58 @@ public sealed class NativeBattleEffect65ProgrammeTests
         }
         return new(0x100000, bytes.ToImmutableArray());
     }
+    [Fact]
+    public void Presentation_loaded_ACT_retains_actual_postmorph_operands_and_native_context_stores()
+    {
+        (NativeBattleEffect65Frame Frame, NativeBattleGfGeometryBatch Batch) Run(bool capture)
+        {
+            NativeBattleEffect65Frame frame = Frame();
+            frame = frame with { Memory = frame.Memory with { PrimitiveProcess = new(null, null, null, 0, null) { ModelRendererRegisters = new(null, null, null, null, null) } } };
+            List<NativeBattleEffect65Operation> operations = [];
+            NativeBattleEffect65Inputs inputs = Inputs(operations) with { CapturePresentation = capture, PilotIdentity = capture ? new(65, MainDescriptor, 0, 33, 0) : null, ReadProjection = _ => new(Identity(2000).ReadMatrix(), 100, 160, 108) };
+            frame = NativeBattleEffect65Programme.DrawNode(frame, CaptureSource(4, 2, true), Node(), Caller(), Resources(), inputs);
+            return (frame, Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(operations)).Batch);
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Batch)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Batch)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-350, -400, 0), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(450, 400, 0), geometry.D);
+        Assert.True(Assert.Single(NativeBattleEffect65Presentation.FinalizeCapturedBatch(captured.Batch).Attempts).Primitive!.PilotGeometry!.UseSourceDepths);
+    }
+
+    private static NativeBattleGfAnimationSource CaptureSource(int count, int variants, bool face = false)
+    {
+        int faces = 12 + count * variants * 8;
+        byte[] bytes = new byte[16 + faces + 32 + (face ? 24 : 0)];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 16);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), faces);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), count);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24), variants);
+        short[] xy = [-400, -400, 400, -400, -400, 400, 400, 400];
+        for (int variant = 0; variant < variants; variant++)
+        {
+            for (int vertex = 0; vertex < count; vertex++)
+            {
+                int at = 28 + (variant * count + vertex) * 8;
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(at), (short)((vertex < 4 ? xy[vertex * 2] : 0) + variant * 100));
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(at + 2), (short)(vertex < 4 ? xy[vertex * 2 + 1] : 0));
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(at + 6), 0x1234);
+            }
+        }
+        if (face)
+        {
+            int group = 16 + faces + 3 * 4;
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(group), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(group + 4), 0x2C332211);
+            for (int vertex = 0; vertex < 4; vertex++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(group + 8 + vertex * 2), (ushort)(vertex * 2));
+            }
+        }
+        return new(0x100000u, bytes.ToImmutableArray());
+    }
 }

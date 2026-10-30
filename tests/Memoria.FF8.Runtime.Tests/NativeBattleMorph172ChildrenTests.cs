@@ -8,6 +8,83 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleMorph172ChildrenTests
 {
+    [Theory]
+    [InlineData(0x5D9F20u)]
+    [InlineData(0x5DA0F0u)]
+    [InlineData(0x5DA520u)]
+    [InlineData(0x5DA2C0u)]
+    public void Presentation_routes_actual_task_rewritten_source_body_and_physical_particle_rows_without_native_changes(uint callback)
+    {
+        (NativeBattleMorph172Frame Frame, List<NativeBattleMorph172Operation> Operations) Run(bool capture)
+        {
+            var frame = Frame(callback, callback == 0x5DA2C0 ? (ushort)43 : (ushort)1);
+            if (callback == 0x5DA2C0)
+            {
+                frame = frame with { State = frame.State.WriteDword(ParticleBase, 1).WriteWord(ParticleBase + 6, 4096) };
+            }
+            if (callback is 0x5D9F20 or 0x5DA0F0)
+            {
+                frame = InitializeRadii5D9EE0(frame, Resources);
+            }
+            List<NativeBattleMorph172Operation> operations = [];
+            var inputs = Inputs((current, operation) =>
+            {
+                operations.Add(operation);
+                return operation is NativeBattleMorph172DrawSprite180 sprite ? Feedback(current, sprite.TemporaryAddress, -1) : current;
+            }) with { CapturePresentation = capture };
+            var result = callback switch
+            {
+                0x5DA520 => AdvanceBody(frame, ChildBank, Resources, inputs),
+                0x5DA2C0 => AdvanceSlots(frame, ChildBank, Resources, inputs),
+                _ => AdvanceMesh(frame, ChildBank, Resources, inputs)
+            };
+            return (result.Frame, operations);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+        string Operations(List<NativeBattleMorph172Operation> values) => string.Join("\n", values.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())));
+        Assert.Equal(Operations(native.Operations), Operations(captured.Operations));
+        Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+        var draws = captured.Operations.Where(operation => operation is NativeBattleMorph172DrawBody220 or NativeBattleMorph172DrawStatic88 or NativeBattleMorph172DrawSprite180).ToArray();
+        var identity = Assert.Single(draws).PilotIdentity!.Value;
+        Assert.Equal((ushort)172, identity.Effect);
+        if (callback is 0x5D9F20 or 0x5DA0F0)
+        {
+            Assert.Equal((long)unchecked(0xD6299Cu * 397 ^ (callback == 0x5D9F20 ? 0x239BEB8u : 0x239B268u)), identity.ResourceGeneration);
+        }
+        if (callback == 0x5DA2C0)
+        {
+            Assert.Equal(ParticleBase, identity.Bank);
+            Assert.Equal(0, identity.Slot);
+        }
+    }
+
+    [Fact]
+    public void Presentation_particle_native_retirement_and_rebirth_change_only_its_row_epoch()
+    {
+        var frame = Frame(0x5DA2C0, 0);
+        List<NativeBattlePilotVisualIdentity> draws = [];
+        var inputs = Inputs((current, operation) =>
+        {
+            var sprite = Assert.IsType<NativeBattleMorph172DrawSprite180>(operation);
+            draws.Add(sprite.PilotIdentity!.Value);
+            return Feedback(current, sprite.TemporaryAddress, -1);
+        }) with { CapturePresentation = true, ReadBoneCount = (_, _) => 7, ReadBone502170 = (current, _, _, _) => new(current, NativeBattleEffectArena.Clear().Write(0, new byte[] { 10, 0, 20, 0, 30, 0 }).MarkUnknown(6, 2)) };
+        frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
+        Assert.Empty(draws);
+        frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
+        var first = Assert.Single(draws);
+        draws.Clear();
+        AdvanceSlots(frame, ChildBank, Resources, inputs);
+        var next = Assert.Single(draws);
+        Assert.Equal(first.Bank, next.Bank);
+        Assert.Equal(first.Slot, next.Slot);
+        Assert.Equal(first.ResourceGeneration, next.ResourceGeneration);
+        Assert.NotEqual(first.Generation, next.Generation);
+    }
+
     private static readonly NativeBattleMorph172Resources Resources = new(Mesh(), null!, Enumerable.Repeat(0x00804020u, 20).ToImmutableArray(), null!, 0);
 
     [Theory]

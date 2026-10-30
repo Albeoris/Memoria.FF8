@@ -182,4 +182,63 @@ public sealed class NativeBattleEffect65ParticleTests
         frame = PublishContext(frame, temporary, Context(frame, temporary, 120).Write(0, BitConverter.GetBytes(vertices)).Write(4, BitConverter.GetBytes(source)).Write(8, BitConverter.GetBytes(0x12345678u)), 120);
         return (frame, temporary, source, vertices);
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_faces_capture_reached_corners_and_native_FIFO_without_changing_packet_or_context(bool quad)
+    {
+        (NativeBattleEffect65Frame Frame, List<NativeBattleEffect65Operation> Operations) Run(bool capture)
+        {
+            var fixture = FaceFrame(quad, 2000);
+            List<NativeBattleEffect65Operation> operations = [];
+            NativeBattleEffect65Inputs inputs = Inputs(operations) with { ReadProjection = _ => new(Identity().ReadMatrix(), 100, 160, 108) };
+            NativeBattleEffect65Frame result = NativeBattleEffect65Particles.DrawFaces(fixture.Frame, fixture.Temporary, 120, 0, 4, quad, CursorGlobal, 2, inputs, capture ? new(65, ArenaAddress + 0x3B530, 127, 43, 0) { ResourceGeneration = fixture.Source } : null);
+            return (result, operations);
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        NativeBattleGfGeometryBatch original = Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(native.Operations)).Batch;
+        NativeBattleGfGeometryBatch batch = Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(captured.Operations)).Batch;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(batch)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        if (quad)
+        {
+            Assert.Equal(new System.Numerics.Vector3(100, 100, 2000), geometry.D);
+        }
+        NativeBattlePilotVisualGeometry retained = Assert.Single(NativeBattleEffect65Presentation.FinalizeCapturedBatch(batch).Attempts).Primitive!.PilotGeometry!;
+        Assert.True(retained.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), retained.SourceDepths);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_reject_guard_keeps_fourth_corner_unread(bool capture)
+    {
+        var fixture = FaceFrame(true, -1);
+        fixture.Frame.Memory.Arena!.MarkUnknown(checked((int)(fixture.Vertices - ArenaAddress)) + 24, 8);
+        List<NativeBattleEffect65Operation> operations = [];
+        NativeBattleEffect65Particles.DrawFaces(fixture.Frame, fixture.Temporary, 120, 0, 4, true, CursorGlobal, 2, Inputs(operations) with { ReadProjection = _ => new(Identity().ReadMatrix(), 100, 160, 108) }, capture ? new(65, 1, 2, 3, 4) : null);
+        Assert.Null(Assert.Single(Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(operations)).Batch.Attempts).Primitive);
+    }
+
+    [Fact]
+    public void Presentation_particle_allocation_preserves_CRT_and_records_a_new_real_slot_birth()
+    {
+        NativeBattleEffect65Frame native = NativeBattleEffect65Particles.Allocate6E2E50(NativeBattleEffect65Particles.Initialize6E2E20(Frame())).Frame;
+        NativeBattleEffect65Frame captured = NativeBattleEffect65Particles.Allocate6E2E50(NativeBattleEffect65Particles.Initialize6E2E20(Frame()), true).Frame;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        NativeBattleEffect65Inputs inputs = Inputs() with { CapturePresentation = true };
+        NativeBattlePilotVisualIdentity first = NativeBattleEffect65Presentation.Row(captured, inputs, 0x3B530, 0, 100)!.Value;
+        captured = captured with { State = captured.State.WriteDword(0x2544FC4, ArenaAddress + 0x3B530) };
+        captured = NativeBattleEffect65Particles.Allocate6E2E50(captured, true).Frame;
+        NativeBattlePilotVisualIdentity second = NativeBattleEffect65Presentation.Row(captured, inputs, 0x3B530, 0, 100)!.Value;
+        Assert.NotEqual(first.Generation, second.Generation);
+        Assert.NotEqual(second, NativeBattleEffect65Presentation.Row(captured, inputs, 0x3B530, 0, 101));
+    }
+
 }

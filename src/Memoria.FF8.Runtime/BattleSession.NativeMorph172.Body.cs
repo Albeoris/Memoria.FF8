@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleMorph172Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeMorph172Body(NativeBattleMorph172Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress)
+    private (NativeBattleMorph172Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeMorph172Body(NativeBattleMorph172Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Morph172 target requires its current skeleton.");
@@ -25,7 +25,7 @@ public sealed partial class BattleSession
 
         NativeBattleMorph172ModelFrame Shadow(NativeBattleMorph172ModelFrame current)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Morph172 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Morph172 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Morph172 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Morph172 shadow requires its primitive capabilities."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Morph172 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Morph172 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Morph172 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Morph172 shadow requires its primitive capabilities."), 4121, 16, NativeBattleMorph172Presentation.Domain(pilotIdentity, uint.MaxValue, 2));
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = shadow.Staging };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
             current = AppendCommon(current, shadow.Batch);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Morph172 target requires its physical geometry address.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeMorph172View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."));
+            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."), pilotIdentity: NativeBattleMorph172Presentation.Domain(pilotIdentity, sourceAddress, 0));
             current = current with { Memory = drawn.Memory, Temporary220 = drawn.Temporary220, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary220, 220) };
             return AppendCommon(current, drawn.Batch);
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
             uint color = current.Model.Color40 ?? throw new NotSupportedException("Morph172 linked body requires its actual full color.");
             process = process.PublishModelColor(color);
             (byte[] retained, _) = current.Staging.ReadSnapshot(scratchAddress, scratchLength);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Morph172 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Morph172 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity.HasValue ? NativeBattleMorph172Presentation.Domain(pilotIdentity, pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Morph172 capture requires its actual linked source."), 1) : null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
@@ -119,6 +119,7 @@ public sealed partial class BattleSession
 
         NativeBattleMorph172ModelFrame AppendCommon(NativeBattleMorph172ModelFrame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = pilotIdentity.HasValue ? NativeBattleMorph172Presentation.PreserveNativeDepths(batch) : batch;
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Morph172 target requires its current COMMON ordering table.");
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Morph172 target requires its current COMMON packet owner."), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };

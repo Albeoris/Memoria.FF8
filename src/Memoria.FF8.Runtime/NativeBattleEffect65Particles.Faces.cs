@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect65Particles
 {
-    public static NativeBattleEffect65Frame DrawFaces(NativeBattleEffect65Frame frame, uint temporaryAddress, int temporaryLength, int contextOffset, int vertexCount, bool quad, uint cursorGlobal, byte depthShift, NativeBattleEffect65Inputs inputs)
+    public static NativeBattleEffect65Frame DrawFaces(NativeBattleEffect65Frame frame, uint temporaryAddress, int temporaryLength, int contextOffset, int vertexCount, bool quad, uint cursorGlobal, byte depthShift, NativeBattleEffect65Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena temporary = Context(frame, temporaryAddress, temporaryLength);
         uint vertices = Dword(temporary, contextOffset);
@@ -26,10 +26,16 @@ public static partial class NativeBattleEffect65Particles
             Span<byte> face = faceStorage[..(quad ? 36 : 28)];
             ReadFaceBytes(frame, source, face, faceKnown[..face.Length]);
             NativeBattleGeometryRegisterStep registers = Registers(frame);
+            NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
             for (int corner = 0; corner < 3; corner++)
             {
                 (NativeBattleVector point, short? w) = ReadFaceVertex(frame, face, corner, vertices, vertexCount, vertexBytes, vertexKnown);
                 registers = NativeBattleGeometry.LoadVector(registers, corner, point, w);
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, point), inputs.ReadProjection(frame));
+                }
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
             NativeBattleEffect65PacketWrites packet = new(quad ? 52 : 40);
@@ -72,6 +78,10 @@ public static partial class NativeBattleEffect65Particles
                     {
                         (NativeBattleVector point, short? w) = ReadFaceVertex(frame, face, 3, vertices, vertexCount, vertexBytes, vertexKnown);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, point, w);
+                        if (world is not null)
+                        {
+                            world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, point), inputs.ReadProjection(frame));
+                        }
                         registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                         screens[3] = registers.Geometry.Sxy[2]!.Value;
                         packet.Dword(44, screens[3]);
@@ -99,6 +109,10 @@ public static partial class NativeBattleEffect65Particles
             uint opcode = face[3] & 0xFCu;
             ImmutableArray<int> payload = !accepted ? [] : opcode is >= 0x20 and <= 0x3C ? quad ? registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0] : [0, 0, 0, 0];
             NativeBattleGfGeometryAttempt attempt = packet.Attempt(0, bucket, accepted ? payload : []);
+            if (attempt.Primitive is { } primitive && pilotIdentity is { } identity && world is not null)
+            {
+                attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (int)source) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)world.Length) } };
+            }
             frame = PublishContext(Publish(frame, registers), temporaryAddress, temporary, temporaryLength);
             frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(new([attempt], accepted ? quad ? 52 : 40 : 0), cursorGlobal));
             temporary = Context(frame, temporaryAddress, temporaryLength);

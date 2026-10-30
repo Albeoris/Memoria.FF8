@@ -108,5 +108,35 @@ public sealed class NativeBattleEffect70ParticleTests
 
     private static short Word(NativeBattleEffect70Frame frame, int offset) => BinaryPrimitives.ReadInt16LittleEndian(frame.Memory.Arena!.Read(offset, 2));
     private static NativeBattleEffect70Frame Frame() => new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, new(70, 69, new(70, Entry, Initializer), null, null), NativeCrtRandomState.FromColdProcess(), NativeBattleEffect70State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress));
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_particle_births_use_actual_successful_slot_and_recycle_without_native_changes(bool ring)
+    {
+        NativeBattleEffect70Frame Run(bool capture)
+        {
+            NativeBattleEffect70Frame value = NativeBattleEffect70Particles.InitializeRings(NativeBattleEffect70Particles.InitializeSparks(Frame()));
+            return (ring ? NativeBattleEffect70Particles.AllocateRing(value, capture) : NativeBattleEffect70Particles.AllocateSpark(value, capture)).Frame;
+        }
+        NativeBattleEffect70Frame native = Run(false);
+        NativeBattleEffect70Frame captured = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        int offset = ring ? RingOffset : SparkOffset;
+        uint cursor = ring ? RingCursorGlobal : SparkCursorGlobal;
+        uint bank = ArenaAddress + (uint)offset;
+        NativeBattleEffect70Inputs inputs = new(null!, null!, null!, null!, null!, null!, null!, null!, null!) { CapturePresentation = true };
+        NativeBattlePilotVisualIdentity first = NativeBattleEffect70Presentation.Row(captured, inputs, offset, 0, 123)!.Value;
+        Assert.Equal(first, NativeBattleEffect70Presentation.Row(captured, inputs, offset, 0, 123));
+        captured = captured with { State = captured.State.WriteDword(cursor, bank) };
+        captured = (ring ? NativeBattleEffect70Particles.AllocateRing(captured, true) : NativeBattleEffect70Particles.AllocateSpark(captured, true)).Frame;
+        NativeBattlePilotVisualIdentity second = NativeBattleEffect70Presentation.Row(captured, inputs, offset, 0, 123)!.Value;
+        Assert.NotEqual(first.Generation, second.Generation);
+        Assert.Equal(first.Bank, second.Bank);
+        Assert.Equal(first.Slot, second.Slot);
+        Assert.Null(NativeBattleEffect70Presentation.Row(captured, inputs with { CapturePresentation = false }, offset, 0, 123));
+        NativeBattleEffect70Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect70Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)))!);
+        Assert.NotEqual(second, NativeBattleEffect70Presentation.Row(restored, inputs, offset, 0, 123));
+    }
+
 }
 

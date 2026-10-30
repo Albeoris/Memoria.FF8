@@ -162,7 +162,7 @@ public static partial class NativeBattleEffect65Controller
         int angle = relative << 10;
         for (int count = 0; count < 8; count++)
         {
-            (frame, uint record) = NativeBattleEffect65Particles.Allocate6E34F0(frame);
+            (frame, uint record) = NativeBattleEffect65Particles.Allocate6E34F0(frame, inputs.CapturePresentation);
             if (record == 0)
             {
                 break;

@@ -41,6 +41,7 @@ public static partial class NativeBattleEffect65Mesh
                     continue;
                 }
                 registers = NativeBattleGeometry.LoadVector(Registers(frame), 0, new(Word(row, 0), Word(row, 2), Word(row, 4)), Word(row, 6));
+                System.Numerics.Vector3 world = inputs.CapturePresentation ? NativeBattleEffect65Presentation.LoadedWorld(registers, new(Word(row, 0), Word(row, 2), Word(row, 4)), inputs.ReadProjection(frame)) : default;
                 registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 NativeBattleEffect65PacketWrites packet = new(12);
                 packet.Dword(8, registers.Geometry.Sxy[2]!.Value);
@@ -68,7 +69,15 @@ public static partial class NativeBattleEffect65Mesh
                     bucket = unchecked(17 + biased);
                 }
                 frame = PublishContext(Publish(frame, registers), address, temporary, 100);
-                frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(new([packet.Attempt(0, bucket, bucket is null ? [] : [0, 0, 0, 0])], bucket is null ? 0 : 12), cursorGlobal));
+                NativeBattleGfGeometryAttempt attempt = packet.Attempt(0, bucket, bucket is null ? [] : [0, 0, 0, 0]);
+                if (attempt.Primitive is { } primitive && NativeBattleEffect65Presentation.Source(frame, inputs, source, bank * 128 + index) is { } identity)
+                {
+                    System.Numerics.Vector3 projected = NativeBattlePilotVisualGeometry.Project(world, inputs.ReadProjection(frame));
+                    uint screen = registers.Geometry.Sxy[2]!.Value;
+                    System.Numerics.Vector2 delta = new(unchecked((short)screen) - projected.X, unchecked((short)(screen >> 16)) - projected.Y);
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity, world, world, world, world, 4) { ScreenOffsets = [delta, delta + new System.Numerics.Vector2(8, 0), delta + new System.Numerics.Vector2(0, 8), delta + new System.Numerics.Vector2(8, 8)], SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } };
+                }
+                frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(new([attempt], bucket is null ? 0 : 12), cursorGlobal));
                 temporary = Context(frame, address, 100);
             }
         }

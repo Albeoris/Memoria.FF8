@@ -5,8 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleMorph172ModelDrawing
 {
-    private static (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) DrawBaseFace172(byte[] source, bool quad, NativeBattleEffectArena scratch, int vertexCount, NativeBattleEffectArena temporary, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, int tableBaseBucket, byte depthShift, int offset)
+    private static (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) DrawBaseFace172(byte[] source, bool quad, NativeBattleEffectArena scratch, int vertexCount, NativeBattleEffectArena temporary, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, int tableBaseBucket, byte depthShift, int offset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
+        NativeBattleActionMatrix? pilotMatrix = null;
         byte[] bytes = new byte[quad ? 40 : 32];
         NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[bytes.Length];
         for (int corner = 0; corner < 3; corner++)
@@ -57,7 +59,12 @@ public static partial class NativeBattleMorph172ModelDrawing
             ? registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Skinned body requires its current depth FIFO.")))).ToArray()
             : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
         ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
-        return Finish(new(bucket, words, payload.ToImmutableArray()) { PhysicalWriteMask = mask.ToImmutableArray() });
+        NativeBattleGeometryPrimitive primitive = new(bucket, words, payload.ToImmutableArray()) { PhysicalWriteMask = mask.ToImmutableArray() };
+        if (pilotIdentity is { } identity && world is not null)
+        {
+            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+        }
+        return Finish(primitive);
 
         NativeBattleGeometryRegisterStep Load(int slot, int corner)
         {
@@ -73,7 +80,13 @@ public static partial class NativeBattleMorph172ModelDrawing
             int at = 0x58 + corner * 8;
             byte[] xyz = temporary.Read(at, 6);
             (byte[] w, bool[] known) = temporary.ReadSnapshot(at + 6, 2);
-            return NativeBattleGeometry.LoadVector(registers, slot, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
+            NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+            if (world is not null)
+            {
+                pilotMatrix ??= NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, point), projection);
+            }
+            return NativeBattleGeometry.LoadVector(registers, slot, point, known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
 
         }
 
@@ -144,6 +157,10 @@ public static partial class NativeBattleMorph172ModelDrawing
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray();
         NativeBattleGeometryPrimitive primitive = new(unchecked(source.Bucket - 1), words.ToImmutableArray(), source.VertexPayload4) { PhysicalWriteMask = mask };
+        if (source.PilotGeometry is { } geometry)
+        {
+            primitive = primitive with { PilotGeometry = geometry with { Identity = geometry.Identity with { Primitive = unchecked(geometry.Identity.Primitive + 1) } } };
+        }
         return (temporary, registers, new(offset, bytes.ToImmutableArray(), mask, primitive));
     }
 }

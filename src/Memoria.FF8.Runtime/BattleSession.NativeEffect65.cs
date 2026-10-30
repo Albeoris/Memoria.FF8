@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect65 requires its current process memory.");
         NativeBattleEffect65Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect65 requires its current CRT stream."), memory.Effect65 ?? throw new NotSupportedException("Effect65 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect65 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect65 requires its arithmetic constants.");
-        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, pointer) => graphics.Models[ActorNativeEffect65(pointer, graphics)], (_, pointer) => Position8(pointer), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute);
+        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, pointer) => graphics.Models[ActorNativeEffect65(pointer, graphics)], (_, pointer) => Position8(pointer), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect65Controller.Initialize(frame, resources, inputs) : NativeBattleEffect65Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -69,6 +69,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect65Frame Deliver(NativeBattleEffect65Frame current, NativeBattleEffect65DeliverBatch packets)
         {
+            packets = packets with { Batch = NativeBattleEffect65Presentation.FinalizeCapturedBatch(packets.Batch) };
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect65 requires its current ordering table.");
             if (packets.CursorGlobal == 0x1D8E054)
             {
@@ -97,6 +98,7 @@ public sealed partial class BattleSession
             NativeBattleEffectFileAsset file = resources.ReadFile(request.FileId);
             int offset = NativeBattleWaterExecutionFields.ArenaOffset(request.DestinationAddress, file.Data.Length);
             current = current with { Memory = current.Memory with { Arena = (current.Memory.Arena ?? throw new NotSupportedException("Effect65 requires its current file destination.")).Write(offset, file.Data.AsSpan()) } };
+            NativeBattlePilotVisualLifetimes.Allocated(current.Memory.Arena!, request.DestinationAddress, -1);
             QueueNativeFileIo482610(file.Data.Length, request.CompletionCallback);
             return current;
         }

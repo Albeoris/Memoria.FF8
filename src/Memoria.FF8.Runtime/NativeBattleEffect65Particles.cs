@@ -20,9 +20,9 @@ public static partial class NativeBattleEffect65Particles
         return frame with { State = frame.State.WriteDword(cursor, start) };
     }
 
-    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E2E50(NativeBattleEffect65Frame frame)
+    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E2E50(NativeBattleEffect65Frame frame, bool capturePresentation = false)
     {
-        (frame, uint address) = AllocateRecord(frame, 0x3B530, 128, 22, 0x2544FC4, true);
+        (frame, uint address) = AllocateRecord(frame, 0x3B530, 128, 22, 0x2544FC4, true, capturePresentation);
         if (address == 0)
         {
             return (frame, 0);
@@ -33,10 +33,10 @@ public static partial class NativeBattleEffect65Particles
         return (WriteBytes(frame with { Random = random }, address, row, 22), address);
     }
 
-    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E34F0(NativeBattleEffect65Frame frame) => AllocateRecord(frame, 0x3E1F0, 128, 8, 0x2544FCC, false);
-    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E35B0(NativeBattleEffect65Frame frame) => AllocateRecord(frame, 0x27690, 64, 32, 0x2544FC8, false);
+    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E34F0(NativeBattleEffect65Frame frame, bool capturePresentation = false) => AllocateRecord(frame, 0x3E1F0, 128, 8, 0x2544FCC, false, capturePresentation);
+    public static (NativeBattleEffect65Frame Frame, uint Address) Allocate6E35B0(NativeBattleEffect65Frame frame, bool capturePresentation = false) => AllocateRecord(frame, 0x27690, 64, 32, 0x2544FC8, false, capturePresentation);
 
-    private static (NativeBattleEffect65Frame Frame, uint Address) AllocateRecord(NativeBattleEffect65Frame frame, int offset, int count, int stride, uint cursor, bool byteLife)
+    private static (NativeBattleEffect65Frame Frame, uint Address) AllocateRecord(NativeBattleEffect65Frame frame, int offset, int count, int stride, uint cursor, bool byteLife, bool capturePresentation)
     {
         uint start = checked(frame.State.ReadDword(ArenaGlobal) + (uint)offset);
         uint current = frame.State.ReadDword(cursor);
@@ -57,6 +57,10 @@ public static partial class NativeBattleEffect65Particles
                     return (frame, 0);
                 }
             }
+        }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, start, checked((int)((current - start) / stride)));
         }
         uint next = current >= start + (count - 1) * stride ? start : checked(current + (uint)stride);
         return (frame with { State = frame.State.WriteDword(cursor, next) }, current);

@@ -28,6 +28,8 @@ public static partial class NativeBattleEffect65Strips
             {
                 throw new InvalidDataException("Effect65 strip rows exceed their selected native birth capacity.");
             }
+            System.Numerics.Vector3[]? centers = inputs.CapturePresentation ? new System.Numerics.Vector3[count] : null;
+            uint[]? pointAddresses = inputs.CapturePresentation ? new uint[count] : null;
             int fade = Word(record, 0x36);
             for (int colorIndex = 3; colorIndex >= 0; colorIndex--)
             {
@@ -67,6 +69,11 @@ public static partial class NativeBattleEffect65Strips
                 registers = Weight(registers, Vector(temporary, 0x24), complement, true, inputs.Colors);
                 temporary = Point(temporary, 0x1C, Ir(registers));
                 registers = NativeBattleGeometry.LoadVector(registers, 0, Vector(temporary, 0x1C), NullableWord(temporary, 0x22));
+                if (centers is not null && pointAddresses is not null)
+                {
+                    centers[rowIndex] = NativeBattleEffect65Presentation.LoadedWorld(registers, Vector(temporary, 0x1C), inputs.ReadProjection(frame));
+                    pointAddresses[rowIndex] = pointAddress;
+                }
                 registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 int destination = 0x50 + rowIndex * 20;
                 uint screen = registers.Geometry.Sxy[2]!.Value;
@@ -151,6 +158,16 @@ public static partial class NativeBattleEffect65Strips
                 int bias = unchecked((int)Dword(temporary, 0x4C));
                 int bucket = unchecked(17 + Math.Max(0, unchecked(((depthA + depthB) >> 3) + bias)));
                 NativeBattleGfGeometryAttempt attempt = packet.Attempt(0, bucket, [0, 0, 0, 0]);
+                if (attempt.Primitive is { } primitive && centers is not null && pointAddresses is not null)
+                {
+                    NativeBattlePilotVisualIdentity identity = NativeBattleEffect65Presentation.Segment(frame, recordStart, recordIndex, pointAddresses[index], pointAddresses[index + 1]);
+                    System.Numerics.Vector3 first = centers[index];
+                    System.Numerics.Vector3 second = centers[index + 1];
+                    System.Numerics.Vector3 projectedA = NativeBattlePilotVisualGeometry.Project(first, inputs.ReadProjection(frame));
+                    System.Numerics.Vector3 projectedB = NativeBattlePilotVisualGeometry.Project(second, inputs.ReadProjection(frame));
+                    System.Numerics.Vector2 Offset(int offset, System.Numerics.Vector3 center) => new(Word(temporary, offset) * 8 - center.X, Word(temporary, offset + 2) * 8 - center.Y);
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity, first, first, second, second, 4) { ScreenOffsets = [Offset(row, projectedA), Offset(row + 8, projectedA), Offset(row + 20, projectedB), Offset(row + 28, projectedB)], SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } };
+                }
                 frame = inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(new([attempt], 52), 0x1D8E054, 1));
             }
             temporary = Context(frame, temporaryAddress, 400);

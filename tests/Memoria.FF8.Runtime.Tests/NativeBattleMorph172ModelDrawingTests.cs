@@ -7,6 +7,57 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleMorph172ModelDrawingTests
 {
     [Fact]
+    public void Presentation_220_body_and_overlay_keep_actual_post_bone_corners_full_FIFO_and_native_ledger()
+    {
+        var camera = new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 5, 7, 4096], 0, 0, 300, 4096);
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(Geometry(true), Context(0), 2000, camera: camera, projection: projection);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Draw(Geometry(true), Context(0), 2000, pilotIdentity: new(172, 1, 2, 3, 4), camera: camera, projection: projection);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(4, captured.Batch.Attempts.Length);
+        Assert.Equal(4, captured.Batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        for (int index = 0; index < captured.Batch.Attempts.Length; index += 2)
+        {
+            var body = captured.Batch.Attempts[index].Primitive!;
+            var overlay = captured.Batch.Attempts[index + 1].Primitive!;
+            var geometry = body.PilotGeometry!;
+            Assert.Equal((ushort)172, geometry.Identity.Effect);
+            System.Numerics.Vector3[] source = [new(-400, -400, 2000), new(400, -400, 2000), new(-400, 400, 2000), new(400, 400, 2000)];
+            for (int corner = 0; corner < geometry.CornerCount; corner++)
+            {
+                var point = source[corner];
+                Assert.Equal(new System.Numerics.Vector3(point.X, point.Y, 2300 + (5 * point.X + 7 * point.Y) / 4096), geometry.Corner(corner));
+            }
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(body.VertexPayload4[0], body.VertexPayload4[1], body.VertexPayload4[2], body.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.Equal(geometry.A, overlay.PilotGeometry!.A);
+            Assert.Equal(geometry.SourceDepths, overlay.PilotGeometry.SourceDepths);
+            Assert.Equal(body.VertexPayload4, overlay.VertexPayload4);
+            Assert.Equal(body.Bucket - 1, overlay.Bucket);
+            Assert.NotEqual(geometry.Identity, overlay.PilotGeometry.Identity);
+        }
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+    }
+
+    [Fact]
+    public void Presentation_preserves_native_fourth_scratch_copy_validation_before_rejected_NCLIP()
+    {
+        byte[] source = Geometry(true);
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(70), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(72), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(74), 0xFFFF);
+        var nativeContext = Context(0).Write(0xB4, new byte[4]);
+        var capturedContext = Context(0).Write(0xB4, new byte[4]);
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Assert.Throws<InvalidDataException>(() => Draw(source, nativeContext, 2000, projection: projection));
+        var captured = Assert.Throws<InvalidDataException>(() => Draw(source, capturedContext, 2000, pilotIdentity: new(172, 1, 2, 3, 4), projection: projection));
+        Assert.Equal(native.Message, captured.Message);
+        Assert.Contains("physical skin workspace", captured.Message);
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeContext), NativeBattleTestSnapshots.Json(capturedContext));
+    }
+
+    [Fact]
     public void Raw_skin_writes_XYZ_only_and_preserves_physical_scratch_W()
     {
         var actual = Draw(Geometry(false), Context(0), 2000);
@@ -102,10 +153,10 @@ public sealed class NativeBattleMorph172ModelDrawingTests
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 } };
 
-    private static NativeBattleMorph172ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null)
+    private static NativeBattleMorph172ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleActionMatrix? camera = null, NativeBattleCameraProjection? projection = null)
     {
         memory ??= Memory();
-        return NativeBattleMorph172ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), Projection, memory.ScriptedGraphics!, 0x196B000, length, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleMorph172ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770(), null), projection ?? Projection, memory.ScriptedGraphics!, 0x196B000, length, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(int blend)

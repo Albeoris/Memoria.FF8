@@ -8,8 +8,8 @@ public static class NativeBattleEffect70Particles
 {
     public static NativeBattleEffect70Frame InitializeSparks(NativeBattleEffect70Frame frame) => Initialize(frame, SparkOffset, 128, 15, 1, SparkCursorGlobal);
     public static NativeBattleEffect70Frame InitializeRings(NativeBattleEffect70Frame frame) => Initialize(frame, RingOffset, 64, 0, 2, RingCursorGlobal);
-    public static (NativeBattleEffect70Frame Frame, uint Address) AllocateSpark(NativeBattleEffect70Frame frame) => AllocateRow(frame, SparkOffset, 128, 15, 1, SparkCursorGlobal);
-    public static (NativeBattleEffect70Frame Frame, uint Address) AllocateRing(NativeBattleEffect70Frame frame) => AllocateRow(frame, RingOffset, 64, 0, 2, RingCursorGlobal);
+    public static (NativeBattleEffect70Frame Frame, uint Address) AllocateSpark(NativeBattleEffect70Frame frame, bool capturePresentation = false) => AllocateRow(frame, SparkOffset, 128, 15, 1, SparkCursorGlobal, capturePresentation);
+    public static (NativeBattleEffect70Frame Frame, uint Address) AllocateRing(NativeBattleEffect70Frame frame, bool capturePresentation = false) => AllocateRow(frame, RingOffset, 64, 0, 2, RingCursorGlobal, capturePresentation);
 
     private static NativeBattleEffect70Frame Initialize(NativeBattleEffect70Frame frame, int bank, int count, int marker, int width, uint cursor)
     {
@@ -21,7 +21,7 @@ public static class NativeBattleEffect70Particles
         return frame with { Memory = frame.Memory with { Arena = arena }, State = frame.State.WriteDword(cursor, checked(frame.State.ReadDword(ArenaGlobal) + (uint)bank)) };
     }
 
-    private static (NativeBattleEffect70Frame Frame, uint Address) AllocateRow(NativeBattleEffect70Frame frame, int bank, int count, int marker, int width, uint cursor)
+    private static (NativeBattleEffect70Frame Frame, uint Address) AllocateRow(NativeBattleEffect70Frame frame, int bank, int count, int marker, int width, uint cursor, bool capturePresentation)
     {
         uint start = checked(frame.State.ReadDword(ArenaGlobal) + (uint)bank);
         uint selected = frame.State.ReadDword(cursor);
@@ -47,6 +47,10 @@ public static class NativeBattleEffect70Particles
         if (selected == 0)
         {
             return (frame, 0);
+        }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(arena, start, checked((int)((selected - start) / 16)));
         }
         uint next = selected + 16;
         if (next == start + count * 16)
@@ -144,7 +148,7 @@ public static class NativeBattleEffect70Particles
                 temporary = Put(temporary, 0x30, count & 0x7FFFFFFF);
             }
             temporary = Put(temporary, 0x2C, unchecked(sourceAddress + (uint)selected + 4));
-            NativeBattleShockwavePulsar260PuffStep drawn = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary, source, projection);
+            NativeBattleShockwavePulsar260PuffStep drawn = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary, source, projection, pilotIdentity: NativeBattleEffect70Presentation.Row(frame, inputs, SparkOffset, index, sourceAddress));
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, drawn.Temporary180, 180) };
             frame = inputs.Execute(frame, new NativeBattleEffect70DeliverPrivate(drawn.Batch, CursorGlobal));
             temporary = NativeBattleTemporaryMemory.ReadView(Staging(frame), allocation.Address, 180);
@@ -188,7 +192,7 @@ public static class NativeBattleEffect70Particles
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, composed, true, true, Padding(temporary, 18)) };
             temporary = Put(temporary, 0x20, resources.ParticleMesh.Address);
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, new(resources.ParticleMesh.Address, resources.ParticleMesh.Bytes), 0, context, inputs.ReadProjection(frame), inputs.Colors);
+            NativeBattleShockwavePulsar260MeshStep drawn = NativeBattleShockwavePulsar260Mesh.Draw(frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, new(resources.ParticleMesh.Address, resources.ParticleMesh.Bytes), 0, context, inputs.ReadProjection(frame), inputs.Colors, pilotIdentity: NativeBattleEffect70Presentation.Row(frame, inputs, RingOffset, index, resources.ParticleMesh.Address));
             temporary = NativeBattleEffectNodeContextMemory.Copy(drawn.Context88, 0, temporary, 0x20, 88);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, temporary, 120) };
             frame = inputs.Execute(frame, new NativeBattleEffect70DeliverPrivate(drawn.Batch, CursorGlobal));

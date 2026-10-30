@@ -4,14 +4,14 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect70Controller
 {
-    public static NativeBattleEffect70Frame BirthOrbitSparks(NativeBattleEffect70Frame frame)
+    public static NativeBattleEffect70Frame BirthOrbitSparks(NativeBattleEffect70Frame frame, bool capturePresentation = false)
     {
         int x = unchecked((short)frame.State.ReadWord(CenterAddress));
         int z = unchecked((short)frame.State.ReadWord(CenterAddress + 4));
         int side = unchecked((int)frame.State.ReadDword(SideGlobal));
         for (int remaining = 4; remaining > 0; remaining--)
         {
-            (frame, uint spark) = NativeBattleEffect70Particles.AllocateSpark(frame);
+            (frame, uint spark) = NativeBattleEffect70Particles.AllocateSpark(frame, capturePresentation);
             if (spark == 0)
             {
                 break;
@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect70Controller
             int extent = ReadShort(frame, record + 22) - ReadShort(frame, record + 20);
             for (int attempt = 0; attempt < 2; attempt++)
             {
-                (frame, uint ring) = NativeBattleEffect70Particles.AllocateRing(frame);
+                (frame, uint ring) = NativeBattleEffect70Particles.AllocateRing(frame, inputs.CapturePresentation);
                 if (ring == 0)
                 {
                     break;
@@ -64,7 +64,7 @@ public static partial class NativeBattleEffect70Controller
     {
         for (int angle = 4096; angle > 0; angle -= 256)
         {
-            (frame, uint spark) = NativeBattleEffect70Particles.AllocateSpark(frame);
+            (frame, uint spark) = NativeBattleEffect70Particles.AllocateSpark(frame, inputs.CapturePresentation);
             if (spark == 0)
             {
                 break;

@@ -10,13 +10,21 @@ public sealed record NativeBattleEffect70PointStep(NativeBattleEffect70Frame Fra
 
 public sealed partial record NativeBattleEffect70Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect70Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect70Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect70Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect70Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect70Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect70Frame, short> ReadCameraRoll, Func<NativeBattleEffect70Frame, uint, uint> ReadColor, Func<NativeBattleEffect70Frame, NativeBattleEffect70Operation, NativeBattleEffect70Frame> Execute)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffectArena>? ReadPosition8 { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffect70PointStep>? ReadAnchor571400 { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffect70Step>? SelectIo5342C0 { get; init; }
     public Func<NativeBattleEffect70Frame, ushort>? ReadSavedFocal { get; init; }
 }
 
-public abstract record NativeBattleEffect70Operation;
+public abstract record NativeBattleEffect70Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect70UploadTim(uint Source) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70ModelFlags(int Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70ModelPositionWord(int Actor, int Offset, short Value) : NativeBattleEffect70Operation;

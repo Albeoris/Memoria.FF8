@@ -8,6 +8,7 @@ public static partial class NativeBattleEffect65Controller
 {
     public static NativeBattleEffect65Step AdvanceMain6E07D0(NativeBattleEffect65Frame frame, uint address, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs)
     {
+        inputs = NativeBattleEffect65Presentation.ForTask(frame, address, inputs);
         int age = Signed(Read(frame, address), 12);
         uint caster = frame.State.ReadDword(CasterGlobal);
         uint arena = frame.State.ReadDword(ArenaGlobal);

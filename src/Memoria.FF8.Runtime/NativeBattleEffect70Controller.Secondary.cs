@@ -6,6 +6,7 @@ public static partial class NativeBattleEffect70Controller
 {
     public static NativeBattleEffect70Step AdvanceLaunch(NativeBattleEffect70Frame frame, uint address, NativeBattleEffect70Resources resources, NativeBattleEffect70Inputs inputs)
     {
+        inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         NativeBattleModulePoolTask task = Read(frame, address);
         uint record = task.ReadDword(12);
         int actor = Actor(ReadDword(frame, record));
@@ -29,7 +30,7 @@ public static partial class NativeBattleEffect70Controller
             short savedY = ReadShort(frame, record + 6);
             frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionWord(actor, 0x1E, unchecked((short)(savedY - square * 2))));
             short middle = unchecked((short)((ReadShort(frame, record + 20) + ReadShort(frame, record + 22)) >> 1));
-            frame = inputs.Execute(frame, new NativeBattleEffect70DrawActor693170(actor, ReadBytes(frame, record + 12, 8), Point(0, middle, 0), 4096));
+            frame = inputs.Execute(frame, NativeBattleEffect70Presentation.Actor(inputs, record, actor, ReadBytes(frame, record + 12, 8), Point(0, middle, 0), 4096));
             frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 4, false));
         }
         else if (unchecked((uint)phase) < 200)
@@ -47,6 +48,7 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Step AdvanceReturn(NativeBattleEffect70Frame frame, uint address, NativeBattleEffect70Resources resources, NativeBattleEffect70Inputs inputs)
     {
+        inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         uint record = Read(frame, address).ReadDword(12);
         int actor = Actor(ReadDword(frame, record));
         NativeBattleEffectArena caller = TargetCaller(frame, record, inputs);
@@ -74,6 +76,7 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Step AdvanceGround(NativeBattleEffect70Frame frame, uint address, NativeBattleEffect70Resources resources, NativeBattleEffect70Inputs inputs)
     {
+        inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleEffectArena caller = Point(Signed(task, 12), Signed(task, 14), Signed(task, 16)).Write(20, BitConverter.GetBytes(0)).Write(24, BitConverter.GetBytes(0x1334D5Cu)).Write(28, BitConverter.GetBytes((short)-128)).Write(32, BitConverter.GetBytes(frame.State.ReadDword(ArenaGlobal) + 0x241C));
         NativeBattleEffect70ProgrammeStep step = NativeBattleEffect70Programme.Advance(frame, address + 20, 0x100, 0x1324FF0, 0xD8, false, caller, resources, inputs);

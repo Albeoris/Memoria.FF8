@@ -56,6 +56,7 @@ public sealed partial class BattleSession
         }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
         NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index));
         NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
+        submitted = submitted with { Packets = NativeBattleEffect249Presentation.FinalizeCapturedBatch(profile.Effect, kind, submitted.Packets) };
         frame = submitted.Frame;
         memory = RequireWaterMemory() with
         {

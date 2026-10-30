@@ -56,7 +56,7 @@ public static partial class NativeBattleMorph172Controller
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xD6299Cu)).Write(4, BitConverter.GetBytes(first ? 0x239BEB8u : 0x239B268u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(0x20F3u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleMorph172DrawStatic88(temporary, 0xD6299C, 17, 2));
+        frame = inputs.Execute(frame, new NativeBattleMorph172DrawStatic88(temporary, 0xD6299C, 17, 2) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(172, task) with { ResourceGeneration = unchecked(0xD6299Cu * 397 ^ (first ? 0x239BEB8u : 0x239B268u)) } : null });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -87,7 +87,7 @@ public static partial class NativeBattleMorph172Controller
             frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = color.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } } };
             NativeBattleEffectArena context = Context(frame, temporary, 220).Write(0xA8, BitConverter.GetBytes((int)Signed(task, 0x10))).Write(0xAC, BitConverter.GetBytes((int)Signed(task, 0x12))).Write(0xB0, BitConverter.GetBytes((int)Signed(task, 0x14))).Write(0xB4, BitConverter.GetBytes(1000)).Write(0xB8, BitConverter.GetBytes(color.PackedRgb));
             frame = PublishContext(frame, temporary, context, 220);
-            frame = inputs.Execute(frame, new NativeBattleMorph172DrawBody220(actor, temporary));
+            frame = inputs.Execute(frame, new NativeBattleMorph172DrawBody220(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(172, task) with { ResourceGeneration = actor } : null });
             frame = Release(frame, 220);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

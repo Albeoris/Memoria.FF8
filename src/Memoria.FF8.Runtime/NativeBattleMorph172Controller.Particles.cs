@@ -26,7 +26,7 @@ public static partial class NativeBattleMorph172Controller
             NativeBattleEffectArena context = Context(frame, temporary, 180).Write(4, BitConverter.GetBytes(phase)).Write(0x0C, BitConverter.GetBytes((int)unchecked((short)frame.State.ReadWord(row + 16)))).Write(0x10, BitConverter.GetBytes((int)unchecked((short)frame.State.ReadWord(row + 18)))).Write(0x14, BitConverter.GetBytes(4096));
             frame = PublishContext(frame, temporary, context, 180);
             frame = SetupSprite172(frame, inputs, frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
-            frame = inputs.Execute(frame, new NativeBattleMorph172DrawSprite180(temporary, 0xD61F8C, 17, 2));
+            frame = inputs.Execute(frame, new NativeBattleMorph172DrawSprite180(temporary, 0xD61F8C, 17, 2) { PilotIdentity = inputs.CapturePresentation ? NativeBattleMorph172Presentation.Particle(frame, task, index) : null });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -79,6 +79,10 @@ public static partial class NativeBattleMorph172Controller
                 short x = unchecked((short)frame.State.ReadWord(row + 8));
                 short y = unchecked((short)frame.State.ReadWord(row + 10));
                 frame = frame with { State = frame.State.WriteDword(row, 1).WriteWord(row + 4, 0).WriteWord(row + 16, unchecked((ushort)((x & 1) != 0 ? 4096 : -4096))).WriteWord(row + 18, unchecked((ushort)((y & 1) != 0 ? 4096 : -4096))) };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, 0x239A908, index);
+                }
                 break;
             }
         }

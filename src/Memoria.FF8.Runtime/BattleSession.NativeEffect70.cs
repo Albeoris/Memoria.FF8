@@ -19,6 +19,7 @@ public sealed partial class BattleSession
             _ => throw new NotSupportedException("Effect70 selected an unsupported current color address.")
         }, Execute)
         {
+            CapturePresentation = true,
             ReadPosition8 = (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8),
             ReadAnchor571400 = Anchor,
             SelectIo5342C0 = PollIo,
@@ -63,6 +64,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect70Frame Deliver(NativeBattleEffect70Frame current, NativeBattleGfGeometryBatch batch, uint? cursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleEffect70Presentation.FinalizeCapturedBatch(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect70 requires its current ordering table.");
             if (cursorGlobal is null)
             {

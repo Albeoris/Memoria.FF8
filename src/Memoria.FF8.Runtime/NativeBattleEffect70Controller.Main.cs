@@ -7,6 +7,7 @@ public static partial class NativeBattleEffect70Controller
 {
     public static NativeBattleEffect70Step AdvanceMain(NativeBattleEffect70Frame frame, uint address, NativeBattleEffect70Resources resources, NativeBattleEffect70Inputs inputs)
     {
+        inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         int age = Signed(Read(frame, address), 12);
         uint arena = frame.State.ReadDword(ArenaGlobal);
         int depth = age < 12 ? unchecked(age * 2300) / 12 : age >= 250 ? unchecked((262 - age) * 2300) / 12 : 2300;
@@ -23,7 +24,7 @@ public static partial class NativeBattleEffect70Controller
             if (unchecked((uint)flash) < 8)
             {
                 int factor = flash < 7 ? ((flash + 1) << 12) / 7 : 4096;
-                frame = inputs.Execute(frame, new NativeBattleEffect70DeliverPrivate(NativeBattleRinoa89FadeDrawing.Draw7040B0(255, 255, 255, factor), CursorGlobal));
+                frame = inputs.Execute(frame, new NativeBattleEffect70DeliverPrivate(NativeBattleEffect70Presentation.Flash(inputs, factor), CursorGlobal));
             }
             if (phase == 0)
             {
@@ -46,7 +47,7 @@ public static partial class NativeBattleEffect70Controller
             }
             else if (unchecked((uint)(phase - 13)) <= 27)
             {
-                frame = BirthOrbitSparks(frame);
+                frame = BirthOrbitSparks(frame, inputs.CapturePresentation);
             }
             else if (unchecked((uint)(phase - 115)) < 16)
             {
@@ -135,7 +136,7 @@ public static partial class NativeBattleEffect70Controller
             int actor = Actor(ReadDword(frame, record));
             short y = unchecked((short)((ReadShort(frame, record + 20) + ReadShort(frame, record + 22)) >> 1));
             NativeBattleEffectArena point = Point(0, y, 0);
-            frame = inputs.Execute(frame, new NativeBattleEffect70DrawActor693170(actor, ReadBytes(frame, record + 12, 8), point, 2048));
+            frame = inputs.Execute(frame, NativeBattleEffect70Presentation.Actor(inputs, record, actor, ReadBytes(frame, record + 12, 8), point, 2048));
             frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 4, false));
         }
         return frame;

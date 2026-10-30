@@ -165,7 +165,7 @@ public static partial class NativeBattleEffect65Mesh
                 throw new NotSupportedException("Effect65 raw draw requires reached current XYZ rows.");
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
-        });
+        }, pilotIdentity: NativeBattleEffect65Presentation.Source(frame, inputs, sourceAddress, 0));
         frame = PublishContext(frame with { Memory = result.Memory }, checked(temporaryAddress + (uint)contextOffset), result.Context108, 108);
         return inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(result.Batch, cursorGlobal));
     }

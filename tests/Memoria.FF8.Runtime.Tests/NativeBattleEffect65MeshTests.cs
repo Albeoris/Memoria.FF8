@@ -156,4 +156,68 @@ public sealed class NativeBattleEffect65MeshTests
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(52), 4);
         return mesh with { Bytes = bytes.ToImmutableArray() };
     }
+    [Fact]
+    public void Presentation_point_tiles_retain_actual_loaded_corner_native_pixel_extent_and_native_state()
+    {
+        (NativeBattleEffect65Frame Frame, NativeBattleEffect65DeliverBatch Delivery) Run(bool capture)
+        {
+            NativeBattleEffect65Frame frame = Frame();
+            byte[] rows = new byte[1024 * 16];
+            for (int index = 0; index < 1024; index++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(rows.AsSpan(index * 16 + 6), 32767);
+            }
+            BinaryPrimitives.WriteInt16LittleEndian(rows.AsSpan(127 * 16 + 6), 0);
+            frame = Write(frame, ArenaAddress + 0xDB8, NativeBattleEffectArena.Clear().Write(0, rows), rows.Length);
+            List<NativeBattleEffect65Operation> operations = [];
+            NativeBattleEffect65Inputs inputs = Inputs(operations) with { CapturePresentation = capture, PilotIdentity = capture ? new(65, MainDescriptor, 0, 31, 0) : null, ReadProjection = _ => new(Identity(2000).ReadMatrix(), 100, 160, 108) };
+            frame = NativeBattleEffect65Mesh.Draw6E4350(frame, 0, 0, 0, 0, 1, CursorGlobal, Resources(), inputs);
+            return (frame, Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(operations)));
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Delivery.Batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Delivery.Batch)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Delivery.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector2(8, 0), geometry.ScreenOffsets[1] - geometry.ScreenOffsets[0]);
+        Assert.Equal(new System.Numerics.Vector2(0, 8), geometry.ScreenOffsets[2] - geometry.ScreenOffsets[0]);
+        System.Numerics.Vector3 projected = NativeBattlePilotVisualGeometry.Project(geometry.A, new(Identity(2000).ReadMatrix(), 100, 160, 108));
+        Assert.Equal(unchecked((short)primitive.Words[2]), projected.X + geometry.ScreenOffsets[0].X, 3);
+        Assert.Equal(unchecked((short)(primitive.Words[2] >> 16)), projected.Y + geometry.ScreenOffsets[0].Y, 3);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
+    [Theory]
+    [InlineData(0xCu)]
+    [InlineData(0x800Cu)]
+    public void Presentation_raw_windowed_native_leaf_preserves_billboard_branch_and_exact_loaded_geometry(uint flags)
+    {
+        (NativeBattleEffect65Frame Frame, NativeBattleGfGeometryBatch Batch) Run(bool capture)
+        {
+            NativeBattleStaticMeshResource mesh = Triangle();
+            NativeBattleEffect65Resources resources = Resources() with { Meshes = ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty.Add(mesh.Address, mesh) };
+            List<NativeBattleEffect65Operation> operations = [];
+            NativeBattleEffect65Inputs inputs = Inputs(operations) with { CapturePresentation = capture, PilotIdentity = capture ? new(65, MainDescriptor, 0, 32, 0) : null, ReadProjection = _ => new(Identity(2000).ReadMatrix(), 100, 160, 108) };
+            NativeBattleEffect65Frame frame = NativeBattleEffect65Mesh.Draw6E4230(Frame(), 0, 0, 0, 0, 4096, 1, flags, 0, mesh.Address, CursorGlobal, resources, inputs);
+            return (frame, Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(operations)).Batch);
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Batch)));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 0), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, -100, 0), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(0, 100, 0), geometry.C);
+        Assert.Equal(4, captured.Batch.Attempts.Length);
+        Assert.Equal(3, captured.Batch.Attempts.Count(attempt => attempt.Primitive?.PilotGeometry is null));
+        NativeBattleGfGeometryBatch finalized = NativeBattleEffect65Presentation.FinalizeCapturedBatch(captured.Batch);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(finalized));
+        Assert.True(Assert.Single(finalized.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!.UseSourceDepths);
+    }
+
 }

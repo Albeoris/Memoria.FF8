@@ -8,6 +8,7 @@ public static partial class NativeBattleEffect65Mesh
 {
     public static NativeBattleEffect65Frame Draw6E48A0(NativeBattleEffect65Frame frame, NativeBattleEffectArena first8, NativeBattleEffectArena second8, uint descriptorAddress, int ratioA, int ratioB, int mode, uint source, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs)
     {
+        inputs = inputs with { PilotIdentity = NativeBattleEffect65Presentation.Source(frame, inputs, source, unchecked((int)descriptorAddress)) };
         (frame, uint address) = Allocate(frame, 220);
         NativeBattleEffectArena temporary = Context(frame, address, 220);
         NativeBattleEffectArena descriptor = ReadSource(frame, resources, descriptorAddress, 20);
@@ -75,6 +76,7 @@ public static partial class NativeBattleEffect65Mesh
 
     public static NativeBattleEffect65Frame Draw6E4BD0(NativeBattleEffect65Frame frame, uint descriptorAddress, NativeBattleEffectArena center8, int radius, uint source, bool mode, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs)
     {
+        inputs = inputs with { PilotIdentity = NativeBattleEffect65Presentation.Source(frame, inputs, source, unchecked((int)descriptorAddress)) };
         NativeBattleEffectArena descriptor = ReadSource(frame, resources, descriptorAddress, 36);
         if (frame.State.ReadDword(ControlGlobal) == 0)
         {
