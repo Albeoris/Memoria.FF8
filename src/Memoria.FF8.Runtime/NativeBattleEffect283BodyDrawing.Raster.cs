@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect283BodyDrawing
 {
-    private static void EmitFaces(byte[] source, bool quad, NativeBattleEffectArena[] corners, NativeBattleEffectArena temporary124, NativeBattleGeometryRegisters geometry, int bucket, int commonOffset, ImmutableArray<NativeBattleEffect283BodyWrite>.Builder writes)
+    private static void EmitFaces(byte[] source, bool quad, NativeBattleEffectArena[] corners, NativeBattleEffectArena temporary124, NativeBattleGeometryRegisters geometry, int bucket, int commonOffset, ImmutableArray<NativeBattleEffect283BodyWrite>.Builder writes, NativeBattlePilotVisualIdentity? pilotIdentity = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorld = null)
     {
         int texturedLength = quad ? 40 : 32;
         int flatLength = quad ? 24 : 20;
@@ -48,7 +48,12 @@ public static partial class NativeBattleEffect283BodyDrawing
             {
                 payload = (command & 8) != 0 ? geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect283 quad insertion requires its current depth FIFO.")))).ToImmutableArray() : [Depth(1), Depth(2), Depth(3), 0];
             }
-            writes.Add(new(NativeBattleEffect283BodyBank.Common, packet.Attempt(new(bucket, words, payload))));
+            NativeBattleGeometryPrimitive primitive = new(bucket, words, payload);
+            if (command is >= 0x20 and <= 0x3C)
+            {
+                primitive = NativeBattleEffect32Presentation.Capture(primitive, pilotIdentity, pilotWorld);
+            }
+            writes.Add(new(NativeBattleEffect283BodyBank.Common, packet.Attempt(primitive)));
         }
 
         int Depth(int index) => unchecked((int)(geometry.Sz[index] ?? throw new NotSupportedException("Effect283 triangle insertion requires its current depth FIFO.")));

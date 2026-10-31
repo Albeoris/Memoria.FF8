@@ -8,6 +8,44 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect315ParticlesTests
 {
+    [Fact]
+    public void Presentation_particle_reuse_tracks_the_actual_static_row_birth_and_preserves_CRT_and_native_bytes()
+    {
+        NativeBattleEffect315Inputs PlainInputs() => Inputs((current, operation) =>
+        {
+            var draw = Assert.IsType<NativeBattleEffect315DrawSprite180>(operation);
+            return PublishContext(current, draw.TemporaryAddress, Context(current, draw.TemporaryAddress, 180).Write(0x28, new byte[2]), 180);
+        });
+        NativeBattleEffect315Frame native = Step(Frame(1, 0), 1, PlainInputs()).Frame;
+        string frozen = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native));
+        List<NativeBattlePilotVisualIdentity> draws = [];
+        NativeBattleEffect315Inputs pilotInputs = Inputs((current, operation) =>
+        {
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(current.PilotIdentity);
+            Assert.Equal(ParticleAddress, identity.Bank);
+            Assert.True(identity.Generation > 0);
+            draws.Add(identity);
+            var draw = Assert.IsType<NativeBattleEffect315DrawSprite180>(operation);
+            return PublishContext(current, draw.TemporaryAddress, Context(current, draw.TemporaryAddress, 180).Write(0x28, new byte[2]), 180);
+        });
+        NativeBattlePilotVisualIdentity parent = new(315, ChildDescriptor, 0, 101, 0);
+        NativeBattleEffect315Frame pilot = Step(Frame(1, 0) with { CapturePresentation = true, PilotIdentity = parent }, 1, pilotInputs).Frame;
+        Assert.Equal(frozen, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(pilot)));
+        Assert.Equal(native.Random, pilot.Random);
+        Assert.Equal(parent, pilot.PilotIdentity);
+        NativeBattlePilotVisualIdentity first = Assert.Single(draws, identity => identity.Slot == 0);
+        Assert.Equal(2, draws.Select(identity => identity.Slot).Distinct().Count());
+        for (int index = 0; index < ParticleCount; index++)
+        {
+            pilot = WriteBytes(pilot, ParticleAddress + (uint)(index * ParticleStride), NativeBattleEffectArena.Clear(), 4);
+        }
+        draws.Clear();
+        _ = Step(pilot, 1, pilotInputs);
+        NativeBattlePilotVisualIdentity reused = Assert.Single(draws, identity => identity.Slot == 0);
+        Assert.Equal(first.Bank, reused.Bank);
+        Assert.NotEqual(first.Generation, reused.Generation);
+    }
+
     [Theory]
     [InlineData(0, 12, 2, 1u)]
     [InlineData(1, 10, 2, 0x10u)]

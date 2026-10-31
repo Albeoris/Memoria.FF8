@@ -8,7 +8,8 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect301Actor(graphics, operation.ModelAddress);
         NativeBattleGraphicsModel model = graphics.Models[actor];
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect301 requires its current caster skeleton.");
+        var resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect301 requires its current caster skeleton.");
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect301 requires its current caster world matrix.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect301 requires its current temporary memory."), 136);
         frame = frame with { Staging = allocation.Staging };
@@ -19,11 +20,12 @@ public sealed partial class BattleSession
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, allocation.Address, context, 136) };
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging!, context, allocation.Address);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
+        NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(pointer) } : null;
         uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect301 requires its actual current geometry address.");
         ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(model, source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect301 requires its current common packet process.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Effect301 requires its current common packet cursor.");
-        NativeBattleEffect301BodyStep drawn = NativeBattleEffect301BodyDrawing.DrawLoaded(frame, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length), address, bones, context, allocation.Address, cursor, resources, inputs);
+        NativeBattleEffect301BodyStep drawn = NativeBattleEffect301BodyDrawing.DrawLoaded(frame, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length), address, bones, context, allocation.Address, cursor, resources, inputs, NativeBattleEffect32Presentation.Resource(bodyIdentity, address));
         frame = drawn.Frame with { Staging = NativeBattleTemporaryMemory.PublishView(drawn.Frame.Staging!, allocation.Address, drawn.Context136, 136) };
         process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect301 lost its current common packet process.");
         NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(drawn.Batch, cursor, process.CommonPacketWriteCapacity, offset =>
@@ -32,6 +34,7 @@ public sealed partial class BattleSession
             return (bytes[0], known[0]);
         });
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect301 requires its current ordering table.");
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank ?? throw new NotSupportedException("Native common packet receipts require their allocated physical bank."), process.PacketBuffer, cursor, resolved) } };
         NativeBattleCommonPacketWrite delivered = NativeBattleCommonPacketArena.Append(process, primitive.Pending, resolved);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = delivered.Ordering } };
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = delivered.Process } };

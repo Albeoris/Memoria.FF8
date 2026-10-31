@@ -14,6 +14,8 @@ public sealed partial class BattleSession
         }
         int actor = checked((int)(delta / 156));
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity;
+        int geometryPass = 0;
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect315 body requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect315 body requires its observed linked geometry presence.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect315 body requires its current CPU resource owner.");
@@ -37,11 +39,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffect315BodyFrame Deliver(NativeBattleEffect315BodyFrame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleEffect32Presentation.Depths(batch);
             if (current.CommonCursor != CommonCursor(current.Memory))
             {
                 throw new InvalidDataException("Effect315 body lost its selected ordinary COMMON cursor coordinate.");
             }
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect315 body requires its current ordering table.");
+            NativeBattlePrimitiveProcess packetOwner = current.Memory.PrimitiveProcess!;
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, packetOwner.PacketBank!, packetOwner.PacketBuffer, packetOwner.ByteCursor!.Value, batch) } };
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess!, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             NativeBattleEffectMemory memory = current.Memory with { PrimitiveProcess = written.Process };
@@ -50,7 +55,8 @@ public sealed partial class BattleSession
 
         NativeBattleEffect315BodyFrame Shadow(NativeBattleEffect315BodyFrame current)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect315 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect315 shadow requires its current GTE arithmetic.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect315 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect315 shadow requires its actual primitive capabilities."), 4121, 16);
+            var shadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect315 shadow requires its original template.");
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect315 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect315 shadow requires its current GTE arithmetic.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 shadow requires its depth controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect315 shadow requires its actual primitive capabilities."), 4121, 16, bodyIdentity is { } shadowOwner ? shadowOwner with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(shadowSource), Primitive = unchecked(shadowOwner.Primitive * 397 + 0x5088) } : null);
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 120) };
             current = Deliver(current, shadow.Batch);
             return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging, 120) };
@@ -91,9 +97,10 @@ public sealed partial class BattleSession
         NativeBattleEffect315BodyFrame DrawGeometry(NativeBattleEffect315BodyFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect315 body requires its addressed current geometry.");
+            NativeBattlePilotVisualIdentity? geometryIdentity = NativeBattleEffect32Presentation.Resource(bodyIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(pointer) } : null, sourceAddress, geometryPass++);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeDeformedBodyView(current.Staging, scratchAddress, scratchLength);
-            NativeBattleEffect315BodyDrawingStep drawn = NativeBattleEffect315BodyDrawing.DrawBody(current.Memory, current.Temporary156, ReadGeometry, sourceAddress, bones, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 body requires its current projection controls."), scratch, scratchAddress, scratchLength);
+            NativeBattleEffect315BodyDrawingStep drawn = NativeBattleEffect315BodyDrawing.DrawBodyWithPresentation(current.Memory, current.Temporary156, ReadGeometry, sourceAddress, bones, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 body requires its current projection controls."), scratch, scratchAddress, scratchLength, pilotIdentity: geometryIdentity);
             current = current with { Memory = drawn.Memory, Temporary156 = drawn.Temporary156, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.Scratch, scratchLength) };
             uint start = current.CommonCursor;
             int allocated = 0;

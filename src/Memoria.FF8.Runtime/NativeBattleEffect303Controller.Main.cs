@@ -29,6 +29,10 @@ public static partial class NativeBattleEffect303Controller
             frame = Write(frame, main, Read(frame, main).WriteDword(16, unchecked((uint)vibration.Handle)).WriteDword(28, main + 32));
             var workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, workspace);
+            if (frame.CapturePresentation)
+            {
+                NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + MainProgrammeWorkspaceOffset, 0);
+            }
             frame = inputs.Execute(frame, new NativeBattleEffect303InitializeIo534110(IoOffset));
         }
         int mainSurvivors = 1;

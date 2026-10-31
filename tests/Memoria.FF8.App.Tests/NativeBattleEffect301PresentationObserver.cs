@@ -35,8 +35,11 @@ internal sealed class NativeBattleEffect301PresentationObserver
     public NativeBattleLogicalCommand[] CurrentCommands { get; private set; } = [];
     public NativeBattleLogicalCommand[] CurrentFadeCommands => [];
 
+    private int capturedPrimitives;
+
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
+        capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 301);
         CurrentCommands = [];
         if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
@@ -185,6 +188,8 @@ internal sealed class NativeBattleEffect301PresentationObserver
 
     public void Accept(BattleSnapshot completed, string output)
     {
+        Assert.True(capturedPrimitives > 0, "The complete standalone route did not observe owned moving geometry.");
+        NativeBattleRecovery32CaptureAssertions.AssertFrame(completed, 301);
         Publish(output);
         Assert.True(camera && track && view);
         Assert.True(scriptBound && scriptExhausted);

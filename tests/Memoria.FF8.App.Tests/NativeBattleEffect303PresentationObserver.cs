@@ -23,8 +23,11 @@ internal sealed class NativeBattleEffect303PresentationObserver
     private bool activated;
     private int? vibration;
 
+    private int capturedPrimitives;
+
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
+        capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 303);
         NativeBattleOriginalEffectState? before = prior.NativeGraphics!.OriginalEffect;
         NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != 303 || effect.ReturnedDescriptor is null)
@@ -133,6 +136,8 @@ internal sealed class NativeBattleEffect303PresentationObserver
 
     public void Accept(BattleSnapshot completed, string output)
     {
+        Assert.True(capturedPrimitives > 0, "The complete standalone route did not observe owned moving geometry.");
+        NativeBattleRecovery32CaptureAssertions.AssertFrame(completed, 303);
         Assert.True(fragments);
         Assert.True(particles);
         Assert.True(sprites);

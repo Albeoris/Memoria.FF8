@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleFaceRasterRandom<TState>(TState State, int Value);
-public sealed record NativeBattleEffect314FaceRasterServices<TState>(Func<TState, uint, int, NativeBattleEffectArena> ReadArena, Func<TState, uint, NativeBattleEffectArena, int, TState> WriteArena, Func<TState, NativeBattleEffectMemory> ReadMemory, Func<TState, NativeBattleEffectMemory, TState> WriteMemory, Func<TState, NativeBattleGfGeometryBatch, uint, TState> DrawBatch, Func<TState, NativeBattleFaceRasterRandom<TState>> NextRandom, Func<TState, uint, NativeBattleEffectArena, TState> Birth);
+public sealed record NativeBattleEffect314FaceRasterServices<TState>(Func<TState, uint, int, NativeBattleEffectArena> ReadArena, Func<TState, uint, NativeBattleEffectArena, int, TState> WriteArena, Func<TState, NativeBattleEffectMemory> ReadMemory, Func<TState, NativeBattleEffectMemory, TState> WriteMemory, Func<TState, NativeBattleGfGeometryBatch, uint, TState> DrawBatch, Func<TState, NativeBattleFaceRasterRandom<TState>> NextRandom, Func<TState, uint, NativeBattleEffectArena, TState> Birth)
+{
+    public Func<NativeBattleGeometryPrimitive, uint, IReadOnlyList<uint>, NativeBattleGeometryPrimitive>? CapturePrimitive { get; init; }
+}
 
 public static class NativeBattleEffect314FaceRaster661720
 {
@@ -108,6 +111,15 @@ public static class NativeBattleEffect314FaceRaster661720
                     }
                 }
                 bool uniform = UniformGray(gray, expanded);
+                NativeBattleGeometryPrimitive CapturePrimitive(NativeBattleGeometryPrimitive primitive)
+                {
+                    if (inputs.CapturePrimitive is null)
+                    {
+                        return primitive;
+                    }
+                    uint[] addresses = Enumerable.Range(0, corners).Select(corner => vertices + unchecked((uint)((unchecked((ushort)Word(face, corner * 2)) & 0xFFF) * vertexStride))).ToArray();
+                    return inputs.CapturePrimitive(primitive, faces, addresses);
+                }
                 frame = Write(frame, inputs, contextAddress, context, length);
                 if (!expanded && grayOr == 0 || uniform)
                 {
@@ -118,7 +130,7 @@ public static class NativeBattleEffect314FaceRaster661720
                         packet.AddWord(0x16, Word(context, expanded ? 0x6E : 0x4E));
                         packet.AddWord(0x0E, Word(context, expanded ? 0x70 : 0x50));
                     }
-                    frame = Emit(frame, inputs, packet, tableBucket, 0x1D8E054u, depths);
+                    frame = Emit(frame, inputs, packet, tableBucket, 0x1D8E054u, depths, CapturePrimitive);
                     common = unchecked(common + (uint)packet.Length);
                     continue;
                 }
@@ -137,9 +149,9 @@ public static class NativeBattleEffect314FaceRaster661720
                     textured.AddWord(0x0E, Word(context, 0x70));
                     context = PutDword(context, cursorOffset + 4, unchecked(secondary + (uint)untextured.Length));
                     frame = Write(frame, inputs, contextAddress, context, length);
-                    frame = Emit(frame, inputs, textured, tableBucket, 0x1D8E054u, depths);
+                    frame = Emit(frame, inputs, textured, tableBucket, 0x1D8E054u, depths, CapturePrimitive);
                     common = unchecked(common + (uint)textured.Length);
-                    frame = Emit(frame, inputs, untextured, tableBucket, privateCursor, depths);
+                    frame = Emit(frame, inputs, untextured, tableBucket, privateCursor, depths, CapturePrimitive);
                     secondary = unchecked(secondary + (uint)untextured.Length);
                     Packet mode = new(8);
                     mode.Store32(4, 0xE10002C0);
@@ -177,11 +189,11 @@ public static class NativeBattleEffect314FaceRaster661720
                     }
                     context = PutDword(context, cursorOffset + 4, unchecked(secondary + (uint)complement.Length));
                     frame = Write(frame, inputs, contextAddress, context, length);
-                    frame = Emit(frame, inputs, complement, tableBucket, privateCursor, depths);
+                    frame = Emit(frame, inputs, complement, tableBucket, privateCursor, depths, CapturePrimitive);
                     secondary = unchecked(secondary + (uint)complement.Length);
                     ordinary.AddWord(0x1A, Word(context, 0x4E));
                     ordinary.AddWord(0x0E, Word(context, 0x50));
-                    frame = Emit(frame, inputs, ordinary, tableBucket, 0x1D8E054u, depths);
+                    frame = Emit(frame, inputs, ordinary, tableBucket, 0x1D8E054u, depths, CapturePrimitive);
                     common = unchecked(common + (uint)ordinary.Length);
                 }
             }
@@ -208,7 +220,7 @@ public static class NativeBattleEffect314FaceRaster661720
         return packet;
     }
 
-    private static TState Emit<TState>(TState frame, NativeBattleEffect314FaceRasterServices<TState> inputs, Packet packet, int bucket, uint cursor, IReadOnlyList<short> depths)
+    private static TState Emit<TState>(TState frame, NativeBattleEffect314FaceRasterServices<TState> inputs, Packet packet, int bucket, uint cursor, IReadOnlyList<short> depths, Func<NativeBattleGeometryPrimitive, NativeBattleGeometryPrimitive>? capture = null)
     {
         ImmutableArray<int> payload = depths.Count == 3 ? [depths[0], depths[1], depths[2], 0] : depths.Select(value => (int)value).ToImmutableArray();
         if (payload.Length != 4)
@@ -216,6 +228,7 @@ public static class NativeBattleEffect314FaceRaster661720
             payload = [0, 0, 0, 0];
         }
         NativeBattleGeometryPrimitive primitive = new(bucket, Enumerable.Range(0, packet.Length / 4).Select(index => BitConverter.ToUInt32(packet.Data, index * 4)).ToImmutableArray(), payload);
+        primitive = capture?.Invoke(primitive) ?? primitive;
         NativeBattleGfGeometryAttempt attempt = new(0, packet.Data.ToImmutableArray(), packet.Mask.ToImmutableArray(), primitive);
         return inputs.DrawBatch(frame, new([attempt], packet.Length), cursor);
     }

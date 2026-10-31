@@ -76,6 +76,7 @@ public sealed class NativeBattleEffect308PresentationTests
         BattleSnapshot? geometryPeak = null;
         byte[]? geometryPixels = null;
         int completions = 0;
+        int movingCapturedFrames = 0;
         int callbacks = 0;
         NativeBattleRestorationPresentationTests.Publish(output, "prepared-source", source, null);
         try
@@ -85,6 +86,10 @@ public sealed class NativeBattleEffect308PresentationTests
             {
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (NativeBattleOffsetBodyCaptureAssertions.AssertFrame(current, 308) > 0)
+                {
+                    movingCapturedFrames++;
+                }
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
                 NativeBattleModulePoolTask? priorMain = prior.NativeGraphics!.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == MainCallback && (task.Flags & 1) != 0);
                 int processedAge = priorMain?.ReadWord(12) ?? -1;
@@ -129,6 +134,7 @@ public sealed class NativeBattleEffect308PresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(callbacks < 2400, "Effect308 did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            Assert.True(movingCapturedFrames > 1, "The complete original308 trio component must reach moving owned capture on multiple native callbacks.");
             Assert.True(maximumRgb > 100, "Effect308 geometry did not change rendered RGB.");
             Assert.True(maximumGeometryRgb > 100, "Effect308 geometry outside flash frames did not change rendered RGB.");
             observer.Accept(completed, output);
@@ -172,6 +178,8 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
         cold.Tick();
         direct.Tick();
+        NativeBattleOffsetBodyCaptureAssertions.AssertFrame(direct.Capture(), 308);
+        NativeBattleOffsetBodyCaptureAssertions.AssertFrame(cold.Capture(), 308);
         Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
         byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray();
         Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), pixels);

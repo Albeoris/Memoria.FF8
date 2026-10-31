@@ -107,7 +107,7 @@ public static class NativeBattleEffect301Particles
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord301(PutWord301(Put301(Context(frame, temporary, 180), 0, 0x103D118), 4, task.ReadWord(18)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattleEffect32Presentation.Resource(frame.PilotIdentity, NativeBattleEffect301Resources.SpriteAddresses[0]));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect301DrawBatch(drawn.Batch, 0x250773C));
         frame = Release(frame, 180);

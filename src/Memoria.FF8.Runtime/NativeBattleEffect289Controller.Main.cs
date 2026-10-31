@@ -33,15 +33,15 @@ public static partial class NativeBattleEffect289Controller
             int firstReference = age < 12 ? 558 * age - 4648 : age > 14 ? 877 * age - 10230 : 2048;
             int firstScale = age > 10 ? (22 - age) * 372 : 4096;
             int sineHalf = NativeBattleCameraMath.Sine(half);
-            frame = DrawCustom678510(frame, view, 0x106EDE4, age * 16, sineHalf / 4 + 250, -(progress / 8), firstReference, -age * 8, firstScale, resources, inputs);
+            frame = DrawCustom678510(frame, view, 0x106EDE4, age * 16, sineHalf / 4 + 250, -(progress / 8), firstReference, -age * 8, firstScale, resources, inputs, 1);
             int reference = 558 * age - 4648;
             if (reference > 0)
             {
                 reference *= 2;
             }
             int scale = age > 2 ? (22 - age) * 372 : 4096;
-            frame = DrawCustom678510(frame, view, 0x106FAF4, age * 16, sineHalf / 4 + 350, sineHalf / 8, reference, -age * 8, scale, resources, inputs);
-            frame = DrawCustom678510(frame, view, 0x106FAF4, -age * 16, sineHalf / 4 + 150, -(NativeBattleCameraMath.Sine(progress) / 8), reference, -age * 8, scale, resources, inputs);
+            frame = DrawCustom678510(frame, view, 0x106FAF4, age * 16, sineHalf / 4 + 350, sineHalf / 8, reference, -age * 8, scale, resources, inputs, 2);
+            frame = DrawCustom678510(frame, view, 0x106FAF4, -age * 16, sineHalf / 4 + 150, -(NativeBattleCameraMath.Sine(progress) / 8), reference, -age * 8, scale, resources, inputs, 3);
         }
         if ((uint)(age - 10) < 20)
         {
@@ -92,6 +92,10 @@ public static partial class NativeBattleEffect289Controller
                 frame = Write(frame, programme, task);
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, programme + ChildProgrammeWorkspaceOffset, ChildProgrammeWorkspaceLength).Initialize7016B0(resources.ChildProgramme, ChildProgrammeWorkspaceLength);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, programme + ChildProgrammeWorkspaceOffset, workspace);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, programme + ChildProgrammeWorkspaceOffset, 0);
+                }
             }
             frame = LoadMatrix(frame, basis ?? throw new InvalidDataException("Effect289 lost its current target particle basis."), true, false);
             (frame, uint particle) = Append(frame, ParticleDescriptor, 0x6783F0);

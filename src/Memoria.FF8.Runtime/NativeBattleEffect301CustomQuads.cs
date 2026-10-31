@@ -9,6 +9,11 @@ public static class NativeBattleEffect301CustomQuads
 {
     public static NativeBattleEffect301QuadStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection)
     {
+        return DrawLoaded(memory, temporary, source, projection, null);
+    }
+
+    public static NativeBattleEffect301QuadStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         int count = unchecked((int)U32(temporary, 0x30));
         if (count <= 0)
         {
@@ -51,6 +56,7 @@ public static class NativeBattleEffect301CustomQuads
             }
             NativeBattleActionMatrix matrix = Matrix(temporary, 0x64);
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, Padding(temporary, 0x76)) };
+            System.Numerics.Vector3[]? pilotWorld = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
             NativeBattleVector[] corners = [new(unchecked((short)-width), unchecked((short)-height), I16(temporary, 0x48)), new(width, unchecked((short)-height), I16(temporary, 0x50)), new(unchecked((short)-width), height, I16(temporary, 0x58)), new(width, height, 0)];
             for (int corner = 0; corner < 4; corner++)
             {
@@ -59,6 +65,10 @@ public static class NativeBattleEffect301CustomQuads
             for (int corner = 0; corner < 3; corner++)
             {
                 registers = NativeBattleGeometry.LoadVector(registers, corner, corners[corner], Padding(temporary, 0x4A + corner * 8));
+                if (pilotWorld is not null)
+                {
+                    pilotWorld[corner] = NativeBattleEffect32Presentation.World(matrix, corners[corner], projection);
+                }
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             uint flags = registers.Colors.Flags!.Value;
@@ -87,6 +97,10 @@ public static class NativeBattleEffect301CustomQuads
             }
             corners[3] = corners[3] with { Z = I16(temporary, 0x60) };
             registers = NativeBattleGeometry.LoadVector(registers, 0, corners[3], Padding(temporary, 0x62));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[3] = NativeBattleEffect32Presentation.World(matrix, corners[3], projection);
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             screens[3] = registers.Geometry.Sxy[2]!.Value;
             depths[3] = unchecked((ushort)registers.Geometry.Sz[3]!.Value);
@@ -105,6 +119,7 @@ public static class NativeBattleEffect301CustomQuads
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? depths.ToImmutableArray() : [depths[1], depths[2], depths[3], 0];
             NativeBattleGeometryPrimitive primitive = new(17 + depth, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray(), payload);
+            primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(pilotIdentity, source.Address, offset), pilotWorld);
             attempts.Add(Attempt(primitive));
             allocated = checked(allocated + 40);
             NativeBattleGfGeometryAttempt Attempt(NativeBattleGeometryPrimitive? linked) => new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), linked);

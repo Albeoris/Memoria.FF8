@@ -7,7 +7,9 @@ public sealed record NativeBattleEffect289CustomMesh108Step(NativeBattleEffectMe
 
 public static class NativeBattleEffect289CustomMesh108
 {
-    public static NativeBattleEffect289CustomMesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect289CustomMesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket = 17, byte depthShift = 2) => DrawLoaded(memory, mesh, projection, context, constants, readSelectedVertex, tableBaseBucket, depthShift, null);
+
+    public static NativeBattleEffect289CustomMesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         context.Validate();
         if (Dword(context, 0) != mesh.Address || depthShift > 31 || context.ExceedsExtent(108) || mesh.Bytes.IsDefault || BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4)) != 164)
@@ -45,6 +47,7 @@ public static class NativeBattleEffect289CustomMesh108
             {
                 bool gouraud = group == 7;
                 byte[] face = Read(cursor, strides[group]).ToArray();
+                NativeBattleVector[]? world = pilotIdentity is null ? null : new NativeBattleVector[4];
                 var first = Vertex(0);
                 NativeBattleEffectArena firstRow = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(first.Vertex.X)).Write(2, BitConverter.GetBytes(first.Vertex.Y)).Write(4, BitConverter.GetBytes(first.Vertex.Z));
                 firstRow = first.W is short w ? firstRow.Write(6, BitConverter.GetBytes(w)) : firstRow.MarkUnknown(6, 2);
@@ -145,6 +148,12 @@ public static class NativeBattleEffect289CustomMesh108
                             uint opcode = words[1] >> 24 & 0xFC;
                             ImmutableArray<int> payload = opcode is >= 0x20 and <= 0x3C ? (opcode & 8) != 0 ? registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0] : [0, 0, 0, 0];
                             NativeBattleGeometryPrimitive primitive = new(bucket, words, payload);
+                            if (pilotIdentity is { } identity && world is not null)
+                            {
+                                NativeBattleActionMatrix matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
+                                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, world[corner]), projection);
+                                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(0), World(1), World(2), World(3), 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                            }
                             if (u == 0)
                             {
                                 attempts.Add(packet.Attempt(primitive));
@@ -175,7 +184,12 @@ public static class NativeBattleEffect289CustomMesh108
                         throw new InvalidDataException("Effect289 custom mesh index leaves its current selected rows.");
                     }
                     _ = Dword(context, 4);
-                    return readSelectedVertex(offset);
+                    var selected = readSelectedVertex(offset);
+                    if (world is not null)
+                    {
+                        world[corner] = selected.Vertex;
+                    }
+                    return selected;
                 }
             }
         }

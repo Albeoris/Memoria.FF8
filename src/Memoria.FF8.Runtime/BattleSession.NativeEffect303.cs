@@ -10,7 +10,8 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect303 requires its selected original effect.");
         NativeBattleEffect303Resources resources = effect.Binding.Effect303Resources ?? throw new NotSupportedException("Effect303 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect303 requires its actual process memory.");
-        NativeBattleEffect303Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect303 requires its current CRT random owner."), memory.Effect303 ?? throw new NotSupportedException("Effect303 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect303 requires its current temporary memory.") };
+        effect = effect with { PresentationPackets = [] };
+        NativeBattleEffect303Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect303 requires its current CRT random owner."), memory.Effect303 ?? throw new NotSupportedException("Effect303 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect303 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect303 requires its original arithmetic constants.");
         NativeBattleEffect303Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadModelWorld, ReadCurrentBone, _ => nativeActionPackets, Execute, StartVibration, PollIo);
         frame = initialize ? NativeBattleEffect303Controller.Initialize(frame, resources, inputs) : NativeBattleEffect303Controller.Advance(frame, resources, inputs);
@@ -97,10 +98,12 @@ public sealed partial class BattleSession
 
         NativeBattleEffect303Frame Deliver(NativeBattleEffect303Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal = NativeBattleEffect303Profile.CursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleEffect32Presentation.Depths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect303 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect303 requires its current ordinary COMMON packet owner.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
                 NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch, flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
@@ -112,6 +115,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(current.State.ReadDword(cursorGlobal), 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect303 requires its actual effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect303Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -136,7 +140,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect303 mesh selected pointer differs from its actual context.");
             }
-            NativeBattleEffect303MeshContext88Step drawn = NativeBattleEffect303MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleEffect303MeshContext88Step drawn = NativeBattleEffect303MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.Resource(current.PilotIdentity, operation.SourceAddress), operation.VertexAddress));
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -177,7 +181,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect303 sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Effect303 sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Effect303 sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, operation.SourceAddress));
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }
@@ -187,7 +191,7 @@ public sealed partial class BattleSession
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Effect303 static mesh requires its actual temporary memory.");
             NativeBattleEffectArena context = NativeBattleTemporaryMemory.ReadView(staging, operation.TemporaryAddress, 88);
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(operation.SourceAddress);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, operation.SourceAddress));
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }

@@ -34,6 +34,10 @@ public static partial class NativeBattleMiniPulseCannon286Controller
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offsets[index], lengths[index]);
                 workspace = workspace.Initialize7016B0(sources[index], lengths[index]);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offsets[index], workspace);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, main + (uint)offsets[index], 0);
+                }
             }
             NativeBattleMiniPulseCannon286PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = WriteBytes(anchor.Frame, main + 20, anchor.Point8, 8);
@@ -125,7 +129,10 @@ public static partial class NativeBattleMiniPulseCannon286Controller
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, current);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleActor32Presentation.Node(parent, frame.Memory.Arena!, task + (uint)offset, source.Address, node.ResourceOffset) };
             frame = DrawProgrammeNode67A4E0(frame, source, node, caller, resources, inputs);
+            frame = frame with { PilotIdentity = parent };
             return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, length);
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, advanced.Workspace);

@@ -31,6 +31,7 @@ public sealed record NativeBattleEffect308Inputs(
     Func<NativeBattleEffect308Frame, NativeBattleEffect308RandomStep> ProcessRandom7059E0,
     Func<NativeBattleEffect308Frame, NativeBattleEffect308Operation, NativeBattleEffect308Frame> Execute)
 {
+    public bool CapturePresentation { get; init; }
     public Func<uint, NativeBattlePoseSource> ReadPoseSource { get; init; } = _ => throw new NotSupportedException("Effect308 requires its current callback rig metadata.");
 }
 
@@ -47,9 +48,17 @@ public sealed record NativeBattleEffect308QueueFile5341D0(short FileId, uint Des
 public sealed record NativeBattleEffect308AdvanceIo534210 : NativeBattleEffect308Operation;
 public sealed record NativeBattleEffect308Intensity5713E0(int Kind, int Strength) : NativeBattleEffect308Operation;
 public sealed record NativeBattleEffect308Music47E3C0(int Duration) : NativeBattleEffect308Operation;
-public sealed record NativeBattleEffect308White7040B0(int Amount) : NativeBattleEffect308Operation;
+public sealed record NativeBattleEffect308White7040B0(int Amount) : NativeBattleEffect308Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect308ApplyOffsetPose662C00(uint ModelAddress, uint OffsetRowsAddress) : NativeBattleEffect308Operation;
 public sealed record NativeBattleEffect308RestorePose508C90(uint ModelAddress) : NativeBattleEffect308Operation;
-public sealed record NativeBattleEffect308DrawOffsetBody669070(uint ModelAddress, uint OffsetRowsAddress) : NativeBattleEffect308Operation;
+public sealed record NativeBattleEffect308DrawOffsetBody669070(uint ModelAddress, uint OffsetRowsAddress) : NativeBattleEffect308Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect308DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect308Operation;
 public sealed record NativeBattleEffect308SelectFragments667DB0(uint ModelAddress, uint OffsetRowsAddress, ImmutableArray<short> BoneSelectors, short SmokeLimit, short NormalSpeed, short UnusedParameter, short RandomThreshold) : NativeBattleEffect308Operation;

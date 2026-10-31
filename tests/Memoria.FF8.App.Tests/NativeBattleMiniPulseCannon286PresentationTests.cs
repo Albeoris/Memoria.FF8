@@ -42,7 +42,7 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         BattleCombatantSnapshot target = ready.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The declared Mini Pulse Cannon contact requires its current target status owner.");
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
+        ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePresentationStatusMemory = (ready.NativePresentationStatusMemory ?? throw new InvalidDataException("Mini Pulse Cannon requires its current physical presentation-status bank.")).Observe(0, target.NativeStatus!.Presentation) };
         Assert.Equal(status.Saved, target.NativeStatus!.Presentation.Saved);
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;

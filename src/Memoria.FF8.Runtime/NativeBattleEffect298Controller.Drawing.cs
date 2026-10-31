@@ -39,7 +39,7 @@ public static partial class NativeBattleEffect298Controller
             frame = Publish298(frame, registers);
             frame = PublishContext(frame, temporary, context, 104);
             frame = LoadMatrix(frame, PackedContext298(context));
-            (frame, context, NativeBattleGfGeometryBatch batch) = DrawChunkMesh672880(frame, context, resources, inputs);
+            (frame, context, NativeBattleGfGeometryBatch batch) = DrawChunkMesh672880(frame, context, resources, inputs, inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, address, 0) : null);
             frame = PublishContext(frame, temporary, context, 104);
             if (!batch.Attempts.IsEmpty)
             {
@@ -81,7 +81,7 @@ public static partial class NativeBattleEffect298Controller
         return Publish298(frame, registers);
     }
 
-    private static (NativeBattleEffect298Frame Frame, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch) DrawChunkMesh672880(NativeBattleEffect298Frame frame, NativeBattleEffectArena context, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
+    private static (NativeBattleEffect298Frame Frame, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch) DrawChunkMesh672880(NativeBattleEffect298Frame frame, NativeBattleEffectArena context, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         uint meshAddress = Dword298(context, 32);
         NativeBattleStaticMeshResource mesh = resources.ReadMesh(meshAddress);
@@ -96,16 +96,24 @@ public static partial class NativeBattleEffect298Controller
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(polygon, 4));
         var attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
         for (int face = 0; face < count; face++)
         {
             ReadOnlySpan<byte> source = mesh.Bytes.AsSpan().Slice(polygon + 4 + face * 12, 12);
+            NativeBattleVector[]? capturedVertices = pilotIdentity.HasValue ? new NativeBattleVector[3] : null;
             for (int corner = 0; corner < 3; corner++)
             {
                 int vertex = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(4 + corner * 2, 2)) * 4;
                 ReadOnlySpan<byte> xyz = mesh.Bytes.AsSpan().Slice(8 + vertex, 8);
-                registers = NativeBattleGeometry.LoadVector(registers, corner, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(4))), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(6)));
+                NativeBattleVector vector = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(4)));
+                if (capturedVertices is not null)
+                {
+                    capturedVertices[corner] = vector;
+                }
+                registers = NativeBattleGeometry.LoadVector(registers, corner, vector, BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(6)));
             }
-            registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), (frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 chunk projection requires current graphics controls.")).Dqa, frame.Memory.ScriptedGraphics.Dqb);
+            NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+            registers = NativeBattleGeometry.ProjectTriple(registers, projection, (frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 chunk projection requires current graphics controls.")).Dqa, frame.Memory.ScriptedGraphics.Dqb);
             Packet298 packet = new(32, allocated);
             packet.Copy(4, context, 96, 4);
             uint flags = registers.Colors.Flags ?? throw new NotSupportedException("Effect298 chunk projection requires its current RTPT flags.");
@@ -146,7 +154,17 @@ public static partial class NativeBattleEffect298Controller
             packet.Dword(0, 0x07000000);
             packet.Byte(7, cue == 4096 ? (byte)0x24 : (byte)0x26);
             ImmutableArray<int> payload = TrianglePayload298(registers.Geometry);
-            attempts.Add(packet.Attempt(packet.Primitive(bucket, payload)));
+            NativeBattleGeometryPrimitive Capture(NativeBattleGeometryPrimitive primitive, int pass)
+            {
+                if (pilotIdentity is not { } identity || capturedVertices is null)
+                {
+                    return primitive;
+                }
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, capturedVertices[corner]), projection);
+                NativeBattlePilotVisualIdentity owner = NativeBattleSelectedProgrammeVisuals.Resource(identity, meshAddress, materialAddress);
+                return primitive with { PilotGeometry = new(owner with { Primitive = unchecked(owner.Primitive * 397 + face * 2 + pass) }, World(0), World(1), World(2), default, 3) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
+            attempts.Add(packet.Attempt(Capture(packet.Primitive(bucket, payload), 0)));
             allocated += 32;
             if (cue != 4096)
             {
@@ -158,7 +176,7 @@ public static partial class NativeBattleEffect298Controller
                 {
                     glow.Dword(8 + corner * 4, screen[corner]);
                 }
-                attempts.Add(glow.Attempt(glow.Primitive(bucket, payload)));
+                attempts.Add(glow.Attempt(Capture(glow.Primitive(bucket, payload), 1)));
                 allocated += 20;
                 Packet298 mode = new(8, allocated);
                 mode.Dword(0, 0x01000000);

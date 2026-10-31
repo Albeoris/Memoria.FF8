@@ -16,7 +16,10 @@ public static partial class NativeBattleEffect303Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, current);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.TaskInstance(parent, frame.Effect, taskAddress, taskAddress + (uint)workspaceOffset, 0, node.ResourceOffset), source.Address) };
             frame = DrawProgrammeNode66AE20(frame, source, node, caller32, resources, inputs);
+            frame = frame with { PilotIdentity = parent };
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, advanced.Workspace);

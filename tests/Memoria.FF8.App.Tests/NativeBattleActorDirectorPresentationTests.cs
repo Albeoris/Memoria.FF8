@@ -197,8 +197,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int smooth24Captured = 0;
         int captured101Frames = 0;
         int contextBodyCapturedFrames = 0;
+        int offsetBodyCapturedFrames = 0;
         int actorLowerCapturedFrames = 0;
         int customComponentCapturedFrames = 0;
+        int actor32CapturedFrames = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -1628,6 +1630,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (effectId is 279 or 282 && NativeBattleCustomComponentCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
                     customComponentCapturedFrames++;
+                }
+                if (effectId is 286 or 289 && NativeBattleActor32CaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    actor32CapturedFrames++;
+                }
+                if (effectId == 298 && NativeBattleOffsetBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    offsetBodyCapturedFrames++;
                 }
                 if (effectId is 133 or 137 && NativeBattleContextBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
@@ -7183,6 +7193,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
             {
                 Assert.True(customComponentCapturedFrames > 1, "The full original component must retain moving owned geometry on multiple native callbacks.");
             }
+            if (effectId is 286 or 289)
+            {
+                Assert.True(actor32CapturedFrames > 1);
+            }
+            if (effectId == 298)
+            {
+                Assert.True(offsetBodyCapturedFrames > 1, "The full original offset-body component must reach moving owned capture on multiple native callbacks.");
+            }
             if (effectId == 101)
             {
                 Assert.True(captured101Frames > 1);
@@ -8290,10 +8308,22 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     NativeBattleCustomComponentCaptureAssertions.AssertFrame(direct.Capture(), effectId);
                     NativeBattleCustomComponentCaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 }
+                if (effectId == 298)
+                {
+                    NativeBattleOffsetBodyCaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleOffsetBodyCaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
+                NativeBattleRecovery32CaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                NativeBattleRecovery32CaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 if (effectId is 133 or 137)
                 {
                     NativeBattleContextBodyCaptureAssertions.AssertFrame(direct.Capture(), effectId);
                     NativeBattleContextBodyCaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
+                if (effectId is 286 or 289)
+                {
+                    NativeBattleActor32CaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleActor32CaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 if (effectId == 181)

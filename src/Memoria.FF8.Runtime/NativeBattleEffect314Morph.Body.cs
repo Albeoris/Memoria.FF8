@@ -9,6 +9,11 @@ public static partial class NativeBattleEffect314Morph
 {
     public static NativeBattleEffect314MorphBodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary156, NativeBattleEffectArena vertexScratch, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0)
     {
+        return DrawBodyWithPresentation(memory, temporary156, vertexScratch, readGeometry, geometryAddress, bones, offsets, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, null);
+    }
+
+    public static NativeBattleEffect314MorphBodyStep DrawBodyWithPresentation(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary156, NativeBattleEffectArena vertexScratch, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (U32(temporary156, 4) != scratchAddress || scratchLength < 0 || depthShift > 31)
         {
             throw new InvalidDataException("Morph-body drawing requires its actual bounded projection workspace.");
@@ -27,6 +32,7 @@ public static partial class NativeBattleEffect314Morph
             int groups = ReadWord(cursor);
             cursor += 2;
             int vertices = 0;
+            Dictionary<int, System.Numerics.Vector3>? worlds = pilotIdentity is null ? null : new();
             for (int group = 0; group < groups; group++)
             {
                 int bone = ReadWord(cursor);
@@ -56,7 +62,12 @@ public static partial class NativeBattleEffect314Morph
                     else
                     {
                         byte[] xyz = readGeometry(cursor, 6).Read(0, 6);
-                        registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), 0);
+                        NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                        if (worlds is not null)
+                        {
+                            worlds[vertices] = NativeBattleEffect32Presentation.World(NativeBattleGeometry.CaptureMatrix(registers.Geometry), point, projection);
+                        }
+                        registers = NativeBattleGeometry.LoadVector(registers, 0, point, 0);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Morph-body projection requires current screen output.");
                         uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("Morph-body projection requires current depth output."))) >> 2));
@@ -148,7 +159,13 @@ public static partial class NativeBattleEffect314Morph
                             registers = quad ? NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Morph-body AVSZ4 requires current ZSF4.")) : NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Morph-body AVSZ3 requires current ZSF3."));
                             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Morph-body averaging requires current OTZ.");
                             temporary156 = temporary156.Write(0x48, BitConverter.GetBytes(depth));
-                            attempts.Add(EmitProjectedFace663B40(source, quad, corners, U32(temporary156, 0x14), U16(temporary156, 0x18), U16(temporary156, 0x1A), registers.Geometry, unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)), allocated));
+                            NativeBattleGfGeometryAttempt attempt = EmitProjectedFace663B40(source, quad, corners, U32(temporary156, 0x14), U16(temporary156, 0x18), U16(temporary156, 0x1A), registers.Geometry, unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)), allocated);
+                            if (worlds is not null && attempt.Primitive is { } primitive)
+                            {
+                                System.Numerics.Vector3[] accepted = Enumerable.Range(0, corners.Length).Select(corner => worlds[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF]).ToArray();
+                                attempt = attempt with { Primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(pilotIdentity, geometryAddress, unchecked((int)cursor)), accepted) };
+                            }
+                            attempts.Add(attempt);
                             allocated += quad ? 40 : 32;
                         }
                     }

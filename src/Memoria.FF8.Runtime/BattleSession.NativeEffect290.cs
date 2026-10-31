@@ -7,6 +7,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect290(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect290 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect290Resources resources = effect.Binding.Effect290Resources ?? throw new NotSupportedException("Effect290 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect290 requires current process memory.");
         NativeBattleEffect290State state = memory.Effect290 ?? throw new NotSupportedException("Effect290 requires its retained state.");
@@ -15,6 +16,7 @@ public sealed partial class BattleSession
         NativeBattleEffect290Inputs? inputs = null;
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect290 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect290Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect290 requires its current projection."), _ => Camera().Roll, Point, SelectIo, Random, (current, operation) => ExecuteNativeEffect290Operation(ref graphics, current, operation, resources, inputs!))
         {
+            CapturePresentation = true,
             AdvanceLower = NativeBattleEffect290Lower.Advance,
             AdvanceProgramme = NativeBattleEffect290Programme.Advance
         };

@@ -7,7 +7,8 @@ public static partial class NativeBattleEffect303Controller
 {
     public static NativeBattleEffect303Frame DrawFragments66B120(NativeBattleEffect303Frame frame, uint main, NativeBattleEffect303Resources resources, NativeBattleEffect303Inputs inputs)
     {
-        frame = LoadMatrix(frame, inputs.ReadView(frame));
+        NativeBattlePackedMatrix32 view = inputs.ReadView(frame);
+        frame = LoadMatrix(frame, view);
         (frame, uint temporary) = Allocate(frame, 8);
         var controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect303 fragments require current projection controls.");
         for (int index = 0; index < 128; index++)
@@ -19,6 +20,7 @@ public static partial class NativeBattleEffect303Controller
                 continue;
             }
             bool quad = kind == 2;
+            NativeBattleVector[]? acceptedPoints = frame.PilotIdentity is null ? null : new NativeBattleVector[quad ? 4 : 3];
             Packet303 packet = new(quad ? 40 : 32);
             NativeBattleGeometryRegisterStep registers = Registers303(frame);
             for (int corner = 0; corner < 3; corner++)
@@ -29,9 +31,15 @@ public static partial class NativeBattleEffect303Controller
                     point = point.Write(axis * 2, BitConverter.GetBytes(unchecked((short)(Word303(row, axis * 2) + Word303(row, 40 + corner * 6 + axis * 2)))));
                 }
                 frame = PublishContext(frame, temporary, point, 8);
-                registers = NativeBattleGeometry.LoadVector(registers, corner, Vector303(point), W303(point));
+                NativeBattleVector vector = Vector303(point);
+                if (acceptedPoints is not null)
+                {
+                    acceptedPoints[corner] = vector;
+                }
+                registers = NativeBattleGeometry.LoadVector(registers, corner, vector, W303(point));
             }
-            registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+            NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+            registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             packet.Copy(12, row, 64, 4);
             packet.Copy(20, row, 68, 4);
             packet.Copy(28, row, 72, 2);
@@ -50,7 +58,12 @@ public static partial class NativeBattleEffect303Controller
                     point = point.Write(axis * 2, BitConverter.GetBytes(unchecked((short)(Word303(row, axis * 2) + Word303(row, 58 + axis * 2)))));
                 }
                 frame = PublishContext(frame, temporary, point, 8);
-                registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, Vector303(point), W303(point)), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+                NativeBattleVector vector = Vector303(point);
+                if (acceptedPoints is not null)
+                {
+                    acceptedPoints[3] = vector;
+                }
+                registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, vector, W303(point)), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 uint fourth = registers.Geometry.Sxy[2]!.Value;
                 packet.Copy(36, row, 74, 2);
                 packet.Dword(32, fourth);
@@ -84,6 +97,11 @@ public static partial class NativeBattleEffect303Controller
                     byte opcode = row.Read(19, 1)[0];
                     ImmutableArray<int> payload = (opcode & 8) != 0 ? registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect303 insertion requires current SZ.")))).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
                     primitive = packet.Primitive(unchecked((short)depth) >> 2, payload);
+                    if (acceptedPoints is not null && frame.PilotIdentity is { } owner)
+                    {
+                        NativeBattlePilotVisualIdentity rowIdentity = NativeBattleEffect32Presentation.TaskInstance(owner, frame.Effect, main, main + 32, index)!.Value;
+                        primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(rowIdentity, checked(main + 32 + (uint)(index * 76))), acceptedPoints.Select(point => NativeBattleEffect32Presentation.World(view.ReadMatrix(), point, projection)).ToArray());
+                    }
                 }
             }
             frame = Publish303(frame, registers);

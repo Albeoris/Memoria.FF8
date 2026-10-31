@@ -5,15 +5,19 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect289Controller
 {
-    public static NativeBattleEffect289Frame DrawCustom678510(NativeBattleEffect289Frame frame, NativeBattlePackedMatrix32 matrix, uint source, int angle, int amplitudeA, int amplitudeB, int referenceW, int textureOffset, int scale, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs)
+    public static NativeBattleEffect289Frame DrawCustom678510(NativeBattleEffect289Frame frame, NativeBattlePackedMatrix32 matrix, uint source, int angle, int amplitudeA, int amplitudeB, int referenceW, int textureOffset, int scale, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs) => DrawCustom678510(frame, matrix, source, angle, amplitudeA, amplitudeB, referenceW, textureOffset, scale, resources, inputs, 0);
+
+    public static NativeBattleEffect289Frame DrawCustom678510(NativeBattleEffect289Frame frame, NativeBattlePackedMatrix32 matrix, uint source, int angle, int amplitudeA, int amplitudeB, int referenceW, int textureOffset, int scale, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs, int presentationLane)
     {
         frame = WarpVertices6790E0(frame, source, angle, amplitudeA, amplitudeB, referenceW, scale, resources);
         (frame, uint temporary) = Allocate(frame, 108);
         NativeBattleEffectArena context = Context(frame, temporary, 108).Write(0, BitConverter.GetBytes(source)).Write(4, BitConverter.GetBytes(checked(frame.State.ReadDword(ArenaGlobal) + ScratchOffset))).Write(8, new byte[4]).Write(0x20, BitConverter.GetBytes((ushort)((byte)textureOffset & 127))).Write(0x24, new byte[4]).Write(0x28, BitConverter.GetBytes((ushort)256)).Write(0x2A, BitConverter.GetBytes((ushort)256)).Write(0x2C, new byte[4]).Write(0x30, BitConverter.GetBytes((ushort)128)).Write(0x32, BitConverter.GetBytes((ushort)256));
         frame = PublishContext(frame, temporary, context, 108);
         frame = LoadMatrix(frame, matrix);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = parent is { } identity ? identity with { Primitive = presentationLane } : null };
         frame = inputs.Execute(frame, new NativeBattleEffect289DrawCustom108(temporary, source, checked(frame.State.ReadDword(ArenaGlobal) + ScratchOffset)));
-        return Release(frame, 108);
+        return Release(frame with { PilotIdentity = parent }, 108);
     }
 
     private static NativeBattleEffectArena ProgrammeCaller289(NativeBattleEffect289Frame frame, NativeBattleVector anchor, NativeBattleEffect289Inputs inputs)
@@ -35,7 +39,10 @@ public static partial class NativeBattleEffect289Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, current);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleActor32Presentation.Node(parent, frame.Memory.Arena!, taskAddress + (uint)workspaceOffset, source.Address, node.ResourceOffset) };
             frame = inputs.DrawProgrammeNode(frame, source, node, caller40);
+            frame = frame with { PilotIdentity = parent };
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, advanced.Workspace);

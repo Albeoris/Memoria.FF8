@@ -23,7 +23,8 @@ public sealed partial class BattleSession
         using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect315 requires its ordering table.")).Pending);
         memory = memory with { Arena = arena.View, PrimitiveProcess = common.View };
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
-        NativeBattleEffect315Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect315 requires its current CRT stream."), memory.Effect315 ?? throw new NotSupportedException("Effect315 requires its retained executable storage.")) { Staging = staging.View };
+        effect = effect with { PresentationPackets = [] };
+        NativeBattleEffect315Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect315 requires its current CRT stream."), memory.Effect315 ?? throw new NotSupportedException("Effect315 requires its retained executable storage.")) { CapturePresentation = true, Staging = staging.View };
         using NativeBattleTaskCallerOperation caller = new(arena, frame.Effect.Pools);
         caller.AdmitCommon(common.CurrentMemory);
         caller.EnlistArena(frame.State.Globals);
@@ -239,6 +240,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect315Frame Deliver(NativeBattleEffect315Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal = NativeBattleEffect315Profile.CursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleEffect32Presentation.Depths(batch);
             if (cursorGlobal != NativeBattleEffect315Profile.CursorGlobal)
             {
                 throw new InvalidDataException("Effect315 selected an unsupported packet cursor.");
@@ -247,6 +249,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(current.State.ReadDword(cursorGlobal), 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect315 requires its effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect315Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -259,28 +262,28 @@ public sealed partial class BattleSession
             NativeBattleGfGeometryBatch batch;
             if (size == 180)
             {
-                NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, context, resources.ReadSprite, Projection(), Camera().Roll, table, shift, true);
+                NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, context, resources.ReadSprite, Projection(), Camera().Roll, table, shift, true, pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, source));
                 current = current with { Memory = drawn.Memory };
                 context = drawn.Temporary180;
                 batch = drawn.Batch;
             }
             else if (size == 88)
             {
-                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift);
+                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift, pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, source));
                 current = current with { Memory = drawn.Memory };
                 context = drawn.Context;
                 batch = drawn.Batch;
             }
             else if (size == 124)
             {
-                NativeBattleEffect315Scrolling124Step drawn = NativeBattleEffect315Scrolling124.DrawLoaded(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift);
+                NativeBattleEffect315Scrolling124Step drawn = NativeBattleEffect315Scrolling124.DrawLoaded(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift, pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, source));
                 current = current with { Memory = drawn.Memory };
                 context = drawn.Context124;
                 batch = drawn.Batch;
             }
             else if (size == 96)
             {
-                NativeBattleEffect315ModeMesh96Step drawn = NativeBattleEffect315ModeMesh96.DrawLoaded(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift);
+                NativeBattleEffect315ModeMesh96Step drawn = NativeBattleEffect315ModeMesh96.DrawLoadedWithPresentation(current.Memory, resources.ReadMesh(source), Projection(), context, colors, table, shift, pilotIdentity: NativeBattleEffect32Presentation.Resource(current.PilotIdentity, source));
                 current = current with { Memory = drawn.Memory };
                 context = drawn.Context96;
                 batch = drawn.Batch;

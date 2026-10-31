@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect290Controller
         }
         if (age >= 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect290DrawBody676B40(caster, address + 24));
+            frame = inputs.Execute(frame, new NativeBattleEffect290DrawBody676B40(caster, address + 24) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(290, frame.Effect.Pools, address, caster, address + 24) : null });
             frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(caster, 1, 255, 4));
         }
         if (age >= 30)

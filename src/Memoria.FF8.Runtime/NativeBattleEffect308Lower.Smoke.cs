@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect308Lower
         int count = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(at));
         context = Put308(Put308(Put308(context, 0, sourceAddress), 0x2C, checked(sourceAddress + (uint)at + 4)), 0x30, unchecked((uint)count));
         frame = PublishContext(Publish(frame, registers), temporary, context, 180);
-        NativeBattleProjectedQuads672DB0Step draw = NativeBattleProjectedQuads672DB0.DrawLoaded(frame.Memory, context, source, at + 4, count, inputs.ReadProjection(frame));
+        NativeBattleProjectedQuads672DB0Step draw = NativeBattleProjectedQuads672DB0.DrawLoaded(frame.Memory, context, source, at + 4, count, inputs.ReadProjection(frame), inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, rowAddress, source.Address) : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(draw.Batch, CursorGlobal));
         row = ReadBytes(frame, rowAddress, 12);

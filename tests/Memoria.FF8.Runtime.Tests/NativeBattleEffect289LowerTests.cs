@@ -119,6 +119,86 @@ public sealed class NativeBattleEffect289LowerTests
         Assert.Throws<NotSupportedException>(() => Draw(Mesh(true), unknownFlags, offset => (new NativeBattleVector(0, 0, 0), (short)0)));
         Assert.Throws<NotSupportedException>(() => Draw(Mesh(false), Context(), offset => (new NativeBattleVector(0, 0, 0), null)));
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Custom_capture_preserves_detached_native_state_and_accepted_selected_worlds(bool gouraud)
+    {
+        NativeBattlePilotVisualIdentity identity = new(289, 0x2500000, 1, 17, 3) { ResourceGeneration = 123 };
+        List<int> plainReads = [];
+        List<int> capturedReads = [];
+        NativeBattleVector Vertex(int offset) => new(unchecked((short)(offset * 2)), unchecked((short)offset), 0);
+        NativeBattleEffect289CustomMesh108Step plain = NativeBattleEffect289CustomMesh108.DrawLoaded(Memory(), Mesh(gouraud), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, offset =>
+        {
+            plainReads.Add(offset);
+            return (Vertex(offset), (short)0);
+        });
+        string expected = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        NativeBattleEffect289CustomMesh108Step captured = NativeBattleEffect289CustomMesh108.DrawLoaded(Memory(), Mesh(gouraud), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, offset =>
+        {
+            capturedReads.Add(offset);
+            return (Vertex(offset), (short)0);
+        }, 17, 2, identity);
+        Assert.Equal(expected, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(plainReads, capturedReads);
+        Assert.Equal(new[] { 0, 8, 16, 24 }, capturedReads);
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(48, 24, 2000), geometry.D);
+        Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 2000), geometry.SourceDepths!.Value);
+        Assert.False(geometry.ScreenSpace);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Custom_capture_does_not_reach_cutoff_or_rejected_fourth_vertices(bool cutoff)
+    {
+        List<int> reads = [];
+        NativeBattleEffectMemory memory = Memory();
+        if (!cutoff)
+        {
+            memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 1 }, true, true, null) };
+        }
+        var result = NativeBattleEffect289CustomMesh108.DrawLoaded(memory, Mesh(false), new(null, 100, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, offset =>
+        {
+            reads.Add(offset);
+            Assert.NotEqual(24, offset);
+            return (new(0, 0, 0), cutoff ? (short)4096 : (short)0);
+        }, 17, 2, new(289, 0x2500000, 1, 19, 0));
+        Assert.Equal(cutoff ? new[] { 0 } : new[] { 0, 8, 16 }, reads);
+        Assert.All(result.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        Assert.Equal(0, result.Batch.AllocationBytes);
+    }
+
+    [Fact]
+    public void Programme_ACT_forwarding_retains_actual_selected_worlds_and_unknown_W_native_parity()
+    {
+        byte[] source = Mesh(true).Bytes.ToArray();
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 4);
+        var mesh = new NativeBattleStaticMeshResource(0, 0x10000000, source.ToImmutableArray());
+        NativeBattleEffectArena Context88() => NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0, BitConverter.GetBytes(mesh.Address)).Write(4, BitConverter.GetBytes(0x20E0FD8u)).Write(8, new byte[3]).Write(12, new byte[4]).Write(24, new byte[4]).Write(28, BitConverter.GetBytes(0x2030u));
+        NativeBattleVector Vertex(int offset) => new(unchecked((short)(offset * 2)), unchecked((short)offset), 0);
+        var plain = NativeBattleEffect289MeshContext88.DrawLoaded(Memory(), mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context88(), NativeBattleGteColorInterpolation.CodeConstants45F270, offset => (Vertex(offset), null));
+        string expected = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        List<int> reads = [];
+        var captured = NativeBattleEffect289MeshContext88.DrawLoaded(Memory(), mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context88(), NativeBattleGteColorInterpolation.CodeConstants45F270, offset =>
+        {
+            reads.Add(offset);
+            return (Vertex(offset), null);
+        }, 17, 2, new(289, 0x2500000, 1, 17, 44) { ResourceGeneration = 919 });
+        Assert.Equal(expected, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(new[] { 0, 8, 16, 24 }, reads);
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 2000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(48, 24, 2000), visual.D);
+        Assert.Equal(919, visual.Identity.ResourceGeneration);
+        Assert.False(visual.ScreenSpace);
+    }
+
     private static NativeBattleEffect289CustomMesh108Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)> vertices) => NativeBattleEffect289CustomMesh108.DrawLoaded(Memory(), mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, vertices);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(ushort u = 0) => NativeBattleEffectArena.Clear().MarkUnknown(0, 108).Write(0, BitConverter.GetBytes(0x10000000u)).Write(4, BitConverter.GetBytes(0x20E0FD8u)).Write(8, new byte[4]).Write(0x1C, new byte[] { 0x30 }).Write(0x20, BitConverter.GetBytes(u)).Write(0x24, new byte[4]).Write(0x28, BitConverter.GetBytes(0x01000100u)).Write(0x2C, new byte[4]).Write(0x30, BitConverter.GetBytes(0x01000080u));

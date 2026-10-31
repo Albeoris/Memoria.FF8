@@ -11,6 +11,11 @@ public static class NativeBattleEffect301BodyDrawing
 {
     public static NativeBattleEffect301BodyStep DrawLoaded(NativeBattleEffect301Frame frame, Func<int, int, byte[]> readGeometry, uint geometrySourceAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena context136, uint temporaryAddress, int ordinaryByteCursor, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs)
     {
+        return DrawLoaded(frame, readGeometry, geometrySourceAddress, bones, context136, temporaryAddress, ordinaryByteCursor, resources, inputs, null);
+    }
+
+    public static NativeBattleEffect301BodyStep DrawLoaded(NativeBattleEffect301Frame frame, Func<int, int, byte[]> readGeometry, uint geometrySourceAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena context136, uint temporaryAddress, int ordinaryByteCursor, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         uint scratch = Dword301(context136, 4);
         if (scratch != checked(Main301(frame) + 0x1494) || ordinaryByteCursor < 0)
         {
@@ -35,6 +40,7 @@ public static class NativeBattleEffect301BodyDrawing
             int chunks = I16(cursor);
             cursor = checked(cursor + 2);
             int total = 0;
+            Dictionary<int, System.Numerics.Vector3>? worlds = pilotIdentity is null ? null : new();
             context = Put301(context, 0x84, scratch);
             for (int chunk = 0; chunk < chunks; chunk++)
             {
@@ -75,6 +81,10 @@ public static class NativeBattleEffect301BodyDrawing
                     (byte[] bytes, bool[] known) = row.ReadSnapshot(8, 8);
                     NativeBattleVector point = new(Word301(row, 8), Word301(row, 10), Word301(row, 12));
                     short? w = known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null;
+                    if (worlds is not null)
+                    {
+                        worlds[index] = NativeBattleEffect32Presentation.World(view.ReadMatrix(), point, projection);
+                    }
                     registers = NativeBattleGeometry.LoadVector(registers, 0, point, w);
                     registers = registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } };
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
@@ -204,6 +214,11 @@ public static class NativeBattleEffect301BodyDrawing
                             ImmutableArray<int> payload = quad ? registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
                             ImmutableArray<uint> words = Enumerable.Range(0, packet.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4))).ToImmutableArray();
                             primitive = new(bucket, words, payload);
+                            if (worlds is not null)
+                            {
+                                System.Numerics.Vector3[] accepted = Enumerable.Range(0, corners).Select(corner => worlds[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF]).ToArray();
+                                primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(pilotIdentity, geometrySourceAddress, cursor), accepted);
+                            }
                         }
                     }
                     attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), primitive));

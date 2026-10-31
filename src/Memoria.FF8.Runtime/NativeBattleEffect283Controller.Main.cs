@@ -33,6 +33,10 @@ public static partial class NativeBattleEffect283Controller
             {
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offset, length).Initialize7016B0(source, length);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offset, workspace);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + (uint)offset, 0);
+                }
             }
             NativeBattleEffect283PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = anchor.Frame;
@@ -138,7 +142,10 @@ public static partial class NativeBattleEffect283Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, current);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.TaskInstance(parent, frame.Effect, taskAddress, taskAddress + (uint)workspaceOffset, 0, node.ResourceOffset), source.Address) };
             frame = inputs.DrawProgrammeNode(frame, source, node, caller32);
+            frame = frame with { PilotIdentity = parent };
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, advanced.Workspace);

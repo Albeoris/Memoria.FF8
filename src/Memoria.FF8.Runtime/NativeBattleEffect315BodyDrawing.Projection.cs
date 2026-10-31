@@ -7,6 +7,11 @@ public static partial class NativeBattleEffect315BodyDrawing
 {
     public static NativeBattleEffect315BodyDrawingStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary156, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2)
     {
+        return DrawBodyWithPresentation(memory, temporary156, readGeometry, geometryAddress, bones, camera, projection, controls, scratch, scratchAddress, scratchLength, tableBaseBucket, depthShift, null);
+    }
+
+    public static NativeBattleEffect315BodyDrawingStep DrawBodyWithPresentation(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary156, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (U32(temporary156, 4) != scratchAddress || scratchLength < 0 || scratchLength > NativeBattleEffectArena.Length || scratchLength % 8 != 0 || depthShift > 31)
         {
             throw new InvalidDataException("Effect315 body requires its actual bounded renderer scratch.");
@@ -94,7 +99,8 @@ public static partial class NativeBattleEffect315BodyDrawing
             cursor += 12;
             temporary156 = Dword(temporary156, 0, cursor);
             short? cameraPadding = camera.Known[18] && camera.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(camera.Bytes.AsSpan().Slice(18, 2)) : null;
-            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, camera.ReadMatrix(), true, true, cameraPadding) };
+            NativeBattleActionMatrix cameraValue = camera.ReadMatrix();
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, cameraValue, true, true, cameraPadding) };
             DrawFaces(false);
             DrawFaces(true);
 
@@ -105,6 +111,7 @@ public static partial class NativeBattleEffect315BodyDrawing
                 {
                     byte[] source = readGeometry(cursor, quad ? 20 : 16).Read(0, quad ? 20 : 16);
                     NativeBattleEffectArena[] corners = new NativeBattleEffectArena[quad ? 4 : 3];
+                    System.Numerics.Vector3[]? pilotWorld = pilotIdentity.HasValue ? new System.Numerics.Vector3[corners.Length] : null;
                     for (int corner = 0; corner < corners.Length; corner++)
                     {
                         int selected = BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF;
@@ -116,7 +123,12 @@ public static partial class NativeBattleEffect315BodyDrawing
                         temporary156 = NativeBattleEffectNodeContextMemory.Copy(corners[corner], 0, temporary156, 0x54 + corner * 8, 8);
                         if (corner < 3)
                         {
-                            registers = NativeBattleGeometry.LoadVector(registers, corner, new(S16(corners[corner], 0), S16(corners[corner], 2), S16(corners[corner], 4)), S16(corners[corner], 6));
+                            NativeBattleVector point = new(S16(corners[corner], 0), S16(corners[corner], 2), S16(corners[corner], 4));
+                            registers = NativeBattleGeometry.LoadVector(registers, corner, point, S16(corners[corner], 6));
+                            if (pilotWorld is not null)
+                            {
+                                pilotWorld[corner] = NativeBattleEffect32Presentation.World(cameraValue, point, projection);
+                            }
                         }
                     }
                     registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
@@ -137,7 +149,12 @@ public static partial class NativeBattleEffect315BodyDrawing
                             }
                             if (quad)
                             {
-                                registers = NativeBattleGeometry.LoadVector(registers, 0, new(S16(corners[3], 0), S16(corners[3], 2), S16(corners[3], 4)), S16(corners[3], 6));
+                                NativeBattleVector point = new(S16(corners[3], 0), S16(corners[3], 2), S16(corners[3], 4));
+                                registers = NativeBattleGeometry.LoadVector(registers, 0, point, S16(corners[3], 6));
+                                if (pilotWorld is not null)
+                                {
+                                    pilotWorld[3] = NativeBattleEffect32Presentation.World(cameraValue, point, projection);
+                                }
                                 registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                                 uint uv = BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan(16));
                                 packet.Word(28, uv);
@@ -155,7 +172,9 @@ public static partial class NativeBattleEffect315BodyDrawing
                             int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
                             uint opcode = packet.Words()[1] >> 24 & 0xFC;
                             ImmutableArray<int> payload = opcode is >= 0x20 and <= 0x3C ? (opcode & 8) != 0 ? registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0] : [0, 0, 0, 0];
-                            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+                            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
+                            primitive = NativeBattleEffect32Presentation.Capture(primitive, pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 65537 + (int)cursor) } : null, pilotWorld);
+                            attempts.Add(packet.Attempt(primitive));
                             allocated += quad ? 40 : 32;
                             accepted = true;
                         }

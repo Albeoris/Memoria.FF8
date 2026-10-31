@@ -12,6 +12,10 @@ public static class NativeBattleEffect301Programme
         NativeBattleGfAnimationWorkspace cache = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, clearBytes);
         cache = cache.Initialize7016B0(resources.Act(source), clearBytes);
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
+        if (frame.CapturePresentation)
+        {
+            NativeBattleEffect32Presentation.Allocated(frame.Effect, workspace, workspace, 0);
+        }
         return frame;
     }
 
@@ -22,7 +26,10 @@ public static class NativeBattleEffect301Programme
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, 0, (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.TaskInstance(parent, frame.Effect, workspace, workspace, 0, node.ResourceOffset), source.Address) };
             frame = DrawNode(frame, source, node, caller16, resources, inputs);
+            frame = frame with { PilotIdentity = parent };
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
@@ -69,7 +76,7 @@ public static class NativeBattleEffect301Programme
             return new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
         }
         short? W(int offset) => BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset + 6, 2));
-        NativeBattleDefaultActMeshStep result = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(address - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, Point, W, 17, 2);
+        NativeBattleDefaultActMeshStep result = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(address - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, Point, W, 17, 2, pilotIdentity: NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.Resource(frame.PilotIdentity, address), vertices));
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect301DrawBatch(result.Batch, 0x250773C));
         return Release(frame, 88);

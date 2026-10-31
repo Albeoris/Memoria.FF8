@@ -58,7 +58,13 @@ public static partial class NativeBattleEffect283Controller
         NativeBattleEffectTaskStep step = frame.Effect.Pools[index].Advance((pool, slot) =>
         {
             current = WithPool(current, index, pool);
+            NativeBattlePilotVisualIdentity? previousIdentity = current.PilotIdentity;
+            if (current.CapturePresentation)
+            {
+                current = current with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(283, pool.Slots[slot]) };
+            }
             (current, int result) = AdvanceTask(current, pool.BankAddress + (uint)(slot * pool.Stride), resources, inputs);
+            current = current with { PilotIdentity = previousIdentity };
             return new(current.Effect.Pools[index], result);
         });
         return (WithPool(current, index, step.Pool), step.Survivors);

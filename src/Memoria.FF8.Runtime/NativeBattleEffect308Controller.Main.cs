@@ -44,14 +44,14 @@ public static partial class NativeBattleEffect308Controller
             for (int index = 0; index < 3; index++)
             {
                 uint model = checked(caster + (uint)(index * 156));
-                frame = inputs.Execute(frame, new NativeBattleEffect308DrawOffsetBody669070(model, checked(address + 0x20 + (uint)(index * 0x2D0))));
+                frame = inputs.Execute(frame, new NativeBattleEffect308DrawOffsetBody669070(model, checked(address + 0x20 + (uint)(index * 0x2D0))) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, model, checked(address + 0x20 + (uint)(index * 0x2D0))) : null });
                 frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(model, 1, 255, 4));
             }
         }
         int local = age - 70;
         if ((uint)local < 16)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect308White7040B0(local * 256));
+            frame = inputs.Execute(frame, new NativeBattleEffect308White7040B0(local * 256) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, 0x7040B0) : null });
             if (local == 15)
             {
                 foreach (uint descriptor in new[] { ScriptDescriptor, ParticleDescriptor, ActDescriptor })
@@ -67,7 +67,7 @@ public static partial class NativeBattleEffect308Controller
         }
         else if ((uint)local < 16)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect308White7040B0(4096 - local * 256));
+            frame = inputs.Execute(frame, new NativeBattleEffect308White7040B0(4096 - local * 256) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, 0x7040B0) : null });
         }
         if (age == 0)
         {

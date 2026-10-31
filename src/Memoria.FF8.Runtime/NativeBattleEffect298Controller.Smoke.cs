@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect298Controller
         int count = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(at));
         context = context.Write(0, BitConverter.GetBytes(sourceAddress)).Write(0x2C, BitConverter.GetBytes(checked(sourceAddress + (uint)at + 4))).Write(0x30, BitConverter.GetBytes(count));
         frame = PublishContext(Publish298(frame, registers), temporary, context, 180);
-        frame = DrawSmokeQuads672DB0(frame, temporary, source, at + 4, count, inputs);
+        frame = DrawSmokeQuads672DB0(frame, temporary, source, at + 4, count, inputs, inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, rowAddress, sourceAddress) : null);
         row = ReadBytes(frame, rowAddress, 12);
         row = row.Write(6, BitConverter.GetBytes(unchecked((ushort)(Word298(row, 6) - 1))));
         for (int axis = 0; axis < 3; axis++)
@@ -69,11 +69,16 @@ public static partial class NativeBattleEffect298Controller
 
     public static NativeBattleEffect298Frame DrawSmokeQuads672DB0(NativeBattleEffect298Frame frame, uint temporary, NativeBattleModuleResource source, int firstQuad, int count, NativeBattleEffect298Inputs inputs)
     {
+        return DrawSmokeQuads672DB0(frame, temporary, source, firstQuad, count, inputs, null);
+    }
+
+    public static NativeBattleEffect298Frame DrawSmokeQuads672DB0(NativeBattleEffect298Frame frame, uint temporary, NativeBattleModuleResource source, int firstQuad, int count, NativeBattleEffect298Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         if (count <= 0)
         {
             return frame;
         }
-        NativeBattleProjectedQuads672DB0Step draw = NativeBattleProjectedQuads672DB0.DrawLoaded(frame.Memory, Context(frame, temporary, 180), source, firstQuad, count, inputs.ReadProjection(frame));
+        NativeBattleProjectedQuads672DB0Step draw = NativeBattleProjectedQuads672DB0.DrawLoaded(frame.Memory, Context(frame, temporary, 180), source, firstQuad, count, inputs.ReadProjection(frame), pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context180, 180);
         return inputs.Execute(frame, new NativeBattleEffect298DeliverBatch(draw.Batch, NativeBattleEffect298Profile.CursorGlobal));
     }

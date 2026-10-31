@@ -8,11 +8,12 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect298(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect298 requires its selected original effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect298Resources resources = effect.Binding.Effect298Resources ?? throw new NotSupportedException("Effect298 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect298 requires its actual process memory.");
         NativeBattleEffect298Frame frame = new(memory, effect, memory.Effect298 ?? throw new NotSupportedException("Effect298 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect298 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect298 requires its original arithmetic constants.");
-        NativeBattleEffect298Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBone502170, _ => nativeActionPackets, ReadBody, Execute, StartVibration, PollIo);
+        NativeBattleEffect298Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBone502170, _ => nativeActionPackets, ReadBody, Execute, StartVibration, PollIo) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect298Controller.Initialize(frame, resources, inputs) : NativeBattleEffect298Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -123,10 +124,12 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298Frame Deliver(NativeBattleEffect298Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal = NativeBattleEffect298Profile.CursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect298 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect298 requires its current ordinary COMMON packet owner.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
                 NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch, flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
@@ -138,6 +141,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(current.State.ReadDword(cursorGlobal), 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect298 requires its actual effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect298Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -174,7 +178,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect298 mesh selected pointer differs from its actual context.");
             }
-            NativeBattleEffect298MeshContext88Step drawn = NativeBattleEffect298MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleEffect298MeshContext88Step drawn = NativeBattleEffect298MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -215,12 +219,12 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect298 sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Effect298 sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Effect298 sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleEffect298Frame DrawBody(NativeBattleEffect298Frame current, uint pointer, uint offsetAddress)
+        NativeBattleEffect298Frame DrawBody(NativeBattleEffect298Frame current, uint pointer, uint offsetAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             int actor = Actor(pointer);
             NativeBattlePoseSource pose = PoseSource(pointer);
@@ -237,9 +241,10 @@ public sealed partial class BattleSession
 
             NativeBattleEffect298BodyFrame Shadow(NativeBattleEffect298BodyFrame selected)
             {
-                NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(selected.Staging, new(selected.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect298 shadow requires its current GTE matrix."), selected.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect298 shadow requires its current GTE data.")), selected.Model, Projection(), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect298 shadow requires its original seeds."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect298 shadow requires its actual primitive capabilities."), 4112, 16);
+                NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(selected.Staging, new(selected.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect298 shadow requires its current GTE matrix."), selected.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect298 shadow requires its current GTE data.")), selected.Model, Projection(), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect298 shadow requires its original seeds."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect298 shadow requires its actual primitive capabilities."), 4112, 16, pilotIdentity);
                 selected = selected with { Memory = selected.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
                 NativeBattleEffect298Frame delivered = Deliver(current with { Memory = selected.Memory, Staging = selected.Staging }, shadow.Batch, 0x1D8E054);
+                current = current with { Effect = delivered.Effect };
                 return selected with { Memory = delivered.Memory, Staging = NativeBattleTemporaryMemory.Release5082D0(selected.Staging, 0x78) };
             }
 
@@ -255,10 +260,11 @@ public sealed partial class BattleSession
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, selected.Model) };
                 NativeBattleEffect298BodySource source = ReadBody(current with { Memory = selected.Memory, Staging = selected.Staging }, pointer);
                 NativeBattleEffectArena scratch = NativeBattleTemporaryMemory.ReadView(selected.Staging, scratchAddress, scratchLength);
-                NativeBattleEffect298BodyStep drawn = NativeBattleEffect298BodyDrawing.DrawBody(selected.Memory, selected.Temporary152, scratch, source.ReadGeometry, source.GeometryAddress, source.CurrentBones, offsets, Projection(), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 body requires its actual projection controls."), scratchAddress, scratchLength, 17, 0);
+                NativeBattleEffect298BodyStep drawn = NativeBattleEffect298BodyDrawing.DrawBody(selected.Memory, selected.Temporary152, scratch, source.ReadGeometry, source.GeometryAddress, source.CurrentBones, offsets, Projection(), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect298 body requires its actual projection controls."), scratchAddress, scratchLength, 17, 0, pilotIdentity);
                 selected = selected with { Memory = drawn.Memory, Temporary152 = drawn.Temporary152, Staging = NativeBattleTemporaryMemory.PublishView(selected.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
                 selected = selected with { Staging = NativeBattleTemporaryMemory.PublishView(selected.Staging, allocation.Address, selected.Temporary152, 152) };
                 NativeBattleEffect298Frame delivered = Deliver(current with { Memory = selected.Memory, Staging = selected.Staging }, drawn.Batch, 0x1D8E054);
+                current = current with { Effect = delivered.Effect };
                 return selected with { Memory = delivered.Memory };
             }
 
@@ -314,7 +320,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect298RestorePose508C90 restore:
                     return RestorePose(current, restore.ModelAddress);
                 case NativeBattleEffect298DrawOffsetBody672330 body:
-                    return DrawBody(current, body.ModelAddress, body.OffsetRowsAddress);
+                    return DrawBody(current, body.ModelAddress, body.OffsetRowsAddress, body.PilotIdentity);
                 case NativeBattleEffect298DeliverBatch packets:
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);
                 case NativeBattleEffect298DrawMesh7043B0 mesh:

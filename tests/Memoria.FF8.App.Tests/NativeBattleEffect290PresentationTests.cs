@@ -64,6 +64,7 @@ public sealed class NativeBattleEffect290PresentationTests
         byte[]? geometryPlain = null;
         int callbacks = 0;
         int completions = 0;
+        int movingCapturedFrames = 0;
         int changedRgb = 0;
         int geometryChangedRgb = 0;
         bool cameraChanged = false;
@@ -78,6 +79,10 @@ public sealed class NativeBattleEffect290PresentationTests
                 boundary = "callback-" + callbacks;
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (NativeBattleOffsetBodyCaptureAssertions.AssertFrame(current, 290) > 0)
+                {
+                    movingCapturedFrames++;
+                }
                 NativeBattleGraphicsState currentGraphics = current.NativeGraphics ?? throw new InvalidDataException("Effect290 lost its graphics state.");
                 Assert.Equal(source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), current.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());
 
@@ -122,6 +127,7 @@ public sealed class NativeBattleEffect290PresentationTests
             observer.Publish(output);
             Assert.True(callbacks < 2400, "The original effect290 component did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            Assert.True(movingCapturedFrames > 1, "The complete original290 component must reach moving owned capture on multiple native callbacks.");
             Assert.True(cameraChanged);
             Assert.True(changedRgb > 100, "No actual effect290 primitive changed the rendered RGB output.");
             Assert.True(geometryChangedRgb > 100, "No effect290 geometry changed rendered RGB outside its fullviewport fade.");
@@ -161,6 +167,8 @@ public sealed class NativeBattleEffect290PresentationTests
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();
             direct.Tick();
+            NativeBattleOffsetBodyCaptureAssertions.AssertFrame(direct.Capture(), 290);
+            NativeBattleOffsetBodyCaptureAssertions.AssertFrame(cold.Capture(), 290);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
             Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);

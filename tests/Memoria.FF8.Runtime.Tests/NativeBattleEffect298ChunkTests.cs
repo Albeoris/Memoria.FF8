@@ -8,6 +8,53 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect298ChunkTests
 {
     [Theory]
+    [InlineData(8)]
+    [InlineData(7)]
+    public void Captured298_chunk_and_glow_preserve_native_material_holes_depths_and_independent_mutable_state(int life)
+    {
+        NativeBattleEffect298Frame Build()
+        {
+            var frame = Frame();
+            NativeBattleEffectTaskPool pool = frame.Effect.Pools[4];
+            (pool, _) = pool.Append(MainCallback);
+            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, pool) } };
+            uint main = ArenaAddress + MainOffset;
+            uint chunk = main + 0x2EC;
+            frame = WriteBytes(frame, chunk, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)10)).Write(2, BitConverter.GetBytes((short)20)).Write(4, BitConverter.GetBytes((short)30)).Write(6, BitConverter.GetBytes((short)life)).Write(14, BitConverter.GetBytes((short)4096)).Write(24, BitConverter.GetBytes(MeshAddresses[0])), 172);
+            for (int face = 0; face < 12; face++)
+            {
+                NativeBattleEffectArena material = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x3A001122u + (uint)face)).Write(4, BitConverter.GetBytes(0x00B63344u + (uint)face)).Write(8, BitConverter.GetBytes((ushort)(0x5566 + face)));
+                frame = WriteBytes(frame, chunk + 28 + (uint)(face * 12), material, 10);
+            }
+            return frame;
+        }
+        List<NativeBattleEffect298DeliverBatch> nativeBatches = [];
+        List<NativeBattleEffect298DeliverBatch> capturedBatches = [];
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = DrawChunks6725F0(Build(), ArenaAddress + MainOffset, NativeBattleEffect298StateTests.Resources(), Inputs((current, operation) =>
+        {
+            nativeBatches.Add(Assert.IsType<NativeBattleEffect298DeliverBatch>(operation));
+            return current;
+        }) with { ReadProjection = _ => projection });
+        var captured = DrawChunks6725F0(Build(), ArenaAddress + MainOffset, NativeBattleEffect298StateTests.Resources(), Inputs((current, operation) =>
+        {
+            capturedBatches.Add(Assert.IsType<NativeBattleEffect298DeliverBatch>(operation));
+            return current;
+        }) with { ReadProjection = _ => projection, CapturePresentation = true });
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeBatches), NativeBattleTestSnapshots.Json(capturedBatches));
+        NativeBattlePilotVisualGeometry[] visuals = capturedBatches.SelectMany(batch => batch.Batch.Attempts).Select(attempt => attempt.Primitive?.PilotGeometry).OfType<NativeBattlePilotVisualGeometry>().ToArray();
+        Assert.NotEmpty(visuals);
+        Assert.All(visuals, visual =>
+        {
+            Assert.Equal((ushort)298, visual.Identity.Effect);
+            Assert.True(visual.Identity.Generation > 0);
+            Assert.False(visual.ScreenSpace);
+            Assert.True(visual.UseSourceDepths);
+        });
+    }
+
+    [Theory]
     [InlineData(4, 64, true)]
     [InlineData(8, 128, false)]
     public void Chunk_GPF_scales_RGB_without_FAR_and_links_exact_native_compound(int life, byte color, bool compound)

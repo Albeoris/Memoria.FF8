@@ -9,8 +9,17 @@ public static class NativeBattleEffect308Programme
 {
     public static NativeBattleEffect308Frame Initialize(NativeBattleEffect308Frame frame, uint workspace, uint source, int clearBytes, NativeBattleEffect308Resources resources)
     {
+        return Initialize(frame, workspace, source, clearBytes, resources, false);
+    }
+
+    public static NativeBattleEffect308Frame Initialize(NativeBattleEffect308Frame frame, uint workspace, uint source, int clearBytes, NativeBattleEffect308Resources resources, bool capturePresentation)
+    {
         NativeBattleGfAnimationWorkspace cache = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, clearBytes);
         cache = cache.Initialize7016B0(resources.Act(source), clearBytes);
+        if (capturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, workspace);
+        }
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
         return frame;
     }
@@ -22,7 +31,7 @@ public static class NativeBattleEffect308Programme
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, 0, (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
-            frame = DrawNode(frame, source, node, caller56, resources, inputs);
+            frame = DrawNode(frame, source, node, caller56, resources, inputs, inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, workspace, source.Address, 0, node.ResourceOffset) : null);
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
@@ -36,6 +45,11 @@ public static class NativeBattleEffect308Programme
     }
 
     public static NativeBattleEffect308Frame DrawNode(NativeBattleEffect308Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller56, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    {
+        return DrawNode(frame, source, node, caller56, resources, inputs, null);
+    }
+
+    public static NativeBattleEffect308Frame DrawNode(NativeBattleEffect308Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller56, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -125,7 +139,7 @@ public static class NativeBattleEffect308Programme
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
         }
-        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, offset => ReadRow(offset).Vertex, offset => ReadRow(offset).W, 17, 2, PackedRow);
+        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, offset => ReadRow(offset).Vertex, offset => ReadRow(offset).W, 17, 2, PackedRow, pilotIdentity is { } identity ? NativeBattleSelectedProgrammeVisuals.Resource(identity, geometry, vertices) : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(draw.Batch, NativeBattleEffect308Profile.CursorGlobal));
         return Release(frame, 88);

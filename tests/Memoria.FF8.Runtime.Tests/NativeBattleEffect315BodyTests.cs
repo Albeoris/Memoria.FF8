@@ -8,6 +8,41 @@ public sealed class NativeBattleEffect315BodyTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Presentation_captures_actual_accepted_body_world_and_depth_without_native_changes(bool quad)
+    {
+        var plain = Draw(Geometry(quad), Temporary());
+        string frozen = System.Text.Json.JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(plain.Memory), Temporary156 = NativeBattleStorageSnapshots.Capture(plain.Temporary156), Scratch = NativeBattleStorageSnapshots.Capture(plain.Scratch) });
+        NativeBattlePilotVisualIdentity owner = new(315, 0x123400, 2, 7, 0) { ResourceGeneration = 19 };
+        var captured = Draw(Geometry(quad), Temporary(), pilotIdentity: owner);
+        Assert.Equal(frozen, System.Text.Json.JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(captured.Memory), Temporary156 = NativeBattleStorageSnapshots.Capture(captured.Temporary156), Scratch = NativeBattleStorageSnapshots.Capture(captured.Scratch) }));
+        var expected = plain.Batch.Attempts.Select(attempt => attempt).ToArray();
+        var actual = captured.Batch.Attempts.Select(attempt => attempt).ToArray();
+        Assert.Equal(expected.Length, actual.Length);
+        int moving = 0;
+        for (int index = 0; index < expected.Length; index++)
+        {
+            Assert.Equal(expected[index].Data, actual[index].Data);
+            Assert.Equal(expected[index].WriteMask, actual[index].WriteMask);
+            Assert.Equal(expected[index].Primitive?.Words.ToArray(), actual[index].Primitive?.Words.ToArray());
+            Assert.Equal(expected[index].Primitive?.VertexPayload4.ToArray(), actual[index].Primitive?.VertexPayload4.ToArray());
+            if (actual[index].Primitive is { PilotGeometry: { } geometry } primitive)
+            {
+                moving++;
+                Assert.Equal((ushort)315, geometry.Identity.Effect);
+                Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+                Assert.False(geometry.ScreenSpace);
+                Assert.True(geometry.Continuous);
+                Assert.True(geometry.UseSourceDepths);
+                Assert.Equal(primitive.VertexPayload4[0], geometry.SourceDepths!.Value.X);
+                Assert.All(Enumerable.Range(0, geometry.CornerCount), corner => Assert.True(float.IsFinite(geometry.Corner(corner).Z)));
+            }
+        }
+        Assert.True(moving > 0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Raw_faces_project_world_rows_and_preserve_signed_uv_tail_and_full_depth_FIFO(bool quad)
     {
         NativeBattleEffect315BodyDrawingStep result = Draw(Geometry(quad), Temporary());
@@ -139,10 +174,14 @@ public sealed class NativeBattleEffect315BodyTests
         Assert.Equal((byte)0x22, bytes[1]);
     }
 
-    private static NativeBattleEffect315BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary)
+    private static NativeBattleEffect315BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096, Zsf4 = 4096 };
-        return NativeBattleEffect315BodyDrawing.DrawBody(Memory(), temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length)), 0x1000, [Identity()], Identity(8000), new(null, 100, 160, 108), controls, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray()), 0x2000, 32);
+        if (pilotIdentity is null)
+        {
+            return NativeBattleEffect315BodyDrawing.DrawBody(Memory(), temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length)), 0x1000, [Identity()], Identity(8000), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray()), 0x2000, 32);
+        }
+        return NativeBattleEffect315BodyDrawing.DrawBodyWithPresentation(Memory(), temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length)), 0x1000, [Identity()], Identity(8000), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray()), 0x2000, 32, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity().ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

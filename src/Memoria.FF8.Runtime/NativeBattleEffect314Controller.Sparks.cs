@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect314Controller
         int count = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan(offset, 4));
         context = context.Write(0, BitConverter.GetBytes(source.Address)).Write(0x2C, BitConverter.GetBytes(checked(source.Address + (uint)offset + 4))).Write(0x30, BitConverter.GetBytes(count));
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporary, context, 0xB4));
-        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame));
+        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame), NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.TaskInstance(frame.PilotIdentity, frame.Effect, frame.State.ReadDword(WorkGlobal) + MainOffset, frame.State.ReadDword(WorkGlobal) + MainOffset + SparkOffset, checked((int)((address - frame.State.ReadDword(WorkGlobal) - MainOffset - SparkOffset) / SparkStride))), source.Address));
         frame = inputs.Execute(frame with { Memory = draw.Memory }, new NativeBattleEffect314WriteArena(temporary, draw.Temporary180, 0xB4));
         frame = inputs.Execute(frame, new NativeBattleEffect314DrawBatch(draw.Batch, CursorGlobal));
         row = ReadBytes(frame, address, SparkStride).Write(6, BitConverter.GetBytes(unchecked((short)(life - 1))));

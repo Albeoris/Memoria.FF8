@@ -95,6 +95,10 @@ public static partial class NativeBattleEffect314Controller
         row = row.Write(0x2E, BitConverter.GetBytes(unchecked((ushort)(U16(row, 0x2E) + clutAddition))));
         row = row.Write(0x10, BitConverter.GetBytes(checked(rotationBank + (uint)((Draw() & 63) * 20))));
         frame = WriteBytes(frame, address, row, FragmentStride);
+        if (frame.CapturePresentation)
+        {
+            NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + FragmentOffset, checked((int)((address - main - FragmentOffset) / FragmentStride)));
+        }
         face = face.Write(15, [(byte)(face.Read(15, 1)[0] | 0x80)]);
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(faceAddress + 15, NativeBattleEffectArena.Clear().Write(0, face.Read(15, 1)), 1));
         if (Draw() < 0x2000)
@@ -107,6 +111,10 @@ public static partial class NativeBattleEffect314Controller
                 particle = particle.Write(13, [unchecked((byte)-(Draw() & 7))]);
                 particle = particle.Write(14, [unchecked((byte)(-64 - (Draw() & 31)))]).Write(15, [1]);
                 frame = WriteBytes(frame, spark, particle, SparkStride);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + SparkOffset, checked((int)((spark - main - SparkOffset) / SparkStride)));
+                }
             }
         }
         return (frame, true);

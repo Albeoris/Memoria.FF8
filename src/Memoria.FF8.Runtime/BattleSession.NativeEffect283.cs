@@ -10,7 +10,8 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect283 requires its selected original effect.");
         NativeBattleEffect283Resources resources = effect.Binding.Effect283Resources ?? throw new NotSupportedException("Effect283 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect283 requires its actual process memory.");
-        NativeBattleEffect283Frame frame = new(memory, effect, memory.Effect283 ?? throw new NotSupportedException("Effect283 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect283 requires its current temporary memory.") };
+        effect = effect with { PresentationPackets = [] };
+        NativeBattleEffect283Frame frame = new(memory, effect, memory.Effect283 ?? throw new NotSupportedException("Effect283 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect283 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect283 requires its original arithmetic constants.");
         NativeBattleEffect283Inputs? inputs = null;
         inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Anchor, Execute, DrawBody, (current, source, node, caller) => NativeBattleEffect283Controller.DrawProgrammeNode67C8A0(current, source, node, caller, resources, inputs!));
@@ -68,10 +69,12 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect283Frame Deliver(NativeBattleEffect283Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal = NativeBattleEffect283Profile.CursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleEffect32Presentation.Depths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect283 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect283 requires its current ordinary COMMON packet owner.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
                 NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch, flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
@@ -83,6 +86,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(current.State.ReadDword(cursorGlobal), 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect283 requires its actual effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect283Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -98,16 +102,17 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Effect283 mesh selected pointer differs from its actual context.");
             }
             uint start = current.State.ReadDword(NativeBattleEffect283Profile.CursorGlobal);
-            NativeBattleEffect283MeshContext108Step drawn = NativeBattleEffect283MeshContext108.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, DeliverAttempt);
+            NativeBattleEffect283MeshContext108Step drawn = NativeBattleEffect283MeshContext108.DrawLoadedWithPresentation(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, DeliverAttempt, NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.Resource(current.PilotIdentity, operation.SourceAddress), operation.VertexAddress));
             return current with { Memory = drawn.Memory with { Arena = current.Memory.Arena }, State = current.State.WriteDword(NativeBattleEffect283Profile.CursorGlobal, checked(start + (uint)drawn.Batch.AllocationBytes)), Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context108, 108) };
 
             void DeliverAttempt(NativeBattleGfGeometryAttempt attempt, int allocation)
             {
                 int cursor = checked(NativeBattleWaterExecutionFields.ArenaOffset(start, 0) + attempt.ByteOffsetRelative);
                 NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect283 requires its current overlapping packet and morph arena.");
-                NativeBattleGfGeometryBatch batch = new([attempt with { ByteOffsetRelative = 0 }], allocation);
+                NativeBattleGfGeometryBatch batch = NativeBattleEffect32Presentation.Depths(new([attempt with { ByteOffsetRelative = 0 }], allocation));
                 NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect283 requires its current ordering table.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved);
                 current = current with { Memory = written.Memory };
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };

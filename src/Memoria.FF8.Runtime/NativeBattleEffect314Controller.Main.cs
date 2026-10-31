@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect314Controller
             if ((uint)flashAge < 5)
             {
                 int factor = NativeBattleRinoa89FadeDrawing.Factor6FC450(flashAge, 1, 0, 4);
-                frame = inputs.Execute(frame, new NativeBattleEffect314DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(255, 128, 128, factor), CursorGlobal));
+                frame = inputs.Execute(frame, new NativeBattleEffect314DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(255, 128, 128, factor, frame.PilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 397 + 0x7040) } : null), CursorGlobal));
             }
         }
         frame = DrawSparks665160(frame, main, resources, inputs);
@@ -123,6 +123,10 @@ public static partial class NativeBattleEffect314Controller
             record = record.Write(8, BitConverter.GetBytes((short)((Draw() & 0x7FF) + 0x200))).Write(12, new byte[4]);
             record = record.Write(15, [unchecked((byte)((Draw() & 1) + 2))]);
             frame = WriteBytes(frame, spark, record, 16);
+            if (frame.CapturePresentation)
+            {
+                NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + SparkOffset, checked((int)((spark - main - SparkOffset) / SparkStride)));
+            }
         }
         return frame;
     }

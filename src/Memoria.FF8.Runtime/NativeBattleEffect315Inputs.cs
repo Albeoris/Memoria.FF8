@@ -2,6 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect315Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleEffect315State State)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+
     public NativeBattleFileStaging? Staging { get; init; }
 }
 

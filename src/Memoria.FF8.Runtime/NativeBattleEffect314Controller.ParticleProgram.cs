@@ -106,6 +106,10 @@ public static partial class NativeBattleEffect314Controller
             record = record.Write(14, [unchecked((byte)((Draw() & 7) - 4))]);
             record = record.Write(13, [unchecked((byte)(-8 - (Draw() & 7)))]).Write(15, [0]);
             frame = WriteBytes(frame, spark, record, 16);
+            if (frame.CapturePresentation)
+            {
+                NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + SparkOffset, checked((int)((spark - main - SparkOffset) / SparkStride)));
+            }
         }
         return frame;
     }

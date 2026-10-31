@@ -3,6 +3,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleMiniPulseCannon286Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleMiniPulseCannon286State State)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 
 public sealed record NativeBattleMiniPulseCannon286PointStep(NativeBattleMiniPulseCannon286Frame Frame, NativeBattleEffectArena Point8);

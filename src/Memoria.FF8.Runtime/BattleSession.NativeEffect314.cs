@@ -10,16 +10,22 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect314(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect314 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect314Resources resources = effect.Binding.Effect314Resources ?? throw new NotSupportedException("Effect314 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect314 requires its current process memory.");
-        NativeBattleEffect314Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect314 requires its current CRT stream."), memory.Effect314 ?? throw new NotSupportedException("Effect314 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect314 requires its current addressed memory.") };
-        NativeBattleEffect314Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.Models[NativeEffect314Actor(graphics, address)], _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { ReadBoneCount = (_, pointer) => Pose(NativeEffect314Actor(graphics, pointer)).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
+        NativeBattleEffect314Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect314 requires its current CRT stream."), memory.Effect314 ?? throw new NotSupportedException("Effect314 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect314 requires its current addressed memory."), CapturePresentation = true };
+        Dictionary<uint, long> presentationResources = [];
+        NativeBattleEffect314Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.Models[NativeEffect314Actor(graphics, address)], _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute) { PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(NativeEffect314Actor(graphics, pointer)).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
         frame = initialize ? NativeBattleEffect314Controller.Initialize(frame, resources, inputs) : NativeBattleEffect314Controller.Advance(frame, resources, inputs);
         PublishNativeEffect314Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect314 requires its current camera.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect314 requires its current physical skeleton.");
+        NativeBattlePoseSource Pose(int actor)
+        {
+            var resource = NativeGraphicsPoseResource(graphics, actor);
+            return resource.PoseSource ?? throw new NotSupportedException("Effect314 requires its current physical skeleton.");
+        }
         NativeBattleModelCpuResources Cpu() => NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow Row(int actor) => Cpu().Rows[graphics.Models[actor].ActiveResourceRow100 ?? throw new NotSupportedException("Effect314 requires its current resource row.")];
         NativeBattleEffect314AddressStep Allocate(NativeBattleEffect314Frame current, int length)
@@ -33,6 +39,7 @@ public sealed partial class BattleSession
             int actor = NativeEffect314Actor(graphics, address);
             NativeDeformedBodyBridge bridge = new(current.Memory, current.Effect, current.Random, graphics, graphics.Models[actor], current.Staging!, NativeBattleEffectArena.Clear(), 0);
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
+            presentationResources[address] = NativeBattleEffect32Presentation.ResourceEpoch(pointer);
             return pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect314 requires its actual addressed geometry.");
         }
         uint BoneAddress(NativeBattleEffect314Frame current, uint address, int bone)
@@ -72,7 +79,7 @@ public sealed partial class BattleSession
             }
             uint geometry = GeometryAddress(current, pointer);
             int length = checked((Cpu().ScratchMaximum ?? throw new NotSupportedException("Effect314 requires its current loaded projection capacity.")) * 8);
-            return new(pose, decoded, bones.MoveToImmutable(), geometry, (address, count) => ReadArena(current, address, count)) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length };
+            return new(pose, decoded, bones.MoveToImmutable(), geometry, (address, count) => ReadArena(current, address, count)) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length, PresentationResourceGeneration = presentationResources.TryGetValue(pointer, out long epoch) ? epoch : null };
         }
         NativeBattleEffect314Frame WriteArena(NativeBattleEffect314Frame current, uint address, NativeBattleEffectArena data, int length)
         {
@@ -176,7 +183,8 @@ public sealed partial class BattleSession
                     return Release(WriteNativeEffect314Arena(current, markerAllocation.Address, temporary, 8), 8);
                 case NativeBattleEffect314Shadow5088A0 shadow:
                     int shadowActor = NativeEffect314Actor(graphics, shadow.ModelAddress);
-                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current arithmetic registers.")), graphics.Models[shadowActor], Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect314 requires its original shadow template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect314 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count));
+                    var shadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect314 requires its original shadow template.");
+                    NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current arithmetic registers.")), graphics.Models[shadowActor], Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 shadow requires its current depth controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect314 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), current.PilotIdentity is { } owner ? owner with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(shadowSource), Primitive = unchecked(owner.Primitive * 397 + 0x5088) } : null);
                     current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(drawn.Staging, drawn.TemporaryAddress, drawn.Temporary78, 0x78) };
                     current = DeliverNativeEffect314Batch(ref graphics, current, drawn.Batch, 0x1D8E054);
                     return Release(current, 0x78);

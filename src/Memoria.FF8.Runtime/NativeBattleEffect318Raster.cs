@@ -7,7 +7,9 @@ public sealed record NativeBattleEffect318RasterStep(NativeBattleEffectMemory Me
 
 public static class NativeBattleEffect318Raster
 {
-    public static NativeBattleEffect318RasterStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection)
+    public static NativeBattleEffect318RasterStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection) => DrawLoaded(memory, temporary, source, projection, null);
+
+    public static NativeBattleEffect318RasterStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource source, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         int count = unchecked((int)U32(temporary, 0x30));
         if (count <= 0)
@@ -97,6 +99,11 @@ public static class NativeBattleEffect318Raster
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? depths.ToImmutableArray() : [depths[1], depths[2], depths[3], 0];
             NativeBattleGeometryPrimitive primitive = new(19, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray(), payload);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, corners[corner]), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset) }, World(0), World(1), World(2), World(3), 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
             attempts.Add(Attempt(primitive));
             allocated = checked(allocated + 40);
             NativeBattleGfGeometryAttempt Attempt(NativeBattleGeometryPrimitive? linked) => new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), linked);

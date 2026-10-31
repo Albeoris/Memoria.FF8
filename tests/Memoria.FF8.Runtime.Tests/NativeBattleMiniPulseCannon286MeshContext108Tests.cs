@@ -132,7 +132,31 @@ public sealed class NativeBattleMiniPulseCannon286MeshContext108Tests
         Assert.Equal(360, polygon.Bucket);
     }
 
-    private static NativeBattleMiniPulseCannon286MeshContext108Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)> read) => NativeBattleMiniPulseCannon286MeshContext108.DrawLoaded(memory, mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, read);
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Selected_capture_preserves_detached_native_bytes_masks_reads_and_depth(int group)
+    {
+        var plain = Draw(Memory(2000), Mesh(group), Context(0x2030), offset => (Vertex(offset), null));
+        string expected = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        List<int> reads = [];
+        var captured = NativeBattleMiniPulseCannon286MeshContext108.DrawLoaded(Memory(2000), Mesh(group), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(0x2030), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, offset =>
+        {
+            reads.Add(offset);
+            return (Vertex(offset), null);
+        }, new(286, 0x2507CC8, 0, 7, 44) { ResourceGeneration = 29 });
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(group == 3 ? new[] { 0, 8, 16, 24 } : new[] { 0, 8, 16 }, reads);
+        var primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), visual.A);
+        Assert.Equal(29, visual.Identity.ResourceGeneration);
+        Assert.Equal(2000, visual.SourceDepths!.Value.X);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+    }
+
+    private static NativeBattleMiniPulseCannon286MeshContext108Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)> read) => NativeBattleMiniPulseCannon286MeshContext108.DrawLoaded(memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, read);
     private static NativeBattleVector Vertex(int offset) => offset switch { 0 => new(-400, -400, 0), 8 => new(400, -400, 0), 16 => new(0, 400, 0), 24 => new(400, 400, 0), _ => throw new InvalidDataException() };
     private static NativeBattleEffectMemory Memory(int z) => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = z }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(uint flags) => NativeBattleEffectArena.Clear().MarkUnknown(0, 108).Write(0, BitConverter.GetBytes(0x10000000u)).Write(4, BitConverter.GetBytes(0x20000000u)).Write(8, new byte[3]).Write(12, BitConverter.GetBytes(2048)).Write(24, BitConverter.GetBytes(-128)).Write(28, BitConverter.GetBytes(flags)).Write(32, new byte[4]);

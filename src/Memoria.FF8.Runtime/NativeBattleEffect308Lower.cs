@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect308Lower
         NativeBattleModuleResource sprite = resources.ReadSprite(task.ReadBytes(0x15, 1)[0]);
         int phases = BinaryPrimitives.ReadInt16LittleEndian(sprite.Bytes.AsSpan().Slice(8));
         NativeBattleEffectArena context = PutWord308(PutWord308(Put308(Context(frame, temporary, 180), 0, sprite.Address), 4, task.ReadBytes(0x14, 1)[0]), 0x24, 0);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, sprite.Address) : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(draw.Batch, CursorGlobal));
         frame = Release(frame, 180);
@@ -72,7 +72,7 @@ public static partial class NativeBattleEffect308Lower
         byte[] descriptor = resources.ReadStatic(unchecked(0x102A400u + (uint)(operands[2] * 8)), 8);
         uint source = BinaryPrimitives.ReadUInt32LittleEndian(descriptor);
         int clear = BinaryPrimitives.ReadInt32LittleEndian(descriptor.AsSpan(4));
-        frame = NativeBattleEffect308Programme.Initialize(frame, address + 0x18, source, clear, resources);
+        frame = NativeBattleEffect308Programme.Initialize(frame, address + 0x18, source, clear, resources, inputs.CapturePresentation);
         return (frame, checked(pc + 12));
     }
 
@@ -151,6 +151,11 @@ public static partial class NativeBattleEffect308Lower
 
     public static (NativeBattleEffect308Frame Frame, uint Next) SetBackground668D60(NativeBattleEffect308Frame frame, uint pc, NativeBattleEffect308Inputs inputs)
     {
+        return SetBackground668D60(frame, pc, inputs, null);
+    }
+
+    public static (NativeBattleEffect308Frame Frame, uint Next) SetBackground668D60(NativeBattleEffect308Frame frame, uint pc, NativeBattleEffect308Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         short[] rgb = ReadOperands(frame, pc, 3);
         uint color = 0x2A000000u | unchecked((byte)rgb[0]) | (uint)unchecked((byte)rgb[1]) << 8 | (uint)unchecked((byte)rgb[2]) << 16;
         uint[] words = [0x05000000, color, 0, 320, 216u << 16, 320 | 216u << 16];
@@ -160,7 +165,7 @@ public static partial class NativeBattleEffect308Lower
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(index * 4), words[index]);
         }
         NativeBattleGfGeometryAttempt attempt = new(0, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(), new(8, words.ToImmutableArray(), [0, 0, 0, 0]));
-        frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(new([attempt], 24), CursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(NativeBattleOffsetBodyVisuals.FixedQuad(new([attempt], 24), pilotIdentity), CursorGlobal));
         return (frame, checked(pc + 6));
     }
 

@@ -24,7 +24,8 @@ public static class NativeBattleEffect301Lower
     public static NativeBattleEffect301Frame DrawStatic301(NativeBattleEffect301Frame frame, uint temporary, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 88);
-        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(Dword301(context, 0)), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        uint source = Dword301(context, 0);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: NativeBattleEffect32Presentation.Resource(frame.PilotIdentity, source));
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Context, 88);
         return inputs.Execute(frame, new NativeBattleEffect301DrawBatch(result.Batch, 0x250773C));
     }

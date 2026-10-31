@@ -64,14 +64,21 @@ public static partial class NativeBattleEffect289Controller
         return (WithPool(current, index, step.Pool), step.Survivors);
     }
 
-    public static (NativeBattleEffect289Frame Frame, int Result) AdvanceTask(NativeBattleEffect289Frame frame, uint address, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs) => Read(frame, address).Callback switch
+    public static (NativeBattleEffect289Frame Frame, int Result) AdvanceTask(NativeBattleEffect289Frame frame, uint address, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs)
     {
-        RootCallback => AdvanceRoot(frame, address, resources, inputs),
-        MainCallback => AdvanceMain(frame, address, resources, inputs),
-        0x6783F0 => AdvanceParticle6783F0(frame, address, inputs),
-        0x678490 => AdvanceChildProgramme678490(frame, address, resources, inputs),
-        _ => throw new NotSupportedException("Effect289 reached an unsupported native task callback.")
-    };
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(289, task) : null };
+        (NativeBattleEffect289Frame current, int result) = task.Callback switch
+        {
+            RootCallback => AdvanceRoot(frame, address, resources, inputs),
+            MainCallback => AdvanceMain(frame, address, resources, inputs),
+            0x6783F0 => AdvanceParticle6783F0(frame, address, inputs),
+            0x678490 => AdvanceChildProgramme678490(frame, address, resources, inputs),
+            _ => throw new NotSupportedException("Effect289 reached an unsupported native task callback.")
+        };
+        return (current with { PilotIdentity = parent }, result);
+    }
 
     private static (NativeBattleEffect289Frame Frame, int Result) AdvanceRoot(NativeBattleEffect289Frame frame, uint address, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs)
     {
@@ -93,6 +100,10 @@ public static partial class NativeBattleEffect289Controller
             frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, workspace);
+            if (frame.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, main + MainProgrammeWorkspaceOffset, 0);
+            }
             NativeBattleEffect289PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x14, anchor.Point8, 8));
             frame = InitializeMeshW677A10(frame, 0x106EDE4, resources);

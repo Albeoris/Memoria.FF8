@@ -8,7 +8,8 @@ public static partial class NativeBattleEffect314Controller
 {
     public static NativeBattleEffect314Frame DrawFragments664020(NativeBattleEffect314Frame frame, uint main, NativeBattleEffect314Inputs inputs)
     {
-        frame = LoadMatrix(frame, inputs.ReadView(frame));
+        NativeBattlePackedMatrix32 view = inputs.ReadView(frame);
+        frame = LoadMatrix(frame, view);
         NativeBattleEffect314AddressStep allocation = inputs.AllocateTemporary(frame, 8);
         frame = allocation.Frame;
         uint temporary = allocation.Address;
@@ -26,6 +27,7 @@ public static partial class NativeBattleEffect314Controller
             bool quad = kind == 2;
             int count = quad ? 4 : 3;
             int length = quad ? 40 : 32;
+            System.Numerics.Vector3[]? worlds = frame.PilotIdentity is null ? null : new System.Numerics.Vector3[count];
             byte[] data = new byte[length];
             var mask = new NativeBattleGfPacketByteState[length];
             NativeBattleGeometryRegisterStep registers = Registers(frame);
@@ -34,6 +36,10 @@ public static partial class NativeBattleEffect314Controller
             {
                 scratch = PointScratch(scratch, row, corner);
                 frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporary, scratch, 8));
+                if (worlds is not null)
+                {
+                    worlds[corner] = NativeBattleEffect32Presentation.World(view.ReadMatrix(), new(I16(scratch, 0), I16(scratch, 2), I16(scratch, 4)), projection);
+                }
                 registers = LoadScratch(registers, corner, scratch);
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
@@ -55,6 +61,10 @@ public static partial class NativeBattleEffect314Controller
             {
                 scratch = PointScratch(scratch, row, 3);
                 frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporary, scratch, 8));
+                if (worlds is not null)
+                {
+                    worlds[3] = NativeBattleEffect32Presentation.World(view.ReadMatrix(), new(I16(scratch, 0), I16(scratch, 2), I16(scratch, 4)), projection);
+                }
                 registers = NativeBattleGeometry.ProjectSingle(LoadScratch(registers, 0, scratch), projection, controls.Dqa, controls.Dqb);
                 Store(36, row.Read(0x36, 2));
                 screen[3] = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect314 quad requires its fourth projected SXY.");
@@ -89,6 +99,11 @@ public static partial class NativeBattleEffect314Controller
                     }
                     ImmutableArray<int> depths = quad ? registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect314 quad requires its actual SZ FIFO.")))).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
                     primitive = new(depth >> 2, Enumerable.Range(0, length / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4, 4))).ToImmutableArray(), depths) { PhysicalWriteMask = mask.ToImmutableArray() };
+                    if (worlds is not null && frame.PilotIdentity is { } owner)
+                    {
+                        NativeBattlePilotVisualIdentity rowIdentity = NativeBattleEffect32Presentation.TaskInstance(owner, frame.Effect, main, main + FragmentOffset, index)!.Value;
+                        primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(rowIdentity, address), worlds);
+                    }
                 }
             }
             frame = Publish(frame, registers);

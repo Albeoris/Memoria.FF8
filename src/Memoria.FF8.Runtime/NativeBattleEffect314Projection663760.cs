@@ -2,7 +2,10 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect314ProjectionServices<TFrame>(Func<TFrame, uint, int, NativeBattleEffectArena> ReadArena, Func<TFrame, uint, NativeBattleEffectArena, int, TFrame> WriteArena, Func<TFrame, NativeBattleEffectMemory> ReadMemory, Func<TFrame, NativeBattleEffectMemory, TFrame> WriteMemory, Func<TFrame, NativeBattlePackedMatrix32> ReadView, Func<TFrame, NativeBattleCameraProjection> ReadProjection);
+public sealed record NativeBattleEffect314ProjectionServices<TFrame>(Func<TFrame, uint, int, NativeBattleEffectArena> ReadArena, Func<TFrame, uint, NativeBattleEffectArena, int, TFrame> WriteArena, Func<TFrame, NativeBattleEffectMemory> ReadMemory, Func<TFrame, NativeBattleEffectMemory, TFrame> WriteMemory, Func<TFrame, NativeBattlePackedMatrix32> ReadView, Func<TFrame, NativeBattleCameraProjection> ReadProjection)
+{
+    public Action<uint, System.Numerics.Vector3>? CaptureVertex { get; init; }
+}
 
 public static class NativeBattleEffect314Projection663760
 {
@@ -50,7 +53,8 @@ public static class NativeBattleEffect314Projection663760
             frame = services.WriteArena(Publish(frame, registers), destination, xyz, 6);
             raw += 6;
         }
-        frame = LoadMatrix(Publish(frame, registers), services.ReadView(frame));
+        NativeBattlePackedMatrix32 view = services.ReadView(frame);
+        frame = LoadMatrix(Publish(frame, registers), view);
         registers = Registers(frame);
         NativeBattleScriptedGraphicsMemory controls = services.ReadMemory(frame).ScriptedGraphics ?? throw new NotSupportedException("The body requires its current projection controls.");
         NativeBattleCameraProjection projection = services.ReadProjection(frame);
@@ -60,6 +64,7 @@ public static class NativeBattleEffect314Projection663760
             NativeBattleEffectArena row = services.ReadArena(frame, rowAddress, stride);
             int pointOffset = expanded ? 8 : 0;
             NativeBattleVector point = Vector(row, pointOffset);
+            services.CaptureVertex?.Invoke(rowAddress, NativeBattleEffect32Presentation.World(view.ReadMatrix(), point, projection));
             registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, point, Padding(row, pointOffset + 6)), projection, controls.Dqa, controls.Dqb);
             context = PutDword(context, 0x1C, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("The vertex requires its projected screen coordinates."));
             uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("The vertex requires its projected depth."))) >> 2));

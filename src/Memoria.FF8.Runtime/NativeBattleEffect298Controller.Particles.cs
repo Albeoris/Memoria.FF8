@@ -75,7 +75,7 @@ public static partial class NativeBattleEffect298Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(sourceAddress)).Write(4, BitConverter.GetBytes((ushort)fields[0])).Write(0x24, new byte[2]);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleEffect298DrawSprite180(temporary, sourceAddress));
+        frame = inputs.Execute(frame, new NativeBattleEffect298DrawSprite180(temporary, sourceAddress) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, address, sourceAddress) : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         for (int axis = 0; axis < 3; axis++)

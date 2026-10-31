@@ -9,6 +9,57 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect301BodyTests
 {
+    [Fact]
+    public void Actual_loaded_pointer_epoch_survives_new_views_and_changes_on_same_address_resource_replacement()
+    {
+        NativeBattleModelCpuReference loaded = new(3, 100);
+        NativeBattleResourcePointer first = new(loaded, null, 128);
+        NativeBattleResourcePointer freshView = new(loaded, null, 128);
+        NativeBattleResourcePointer replacement = new(new(3, 100), null, 128);
+        long epoch = NativeBattleEffect32Presentation.ResourceEpoch(first);
+        Assert.Equal(epoch, NativeBattleEffect32Presentation.ResourceEpoch(freshView));
+        long replaced = NativeBattleEffect32Presentation.ResourceEpoch(replacement);
+        Assert.NotEqual(epoch, replaced);
+        NativeBattlePilotVisualIdentity owner = new(301, 0x123400, 1, 11, 0) { ResourceGeneration = epoch };
+        var a = Draw(new Fixture(), Geometry(false), Context(Fixture.Main + 0x1494, 1), pilotIdentity: owner);
+        var b = Draw(new Fixture(), Geometry(false), Context(Fixture.Main + 0x1494, 1), pilotIdentity: owner with { ResourceGeneration = replaced });
+        var firstPacket = Assert.Single(a.Batch.Attempts);
+        var secondPacket = Assert.Single(b.Batch.Attempts);
+        Assert.Equal(firstPacket.Data.ToArray(), secondPacket.Data.ToArray());
+        Assert.Equal(firstPacket.WriteMask.ToArray(), secondPacket.WriteMask.ToArray());
+        var firstGeometry = firstPacket.Primitive!.PilotGeometry!;
+        var secondGeometry = secondPacket.Primitive!.PilotGeometry!;
+        Assert.Equal(firstGeometry.Identity.Generation, secondGeometry.Identity.Generation);
+        Assert.NotEqual(firstGeometry.Identity.ResourceGeneration, secondGeometry.Identity.ResourceGeneration);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_body_uses_detached_native_state_and_actual_cache_depths(bool quad)
+    {
+        Fixture native = new();
+        Fixture pilot = new();
+        var plain = Draw(native, Geometry(quad), Context(Fixture.Main + 0x1494, 1));
+        string frozen = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Frame));
+        var captured = Draw(pilot, Geometry(quad), Context(Fixture.Main + 0x1494, 1), pilotIdentity: new(301, 0x123400, 1, 11, 0) { ResourceGeneration = 31 });
+        Assert.Equal(frozen, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Context136)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Context136)));
+        NativeBattleGfGeometryAttempt expected = Assert.Single(plain.Batch.Attempts);
+        NativeBattleGfGeometryAttempt actual = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(expected.Data, actual.Data);
+        Assert.Equal(expected.WriteMask, actual.WriteMask);
+        Assert.Equal(expected.Primitive!.Words, actual.Primitive!.Words);
+        Assert.Equal(expected.Primitive.VertexPayload4, actual.Primitive.VertexPayload4);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive.PilotGeometry);
+        Assert.Equal((ushort)301, geometry.Identity.Effect);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.False(geometry.ScreenSpace);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(actual.Primitive.VertexPayload4[0], geometry.SourceDepths!.Value.X);
+        Assert.Equal(1000, geometry.A.Z);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -87,9 +138,9 @@ public sealed class NativeBattleEffect301BodyTests
         Assert.Equal(0u, Dword301(result.Context136, 0x84));
     }
 
-    internal static NativeBattleEffect301BodyStep Draw(Fixture fixture, byte[] source, NativeBattleEffectArena context, NativeBattleActionMatrix? bone = null)
+    internal static NativeBattleEffect301BodyStep Draw(Fixture fixture, byte[] source, NativeBattleEffectArena context, NativeBattleActionMatrix? bone = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleEffect301BodyDrawing.DrawLoaded(fixture.Frame, (offset, count) => source.AsSpan(offset, count).ToArray(), 0x1234000, [NativeBattlePackedMatrix32.FromMatrix(bone ?? NativeBattleCuragaMatrices.Identity8DD770(), null)], context, NativeBattleTemporaryMemory.Address, 0, fixture.Resources, fixture.Inputs());
+        return NativeBattleEffect301BodyDrawing.DrawLoaded(fixture.Frame, (offset, count) => source.AsSpan(offset, count).ToArray(), 0x1234000, [NativeBattlePackedMatrix32.FromMatrix(bone ?? NativeBattleCuragaMatrices.Identity8DD770(), null)], context, NativeBattleTemporaryMemory.Address, 0, fixture.Resources, fixture.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) }, pilotIdentity);
     }
     internal static NativeBattleEffectArena Context(uint scratch, int age)
     {

@@ -6,7 +6,9 @@ public sealed record NativeBattleEffect289MeshContext88Step(NativeBattleEffectMe
 
 public static class NativeBattleEffect289MeshContext88
 {
-    public static NativeBattleEffect289MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect289MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket = 17, byte depthShift = 2) => DrawLoaded(memory, mesh, projection, context88, constants, readSelectedVertex, tableBaseBucket, depthShift, null);
+
+    public static NativeBattleEffect289MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(context88.Read(0x1C, 4));
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
@@ -49,7 +51,7 @@ public static class NativeBattleEffect289MeshContext88
             }
             return current.W;
         }
-        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, mesh.Bytes, mesh.Address, 0, context88, projection, constants, ReadVertex, ReadW, tableBaseBucket, depthShift);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, mesh.Bytes, mesh.Address, 0, context88, projection, constants, ReadVertex, ReadW, tableBaseBucket, depthShift, pilotIdentity: pilotIdentity);
         return new(drawn.Memory, drawn.Context88, drawn.Batch);
     }
 }

@@ -9,6 +9,62 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect290LowerTests
 {
     [Theory]
+    [InlineData(16)]
+    [InlineData(4)]
+    public void Captured290_fragment_and_glow_preserve_native_rows_FIFOs_padding_and_each_accepted_pass(int life)
+    {
+        Fixture Build()
+        {
+            Fixture fixture = new();
+            uint address = Fixture.Main + 0x1D8;
+            NativeBattleEffectArena row = Put290(PutWord290(PutWord290(PutWord290(ReadBytes(fixture.Frame, address, 0x7C), 4, 2000), 6, life), 14, 4096), 24, 0x1067400);
+            fixture.Frame = WriteBytes(fixture.Frame, address, row, 0x7C);
+            return fixture;
+        }
+        Fixture nativeFixture = Build();
+        Fixture capturedFixture = Build();
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108);
+        var native = DrawFragments(nativeFixture.Frame, Fixture.Main, nativeFixture.Resources, nativeFixture.Inputs() with { ReadProjection = _ => projection });
+        var captured = DrawFragments(capturedFixture.Frame, Fixture.Main, capturedFixture.Resources, capturedFixture.Inputs() with { ReadProjection = _ => projection, CapturePresentation = true });
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeFixture.Deliveries), NativeBattleTestSnapshots.Json(capturedFixture.Deliveries));
+        var batch = Assert.Single(capturedFixture.Deliveries).Batch;
+        var geometry = batch.Attempts.Select(attempt => attempt.Primitive).Where(primitive => primitive is not null && (byte)(primitive.Words[1] >> 24) is >= 0x20 and < 0x80).ToArray();
+        Assert.NotEmpty(geometry);
+        foreach (NativeBattleGeometryPrimitive? primitive in geometry)
+        {
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive!.PilotGeometry);
+            Assert.Equal((ushort)290, visual.Identity.Effect);
+            Assert.True(visual.Identity.Generation > 0);
+            Assert.False(visual.ScreenSpace);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal((float)primitive.VertexPayload4[2], visual.SourceDepths!.Value.Z);
+        }
+        Assert.All(batch.Attempts.Where(attempt => attempt.Primitive is { Words.Length: 2 }), attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+    }
+
+    [Fact]
+    public void Captured290_actual_smoke_reuse_rebinds_birth_without_changing_native_allocator_cursor_or_payload()
+    {
+        Fixture nativeFixture = new();
+        Fixture capturedFixture = new();
+        var native = NativeBattleEffect290Fragments.AllocateSmoke(nativeFixture.Frame, Fixture.Main);
+        var captured = NativeBattleEffect290Fragments.AllocateSmoke(capturedFixture.Frame, Fixture.Main, true);
+        Assert.Equal(native.Address, captured.Address);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Frame), NativeBattleTestSnapshots.Json(captured.Frame));
+        var first = NativeBattleOffsetBodyVisuals.At(290, captured.Frame.Effect.Pools, captured.Address, SmokeSourceAddress);
+        capturedFixture.Frame = WriteBytes(captured.Frame, Fixture.Main + 0x64DC, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(captured.Address)), 4);
+        nativeFixture.Frame = WriteBytes(native.Frame, Fixture.Main + 0x64DC, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(native.Address)), 4);
+        var nextNative = NativeBattleEffect290Fragments.AllocateSmoke(nativeFixture.Frame, Fixture.Main);
+        var nextCaptured = NativeBattleEffect290Fragments.AllocateSmoke(capturedFixture.Frame, Fixture.Main, true);
+        var second = NativeBattleOffsetBodyVisuals.At(290, nextCaptured.Frame.Effect.Pools, nextCaptured.Address, SmokeSourceAddress);
+        Assert.Equal(captured.Address, nextCaptured.Address);
+        Assert.Equal(first.Generation, second.Generation);
+        Assert.NotEqual(first.ResourceGeneration, second.ResourceGeneration);
+        Assert.Equal(NativeBattleTestSnapshots.Json(nextNative.Frame), NativeBattleTestSnapshots.Json(nextCaptured.Frame));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]

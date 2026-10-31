@@ -136,6 +136,58 @@ public sealed class NativeBattleEffect289ControllerTests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, resources, harness.Inputs()))));
     }
 
+    [Fact]
+    public void Capture_callbacks_preserve_complete_native_timeline_CRT_and_scope_actual_task_and_node_births()
+    {
+        List<string> native = [];
+        Harness plainHarness = new();
+        NativeBattleEffect289Resources plainResources = Resources();
+        NativeBattleEffect289Frame plain = Initialize(Inactive(), plainResources, plainHarness.Inputs());
+        while (plain.Effect.ReturnedDescriptor != 0 && native.Count < 50)
+        {
+            plain = Advance(plain, plainResources, plainHarness.Inputs());
+            native.Add(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain)));
+        }
+        Assert.Equal(37, native.Count);
+        Harness capturedHarness = new();
+        NativeBattleEffect289Resources capturedResources = Resources();
+        List<NativeBattlePilotVisualIdentity> draws = [];
+        List<NativeBattlePilotVisualIdentity> nodes = [];
+        NativeBattleEffect289Inputs originalInputs = capturedHarness.Inputs();
+        NativeBattleEffect289Inputs inputs = originalInputs with
+        {
+            Execute = (current, operation) =>
+            {
+                if (operation is NativeBattleEffect289DrawCustom108 or NativeBattleEffect289DrawSprite180)
+                {
+                    Assert.NotNull(current.PilotIdentity);
+                    draws.Add(current.PilotIdentity!.Value);
+                }
+                return originalInputs.Execute(current, operation);
+            },
+            DrawProgrammeNode = (current, source, node, caller) =>
+            {
+                Assert.NotNull(current.PilotIdentity);
+                Assert.Equal(node.ResourceOffset, current.PilotIdentity!.Value.Primitive);
+                Assert.NotEqual(0, current.PilotIdentity.Value.ResourceGeneration);
+                nodes.Add(current.PilotIdentity.Value);
+                return originalInputs.DrawProgrammeNode(current, source, node, caller);
+            }
+        };
+        var captured = Initialize(Inactive() with { CapturePresentation = true }, capturedResources, inputs);
+        for (int index = 0; index < native.Count; index++)
+        {
+            captured = Advance(captured, capturedResources, inputs);
+            Assert.Equal(native[index], JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+            Assert.Null(captured.PilotIdentity);
+        }
+        Assert.True(draws.Count > 66);
+        Assert.NotEmpty(nodes);
+        Assert.Equal(3, draws.Take(3).Select(identity => identity.Primitive).Distinct().Count());
+        Assert.All(draws.Concat(nodes), identity => Assert.True(identity.Generation > 0));
+        Assert.Equal(plainHarness.Operations, capturedHarness.Operations);
+    }
+
     private static NativeBattleEffect289Frame Inactive()
     {
         byte[] tim = new byte[32];

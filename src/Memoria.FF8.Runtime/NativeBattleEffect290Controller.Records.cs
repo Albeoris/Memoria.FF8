@@ -6,6 +6,11 @@ public static partial class NativeBattleEffect290Controller
 {
     public static (NativeBattleEffect290Frame Frame, uint Address) AllocateRecord675FD0(NativeBattleEffect290Frame frame, uint main)
     {
+        return AllocateRecord675FD0(frame, main, false);
+    }
+
+    public static (NativeBattleEffect290Frame Frame, uint Address) AllocateRecord675FD0(NativeBattleEffect290Frame frame, uint main, bool capturePresentation)
+    {
         uint first = main + 0x1D8;
         uint last = main + 0x5E5C;
         uint row = Read(frame, main).ReadDword(0x64D8);
@@ -37,6 +42,10 @@ public static partial class NativeBattleEffect290Controller
             _ => throw new InvalidDataException("Effect290 internal random value leaves its native selector.")
         };
         frame = WriteBytes(frame, row + 24, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(source)), 4);
+        if (capturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, row);
+        }
         return (frame, row);
     }
 

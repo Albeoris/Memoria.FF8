@@ -9,6 +9,11 @@ public static class NativeBattleProjectedQuads672DB0
 {
     public static NativeBattleProjectedQuads672DB0Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleModuleResource source, int firstQuad, int count, NativeBattleCameraProjection projection)
     {
+        return DrawLoaded(memory, context, source, firstQuad, count, projection, null);
+    }
+
+    public static NativeBattleProjectedQuads672DB0Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleModuleResource source, int firstQuad, int count, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         if (count <= 0)
         {
             return new(memory, context, new([], 0));
@@ -67,9 +72,18 @@ public static class NativeBattleProjectedQuads672DB0
                 context = context.Write(0x78 + axis * 4, BitConverter.GetBytes(registers.Colors.Mac[axis]!.Value));
             }
             registers = LoadMatrix(registers, Matrix(context, 0x64), true, true);
+            NativeBattleActionMatrix? capturedMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+            void Capture(int corner, NativeBattleVector vector)
+            {
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(capturedMatrix!, vector), projection);
+                }
+            }
             foreach ((int slot, int offset) in new[] { (0, 0x44), (1, 0x4C), (2, 0x54) })
             {
-                registers = LoadVertex(registers, context, slot, offset);
+                registers = LoadVertex(registers, context, slot, offset, world is null ? null : vector => Capture(slot, vector));
             }
             byte[] data = new byte[40];
             var mask = new NativeBattleGfPacketByteState[40];
@@ -97,7 +111,7 @@ public static class NativeBattleProjectedQuads672DB0
                 {
                     Store(8 + vertex * 8, BitConverter.GetBytes(registers.Geometry.Sxy[vertex]!.Value));
                 }
-                registers = NativeBattleGeometry.ProjectSingle(LoadVertex(registers, context, 0, 0x5C), projection, controls.Dqa, controls.Dqb);
+                registers = NativeBattleGeometry.ProjectSingle(LoadVertex(registers, context, 0, 0x5C, world is null ? null : vector => Capture(3, vector)), projection, controls.Dqa, controls.Dqb);
                 int bottom = Math.Min(height + quad[5], 255);
                 Store(37, [(byte)bottom]);
                 Store(29, [(byte)bottom]);
@@ -105,6 +119,23 @@ public static class NativeBattleProjectedQuads672DB0
                 ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                 ImmutableArray<int> depths = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect298 smoke requires its current four-depth insertion payload.")))).ToImmutableArray();
                 primitive = new(19, words, depths);
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    NativeBattleActionMatrix parentMatrix = parent.ReadMatrix();
+                    System.Numerics.Vector3 origin = NativeBattlePilotVisualGeometry.CameraToWorld(new(parentMatrix.X, parentMatrix.Y, parentMatrix.Z), projection);
+                    System.Numerics.Vector3 Axis(int column) => NativeBattlePilotVisualGeometry.CameraToWorldDirection(new(parentMatrix.Rotation[column] / 4096f, parentMatrix.Rotation[3 + column] / 4096f, parentMatrix.Rotation[6 + column] / 4096f), projection);
+                    System.Numerics.Vector3 x = Axis(0);
+                    System.Numerics.Vector3 y = Axis(1);
+                    System.Numerics.Vector3 z = Axis(2);
+                    System.Numerics.Matrix4x4 basis = new(x.X, x.Y, x.Z, 0, y.X, y.Y, y.Z, 0, z.X, z.Y, z.Z, 0, origin.X, origin.Y, origin.Z, 1);
+                    NativeBattlePilotSpriteGeometry? sprite = null;
+                    if (System.Numerics.Matrix4x4.Invert(basis, out System.Numerics.Matrix4x4 inverse))
+                    {
+                        System.Numerics.Vector3 Local(int corner) => System.Numerics.Vector3.Transform(world[corner], inverse);
+                        sprite = new(Local(0), Local(1), Local(2), Local(3), origin, x, y, z);
+                    }
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, world[0], world[1], world[2], world[3], 4) { Sprite = sprite, SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } };
+                }
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)
@@ -132,10 +163,12 @@ public static class NativeBattleProjectedQuads672DB0
         return registers with { Geometry = geometry };
     }
 
-    private static NativeBattleGeometryRegisterStep LoadVertex(NativeBattleGeometryRegisterStep registers, NativeBattleEffectArena context, int slot, int offset)
+    private static NativeBattleGeometryRegisterStep LoadVertex(NativeBattleGeometryRegisterStep registers, NativeBattleEffectArena context, int slot, int offset, Action<NativeBattleVector>? capture)
     {
         (byte[] w, bool[] known) = context.ReadSnapshot(offset + 6, 2);
-        return NativeBattleGeometry.LoadVector(registers, slot, new(Word(context, offset), Word(context, offset + 2), Word(context, offset + 4)), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
+        NativeBattleVector vector = new(Word(context, offset), Word(context, offset + 2), Word(context, offset + 4));
+        capture?.Invoke(vector);
+        return NativeBattleGeometry.LoadVector(registers, slot, vector, known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
     }
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private static int Int(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt32LittleEndian(arena.Read(offset, 4));

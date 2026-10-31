@@ -10,7 +10,8 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Mini Pulse Cannon requires its selected original effect.");
         NativeBattleMiniPulseCannon286Resources resources = effect.Binding.MiniPulseCannon286Resources ?? throw new NotSupportedException("Mini Pulse Cannon requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual process memory.");
-        NativeBattleMiniPulseCannon286Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual CRT stream."), memory.MiniPulseCannon286 ?? throw new NotSupportedException("Mini Pulse Cannon requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Mini Pulse Cannon requires its current temporary memory.") };
+        effect = effect with { PresentationPackets = [] };
+        NativeBattleMiniPulseCannon286Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual CRT stream."), memory.MiniPulseCannon286 ?? throw new NotSupportedException("Mini Pulse Cannon requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Mini Pulse Cannon requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Mini Pulse Cannon requires its original arithmetic constants.");
         NativeBattleMiniPulseCannon286Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), Anchor571400, _ => nativeActionPackets, Execute);
         frame = initialize ? NativeBattleMiniPulseCannon286Controller.Initialize(frame, resources, inputs) : NativeBattleMiniPulseCannon286Controller.Advance(frame, resources, inputs);
@@ -92,11 +93,14 @@ public sealed partial class BattleSession
 
         NativeBattleMiniPulseCannon286Frame Deliver(NativeBattleMiniPulseCannon286Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleActor32Presentation.Depths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Mini Pulse Cannon requires its current ordering table.");
             uint address = current.State.ReadDword(NativeBattleMiniPulseCannon286Profile.CursorGlobal);
-            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, NativeBattleWaterExecutionFields.ArenaOffset(address, 0), primitive.Pending, batch);
+            int cursor = NativeBattleWaterExecutionFields.ArenaOffset(address, 0);
+            var owned = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch);
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-            return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleMiniPulseCannon286Profile.CursorGlobal, checked(NativeBattleMiniPulseCannon286Profile.ArenaAddress + (uint)written.Cursor)) };
+            return current with { Effect = current.Effect with { PresentationPackets = owned }, Memory = written.Memory, State = current.State.WriteDword(NativeBattleMiniPulseCannon286Profile.CursorGlobal, checked(NativeBattleMiniPulseCannon286Profile.ArenaAddress + (uint)written.Cursor)) };
         }
 
         NativeBattleMiniPulseCannon286Frame Execute(NativeBattleMiniPulseCannon286Frame current, NativeBattleMiniPulseCannon286Operation operation)
@@ -150,7 +154,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Mini Pulse Cannon mesh selected pointer differs from its actual context.");
             }
-            NativeBattleMiniPulseCannon286MeshContext108Step drawn = NativeBattleMiniPulseCannon286MeshContext108.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleMiniPulseCannon286MeshContext108Step drawn = NativeBattleMiniPulseCannon286MeshContext108.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, NativeBattleActor32Presentation.Resource(current.PilotIdentity, operation.SourceAddress, operation.VertexAddress));
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context108, 108) };
             return Deliver(current, drawn.Batch);
 
@@ -191,7 +195,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Mini Pulse Cannon sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Mini Pulse Cannon sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Mini Pulse Cannon sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: NativeBattleActor32Presentation.Resource(current.PilotIdentity, operation.SourceAddress));
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

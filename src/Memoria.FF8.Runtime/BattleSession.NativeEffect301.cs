@@ -8,9 +8,10 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect301(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect301 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect301Resources resources = effect.Binding.Effect301Resources ?? throw new NotSupportedException("Effect301 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect301 requires its current process memory.");
-        NativeBattleEffect301Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect301 requires its current CRT stream."), memory.Effect301 ?? throw new NotSupportedException("Effect301 requires its retained state.")) { Staging = NativeFileStaging };
+        NativeBattleEffect301Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect301 requires its current CRT stream."), memory.Effect301 ?? throw new NotSupportedException("Effect301 requires its retained state.")) { Staging = NativeFileStaging, CapturePresentation = true };
         NativeBattleEffect301Inputs? inputs = null;
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect301 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect301Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect301 requires its current projection."), _ => Camera().Roll, Anchor, (current, operation) => ExecuteNativeEffect301Operation(ref graphics, current, operation, resources, inputs!));
         frame = initialize ? NativeBattleEffect301Controller.Initialize(frame, resources, inputs) : NativeBattleEffect301Controller.Advance(frame, resources, inputs);

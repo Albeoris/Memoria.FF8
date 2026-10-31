@@ -32,6 +32,7 @@ public static class NativeBattleEffect314Body
 
     public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, uint source, uint contextAddress, int ordering, int shift)
     {
+        Dictionary<uint, System.Numerics.Vector3>? worlds = frame.PilotIdentity is null ? null : new();
         int objects = unchecked((int)ReadDword(frame, inputs, source));
         for (int index = 0; index < objects; index++)
         {
@@ -57,7 +58,7 @@ public static class NativeBattleEffect314Body
                 frame = LoadMatrix(frame, inputs.ReadArena(frame, matrix, 32));
                 context = PutDword(context, 0x54, raw + 2);
                 frame = Write(frame, inputs, contextAddress, context, 0x64);
-                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection);
+                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection) { CaptureVertex = worlds is null ? null : (address, world) => worlds[address] = world };
                 frame = NativeBattleEffect314Projection663760.ProjectGroup(frame, projection, contextAddress, false);
             }
             context = inputs.ReadArena(frame, contextAddress, 0x64);
@@ -66,7 +67,7 @@ public static class NativeBattleEffect314Body
             context = PutWord(PutWord(context, 8, Word(counts, 0)), 10, Word(counts, 2));
             context = PutDword(PutDword(context, 0, raw + 12), 0x54, raw + 12);
             frame = Write(frame, inputs, contextAddress, context, 0x64);
-            NativeBattleEffect314FaceRasterServices<NativeBattleEffect314Frame> raster = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, (current, batch, cursor) => inputs.Execute(current, new NativeBattleEffect314DrawBatch(batch, cursor)), _ => throw new NotSupportedException("The selected unexpanded body cannot draw a fragment random value."), (_, _, _) => throw new NotSupportedException("The selected unexpanded body cannot emit expanded fragments."));
+            NativeBattleEffect314FaceRasterServices<NativeBattleEffect314Frame> raster = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, (current, batch, cursor) => inputs.Execute(current, new NativeBattleEffect314DrawBatch(batch, cursor)), _ => throw new NotSupportedException("The selected unexpanded body cannot draw a fragment random value."), (_, _, _) => throw new NotSupportedException("The selected unexpanded body cannot emit expanded fragments.")) { CapturePrimitive = worlds is null ? null : (primitive, face, addresses) => NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = inputs.PresentationResourceGeneration is null ? owner.ResourceGeneration : inputs.PresentationResourceGeneration(model) ?? throw new InvalidOperationException("Presentation requires the resource already resolved for the current body.") } : null, source, unchecked((int)face)), addresses.Select(address => worlds[address]).ToArray()) };
             frame = NativeBattleEffect314FaceRaster661720.RasterFaces(frame, raster, contextAddress, ordering, shift, false, NativeBattleEffect314Profile.CursorGlobal);
         }
         return frame;

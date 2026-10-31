@@ -8,6 +8,88 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect298SmokeTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Saturated_composition_capture_samples_actual_worlds_without_reconstructing_unsaturated_source_scale(bool singularParent)
+    {
+        NativeBattleModuleResource resource = Resources(scaleX: 20000, width: 2, height: 2).ReadSprite(0x104EA64);
+        NativeBattlePilotVisualIdentity identity = new(298, 0x1000, 3, 7, 11) { ResourceGeneration = resource.Address };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEffectArena Context(int x)
+        {
+            return NativeBattleEffectArena.Clear().Write(0x84, BitConverter.GetBytes((short)20000)).Write(0x8C, BitConverter.GetBytes((short)4096)).Write(0x94, BitConverter.GetBytes(singularParent ? (short)0 : (short)4096)).Write(0x98, BitConverter.GetBytes(x)).Write(0xA0, BitConverter.GetBytes(2000));
+        }
+        NativeBattleProjectedQuads672DB0Step native = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, Context(0), resource, 68, 1, projection);
+        NativeBattleProjectedQuads672DB0Step captured = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, Context(0), resource, 68, 1, projection, identity);
+        NativeBattleProjectedQuads672DB0Step moved = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, Context(100), resource, 68, 1, projection, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(short.MaxValue, BinaryPrimitives.ReadInt16LittleEndian(captured.Context180.Read(0x64, 2)));
+        NativeBattlePilotVisualGeometry a = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry b = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(moved.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(singularParent, a.Sprite is null);
+        Assert.True(a.Continuous);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            System.Numerics.Vector3 expected = a.Corner(corner) + new System.Numerics.Vector3(50, 0, 0);
+            Assert.True(System.Numerics.Vector3.Distance(expected, NativeBattlePilotVisualGeometry.SampleCorner(a, b, corner, 0.5f)) < 0.001f);
+        }
+    }
+
+    [Fact]
+    public void Captured_smoke_keeps_authored_rectangle_discrete_while_its_parent_moves_continuously()
+    {
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(298, 0x1000, 0, 7, 0);
+        NativeBattlePilotVisualGeometry Draw(byte width, int x)
+        {
+            NativeBattleModuleResource resource = Resources(width: width).ReadSprite(0x104EA64);
+            NativeBattleEffectArena context = NativeBattleEffectArena.Clear().Write(0x84, BitConverter.GetBytes((short)4096)).Write(0x8C, BitConverter.GetBytes((short)4096)).Write(0x94, BitConverter.GetBytes((short)4096)).Write(0x98, BitConverter.GetBytes(x)).Write(0xA0, BitConverter.GetBytes(2000));
+            var drawn = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, context, resource, 68, 1, projection, identity);
+            return Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(drawn.Batch.Attempts).Primitive!.PilotGeometry);
+        }
+        var first = Draw(16, 0);
+        var second = Draw(32, 100);
+        Assert.NotNull(first.Sprite);
+        Assert.NotNull(second.Sprite);
+        Assert.Equal(new System.Numerics.Vector3(306, 0, 2000), NativeBattlePilotVisualGeometry.SampleCorner(first, second, 1, 0.5f));
+        Assert.Equal(second.B, NativeBattlePilotVisualGeometry.SampleCorner(first, second, 1, 1));
+    }
+
+    [Theory]
+    [InlineData(290, 2000)]
+    [InlineData(298, 2000)]
+    [InlineData(308, 2000)]
+    [InlineData(298, -2000)]
+    public void Captured_projected_smoke_keeps_native_context_registers_rejection_and_actual_quad_worlds(ushort effect, int depth)
+    {
+        NativeBattleModuleResource resource = Resources().ReadSprite(0x104EA64);
+        NativeBattleEffectArena Context()
+        {
+            NativeBattleEffectArena context = NativeBattleEffectArena.Clear().Write(0x84, BitConverter.GetBytes((short)4096)).Write(0x8C, BitConverter.GetBytes((short)4096)).Write(0x94, BitConverter.GetBytes((short)4096)).Write(0xA0, BitConverter.GetBytes(depth));
+            return context;
+        }
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, Context(), resource, 68, 1, projection);
+        NativeBattlePilotVisualIdentity identity = new(effect, 0x1000, 3, 7, 11) { ResourceGeneration = resource.Address };
+        var captured = NativeBattleProjectedQuads672DB0.DrawLoaded(Frame().Memory, Context(), resource, 68, 1, projection, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        if (depth <= 0)
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+            return;
+        }
+        var primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(effect, visual.Identity.Effect);
+        Assert.Equal(identity.Generation, visual.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+        Assert.Equal((float)depth, visual.A.Z);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal((float)primitive.VertexPayload4[3], visual.SourceDepths!.Value.W);
+    }
+
     [Fact]
     public void Empty_scan_releases_one_context_and_only_initializes_the_native_WORDs()
     {

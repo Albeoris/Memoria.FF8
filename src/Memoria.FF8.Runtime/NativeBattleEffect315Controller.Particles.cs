@@ -60,6 +60,10 @@ public static partial class NativeBattleEffect315Controller
                 frame = Random315(frame, out int lift);
                 row = PutParticleWord315(row, 22, lift % 8 + 12);
                 frame = WriteBytes(frame, rowAddress, row, ParticleStride);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleStorage, ParticleAddress, checked((int)((rowAddress - ParticleAddress) / ParticleStride)));
+                }
             }
         }
         return DrawParticles315(frame, address, temporary, 72, 0, resources, inputs);
@@ -90,6 +94,10 @@ public static partial class NativeBattleEffect315Controller
                 frame = Random315(frame, out int speed);
                 row = PutParticleWord315(row, 18, recipient ? -5 - speed % 25 : -6 - speed % 18);
                 frame = WriteBytes(frame, rowAddress, row, ParticleStride);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleStorage, ParticleAddress, checked((int)((rowAddress - ParticleAddress) / ParticleStride)));
+                }
             }
         }
         return DrawParticles315(frame, address, temporary, 72, recipient ? 2 : 1, resources, inputs);
@@ -124,6 +132,10 @@ public static partial class NativeBattleEffect315Controller
                 frame = Random315(frame, out int expansion);
                 row = PutParticleWord315(row, 20, expansion % 20 + 5);
                 frame = WriteBytes(frame, rowAddress, row, ParticleStride);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleStorage, ParticleAddress, checked((int)((rowAddress - ParticleAddress) / ParticleStride)));
+                }
             }
         }
         return DrawParticles315(frame, address, temporary, 80, 3, resources, inputs);
@@ -198,7 +210,13 @@ public static partial class NativeBattleEffect315Controller
                 frame = frame with { Memory = NativeBattleEffect315Gte.MacToTranslation64DE40(frame.Memory) };
             }
             frame = PublishContext(frame, temporary, scratch, temporaryLength);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            if (parent is { } owner)
+            {
+                frame = frame with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(315, frame.State.ParticleStorage, ParticleAddress, index, kind) with { ResourceGeneration = owner.Generation } };
+            }
             frame = inputs.Execute(frame, new NativeBattleEffect315DrawSprite180(spriteAddress));
+            frame = frame with { PilotIdentity = parent };
             if (Paused(frame, inputs))
             {
                 continue;

@@ -20,6 +20,11 @@ public static partial class NativeBattleEffect283BodyDrawing
 {
     public static NativeBattleEffect283BodyDrawingStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary124, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, uint scratchAddress, int scratchLength, ImmutableArray<byte> distanceBytes, ImmutableArray<ushort> radialWords, int tableBaseBucket = 17, byte depthShift = 0)
     {
+        return DrawBodyWithPresentation(memory, temporary124, readGeometry, geometryAddress, bones, projection, controls, scratch, scratchAddress, scratchLength, distanceBytes, radialWords, tableBaseBucket, depthShift, null);
+    }
+
+    public static NativeBattleEffect283BodyDrawingStep DrawBodyWithPresentation(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary124, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, uint scratchAddress, int scratchLength, ImmutableArray<byte> distanceBytes, ImmutableArray<ushort> radialWords, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (U32(temporary124, 0x24) != scratchAddress || scratchLength < 0 || scratchLength > NativeBattleEffectArena.Length || scratchLength % 8 != 0 || depthShift > 31 || distanceBytes.IsDefault || distanceBytes.Length != 16513 || radialWords.IsDefault || radialWords.Length != 128)
         {
             throw new InvalidDataException("Effect283 body requires its actual bounded projection workspace and radial tables.");
@@ -38,6 +43,7 @@ public static partial class NativeBattleEffect283BodyDrawing
             int groups = ReadWord(cursor);
             cursor += 2;
             int vertices = 0;
+            Dictionary<int, System.Numerics.Vector3>? pilotWorld = pilotIdentity.HasValue ? new() : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = ReadWord(cursor);
@@ -48,7 +54,8 @@ public static partial class NativeBattleEffect283BodyDrawing
                 }
                 NativeBattlePackedMatrix32 matrix = bones[bone];
                 short? padding = matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
-                registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix.ReadMatrix(), true, true, padding) };
+                NativeBattleActionMatrix matrixValue = matrix.ReadMatrix();
+                registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrixValue, true, true, padding) };
                 int count = ReadWord(cursor);
                 cursor += 2;
                 if (count < 0)
@@ -63,7 +70,8 @@ public static partial class NativeBattleEffect283BodyDrawing
                         throw new InvalidDataException("Effect283 body vertices leave their current renderer scratch capacity.");
                     }
                     byte[] xyz = readGeometry(cursor, 6).Read(0, 6);
-                    registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), 0);
+                    NativeBattleVector inputPoint = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                    registers = NativeBattleGeometry.LoadVector(registers, 0, inputPoint, 0);
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                     uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect283 body requires current SXY2.");
                     uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("Effect283 body requires current SZ3."))) >> 2));
@@ -100,6 +108,11 @@ public static partial class NativeBattleEffect283BodyDrawing
                         }
                         int px = S16(temporary124, 0x3C);
                         int py = S16(temporary124, 0x3E);
+                        if (pilotWorld is not null)
+                        {
+                            uint deformedScreen = unchecked((ushort)px) | (uint)unchecked((ushort)py) << 16;
+                            pilotWorld[vertices] = NativeBattleEffect32Presentation.DeformedWorld(matrixValue, inputPoint, screen, deformedScreen, projection);
+                        }
                         byte clip = temporary124.Read(0x42, 1)[0];
                         if (px < (S16(temporary124, 0x2C) << 3))
                         {
@@ -175,7 +188,7 @@ public static partial class NativeBattleEffect283BodyDrawing
                             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Effect283 body requires current averaged depth.");
                             temporary124 = Dword(temporary124, 0x64, depth);
                             int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
-                            EmitFaces(source, quad, corners, temporary124, registers.Geometry, bucket, common, writes);
+                            EmitFaces(source, quad, corners, temporary124, registers.Geometry, bucket, common, writes, pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 65537 + (int)cursor) } : null, pilotWorld is null ? null : Enumerable.Range(0, corners.Length).Select(corner => pilotWorld[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF]).ToArray());
                             common += quad ? 72 : 60;
                         }
                     }

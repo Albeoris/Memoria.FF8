@@ -155,6 +155,46 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
         Assert.Single(Initialize(restored, Resources(), Inputs([])).Effect.Pools);
     }
 
+    [Fact]
+    public void Capture_callbacks_preserve_native_timeline_and_restore_parent_after_each_actual_task()
+    {
+        List<string> native = [];
+        List<NativeBattleMiniPulseCannon286Operation> plainOperations = [];
+        var plainResources = Resources();
+        var plainInputs = Inputs(plainOperations);
+        var plain = Initialize(Inactive(), plainResources, plainInputs);
+        while (plain.Effect.ReturnedDescriptor != 0 && native.Count < 100)
+        {
+            plain = Advance(plain, plainResources, plainInputs);
+            native.Add(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain)));
+        }
+        Assert.InRange(native.Count, 2, 99);
+        Assert.Equal(0u, plain.Effect.ReturnedDescriptor);
+        List<NativeBattleMiniPulseCannon286Operation> capturedOperations = [];
+        var capturedResources = Resources();
+        var originalInputs = Inputs(capturedOperations);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        var inputs = originalInputs with { Execute = (current, operation) =>
+        {
+            if (operation is NativeBattleMiniPulseCannon286DrawWindow108 or NativeBattleMiniPulseCannon286DrawSprite180)
+            {
+                Assert.NotNull(current.PilotIdentity);
+                identities.Add(current.PilotIdentity!.Value);
+            }
+            return originalInputs.Execute(current, operation);
+        } };
+        var captured = Initialize(Inactive() with { CapturePresentation = true }, capturedResources, inputs);
+        for (int index = 0; index < native.Count; index++)
+        {
+            captured = Advance(captured, capturedResources, inputs);
+            Assert.Equal(native[index], JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+            Assert.Null(captured.PilotIdentity);
+        }
+        Assert.NotEmpty(identities);
+        Assert.All(identities, identity => Assert.True(identity.Generation > 0));
+        Assert.Equal(plainOperations, capturedOperations);
+    }
+
     private static NativeBattleMiniPulseCannon286Frame MainAt(ushort age)
     {
         var frame = Initialize(Inactive(), Resources(), Inputs([]));

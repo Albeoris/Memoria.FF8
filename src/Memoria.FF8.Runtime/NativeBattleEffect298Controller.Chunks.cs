@@ -154,14 +154,14 @@ public static partial class NativeBattleEffect298Controller
                             {
                                 goto Completed;
                             }
-                            (frame, uint chunk) = AllocateChunk298(frame, main, resources);
+                            (frame, uint chunk) = AllocateChunk298(frame, main, resources, inputs.CapturePresentation);
                             if (chunk == 0)
                             {
                                 context = context.Write(0x14, new byte[4]);
                                 goto Completed;
                             }
                             context = context.Write(0x18, BitConverter.GetBytes(12)).Write(0x28, BitConverter.GetBytes(chunk)).Write(0x2C, BitConverter.GetBytes(chunk + 0x1C));
-                            (frame, context) = PrepareChunk6716C0(frame, context, chunk, resources);
+                            (frame, context) = PrepareChunk6716C0(frame, context, chunk, resources, inputs.CapturePresentation);
                             materialRemaining = 12;
                         }
                         uint material = Dword298(context, 0x2C);
@@ -194,7 +194,7 @@ public static partial class NativeBattleEffect298Controller
         short ReadWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(body.ReadGeometry(address, 2).Read(0, 2));
     }
 
-    private static (NativeBattleEffect298Frame Frame, uint Address) AllocateChunk298(NativeBattleEffect298Frame frame, uint main, NativeBattleEffect298Resources resources)
+    private static (NativeBattleEffect298Frame Frame, uint Address) AllocateChunk298(NativeBattleEffect298Frame frame, uint main, NativeBattleEffect298Resources resources, bool capturePresentation)
     {
         uint address = Dword298(ReadBytes(frame, main + 0x89EC, 4), 0);
         if (Word298(ReadBytes(frame, address + 6, 2), 0) != 0)
@@ -211,6 +211,10 @@ public static partial class NativeBattleEffect298Controller
                 }
             }
         }
+        if (capturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, address);
+        }
         uint next = address >= main + 0x8340 ? main + 0x2EC : address + 172;
         frame = WriteBytes(frame, main + 0x89EC, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(next)), 4);
         frame = RandomLocal298(frame, out int sample);
@@ -218,7 +222,7 @@ public static partial class NativeBattleEffect298Controller
         return (WriteBytes(frame, address + 24, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(mesh)), 4), address);
     }
 
-    private static (NativeBattleEffect298Frame Frame, uint Address) AllocateSmoke298(NativeBattleEffect298Frame frame, uint main)
+    private static (NativeBattleEffect298Frame Frame, uint Address) AllocateSmoke298(NativeBattleEffect298Frame frame, uint main, bool capturePresentation)
     {
         uint address = Dword298(ReadBytes(frame, main + 0x89F0, 4), 0);
         if (Word298(ReadBytes(frame, address + 6, 2), 0) != 0)
@@ -235,11 +239,15 @@ public static partial class NativeBattleEffect298Controller
                 }
             }
         }
+        if (capturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, address);
+        }
         uint next = address >= main + 0x89E0 ? main + 0x83EC : address + 12;
         return (WriteBytes(frame, main + 0x89F0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(next)), 4), address);
     }
 
-    private static (NativeBattleEffect298Frame Frame, NativeBattleEffectArena Context) PrepareChunk6716C0(NativeBattleEffect298Frame frame, NativeBattleEffectArena context, uint address, NativeBattleEffect298Resources resources)
+    private static (NativeBattleEffect298Frame Frame, NativeBattleEffectArena Context) PrepareChunk6716C0(NativeBattleEffect298Frame frame, NativeBattleEffectArena context, uint address, NativeBattleEffect298Resources resources, bool capturePresentation)
     {
         NativeBattleEffectArena chunk = NativeBattleEffectNodeContextMemory.Copy(context, 0x34, ReadBytes(frame, address, 172), 0, 8);
         frame = ProcessRandom298(frame, out int lifetime);
@@ -294,7 +302,7 @@ public static partial class NativeBattleEffect298Controller
             chunk = chunk.Write(8 + axis * 2, BitConverter.GetBytes(unchecked((short)value)));
         }
         frame = Publish298(frame, registers);
-        (frame, uint smoke) = AllocateSmoke298(frame, Dword298(context, 0x30));
+        (frame, uint smoke) = AllocateSmoke298(frame, Dword298(context, 0x30), capturePresentation);
         if (smoke != 0)
         {
             NativeBattleEffectArena row = NativeBattleEffectNodeContextMemory.Copy(context, 0x34, ReadBytes(frame, smoke, 12), 0, 8);

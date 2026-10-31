@@ -24,8 +24,9 @@ public sealed partial class BattleSession
 
         NativeBattleEffect298BodyFrame Shadow(NativeBattleEffect298BodyFrame selected)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(selected.Staging, new(selected.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect308 shadow requires its current GTE matrix."), selected.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect308 shadow requires its current arithmetic registers.")), selected.Model, inputs.ReadProjection(frame), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect308 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect308 shadow requires its original seeds."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect308 shadow requires its actual primitive capabilities."), 4112, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(selected.Staging, new(selected.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect308 shadow requires its current GTE matrix."), selected.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect308 shadow requires its current arithmetic registers.")), selected.Model, inputs.ReadProjection(frame), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect308 shadow requires its current depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect308 shadow requires its original seeds."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect308 shadow requires its actual primitive capabilities."), 4112, 16, operation.PilotIdentity);
             NativeBattleEffect308Frame delivered = DeliverNativeEffect308Batch(ref currentGraphics, frame with { Memory = selected.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) }, shadow.Batch, 0x1D8E054);
+            frame = frame with { Effect = delivered.Effect };
             return selected with { Memory = delivered.Memory, Staging = NativeBattleTemporaryMemory.Release5082D0(delivered.Staging!, 0x78) };
         }
 
@@ -43,10 +44,11 @@ public sealed partial class BattleSession
             (uint address, Func<int, int, byte[]> read) = ReadNativeEffect308Geometry(currentGraphics, current, actor);
             ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect308PackedBones(currentGraphics, current, actor, source);
             NativeBattleEffectArena scratch = NativeBattleTemporaryMemory.ReadView(selected.Staging, scratchAddress, scratchLength);
-            NativeBattleEffect298BodyStep drawn = NativeBattleEffect298BodyDrawing.DrawBody(selected.Memory, selected.Temporary152, scratch, ReadGeometry, address, bones, offsets, inputs.ReadProjection(current), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect308 requires its current projection controls."), scratchAddress, scratchLength, 17, 0);
+            NativeBattleEffect298BodyStep drawn = NativeBattleEffect298BodyDrawing.DrawBody(selected.Memory, selected.Temporary152, scratch, ReadGeometry, address, bones, offsets, inputs.ReadProjection(current), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect308 requires its current projection controls."), scratchAddress, scratchLength, 17, 0, operation.PilotIdentity);
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishView(selected.Staging, scratchAddress, drawn.VertexScratch, scratchLength);
             staged = NativeBattleTemporaryMemory.PublishView(staged, allocation.Address, drawn.Temporary152, 152);
             NativeBattleEffect308Frame delivered = DeliverNativeEffect308Batch(ref currentGraphics, current with { Memory = drawn.Memory, Staging = staged }, drawn.Batch, 0x1D8E054);
+            frame = frame with { Effect = delivered.Effect };
             return selected with { Memory = delivered.Memory, Staging = delivered.Staging!, Temporary152 = drawn.Temporary152 };
 
             NativeBattleEffectArena ReadGeometry(uint selectedAddress, int length)

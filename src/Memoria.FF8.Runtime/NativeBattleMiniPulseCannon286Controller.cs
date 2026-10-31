@@ -64,13 +64,17 @@ public static partial class NativeBattleMiniPulseCannon286Controller
 
     public static (NativeBattleMiniPulseCannon286Frame Frame, int Result) AdvanceTask(NativeBattleMiniPulseCannon286Frame frame, uint address, NativeBattleMiniPulseCannon286Resources resources, NativeBattleMiniPulseCannon286Inputs inputs)
     {
-        return Read(frame, address).Callback switch
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(286, task) : null };
+        (NativeBattleMiniPulseCannon286Frame current, int result) = task.Callback switch
         {
             RootCallback => AdvanceRoot(frame, address, resources, inputs),
             0x67A070 => AdvanceMain(frame, address, resources, inputs),
             0x67A7C0 => AdvanceSprite67A7C0(frame, address, resources, inputs),
             _ => throw new NotSupportedException("Mini Pulse Cannon reached an unsupported module callback.")
         };
+        return (current with { PilotIdentity = parent }, result);
     }
 
     public static NativeBattleMiniPulseCannon286Frame ClearDwords701200(NativeBattleMiniPulseCannon286Frame frame, uint address, int count) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[checked(count * 4)]), checked(count * 4));

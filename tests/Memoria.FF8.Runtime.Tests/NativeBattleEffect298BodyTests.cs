@@ -6,6 +6,76 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect298BodyTests
 {
     [Theory]
+    [InlineData(290, false, 0)]
+    [InlineData(290, true, 0)]
+    [InlineData(298, false, 0)]
+    [InlineData(298, true, 0)]
+    [InlineData(308, false, 0)]
+    [InlineData(308, true, 0)]
+    [InlineData(298, false, 1)]
+    [InlineData(298, true, 1)]
+    [InlineData(298, false, 2)]
+    [InlineData(298, true, 2)]
+    public void Captured_offset_body_keeps_actual_visible_source_reads_native_quarter_depth_scratch_and_every_face_byte(ushort effect, bool quad, int rejection)
+    {
+        byte[] geometry = Geometry();
+        if (quad)
+        {
+            geometry = new byte[72];
+            BinaryPrimitives.WriteInt32LittleEndian(geometry, 1);
+            BinaryPrimitives.WriteInt32LittleEndian(geometry.AsSpan(4), 8);
+            BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(8), 1);
+            BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(12), 4);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(14 + corner * 6), (short)((corner & 1) == 0 ? -100 : 100));
+                BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(16 + corner * 6), (short)((corner & 2) == 0 ? -100 : 100));
+                BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(52 + corner * 2), (ushort)corner);
+            }
+            BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(42), 1);
+        }
+        List<(uint Address, int Length)> nativeReads = [];
+        List<(uint Address, int Length)> capturedReads = [];
+        NativeBattleEffect298BodyStep Draw(List<(uint Address, int Length)> reads, NativeBattlePilotVisualIdentity? pilot)
+        {
+            NativeBattleEffectArena Read(uint address, int length)
+            {
+                if (rejection == 1 && length == 6)
+                {
+                    throw new InvalidDataException("Hidden native XYZ must not be read by capture.");
+                }
+                reads.Add((address, length));
+                return NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length));
+            }
+            var offsets = NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((short)(rejection == 1 ? 2 : 0)));
+            int count = quad ? 4 : 3;
+            var scratch = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, count * 8).ToArray());
+            return NativeBattleEffect298BodyDrawing.DrawBody(Memory(), Temporary(), scratch, Read, 0x1000, [Identity(rejection == 2 ? 1 : 8000)], offsets, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), 0x2000, count * 8, 17, 0, pilot);
+        }
+        var native = Draw(nativeReads, null);
+        NativeBattlePilotVisualIdentity owner = new(effect, 0x3000, 2, 17, 3) { ResourceGeneration = 0x4000 };
+        var captured = Draw(capturedReads, owner);
+        Assert.Equal(nativeReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        if (rejection != 0)
+        {
+            Assert.Empty(captured.Batch.Attempts);
+            return;
+        }
+        var primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(effect, visual.Identity.Effect);
+        Assert.Equal(owner.Generation, visual.Identity.Generation);
+        Assert.Equal(quad ? new System.Numerics.Vector3(-100, -100, 8000) : new System.Numerics.Vector3(0, 0, 8000), visual.A);
+        Assert.Equal(quad ? 4 : 3, visual.CornerCount);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+        System.Numerics.Vector4 depths = visual.SourceDepths ?? throw new InvalidDataException("Accepted body capture lacks native depths.");
+        Assert.Equal(2000f, depths.X);
+        Assert.Equal((float)primitive.VertexPayload4[2], depths.Z);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Offset_pose_uses_decoded_angles_WORD_wrap_and_preserves_unwritten_temporary_bytes(bool scaled)

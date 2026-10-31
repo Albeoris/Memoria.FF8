@@ -119,6 +119,10 @@ public static partial class NativeBattleEffect303Controller
                 NativeBattleEffectArena matrix = ReadBytes(frame, matrices + (uint)((selector & 63) * 32), 18);
                 row = NativeBattleEffectNodeContextMemory.Copy(matrix, 0, row, 20, 18);
                 frame = WriteBytes(frame, rowAddress, row, 76);
+                if (frame.CapturePresentation)
+                {
+                    NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + 32, checked((int)((rowAddress - main - 32) / 76)));
+                }
             }
             context = context.Write(16, BitConverter.GetBytes(mesh.Address + (uint)polygon));
         }

@@ -7,6 +7,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect315ModeMesh96Tests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Presentation_mode_mesh_captures_accepted_corners_only_and_preserves_native_modes(int rejection)
+    {
+        var plain = Draw(Mesh(zeroArea: rejection == 1, outside: rejection == 2), Context(0xF3));
+        string frozen = JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(plain.Memory), Context96 = NativeBattleStorageSnapshots.Capture(plain.Context96) });
+        var captured = Draw(Mesh(zeroArea: rejection == 1, outside: rejection == 2), Context(0xF3), new(315, 0x123400, 2, 19, 0) { ResourceGeneration = 43 });
+        Assert.Equal(frozen, JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(captured.Memory), Context96 = NativeBattleStorageSnapshots.Capture(captured.Context96) }));
+        Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        Assert.Equal(plain.Batch.Attempts.Length, captured.Batch.Attempts.Length);
+        for (int index = 0; index < plain.Batch.Attempts.Length; index++)
+        {
+            var expected = plain.Batch.Attempts[index];
+            var actual = captured.Batch.Attempts[index];
+            Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+            Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+            if (rejection != 0)
+            {
+                Assert.Null(actual.Primitive);
+                continue;
+            }
+            var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive!.PilotGeometry);
+            Assert.Equal((byte)4, geometry.CornerCount);
+            Assert.False(geometry.ScreenSpace);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(2000, geometry.SourceDepths!.Value.X);
+            Assert.Equal(expected.Primitive!.Words.ToArray(), actual.Primitive.Words.ToArray());
+        }
+    }
+
+    [Theory]
     [InlineData(0x33u)]
     [InlineData(0xF3u)]
     public void Selected_G4_keeps_inline_modes_explicit_four_depths_and_current_color_FIFO(uint flags)
@@ -113,10 +145,14 @@ public sealed class NativeBattleEffect315ModeMesh96Tests
         Assert.Throws<NotSupportedException>(() => Draw(mesh with { Bytes = bytes.ToImmutableArray() }, Context(0x33)));
     }
 
-    private static NativeBattleEffect315ModeMesh96Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context)
+    private static NativeBattleEffect315ModeMesh96Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        return NativeBattleEffect315ModeMesh96.DrawLoaded(memory, mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        if (pilotIdentity is null)
+        {
+            return NativeBattleEffect315ModeMesh96.DrawLoaded(memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        }
+        return NativeBattleEffect315ModeMesh96.DrawLoadedWithPresentation(memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(uint flags) => NativeBattleEffectArena.Clear().MarkUnknown(0, 96).Write(0, BitConverter.GetBytes(0x10000000u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(2048u)).Write(0x18, BitConverter.GetBytes(0x12345678u)).Write(0x1C, BitConverter.GetBytes(flags)).Write(0x58, BitConverter.GetBytes(0xE1000220u)).Write(0x5C, BitConverter.GetBytes(0xE1000220u));

@@ -120,7 +120,7 @@ public static class NativeBattleEffect290Fragments
                                 }
                                 context = Put290(context, 0x18, 8);
                                 frame = PublishContext(frame, contextAddress, context, 144);
-                                (frame, uint record) = AllocateRecord675FD0(frame, Dword290(context, 0x30));
+                                (frame, uint record) = AllocateRecord675FD0(frame, Dword290(context, 0x30), inputs.CapturePresentation);
                                 if (record == 0)
                                 {
                                     return PublishContext(frame, contextAddress, Put290(context, 0x14, 0), 144);
@@ -217,7 +217,7 @@ public static class NativeBattleEffect290Fragments
         }
         frame = Publish(frame, step);
         uint main = Dword290(context, 0x30);
-        (frame, uint smoke) = AllocateSmoke(frame, main);
+        (frame, uint smoke) = AllocateSmoke(frame, main, inputs.CapturePresentation);
         if (smoke != 0)
         {
             NativeBattleEffectArena row = CopyBytes(record, 0, ReadBytes(frame, smoke, 12), 0, 8);
@@ -239,6 +239,11 @@ public static class NativeBattleEffect290Fragments
 
     public static (NativeBattleEffect290Frame Frame, uint Address) AllocateSmoke(NativeBattleEffect290Frame frame, uint main)
     {
+        return AllocateSmoke(frame, main, false);
+    }
+
+    public static (NativeBattleEffect290Frame Frame, uint Address) AllocateSmoke(NativeBattleEffect290Frame frame, uint main, bool capturePresentation)
+    {
         uint hint = Dword290(ReadBytes(frame, main + 0x64DC, 4), 0);
         uint found = 0;
         if (hint >= main + 0x5ED8 && hint < main + 0x64D8 && (hint - main - 0x5ED8) % 12 == 0 && Word290(ReadBytes(frame, hint, 12), 6) == 0)
@@ -259,6 +264,10 @@ public static class NativeBattleEffect290Fragments
         }
         if (found != 0)
         {
+            if (capturePresentation)
+            {
+                NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, found);
+            }
             uint next = found == main + 0x64CC ? main + 0x5ED8 : found + 12;
             frame = WriteBytes(frame, main + 0x64DC, Put290(NativeBattleEffectArena.Clear(), 0, next), 4);
         }

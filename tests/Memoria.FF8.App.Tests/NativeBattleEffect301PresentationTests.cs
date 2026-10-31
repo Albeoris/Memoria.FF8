@@ -144,6 +144,8 @@ public sealed class NativeBattleEffect301PresentationTests
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();
             direct.Tick();
+            NativeBattleRecovery32CaptureAssertions.AssertFrame(direct.Capture(), 301);
+            NativeBattleRecovery32CaptureAssertions.AssertFrame(cold.Capture(), 301);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
             Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);

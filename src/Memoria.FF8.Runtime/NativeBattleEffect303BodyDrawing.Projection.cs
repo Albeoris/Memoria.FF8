@@ -18,6 +18,11 @@ public static partial class NativeBattleEffect303BodyDrawing
 {
     public static NativeBattleEffect303BodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary188, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0)
     {
+        return DrawBodyWithPresentation(memory, temporary188, readGeometry, geometryAddress, bones, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, null);
+    }
+
+    public static NativeBattleEffect303BodyStep DrawBodyWithPresentation(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary188, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (U32(temporary188, 0x24) != scratchAddress || scratchLength < 0 || scratchLength > NativeBattleEffect303Profile.BodyProjectionCapacity || depthShift > 31)
         {
             throw new InvalidDataException("Effect303 body requires its actual bounded projection workspace.");
@@ -44,6 +49,7 @@ public static partial class NativeBattleEffect303BodyDrawing
             cursor += 2;
             temporary188 = Dword(temporary188, 0xAC, cursor);
             int vertices = 0;
+            Dictionary<int, System.Numerics.Vector3>? pilotWorld = pilotIdentity.HasValue ? new() : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = ReadWord(cursor);
@@ -55,7 +61,8 @@ public static partial class NativeBattleEffect303BodyDrawing
                 }
                 NativeBattlePackedMatrix32 matrix = bones[bone];
                 short? padding = matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
-                registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix.ReadMatrix(), true, true, padding) };
+                NativeBattleActionMatrix matrixValue = matrix.ReadMatrix();
+                registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrixValue, true, true, padding) };
                 int count = ReadWord(cursor);
                 cursor += 2;
                 if (count < 0)
@@ -70,8 +77,13 @@ public static partial class NativeBattleEffect303BodyDrawing
                         throw new InvalidDataException("Effect303 body vertices leave its actual projection capacity.");
                     }
                     byte[] xyz = readGeometry(cursor, 6).Read(0, 6);
-                    registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), 0);
+                    NativeBattleVector inputPoint = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                    registers = NativeBattleGeometry.LoadVector(registers, 0, inputPoint, 0);
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
+                    if (pilotWorld is not null)
+                    {
+                        pilotWorld[vertices] = NativeBattleEffect32Presentation.World(matrixValue, inputPoint, projection);
+                    }
                     uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect303 body requires current SXY2.");
                     uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("Effect303 body requires current SZ3."))) >> 2));
                     temporary188 = Dword(Dword(temporary188, 0x3C, screen), 0x40, depth);
@@ -162,7 +174,7 @@ public static partial class NativeBattleEffect303BodyDrawing
                             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Effect303 body requires current averaged depth.");
                             temporary188 = Dword(temporary188, 0x74, depth);
                             int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
-                            EmitFaces303(source, quad, corners, temporary188, registers.Geometry, bucket, common, effect, writes);
+                            EmitFaces303(source, quad, corners, temporary188, registers.Geometry, bucket, common, effect, writes, pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 65537 + (int)cursor) } : null, pilotWorld is null ? null : Enumerable.Range(0, corners.Length).Select(corner => pilotWorld[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF]).ToArray());
                             common += quad ? 40 : 32;
                             effect += quad ? 64 : 56;
                             temporary188 = Dword(temporary188, 0xB8, checked(effectStart + (uint)effect));

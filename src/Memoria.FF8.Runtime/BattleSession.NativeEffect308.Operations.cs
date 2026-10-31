@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                 NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)intensity.Strength), ColorFlags = unchecked((uint)intensity.Kind) }).ToImmutableArray() };
                 return frame;
             case NativeBattleEffect308White7040B0 white:
-                return DeliverNativeEffect308Batch(ref graphics, frame, NativeBattleRinoa89FadeDrawing.Draw7040B0(255, 255, 255, white.Amount), CursorGlobal);
+                return DeliverNativeEffect308Batch(ref graphics, frame, NativeBattleOffsetBodyVisuals.FixedQuad(NativeBattleRinoa89FadeDrawing.Draw7040B0(255, 255, 255, white.Amount), white.PilotIdentity), CursorGlobal);
             case NativeBattleEffect308DrawBatch draw:
                 return DeliverNativeEffect308Batch(ref graphics, frame, draw.Batch, draw.CursorGlobal, draw.Flags);
             default:
@@ -89,6 +89,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffect308Frame DeliverNativeEffect308Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags = 0)
     {
+        batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect308 requires its current ordering table.");
         if (cursorGlobal == 0x1D8E054)
         {
@@ -99,6 +100,7 @@ public sealed partial class BattleSession
                 (byte[] bytes, bool[] known) = process.ReadCommonPacketSnapshot(index, 1);
                 return (bytes[0], known[0]);
             });
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, cursor, resolved) } };
             NativeBattleCommonPacketWrite delivered = NativeBattleCommonPacketArena.Append(process, primitive.Pending, resolved);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = delivered.Ordering } };
             return frame with { Memory = frame.Memory with { PrimitiveProcess = delivered.Process } };
@@ -114,6 +116,7 @@ public sealed partial class BattleSession
             (byte[] bytes, bool[] known) = arena.ReadSnapshot(index, 1);
             return (bytes[0], known[0]);
         });
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, privateCursor, privateBatch) } };
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, privateCursor, primitive.Pending, privateBatch, flags);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
         return frame with { Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };

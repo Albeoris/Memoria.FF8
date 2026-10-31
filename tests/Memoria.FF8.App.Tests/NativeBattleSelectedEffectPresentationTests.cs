@@ -423,6 +423,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 NativeBattleCustomComponentCaptureAssertions.AssertFrame(direct.Capture(), effect);
                 NativeBattleCustomComponentCaptureAssertions.AssertFrame(cold.Capture(), effect);
             }
+            NativeBattleRecovery32CaptureAssertions.AssertFrame(direct.Capture(), effect);
+            NativeBattleRecovery32CaptureAssertions.AssertFrame(cold.Capture(), effect);
             NativeBattleCloudBombPresentationOwnership.AssertFrame(direct.Capture(), effect);
             NativeBattleCloudBombPresentationOwnership.AssertFrame(cold.Capture(), effect);
             if (effect == 187)

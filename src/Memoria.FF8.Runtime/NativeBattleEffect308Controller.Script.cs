@@ -95,7 +95,7 @@ public static partial class NativeBattleEffect308Controller
                     (frame, pc) = NativeBattleEffect308Lower.BirthBurst668B20(frame, pc, model, rows, resources, inputs);
                     break;
                 case 0x10B0:
-                    (frame, pc) = NativeBattleEffect308Lower.SetBackground668D60(frame, pc, inputs);
+                    (frame, pc) = NativeBattleEffect308Lower.SetBackground668D60(frame, pc, inputs, inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, pc) : null);
                     break;
                 case 0x10F0:
                 {

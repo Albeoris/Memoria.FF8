@@ -36,6 +36,11 @@ public static partial class NativeBattleEffect314Controller
         NativeBattleEffectTaskStep step = frame.Effect.Pools[index].Advance((pool, slot) =>
         {
             current = WithPool(current, index, pool);
+            NativeBattlePilotVisualIdentity? previousIdentity = current.PilotIdentity;
+            if (current.CapturePresentation)
+            {
+                current = current with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(314, pool.Slots[slot]) };
+            }
             uint address = checked(pool.BankAddress + (uint)(slot * pool.Stride));
             NativeBattleEffect314Step result = pool.Slots[slot].Callback switch
             {
@@ -44,7 +49,7 @@ public static partial class NativeBattleEffect314Controller
                 ParticleCallback => AdvanceParticle664D20(current, address, resources, inputs),
                 _ => throw new NotSupportedException("Effect314 reached an unsupported task callback.")
             };
-            current = result.Frame;
+            current = result.Frame with { PilotIdentity = previousIdentity };
             return new(current.Effect.Pools[index], result.Result);
         });
         return (WithPool(current, index, step.Pool), step.Survivors);

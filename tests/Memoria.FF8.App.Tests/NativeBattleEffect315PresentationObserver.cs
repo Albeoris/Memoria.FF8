@@ -26,8 +26,11 @@ internal sealed class NativeBattleEffect315PresentationObserver
     private NativeCrtRandomState? lastRandom;
     private uint? originalColor;
 
+    private int capturedPrimitives;
+
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
+        capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 315);
         NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
@@ -178,6 +181,8 @@ internal sealed class NativeBattleEffect315PresentationObserver
 
     public void Accept(BattleSnapshot completed, string output)
     {
+        Assert.True(capturedPrimitives > 0, "The complete standalone route did not observe owned moving geometry.");
+        NativeBattleRecovery32CaptureAssertions.AssertFrame(completed, 315);
         Assert.True(restored);
         Assert.True(detached);
         Assert.True(ActivationCompleted(completed));

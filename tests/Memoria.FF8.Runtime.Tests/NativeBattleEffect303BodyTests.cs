@@ -5,6 +5,42 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect303BodyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_body_forwards_each_actual_pass_without_mutating_native_storage(bool quad)
+    {
+        byte[] source = Geometry(quad);
+        NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length));
+        var controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096, Zsf4 = 4096 };
+        var plain = NativeBattleEffect303BodyDrawing.DrawBody(Memory(), Temporary(), Read, 0x1000, [Identity(8000)], new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, Scratch, 48);
+        string frozen = System.Text.Json.JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(plain.Memory), Temporary188 = NativeBattleStorageSnapshots.Capture(plain.Temporary188) });
+        var captured = NativeBattleEffect303BodyDrawing.DrawBodyWithPresentation(Memory(), Temporary(), Read, 0x1000, [Identity(8000)], new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, Scratch, 48, pilotIdentity: new(303, 0x123400, 1, 7, 0) { ResourceGeneration = 29 });
+        Assert.Equal(frozen, System.Text.Json.JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(captured.Memory), Temporary188 = NativeBattleStorageSnapshots.Capture(captured.Temporary188) }));
+        Assert.Equal(plain.Batch.Writes.Length, captured.Batch.Writes.Length);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        for (int index = 0; index < plain.Batch.Writes.Length; index++)
+        {
+            var expected = plain.Batch.Writes[index];
+            var actual = captured.Batch.Writes[index];
+            Assert.Equal(expected.Bank, actual.Bank);
+            Assert.Equal(expected.Attempt.Data.ToArray(), actual.Attempt.Data.ToArray());
+            Assert.Equal(expected.Attempt.WriteMask.ToArray(), actual.Attempt.WriteMask.ToArray());
+            if (actual.Attempt.Primitive is { Words.Length: > 1 } primitive && primitive.Words[1] >> 24 is >= 0x20 and < 0x80)
+            {
+                NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.Equal((ushort)303, geometry.Identity.Effect);
+                Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+                Assert.False(geometry.ScreenSpace);
+                Assert.True(geometry.UseSourceDepths);
+                Assert.Equal(primitive.VertexPayload4[0], geometry.SourceDepths!.Value.X);
+                identities.Add(geometry.Identity);
+            }
+        }
+        Assert.Equal(2, identities.Count);
+        Assert.Equal(2, identities.Distinct().Count());
+    }
+
     [Fact]
     public void Outer_uses_recipient_shadow_composed_basis_dual_cursors_and_actual_restore()
     {

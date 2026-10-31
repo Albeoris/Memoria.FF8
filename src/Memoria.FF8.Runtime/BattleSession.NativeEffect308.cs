@@ -7,13 +7,14 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect308(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect308 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect308Resources resources = effect.Binding.Effect308Resources ?? throw new NotSupportedException("Effect308 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect308 requires current process memory.");
         NativeBattleEffect308State state = memory.Effect308 ?? throw new NotSupportedException("Effect308 requires its retained state.");
         NativeBattleEffect308Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect308 requires its current CRT stream."), state) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.") };
         Dictionary<int, NativeBattlePoseSource> poseSources = [];
         NativeBattleEffect308Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect308 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect308Actor(graphics, address)]), (_, address) => graphics.Models[NativeEffect308Actor(graphics, address)], ReadBody, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect308 requires its current projection."), _ => Camera().Roll, Point, _ => nativeActionPackets, SelectIo, Random, (current, operation) => ExecuteNativeEffect308Operation(ref graphics, current, operation, resources, inputs!)) { ReadPoseSource = address => Pose(NativeEffect308Actor(graphics, address)) };
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect308 requires its color tables."), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeEffect308Actor(graphics, address)]), (_, address) => graphics.Models[NativeEffect308Actor(graphics, address)], ReadBody, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect308 requires its current projection."), _ => Camera().Roll, Point, _ => nativeActionPackets, SelectIo, Random, (current, operation) => ExecuteNativeEffect308Operation(ref graphics, current, operation, resources, inputs!)) { CapturePresentation = true, ReadPoseSource = address => Pose(NativeEffect308Actor(graphics, address)) };
         frame = initialize ? NativeBattleEffect308Controller.Initialize(frame, resources, inputs) : NativeBattleEffect308Controller.Advance(frame, resources, inputs);
         PublishNativeEffect308Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };

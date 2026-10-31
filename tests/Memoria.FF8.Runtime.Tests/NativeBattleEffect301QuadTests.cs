@@ -7,6 +7,33 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect301QuadTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_custom_quad_capture_keeps_native_rejection_and_unreached_fourth_unknown(bool rejected)
+    {
+        int z = rejected ? 0 : 2000;
+        NativeBattleEffectArena Context() => rejected ? Temporary(z).MarkUnknown(0x60, 4) : Temporary(z);
+        var plain = NativeBattleEffect301CustomQuads.DrawLoaded(Memory(), Context(), Source(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108));
+        string frozen = JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(plain.Memory), Temporary180 = NativeBattleStorageSnapshots.Capture(plain.Temporary180) });
+        var captured = NativeBattleEffect301CustomQuads.DrawLoaded(Memory(), Context(), Source(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), new(301, 0x123400, 1, 17, 0) { ResourceGeneration = 41 });
+        Assert.Equal(frozen, JsonSerializer.Serialize(new { Memory = NativeBattleStorageSnapshots.Capture(captured.Memory), Temporary180 = NativeBattleStorageSnapshots.Capture(captured.Temporary180) }));
+        var expected = Assert.Single(plain.Batch.Attempts);
+        var actual = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+        Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+        if (rejected)
+        {
+            Assert.Null(actual.Primitive);
+            return;
+        }
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive!.PilotGeometry);
+        Assert.Equal((byte)4, geometry.CornerCount);
+        Assert.False(geometry.ScreenSpace);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(2000, geometry.SourceDepths!.Value.X);
+    }
+
+    [Theory]
     [InlineData(1024, 0, 0)]
     [InlineData(1040, 40, 18)]
     [InlineData(2000, 40, 78)]

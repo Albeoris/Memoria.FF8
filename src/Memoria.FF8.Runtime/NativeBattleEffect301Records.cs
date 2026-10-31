@@ -48,6 +48,10 @@ public static class NativeBattleEffect301Records
             }
             frame = WriteBytes(frame, main + 0xE0C, Put301(NativeBattleEffectArena.Clear(), 0, address >= last ? first : address + 8), 4);
             frame = WriteBytes(frame, address + 4, PutWord301(NativeBattleEffectArena.Clear(), 0, faceIndex), 2);
+            if (frame.CapturePresentation)
+            {
+                NativeBattleEffect32Presentation.Allocated(frame.Effect, main, first, checked((int)((address - first) / 8)));
+            }
         }
         frame = WriteBytes(frame, address, PutWord301(PutWord301(NativeBattleEffectArena.Clear(), 0, x), 2, z), 4);
         return WriteBytes(frame, address + 6, PutWord301(NativeBattleEffectArena.Clear(), 0, 12), 2);
@@ -93,7 +97,7 @@ public static class NativeBattleEffect301Records
         int quads = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(offset));
         context = Put301(Put301(Put301(context, 0, source.Address), 0x2C, checked(source.Address + (uint)offset + 4)), 0x30, unchecked((uint)quads));
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleEffect301QuadStep drawn = NativeBattleEffect301CustomQuads.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame));
+        NativeBattleEffect301QuadStep drawn = NativeBattleEffect301CustomQuads.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame), NativeBattleEffect32Presentation.Resource(NativeBattleEffect32Presentation.TaskInstance(frame.PilotIdentity, frame.Effect, Main301(frame), checked(Main301(frame) + 0xAC), checked((int)((address - Main301(frame) - 0xAC) / 8))), source.Address));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect301DrawBatch(drawn.Batch, 0x250773C));
         row = ReadBytes(frame, address, 8);

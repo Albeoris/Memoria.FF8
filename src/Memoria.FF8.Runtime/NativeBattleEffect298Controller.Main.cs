@@ -69,7 +69,7 @@ public static partial class NativeBattleEffect298Controller
         uint caster = frame.State.ReadDword(CasterGlobal);
         if (age >= 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect298DrawOffsetBody672330(caster, address + 28));
+            frame = inputs.Execute(frame, new NativeBattleEffect298DrawOffsetBody672330(caster, address + 28) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, address, caster, address + 28) : null });
             frame = inputs.Execute(frame, new NativeBattleEffect298ModelFields(caster, 0, 4));
         }
         frame = DrawChunks6725F0(frame, address, resources, inputs);

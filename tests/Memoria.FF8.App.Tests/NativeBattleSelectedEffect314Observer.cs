@@ -13,8 +13,11 @@ internal sealed class NativeBattleSelectedEffect314Observer
     private int maximumSparks;
     private bool terminal;
 
+    private int capturedPrimitives;
+
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
+        capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 314);
         if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return;
@@ -69,6 +72,8 @@ internal sealed class NativeBattleSelectedEffect314Observer
 
     public void Accept(BattleSnapshot completed, string output)
     {
+        Assert.True(capturedPrimitives > 0, "The complete standalone route did not observe owned moving geometry.");
+        NativeBattleRecovery32CaptureAssertions.AssertFrame(completed, 314);
         Assert.True(terminal, "The effect314 main task must execute its native cleanup age.");
         Assert.Contains(66, ages);
         Assert.Contains(100, ages);

@@ -33,6 +33,11 @@ public static class NativeBattleEffect308Fragments
 
     public static (NativeBattleEffect308Frame Frame, uint Address) AllocateSmoke668470(NativeBattleEffect308Frame frame, uint main)
     {
+        return AllocateSmoke668470(frame, main, false);
+    }
+
+    public static (NativeBattleEffect308Frame Frame, uint Address) AllocateSmoke668470(NativeBattleEffect308Frame frame, uint main, bool capturePresentation)
+    {
         uint row = Dword308(ReadBytes(frame, main + 0xE90, 4), 0);
         if (Word308(ReadBytes(frame, row + 6, 2), 0) != 0)
         {
@@ -47,6 +52,10 @@ public static class NativeBattleEffect308Fragments
                     return (frame, 0);
                 }
             }
+        }
+        if (capturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, row);
         }
         uint next = row >= main + 0xE84 ? main + 0x890 : row + 12;
         frame = WriteBytes(frame, main + 0xE90, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(next)), 4);
@@ -169,7 +178,7 @@ public static class NativeBattleEffect308Fragments
                                     }
                                     context = Put(context, 0x18, 8);
                                     frame = PublishContext(frame, contextAddress, context, 140);
-                                    frame = EmitSmoke668230(frame, contextAddress, resources);
+                                    frame = EmitSmoke668230(frame, contextAddress, resources, inputs.CapturePresentation);
                                     context = Context(frame, contextAddress, 140);
                                     cooldown = 8;
                                 }
@@ -207,6 +216,11 @@ public static class NativeBattleEffect308Fragments
     }
 
     public static NativeBattleEffect308Frame EmitSmoke668230(NativeBattleEffect308Frame frame, uint contextAddress, NativeBattleEffect308Resources resources)
+    {
+        return EmitSmoke668230(frame, contextAddress, resources, false);
+    }
+
+    public static NativeBattleEffect308Frame EmitSmoke668230(NativeBattleEffect308Frame frame, uint contextAddress, NativeBattleEffect308Resources resources, bool capturePresentation)
     {
         NativeBattleEffectArena context = Context(frame, contextAddress, 140);
         int[] first = Enumerable.Range(0, 3).Select(axis => Word308(context, 0x2C + axis * 2) - Word308(context, 0x34 + axis * 2)).ToArray();
@@ -259,7 +273,7 @@ public static class NativeBattleEffect308Fragments
         }
         int speed = unchecked((int)Dword308(context, 0x1C));
         short[] velocity = reduced.Select(value => unchecked((short)(unchecked(speed * value) / length))).ToArray();
-        (frame, uint smoke) = AllocateSmoke668470(frame, Dword308(context, 0x28));
+        (frame, uint smoke) = AllocateSmoke668470(frame, Dword308(context, 0x28), capturePresentation);
         if (smoke == 0)
         {
             return frame;
