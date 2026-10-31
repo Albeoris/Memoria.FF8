@@ -466,7 +466,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
 
         bool Released(BattleSnapshot snapshot)
         {
-            return snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } original && original.Binding.Effect == effect && original.Pools.All(pool => pool.Head is null && pool.Tail is null && pool.Slots.All(slot => slot.Flags == 0)) && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
+            return snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } original && original.Binding.Effect == effect && (effect == 276 ? NativeBattleXatmDeath276CompletionAssertions.PoolsReleased(original.Pools, original.Binding.XatmDeath276Resources!.Events) : original.Pools.All(pool => pool.Head is null && pool.Tail is null && pool.Slots.All(slot => slot.Flags == 0))) && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
         }
     }
 
