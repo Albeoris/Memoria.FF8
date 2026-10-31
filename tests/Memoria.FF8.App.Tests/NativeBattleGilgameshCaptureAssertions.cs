@@ -40,6 +40,12 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         Assert.Equal((byte)0, contact.Primary.HitFlags3);
     }
 
+    internal static void AssertContactTextPublications(NativeBattleContactPacket contact, int publications)
+    {
+        NativeBattleEffectsState expected = NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.PresentedAmount);
+        Assert.Equal(expected.Slots.Count(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0), publications);
+    }
+
     internal static NativeBattleLogicalCommand[] Commands(BattleSnapshot snapshot, ushort effect)
     {
         if (snapshot.NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
@@ -130,7 +136,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         Assert.True(flashSeen);
         Assert.True(flashReleased);
         Assert.False(HasFlash(completed, effect));
-        Assert.Equal(1, textPublications);
+        AssertContactTextPublications(contact, textPublications);
         Assert.True(vibrationSeen);
         Assert.False(completed.NativeVibrationProcess!.IsPlaying(completed.NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value));
         NativeBattleGilgameshEffectResources resources = game.ReadNativeGilgameshEffectResources(effect);

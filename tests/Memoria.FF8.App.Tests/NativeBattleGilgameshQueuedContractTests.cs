@@ -5,6 +5,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleGilgameshQueuedContractTests
 {
     [Theory]
+    [InlineData((ushort)0, 1)]
+    [InlineData((ushort)1, 0)]
+    [InlineData((ushort)0x1000, 1)]
+    [InlineData((ushort)0x1001, 1)]
+    public void Contact_text_publication_oracle_preserves_native_suppression_and_its_explicit_override(ushort flags, int publications)
+    {
+        NativeBattleContactPacket contact = new(new(3, 4, unchecked((byte)flags), unchecked((byte)(flags >> 8)), 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleEffectsState effects = NativeBattleEffectsState.Clear().PrependDamageText(3, flags, 7);
+        NativeBattleEffectTask[] text = effects.Slots.Where(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0).ToArray();
+        Assert.Equal(publications, text.Length);
+        NativeBattleGilgameshCaptureAssertions.AssertContactTextPublications(contact, publications);
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => NativeBattleGilgameshCaptureAssertions.AssertContactTextPublications(contact, 1 - publications));
+        Assert.Equal(flags, contact.Primary.ContactFlags);
+        Assert.All(text, task =>
+        {
+            Assert.Equal((byte)3, task.ModelIndex);
+            Assert.Equal((flags & 0x1000) != 0 ? new byte[] { 69, 0 } : new byte[] { 63, 0 }, task.Glyphs);
+            Assert.Equal(0x808080u, task.Color);
+        });
+    }
+
+    [Theory]
     [InlineData((ushort)327, (ushort)10)]
     [InlineData((ushort)328, (ushort)9)]
     [InlineData((ushort)329, (ushort)7)]
