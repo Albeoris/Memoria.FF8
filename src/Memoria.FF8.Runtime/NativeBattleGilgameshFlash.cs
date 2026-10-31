@@ -10,13 +10,18 @@ public static class NativeBattleGilgameshFlash
 {
     public static NativeBattleGilgameshFlashStep Step592BC0(NativeBattleModulePoolTask task, uint graphicsFlags)
     {
+        return Step592BC0WithPresentation(task, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshFlashStep Step592BC0WithPresentation(NativeBattleModulePoolTask task, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task.PayloadLength != 0x24 - 12)
         {
             throw new InvalidDataException("Native592BC0 requires its original raw0x24-byte task.");
         }
         int counter = unchecked((short)task.ReadWord(0x0C));
         int intensity = counter < 4 ? (255 * counter / 4) & 0xFF : counter < 8 ? 255 : 255 - ((255 * (counter - 8) / 16) & 0xFF);
-        NativeBattleGfGeometryBatch batch = Emit592C60(intensity, intensity, intensity, 0);
+        NativeBattleGfGeometryBatch batch = NativeBattleGilgameshVisuals.FixedFlash(Emit592C60(intensity, intensity, intensity, 0), pilotIdentity);
         if ((graphicsFlags & 0x201) != 0)
         {
             return new(task, batch, 0);

@@ -17,7 +17,7 @@ public static class NativeBattleEffect319Sprite
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), vector, w, 4096, -1024) };
         NativeBattleEffectArena context = PutWord319(PutWord319(Put319(Context(frame, temporary, 180), 0, 0xFF12E0), 4, task.ReadWord(12)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattleActor33Presentation.Resource(frame.PilotIdentity, 0xFF12E0));
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect319DrawBatch(draw.Batch, 0x25053A4));
         frame = Release(frame, 180);

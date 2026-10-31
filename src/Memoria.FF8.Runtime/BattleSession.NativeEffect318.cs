@@ -9,9 +9,10 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect318(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect318 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect318Resources resources = effect.Binding.Effect318Resources ?? throw new NotSupportedException("Effect318 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect318 requires current process memory.");
-        NativeBattleEffect318Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect318 requires its current CRT stream."), memory.Effect318 ?? throw new NotSupportedException("Effect318 requires its retained state.")) { Staging = NativeFileStaging };
+        NativeBattleEffect318Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect318 requires its current CRT stream."), memory.Effect318 ?? throw new NotSupportedException("Effect318 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
         NativeBattleEffect318Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect318 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect318Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect318 requires its current projection."), _ => Camera().Roll, Point, Anchor, ResolveBoneRecord, SelectIo, (current, operation) => ExecuteNativeEffect318Operation(ref graphics, current, operation, resources));
         frame = initialize ? NativeBattleEffect318Controller.Initialize(frame, resources, inputs) : NativeBattleEffect318Controller.Advance(frame, resources, inputs);
         PublishNativeEffect318Frame(frame);

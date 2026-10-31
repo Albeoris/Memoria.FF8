@@ -29,6 +29,11 @@ public static class NativeBattleGilgameshSwordTrail
 
     public static NativeBattleGilgameshSwordTrailStep Step5943D0(NativeBattleGilgameshSwordTrailState state, NativeBattleModulePoolTask task, int selector, Func<int, byte, short, NativeBattleVector> readBone502170, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, NativeBattleGilgameshSwordTrailResources resources, uint graphicsFlags)
     {
+        return Step5943D0WithPresentation(state, task, selector, readBone502170, worldView, projection, registers, colors, resources, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshSwordTrailStep Step5943D0WithPresentation(NativeBattleGilgameshSwordTrailState state, NativeBattleModulePoolTask task, int selector, Func<int, byte, short, NativeBattleVector> readBone502170, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, NativeBattleGilgameshSwordTrailResources resources, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         state.Validate();
         if (task.PayloadLength != 24 || (uint)selector >= 4)
         {
@@ -76,7 +81,7 @@ public static class NativeBattleGilgameshSwordTrail
             {
                 memory = NativeBattleGilgameshSwordTrailCurve.Evaluate571690(count, work, index * 4096 / 31, memory, NativeBattleGilgameshSwordTrailState.CurveB + index * 8);
             }
-            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(state with { Memory = memory }, worldView, projection, registers, colors, resources.Colors[selector]);
+            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(state with { Memory = memory }, worldView, projection, registers, colors, resources.Colors[selector], pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, resources, checked(0x21FF2E8u + NativeBattleGilgameshSwordTrailState.CurveA), selector));
             packets = drawn.Batch;
             poolCursor = drawn.PoolCursorAdvance;
         }

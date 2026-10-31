@@ -3,6 +3,14 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleEffect316Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleEffect316State State)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal System.Collections.Immutable.ImmutableDictionary<uint, System.Numerics.Vector3> PresentationWorld { get; init; } = System.Collections.Immutable.ImmutableDictionary<uint, System.Numerics.Vector3>.Empty;
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal NativeBattlePilotVisualGeometry? PresentationFace { get; init; }
 }
 
 public sealed record NativeBattleEffect316Step(NativeBattleEffect316Frame Frame, int Result);

@@ -11,6 +11,11 @@ public static class NativeBattleGilgameshModelA
 {
     public static NativeBattleGilgameshModelAStep Step595EE0(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags)
     {
+        return Step595EE0WithPresentation(modelMemory, arena, task, resource, worldView, projection, registers, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshModelAStep Step595EE0WithPresentation(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native595EE0 requires its original raw0x24-byte task.");
@@ -50,7 +55,7 @@ public static class NativeBattleGilgameshModelA
                 }
                 arena = arena.Write(0x22000, labels);
             }
-            NativeBattleGilgameshModelADraw drawn = Draw596010(model, resource, arena, worldView, projection, registers, counter - 25);
+            NativeBattleGilgameshModelADraw drawn = Draw596010WithPresentation(model, resource, arena, worldView, projection, registers, counter - 25, pilotIdentity);
             model = drawn.State;
             arena = drawn.Arena;
             packets = drawn.Packets;
@@ -74,6 +79,11 @@ public static class NativeBattleGilgameshModelA
 
     public static NativeBattleGilgameshModelADraw Draw596010(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleEffectArena arena, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, int relativePhase)
     {
+        return Draw596010WithPresentation(state, resource, arena, worldView, projection, registers, relativePhase, null);
+    }
+
+    public static NativeBattleGilgameshModelADraw Draw596010WithPresentation(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleEffectArena arena, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, int relativePhase, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         RequireModelA(resource);
         NativeBattleCactuarRawModel.Validate(state, resource, new(0x21FF4B8, 4));
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native596010 requires its current decoded pose owner.");
@@ -95,7 +105,7 @@ public static class NativeBattleGilgameshModelA
             NativeBattleGilgameshModelALabels labels = NativeBattleGilgameshModelAPackets.SetupLabels5964B0(mesh, arena, 0x31800, 0x22000);
             return new(state, labels.Arena, new([], 0), labels.LabelEndOffset);
         }
-        NativeBattleGilgameshModelAReveal reveal = NativeBattleGilgameshModelAPackets.Emit596220(mesh, arena, 0x31800, 0x22000, relativePhase, worldView, projection, unchecked((uint)Int(bytes, 0x28)), registers);
+        NativeBattleGilgameshModelAReveal reveal = NativeBattleGilgameshModelAPackets.Emit596220WithPresentation(mesh, arena, 0x31800, 0x22000, relativePhase, worldView, projection, unchecked((uint)Int(bytes, 0x28)), registers, NativeBattleGilgameshVisuals.Resource(pilotIdentity, resource, resource.Address, 0x21FF760));
         return new(state, arena, reveal.Packets, reveal.LabelEndOffset);
     }
 

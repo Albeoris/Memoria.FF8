@@ -95,6 +95,90 @@ public sealed class NativeBattleGilgameshPointBurstTests
         Assert.Throws<InvalidDataException>(() => Step(task, arena, 0, _ => new(0, 1024, 0)));
     }
 
+    [Theory]
+    [InlineData((ushort)327, 0u)]
+    [InlineData((ushort)328, 0x60000u)]
+    [InlineData((ushort)329, 0u)]
+    [InlineData((ushort)330, 0x60000u)]
+    public void Selected_point_capture_uses_predeath_point_once_and_keeps_rejected_native_prefix(ushort effect, uint rejection)
+    {
+        NativeBattleEffectArena original = Record(NativeBattleEffectArena.Clear(), 0, 15);
+        NativeBattleGilgameshPointResources resources = Resources();
+        int projections = 0;
+        int captures = 0;
+        NativeBattleGilgameshPointStep native = NativeBattleGilgameshPointBurst.Step593E80(Task(41), NativeBattleTestSnapshots.Independent(original), new(1), resources, 0, _ => new(0x12345678, 4096, rejection));
+        NativeBattleGilgameshPointStep captured = NativeBattleGilgameshPointBurst.Step593E80WithPresentation(Task(41), NativeBattleTestSnapshots.Independent(original), new(1), resources, 0, point =>
+        {
+            projections++;
+            Assert.Equal(new NativeBattleVector(10, 20, 30), point);
+            return new(0x12345678, 4096, rejection);
+        }, new(effect, 0x21FFD68, 0, 7, 0), point =>
+        {
+            captures++;
+            return new(point.X + 100, point.Y, point.Z + 2000);
+        });
+        Assert.Equal(1, projections);
+        Assert.Equal(rejection == 0 ? 1 : 0, captures);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Arena), NativeBattleTestSnapshots.Json(captured.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Task), NativeBattleTestSnapshots.Json(captured.Task));
+        Assert.Equal(native.Random, captured.Random);
+        Assert.Equal(2, captured.Result);
+        Assert.Equal(0u, Dword(captured.Arena, 0x2F800));
+        NativeBattleGfGeometryAttempt before = Assert.Single(native.Packets.Attempts);
+        NativeBattleGfGeometryAttempt after = Assert.Single(captured.Packets.Attempts);
+        Assert.Equal(before.Data, after.Data);
+        Assert.Equal(before.WriteMask, after.WriteMask);
+        Assert.Equal(native.Packets.AllocationBytes, captured.Packets.AllocationBytes);
+        if (rejection == 0)
+        {
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(after.Primitive!.PilotGeometry);
+            Assert.Equal(new System.Numerics.Vector3(110, 20, 2030), visual.A);
+            Assert.Equal(effect, visual.Identity.Effect);
+            Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+            Assert.Equal(new System.Numerics.Vector2(8, 8), visual.ScreenOffsets[3]);
+        }
+        else
+        {
+            Assert.Null(after.Primitive);
+        }
+    }
+
+    [Theory]
+    [InlineData((ushort)327)]
+    [InlineData((ushort)328)]
+    [InlineData((ushort)329)]
+    [InlineData((ushort)330)]
+    public void Selected_point_real_free_record_allocation_rebinds_birth_without_changing_four_CRT_draws(ushort effect)
+    {
+        NativeBattleEffectArena full = NativeBattleEffectArena.Clear();
+        for (int index = 0; index < 200; index++)
+        {
+            full = WriteDword(full, 0x2F800 + index * 32, 2);
+        }
+        NativeBattleGilgameshPointResources resources = Resources();
+        NativeBattlePilotVisualIdentity owner = new(effect, 0x21FFD68, 3, 7, 0);
+        NativeBattleGilgameshPointStep Capture(NativeBattleEffectArena arena) => NativeBattleGilgameshPointBurst.Step593E80WithPresentation(Task(0), arena, new(1), resources, 0, _ => new(0, 4096, 0), owner, point => new(point.X, point.Y, point.Z));
+        NativeBattleEffectArena free = WriteDword(full, 0x2F800 + 199 * 32, 0);
+        NativeBattleGilgameshPointStep native = NativeBattleGilgameshPointBurst.Step593E80(Task(0), NativeBattleTestSnapshots.Independent(free), new(1), resources, 0, _ => new(0, 4096, 0));
+        NativeBattleGilgameshPointStep first = Capture(NativeBattleTestSnapshots.Independent(free));
+        NativeBattlePilotVisualGeometry a = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(first.Packets.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(199, a.Identity.Slot);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Arena), NativeBattleTestSnapshots.Json(first.Arena));
+        Assert.Equal(native.Random, first.Random);
+        NativeCrtRandomState four = new(1);
+        for (int draw = 0; draw < 4; draw++)
+        {
+            four = four.Draw(out _);
+        }
+        Assert.Equal(four, first.Random);
+        NativeBattleGilgameshPointStep reused = Capture(WriteDword(first.Arena, 0x2F800 + 199 * 32, 0));
+        NativeBattlePilotVisualGeometry b = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(reused.Packets.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(a.Identity.Bank, b.Identity.Bank);
+        Assert.Equal(a.Identity.Slot, b.Identity.Slot);
+        Assert.NotEqual(a.Identity.Generation, b.Identity.Generation);
+        Assert.Equal(a.Corner(0), NativeBattlePilotVisualGeometry.SampleCorner(a, b, 0, 0.5f));
+    }
+
     private static NativeBattleGilgameshPointStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, uint flags, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project) => NativeBattleGilgameshPointBurst.Step593E80(task, arena, new(1), Resources(), flags, project);
     private static NativeBattleModulePoolTask Task(ushort counter) => new NativeBattleModulePoolTask(1, 0, null, 0x593E80, new byte[24].ToImmutableArray()).WriteWord(12, counter);
 

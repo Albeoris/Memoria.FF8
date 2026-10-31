@@ -56,6 +56,12 @@ public sealed partial class BattleSession
                 staging = staging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
             }
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Primary body history requires its current ordering table.");
+            if (callerPilotIdentity is { Effect: 324 } && graphics.OriginalEffect is { Binding.Effect: 324 } selected)
+            {
+                drawn = drawn with { Packets = NativeBattleActor33Presentation.Depths(drawn.Packets) };
+                selected = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, drawn.Packets) };
+                graphics = graphics with { OriginalEffect = selected };
+            }
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
             process = written.Process.Publish50FDF0(CommonAddress(written.Process), null);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };

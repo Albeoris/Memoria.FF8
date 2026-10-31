@@ -19,10 +19,17 @@ public enum NativeBattleGilgameshDirectorService
     Stage
 }
 
-public sealed record NativeBattleGilgameshDirectorOperation(NativeBattleGilgameshDirectorService Service, int First = 0, int Second = 0, int Third = 0, int Fourth = 0, bool UseWorkBuffer = false);
+public sealed record NativeBattleGilgameshDirectorOperation(NativeBattleGilgameshDirectorService Service, int First = 0, int Second = 0, int Third = 0, int Fourth = 0, bool UseWorkBuffer = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? PresentationCounter { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattleGilgameshFlashSource? PresentationSource { get; init; }
+}
 public sealed record NativeBattleGilgameshDirectorInputs(uint GraphicsFlags, Action PublishWorldView, Func<int> Pending508500, Action<NativeBattleGilgameshDirectorOperation> Execute)
 {
     public ushort Effect { get; init; } = 330;
+    public bool CapturePresentation { get; init; }
 }
 public sealed record NativeBattleGilgameshDirectorStep(NativeBattleModulePoolTask Task, int Result);
 
@@ -183,7 +190,10 @@ public static class NativeBattleGilgameshDirector
         }
         return new(task, 0);
 
-        void Emit(NativeBattleGilgameshDirectorService service, int first = 0, int second = 0, int third = 0, int fourth = 0) => inputs.Execute(new(service, first, second, third, fourth));
+        void Emit(NativeBattleGilgameshDirectorService service, int first = 0, int second = 0, int third = 0, int fourth = 0)
+        {
+            inputs.Execute(new(service, first, second, third, fourth) { PresentationCounter = inputs.CapturePresentation && service == NativeBattleGilgameshDirectorService.QueueColor ? counter : null });
+        }
         void Initialize(int callback) => Emit(NativeBattleGilgameshDirectorService.Initializer, callback);
         void Child(int callback) => Emit(NativeBattleGilgameshDirectorService.AppendChild, callback);
         void Particle(int callback) => Emit(NativeBattleGilgameshDirectorService.AppendParticle, callback);

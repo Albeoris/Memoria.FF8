@@ -70,6 +70,11 @@ public sealed partial class BattleSession
                 };
                 graphics = graphics with { OriginalEffect = NativeBattleControl18Presentation.RecordCurrentPackets(graphics.OriginalEffect, graphics.ModuleEffects.CastingPresentation?.Cinematic18Birth, draw.PresentationSource!, bank, buffer, start, batch) };
             }
+            if (draw.GilgameshFlashPresentation is { } gilgameshFlash)
+            {
+                NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
+                graphics = graphics with { OriginalEffect = graphics.ModuleEffects.RecordGilgameshFlashPackets(graphics.OriginalEffect, gilgameshFlash, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) };
+            }
             graphics = AppendNativeModulePacketBatch(graphics, batch, index, draw.NativeEffectArenaOffset);
         }
         return graphics;

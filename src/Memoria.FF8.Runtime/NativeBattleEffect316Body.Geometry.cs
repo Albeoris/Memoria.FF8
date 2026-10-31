@@ -130,6 +130,12 @@ public static partial class NativeBattleEffect316Body
             int pointOffset = expanded ? 8 : 0;
             NativeBattleVector point = Vector(row, pointOffset);
             registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, point, Padding(row, pointOffset + 6)), projection, controls.Dqa, controls.Dqb);
+            if (frame.CapturePresentation)
+            {
+                NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                System.Numerics.Vector3 world = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                frame = frame with { PresentationWorld = frame.PresentationWorld.SetItem(rowAddress, world) };
+            }
             context = PutDword(context, 0x1C, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("The vertex requires its projected screen coordinates."));
             uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("The vertex requires its projected depth."))) >> 2));
             context = PutDword(context, 0x20, depth);

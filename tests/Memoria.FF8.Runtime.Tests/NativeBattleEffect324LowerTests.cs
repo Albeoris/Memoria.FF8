@@ -190,6 +190,59 @@ public sealed class NativeBattleEffect324LowerTests
         Assert.Equal(3584u, result.Frame.Memory.ScriptedColorRegisters!.Ir0);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Actual_eye_capture_preserves_native_step_and_current_world_after_side_transform(int side)
+    {
+        Fixture Build(bool capture)
+        {
+            Fixture fixture = new(0x597870);
+            fixture.View = NativeBattleCuragaMatrices.Identity8DD770();
+            fixture.Task(task => task.WriteWord(12, 2).WriteWord(14, unchecked((ushort)side)).WriteWord(28, 2048));
+            fixture.Frame = fixture.Frame with { State = fixture.Frame.State.WriteView(0x2203C58, NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes((short)4000)).MarkUnknown(6, 2), 8), CapturePresentation = capture };
+            var resource = NativeBattleEffect318LowerTests.Fixture.Projected() with { Address = 0xCD0B2C };
+            fixture.Resources = fixture.Resources with { Sprites = fixture.Resources.Sprites.SetItem(resource.Address, resource) };
+            return fixture;
+        }
+        Fixture plainFixture = Build(false);
+        var plain = NativeBattleEffect324Controller.AdvanceTask(plainFixture.Frame, plainFixture.Address, plainFixture.Resources, plainFixture.Inputs());
+        string expected = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        string packets = JsonSerializer.Serialize(plainFixture.Draws);
+        Fixture capturedFixture = Build(true);
+        var captured = NativeBattleEffect324Controller.AdvanceTask(capturedFixture.Frame, capturedFixture.Address, capturedFixture.Resources, capturedFixture.Inputs());
+        Assert.Equal(expected, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(packets, JsonSerializer.Serialize(capturedFixture.Draws));
+        Assert.Null(captured.Frame.PilotIdentity);
+        var batch = NativeBattleActor33Presentation.Depths(Assert.Single(capturedFixture.Draws).Batch);
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(batch.Attempts.Where(attempt => attempt.Primitive?.PilotGeometry is not null)).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)324, visual.Identity.Effect);
+        Assert.True(visual.Identity.Generation > 0);
+        Assert.NotEqual(0, visual.Identity.ResourceGeneration);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+    }
+
+    [Fact]
+    public void Real_record_birth_keeps_private_storage_and_CRT_while_binding_distinct_admitted_rows()
+    {
+        Fixture plainFixture = new(0x596E30);
+        var plain = NativeBattleEffect324Records.Birth(plainFixture.Frame, 0, 1, plainFixture.Inputs());
+        string expected = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        Fixture fixture = new(0x596E30);
+        var captured = NativeBattleEffect324Records.Birth(fixture.Frame with { CapturePresentation = true }, 0, 1, fixture.Inputs());
+        Assert.Equal(expected, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(plainFixture.PointQueries, fixture.PointQueries);
+        Assert.Equal(plain.Random, captured.Random);
+        NativeBattlePilotVisualIdentity parent = NativeBattlePilotVisualLifetimes.Identity(324, Read(captured, fixture.Address));
+        var first = NativeBattleActor33Presentation.Row(parent, captured.State.Storage, 0x2201AC8, 0xCD0B88);
+        var second = NativeBattleActor33Presentation.Row(parent, captured.State.Storage, 0x2201AE0, 0xCD0B88);
+        Assert.NotEqual(first, second);
+        Assert.Equal(first, NativeBattleActor33Presentation.Row(parent, captured.State.Storage, 0x2201AC8, 0xCD0B88));
+        Assert.Equal(1u, captured.State.ReadDword(0x2201AC8));
+        Assert.Equal(1u, captured.State.ReadDword(0x2201AE0));
+    }
+
     private sealed class Fixture
     {
         public const uint Model = 0x1D97494;
@@ -201,6 +254,7 @@ public sealed class NativeBattleEffect324LowerTests
         public uint Flags;
         public int PointQueries;
         public int BodyDraws;
+        public NativeBattleActionMatrix? View;
         public List<NativeBattleEffect324DrawBatch> Draws = [];
 
         public Fixture(uint callback)
@@ -234,7 +288,7 @@ public sealed class NativeBattleEffect324LowerTests
         {
             Assert.Equal(Model, model);
             return ModelBytes;
-        }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, _, _, retained) =>
+        }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(View, 512, 160, 108), _ => 0, (frame, model, _, _, retained) =>
         {
             Assert.Equal(Model, model);
             PointQueries++;

@@ -22,7 +22,7 @@ public static class NativeBattleEffect318Sprite
         int heading = unchecked(-NativePrecision53.RoundInteger(Math.Atan2(first.Y - second.Y, second.X - first.X) * (double)BitConverter.Int32BitsToSingle(0x4422F983)));
         NativeBattleEffectArena context = Put318(PutWord318(PutWord318(Put318(Context(frame, temporary, 180), 0, 0xFF7A00), 4, task.ReadWord(12)), 0x24, 1), 8, unchecked((uint)heading));
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattleActor33Presentation.Resource(frame.PilotIdentity, 0xFF7A00));
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect318DrawBatch(draw.Batch, 0x250541C));
         frame = Release(frame, 180);

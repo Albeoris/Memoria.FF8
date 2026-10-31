@@ -4,7 +4,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleZantetsukenRenderObject(NativeBattleRawMesh Mesh, uint? FaceAddress);
-public sealed record NativeBattleZantetsukenRenderInputs(NativeBattlePackedMatrix32 Main, NativeBattlePackedMatrix32 Alternate, ImmutableArray<NativeBattleActionMatrix> Bones, Func<int, short?> ReadBonePadding, NativeBattleCameraProjection Projection, NativeBattleSummonColors Constants, uint TemporaryAddress, uint? VertexScratchAddress, uint? PacketAddress, uint? OrderingAddress, int TableBaseBucket, byte DepthShift, ImmutableArray<uint> ClipIndices);
+public sealed record NativeBattleZantetsukenRenderInputs(NativeBattlePackedMatrix32 Main, NativeBattlePackedMatrix32 Alternate, ImmutableArray<NativeBattleActionMatrix> Bones, Func<int, short?> ReadBonePadding, NativeBattleCameraProjection Projection, NativeBattleSummonColors Constants, uint TemporaryAddress, uint? VertexScratchAddress, uint? PacketAddress, uint? OrderingAddress, int TableBaseBucket, byte DepthShift, ImmutableArray<uint> ClipIndices)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleZantetsukenRenderStep(NativeBattleEffectMemory Memory, NativeBattleEffectArena Temporary1D8, NativeBattleEffectArena VertexScratch, NativeBattleGfGeometryBatch Batch);
 
 public static partial class NativeBattleZantetsukenRendering
@@ -44,6 +48,12 @@ public static partial class NativeBattleZantetsukenRendering
         private readonly short depth;
         private readonly ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         private int allocated;
+        private readonly Dictionary<int, NativeBattleVector>? capturedPoints;
+        private int capturedObject;
+        private int capturedFace;
+        private int capturedTriangle;
+        private int capturedPart;
+        private int capturedMatrixRole;
 
         public Drawing(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleEffectArena scratch, NativeBattleZantetsukenRenderInputs inputs, bool stage, uint color, short depth)
         {
@@ -58,6 +68,7 @@ public static partial class NativeBattleZantetsukenRendering
             this.stage = stage;
             this.color = color;
             this.depth = depth;
+            capturedPoints = inputs.PilotIdentity.HasValue ? new() : null;
         }
 
         public NativeBattleZantetsukenRenderStep Draw(ImmutableArray<NativeBattleZantetsukenRenderObject> objects, uint objectMask)
@@ -96,6 +107,7 @@ public static partial class NativeBattleZantetsukenRendering
                 {
                     continue;
                 }
+                capturedObject = index;
                 NativeBattleZantetsukenRenderObject selected = objects[index];
                 selected.Mesh.Validate();
                 TransformVertices(selected.Mesh);
@@ -114,8 +126,10 @@ public static partial class NativeBattleZantetsukenRendering
                 temporary = Pointer(temporary, 0x2C, inputs.OrderingAddress);
                 temporary = Put(temporary, 0x30, inputs.DepthShift);
                 temporary = Pointer(temporary, 0x34, inputs.PacketAddress is uint address ? unchecked(address + (uint)allocated) : null);
+                int faceIndex = 0;
                 foreach (NativeBattleRawPolygon face in selected.Mesh.Polygons)
                 {
+                    capturedFace = faceIndex++;
                     int expected = (face.Quad ? 20 : 16) + (stage ? 4 : 0);
                     if (face.Bytes.Length != expected)
                     {
@@ -131,11 +145,12 @@ public static partial class NativeBattleZantetsukenRendering
         private NativeBattleScriptedGraphicsMemory Controls => memory.ScriptedGraphics ?? throw new NotSupportedException("Zantetsuken drawing requires its actual projection and depth averaging controls.");
         private void Publish(NativeBattleGeometryRegisterStep step) => memory = memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors };
 
-        private void LoadMatrix(NativeBattlePackedMatrix32 matrix)
+        private void LoadMatrix(NativeBattlePackedMatrix32 matrix, int capturedRole = 0)
         {
             short? padding = matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
             NativeBattleGeometryRegisterStep step = Registers;
             Publish(step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, matrix.ReadMatrix(), true, true, padding) });
+            capturedMatrixRole = capturedRole;
         }
 
         private void TransformVertices(NativeBattleRawMesh mesh)
@@ -182,18 +197,21 @@ public static partial class NativeBattleZantetsukenRendering
             }
             temporary = Put(temporary, 0x24, firstUv);
             temporary = Put(temporary, 0x28, secondUv);
+            capturedTriangle = 0;
             if (!Triangle([indices[0], indices[1], indices[2]], [uvs[0], uvs[1], uvs[2]], true))
             {
                 return;
             }
             if (polygon.Quad)
             {
+                capturedTriangle = 1;
                 Triangle([indices[3], indices[1], indices[2]], [uvs[3], uvs[1], uvs[2]], false);
             }
         }
 
         private bool Triangle(int[] indices, ushort[] uv, bool initial)
         {
+            capturedPart = 0;
             NativeBattleGeometryRegisterStep step = Registers;
             for (int index = 0; index < 3; index++)
             {
@@ -254,7 +272,7 @@ public static partial class NativeBattleZantetsukenRendering
             }
             else if ((distance[0] | distance[1] | distance[2]) > 0)
             {
-                LoadMatrix(inputs.Alternate);
+                LoadMatrix(inputs.Alternate, 1);
                 Emit([0x48, 0x58, 0x68], unchecked((int)Read(temporary, 0x38)) <= 0, true);
                 LoadMatrix(inputs.Main);
             }

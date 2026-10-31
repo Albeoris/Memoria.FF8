@@ -12,6 +12,7 @@ public static class NativeBattleEnemyResourceView
     internal static NativeBattleGraphicsResource Resolve(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, int index, NativeBattleGraphicsResource original, NativeBattleEnemyGeometryCache? geometryCache)
     {
         NativeBattleModelCpuResourceRow row = cpu.Rows[index];
+        NativeBattleModelCpuReference? selectedGeometry = null;
         NativeBattleModelCpuReference skeleton = row.Require(12);
         int boneCount = NativeBattleModelEnemyHeap.Read(cpu, staging, skeleton, 1)[0];
         int skeletonLength = checked(16 + boneCount * 48);
@@ -27,7 +28,7 @@ public static class NativeBattleEnemyResourceView
         }
         pose = pose with { Model8FBoneAliases = original.PoseSource?.Model8FBoneAliases ?? [] };
         bool camera = row.Fields.TryGetValue(44, out NativeBattleModelCpuReference? cameraReference) ? cameraReference is not null : throw new NotSupportedException("Native enemy action-camera pointer remains unknown.");
-        NativeBattleGraphicsResource result = original with { PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), SequenceSection = Block(24), Geometry = Geometry(), GeometryRelocated507550 = true, HasActionCamera = camera, ActionCameraBank = camera ? new(Block(44)) : null, TextureAnimations = row.Fields.TryGetValue(48, out NativeBattleModelCpuReference? motion) && motion is not null ? Block(48) : [] };
+        NativeBattleGraphicsResource result = original with { PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), SequenceSection = Block(24), Geometry = Geometry(), PilotGeometryResource = selectedGeometry, GeometryRelocated507550 = true, HasActionCamera = camera, ActionCameraBank = camera ? new(Block(44)) : null, TextureAnimations = row.Fields.TryGetValue(48, out NativeBattleModelCpuReference? motion) && motion is not null ? Block(48) : [] };
         result.Validate();
         return result;
 
@@ -40,6 +41,7 @@ public static class NativeBattleEnemyResourceView
         ImmutableArray<NativeBattleRawMesh> Geometry()
         {
             NativeBattleModelCpuReference reference = row.Require(16);
+            selectedGeometry = reference;
             byte[] bytes = NativeBattleModelEnemyHeap.Read(cpu, staging, reference, row.Lengths.TryGetValue(16, out int length) ? length : throw new NotSupportedException("Native enemy geometry extent remains unknown."));
             return geometryCache is null ? NativeBattleRawGeometryReader.Read(bytes, boneCount) : geometryCache.Read(bytes, boneCount);
         }

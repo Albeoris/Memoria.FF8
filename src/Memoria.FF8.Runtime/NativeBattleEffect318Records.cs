@@ -40,6 +40,10 @@ public static class NativeBattleEffect318Records
             row = row.Write(12 + axis, [unchecked((byte)(unchecked((short)registers.Colors.Ir[axis]!.Value) >> 8))]);
         }
         frame = WriteBytes(Publish(frame, registers), address, row, 16);
+        if (frame.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, address, 0);
+        }
         return frame;
 
         short Life(uint current) => Word318(ReadBytes(frame, current + 6, 2), 0);
@@ -89,7 +93,7 @@ public static class NativeBattleEffect318Records
         int quads = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(offset));
         context = Put318(Put318(Put318(context, 0, source.Address), 0x2C, checked(source.Address + (uint)offset + 4)), 0x30, unchecked((uint)quads));
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame));
+        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame), NativeBattleActor33Presentation.Row(frame.PilotIdentity, frame.Memory.Arena!, address, source.Address));
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect318DrawBatch(draw.Batch, 0x250541C));
         row = ReadBytes(frame, address, 16);

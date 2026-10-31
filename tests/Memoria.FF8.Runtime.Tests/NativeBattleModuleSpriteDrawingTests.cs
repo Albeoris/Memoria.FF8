@@ -7,6 +7,35 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleModuleSpriteDrawingTests
 {
     [Theory]
+    [InlineData((ushort)327)]
+    [InlineData((ushort)328)]
+    [InlineData((ushort)329)]
+    [InlineData((ushort)330)]
+    public void Gilgamesh_composed_sprite_capture_uses_the_actual_camera_without_changing_native_packets_or_authored_rectangle(ushort effect)
+    {
+        var fixture = Fixture(2000, false);
+        NativeBattleCameraProjection camera = new(NativeBattleCuragaMatrices.Identity8DD770() with { X = 10 }, 100, 160, 108);
+        NativeBattleActionMatrix parent = NativeBattleGfMatrices.Compose56C2F0(camera.View!, NativeBattleCuragaMatrices.Identity8DD770() with { X = 500 });
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = fixture.Resource, SpriteFrame = fixture.Resource.ProjectedFrame571C80(0), Anchor = new(100, 0, 2000, 0), Scale = 4096, Direction = 4096, SpriteFlags = 3 };
+        NativeBattleModulePacketBatch native = NativeBattleModulePackets.EmitSprite571DC0(draw, camera with { View = parent }, 0, 17, 2);
+        NativeBattlePilotVisualIdentity identity = new(effect, 0x21FFD58, 1, 23, 0) { ResourceGeneration = fixture.Resource.Address };
+        NativeBattleModulePacketBatch captured = NativeBattleModulePackets.EmitSprite571DC0(draw with { PilotIdentity = identity, PilotProjection = camera }, camera with { View = parent }, 0, 17, 2);
+        Assert.Equal(JsonSerializer.Serialize(native), JsonSerializer.Serialize(captured));
+        NativeBattlePilotVisualGeometry a = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Primitives[0].Primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(600, 0, 2000), a.A);
+        Assert.Equal(new System.Numerics.Vector3(632, 32, 2000), a.D);
+        Assert.NotNull(a.Sprite);
+        byte[] quads = draw.SpriteFrame!.Quads.ToArray();
+        quads[0] = 4;
+        NativeBattleModuleDraw later = draw with { PilotIdentity = identity, PilotProjection = camera, SpriteFrame = draw.SpriteFrame with { Quads = quads.ToImmutableArray() } };
+        NativeBattleActionMatrix moved = parent with { X = parent.X + 100 };
+        NativeBattleModulePacketBatch next = NativeBattleModulePackets.EmitSprite571DC0(later, camera with { View = moved }, 0, 17, 2);
+        NativeBattlePilotVisualGeometry b = Assert.IsType<NativeBattlePilotVisualGeometry>(next.Primitives[0].Primitive.PilotGeometry);
+        Assert.True(System.Numerics.Vector3.Distance(a.B + new System.Numerics.Vector3(50, 0, 0), NativeBattlePilotVisualGeometry.SampleCorner(a, b, 1, 0.5f)) < 0.001f);
+        Assert.Equal(b.B, NativeBattlePilotVisualGeometry.SampleCorner(a, b, 1, 1));
+    }
+
+    [Theory]
     [InlineData(0xE19C14u, 2000)]
     [InlineData(0xE19CBCu, 2000)]
     [InlineData(0xE19E68u, 2000)]

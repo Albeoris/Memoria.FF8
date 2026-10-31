@@ -17,6 +17,11 @@ public static class NativeBattleGilgameshModelBanks
 
     public static NativeBattleGilgameshModelBankStep Step(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleGilgameshModelResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint graphicsFlags)
     {
+        return StepWithPresentation(modelMemory, arena, task, resources, worldView, projection, colors, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshModelBankStep StepWithPresentation(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleGilgameshModelResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task.PayloadLength != 24 || task.Callback is not (0x595D50 or 0x5966B0 or 0x596710 or 0x596800 or 0x596970 or 0x596A60) || resources.Stream749Models.IsDefault || resources.Stream749Models.Length != 5 || resources.StaticModels.IsDefault || resources.StaticModels.Length != 4)
         {
             throw new InvalidDataException("Native Gilgamesh model bank callback requires its raw0x24-byte task and all actual model resource owners.");
@@ -162,7 +167,7 @@ public static class NativeBattleGilgameshModelBanks
 
         void Draw(uint address, uint controlAddress, NativeBattleEffectOwnedModelResource resource, byte depthShift = 4)
         {
-            NativeBattleGilgameshRawModelDraw draw = NativeBattleGilgameshRawModel.Draw595E40(Read(address, controlAddress), resource, controlAddress, arena, worldView, projection, colors, depthShift);
+            NativeBattleGilgameshRawModelDraw draw = NativeBattleGilgameshRawModel.Draw595E40WithPresentation(Read(address, controlAddress), resource, controlAddress, arena, worldView, projection, colors, depthShift, NativeBattleGilgameshVisuals.Address(pilotIdentity, address));
             Publish(address, controlAddress, draw.State);
             arena = draw.Arena;
             packets.Add(draw.Packets);

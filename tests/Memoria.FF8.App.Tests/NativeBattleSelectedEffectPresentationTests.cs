@@ -55,6 +55,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Assert.NotNull(selectedHeader.FirstContactIndex);
         NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
         Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)7);
+        NativeBattleGilgameshCaptureAssertions? gilgamesh = effect is >= 327 and <= 330 ? new(source, effect, selectedHeader, selectedContact) : null;
         int contactTransitions = 0;
         int expectedContactTransitions = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS") is { } expectedContacts ? int.Parse(expectedContacts) : 1;
         Assert.InRange(expectedContactTransitions, 0, 1);
@@ -79,6 +80,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int renderedCommandCount = 0;
         int renderedSamples = 0;
         int capturedOwnedFrames = 0;
+        int actor33CapturedFrames = 0;
         int captured218Frames = 0;
         int contact218Services = 0;
         int text218Count = 0;
@@ -116,6 +118,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     customComponentCapturedFrames++;
                 }
+                if (effect == 331 && NativeBattleActor33CaptureAssertions.AssertFrame(current, effect) > 0)
+                {
+                    actor33CapturedFrames++;
+                }
                 if (effect == 18 && current.NativeGraphics!.OriginalEffect?.Binding.Effect == 18)
                 {
                     casting18Frames += NativeBattleControl18CastingAssertions.AssertFrame(current) > 0 ? 1 : 0;
@@ -140,6 +146,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     recoveryCapturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 7);
                 }
+                gilgamesh?.Observe(prior, current, Cold);
                 observer?.Observe(prior, current, Cold);
                 observer314?.Observe(prior, current, Cold);
                 NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
@@ -220,6 +227,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     ownedCommands = primitive.LastCommands.Select(command => command.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor).ToArray();
                 }
+                if (gilgamesh is not null)
+                {
+                    ownedCommands = NativeBattleGilgameshCaptureAssertions.Commands(current, effect);
+                }
                 if (effect == 30 && currentEffect?.Binding.Effect == 30 && currentEffect.DrawArenaOffset is int cursor30 && primitive is not null)
                 {
                     NativeBattleLogicalCommand[] geometry30 = primitive.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor30 && command.Opcode is >= 0x20 and < 0x60).ToArray();
@@ -295,13 +306,17 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     }
                 }
                 prior = current;
-                if (Released(current) && (effect != 18 || !NativeBattleControl18CastingAssertions.HasCasting(current)))
+                if (Released(current) && (effect != 18 || !NativeBattleControl18CastingAssertions.HasCasting(current)) && (gilgamesh is null || !NativeBattleGilgameshCaptureAssertions.HasFlash(current, effect)))
                 {
                     break;
                 }
             }
             Assert.True(callbacks < maximum, "The selected component exceeded its diagnostic callback budget.");
             Assert.Equal(1, completions);
+            if (effect == 331)
+            {
+                Assert.True(actor33CapturedFrames > 1);
+            }
             if (effect == 18)
             {
                 Assert.True(casting18Seen, "The original18 sequence30 must reach its authored casting seed and children.");
@@ -358,6 +373,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.True(recoveryCapturedGeometry > 0);
             }
             BattleSnapshot completed = battle.Capture();
+            gilgamesh?.Complete(game, completed);
             if (effect == 218)
             {
                 Assert.Equal(selectedHeader.ReadByte(0), selectedContact.Primary.ActorIndex);
@@ -407,7 +423,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 return;
             }
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, null);
-            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8" or "casting18-live" or "casting18-tail" or "casting18-released"))
+            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8" or "casting18-live" or "casting18-tail" or "casting18-released" or "gilgamesh-flash-live" or "gilgamesh-flash-released" or "gilgamesh-contact"))
             {
                 return;
             }
@@ -456,6 +472,16 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     NativeBattleCinematicCaptureAssertions.AssertCommands(cold.Capture(), effect, NativeBattleSelectedEffect218Packets.CurrentCommands(cold.Capture()));
                     NativeBattleCinematicCaptureAssertions.AssertCommands(direct.Capture(), effect, NativeBattleSelectedEffect218Packets.CurrentCommands(direct.Capture()));
                 }
+            }
+            if (effect == 331)
+            {
+                NativeBattleActor33CaptureAssertions.AssertFrame(direct.Capture(), effect);
+                NativeBattleActor33CaptureAssertions.AssertFrame(cold.Capture(), effect);
+            }
+            if (gilgamesh is not null)
+            {
+                NativeBattleGilgameshCaptureAssertions.AssertFrame(direct.Capture(), effect);
+                NativeBattleGilgameshCaptureAssertions.AssertFrame(cold.Capture(), effect);
             }
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             if (effect == 18 && cold.NativeGraphics?.OriginalEffect?.Binding.Effect == 18)

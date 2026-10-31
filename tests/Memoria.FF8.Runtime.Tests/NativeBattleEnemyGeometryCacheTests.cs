@@ -110,6 +110,40 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         Assert.Equal((short)42, BinaryPrimitives.ReadInt16LittleEndian(source.Read(address + 128 + 14, 2)));
     }
 
+    [Fact]
+    public void Selected327_geometry_epoch_follows_actual_CPU_reference_across_fresh_views_and_same_address_replacement()
+    {
+        byte[] geometry = Geometry(16);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess();
+        NativeBattleModelCpuResourceRow row = cpu.Rows[3].Set(12, new(3, 0)).Set(20, new(3, 64)).Set(24, new(3, 80)).Set(16, new(3, 128)).Set(44, null).Set(48, null);
+        row = row with { Lengths = row.Lengths.SetItem(20, 12).SetItem(24, 2).SetItem(16, geometry.Length) };
+        cpu = cpu with { Rows = cpu.Rows.SetItem(3, row) };
+        byte[] skeleton = new byte[64];
+        skeleton[0] = 1;
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
+        byte[] animations = [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0];
+        uint address = NativeBattleModelCpuResources.EnemyAddress;
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(address, skeleton).Write(address + 64, animations).Write(address + 80, new byte[2]).Write(address + 128, geometry);
+        NativeBattleGraphicsResource original = new([0, 0]);
+        NativeBattleGraphicsResource first = NativeBattleEnemyResourceView.Resolve(cpu, source, 3, original);
+        NativeBattleGraphicsResource second = NativeBattleEnemyResourceView.Resolve(cpu, source, 3, original);
+        Assert.NotSame(first, second);
+        Assert.Same(row.Require(16), first.PilotGeometryResource);
+        Assert.Same(first.PilotGeometryResource, second.PilotGeometryResource);
+        NativeBattlePilotVisualIdentity parent = new(327, 0x21FFD68, 2, 7, 0);
+        NativeBattlePilotVisualIdentity a = NativeBattleGilgameshVisuals.Resource(parent, first.PilotGeometryResource!, first.PilotGeometryResource!.PhysicalAddress)!.Value;
+        Assert.Equal(a, NativeBattleGilgameshVisuals.Resource(parent, second.PilotGeometryResource!, second.PilotGeometryResource!.PhysicalAddress));
+        NativeBattleModelCpuReference replacement = row.Require(16) with { };
+        NativeBattleModelCpuResourceRow replaced = row with { Fields = row.Fields.Remove(16).Add(16, replacement) };
+        Assert.NotSame(row.Require(16), replaced.Require(16));
+        Assert.Equal(row.Require(16), replaced.Require(16));
+        NativeBattleGraphicsResource third = NativeBattleEnemyResourceView.Resolve(cpu with { Rows = cpu.Rows.SetItem(3, replaced) }, source, 3, original);
+        NativeBattlePilotVisualIdentity changed = NativeBattleGilgameshVisuals.Resource(parent, third.PilotGeometryResource!, third.PilotGeometryResource!.PhysicalAddress)!.Value;
+        Assert.Equal(first.PilotGeometryResource!.PhysicalAddress, third.PilotGeometryResource!.PhysicalAddress);
+        Assert.NotEqual(a.ResourceGeneration, changed.ResourceGeneration);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(third)));
+    }
+
     private static int Counts(int vertices) => (14 + vertices * 6 + 3) & ~3;
 
     private static byte[] Geometry(int vertices)

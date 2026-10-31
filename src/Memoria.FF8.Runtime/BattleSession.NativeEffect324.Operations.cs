@@ -54,14 +54,21 @@ public sealed partial class BattleSession
                 graphics = graphics with { Models = graphics.Models.SetItem(boneActor, model with { CurrentBodyBoneMatrices = bones }) };
                 return frame;
             case NativeBattleEffect324DrawModel5977D0 body:
-                var drawn = DrawNativePrimaryHistory76(frame.Memory, frame.Effect, frame.Staging, graphics, NativeEffect324Actor(graphics, body.ModelAddress));
+                graphics = graphics with { OriginalEffect = frame.Effect };
+                var drawn = DrawNativePrimaryHistory76(frame.Memory, frame.Effect, frame.Staging, graphics, NativeEffect324Actor(graphics, body.ModelAddress), NativeBattleActor33Presentation.Resource(frame.PilotIdentity, body.ModelAddress));
                 graphics = drawn.Graphics;
-                return frame with { Memory = drawn.Memory, Staging = drawn.Staging };
+                return frame with { Effect = graphics.OriginalEffect ?? throw new InvalidDataException("The body history lost its selected effect owner."), Memory = drawn.Memory, Staging = drawn.Staging };
             case NativeBattleEffect324DrawBatch draw when draw.CursorGlobal == CursorGlobal:
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect324 requires its current ordering table.");
-                NativeBattleEffect324PacketWrite written = NativeBattleEffect324PacketArena.Append(frame.State, primitive.Pending, draw.Batch, draw.Flags);
+                uint physical = frame.State.ReadDword(NativeBattleEffect324PacketArena.CursorAddress);
+                uint first = NativeBattleEffect324PacketArena.FirstAddress;
+                uint second = NativeBattleEffect324PacketArena.SecondAddress;
+                uint address = physical >= first && physical < second ? first : physical >= second && physical <= second + NativeBattleEffect324PacketArena.BankLength ? second : throw new InvalidDataException("The selected packet cursor leaves its retained banks.");
+                NativeBattleGfGeometryBatch batch = NativeBattleActor33Presentation.Depths(draw.Batch);
+                var owned = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, address == first ? NativeBattleEffect324PacketArena.FirstBank : NativeBattleEffect324PacketArena.SecondBank, 0, checked((int)(physical - address)), batch);
+                NativeBattleEffect324PacketWrite written = NativeBattleEffect324PacketArena.Append(frame.State, primitive.Pending, batch, draw.Flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-                return frame with { State = written.State };
+                return frame with { Effect = frame.Effect with { PresentationPackets = owned }, State = written.State };
             default:
                 throw new NotSupportedException($"Effect324 emitted unsupported service {operation.GetType().Name}.");
         }

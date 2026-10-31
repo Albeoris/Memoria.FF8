@@ -38,11 +38,18 @@ public static class NativeBattleGilgameshModelAPackets
 
     public static NativeBattleGilgameshModelAReveal Emit596220(NativeBattleRawMesh mesh, NativeBattleEffectArena arena, int worldOffset, int labelOffset, int relativePhase, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint modelColor, NativeBattleScriptedGraphicsMemory? registers)
     {
+        return Emit596220WithPresentation(mesh, arena, worldOffset, labelOffset, relativePhase, worldView, projection, modelColor, registers, null);
+    }
+
+    public static NativeBattleGilgameshModelAReveal Emit596220WithPresentation(NativeBattleRawMesh mesh, NativeBattleEffectArena arena, int worldOffset, int labelOffset, int relativePhase, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint modelColor, NativeBattleScriptedGraphicsMemory? registers, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         RequirePlain(mesh);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        int faceIndex = 0;
         foreach (NativeBattleRawPolygon polygon in Ordered(mesh))
         {
+            int capturedFace = faceIndex++;
             ushort label = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(labelOffset, 2));
             labelOffset = checked(labelOffset + 2);
             if (relativePhase < (label & 0x3FFF))
@@ -50,9 +57,15 @@ public static class NativeBattleGilgameshModelAPackets
                 continue;
             }
             NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[polygon.Quad ? 4 : 3];
+            System.Numerics.Vector3[]? worlds = pilotIdentity.HasValue ? new System.Numerics.Vector3[projected.Length] : null;
             for (int corner = 0; corner < 3; corner++)
             {
-                projected[corner] = NativeBattleModuleProjection.Project45FE10(worldView, Point(arena, worldOffset, Index(polygon, corner)), projection);
+                NativeBattleVector point = Point(arena, worldOffset, Index(polygon, corner));
+                if (worlds is not null)
+                {
+                    worlds[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(worldView, point), projection);
+                }
+                projected[corner] = NativeBattleModuleProjection.Project45FE10(worldView, point, projection);
             }
             int length = polygon.Quad ? 40 : 32;
             byte[] bytes = new byte[length];
@@ -74,7 +87,12 @@ public static class NativeBattleGilgameshModelAPackets
             if (polygon.Quad)
             {
                 NativeBattleScriptedGraphicsMemory current = registers ?? throw new NotSupportedException("Native596220 requires its actual current DQA/DQB registers.");
-                projected[3] = NativeBattleModuleProjection.Project45FAA0(worldView, Point(arena, worldOffset, Index(polygon, 3)), projection, current.Dqa, current.Dqb);
+                NativeBattleVector fourth = Point(arena, worldOffset, Index(polygon, 3));
+                if (worlds is not null)
+                {
+                    worlds[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(worldView, fourth), projection);
+                }
+                projected[3] = NativeBattleModuleProjection.Project45FAA0(worldView, fourth, projection, current.Dqa, current.Dqb);
                 Store(28, BinaryPrimitives.ReadUInt32LittleEndian(polygon.Bytes.AsSpan().Slice(16)));
                 Store(32, projected[3].Screen);
                 Store(36, unchecked((uint)(int)BinaryPrimitives.ReadInt16LittleEndian(polygon.Bytes.AsSpan().Slice(18))));
@@ -107,6 +125,7 @@ public static class NativeBattleGilgameshModelAPackets
             }
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, precision) { PhysicalWriteMask = mask.ToImmutableArray() };
+            primitive = NativeBattleGilgameshVisuals.Capture(primitive, pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 65537 + capturedFace) } : null, worlds);
             attempts.Add(new(allocation, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocation = checked(allocation + length);
 

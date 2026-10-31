@@ -66,12 +66,19 @@ public static partial class NativeBattleEffect324Controller
         return (WithPool(frame, index, step.Pool), step.Survivors);
     }
 
-    public static NativeBattleEffect324Step AdvanceTask(NativeBattleEffect324Frame frame, uint address, NativeBattleEffect324Resources resources, NativeBattleEffect324Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect324Step AdvanceTask(NativeBattleEffect324Frame frame, uint address, NativeBattleEffect324Resources resources, NativeBattleEffect324Inputs inputs)
     {
-        RootCallback => AdvanceRoot5979A0(frame, address, resources, inputs),
-        MainCallback => AdvanceMain596C70(frame, address, inputs),
-        _ => NativeBattleEffect324Lower.Advance(frame, address, resources, inputs)
-    };
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(324, task) : null };
+        NativeBattleEffect324Step step = task.Callback switch
+        {
+            RootCallback => AdvanceRoot5979A0(frame, address, resources, inputs),
+            MainCallback => AdvanceMain596C70(frame, address, inputs),
+            _ => NativeBattleEffect324Lower.Advance(frame, address, resources, inputs)
+        };
+        return step with { Frame = step.Frame with { PilotIdentity = parent } };
+    }
 
     public static NativeBattleEffect324Frame InitializeRecords(NativeBattleEffect324Frame frame)
     {

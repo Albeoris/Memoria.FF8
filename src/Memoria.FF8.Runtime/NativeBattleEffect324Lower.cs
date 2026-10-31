@@ -39,7 +39,7 @@ public static class NativeBattleEffect324Lower
 
     public static NativeBattleEffect324Frame DrawSprite324(NativeBattleEffect324Frame frame, uint temporary, NativeBattleEffect324Resources resources, NativeBattleEffect324Inputs inputs)
     {
-        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: frame.PilotIdentity);
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect324DrawBatch(result.Batch, 0x221BC60));
     }

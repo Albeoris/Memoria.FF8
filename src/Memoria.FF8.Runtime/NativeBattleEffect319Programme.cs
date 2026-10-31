@@ -12,6 +12,10 @@ public static class NativeBattleEffect319Programme
         NativeBattleGfAnimationWorkspace cache = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, clearBytes);
         cache = cache.Initialize7016B0(resources.Act(source), clearBytes);
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
+        if (frame.CapturePresentation)
+        {
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, workspace);
+        }
         return frame;
     }
 
@@ -22,7 +26,10 @@ public static class NativeBattleEffect319Programme
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, 0, (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattleActor33Presentation.Workspace(parent, frame.Effect.Pools, workspace, source.Address, node.ResourceOffset) : null };
             frame = DrawNode(frame, source, node, caller40, resources, inputs);
+            frame = frame with { PilotIdentity = parent };
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
@@ -111,7 +118,7 @@ public static class NativeBattleEffect319Programme
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
         }
-        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, offset => ReadRow(offset).Vertex, offset => ReadRow(offset).W, 17, 2);
+        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, offset => ReadRow(offset).Vertex, offset => ReadRow(offset).W, 17, 2, pilotIdentity: NativeBattleActor33Presentation.Resource(frame.PilotIdentity, geometry, vertices));
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect319DrawBatch(draw.Batch, 0x25053A4));
         return Release(frame, 88);

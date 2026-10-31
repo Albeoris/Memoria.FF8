@@ -11,6 +11,11 @@ public static class NativeBattleGilgameshSwords
 {
     public static NativeBattleGilgameshSwordStep Step594FD0(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, ImmutableArray<NativeBattleEffectOwnedModelResource> staticModels, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags)
     {
+        return Step594FD0WithPresentation(modelMemory, arena, task, staticModels, worldView, projection, registers, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshSwordStep Step594FD0WithPresentation(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, ImmutableArray<NativeBattleEffectOwnedModelResource> staticModels, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task.PayloadLength != 24 || staticModels.IsDefault || staticModels.Length != 4)
         {
             throw new InvalidDataException("Native594FD0 requires its raw0x24-byte task and all four selected static model resources.");
@@ -40,7 +45,7 @@ public static class NativeBattleGilgameshSwords
         for (int index = 0; index < 4; index++)
         {
             NativeBattleGilgameshModelOwner owner = modelMemory.Read(Address(index));
-            NativeBattleGilgameshSwordDraw drawn = Draw5951E0(owner.State, staticModels[index], owner.ControlAddress, arena, worldView, projection, registers);
+            NativeBattleGilgameshSwordDraw drawn = Draw5951E0WithPresentation(owner.State, staticModels[index], owner.ControlAddress, arena, worldView, projection, registers, pilotIdentity);
             modelMemory = modelMemory.Write(owner.Address, drawn.State);
             arena = drawn.Arena;
             packets.Add(drawn.Packets);
@@ -64,6 +69,11 @@ public static class NativeBattleGilgameshSwords
 
     public static NativeBattleGilgameshSwordDraw Draw5951E0(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint controlAddress, NativeBattleEffectArena arena, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers)
     {
+        return Draw5951E0WithPresentation(state, resource, controlAddress, arena, worldView, projection, registers, null);
+    }
+
+    public static NativeBattleGilgameshSwordDraw Draw5951E0WithPresentation(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint controlAddress, NativeBattleEffectArena arena, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         RequireStaticSource(resource);
         NativeBattleCactuarRawModel.Validate(state, resource, new(controlAddress, 4));
         if (state.ProjectedScratch is not null)
@@ -80,7 +90,7 @@ public static class NativeBattleGilgameshSwords
         }
         NativeBattleRawMesh mesh = resource.Geometry[0];
         arena = SkinWorld595250(mesh, bones, arena, 0x31800);
-        NativeBattleGfGeometryBatch packets = NativeBattleGilgameshSwordPackets.Emit595550(mesh, arena, 0x31800, worldView, projection, unchecked((uint)Int(bytes, 0x28)), registers, 2);
+        NativeBattleGfGeometryBatch packets = NativeBattleGilgameshSwordPackets.Emit595550WithPresentation(mesh, arena, 0x31800, worldView, projection, unchecked((uint)Int(bytes, 0x28)), registers, 2, NativeBattleGilgameshVisuals.Resource(pilotIdentity, resource, resource.Address, unchecked((int)controlAddress)));
         return new(state, arena, packets);
     }
 

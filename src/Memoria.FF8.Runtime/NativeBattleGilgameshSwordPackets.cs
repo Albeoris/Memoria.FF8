@@ -8,6 +8,11 @@ public static class NativeBattleGilgameshSwordPackets
 {
     public static NativeBattleGfGeometryBatch Emit595550(NativeBattleRawMesh mesh, NativeBattleEffectArena arena, int worldOffset, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint modelColor, NativeBattleScriptedGraphicsMemory? registers, int depthShift = 2)
     {
+        return Emit595550WithPresentation(mesh, arena, worldOffset, worldView, projection, modelColor, registers, depthShift, null);
+    }
+
+    public static NativeBattleGfGeometryBatch Emit595550WithPresentation(NativeBattleRawMesh mesh, NativeBattleEffectArena arena, int worldOffset, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint modelColor, NativeBattleScriptedGraphicsMemory? registers, int depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         mesh.Validate();
         if (mesh.Polygons.Any(polygon => polygon.Bytes.Length != (polygon.Quad ? 20 : 16)))
         {
@@ -15,8 +20,10 @@ public static class NativeBattleGilgameshSwordPackets
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        int faceIndex = 0;
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons.Where(face => !face.Quad).Concat(mesh.Polygons.Where(face => face.Quad)))
         {
+            int capturedFace = faceIndex++;
             NativeBattleGilgameshSwordClipVertex first = Vertex(0, 8);
             NativeBattleGilgameshSwordClipVertex second = Vertex(1, 12);
             NativeBattleGilgameshSwordClipVertex third = Vertex(2, polygon.Quad ? 16 : 6);
@@ -52,7 +59,7 @@ public static class NativeBattleGilgameshSwordPackets
                 ImmutableArray<NativeBattleGilgameshSwordClipVertex> chosen = NativeBattleGilgameshSwordClip.Clip595B40(a, b, c);
                 if (!chosen.IsEmpty)
                 {
-                    NativeBattleGfGeometryAttempt attempt = EmitChosen(chosen, uv0, uv1, modelColor, worldView, projection, registers, depthShift, allocation);
+                    NativeBattleGfGeometryAttempt attempt = EmitChosenWithPresentation(chosen, uv0, uv1, modelColor, worldView, projection, registers, depthShift, allocation, pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 65537 + capturedFace * 2 + (firstGate ? 0 : 1)) } : null);
                     attempts.Add(attempt);
                     allocation = checked(allocation + attempt.PacketLength);
                 }
@@ -63,6 +70,11 @@ public static class NativeBattleGilgameshSwordPackets
     }
 
     public static NativeBattleGfGeometryAttempt EmitChosen(ImmutableArray<NativeBattleGilgameshSwordClipVertex> points, uint uv0Clut, uint uv1Page, uint modelColor, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, int depthShift = 2, int byteOffset = 0)
+    {
+        return EmitChosenWithPresentation(points, uv0Clut, uv1Page, modelColor, worldView, projection, registers, depthShift, byteOffset, null);
+    }
+
+    public static NativeBattleGfGeometryAttempt EmitChosenWithPresentation(ImmutableArray<NativeBattleGilgameshSwordClipVertex> points, uint uv0Clut, uint uv1Page, uint modelColor, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, int depthShift = 2, int byteOffset = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (points.IsDefault || points.Length is not (3 or 4))
         {
@@ -121,6 +133,7 @@ public static class NativeBattleGilgameshSwordPackets
         }
         ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
         NativeBattleGeometryPrimitive primitive = new(bucket, words, precision) { PhysicalWriteMask = mask.ToImmutableArray() };
+        primitive = NativeBattleGilgameshVisuals.Capture(primitive, pilotIdentity, pilotIdentity.HasValue ? points.Select(point => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(worldView, point.Position), projection)).ToArray() : null);
         return new(byteOffset, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive);
 
         void Store(int offset, uint value)

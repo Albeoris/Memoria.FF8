@@ -7,11 +7,17 @@ public static class NativeBattleGilgameshFlare
 {
     public static NativeBattleGilgameshFlareStep Step591470(NativeBattleModulePoolTask task, NativeBattleGilgameshFlareResources resources, NativeBattleCameraProjection projection, uint graphicsFlags)
     {
+        return Step591470WithPresentation(task, resources, projection, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshFlareStep Step591470WithPresentation(NativeBattleModulePoolTask task, NativeBattleGilgameshFlareResources resources, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         resources.Validate();
         NativeBattleStaticMeshResource source = task.ReadWord(0x0E) == 0 ? resources.SourceA : resources.SourceB;
         NativeBattleActionMatrix matrix = Matrix(task);
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Bytes, 0, default, matrix, projection with { FocalLength = 0x120 }, new(0x33, null, null, null, null, null, 17, 2));
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Bytes, 0, default, matrix, projection with { FocalLength = 0x120 }, new(0x33, null, null, null, null, null, 17, 2), pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, source, source.Address));
+        batch = NativeBattleGilgameshVisuals.Focal(batch, 0x120);
         if ((graphicsFlags & 0x201) != 0)
         {
             return new(task, batch, 0);

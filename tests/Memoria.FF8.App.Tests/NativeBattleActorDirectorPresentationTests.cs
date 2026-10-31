@@ -198,6 +198,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int captured101Frames = 0;
         int contextBodyCapturedFrames = 0;
         int offsetBodyCapturedFrames = 0;
+        int actor33CapturedFrames = 0;
         int actorLowerCapturedFrames = 0;
         int customComponentCapturedFrames = 0;
         int actor32CapturedFrames = 0;
@@ -1638,6 +1639,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (effectId == 298 && NativeBattleOffsetBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
                     offsetBodyCapturedFrames++;
+                }
+                if (effectId is 316 or 318 or 319 or 324 && NativeBattleActor33CaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    actor33CapturedFrames++;
                 }
                 if (effectId is 133 or 137 && NativeBattleContextBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
@@ -7201,6 +7206,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
             {
                 Assert.True(offsetBodyCapturedFrames > 1, "The full original offset-body component must reach moving owned capture on multiple native callbacks.");
             }
+            if (effectId is 316 or 318 or 319 or 324)
+            {
+                Assert.True(actor33CapturedFrames > 1);
+            }
             if (effectId == 101)
             {
                 Assert.True(captured101Frames > 1);
@@ -8324,6 +8333,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     NativeBattleActor32CaptureAssertions.AssertFrame(direct.Capture(), effectId);
                     NativeBattleActor32CaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
+                if (effectId is 316 or 318 or 319 or 324)
+                {
+                    NativeBattleActor33CaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleActor33CaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 if (effectId == 181)

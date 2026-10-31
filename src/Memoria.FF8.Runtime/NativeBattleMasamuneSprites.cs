@@ -40,6 +40,11 @@ public static class NativeBattleMasamuneSprites
 
     public static NativeBattleMasamuneSpriteStep Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary, NativeBattleModuleResource resource, ushort phase, short angle, bool ring, short size, NativeBattleCameraProjection projection, short cameraRoll)
     {
+        return DrawWithPresentation(memory, staging, temporary, resource, phase, angle, ring, size, projection, cameraRoll, null);
+    }
+
+    public static NativeBattleMasamuneSpriteStep DrawWithPresentation(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary, NativeBattleModuleResource resource, ushort phase, short angle, bool ring, short size, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         NativeBattleGeometryRegisterStep step = new(memory.GeometryRegisters ?? throw new NotSupportedException("Masamune sprites require their current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Masamune sprites require their current data registers."));
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune sprites require their current projection controls.");
         NativeBattlePackedMatrix32 captured = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(step.Geometry);
@@ -48,6 +53,8 @@ public static class NativeBattleMasamuneSprites
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
             Resource = resource,
+            PilotIdentity = pilotIdentity,
+            PilotProjection = pilotIdentity.HasValue ? projection : null,
             SpriteFrame = resource.ProjectedFrame571C80(phase),
             Phase = phase,
             Anchor = new(0, 0, 0, 0),

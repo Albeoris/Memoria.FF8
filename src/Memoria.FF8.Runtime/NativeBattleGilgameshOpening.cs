@@ -40,6 +40,11 @@ public static class NativeBattleGilgameshOpening
 
     public static NativeBattleGilgameshOpeningStep Step(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null)
     {
+        return StepWithPresentation(task, resources, worldView, projection, graphicsFlags, colors, null);
+    }
+
+    public static NativeBattleGilgameshOpeningStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         resources.Validate();
         bool baseTask = task.Callback == 0x592E90;
@@ -52,7 +57,7 @@ public static class NativeBattleGilgameshOpening
         };
         NativeBattleActionMatrix matrix = Matrix(task, worldView);
         NativeBattleModuleMeshContext context = new(baseTask ? 0u : 0xC3u, 0, baseTask ? null : Signed(task, 0x22), null, null, null, 17, baseTask ? (byte)1 : (byte)2);
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, mesh, mesh.Address));
         if ((graphicsFlags & 0x201) != 0)
         {
             return new(task, batch, 0);

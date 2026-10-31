@@ -156,11 +156,15 @@ public sealed partial class BattleSession
             int bucket = OtBucket(tableAddress);
             batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
         }
+        if (graphics.OriginalEffect is { Binding.Effect: 331 })
+        {
+            batch = NativeBattleCinematic33Presentation.Depths(batch);
+        }
         NativeBattleEffectMemory memory = inputMemory with { Arena = current.Arena, ScriptedEffects = current.Core };
         NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic packets require their current ordering table.");
         if (output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length)
         {
-            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect))))
+            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic33Presentation.Owns(selected.Binding.Effect))))
             {
                 graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), batch) } };
             }
@@ -175,7 +179,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native cinematic output disagrees with its COMMON packet cursor.");
             }
-            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect))))
+            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic33Presentation.Owns(selected.Binding.Effect))))
             {
                 graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
             }

@@ -37,7 +37,12 @@ public static partial class NativeBattleEffect316Body
         row = row.Write(13, [unchecked((byte)(-3 - (vy >> 11)))]);
         frame = NextRandom662570(frame, out int vz);
         row = row.Write(14, [unchecked((byte)((vz >> 13) - 2))]);
-        return Write(frame, inputs, rowAddress, row, 16);
+        frame = Write(frame, inputs, rowAddress, row, 16);
+        if (frame.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, rowAddress, 0);
+        }
+        return frame;
 
         short Life(uint address) => Word(inputs.ReadArena(frame, address + 6, 2), 0);
     }
@@ -92,7 +97,7 @@ public static partial class NativeBattleEffect316Body
         int count = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(offset));
         context = PutDword(PutDword(PutDword(context, 0, source.Address), 0x2C, checked(source.Address + (uint)offset + 4)), 0x30, unchecked((uint)count));
         frame = Write(frame, inputs, temporary, context, 0xB4);
-        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame));
+        NativeBattleEffect318RasterStep draw = NativeBattleEffect318Raster.DrawLoaded(frame.Memory, context, source, inputs.ReadProjection(frame), NativeBattleActor33Presentation.Row(frame.PilotIdentity, frame.Memory.Arena!, address, source.Address));
         frame = Write(frame with { Memory = draw.Memory }, inputs, temporary, draw.Temporary180, 0xB4);
         frame = inputs.Execute(frame, new NativeBattleEffect316DrawBatch(draw.Batch, PrivateCursorGlobal));
         row = inputs.ReadArena(frame, address, 16);

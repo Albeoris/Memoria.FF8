@@ -14,14 +14,23 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Gilgamesh requires its current geometry color registers.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Gilgamesh requires its current camera projection.");
         NativeBattleGilgameshFrame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Native Gilgamesh requires its retained CRT random owner.")) { Staging = NativeFileStaging };
+        if (!initialize)
+        {
+            graphics.ModuleEffects.RequireGilgameshPresentation(effect);
+        }
         NativeBattleGilgameshInputs inputs = new(graphics.Flags, nativeActionPackets, projection, scripted.Dqa, scripted.Dqb, colors, ReadAnchor571400, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Gilgamesh requires its actual signed IO result."), () => NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Gilgamesh requires its current camera globals."), Execute)
         {
+            CapturePresentation = true,
             ReadProjection = () => NativeCamera?.Projection ?? throw new NotSupportedException("Gilgamesh requires its current native projection."),
             ReadFocalShadow = () => NativeCamera?.FocalLength ?? throw new NotSupportedException("Gilgamesh requires its retained signed focal shadow."),
             ReadModelWord26 = actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
             ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
         };
         frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.Models) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
+        if (initialize)
+        {
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.EnterGilgameshPresentation(frame.Effect) };
+        }
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
         nativeCrtRandom = frame.Random;
@@ -100,8 +109,11 @@ public sealed partial class BattleSession
                     NativeCamera = focalCamera with { Projection = (focalCamera.Projection ?? throw new NotSupportedException("Masamune requires its actual GTE projection H.")) with { FocalLength = focal.Value } };
                     return current;
                 case NativeBattleGilgameshPackets packets:
+                    NativeBattleGfGeometryBatch capturedBatch = NativeBattleGilgameshVisuals.Depths(packets.Batch);
+                    NativeBattlePrimitiveProcess capturedProcess = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current common packet owner.");
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, capturedProcess.PacketBank!, capturedProcess.PacketBuffer, capturedProcess.ByteCursor!.Value, capturedBatch) } };
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Gilgamesh requires its initialized ordering table.");
-                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current common packet owner."), primitive.Pending, packets.Batch);
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current common packet owner."), primitive.Pending, capturedBatch);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
                 case NativeBattleGilgameshPacketCursorAdvance advance:
@@ -113,7 +125,10 @@ public sealed partial class BattleSession
                     }
                     return current with { Memory = current.Memory with { PrimitiveProcess = process with { ByteCursor = cursor } } };
                 case NativeBattleGilgameshSprites sprites:
-                    graphics = AppendNativeModulePacketBatch(graphics, sprites.Batch, null, null);
+                    NativeBattleModulePacketBatch capturedSprites = NativeBattleGilgameshVisuals.Depths(sprites.Batch);
+                    NativeBattlePrimitiveProcess spriteProcess = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current sprite packet owner.");
+                    current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(capturedSprites.Primitives.Select(item => new NativeBattlePrimitiveReference(spriteProcess.PacketBank!, spriteProcess.PacketBuffer, checked(spriteProcess.ByteCursor!.Value + item.ByteOffset)))) } };
+                    graphics = AppendNativeModulePacketBatch(graphics, capturedSprites, null, null);
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Gilgamesh sprite submission lost its current memory.") };
                 case NativeBattleGilgameshContacts contacts:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -201,7 +216,7 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueArenaTim505E30(current.Memory.Arena ?? throw new NotSupportedException("Native Gilgamesh upload requires its actual arena."), operation.First);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleGilgameshDirectorService.QueueColor:
-                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)operation.First), unchecked((short)operation.Second), unchecked((short)operation.Third), unchecked((short)operation.Fourth)) };
+                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendGilgameshFlash(current.Effect.Binding.Effect, operation.PresentationSource ?? throw new InvalidDataException("Gilgamesh flash lost its actual director source task."), operation.PresentationCounter ?? throw new InvalidDataException("Gilgamesh flash lost its executed director counter."), unchecked((short)operation.First), unchecked((short)operation.Second), unchecked((short)operation.Third), unchecked((short)operation.Fourth)) };
                     return current;
                 case NativeBattleGilgameshDirectorService.Title:
                     graphics = PublishNativeOriginalEffectTitle(graphics, graphics.ActionGraphics ?? throw new NotSupportedException("Native50A750 requires its current action title context."));

@@ -49,12 +49,19 @@ public static partial class NativeBattleEffect316Controller
         return survivors == 0 ? DetachBanks(frame) : frame;
     }
 
-    public static NativeBattleEffect316Step AdvanceTask(NativeBattleEffect316Frame frame, uint address, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect316Step AdvanceTask(NativeBattleEffect316Frame frame, uint address, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs)
     {
-        RootCallback => AdvanceRoot661190(frame, address, resources, inputs),
-        MainCallback => AdvanceMain661350(frame, address, resources, inputs),
-        _ => throw new NotSupportedException("Effect316 reached an unsupported task callback.")
-    };
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(316, task) : null };
+        NativeBattleEffect316Step step = task.Callback switch
+        {
+            RootCallback => AdvanceRoot661190(frame, address, resources, inputs),
+            MainCallback => AdvanceMain661350(frame, address, resources, inputs),
+            _ => throw new NotSupportedException("Effect316 reached an unsupported task callback.")
+        };
+        return step with { Frame = step.Frame with { PilotIdentity = parent } };
+    }
 
     public static (NativeBattleEffect316Frame Frame, int Survivors) AdvancePool(NativeBattleEffect316Frame frame, int index, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs)
     {

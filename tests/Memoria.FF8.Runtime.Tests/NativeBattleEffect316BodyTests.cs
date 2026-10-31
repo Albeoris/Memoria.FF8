@@ -201,10 +201,63 @@ public sealed class NativeBattleEffect316BodyTests
         Assert.DoesNotContain(true, temporary.ReadSnapshot(0x96, 2).Known);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Captured_body_keeps_native_projection_scratch_and_accepted_deformed_world_quarter_depth(bool expanded)
+    {
+        Fixture Build(bool capture)
+        {
+            Fixture fixture = new();
+            fixture.View = NativeBattleCuragaMatrices.Identity8DD770();
+            uint raw = Fixture.Base + 0x2000;
+            uint context = Fixture.Base + 0x1000;
+            uint output = Fixture.Base + 0x3000;
+            uint face = Fixture.Base + 0x4000;
+            int cursor = expanded ? 0x74 : 0x54;
+            int stride = expanded ? 16 : 8;
+            NativeBattleEffectArena points = PutWord(NativeBattleEffectArena.Clear(), 0, 3);
+            for (int index = 0; index < 3; index++)
+            {
+                points = PutWord(PutWord(points, 2 + index * 6, index == 0 ? -20 : index == 1 ? 20 : 0), 6 + index * 6, 4000);
+            }
+            fixture.Store(raw, points, 20);
+            fixture.Store(output, NativeBattleEffectArena.Clear().MarkUnknown(0, stride * 3), stride * 3);
+            fixture.Store(context, PutDword(PutDword(NativeBattleEffectArena.Clear(), cursor, raw), cursor + 4, output), expanded ? 0x90 : 0x64);
+            fixture.Store(context, PutWord(fixture.Read(context, expanded ? 0x90 : 0x64), expanded ? 0x6C : 0x4C, -256), expanded ? 0x90 : 0x64);
+            if (capture)
+            {
+                fixture.Frame = fixture.Frame with { CapturePresentation = true, PilotIdentity = new(316, 0x2505510, 0, 55, 1) };
+            }
+            fixture.Frame = expanded ? ProjectGroup662630(fixture.Frame, fixture.Inputs(), context) : ProjectGroup663760(fixture.Frame, fixture.Inputs(), context);
+            NativeBattleEffectArena faceBytes = PutWord(PutWord(NativeBattleEffectArena.Clear(), 2, 1), 4, 2);
+            fixture.Store(face, faceBytes, 16);
+            NativeBattleEffectArena raster = PutDword(PutDword(PutWord(PutDword(NativeBattleEffectArena.Clear(), 0, face), 8, 1), 4, output), 0x14, 0x112233);
+            fixture.Store(context, raster, expanded ? 0x90 : 0x64);
+            fixture.Frame = expanded ? Raster661EB0(fixture.Frame, null!, fixture.Inputs(), context, 17, 0) : Raster661720(fixture.Frame, null!, fixture.Inputs(), context, 17, 0);
+            return fixture;
+        }
+        Fixture plain = Build(false);
+        string expected = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Frame));
+        string packets = System.Text.Json.JsonSerializer.Serialize(plain.Draws);
+        Fixture captured = Build(true);
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(packets, System.Text.Json.JsonSerializer.Serialize(captured.Draws));
+        var primitive = Assert.Single(Assert.Single(captured.Draws).Batch.Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-20, 0, 4000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 4000), visual.C);
+        Assert.Equal(4, visual.DepthDivisor);
+        Assert.Equal(new System.Numerics.Vector4(1000, 1000, 1000, 0), visual.SourceDepths!.Value);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+    }
+
     private sealed class Fixture
     {
         public const uint Base = 0x20DFAB8;
         public NativeBattleEffect316Frame Frame;
+        public NativeBattleActionMatrix? View;
         public List<NativeBattleEffect316DrawBatch> Draws = [];
 
         public Fixture()
@@ -218,7 +271,7 @@ public sealed class NativeBattleEffect316BodyTests
         public void Store(uint address, NativeBattleEffectArena data, int length) => Frame = WriteArena(Frame, address, data, length);
         private static NativeBattleEffect316Frame WriteArena(NativeBattleEffect316Frame frame, uint address, NativeBattleEffectArena data, int length) => frame with { Memory = frame.Memory with { Arena = NativeBattleEffectNodeContextMemory.Copy(data, 0, frame.Memory.Arena!, checked((int)(address - Base)), length) } };
 
-        public NativeBattleEffect316Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), _ => 0, (frame, address, length) => NativeBattleEffectNodeContextMemory.Copy(frame.Memory.Arena!, checked((int)(address - Base)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length), null!, null!, (frame, _) => new(frame, Base + 0x9000), (frame, _) => frame, (frame, operation) =>
+        public NativeBattleEffect316Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(View, 100, 160, 108), _ => 0, (frame, address, length) => NativeBattleEffectNodeContextMemory.Copy(frame.Memory.Arena!, checked((int)(address - Base)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length), null!, null!, (frame, _) => new(frame, Base + 0x9000), (frame, _) => frame, (frame, operation) =>
         {
             switch (operation)
             {

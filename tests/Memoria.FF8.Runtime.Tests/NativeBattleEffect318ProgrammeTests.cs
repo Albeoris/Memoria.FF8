@@ -70,6 +70,134 @@ public sealed class NativeBattleEffect318ProgrammeTests
         Assert.Empty(fixture.Operations);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_selected_node_capture_keeps_native_XYZ_W_morph_stores_packets_and_worlds(bool morph)
+    {
+        (NativeBattleGfAnimationSource source, NativeBattleStaticMeshResource mesh) = CapturedSource();
+        Fixture Build(bool capture)
+        {
+            Fixture fixture = new(0x65F2B0);
+            fixture.Resources = fixture.Resources with { Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh) };
+            if (capture)
+            {
+                fixture.Frame = fixture.Frame with { CapturePresentation = true, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(318, Read(fixture.Frame, fixture.Address), 44) };
+            }
+            return fixture;
+        }
+        NativeBattleGfAnimationNode node = Node(0x200, 0, 0, morph ? (short)1 : (short)0, morph ? (short)2048 : (short)0);
+        Fixture plainFixture = Build(false);
+        Fixture capturedFixture = Build(true);
+        uint scratch = Fixture.Arena + 0x19D8;
+        NativeBattleEffectArena caller = Caller(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }).Write(0x24, BitConverter.GetBytes(scratch));
+        var plain = NativeBattleEffect318Programme.DrawNode(plainFixture.Frame, source, node, caller, plainFixture.Resources, CapturedInputs(plainFixture));
+        string expected = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain));
+        string packets = System.Text.Json.JsonSerializer.Serialize(plainFixture.Operations);
+        var captured = NativeBattleEffect318Programme.DrawNode(capturedFixture.Frame, source, node, caller, capturedFixture.Resources, CapturedInputs(capturedFixture));
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+        Assert.Equal(packets, System.Text.Json.JsonSerializer.Serialize(capturedFixture.Operations));
+        var batch = Assert.IsType<NativeBattleEffect318DrawBatch>(Assert.Single(capturedFixture.Operations)).Batch;
+        var primitive = Assert.Single(batch.Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(morph ? -10 : -20, -20, 2000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(morph ? 10 : 0, 20, 2000), visual.C);
+        Assert.Equal((ushort)318, visual.Identity.Effect);
+        Assert.True(visual.Identity.Generation > 0);
+        Assert.NotEqual(0, visual.Identity.ResourceGeneration);
+        Assert.False(visual.ScreenSpace);
+    }
+
+    [Fact]
+    public void Live_programme_nodes_keep_actual_task_workspace_identity_until_successful_reinitialize()
+    {
+        (NativeBattleGfAnimationSource original, NativeBattleStaticMeshResource mesh) = CapturedSource();
+        byte[] bytes = new byte[192];
+        original.Data.CopyTo(bytes);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 128);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(128), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(132), 3);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(136), 32);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(160), 0x200);
+        NativeBattleGfAnimationSource source = original with { Data = bytes.ToImmutableArray() };
+        const uint bank = 0x40000000;
+        const uint workspace = bank + 32;
+        Fixture Build(bool capture)
+        {
+            Fixture fixture = new(0x65F2B0);
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x50000000, bank, 256, 1);
+            (pool, int slot) = pool.Append(0x65F2B0);
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[244]));
+            fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool] }, CapturePresentation = capture, PilotIdentity = capture ? NativeBattlePilotVisualLifetimes.Identity(318, pool.Slots[slot]) : null };
+            fixture.Resources = fixture.Resources with { Programmes = fixture.Resources.Programmes.Add(source.Address, source), Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh) };
+            fixture.Frame = NativeBattleEffect318Programme.Initialize(fixture.Frame, workspace, source.Address, 64, fixture.Resources);
+            return fixture;
+        }
+        NativeBattleEffectArena caller = Caller(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 });
+        Fixture plain = Build(false);
+        Fixture captured = Build(true);
+        for (int frame = 0; frame < 2; frame++)
+        {
+            plain.Frame = NativeBattleEffect318Programme.Advance(plain.Frame, workspace, 64, caller, plain.Resources, CapturedInputs(plain)).Frame;
+        }
+        string native = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plain.Frame));
+        string packets = System.Text.Json.JsonSerializer.Serialize(plain.Operations);
+        for (int frame = 0; frame < 2; frame++)
+        {
+            captured.Frame = NativeBattleEffect318Programme.Advance(captured.Frame, workspace, 64, caller, captured.Resources, CapturedInputs(captured)).Frame;
+        }
+        Assert.Equal(native, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal(packets, System.Text.Json.JsonSerializer.Serialize(captured.Operations));
+        NativeBattlePilotVisualIdentity Identity(int index)
+        {
+            var batch = Assert.IsType<NativeBattleEffect318DrawBatch>(captured.Operations[index]).Batch;
+            return Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(batch.Attempts).Primitive!.PilotGeometry).Identity;
+        }
+        NativeBattlePilotVisualIdentity first = Identity(0);
+        Assert.Equal(first, Identity(1));
+        captured.Frame = NativeBattleEffect318Programme.Initialize(captured.Frame, workspace, source.Address, 64, captured.Resources);
+        captured.Frame = NativeBattleEffect318Programme.Advance(captured.Frame, workspace, 64, caller, captured.Resources, CapturedInputs(captured)).Frame;
+        Assert.Equal(first.Generation, Identity(2).Generation);
+        Assert.NotEqual(first.ResourceGeneration, Identity(2).ResourceGeneration);
+    }
+
+    private static NativeBattleEffect318Inputs CapturedInputs(Fixture fixture) => fixture.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) };
+
+    private static (NativeBattleGfAnimationSource Source, NativeBattleStaticMeshResource Mesh) CapturedSource()
+    {
+        byte[] bytes = new byte[128];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 16);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), 60);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), 3);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24), 2);
+        short[] x = [-20, 20, 0];
+        short[] y = [-20, -20, 20];
+        for (int shape = 0; shape < 2; shape++)
+        {
+            for (int vertex = 0; vertex < 3; vertex++)
+            {
+                int offset = 28 + shape * 24 + vertex * 8;
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), unchecked((short)(x[vertex] + shape * 20)));
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), y[vertex]);
+            }
+        }
+        int cursor = 76;
+        for (int group = 0; group < 8; group++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(cursor), group == 2 ? 1 : 0);
+            cursor += 4;
+            if (group == 2)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor), 0x24112233);
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor + 6), 2);
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor + 8), 4);
+                cursor += 20;
+            }
+        }
+        var source = new NativeBattleGfAnimationSource(0xFF8520, bytes.ToImmutableArray());
+        return (source, new(0, source.Address + 16, bytes.AsSpan(16).ToArray().ToImmutableArray()));
+    }
+
     private static NativeBattleEffectArena Caller(NativeBattleActionMatrix matrix) => PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)).Write(0x20, BitConverter.GetBytes(-128));
 
     private static NativeBattleGfAnimationNode Node(uint header, short x, short first = 0, short second = 0, short factor = 0)

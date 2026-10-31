@@ -35,6 +35,11 @@ public static partial class NativeBattleGilgameshSwordParticles
 
     public static NativeBattleGilgameshSwordParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshSwordParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, Func<int, byte, short, NativeBattleVector> readSwordBone, NativeBattleSummonColors? colors = null)
     {
+        return StepWithPresentation(task, arena, random, resources, worldView, projection, graphicsFlags, readSwordBone, colors, null);
+    }
+
+    public static NativeBattleGilgameshSwordParticleStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshSwordParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, Func<int, byte, short, NativeBattleVector> readSwordBone, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task is null || task.PayloadLength != 24 || task.Callback is not (0x5948A0 or 0x594CA0))
         {
             throw new InvalidDataException("Native sword particles require their selected raw0x24-byte callback task.");
@@ -70,6 +75,10 @@ public static partial class NativeBattleGilgameshSwordParticles
                     break;
                 }
                 (arena, random) = Spawn(arena, record, mask, mesh, random);
+                if (pilotIdentity.HasValue)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), (record - bank) / stride);
+                }
             }
         }
         int sword = Signed(task, 30);
@@ -101,7 +110,7 @@ public static partial class NativeBattleGilgameshSwordParticles
                 {
                     arena = PutWord(arena, record + 6, unchecked((16 - age) * Word(arena, record + 14) << 9) >> 12);
                 }
-                meshes.Add(NativeBattleModulePackets.EmitBatch572200(resources.Mesh.Bytes, 0, default, matrix, projection, new(0, 0, null, null, null, null, 17, 2), colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270));
+                meshes.Add(NativeBattleModulePackets.EmitBatch572200(resources.Mesh.Bytes, 0, default, matrix, projection, new(0, 0, null, null, null, null, 17, 2), colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), index, resources.Mesh, resources.Mesh.Address)));
                 dead = age >= 16;
             }
             else
@@ -110,6 +119,8 @@ public static partial class NativeBattleGilgameshSwordParticles
                 NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
                 {
                     Resource = resources.Sprite,
+                    PilotProjection = pilotIdentity.HasValue ? projection : null,
+                    PilotIdentity = NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), index, resources.Sprite, resources.Sprite.Address),
                     SpriteFrame = frame,
                     Phase = unchecked((ushort)age),
                     Anchor = new(Word(arena, record + 8), Word(arena, record + 10), Word(arena, record + 12), 0),

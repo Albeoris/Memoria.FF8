@@ -8,6 +8,11 @@ public static partial class NativeBattleGilgameshCommonParticles
 {
     public static NativeBattleGilgameshParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshCommonParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags)
     {
+        return StepWithPresentation(task, arena, random, resources, worldView, projection, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshParticleStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshCommonParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         if (task.Callback is not (0x593770 or 0x5939C0))
         {
@@ -40,6 +45,10 @@ public static partial class NativeBattleGilgameshCommonParticles
                     break;
                 }
                 (arena, random) = Spawn(arena, record, counter, moving, random);
+                if (pilotIdentity.HasValue)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), (record - bank) / stride);
+                }
             }
         }
         ImmutableArray<NativeBattleModulePacketBatch>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleModulePacketBatch>();
@@ -56,6 +65,8 @@ public static partial class NativeBattleGilgameshCommonParticles
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
                 Resource = resources.Sprite,
+                PilotProjection = pilotIdentity.HasValue ? projection : null,
+                PilotIdentity = NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), index, resources.Sprite, resources.Sprite.Address),
                 SpriteFrame = frame,
                 Phase = unchecked((ushort)phase),
                 Anchor = new(Word(arena, record + 8), Word(arena, record + 10), Word(arena, record + 12), 0),

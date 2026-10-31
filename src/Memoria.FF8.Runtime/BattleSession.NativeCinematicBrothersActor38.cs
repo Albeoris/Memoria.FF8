@@ -42,7 +42,12 @@ public sealed partial class BattleSession
             current = pose.Frame;
             graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Compose5095B0(graphics.Models[index], basis)) };
             ImmutableArray<NativeBattleActionMatrix> bones = graphics.Models[index].CurrentBodyBoneMatrices!.Matrices;
-            current = NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, bones.Length, bones[0].X, bones[0].Z, (_, bone) => graphics.Models[index].CurrentBodyBoneMatrices!.Matrices[bone], (_, bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(0x12 + 48 * bone, 2)), position, -1, 0, 0, NativeBattleCameraMath.Cosine(512), _ => graphics.Models[index].Color44 ?? throw new NotSupportedException("Native Brothers actor fan requires its current packed physical model color."), ringServices, !scaledActor);
+            NativeBattleCinematicBrothersModelServices selectedRingServices = ringServices;
+            if (graphics.OriginalEffect is { Binding.Effect: 331 } && ringServices.PilotIdentity is { } identity)
+            {
+                selectedRingServices = ringServices with { PilotIdentity = NativeBattleCinematicVisualIdentity.SelectedResource(identity, NativeBattleModelResourceRow.Address100(graphics.Models[index])) };
+            }
+            current = NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, bones.Length, bones[0].X, bones[0].Z, (_, bone) => graphics.Models[index].CurrentBodyBoneMatrices!.Matrices[bone], (_, bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(0x12 + 48 * bone, 2)), position, -1, 0, 0, NativeBattleCameraMath.Cosine(512), _ => graphics.Models[index].Color44 ?? throw new NotSupportedException("Native Brothers actor fan requires its current packed physical model color."), selectedRingServices, !scaledActor);
             return Restore(current, address).Frame;
         }, ringServices.PublishInput, CreateNativeActorAnchorServices());
         if (scaledActor)

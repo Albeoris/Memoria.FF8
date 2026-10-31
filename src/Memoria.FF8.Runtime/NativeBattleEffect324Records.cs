@@ -63,7 +63,10 @@ public static class NativeBattleEffect324Records
             frame = frame with { Memory = NativeBattleEffect315Gte.LoadTranslation64DD70(frame.Memory, NativeBattleEffectNodeContextMemory.Copy(work, 0x38, NativeBattleEffectArena.Clear(), 0, 12)) };
             sprite = PutWord324(Context(frame, spriteAddress, 180), 4, Word324(row, 4));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
+            NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+            frame = frame with { PilotIdentity = NativeBattleActor33Presentation.Row(parent, frame.State.Storage, rowAddress, kind == 1 ? 0xCD0B88u : 0xCD0D00u) };
             frame = DrawSprite324(frame, spriteAddress, resources, inputs);
+            frame = frame with { PilotIdentity = parent };
             if (Paused324(frame, inputs))
             {
                 continue;
@@ -113,6 +116,10 @@ public static class NativeBattleEffect324Records
             }
             NativeBattleEffectArena row = PutWord324(Put324(frame.State.ReadView(address, Stride), 0, (uint)kind), 4, 0);
             frame = frame with { State = frame.State.WriteView(address, row, Stride) };
+            if (frame.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, address, 0);
+            }
             int scale = Draw(ref frame) % 1536 + (kind == 1 ? 2048 - age * 40 : (24 - age) * 32);
             frame = frame with { State = frame.State.WriteWord(address + 6, unchecked((ushort)scale)) };
             int bone = boneCount == 0 ? 0 : Draw(ref frame) % boneCount;

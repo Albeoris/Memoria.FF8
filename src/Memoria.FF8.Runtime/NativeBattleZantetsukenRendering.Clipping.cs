@@ -50,7 +50,7 @@ public static partial class NativeBattleZantetsukenRendering
             int[] first = row.Take(3).ToArray();
             int[] second = row.Skip(4).Take(secondQuad ? 4 : 3).ToArray();
             Emit(positive ? second : first, false, true);
-            LoadMatrix(inputs.Alternate);
+            LoadMatrix(inputs.Alternate, 1);
             Emit(positive ? first : second, unchecked((int)Read(temporary, 0x38)) <= 0, true);
             LoadMatrix(inputs.Main);
         }
@@ -64,6 +64,10 @@ public static partial class NativeBattleZantetsukenRendering
             }
             NativeBattleVector vector = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
             short? w = known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null;
+            if (capturedPoints is not null)
+            {
+                capturedPoints[offset] = vector;
+            }
             return NativeBattleGeometry.LoadVector(step, slot, vector, w);
         }
 
@@ -71,6 +75,7 @@ public static partial class NativeBattleZantetsukenRendering
         {
             bool quad = offsets.Length == 4;
             NativeBattleGeometryRegisterStep step = Registers;
+            NativeBattleActionMatrix? capturedMatrix = inputs.PilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(step.Geometry) : null;
             if (project)
             {
                 for (int corner = 0; corner < 3; corner++)
@@ -123,6 +128,12 @@ public static partial class NativeBattleZantetsukenRendering
             int bucket = checked(inputs.TableBaseBucket + (unchecked((int)depth) >> inputs.DepthShift));
             ImmutableArray<uint> words = Enumerable.Range(0, size / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4, 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, payload);
+            if (inputs.PilotIdentity is { } identity && capturedPoints is not null)
+            {
+                int role = unchecked(((((identity.Primitive * 397 + capturedObject) * 397 + capturedFace) * 397 + capturedTriangle) * 397 + capturedMatrixRole) * 397 + capturedPart++);
+                System.Numerics.Vector3[] worlds = offsets.Select(offset => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(capturedMatrix!, capturedPoints[offset]), inputs.Projection)).ToArray();
+                primitive = NativeBattleGilgameshVisuals.Capture(primitive, identity with { Primitive = role }, worlds);
+            }
             attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocated = checked(allocated + size);
             temporary = Pointer(temporary, 0x34, inputs.PacketAddress is uint address ? unchecked(address + (uint)allocated) : null);

@@ -34,7 +34,8 @@ public sealed partial class BattleSession
         NativeBattlePackedMatrix32 packedView = camera.CapturePackedView1D97778();
         if ((actor.Flags0 & 0x20) == 0)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireNativeZantetsukenStaging(frame), new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current arithmetic registers.")), actor, projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Zantetsuken shadow requires its depth-cue controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Zantetsuken shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Zantetsuken shadow requires its current primitive capabilities."), 4121, 16);
+            NativeBattleShadowSource shadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Zantetsuken shadow requires its original template.");
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireNativeZantetsukenStaging(frame), new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current arithmetic registers.")), actor, projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Zantetsuken shadow requires its depth-cue controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Zantetsuken shadow requires its current primitive capabilities."), 4121, 16, NativeBattleGilgameshVisuals.Resource(frame.PresentationIdentity, shadowSource, 0x5088A0, index));
             frame = frame with { Staging = shadow.Staging, Memory = frame.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors } };
             frame = AppendNativeZantetsukenPackets(ref graphics, frame, shadow.Batch);
             frame = PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), shadow.TemporaryAddress, shadow.Temporary78, 0x78, true);
@@ -47,12 +48,13 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix alternate = NativeBattleGfMatrices.Compose56C2F0(packedView.ReadMatrix(), actors.ReadMatrix((byte)index).ReadMatrix());
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
         ImmutableArray<NativeBattleZantetsukenRenderObject> objects = DiablosActorGeometry(resource, actor).Select(mesh => new NativeBattleZantetsukenRenderObject(mesh, null)).ToImmutableArray();
+        NativeBattlePilotVisualIdentity? actorIdentity = NativeBattleGilgameshVisuals.ActorResource(frame.PresentationIdentity, resource, index);
         uint mask = (actor.SequenceState ?? throw new NotSupportedException("Zantetsuken body requires its actual object mask.")).MeshMask124;
         (uint scratchAddress, int scratchLength) = NativeZantetsukenScratch();
         RequireNativeZantetsukenVertexBounds(objects, mask, scratchLength);
         NativeBattleEffectArena scratch = NativeBattleTemporaryMemory.ReadView(staging, scratchAddress, scratchLength);
         NativeBattleZantetsukenResources resources = RequireNativeZantetsukenResources(frame);
-        NativeBattleZantetsukenRenderInputs inputs = new(NativeBattlePackedMatrix32.FromMatrix(main, null), NativeBattlePackedMatrix32.FromMatrix(alternate, null), bones, _ => null, projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Zantetsuken body requires its original geometry constants."), temporaryAddress, scratchAddress, null, null, 17, 2, resources.ClipIndices);
+        NativeBattleZantetsukenRenderInputs inputs = new(NativeBattlePackedMatrix32.FromMatrix(main, null), NativeBattlePackedMatrix32.FromMatrix(alternate, null), bones, _ => null, projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Zantetsuken body requires its original geometry constants."), temporaryAddress, scratchAddress, null, null, 17, 2, resources.ClipIndices) { PilotIdentity = actorIdentity };
         NativeBattleZantetsukenRenderStep drawn = NativeBattleZantetsukenRendering.DrawBody(frame.Memory, temporary, scratch, objects, inputs, mask, actor.Color40 ?? throw new NotSupportedException("Zantetsuken body requires its current actor color."));
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, scratchAddress, drawn.VertexScratch, scratchLength) };
         frame = PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), temporaryAddress, drawn.Temporary1D8, 472, false);
@@ -109,7 +111,7 @@ public sealed partial class BattleSession
             temporary = NativeBattleTemporaryMemory.ReadView(staging, allocation.Address, 472);
             NativeBattleEffectArena scratch = NativeBattleTemporaryMemory.ReadView(staging, scratchAddress, scratchLength);
             NativeBattleZantetsukenStageOrdering ordering = resources.StageOrderPairs[groupIndex];
-            NativeBattleZantetsukenRenderInputs inputs = new(main, alternate, matrices, bone => NativeZantetsukenBonePadding(source, decoded, bone), projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Zantetsuken stage requires its original geometry constants."), allocation.Address, scratchAddress, null, null, checked((int)ordering.Bucket), checked((byte)ordering.Shift), resources.ClipIndices);
+            NativeBattleZantetsukenRenderInputs inputs = new(main, alternate, matrices, bone => NativeZantetsukenBonePadding(source, decoded, bone), projection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Zantetsuken stage requires its original geometry constants."), allocation.Address, scratchAddress, null, null, checked((int)ordering.Bucket), checked((byte)ordering.Shift), resources.ClipIndices) { PilotIdentity = NativeBattleGilgameshVisuals.Resource(frame.PresentationIdentity, source, 0, groupIndex) };
             NativeBattleZantetsukenRenderStep drawn = NativeBattleZantetsukenRendering.DrawStage(frame.Memory, temporary, scratch, objects, inputs, group.ColorFlags, group.ColorDepth);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             frame = PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), allocation.Address, drawn.Temporary1D8, 472, false);
@@ -186,6 +188,9 @@ public sealed partial class BattleSession
 
     private static NativeBattleGilgameshFrame AppendNativeZantetsukenPackets(ref NativeBattleGraphicsState graphics, NativeBattleGilgameshFrame frame, NativeBattleGfGeometryBatch batch)
     {
+        batch = NativeBattleGilgameshVisuals.Depths(batch);
+        NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Zantetsuken requires its current COMMON packet memory.");
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Zantetsuken requires its actual COMMON ordering table.");
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Zantetsuken requires its current COMMON packet memory."), primitive.Pending, batch);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };

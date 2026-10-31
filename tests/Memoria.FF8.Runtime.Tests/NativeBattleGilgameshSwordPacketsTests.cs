@@ -6,6 +6,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleGilgameshSwordPacketsTests
 {
     [Theory]
+    [InlineData((ushort)327, false)]
+    [InlineData((ushort)327, true)]
+    [InlineData((ushort)328, false)]
+    [InlineData((ushort)328, true)]
+    [InlineData((ushort)329, false)]
+    [InlineData((ushort)329, true)]
+    [InlineData((ushort)330, false)]
+    [InlineData((ushort)330, true)]
+    public void Captured_selected_clip_points_keep_native_packet_masks_UVs_depths_and_actual_worlds(ushort effect, bool quad)
+    {
+        ImmutableArray<NativeBattleGilgameshSwordClipVertex> points = Points().Take(quad ? 4 : 3).ToImmutableArray();
+        NativeBattleCameraProjection projection = Projection() with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleGfGeometryAttempt native = NativeBattleGilgameshSwordPackets.EmitChosen(points, 0xAABB1234, 0xCCDD5678, 0x808080, View(), projection, Registers());
+        NativeBattlePilotVisualIdentity owner = new(effect, 0x21FFD58, 1, 23, 7) { ResourceGeneration = 39 };
+        NativeBattleGfGeometryAttempt captured = NativeBattleGilgameshSwordPackets.EmitChosenWithPresentation(points, 0xAABB1234, 0xCCDD5678, 0x808080, View(), projection, Registers(), pilotIdentity: owner);
+        Assert.Equal(native.Data, captured.Data);
+        Assert.Equal(native.WriteMask, captured.WriteMask);
+        Assert.Equal(native.Primitive!.Words, captured.Primitive!.Words);
+        Assert.Equal(native.Primitive.VertexPayload4, captured.Primitive.VertexPayload4);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Primitive.PilotGeometry);
+        Assert.Equal(effect, geometry.Identity.Effect);
+        Assert.Equal(owner.Generation, geometry.Identity.Generation);
+        Assert.Equal(owner.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector3(-100, -200, 3000), geometry.A);
+        Assert.False(geometry.ScreenSpace);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(3000, geometry.SourceDepths!.Value.X);
+        Assert.Equal(quad ? 3000 : 0, geometry.SourceDepths.Value.W);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void FT_emitters_preserve_high_UV_padding_and_actual_common_bytes_and_use_FIFO_depths(bool quad)

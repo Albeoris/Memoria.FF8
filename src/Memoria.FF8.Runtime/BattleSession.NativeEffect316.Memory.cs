@@ -107,6 +107,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffect316Frame DeliverNativeEffect316Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags = 0)
     {
+        batch = NativeBattleActor33Presentation.Depths(batch);
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect316 requires its current ordering table.");
         if (cursorGlobal == 0x1D8E054)
         {
@@ -117,9 +118,10 @@ public sealed partial class BattleSession
                 (byte[] bytes, bool[] known) = process.ReadCommonPacketSnapshot(index, 1);
                 return (bytes[0], known[0]);
             });
+            var owned = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, cursor, resolved);
             NativeBattleCommonPacketWrite delivered = NativeBattleCommonPacketArena.Append(process, primitive.Pending, resolved);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = delivered.Ordering } };
-            return frame with { Memory = frame.Memory with { PrimitiveProcess = delivered.Process } };
+            return frame with { Effect = frame.Effect with { PresentationPackets = owned }, Memory = frame.Memory with { PrimitiveProcess = delivered.Process } };
         }
         if (cursorGlobal != CursorGlobal)
         {
@@ -132,8 +134,9 @@ public sealed partial class BattleSession
             (byte[] bytes, bool[] known) = arena.ReadSnapshot(index, 1);
             return (bytes[0], known[0]);
         });
+        var privateOwned = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, privateCursor, privateBatch);
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, privateCursor, primitive.Pending, privateBatch, flags);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-        return frame with { Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
+        return frame with { Effect = frame.Effect with { PresentationPackets = privateOwned }, Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
     }
 }

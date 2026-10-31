@@ -105,6 +105,16 @@ public static partial class NativeBattleEffect316Body
                         grayOr |= gray[corner];
                     }
                 }
+                if (frame.PilotIdentity is { } owner)
+                {
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        int vertex = unchecked((ushort)Word(face, corner * 2)) & 0xFFF;
+                        return frame.PresentationWorld[vertices + unchecked((uint)(vertex * vertexStride))];
+                    }
+                    NativeBattlePilotVisualIdentity identity = NativeBattleActor33Presentation.Resource(owner, faces, vertices)!.Value;
+                    frame = frame with { PresentationFace = new(identity, World(0), World(1), World(2), corners == 4 ? World(3) : default, checked((byte)corners)) { DepthDivisor = 4 } };
+                }
                 bool uniform = UniformGray(gray, expanded);
                 frame = Write(frame, inputs, contextAddress, context, length);
                 if (!expanded && grayOr == 0 || uniform)
@@ -214,6 +224,10 @@ public static partial class NativeBattleEffect316Body
             payload = [0, 0, 0, 0];
         }
         NativeBattleGeometryPrimitive primitive = new(bucket, Enumerable.Range(0, packet.Length / 4).Select(index => BitConverter.ToUInt32(packet.Data, index * 4)).ToImmutableArray(), payload);
+        if (depths.Count is 3 or 4 && frame.PresentationFace is { } face)
+        {
+            primitive = primitive with { PilotGeometry = face with { Identity = face.Identity with { Primitive = unchecked((int)cursor) }, SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+        }
         NativeBattleGfGeometryAttempt attempt = new(0, packet.Data.ToImmutableArray(), packet.Mask.ToImmutableArray(), primitive);
         return inputs.Execute(frame, new NativeBattleEffect316DrawBatch(new([attempt], packet.Length), cursor));
     }

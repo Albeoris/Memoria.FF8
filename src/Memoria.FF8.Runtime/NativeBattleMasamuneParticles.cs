@@ -12,6 +12,11 @@ public static class NativeBattleMasamuneParticles
 
     public static NativeBattleMasamuneParticlePreparation Prepare(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, bool ring, bool paused, Action<NativeBattleVector>? observeDirection = null)
     {
+        return PrepareWithPresentation(task, arena, random, ring, paused, observeDirection, false);
+    }
+
+    public static NativeBattleMasamuneParticlePreparation PrepareWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, bool ring, bool paused, Action<NativeBattleVector>? observeDirection = null, bool capturePresentation = false)
+    {
         if (task.Callback != (ring ? 0x590F10u : 0x590B60u) || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Masamune particles require their actual raw callback task.");
@@ -80,6 +85,10 @@ public static class NativeBattleMasamuneParticles
                     arena = PutWord(arena, record + 0x1C, Draw() % 2048);
                     int angular = Draw() % 90 + 30;
                     arena = PutWord(arena, record + 0x1E, (angular & 1) != 0 ? -angular : angular);
+                }
+                if (capturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)Bank(ring)), (record - Bank(ring)) / Stride(ring));
                 }
             }
         }

@@ -86,6 +86,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 throw new InvalidDataException("Native effect-module task links contain a cycle or a free physical slot.");
             }
         }
+        ValidateGilgameshPresentation();
     }
 
     public (NativeBattleModuleState State, int Slot) Append(NativeBattleModuleKind kind)
@@ -123,7 +124,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null, PresentationOwnerEffect = null };
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null, PresentationOwnerEffect = null, GilgameshFlashPresentation = null };
         NativeBattleModuleState allocation = ForgetCastingSlot(slot);
         ImmutableArray<NativeBattleModuleTask> slots = allocation.Slots.SetItem(slot, task);
         if (Tail is int tail)
@@ -204,7 +205,8 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 inputs = inputs with { CrtRandom = crt };
             }
             NativeBattleModuleTask producer = state.Slots[index];
-            draws.AddRange(producer.PresentationOwnerEffect == 18 ? callback.Draws.Select(draw => draw with { PresentationOwnerEffect = producer.PresentationOwnerEffect, PresentationSourceSlot = index, PresentationSourceKind = producer.Kind, PresentationSource = state.CastingPresentation!.Tasks[index] }) : callback.Draws);
+            ImmutableArray<NativeBattleModuleDraw> produced = producer.PresentationOwnerEffect == 18 ? callback.Draws.Select(draw => draw with { PresentationOwnerEffect = producer.PresentationOwnerEffect, PresentationSourceSlot = index, PresentationSourceKind = producer.Kind, PresentationSource = state.CastingPresentation!.Tasks[index] }).ToImmutableArray() : callback.Draws;
+            draws.AddRange(state.BindGilgameshPresentationDraws(index, produced));
             NativeBattleModuleTask task = state.Slots[index];
             //508420 reads Next after the callback, including any task appended by that callback.
             next = task.Next;

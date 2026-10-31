@@ -156,6 +156,48 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
         Assert.All(result.Packets.Attempts, attempt => Assert.Equal(new[] { 0, 0, 0, 0 }, attempt.Primitive!.VertexPayload4.ToArray()));
         Assert.Throws<NotSupportedException>(() => Emit(Mesh(Triangle()), Arena(1), 1, 0x08808080));
     }
+    [Theory]
+    [InlineData((ushort)327, false)]
+    [InlineData((ushort)328, false)]
+    [InlineData((ushort)329, false)]
+    [InlineData((ushort)330, false)]
+    [InlineData((ushort)327, true)]
+    [InlineData((ushort)328, true)]
+    [InlineData((ushort)329, true)]
+    [InlineData((ushort)330, true)]
+    public void Selected_model_reveal_captures_actual_skinned_shorts_and_never_reads_rejected_fourth(ushort effect, bool rejected)
+    {
+        NativeBattleEffectArena arena = Arena(1);
+        if (rejected)
+        {
+            arena = arena.MarkUnknown(World + 3 * 8, 8);
+        }
+        NativeBattleActionMatrix view = View() with { Z = rejected ? 100 : 3000 };
+        NativeBattleCameraProjection projection = Projection() with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleGilgameshModelAReveal native = NativeBattleGilgameshModelAPackets.Emit596220(Mesh(Quad()), NativeBattleTestSnapshots.Independent(arena), World, Labels, 1, view, projection, 0x808080, Registers());
+        NativeBattlePilotVisualIdentity identity = new(effect, 0x21FFD68, 4, 7, 0) { ResourceGeneration = 9 };
+        NativeBattleGilgameshModelAReveal captured = NativeBattleGilgameshModelAPackets.Emit596220WithPresentation(Mesh(Quad()), NativeBattleTestSnapshots.Independent(arena), World, Labels, 1, view, projection, 0x808080, Registers(), identity);
+        Assert.Equal(native.LabelEndOffset, captured.LabelEndOffset);
+        Assert.Equal(native.Packets.AllocationBytes, captured.Packets.AllocationBytes);
+        NativeBattleGfGeometryAttempt before = Assert.Single(native.Packets.Attempts);
+        NativeBattleGfGeometryAttempt after = Assert.Single(captured.Packets.Attempts);
+        Assert.Equal(before.Data, after.Data);
+        Assert.Equal(before.WriteMask, after.WriteMask);
+        if (rejected)
+        {
+            Assert.Null(after.Primitive);
+        }
+        else
+        {
+            Assert.Equal(before.Primitive!.Words, after.Primitive!.Words);
+            Assert.Equal(before.Primitive.VertexPayload4, after.Primitive.VertexPayload4);
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(after.Primitive.PilotGeometry);
+            Assert.Equal(effect, visual.Identity.Effect);
+            Assert.Equal(new System.Numerics.Vector3(-100, -100, 3000), visual.A);
+            Assert.Equal(new System.Numerics.Vector4(3000), visual.SourceDepths);
+        }
+    }
+
     private const int World = 0x100;
     private const int Labels = 0x1000;
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 3000, 4096);

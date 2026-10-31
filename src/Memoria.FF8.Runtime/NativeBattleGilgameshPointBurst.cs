@@ -37,6 +37,11 @@ public static class NativeBattleGilgameshPointBurst
 {
     public static NativeBattleGilgameshPointStep Step593E80(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshPointResources resources, uint graphicsFlags, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project45FAA0)
     {
+        return Step593E80WithPresentation(task, arena, random, resources, graphicsFlags, project45FAA0);
+    }
+
+    public static NativeBattleGilgameshPointStep Step593E80WithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshPointResources resources, uint graphicsFlags, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project45FAA0, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<NativeBattleVector, System.Numerics.Vector3>? captureWorld = null)
+    {
         if (task.Callback != 0x593E80 || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native593E80 requires its actual raw task.");
@@ -76,6 +81,10 @@ public static class NativeBattleGilgameshPointBurst
                 WriteWord(record + 16, unchecked(sin * speed) >> 12);
                 WriteWord(record + 18, -10 - Draw() % 50);
                 WriteWord(record + 20, unchecked(cos * speed) >> 12);
+                if (pilotIdentity.HasValue)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, NativeBattleEffectNodeMemory.ArenaAddress + 0x2F800, (record - 0x2F800) / 32);
+                }
             }
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -88,7 +97,8 @@ public static class NativeBattleGilgameshPointBurst
             {
                 continue;
             }
-            NativeBattleModuleProjectedVertex projected = project45FAA0(new(Word(record + 8), Word(record + 10), Word(record + 12)));
+            NativeBattleVector point = new(Word(record + 8), Word(record + 10), Word(record + 12));
+            NativeBattleModuleProjectedVertex projected = project45FAA0(point);
             uint color = resources.Color(Word(record + 4));
             byte[] bytes = new byte[12];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x02000000);
@@ -119,6 +129,12 @@ public static class NativeBattleGilgameshPointBurst
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), projected.Screen);
                 primitive = new(17 + (projected.Depth >> 4), [0x02000000, color, projected.Screen], [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+                if (pilotIdentity is { } parent)
+                {
+                    System.Numerics.Vector3 world = (captureWorld ?? throw new InvalidDataException("Gilgamesh point capture requires its actual source transform."))(point);
+                    NativeBattlePilotVisualIdentity row = NativeBattleGilgameshVisuals.Row(parent, arena, NativeBattleEffectNodeMemory.ArenaAddress + 0x2F800, index, resources.Colors, 0xCD0428)!.Value;
+                    primitive = primitive with { PilotGeometry = new(row, world, world, world, world, 4) { ScreenOffsets = [default, new(8, 0), new(0, 8), new(8, 8)], SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+                }
             }
             attempts.Add(new(cursor, bytes.ToImmutableArray(), mask, primitive));
             if (admitted)

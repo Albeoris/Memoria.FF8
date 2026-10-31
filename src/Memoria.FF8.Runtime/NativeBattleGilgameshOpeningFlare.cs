@@ -39,6 +39,11 @@ public static class NativeBattleGilgameshOpeningFlare
 
     public static NativeBattleGilgameshOpeningFlareStep Step593250(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningFlareState state, NativeBattleGilgameshOpeningFlareResources resources, NativeBattleVector cameraEye, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short dqa, int dqb, uint graphicsFlags)
     {
+        return Step593250WithPresentation(task, state, resources, cameraEye, view, projection, dqa, dqb, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshOpeningFlareStep Step593250WithPresentation(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningFlareState state, NativeBattleGilgameshOpeningFlareResources resources, NativeBattleVector cameraEye, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short dqa, int dqb, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task is null || task.Callback != 0x593250 || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native593250 requires its actual raw0x24-byte flare task.");
@@ -57,6 +62,7 @@ public static class NativeBattleGilgameshOpeningFlare
         }
         uint color = unchecked((uint)(((brightness << 8) | brightness) << 8));
         ImmutableArray<NativeBattleModulePacketBatch>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleModulePacketBatch>(8);
+        int rowIndex = 0;
         foreach (NativeBattleGilgameshOpeningFlareRow row in resources.Rows)
         {
             int weight = unchecked(row.Weight * 2200) >> 12;
@@ -68,6 +74,8 @@ public static class NativeBattleGilgameshOpeningFlare
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
                 Resource = resources.Sprite,
+                PilotIdentity = NativeBattleGilgameshVisuals.Resource(pilotIdentity, resources.Sprite, resources.Sprite.Address, rowIndex++),
+                PilotProjection = pilotIdentity.HasValue ? projection : null,
                 SpriteFrame = resources.Sprite.ProjectedFrame571C80(row.Frame),
                 Phase = unchecked((ushort)row.Frame),
                 Anchor = new(0, 0, 0, 0),

@@ -60,12 +60,19 @@ public static partial class NativeBattleEffect319Controller
         return (WithPool(frame, index, step.Pool), step.Survivors);
     }
 
-    public static NativeBattleEffect319Step AdvanceTask(NativeBattleEffect319Frame frame, uint address, NativeBattleEffect319Resources resources, NativeBattleEffect319Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect319Step AdvanceTask(NativeBattleEffect319Frame frame, uint address, NativeBattleEffect319Resources resources, NativeBattleEffect319Inputs inputs)
     {
-        RootCallback => AdvanceRoot65DBE0(frame, address, resources, inputs),
-        MainCallback => AdvanceMain65DDA0(frame, address, resources, inputs),
-        _ => NativeBattleEffect319Lower.Advance(frame, address, resources, inputs)
-    };
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(319, task) : null };
+        NativeBattleEffect319Step step = task.Callback switch
+        {
+            RootCallback => AdvanceRoot65DBE0(frame, address, resources, inputs),
+            MainCallback => AdvanceMain65DDA0(frame, address, resources, inputs),
+            _ => NativeBattleEffect319Lower.Advance(frame, address, resources, inputs)
+        };
+        return step with { Frame = step.Frame with { PilotIdentity = parent } };
+    }
 
     private static NativeBattleEffectTaskPool CreatePool(NativeBattleEffect319Frame frame, NativeBattleCureFamilyPool shape, bool common)
     {

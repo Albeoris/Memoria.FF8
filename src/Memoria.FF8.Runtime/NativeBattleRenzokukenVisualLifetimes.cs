@@ -7,7 +7,7 @@ internal static class NativeBattleRenzokukenVisualLifetimes
 {
     private static readonly ConditionalWeakTable<object, long[]> rows = new();
 
-    internal static bool Owns(ushort effect) => effect is 141 or 159 or 160 or 161 or 259;
+    internal static bool Owns(ushort effect) => effect is 141 or 159 or 160 or 161 or 259 or 332;
 
     internal static NativeBattlePilotVisualIdentity? Task(NativeBattleOriginalEffectState effect, NativeBattleModulePoolTask task, uint source, int primitive = 0)
     {

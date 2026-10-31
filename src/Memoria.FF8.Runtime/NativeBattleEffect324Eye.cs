@@ -23,7 +23,10 @@ public static class NativeBattleEffect324Eye
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord324(PutWord324(Put324(Context(frame, temporary, 180), 0, 0xCD0B2C), 4, task.ReadWord(12)), 0x24, 8);
         frame = PublishContext(frame, temporary, context, 180);
+        NativeBattlePilotVisualIdentity? parent = frame.PilotIdentity;
+        frame = frame with { PilotIdentity = NativeBattleActor33Presentation.Resource(parent, 0xCD0B2C) };
         frame = DrawSprite324(frame, temporary, resources, inputs);
+        frame = frame with { PilotIdentity = parent };
         short nextDirectory = Word324(Context(frame, temporary, 180), 0x28);
         frame = Release(frame, 180);
         if (Paused324(frame, inputs))

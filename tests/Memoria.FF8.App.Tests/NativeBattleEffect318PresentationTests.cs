@@ -218,7 +218,7 @@ public sealed class NativeBattleEffect318PresentationTests
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([318])[317];
         Assert.Same(game.ReadNativeEffect318Resources(), binding.Effect318Resources);
-        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(317, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? preparedTarget : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(317, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? preparedTarget : actor).ToArray(), NativePresentationStatusMemory = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared component requires its current physical presentation-status bank.")).Observe(0, preparedTarget.NativeStatus!.Presentation), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(original.Combatants.Select(actor => actor.CurrentHp), source.Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));

@@ -18,7 +18,7 @@ public static partial class NativeBattleGilgameshController
             NativeBattleModulePoolTask task = Read(address);
             NativeBattleActionMatrix matrix = NativeBattleGilgameshFlare.Matrix(task);
             Emit(new NativeBattleGilgameshMasamuneProjectionH(0x120));
-            DrawGilgameshMesh(resource, matrix, 0x33, null, 0);
+            DrawGilgameshMesh(resource, matrix, 0x33, null, 0, true);
             short shadow = inputs.ReadFocalShadow?.Invoke() ?? throw new NotSupportedException("Masamune flare requires its actual projection shadow.");
             Emit(new NativeBattleGilgameshMasamuneProjectionH(unchecked((ushort)shadow)));
             if (Paused)
@@ -57,7 +57,7 @@ public static partial class NativeBattleGilgameshController
             return MasamuneSigned(task, 12) >= 16 ? 2 : 0;
         }
 
-        private void DrawGilgameshMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, short? matrixPadding18 = null)
+        private void DrawGilgameshMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, short? matrixPadding18 = null, bool forcedFocal = false)
         {
             NativeBattleFileStaging staging = MasamuneStaging;
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
@@ -70,10 +70,12 @@ public static partial class NativeBattleGilgameshController
                 context = NativeBattleStaticMeshContext88.Put(context, 12, unchecked((uint)cue));
             }
             Frame = Frame with { Staging = temporary.Staging };
-            NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(Frame.Memory, resource, matrix, Projection, context, inputs.Colors, matrixPadding18);
+            NativeBattleCameraProjection drawProjection = Projection;
+            NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(Frame.Memory, resource, matrix, drawProjection, context, inputs.Colors, matrixPadding18, pilotIdentity: NativeBattleGilgameshVisuals.Resource(Frame.PresentationIdentity, resource, resource.Address));
+            NativeBattleGfGeometryBatch captured = forcedFocal && drawProjection.FocalLength is ushort focal ? NativeBattleGilgameshVisuals.Focal(result.Batch, focal) : result.Batch;
             staging = NativeBattleTemporaryMemory.PublishView(MasamuneStaging, temporary.Address, result.Context, 88);
             Frame = Frame with { Memory = result.Memory, Staging = staging };
-            Emit(new NativeBattleGilgameshPackets(result.Batch));
+            Emit(new NativeBattleGilgameshPackets(captured));
             Frame = Frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(MasamuneStaging, 88) };
         }
 
@@ -90,7 +92,7 @@ public static partial class NativeBattleGilgameshController
             }
             NativeBattleTemporaryAllocation scratch = NativeBattleTemporaryMemory.Allocate5082B0(MasamuneStaging, 72);
             NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(scratch.Staging, scratch.Address, 72);
-            NativeBattleMasamuneParticlePreparation births = NativeBattleMasamuneParticles.Prepare(task, Arena, Frame.Random, ring, Paused, direction => temporary = MasamuneVector(temporary, 0x28, direction.X, direction.Y, direction.Z));
+            NativeBattleMasamuneParticlePreparation births = NativeBattleMasamuneParticles.PrepareWithPresentation(task, Arena, Frame.Random, ring, Paused, direction => temporary = MasamuneVector(temporary, 0x28, direction.X, direction.Y, direction.Z), inputs.CapturePresentation);
             Frame = Frame with { Random = births.Random, Memory = Frame.Memory with { Arena = births.Arena }, Staging = scratch.Staging };
             temporary = NativeBattleMasamuneParticles.PutWord(temporary, 0, 0);
             temporary = NativeBattleMasamuneParticles.PutWord(temporary, 2, 0);
@@ -123,7 +125,7 @@ public static partial class NativeBattleGilgameshController
                 Frame = Frame with { Memory = head.Memory, Staging = staging };
                 ushort phase = unchecked((ushort)NativeBattleMasamuneParticles.Word(Arena, record + 4));
                 short angle = ring ? (short)0 : NativeBattleMasamuneParticles.Word(Arena, record + 0x1C);
-                NativeBattleMasamuneSpriteStep drawn = NativeBattleMasamuneSprites.Draw(Frame.Memory, MasamuneStaging, sprite.Address, resource, phase, angle, ring, size, Projection, inputs.ReadCameraPose().Roll);
+                NativeBattleMasamuneSpriteStep drawn = NativeBattleMasamuneSprites.DrawWithPresentation(Frame.Memory, MasamuneStaging, sprite.Address, resource, phase, angle, ring, size, Projection, inputs.ReadCameraPose().Roll, NativeBattleGilgameshVisuals.Row(Frame.PresentationIdentity, Arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)NativeBattleMasamuneParticles.Bank(ring)), index, resource, resource.Address));
                 Frame = Frame with { Memory = drawn.Memory, Staging = drawn.Staging };
                 Emit(new NativeBattleGilgameshSprites(drawn.Batch));
                 if (!Paused)

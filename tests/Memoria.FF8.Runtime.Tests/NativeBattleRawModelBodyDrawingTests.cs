@@ -38,6 +38,31 @@ public sealed class NativeBattleRawModelBodyDrawingTests
         Assert.NotEqual(identity, identity with { ResourceGeneration = 0x193F100 });
     }
 
+    [Fact]
+    public void Explicit324_saved_pose_body_keeps_native_scratch_packets_and_actual_world_depth_sidecar()
+    {
+        byte[] face = new byte[16];
+        BinaryPrimitives.WriteUInt16LittleEndian(face, 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(4), 2);
+        NativeBattleRawMesh mesh = new([new(new(-20, -20, 0), 0), new(new(20, -20, 0), 0), new(new(0, 20, 0), 0)], [new(false, face.ToImmutableArray())]);
+        NativeBattleActionMatrix bone = Identity with { Z = 4000 };
+        NativeBattleCameraProjection projection = new(Identity, 512, 160, 104);
+        var scratch = new byte[24].ToImmutableArray();
+        var plain = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, [bone], projection, 0x123456, 1, scratch, Colors);
+        string expected = System.Text.Json.JsonSerializer.Serialize(plain);
+        NativeBattlePilotVisualIdentity identity = new(324, 0x2202E28, 0, 17, 2) { ResourceGeneration = 0x193F000 };
+        var captured = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, [bone], projection, 0x123456, 1, scratch, Colors, pilotIdentity: identity);
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.Serialize(captured));
+        var packet = Assert.Single(NativeBattleActor33Presentation.Depths(captured.Packets).Attempts).Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-20, -20, 4000), visual.A);
+        Assert.Equal(new System.Numerics.Vector4(packet.VertexPayload4[0], packet.VertexPayload4[1], packet.VertexPayload4[2], packet.VertexPayload4[3]), visual.SourceDepths!.Value);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.Continuous);
+        Assert.True(visual.UseSourceDepths);
+    }
+
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static readonly NativeBattleSummonColors Colors = new(0, 0, 1f / 4096, 6755401588539392d);
 

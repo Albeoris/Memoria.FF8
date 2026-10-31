@@ -7,6 +7,8 @@ public sealed record NativeBattleGilgameshFrame(NativeBattleEffectMemory Memory,
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFileStaging? Staging { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PresentationIdentity { get; init; }
 }
 public abstract record NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleGilgameshOperation;
@@ -21,6 +23,7 @@ public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattl
 {
     public Func<NativeBattleCameraProjection>? ReadProjection { get; init; }
     public Func<short>? ReadFocalShadow { get; init; }
+    public bool CapturePresentation { get; init; }
     public Func<byte, short>? ReadModelWord26 { get; init; }
     public Func<byte, NativeBattlePackedMatrix32>? ReadModelWorld32 { get; init; }
 }
@@ -46,7 +49,13 @@ public static partial class NativeBattleGilgameshController
         {
             execution.Frame = execution.Frame with { Effect = execution.Frame.Effect with { Pools = [pools.Main, pools.Children, pools.Particles!] } };
             NativeBattleEffectTaskPool pool = execution.Frame.Effect.Pools.Single(current => current.DescriptorAddress == descriptor);
+            NativeBattlePilotVisualIdentity? previousIdentity = execution.Frame.PresentationIdentity;
+            if (inputs.CapturePresentation)
+            {
+                execution.Frame = execution.Frame with { PresentationIdentity = NativeBattlePilotVisualLifetimes.Identity(execution.Frame.Effect.Binding.Effect, pool.Slots[slot]) };
+            }
             int result = execution.Advance(checked(pool.BankAddress + (uint)(slot * pool.Stride)));
+            execution.Frame = execution.Frame with { PresentationIdentity = previousIdentity };
             return new(Pools(execution.Frame.Effect), result);
         });
         return execution.Frame with { Effect = execution.Frame.Effect with { Pools = [step.Pools.Main, step.Pools.Children, step.Pools.Particles!], ReturnedDescriptor = step.Survivors == 0 ? 0 : step.Pools.Main.DescriptorAddress } };
@@ -123,7 +132,7 @@ public static partial class NativeBattleGilgameshController
             switch (task.Callback)
             {
                 case 0x592300:
-                    NativeBattleGilgameshDirectorStep director = NativeBattleGilgameshDirector.Advance592300(task, new(inputs.GraphicsFlags, () => SetShared(Shared with { WorldView = NativeBattleGfMatrices.Compose56C2F0(Projection.View ?? throw new NotSupportedException("Native Gilgamesh requires its current camera view."), World) }), inputs.Pending508500, Director) { Effect = Frame.Effect.Binding.Effect });
+                    NativeBattleGilgameshDirectorStep director = NativeBattleGilgameshDirector.Advance592300(task, new(inputs.GraphicsFlags, () => SetShared(Shared with { WorldView = NativeBattleGfMatrices.Compose56C2F0(Projection.View ?? throw new NotSupportedException("Native Gilgamesh requires its current camera view."), World) }), inputs.Pending508500, operation => Director(inputs.CapturePresentation && operation.Service == NativeBattleGilgameshDirectorService.QueueColor ? operation with { PresentationSource = new(address, task.Callback) } : operation)) { Effect = Frame.Effect.Binding.Effect, CapturePresentation = inputs.CapturePresentation });
                     Write(address, director.Task);
                     return director.Result;
                 case 0x63E9C0:
@@ -134,24 +143,24 @@ public static partial class NativeBattleGilgameshController
                     Emit(new NativeBattleGilgameshCameraPublish(cameraStep));
                     return cameraStep.Result;
                 case 0x592BC0:
-                    NativeBattleGilgameshFlashStep flash = NativeBattleGilgameshFlash.Step592BC0(task, inputs.GraphicsFlags);
+                    NativeBattleGilgameshFlashStep flash = NativeBattleGilgameshFlash.Step592BC0WithPresentation(task, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     Write(address, flash.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(flash.Batch));
                     return flash.Result;
                 case 0x592E90:
                 case 0x592F90:
                 case 0x5930C0:
-                    NativeBattleGilgameshOpeningStep opening = NativeBattleGilgameshOpening.Step(task, resources.Opening, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors);
+                    NativeBattleGilgameshOpeningStep opening = NativeBattleGilgameshOpening.StepWithPresentation(task, resources.Opening, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors, Frame.PresentationIdentity);
                     Write(address, opening.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(opening.Batch));
                     return opening.Result;
                 case 0x591470:
-                    NativeBattleGilgameshFlareStep flare = NativeBattleGilgameshFlare.Step591470(task, resources.Flare, Projection, inputs.GraphicsFlags);
+                    NativeBattleGilgameshFlareStep flare = NativeBattleGilgameshFlare.Step591470WithPresentation(task, resources.Flare, Projection, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     Write(address, flare.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(flare.Batch));
                     return flare.Result;
                 case 0x591F50:
-                    NativeBattleGilgameshFinalRingStep ring = NativeBattleGilgameshFinalRing.Step591F50(task, resources.FinalRing, Projection.View ?? throw new NotSupportedException("Native ring requires its current view."), Projection, inputs.GraphicsFlags, inputs.Colors);
+                    NativeBattleGilgameshFinalRingStep ring = NativeBattleGilgameshFinalRing.Step591F50WithPresentation(task, resources.FinalRing, Projection.View ?? throw new NotSupportedException("Native ring requires its current view."), Projection, inputs.GraphicsFlags, inputs.Colors, Frame.PresentationIdentity);
                     Write(address, ring.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(ring.Batch));
                     return ring.Result;
@@ -225,11 +234,11 @@ public static partial class NativeBattleGilgameshController
                 case 0x5915C0:
                 case 0x591850:
                 case 0x591B80:
-                    NativeBattleGilgameshParticleStep particles = NativeBattleGilgameshParticles.Step(task, Arena, Frame.Random, resources.Particles, Projection.View ?? throw new NotSupportedException("Native Gilgamesh particles require the camera view."), Projection, inputs.GraphicsFlags);
+                    NativeBattleGilgameshParticleStep particles = NativeBattleGilgameshParticles.StepWithPresentation(task, Arena, Frame.Random, resources.Particles, Projection.View ?? throw new NotSupportedException("Native Gilgamesh particles require the camera view."), Projection, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     return PublishParticles(address, particles);
                 case 0x5948A0:
                 case 0x594CA0:
-                    NativeBattleGilgameshSwordParticleStep swordParticles = NativeBattleGilgameshSwordParticles.Step(task, Arena, Frame.Random, resources.SwordParticles, WorldView, Projection, inputs.GraphicsFlags, ReadSwordBone, inputs.Colors);
+                    NativeBattleGilgameshSwordParticleStep swordParticles = NativeBattleGilgameshSwordParticles.StepWithPresentation(task, Arena, Frame.Random, resources.SwordParticles, WorldView, Projection, inputs.GraphicsFlags, ReadSwordBone, inputs.Colors, Frame.PresentationIdentity);
                     Frame = Frame with { Memory = Frame.Memory with { Arena = swordParticles.Arena }, Random = swordParticles.Random };
                     Write(address, swordParticles.UpdatedTask);
                     foreach (NativeBattleGfGeometryBatch batch in swordParticles.MeshPackets)
@@ -243,17 +252,26 @@ public static partial class NativeBattleGilgameshController
                     return swordParticles.Result;
                 case 0x593770:
                 case 0x5939C0:
-                    NativeBattleGilgameshParticleStep common = NativeBattleGilgameshCommonParticles.Step(task, Arena, Frame.Random, resources.CommonParticles, WorldView, Projection, inputs.GraphicsFlags);
+                    NativeBattleGilgameshParticleStep common = NativeBattleGilgameshCommonParticles.StepWithPresentation(task, Arena, Frame.Random, resources.CommonParticles, WorldView, Projection, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     return PublishParticles(address, common);
                 case 0x593E80:
-                    NativeBattleGilgameshPointStep points = NativeBattleGilgameshPointBurst.Step593E80(task, Arena, Frame.Random, resources.Points, inputs.GraphicsFlags, point => NativeBattleModuleProjection.Project45FAA0(WorldView, point, Projection, inputs.Dqa, inputs.Dqb));
+                    NativeBattleActionMatrix? projectedPointView = null;
+                    NativeBattleCameraProjection? projectedPointCamera = null;
+                    NativeBattleGilgameshPointStep points = NativeBattleGilgameshPointBurst.Step593E80WithPresentation(task, Arena, Frame.Random, resources.Points, inputs.GraphicsFlags, point =>
+                    {
+                        NativeBattleActionMatrix view = WorldView;
+                        NativeBattleCameraProjection camera = Projection;
+                        projectedPointView = view;
+                        projectedPointCamera = camera;
+                        return NativeBattleModuleProjection.Project45FAA0(view, point, camera, inputs.Dqa, inputs.Dqb);
+                    }, Frame.PresentationIdentity, point => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(projectedPointView ?? throw new InvalidDataException("Gilgamesh point capture requires its already-used native transform."), point), projectedPointCamera ?? throw new InvalidDataException("Gilgamesh point capture requires its already-used native camera.")));
                     Frame = Frame with { Memory = Frame.Memory with { Arena = points.Arena }, Random = points.Random };
                     Write(address, points.Task);
                     Emit(new NativeBattleGilgameshPackets(points.Packets));
                     return points.Result;
                 case 0x593600:
                 case 0x594210:
-                    NativeBattleGilgameshMeshAuxiliaryStep mesh = NativeBattleGilgameshMeshAuxiliaries.Step(task, resources.MeshAuxiliaries, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors);
+                    NativeBattleGilgameshMeshAuxiliaryStep mesh = NativeBattleGilgameshMeshAuxiliaries.StepWithPresentation(task, resources.MeshAuxiliaries, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors, Frame.PresentationIdentity);
                     Write(address, mesh.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(mesh.Batch));
                     return mesh.Result;
@@ -264,12 +282,12 @@ public static partial class NativeBattleGilgameshController
                     Write(address, nested.UpdatedTask);
                     return nested.Result;
                 case 0x593D20:
-                    NativeBattleGilgameshMeshAuxiliaryStep nestedMesh = NativeBattleGilgameshCommonParticles.Step593D20(task, resources.CommonParticles, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors);
+                    NativeBattleGilgameshMeshAuxiliaryStep nestedMesh = NativeBattleGilgameshCommonParticles.Step593D20WithPresentation(task, resources.CommonParticles, WorldView, Projection, inputs.GraphicsFlags, inputs.Colors, Frame.PresentationIdentity);
                     Write(address, nestedMesh.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(nestedMesh.Batch));
                     return nestedMesh.Result;
                 case 0x5943D0:
-                    NativeBattleGilgameshSwordTrailStep trail = NativeBattleGilgameshSwordTrail.Step5943D0(Shared.SwordTrail, task, Shared.Variant ?? throw new NotSupportedException("Native5943D0 requires its initialized sword selector."), ReadSwordBone, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.Colors, resources.SwordTrail, inputs.GraphicsFlags);
+                    NativeBattleGilgameshSwordTrailStep trail = NativeBattleGilgameshSwordTrail.Step5943D0WithPresentation(Shared.SwordTrail, task, Shared.Variant ?? throw new NotSupportedException("Native5943D0 requires its initialized sword selector."), ReadSwordBone, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.Colors, resources.SwordTrail, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     SetShared(Shared with { SwordTrail = trail.State });
                     Write(address, trail.UpdatedTask);
                     if (trail.PoolCursorAdvance is int advance)
@@ -279,7 +297,7 @@ public static partial class NativeBattleGilgameshController
                     }
                     return trail.Result;
                 case 0x594FD0:
-                    NativeBattleGilgameshSwordStep swords = NativeBattleGilgameshSwords.Step594FD0(Shared.Models, Arena, task, resources.Models.StaticModels, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.GraphicsFlags);
+                    NativeBattleGilgameshSwordStep swords = NativeBattleGilgameshSwords.Step594FD0WithPresentation(Shared.Models, Arena, task, resources.Models.StaticModels, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     Frame = Frame with { Memory = Frame.Memory with { Arena = swords.Arena, Gilgamesh = Shared with { Models = swords.ModelMemory } } };
                     Write(address, swords.UpdatedTask);
                     foreach (NativeBattleGfGeometryBatch batch in swords.Packets)
@@ -288,14 +306,14 @@ public static partial class NativeBattleGilgameshController
                     }
                     return swords.Result;
                 case 0x595EE0:
-                    NativeBattleGilgameshModelAStep modelA = NativeBattleGilgameshModelA.Step595EE0(Shared.Models, Arena, task, resources.Models.StreamModel746, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.GraphicsFlags);
+                    NativeBattleGilgameshModelAStep modelA = NativeBattleGilgameshModelA.Step595EE0WithPresentation(Shared.Models, Arena, task, resources.Models.StreamModel746, WorldView, Projection, Frame.Memory.ScriptedGraphics, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     Frame = Frame with { Memory = Frame.Memory with { Arena = modelA.Arena, Gilgamesh = Shared with { Models = modelA.ModelMemory } } };
                     Write(address, modelA.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(modelA.Packets));
                     return modelA.Result;
                 case 0x593250:
                     NativeBattleCameraPoint eye = inputs.ReadCameraPose().Eye;
-                    NativeBattleGilgameshOpeningFlareStep openingFlare = NativeBattleGilgameshOpeningFlare.Step593250(task, Shared.OpeningFlare, resources.OpeningFlare, new(unchecked((short)eye.X), unchecked((short)eye.Y), unchecked((short)eye.Z)), Projection.View ?? throw new NotSupportedException("Native opening flare requires its actual camera view."), Projection, inputs.Dqa, inputs.Dqb, inputs.GraphicsFlags);
+                    NativeBattleGilgameshOpeningFlareStep openingFlare = NativeBattleGilgameshOpeningFlare.Step593250WithPresentation(task, Shared.OpeningFlare, resources.OpeningFlare, new(unchecked((short)eye.X), unchecked((short)eye.Y), unchecked((short)eye.Z)), Projection.View ?? throw new NotSupportedException("Native opening flare requires its actual camera view."), Projection, inputs.Dqa, inputs.Dqb, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     SetShared(Shared with { OpeningFlare = openingFlare.State });
                     Write(address, openingFlare.UpdatedTask);
                     foreach (NativeBattleModulePacketBatch batch in openingFlare.Packets)
@@ -309,7 +327,7 @@ public static partial class NativeBattleGilgameshController
                 case 0x596800:
                 case 0x596970:
                 case 0x596A60:
-                    NativeBattleGilgameshModelBankStep bank = NativeBattleGilgameshModelBanks.Step(Shared.Models, Arena, task, resources.Models, WorldView, Projection, inputs.Colors, inputs.GraphicsFlags);
+                    NativeBattleGilgameshModelBankStep bank = NativeBattleGilgameshModelBanks.StepWithPresentation(Shared.Models, Arena, task, resources.Models, WorldView, Projection, inputs.Colors, inputs.GraphicsFlags, Frame.PresentationIdentity);
                     Frame = Frame with { Memory = Frame.Memory with { Arena = bank.Arena, Gilgamesh = Shared with { Models = bank.ModelMemory } } };
                     Write(address, bank.UpdatedTask);
                     foreach (NativeBattleGfGeometryBatch batch in bank.Packets)

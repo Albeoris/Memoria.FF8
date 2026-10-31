@@ -9,13 +9,18 @@ public static class NativeBattleGilgameshRawModel
 {
     public static NativeBattleGilgameshRawModelDraw Draw595E40(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint controlAddress, NativeBattleEffectArena arena, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, byte depthShift = 4)
     {
+        return Draw595E40WithPresentation(state, resource, controlAddress, arena, parent, projection, colors, depthShift, null);
+    }
+
+    public static NativeBattleGilgameshRawModelDraw Draw595E40WithPresentation(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint controlAddress, NativeBattleEffectArena arena, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (depthShift is not (3 or 4) || resource.Geometry.IsDefault || resource.Geometry.Length != 1 || state.ProjectedScratch is not null)
         {
             throw new InvalidDataException("Native Gilgamesh raw drawing requires its selected depth shift, one object and separate shared scratch owner.");
         }
         int length = checked(resource.Geometry[0].Vertices.Length * 8);
         ImmutableArray<byte> scratch = arena.Read(0x31800, length).ToImmutableArray();
-        NativeBattleCactuarRawModelDraw draw = NativeBattleCactuarRawModel.Draw5A9010(state, resource, parent, projection, colors, new(controlAddress, depthShift), scratch);
+        NativeBattleCactuarRawModelDraw draw = NativeBattleCactuarRawModel.Draw5A9010(state, resource, parent, projection, colors, new(controlAddress, depthShift), scratch, NativeBattleGilgameshVisuals.Resource(pilotIdentity, resource, resource.Address, unchecked((int)controlAddress)));
         if (draw.ProjectedBytesWritten > 0)
         {
             arena = arena.Write(0x31800, draw.State.ProjectedScratch!.Value.AsSpan().Slice(0, draw.ProjectedBytesWritten));

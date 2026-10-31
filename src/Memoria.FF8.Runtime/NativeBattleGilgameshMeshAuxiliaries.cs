@@ -42,6 +42,11 @@ public static class NativeBattleGilgameshMeshAuxiliaries
 
     public static NativeBattleGilgameshMeshAuxiliaryStep Step(NativeBattleModulePoolTask task, NativeBattleGilgameshMeshAuxiliaryResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null)
     {
+        return StepWithPresentation(task, resources, worldView, projection, graphicsFlags, colors, null);
+    }
+
+    public static NativeBattleGilgameshMeshAuxiliaryStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleGilgameshMeshAuxiliaryResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         bool delayed = task.Callback == 0x594210;
         bool paused = (graphicsFlags & 0x201) != 0;
@@ -53,7 +58,8 @@ public static class NativeBattleGilgameshMeshAuxiliaries
         int counter = Signed(task, 12);
         int? fade = delayed ? counter < 4 ? unchecked((4 - counter) << 10) : counter >= 6 ? unchecked((counter - 6) << 9) : null : counter < 6 ? unchecked(4096 - 682 * counter) : null;
         NativeBattleModuleMeshContext context = new(fade is null ? 0x33u : 0xF3u, 0, fade, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200((delayed ? resources.DelayedMesh : resources.RisingMesh).Bytes, 0, default, Matrix(task, worldView), projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleStaticMeshResource selectedMesh = delayed ? resources.DelayedMesh : resources.RisingMesh;
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(selectedMesh.Bytes, 0, default, Matrix(task, worldView), projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, selectedMesh, selectedMesh.Address));
         if (paused)
         {
             return new(task, batch, 0);

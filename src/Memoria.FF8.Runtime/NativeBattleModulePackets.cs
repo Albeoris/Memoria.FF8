@@ -79,8 +79,14 @@ public static partial class NativeBattleModulePackets
             NativeBattleGeometryPrimitive primitive = new(bucket, NativeBattleTelemetry.Immutable(1119, words), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray());
             if (draw.PilotIdentity is { } identity)
             {
-                System.Numerics.Vector3 World(int x, int y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(unchecked((short)x), unchecked((short)y), 0)), projection);
-                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset / 20) }, World(-width, -height), World(width, -height), World(-width, height), World(width, height), 4, draw.PilotContinuous) { Sprite = draw.PilotContinuous ? NativeBattlePilotSpriteGeometry.Capture(main, quad, width, height, projection) : null } };
+                NativeBattleCameraProjection pilotProjection = draw.PilotProjection ?? projection;
+                System.Numerics.Vector3 World(int x, int y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(unchecked((short)x), unchecked((short)y), 0)), pilotProjection);
+                System.Numerics.Vector3 a = World(-width, -height);
+                System.Numerics.Vector3 b = World(width, -height);
+                System.Numerics.Vector3 c = World(-width, height);
+                System.Numerics.Vector3 d = World(width, height);
+                NativeBattlePilotSpriteGeometry? sprite = !draw.PilotContinuous ? null : draw.PilotProjection is null ? NativeBattlePilotSpriteGeometry.Capture(main, quad, width, height, projection) : CaptureActualSprite(main, pilotProjection, a, b, c, d);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset / 20) }, a, b, c, d, 4, draw.PilotContinuous) { Sprite = sprite } };
             }
             result.Add(new(primitive, allocated, 0));
             allocated += extended ? 52 : 40;
@@ -90,6 +96,22 @@ public static partial class NativeBattleModulePackets
             NativeBattleProjectedVertex Project(int x, int y) => NativeBattleModuleProjection.Project45FE10(matrix, new(unchecked((short)x), unchecked((short)y), 0), projection);
         }
         return new(result.ToImmutable(), allocated);
+    }
+
+    private static NativeBattlePilotSpriteGeometry? CaptureActualSprite(NativeBattleActionMatrix main, NativeBattleCameraProjection projection, System.Numerics.Vector3 a, System.Numerics.Vector3 b, System.Numerics.Vector3 c, System.Numerics.Vector3 d)
+    {
+        System.Numerics.Vector3 origin = NativeBattlePilotVisualGeometry.CameraToWorld(new(main.X, main.Y, main.Z), projection);
+        System.Numerics.Vector3 Axis(int column) => NativeBattlePilotVisualGeometry.CameraToWorldDirection(new(main.Rotation[column] / 4096f, main.Rotation[3 + column] / 4096f, main.Rotation[6 + column] / 4096f), projection);
+        System.Numerics.Vector3 x = Axis(0);
+        System.Numerics.Vector3 y = Axis(1);
+        System.Numerics.Vector3 z = Axis(2);
+        System.Numerics.Matrix4x4 basis = new(x.X, x.Y, x.Z, 0, y.X, y.Y, y.Z, 0, z.X, z.Y, z.Z, 0, origin.X, origin.Y, origin.Z, 1);
+        if (!System.Numerics.Matrix4x4.Invert(basis, out System.Numerics.Matrix4x4 inverse))
+        {
+            return null;
+        }
+        System.Numerics.Vector3 Local(System.Numerics.Vector3 point) => System.Numerics.Vector3.Transform(point, inverse);
+        return new(Local(a), Local(b), Local(c), Local(d), origin, x, y, z);
     }
 
     private static int Bucket(IReadOnlyList<NativeBattleProjectedVertex> vertices, int tableBaseBucket, byte depthShift)

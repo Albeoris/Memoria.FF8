@@ -7,6 +7,11 @@ public static class NativeBattleGilgameshFinalRing
 {
     public static NativeBattleGilgameshFinalRingStep Step591F50(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null)
     {
+        return Step591F50WithPresentation(task, resource, view, projection, graphicsFlags, colors, null);
+    }
+
+    public static NativeBattleGilgameshFinalRingStep Step591F50WithPresentation(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         bool paused = (graphicsFlags & 0x201) != 0;
         if (Signed(task, 0x0E) > 0)
@@ -16,7 +21,7 @@ public static class NativeBattleGilgameshFinalRing
         int counter = Signed(task, 0x0C);
         uint flags = counter >= 4 ? 0xF3u : 0x33u;
         int? fade = counter >= 4 ? unchecked(341 * (counter - 4)) : null;
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, Matrix(task, view), projection, new(flags, 0, fade, null, null, null, 17, 2), colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, Matrix(task, view), projection, new(flags, 0, fade, null, null, null, 17, 2), colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, resource, resource.Address));
         if (paused)
         {
             return new(task, batch, 0);

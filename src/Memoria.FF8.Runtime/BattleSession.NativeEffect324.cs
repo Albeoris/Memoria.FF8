@@ -9,9 +9,10 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect324(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect324 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect324Resources resources = effect.Binding.Effect324Resources ?? throw new NotSupportedException("Effect324 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect324 requires current process memory.");
-        NativeBattleEffect324Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect324 requires its current CRT stream."), memory.Effect324 ?? throw new NotSupportedException("Effect324 requires its retained state.")) { Staging = NativeFileStaging };
+        NativeBattleEffect324Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect324 requires its current CRT stream."), memory.Effect324 ?? throw new NotSupportedException("Effect324 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
         NativeBattleEffect324Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect324 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect324Model(graphics.Models[NativeEffect324Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect324 requires its current projection."), _ => Camera().Roll, Point, ReadBones, ReadColor, (current, handle) => new(current, (NativeVibrationProcess ?? throw new NotSupportedException("Effect324 requires its current vibration process.")).IsPlaying(handle)), (current, operation) => ExecuteNativeEffect324Operation(ref graphics, current, operation, resources));
         frame = initialize ? NativeBattleEffect324Controller.Initialize(frame, resources, inputs) : NativeBattleEffect324Controller.Advance(frame, resources, inputs);
         PublishNativeEffect324Frame(frame);

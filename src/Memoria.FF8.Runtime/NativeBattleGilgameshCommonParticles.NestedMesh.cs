@@ -35,6 +35,11 @@ public static partial class NativeBattleGilgameshCommonParticles
 
     public static NativeBattleGilgameshMeshAuxiliaryStep Step593D20(NativeBattleModulePoolTask task, NativeBattleGilgameshCommonParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null)
     {
+        return Step593D20WithPresentation(task, resources, worldView, projection, graphicsFlags, colors, null);
+    }
+
+    public static NativeBattleGilgameshMeshAuxiliaryStep Step593D20WithPresentation(NativeBattleModulePoolTask task, NativeBattleGilgameshCommonParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ValidateTask(task);
         if (task.Callback != 0x593D20)
         {
@@ -45,7 +50,7 @@ public static partial class NativeBattleGilgameshCommonParticles
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, Signed(task, 24), 0)), Signed(task, 28), Signed(task, 32), Signed(task, 28)) with { X = Signed(task, 16), Y = Signed(task, 18), Z = Signed(task, 20) };
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(worldView, local);
         NativeBattleModuleMeshContext context = new(counter >= 18 ? 0xF3u : 0x33u, 0, counter >= 18 ? 341 * (counter - 18) : null, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resources.NestedMesh.Bytes, 0, default, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resources.NestedMesh.Bytes, 0, default, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: NativeBattleGilgameshVisuals.Resource(pilotIdentity, resources.NestedMesh, resources.NestedMesh.Address));
         if ((graphicsFlags & 0x201) != 0)
         {
             return new(task, batch, 0);

@@ -10,6 +10,11 @@ public static partial class NativeBattleGilgameshParticles
 {
     public static NativeBattleGilgameshParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshParticleResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags)
     {
+        return StepWithPresentation(task, arena, random, resources, view, projection, graphicsFlags, null);
+    }
+
+    public static NativeBattleGilgameshParticleStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshParticleResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (task.PayloadLength != 24 || task.Callback is not (0x5915C0 or 0x591850 or 0x591B80))
         {
             throw new InvalidDataException("Native Gilgamesh particles require their original raw0x24-byte callback task.");
@@ -43,6 +48,10 @@ public static partial class NativeBattleGilgameshParticles
                     break;
                 }
                 (arena, random) = Spawn(task.Callback, arena, record, mask, random);
+                if (pilotIdentity.HasValue)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), (record - bank) / stride);
+                }
             }
         }
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = unchecked((short)task.ReadWord(0x10)), Y = unchecked((short)task.ReadWord(0x12)), Z = unchecked((short)task.ReadWord(0x14)) };
@@ -63,6 +72,8 @@ public static partial class NativeBattleGilgameshParticles
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
                 Resource = resource,
+                PilotProjection = pilotIdentity.HasValue ? projection : null,
+                PilotIdentity = NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), index, resource, resource.Address),
                 SpriteFrame = frame,
                 Phase = streaks ? (ushort)0 : unchecked((ushort)phase),
                 Anchor = new(Word(arena, record + 8), Word(arena, record + 10), Word(arena, record + 12), 0),
