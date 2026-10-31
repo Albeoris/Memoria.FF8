@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 static class ArchiveVersion
 {
     private const string LinuxManifest = "Data/distribution.json";
-    private const string MacManifest = "Memoria.FF8.app/Contents/MacOS/Data/distribution.json";
+    private const string MacManifest = "Memoria.FF8.app/Contents/Resources/Data/distribution.json";
     private const string MacInfo = "Memoria.FF8.app/Contents/Info.plist";
 
     public static void Set(string path, string version, string buildId)

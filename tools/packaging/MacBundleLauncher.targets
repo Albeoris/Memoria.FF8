@@ -1,0 +1,15 @@
+<Project>
+  <!-- Only the native entry point belongs in MacOS. The managed assembly and
+       its complete runtime remain together under Resources. -->
+  <Target Name="CreateMacBundleLauncher" DependsOnTargets="_GetAppHostPaths">
+    <Error Condition="!$(RuntimeIdentifier.StartsWith('osx-'))" Text="The bundle apphost requires a macOS runtime identifier." />
+    <Error Condition="'$(MacBundleLauncherPath)' == '' Or !Exists('$(AppHostSourcePath)')" Text="Supply MacBundleLauncherPath and restore the matching SDK apphost pack." />
+    <PropertyGroup>
+      <MacBundleExecutableDirectory>$([System.IO.Path]::GetDirectoryName('$(MacBundleLauncherPath)'))</MacBundleExecutableDirectory>
+      <MacBundleManagedAssembly>$([System.IO.Path]::GetFullPath('$(MacBundleExecutableDirectory)/../Resources/$(AssemblyName).dll'))</MacBundleManagedAssembly>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(MacBundleManagedAssembly)')" Text="Publish the complete managed launcher under Contents/Resources before creating its entry point." />
+    <MakeDir Directories="$(MacBundleExecutableDirectory)" />
+    <CreateAppHost AppHostSourcePath="$(AppHostSourcePath)" AppHostDestinationPath="$(MacBundleLauncherPath)" AppBinaryName="../Resources/$(AssemblyName).dll" IntermediateAssembly="$(MacBundleManagedAssembly)" EnableMacOSCodeSign="true" />
+  </Target>
+</Project>

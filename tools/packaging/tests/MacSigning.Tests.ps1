@@ -56,30 +56,43 @@ try {
     $published = Join-Path $temporary 'published'
     New-Item -ItemType Directory -Path $source | Out-Null
     $project = Join-Path $source 'SigningFixture.csproj'
-    Set-Content -LiteralPath $project -Encoding utf8NoBOM -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><UseAppHost>true</UseAppHost></PropertyGroup></Project>'
+    $targetImport = [Security.SecurityElement]::Escape((Join-Path $product 'tools/packaging/MacBundleLauncher.targets'))
+    $projectText = '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><UseAppHost>true</UseAppHost></PropertyGroup></Project>'
+    $projectText = $projectText.Replace('</Project>', "<Import Project=`"$targetImport`" /></Project>")
+    Set-Content -LiteralPath $project -Encoding utf8NoBOM -Value $projectText
     Set-Content -LiteralPath (Join-Path $source 'Program.cs') -Encoding utf8NoBOM -Value 'System.Console.WriteLine("Signing fixture");'
-    & dotnet publish $project -c $Configuration -r $rid --self-contained false -o $published --nologo
+    & dotnet publish $project -c $Configuration -r $rid --self-contained true -o $published --nologo
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not publish the native .NET signing fixture.'
     }
 
     $parent = Join-Path $temporary 'package'
     $bundle = Join-Path $parent 'Memoria.FF8.app'
+    $resources = Join-Path $bundle 'Contents/Resources'
+    New-Item -ItemType Directory -Force -Path $resources | Out-Null
+    Get-ChildItem -LiteralPath $published | Copy-Item -Destination $resources -Recurse
+    foreach ($file in Get-ChildItem -LiteralPath $resources -File -Recurse) {
+        [IO.File]::SetUnixFileMode($file.FullName, [IO.UnixFileMode]420)
+    }
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
-        $path = Join-Path $bundle ('Contents/MacOS/' + $relative)
+        $path = Join-Path $bundle ('Contents/Resources/' + $relative)
         New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($path)) | Out-Null
         Copy-Item -LiteralPath (Join-Path $published 'SigningFixture') -Destination $path
         [IO.File]::SetUnixFileMode($path, [IO.UnixFileMode]493)
     }
-    foreach ($name in @('SigningFixture.dll', 'SigningFixture.deps.json', 'SigningFixture.runtimeconfig.json')) {
-        Copy-Item -LiteralPath (Join-Path $published $name) -Destination (Join-Path $bundle 'Contents/MacOS')
+    Remove-Item -LiteralPath (Join-Path $resources 'SigningFixture')
+    $entrypoint = Join-Path $bundle 'Contents/MacOS/Memoria.Launcher'
+    & dotnet build $project --no-restore -c $Configuration -r $rid --self-contained true -t:CreateMacBundleLauncher "-p:MacBundleLauncherPath=$entrypoint" --nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not create the native apphost pointing to Resources.'
     }
+    [IO.File]::SetUnixFileMode($entrypoint, [IO.UnixFileMode]493)
     $plist = Join-Path $bundle 'Contents/Info.plist'
     Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Destination $plist
     if ($rid -eq 'osx-arm64') {
         [IO.File]::WriteAllText($plist, [IO.File]::ReadAllText($plist).Replace('<key>LSArchitecturePriority</key><array><string>x86_64</string></array>', '<key>LSArchitecturePriority</key><array><string>arm64</string></array>'))
     }
-    Set-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/fixture.txt') -Encoding utf8NoBOM -Value 'Signed resource fixture.'
+    Set-Content -LiteralPath (Join-Path $bundle 'Contents/Resources/Data/fixture.txt') -Encoding utf8NoBOM -Value 'Signed resource fixture.'
     $env:GITHUB_ACTIONS = 'true'
     $env:GITHUB_SHA = $buildId
     $env:GITHUB_REF_TYPE = 'tag'
@@ -92,7 +105,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or ($launchOutput -join [Environment]::NewLine).Trim() -cne 'Signing fixture') {
         throw "The signed .NET fixture could not start its runtime: $($launchOutput -join [Environment]::NewLine)"
     }
-    $manifestPath = Join-Path $bundle 'Contents/MacOS/Data/distribution.json'
+    $manifestPath = Join-Path $bundle 'Contents/Resources/Data/distribution.json'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $launcher = @($manifest.Files | Where-Object Path -ceq 'Contents/MacOS/Memoria.Launcher')
     if ($manifest.SchemaVersion -ne 3 -or $manifest.Version -cne $version -or $manifest.BuildId -cne $buildId -or $launcher.Count -ne 1 -or $launcher[0].HashKind -cne 'macos-unsigned-sha256') {
@@ -133,11 +146,11 @@ try {
     }
     Test-RejectedMutation 'nested-native' {
         param($root)
-        Set-TamperedByte (Join-Path $root 'Contents/MacOS/Data/Game/vulkan/Memoria.PsfDecoder')
+        Set-TamperedByte (Join-Path $root 'Contents/Resources/Data/Game/vulkan/Memoria.PsfDecoder')
     }
     Test-RejectedMutation 'resource' {
         param($root)
-        Add-Content -LiteralPath (Join-Path $root 'Contents/MacOS/Data/fixture.txt') -Value 'Changed.'
+        Add-Content -LiteralPath (Join-Path $root 'Contents/Resources/Data/fixture.txt') -Value 'Changed.'
     }
     Test-RejectedMutation 'missing-seal' {
         param($root)
@@ -149,7 +162,7 @@ try {
     }
     Test-RejectedMutation 'extra-file' {
         param($root)
-        Set-Content -LiteralPath (Join-Path $root 'Contents/MacOS/Data/unexpected.txt') -Value 'Uninventoried.'
+        Set-Content -LiteralPath (Join-Path $root 'Contents/Resources/Data/unexpected.txt') -Value 'Uninventoried.'
     }
 
     # Outer signing may replace signature bytes without changing canonical code.

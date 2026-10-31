@@ -125,7 +125,7 @@ static class PackagedDistribution
         if (HostPlatforms.IsMacRuntime(rid))
         {
             MacNativeClosure.Validate(root, rid);
-            string molten = Path.Combine(root, "Contents", "MacOS", "Data", "Game", "vulkan", "libMoltenVK.dylib");
+            string molten = Path.Combine(root, "Contents", "Resources", "Data", "Game", "vulkan", "libMoltenVK.dylib");
             if (!File.Exists(molten) || !File.Exists(Path.Combine(Path.GetDirectoryName(molten)!, "MoltenVK.LICENSE")))
             {
                 throw new InvalidDataException("The Vulkan/Metal provider or its notice is missing.");
@@ -136,7 +136,7 @@ static class PackagedDistribution
 
     public static void Validate(string root, string rid)
     {
-        string prefix = HostPlatforms.IsMacRuntime(rid) ? "Contents/MacOS/" : "";
+        string prefix = HostPlatforms.IsMacRuntime(rid) ? MacCodeSigning.PayloadPrefix : "";
         using JsonDocument json = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, prefix + "Data/distribution.json")));
         JsonElement manifest = json.RootElement;
         bool mac = HostPlatforms.IsMacRuntime(rid);
@@ -161,7 +161,7 @@ static class PackagedDistribution
             {
                 throw new InvalidDataException("Invalid inventory path.");
             }
-            if (mac && relative != "Contents/Info.plist" && !relative.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
+            if (mac && relative != "Contents/Info.plist" && relative != MacCodeSigning.Launcher && !relative.StartsWith(MacCodeSigning.PayloadPrefix, StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
             }
@@ -188,6 +188,10 @@ static class PackagedDistribution
             }
         }
         string extension = rid == "win-x64" ? ".exe" : "";
+        if (mac && !expected.Contains(MacCodeSigning.Launcher))
+        {
+            throw new InvalidDataException("The macOS bundle has no native entry point.");
+        }
         foreach (string path in new[] { "Memoria.Launcher" + extension, "Data/Memoria.FF8" + extension, "Data/audio-host/Memoria.FF8.Music" + extension, "Data/Game/vulkan/Memoria.FF8" + extension, "Data/Game/vulkan/Memoria.PsfDecoder" + extension })
         {
             if (!expected.Contains(prefix + path))

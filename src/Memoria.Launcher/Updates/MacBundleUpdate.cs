@@ -11,7 +11,7 @@ internal static class MacBundleUpdate
     internal static string NormalizeRoot(string path)
     {
         string root = Path.TrimEndingDirectorySeparator(DistributionPaths.GetFullPath(path));
-        if (Path.GetFileName(root) == "MacOS" && Path.GetFileName(Path.GetDirectoryName(root)) == "Contents")
+        if (Path.GetFileName(root) is "MacOS" or "Resources" && Path.GetFileName(Path.GetDirectoryName(root)) == "Contents")
         {
             string bundle = Path.GetDirectoryName(Path.GetDirectoryName(root))!;
             if (!IsBundleRoot(bundle))

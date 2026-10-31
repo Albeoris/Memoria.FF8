@@ -51,9 +51,9 @@ try {
     foreach ($macRid in @('osx-x64', 'osx-arm64')) {
         $macParent = Join-Path $temporary ('mac-' + $macRid)
         $macRoot = Join-Path $macParent 'Memoria.FF8.app'
-        New-Item -ItemType Directory -Force -Path (Join-Path $macRoot 'Contents/MacOS/Data') | Out-Null
+        New-Item -ItemType Directory -Force -Path (Join-Path $macRoot 'Contents/Resources/Data') | Out-Null
         Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Destination (Join-Path $macRoot 'Contents/Info.plist')
-        Set-Content -LiteralPath (Join-Path $macRoot 'Contents/MacOS/Data/engine.dll') -Value 'synthetic tested payload' -Encoding utf8NoBOM
+        Set-Content -LiteralPath (Join-Path $macRoot 'Contents/Resources/Data/engine.dll') -Value 'synthetic tested payload' -Encoding utf8NoBOM
         $previousEnvironment = @{}
         foreach ($name in @('GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_TYPE', 'GITHUB_REF_NAME')) {
             $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
@@ -70,7 +70,7 @@ try {
                 [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name])
             }
         }
-        $before = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/MacOS/Data/distribution.json') -Raw | ConvertFrom-Json
+        $before = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Resources/Data/distribution.json') -Raw | ConvertFrom-Json
         [xml]$nightlyInfo = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Info.plist') -Raw
         if ($before.Version -cne 'nightly' -or $nightlyInfo.SelectSingleNode('/plist/dict/key[text()="CFBundleShortVersionString"]/following-sibling::string[1]').InnerText -cne '0.0.0') {
             throw 'Nightly bundle version generation is inconsistent.'
@@ -92,7 +92,7 @@ try {
             }
             $bundle = Join-Path $extracted 'Memoria.FF8.app'
             Invoke-Checker @('--validate-mac-bundle-version', (Join-Path $bundle 'Contents/Info.plist'), $tag)
-            $after = Get-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/distribution.json') -Raw | ConvertFrom-Json
+            $after = Get-Content -LiteralPath (Join-Path $bundle 'Contents/Resources/Data/distribution.json') -Raw | ConvertFrom-Json
             [xml]$info = Get-Content -LiteralPath (Join-Path $bundle 'Contents/Info.plist') -Raw
             foreach ($key in @('CFBundleShortVersionString', 'CFBundleVersion')) {
                 if ($info.SelectSingleNode("/plist/dict/key[text()='$key']/following-sibling::string[1]").InnerText -cne '1.2.3') {
@@ -115,9 +115,9 @@ try {
         }
         # Exercise the signed-version guard portably. Native tests separately
         # create and validate an actual schema 3 signature on macOS.
-        $signedDescriptor = Get-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/distribution.json') -Raw | ConvertFrom-Json
+        $signedDescriptor = Get-Content -LiteralPath (Join-Path $bundle 'Contents/Resources/Data/distribution.json') -Raw | ConvertFrom-Json
         $signedDescriptor.SchemaVersion = 3
-        $signedDescriptor | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/distribution.json') -Encoding utf8NoBOM
+        $signedDescriptor | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $bundle 'Contents/Resources/Data/distribution.json') -Encoding utf8NoBOM
         $guardArchive = Join-Path $temporary ($macRid + '-version-guard.tar.gz')
         Invoke-Checker @('--create-tar', $extracted, $guardArchive)
         $guardHash = (Get-FileHash -LiteralPath $guardArchive -Algorithm SHA256).Hash

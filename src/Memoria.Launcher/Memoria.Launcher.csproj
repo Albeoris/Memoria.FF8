@@ -25,4 +25,5 @@
     <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
+  <Import Project="../../tools/packaging/MacBundleLauncher.targets" />
 </Project>

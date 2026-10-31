@@ -7,7 +7,7 @@ module.exports = async function findDistribution({ github, context, core, rid })
         throw new Error('A supported RID is required for distribution reuse.');
     }
     const recipe = crypto.createHash('sha256');
-    for (const file of ['Build.ps1', 'global.json', 'Directory.Packages.props', 'tools/New-DistributionManifest.ps1', 'tools/Memoria.FF8.Distribution.Check/MacBundleSigning.cs', 'src/Memoria.FF8.Platform/MacCodeSigning.cs']) {
+    for (const file of ['Build.ps1', 'global.json', 'Directory.Packages.props', 'tools/New-DistributionManifest.ps1', 'tools/packaging/MacBundleLauncher.targets', 'tools/Memoria.FF8.Distribution.Check/MacBundleSigning.cs', 'src/Memoria.FF8.Platform/MacCodeSigning.cs']) {
         recipe.update(file);
         recipe.update(fs.readFileSync(file));
     }

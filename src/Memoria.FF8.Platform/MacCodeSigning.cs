@@ -8,6 +8,8 @@ public static class MacCodeSigning
 {
     public const string ResourceEnvelope = "Contents/_CodeSignature/CodeResources";
     public const string Launcher = "Contents/MacOS/Memoria.Launcher";
+    public const string PayloadPrefix = "Contents/Resources/";
+    public const string Manifest = PayloadPrefix + "Data/distribution.json";
     public const string UnsignedHashKind = "macos-unsigned-sha256";
 
     public static bool IsMachO(string path)

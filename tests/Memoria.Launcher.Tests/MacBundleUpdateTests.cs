@@ -16,8 +16,10 @@ public sealed class MacBundleUpdateTests : IDisposable
     public void FixedBundleLayoutNormalizesThePackagedLauncherDirectory()
     {
         Assert.Equal(Root, MacBundleUpdate.NormalizeRoot(Path.Combine(Root, "Contents", "MacOS")));
+        Assert.Equal(Root, MacBundleUpdate.NormalizeRoot(Path.Combine(Root, "Contents", "Resources")));
         Assert.Equal(Root, MacBundleUpdate.NormalizeRoot(Root));
         Assert.Throws<InvalidDataException>(() => MacBundleUpdate.NormalizeRoot(Path.Combine(directory, "not-bundle", "Contents", "MacOS")));
+        Assert.Throws<InvalidDataException>(() => MacBundleUpdate.NormalizeRoot(Path.Combine(directory, "not-bundle", "Contents", "Resources")));
         Assert.Equal(Path.Combine(directory, ".Memoria.FF8.app.memoria-update"), MacBundleUpdate.WorkPath(Root));
     }
 
@@ -232,9 +234,10 @@ public sealed class MacBundleUpdateTests : IDisposable
         {
             ["Contents/Info.plist"] = "plist " + build,
             ["Contents/MacOS/Memoria.Launcher"] = "launcher " + build,
-            ["Contents/MacOS/Memoria.Launcher.dll"] = "runtime " + build,
-            ["Contents/MacOS/Data/Memoria.FF8"] = "bootstrap " + build,
-            ["Contents/MacOS/Data/audio-host/Memoria.FF8.Music"] = "music " + build
+            ["Contents/Resources/Memoria.Launcher"] = "helper " + build,
+            ["Contents/Resources/Memoria.Launcher.dll"] = "runtime " + build,
+            ["Contents/Resources/Data/Memoria.FF8"] = "bootstrap " + build,
+            ["Contents/Resources/Data/audio-host/Memoria.FF8.Music"] = "music " + build
         };
         List<PackageFile> inventory = [];
         foreach ((string relative, string text) in files)

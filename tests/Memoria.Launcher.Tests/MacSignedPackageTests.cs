@@ -66,7 +66,7 @@ public sealed class MacSignedPackageTests : IDisposable
         string root = Path.Combine(directory, "Memoria.FF8.app");
         string executable = Environment.ProcessPath ?? throw new InvalidOperationException("The native test process path is unavailable.");
         Assert.True(MacCodeSigning.IsMachO(executable));
-        foreach (string relative in new[] { MacCodeSigning.Launcher, "Contents/MacOS/Data/Memoria.FF8", "Contents/MacOS/Data/audio-host/Memoria.FF8.Music", "Contents/MacOS/Data/Game/vulkan/Memoria.FF8", "Contents/MacOS/Data/Game/vulkan/Memoria.PsfDecoder" })
+        foreach (string relative in new[] { MacCodeSigning.Launcher, "Contents/Resources/Memoria.Launcher", "Contents/Resources/Data/Memoria.FF8", "Contents/Resources/Data/audio-host/Memoria.FF8.Music", "Contents/Resources/Data/Game/vulkan/Memoria.FF8", "Contents/Resources/Data/Game/vulkan/Memoria.PsfDecoder" })
         {
             string path = Path.Combine(root, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -74,6 +74,9 @@ public sealed class MacSignedPackageTests : IDisposable
             File.SetUnixFileMode(path, (UnixFileMode)493);
             MacCodeSigning.Sign(path);
         }
+        string managedAssembly = Path.Combine(root, "Contents", "Resources", "SigningFixture.dll");
+        File.Copy(typeof(MacSignedPackageTests).Assembly.Location, managedAssembly);
+        File.SetUnixFileMode(managedAssembly, (UnixFileMode)420);
         string plist = Path.Combine(root, "Contents", "Info.plist");
         File.WriteAllText(plist, """
             <?xml version="1.0" encoding="UTF-8"?>

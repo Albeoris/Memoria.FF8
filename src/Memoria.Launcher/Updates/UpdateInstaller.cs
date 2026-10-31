@@ -314,11 +314,11 @@ internal static class UpdateInstaller
         {
             string closure = Path.Combine(work, recovery ? "recovery-runtime" : "updater-runtime");
             Directory.CreateDirectory(closure);
-            foreach (PackageFile file in installed.Files.Where(file => MacBundleUpdate.IsBundleRoot(root) ? file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !file.Path.StartsWith("Contents/MacOS/Data/", StringComparison.Ordinal) : !file.Path.Contains('/')))
+            foreach (PackageFile file in installed.Files.Where(file => MacBundleUpdate.IsBundleRoot(root) ? file.Path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !file.Path.StartsWith("Contents/Resources/Data/", StringComparison.Ordinal) : !file.Path.Contains('/')))
             {
                 string source = PackageManifest.ResolvePath(root, file.Path);
                 RejectLinks(source);
-                string relative = MacBundleUpdate.IsBundleRoot(root) ? file.Path["Contents/MacOS/".Length..] : file.Path;
+                string relative = MacBundleUpdate.IsBundleRoot(root) ? file.Path["Contents/Resources/".Length..] : file.Path;
                 string destination = Path.Combine(closure, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 File.Copy(source, destination, true);

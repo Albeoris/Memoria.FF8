@@ -88,7 +88,7 @@ $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
 $payload = $staging
 if ($RuntimeIdentifier -like 'osx-*') {
-    $payload = Join-Path $staging 'Memoria.FF8.app/Contents/MacOS'
+    $payload = Join-Path $staging 'Memoria.FF8.app/Contents/Resources'
 }
 $data = Join-Path $payload 'Data'
 $extension = if ($RuntimeIdentifier -eq 'win-x64') { '.exe' } else { '' }
@@ -223,6 +223,13 @@ try {
     }
     else {
         Get-ChildItem -LiteralPath $launcher | Move-Item -Destination $payload
+    }
+    if ($RuntimeIdentifier -like 'osx-*') {
+        $bundleLauncher = Join-Path $staging 'Memoria.FF8.app/Contents/MacOS/Memoria.Launcher'
+        Invoke-DotNet (@('build', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '--no-restore', '-c', $Configuration, '-t:CreateMacBundleLauncher', ('-p:MacBundleLauncherPath=' + $bundleLauncher)) + $graphArguments)
+        if ([OperatingSystem]::IsMacOS()) {
+            [IO.File]::SetUnixFileMode($bundleLauncher, [IO.UnixFileMode]493)
+        }
     }
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($launcher)) -ne [IO.Path]::GetFullPath($staging)) {
         throw 'The launcher staging path is outside the generated staging directory.'

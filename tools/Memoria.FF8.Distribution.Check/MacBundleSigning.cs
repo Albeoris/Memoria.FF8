@@ -10,9 +10,13 @@ static class MacBundleSigning
         {
             throw new PlatformNotSupportedException("A complete macOS distribution must be finalized on macOS.");
         }
-        string manifestPath = Path.Combine(root, "Contents/MacOS/Data/distribution.json");
+        string manifestPath = Path.Combine(root, MacCodeSigning.Manifest);
         string[] files = MacCodeSigning.BundleFiles(root);
         Dictionary<string, string> inputFiles = files.Where(path => path != manifestPath).ToDictionary(path => Path.GetRelativePath(root, path).Replace('\\', '/'), StringComparer.Ordinal);
+        if (inputFiles.Keys.Any(path => path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && path != MacCodeSigning.Launcher))
+        {
+            throw new InvalidDataException("Contents/MacOS may contain only the native launcher; managed assemblies and runtime resources belong in Contents/Resources.");
+        }
         JsonObject manifest = JsonNode.Parse(File.ReadAllBytes(manifestPath))!.AsObject();
         if (manifest["SchemaVersion"]?.GetValue<int>() != 2 || !HostPlatforms.IsMacRuntime(manifest["RuntimeIdentifier"]?.GetValue<string>() ?? ""))
         {

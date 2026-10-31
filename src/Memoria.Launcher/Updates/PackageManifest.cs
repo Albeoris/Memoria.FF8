@@ -24,7 +24,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
     }
 
     internal const string ManifestPath = "Data/distribution.json";
-    internal const string MacManifestPath = "Contents/MacOS/Data/distribution.json";
+    internal const string MacManifestPath = "Contents/Resources/Data/distribution.json";
     internal static string ManifestRelativePath(string root) => MacBundleUpdate.IsBundleRoot(root) ? MacManifestPath : ManifestPath;
     internal const string LauncherPath = "Memoria.Launcher.exe";
     private const long MaximumFileSize = 2L * 1024 * 1024 * 1024;
@@ -81,7 +81,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             {
                 throw new InvalidDataException("Bundle paths require the macOS runtime inventory.");
             }
-            if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path != "Contents/Info.plist" && !file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
+            if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path != "Contents/Info.plist" && file.Path != MacCodeSigning.Launcher && !file.Path.StartsWith("Contents/Resources/", StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
             }
@@ -110,10 +110,14 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             }
         }
 
-        string executablePrefix = Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/MacOS/" : "";
+        string executablePrefix = Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/Resources/" : "";
         if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && !paths.Contains("Contents/Info.plist"))
         {
             throw new InvalidDataException("The macOS bundle has no Info.plist.");
+        }
+        if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && !paths.Contains("Contents/Resources/Memoria.Launcher"))
+        {
+            throw new InvalidDataException("The macOS bundle has no standalone update helper launcher.");
         }
         string extension = RuntimeIdentifier == "win-x64" ? ".exe" : "";
         if (!paths.Contains(LauncherEntryPoint) || !paths.Contains(executablePrefix + "Data/Memoria.FF8" + extension) || !paths.Contains(executablePrefix + "Data/audio-host/Memoria.FF8.Music" + extension))
@@ -314,7 +318,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
         ValidateSegments(path);
         bool portableRoot = !path.Contains('/') && (path == "Memoria.Launcher" || path.EndsWith(".dll", StringComparison.Ordinal) || path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith(".so", StringComparison.Ordinal) || path.EndsWith(".dylib", StringComparison.Ordinal));
         bool signatureEnvelope = allowManifest && path == MacCodeSigning.ResourceEnvelope;
-        if ((!signatureEnvelope && !portableRoot && path != "Contents/Info.plist" && !path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
+        if ((!signatureEnvelope && !portableRoot && path != "Contents/Info.plist" && path != MacCodeSigning.Launcher && !path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"The path is not owned by the distribution: {path}");
         }

@@ -19,7 +19,7 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
         $version = $env:GITHUB_REF_NAME
     }
 }
-$prefix = if ($RuntimeIdentifier -like 'osx-*') { 'Contents/MacOS/' } else { '' }
+$prefix = if ($RuntimeIdentifier -like 'osx-*') { 'Contents/Resources/' } else { '' }
 if ($RuntimeIdentifier -like 'osx-*') {
     & dotnet run --project (Join-Path $PSScriptRoot 'Memoria.FF8.Distribution.Check') -c Release -- --set-mac-bundle-version (Join-Path $root 'Contents/Info.plist') $version
     if ($LASTEXITCODE -ne 0) {
@@ -42,7 +42,7 @@ $manifest = [ordered]@{
     SchemaVersion = $(if ($RuntimeIdentifier -eq "win-x64") { 1 } else { 2 })
     RuntimeIdentifier = $RuntimeIdentifier
     LayoutVersion = 1
-    EntryPoints = @{ Launcher = $prefix + "Memoria.Launcher" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }); Game = $prefix + "Data/Memoria.FF8" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }) }
+    EntryPoints = @{ Launcher = $(if ($RuntimeIdentifier -like 'osx-*') { 'Contents/MacOS/Memoria.Launcher' } else { "Memoria.Launcher" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }) }); Game = $prefix + "Data/Memoria.FF8" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }) }
     BuildId = $buildId
     Version = $version
     BuiltAt = [DateTimeOffset]::UtcNow.ToString('o')

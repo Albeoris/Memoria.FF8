@@ -24,7 +24,7 @@ if (args.Length == 2 && args[0] == "--validate-mac-signatures")
 
 if (args.Length == 2 && args[0] == "--validate-mac-inventory")
 {
-    using JsonDocument manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(args[1], "Contents/MacOS/Data/distribution.json")));
+    using JsonDocument manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(args[1], MacCodeSigning.Manifest)));
     PackagedDistribution.Validate(Path.GetFullPath(args[1]), manifest.RootElement.GetProperty("RuntimeIdentifier").GetString()!);
     return;
 }
