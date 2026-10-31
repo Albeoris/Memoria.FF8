@@ -21,7 +21,7 @@ public static partial class NativeBattleEvilEye282Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, current);
-            frame = DrawProgrammeNode282(frame, source, node, caller, -128, resources, inputs);
+            frame = DrawProgrammeNode282(frame, source, node, caller, -128, resources, inputs, inputs.CapturePresentation ? NativeBattleSelectedProgrammeVisuals.Workspace(282, Read(frame, address), address + (uint)workspaceOffset, source.Address, node.ResourceOffset) : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, advanced.Workspace);
@@ -35,6 +35,11 @@ public static partial class NativeBattleEvilEye282Controller
     }
 
     public static NativeBattleEvilEye282Frame DrawProgrammeNode282(NativeBattleEvilEye282Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleEvilEye282Resources resources, NativeBattleEvilEye282Inputs inputs)
+    {
+        return DrawProgrammeNode282(frame, source, node, caller, depthBias, resources, inputs, null);
+    }
+
+    public static NativeBattleEvilEye282Frame DrawProgrammeNode282(NativeBattleEvilEye282Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleEvilEye282Resources resources, NativeBattleEvilEye282Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -98,7 +103,7 @@ public static partial class NativeBattleEvilEye282Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleEvilEye282DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleEvilEye282DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity is { } identity ? NativeBattleSelectedProgrammeVisuals.Resource(identity, geometryAddress, vertices) : null });
         return Release(frame, 88);
     }
 

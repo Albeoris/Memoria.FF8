@@ -86,8 +86,13 @@ public static class NativeBattleDuel274Controller
                 NativeBattleEffectTaskStep children = frame.Effect.Pools[1].Advance((pool, childSlot) =>
                 {
                     frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
+                    NativeBattlePilotVisualIdentity? previousIdentity = frame.PilotIdentity;
+                    if (frame.CapturePresentation)
+                    {
+                        frame = frame with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(274, pool.Slots[childSlot]) };
+                    }
                     NativeBattleDuel274TaskStep child = advanceTarget(frame, childSlot);
-                    frame = child.Frame;
+                    frame = child.Frame with { PilotIdentity = previousIdentity };
                     return new(child.Pool, child.Result);
                 });
                 frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children.Pool) } };

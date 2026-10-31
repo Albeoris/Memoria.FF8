@@ -76,6 +76,10 @@ public static class NativeBattleDuel274ArenaEcho
             }
         }
         task = NativeBattleDuelEcho.Capture68ADF0(task, 12, boneCount, readCurrentMatrix32);
+        if (frame.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, address, (bank - 136) >> 9);
+        }
         return StoreRanges(frame, address, task, writes);
     }
 }

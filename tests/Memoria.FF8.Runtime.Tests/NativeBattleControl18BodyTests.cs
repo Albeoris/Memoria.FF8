@@ -11,9 +11,30 @@ public sealed class NativeBattleControl18BodyTests
     [InlineData(true)]
     public void Effect77_body_capture_keeps_native_partial_writes_and_face_identity(bool quad)
     {
+        AssertSelectedCapture(77, quad);
+    }
+
+    [Theory]
+    [InlineData((ushort)266, false)]
+    [InlineData((ushort)266, true)]
+    [InlineData((ushort)267, false)]
+    [InlineData((ushort)267, true)]
+    [InlineData((ushort)268, false)]
+    [InlineData((ushort)268, true)]
+    [InlineData((ushort)269, false)]
+    [InlineData((ushort)269, true)]
+    [InlineData((ushort)270, false)]
+    [InlineData((ushort)270, true)]
+    public void Selected_death_body_retains_actual_world_depth_resource_and_native_partial_writes(ushort effect, bool quad)
+    {
+        AssertSelectedCapture(effect, quad);
+    }
+
+    private static void AssertSelectedCapture(ushort effect, bool quad)
+    {
         byte[] polygon = Polygon(quad, 0);
         System.Numerics.Vector3[] world = [new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12)];
-        NativeBattlePilotVisualIdentity identity = new(77, 0x1000, 2, 3, 4) { ResourceGeneration = 5 };
+        NativeBattlePilotVisualIdentity identity = new(effect, 0x1000, 2, 3, 4) { ResourceGeneration = 5 };
         NativeBattleGfGeometryBatch plain = NativeBattleControl18Body.Emit(quad ? [] : polygon, quad ? polygon : [], Points(4), new byte[1], 0xAA112233, null, 17);
         NativeBattleGfGeometryBatch captured = NativeBattleControl18Body.Emit(quad ? [] : polygon, quad ? polygon : [], Points(4), new byte[1], 0xAA112233, null, 17, world, identity);
         Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
@@ -24,7 +45,7 @@ public sealed class NativeBattleControl18BodyTests
         Assert.Equal(world[2], geometry.C);
         Assert.Equal((byte)(quad ? 4 : 3), geometry.CornerCount);
         Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
-        Assert.Equal((ushort)77, geometry.Identity.Effect);
+        Assert.Equal(effect, geometry.Identity.Effect);
         NativeBattleGfGeometryBatch nativeDepths = NativeBattleCinematicActorPresentation.NativeDepths(captured);
         Assert.True(Assert.Single(nativeDepths.Attempts).Primitive!.PilotGeometry!.UseSourceDepths);
         Assert.Equal(new System.Numerics.Vector4(4096, 4096, 4096, quad ? 4096 : 0), Assert.Single(nativeDepths.Attempts).Primitive!.PilotGeometry!.SourceDepths);

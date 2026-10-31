@@ -8,6 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeXatmDeath276(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native X-ATM092 requires its selected original module.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleXatmDeath276Resources resources = effect.Binding.XatmDeath276Resources ?? throw new NotSupportedException("Native X-ATM092 requires its authenticated executable resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native X-ATM092 requires its retained effect memory.");
         int caster = effect.Parameters?.Actor78 ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster parameter.");
@@ -22,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native X-ATM092 requires its published projection.");
         NativeBattleXatmDeath276State state = effect.XatmDeath276 ?? throw new NotSupportedException("Native X-ATM092 requires its executed684F10 state.");
         NativeBattleXatmDeath276Frame frame = new(memory, effect, state);
-        NativeBattleXatmDeath276Inputs inputs = new(projection, () => graphics.Models[caster], ReadModelAddress, ReadBone, ReadVertexCount, ReadVertex, Execute, StartVibration, AdvanceArc, AdvancePrim);
+        NativeBattleXatmDeath276Inputs inputs = new(projection, () => graphics.Models[caster], ReadModelAddress, ReadBone, ReadVertexCount, ReadVertex, Execute, StartVibration, AdvanceArc, AdvancePrim) { CapturePresentation = true };
         frame = NativeBattleXatmDeath276Controller.Advance684FA0(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
         return graphics with { OriginalEffect = frame.Effect with { XatmDeath276 = frame.State } };
@@ -79,8 +80,10 @@ public sealed partial class BattleSession
                     return NativeBattleXatmDeath276Debris.Burst687150(current, resources, burst, Geometry(), Bones(), owner.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native X-ATM092 requires its actual object mask."), Resource().GeometryRelocated507550 ? null : owner.BodyTextureSlots ?? throw new NotSupportedException("Native X-ATM092 requires its executed body material relocation."));
                 case NativeBattleXatmDeath276Sprite sprite:
                     NativeBattleModulePacketBatch sprites = NativeBattleModulePackets.EmitSprite571DC0(sprite.Draw, projection, NativeCamera!.Roll, 17, 2);
+                    sprites = sprites with { Primitives = sprites.Primitives.Select(item => item.Primitive is { PilotGeometry: { } visual } packet ? item with { Primitive = packet with { PilotGeometry = visual with { SourceDepths = new(packet.VertexPayload4[0], packet.VertexPayload4[1], packet.VertexPayload4[2], packet.VertexPayload4[3]), UseSourceDepths = true } } } : item).ToImmutableArray() };
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native X-ATM092 requires its physical ordering table.");
                     int cursor = current.State.DrawCursor ?? throw new NotSupportedException("Native X-ATM092 requires its selected packet arena.");
+                    current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(sprites.Primitives.Select(item => new NativeBattlePrimitiveReference("20DFAB8", 0, checked(cursor + item.ByteOffset)))) } };
                     NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, sprites, NativeBattleEffectGouraudWrites.FullDword);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, State = current.State with { DrawCursor = written.Cursor } };
@@ -88,7 +91,7 @@ public sealed partial class BattleSession
                     (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, packets.Batch);
                     return current;
                 case NativeBattleXatmDeath276White white:
-                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, NativeBattleXatmDeath276Body.White7040B0(255, 255, 255, white.Level), 1);
+                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, CaptureWhite(NativeBattleXatmDeath276Body.White7040B0(255, 255, 255, white.Level), current), 1);
                     return current;
                 case NativeBattleXatmDeath276Sound sound:
                     PublishNativeModuleSound(new(sound.Sound, 0, null) { Pan = 128 });
@@ -113,6 +116,12 @@ public sealed partial class BattleSession
             }
         }
 
+        static NativeBattleGfGeometryBatch CaptureWhite(NativeBattleGfGeometryBatch batch, NativeBattleXatmDeath276Frame current)
+        {
+            NativeBattlePilotVisualIdentity identity = NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[7].Slots[0], 500), 0x7040B0);
+            return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = NativeBattleSelectedProgrammeVisuals.Discrete(primitive, identity) } : attempt).ToImmutableArray() };
+        }
+
         NativeBattleXatmDeath276Vibration StartVibration(NativeBattleXatmDeath276Frame current)
         {
             NativeVibrationEnqueue queued = (NativeVibrationProcess ?? throw new NotSupportedException("Native X-ATM092 requires its retained vibration process.")).Enqueue(resources.Vibration, 1, 128);
@@ -133,7 +142,7 @@ public sealed partial class BattleSession
             ImmutableArray<ushort> lengths = Enumerable.Range(0, 256).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(resources.ArcLengths.AsSpan().Slice(index * 2))).ToImmutableArray();
             NativeBattleSharedEffectRandomState random = current.Memory.SharedEffectRandom ?? throw new NotSupportedException("Native X-ATM092 arcs require their actual shared random owner.");
             uint? directionResidue = current.Memory.ExecutionStack is { } stack ? NativeBattleXatmDeath276Stack.ResolveDirectionResidue(stack, graphics.EntryLifecycle) : null;
-            NativeBattleXatmDeath276ArcStep stepped = NativeBattleXatmDeath276Arcs.Advance(pool.Slots[slot], new(lengths, resources.ArcDistances), profile, projection, random, Triangle, directionResidue);
+            NativeBattleXatmDeath276ArcStep stepped = NativeBattleXatmDeath276Arcs.Advance(pool.Slots[slot], new(lengths, resources.ArcDistances), profile, projection, random, Triangle, directionResidue, NativeBattlePilotVisualLifetimes.Identity(276, pool.Slots[slot]));
             pool = pool.WriteSlot(slot, stepped.Task);
             current = current with { Memory = current.Memory with { SharedEffectRandom = stepped.Random }, Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(5, pool) } };
             (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, NativeBattleCinematicMonsterPackets.Pack(stepped.FramePrimitives), 1);
@@ -156,7 +165,9 @@ public sealed partial class BattleSession
             NativeEffectMemory = current.Memory;
             NativeBattleGraphicsModel actor = graphics.Models[caster];
             NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native685750 requires its actual view.");
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 0x1010, false);
+            graphics = graphics with { OriginalEffect = current.Effect };
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 0x1010, false, callerPilotIdentity: NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], 1), ReadModelAddress()));
+            current = current with { Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native body shadow lost its selected effect owner.") };
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native685750 requires its actual model matrix.")));
             graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
             current = current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native685750 shadow lost process memory.") };
@@ -173,10 +184,10 @@ public sealed partial class BattleSession
                 ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native685750 requires its actual shared projected scratch capacity.");
                 uint address = checked(0x196B018u - (uint)maximum * 8);
                 NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native685750 requires its retained shared projection bank.");
-                NativeBattleXatmDeath276BodyProjection projected = NativeBattleXatmDeath276Body.Project6A2A90(mesh, Bones(), projection, staging.Read(address, mesh.Vertices.Length * 8).ToImmutableArray(), hidden);
+                NativeBattleXatmDeath276BodyProjection projected = NativeBattleXatmDeath276Body.Project6A2A90(mesh, Bones(), projection, staging.Read(address, mesh.Vertices.Length * 8).ToImmutableArray(), hidden, true);
                 NativeFileStaging = staging.Write(address, projected.Bytes.AsSpan());
                 NativeBattleScriptedGraphicsMemory registers = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native685750 requires its current GTE depth registers.");
-                NativeBattleGfGeometryBatch batch = NativeBattleXatmDeath276Body.Packets6859D0(mesh.Polygons, projected.Vertices, actor.Color40 ?? throw new NotSupportedException("Native685750 requires its entity color DWORD40."), Resource().GeometryRelocated507550 ? null : actor.BodyTextureSlots ?? throw new NotSupportedException("Native685750 requires body materials."), registers.Zsf3 ?? throw new NotSupportedException("Native685750 requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native685750 requires ZSF4."));
+                NativeBattleGfGeometryBatch batch = NativeBattleXatmDeath276Body.CapturedPackets6859D0(mesh.Polygons, projected, actor.Color40 ?? throw new NotSupportedException("Native685750 requires its entity color DWORD40."), Resource().GeometryRelocated507550 ? null : actor.BodyTextureSlots ?? throw new NotSupportedException("Native685750 requires body materials."), registers.Zsf3 ?? throw new NotSupportedException("Native685750 requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native685750 requires ZSF4."), NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], index + 10), ReadModelAddress(), checked((uint)index)));
                 (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, batch);
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[caster], Pose());
@@ -189,6 +200,8 @@ public sealed partial class BattleSession
     {
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native X-ATM092 requires its physical ordering table.");
         int cursor = frame.State.DrawCursor ?? throw new NotSupportedException("Native X-ATM092 requires its selected module arena.");
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch) } };
+        batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, primitive.Pending, batch, flags20);
         NativeEffectMemory = written.Memory;
         return (graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } }, frame with { Memory = written.Memory, State = frame.State with { DrawCursor = written.Cursor } });
@@ -198,6 +211,8 @@ public sealed partial class BattleSession
     {
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native X-ATM092 requires its physical frame ordering table.");
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native X-ATM092 requires its actual FRAME packet arena.");
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+        batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch, flags20);
         NativeEffectMemory = frame.Memory with { PrimitiveProcess = written.Process };
         return (graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } }, frame with { Memory = NativeEffectMemory });

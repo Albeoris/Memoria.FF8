@@ -8,6 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeMegaSpark279(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Mega Spark requires its selected original effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleMegaSpark279Resources resources = effect.Binding.MegaSpark279Resources ?? throw new NotSupportedException("Mega Spark requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Mega Spark requires its actual process memory.");
         NativeBattleMegaSpark279Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Mega Spark requires its actual CRT stream."), memory.MegaSpark279 ?? throw new NotSupportedException("Mega Spark requires its retained executable storage."))
@@ -18,6 +19,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Mega Spark requires its original arithmetic constants.");
         NativeBattleMegaSpark279Inputs inputs = new(nativeActionPackets, colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadCurrentBoneMatrix, ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute)
         {
+            CapturePresentation = true,
             ReadRowPointW = _ => ReadNativeMegaSpark279RowPointW(graphics.EntryLifecycle)
         };
         frame = initialize ? NativeBattleMegaSpark279Controller.Initialize(frame, resources, inputs) : NativeBattleMegaSpark279Controller.Advance(frame, resources, inputs);
@@ -106,10 +108,12 @@ public sealed partial class BattleSession
 
         NativeBattleMegaSpark279Frame Deliver(NativeBattleMegaSpark279Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal = NativeBattleMegaSpark279Profile.CursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Mega Spark requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Mega Spark requires its current ordinary COMMON packet owner.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
                 NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch, flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
@@ -122,6 +126,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(address, 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Mega Spark requires its actual effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleMegaSpark279Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -193,7 +198,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Mega Spark mesh selected pointer differs from its actual context.");
             }
-            NativeBattleMegaSpark279MeshContext88Step drawn = NativeBattleMegaSpark279MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleMegaSpark279MeshContext88Step drawn = NativeBattleMegaSpark279MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -234,7 +239,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Mega Spark sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Mega Spark sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Mega Spark sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

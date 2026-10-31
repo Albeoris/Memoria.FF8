@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             }
             NativeBattleActionMatrix matrix = NativeBattleXatmDeath276PrimGeometry.Compose(node, origin, view, resources.EffectCamera);
             bool fade = node.Scalar36 != 0;
-            NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(resources.Prim.Data, geometry, vertices, matrix, projection, new(fade ? 0x20F0u : 0x2030u, fade ? node.Color32 : 0, node.Scalar36, null, null, -128, 17, 2), colors);
+            NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(resources.Prim.Data, geometry, vertices, matrix, projection, new(fade ? 0x20F0u : 0x2030u, fade ? node.Color32 : 0, node.Scalar36, null, null, -128, 17, 2), colors, pilotIdentity: NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, task, node.ResourceOffset), resources.Prim.Address + (uint)geometry, node.Word40 == node.Word42 || node.Scalar38 is 0 or 4096 ? checked(resources.Prim.Address + (uint)(geometry + 12 + (node.Scalar38 == 4096 ? node.Word42 : node.Word40) * count * 8)) : checked(0x20DFAB8u + (uint)frame.State.BufferOffset + 0x4084)));
             (graphics, frame) = AppendNativeXatmDeath276Packets(graphics, frame, batch);
             return current;
         });

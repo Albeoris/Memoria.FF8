@@ -5,14 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel274MeshPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch68BD50(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int depthBias, uint renderFlags, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null)
+    public static NativeBattleGfGeometryBatch EmitBatch68BD50(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int depthBias, uint renderFlags, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group is 4 or 5 ? EmitGouraud68BDB0(face, corner, group == 5, depthBias, (renderFlags & 0x20) != 0, offset, observeContext) : new([], 0));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group is 4 or 5 ? EmitGouraud68BDB0(face, corner, group == 5, depthBias, (renderFlags & 0x20) != 0, offset, observeContext) : new([], 0), pilotIdentity: pilotIdentity);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch68C320(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, ushort verticalOffset, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null)
+    public static NativeBattleGfGeometryBatch EmitBatch68C320(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, ushort verticalOffset, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group == 2 ? EmitFt3_68C350(face, corner, verticalOffset, offset, observeContext) : new([], 0));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group == 2 ? EmitFt3_68C350(face, corner, verticalOffset, offset, observeContext) : new([], 0), pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitFt3_68C350(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, ushort verticalOffset, int byteOffset = 0, Action<int, uint>? observeContext = null)

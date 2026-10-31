@@ -76,6 +76,7 @@ public static class NativeBattleXatmDeath276Debris
                     exhausted = true;
                     break;
                 }
+                NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, directors.BankAddress + (uint)record);
                 director = director.WriteDword(0x50, checked(directors.BankAddress + (uint)(record >= 0x240C ? 0x54 : record + 0x48)));
                 short Centre(Func<NativeBattleVector, short> component) => unchecked((short)(indices.Sum(index => component(positions[index])) / count));
                 short cx = Centre(point => point.X);

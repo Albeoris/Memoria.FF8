@@ -50,7 +50,9 @@ public sealed partial class BattleSession
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Duel echo requires its current ordering table.");
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Duel echo requires its current COMMON packet owner.");
+            NativeBattlePrimitiveReference start = NativeBattleDuel28Presentation.Start(process);
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, start.Bank, start.Buffer, start.ByteOffset, batch) } };
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }

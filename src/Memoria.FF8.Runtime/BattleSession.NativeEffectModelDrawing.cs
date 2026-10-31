@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native effect body drawing requires its authenticated color arithmetic.");
         if (drawShadow)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, callerPilotIdentity: pilotIdentity is { Effect: 212 or 215 or 216 } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 397 + 0x100), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, callerPilotIdentity: pilotIdentity is { Effect: 212 or 215 or 216 or 274 } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 397 + 0x100), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
         }
         if (prepareModel)
         {
@@ -91,7 +91,11 @@ public sealed partial class BattleSession
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
             uint scratch = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 ? pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new InvalidDataException("Duel body capture requires its actual selected geometry pointer.") : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 or 274 ? pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new InvalidDataException("Duel body capture requires its actual selected geometry pointer.") : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            if (pilotIdentity is { Effect: 274 })
+            {
+                drawn = drawn with { Packets = NativeBattleCinematicActorPresentation.NativeDepths(drawn.Packets) };
+            }
             if (drawn.ProjectedBytesWritten != 0)
             {
                 NativeFileStaging = staging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

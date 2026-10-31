@@ -56,6 +56,7 @@ public sealed partial class BattleSession
         bool commonCheckpoint = false;
         bool orderingCheckpoint = false;
         bool stagingCheckpoint = false;
+        graphics = graphics with { OriginalEffect = graphics.OriginalEffect! with { PresentationPackets = [] } };
         using NativeBattleEffectArenaTransaction arena = new(memory.Arena ?? throw new NotSupportedException("Native Duel drawing requires its retained effect arena."));
         using NativeBattleFileStagingTransaction staging = new(NativeFileStaging ?? throw new NotSupportedException("Native Duel opening requires its retained shared byte owner."));
         using NativeBattleCommonPacketTransaction common = new(memory.PrimitiveProcess ?? throw new NotSupportedException("Native Duel drawing requires its retained common packet owner."));
@@ -64,6 +65,7 @@ public sealed partial class BattleSession
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleDuel274Resources resources = memory.Duel274?.Resources ?? throw new NotSupportedException("Native Duel opening requires resources retained by its actual entry.");
         NativeBattleDuel274Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel opening requires its selected module."), staging.View, nativeCrtRandom ?? throw new NotSupportedException("Native Duel opening requires its retained CRT random owner."));
+        frame = frame with { CapturePresentation = true, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(274, frame.Effect.Pools[0].Slots[0]) };
         using NativeBattleTaskCallerOperation caller = new(arena, frame.Effect.Pools);
         caller.AdmitCommon(common.CurrentMemory);
         BeginAuxiliaryCheckpoint();
@@ -74,7 +76,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel drawing requires its original color arithmetic.");
         NativeBattleDuel274ActorServices actors = NativeDuel274Actors(() => graphics, value => graphics = value);
         NativeBattleDuel274MoveInputs moves = new(index => graphics.Models[index], WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
-        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Screen.Draw68D4B0(amount)));
+        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity)));
         NativeEffectMemory = memory;
         NativeFileStaging = staging.View;
         try
@@ -356,7 +358,9 @@ public sealed partial class BattleSession
             uint physical = BinaryPrimitives.ReadUInt32LittleEndian(current.Staging.Read(0x2508438, 4));
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(physical, 0);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Duel drawing requires its current ordering table.");
+            batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch) } };
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2508438, BitConverter.GetBytes(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor))) };
         }
@@ -370,11 +374,11 @@ public sealed partial class BattleSession
         {
             NativeBattleSearchSpriteResource source = resources.Sprites.Single(source => source.Address == address);
             NativeBattleModuleResource resource = new(0, address, 0, 0, source.Bytes);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(phase), Phase = unchecked((ushort)phase), Anchor = new(unchecked((short)task.ReadWord(12)), unchecked((short)task.ReadWord(14)), unchecked((short)task.ReadWord(16)), 0), Scale = size, DepthOffset = depth, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(phase), Phase = unchecked((ushort)phase), Anchor = new(unchecked((short)task.ReadWord(12)), unchecked((short)task.ReadWord(14)), unchecked((short)task.ReadWord(16)), 0), Scale = size, DepthOffset = depth, SpriteFlags = 0, PilotIdentity = NativeBattleDuel274Presentation.Identity(task, address) };
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging, 180);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, address, 0);
             NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, projection with { View = view }, camera.Roll, 17, 2);
-            NativeBattleModulePacketBatch batch = drawn.Batch;
+            NativeBattleModulePacketBatch batch = NativeBattleDuel274Presentation.Depths(drawn.Batch);
             current = current with { Staging = drawn.Staging };
             if (batch.AllocationBytes == 0 && batch.Primitives.IsEmpty && (batch.CapturedWrites is null || batch.CapturedWrites.Attempts.IsEmpty))
             {
@@ -384,6 +388,7 @@ public sealed partial class BattleSession
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(physical, 0);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Duel sprite drawing requires its current ordering table.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch) } };
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             staging = current.Staging.Write(0x2508438, BitConverter.GetBytes(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)));
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 180) };
@@ -402,7 +407,7 @@ public sealed partial class BattleSession
             {
                 staging = staging.Write(temporary.Address + 12, BitConverter.GetBytes(factor));
             }
-            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, temporary.Address, address, bytes, matrix, projection, new(flags, far, fade, null, null, null, 17, 2), colors);
+            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, temporary.Address, address, bytes, matrix, projection, new(flags, far, fade, null, null, null, 17, 2), colors, pilotIdentity: current.PilotIdentity is { } meshIdentity ? meshIdentity with { ResourceGeneration = address } : null);
             current = SubmitEffect(current with { Staging = drawn.Staging }, drawn.Batch);
             return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging, 88) };
         }
@@ -410,7 +415,9 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattleActionMatrix world = graphics.Models[index].GeometryWorldMatrix ?? throw new NotSupportedException("Native Duel body drawing requires its actual model world matrix.");
-            graphics = DrawNativeEffectModelContext92(graphics, index, NativeBattleDuel274Body.Matrix68D1D0(world, view, angles, pivot, scale), pivot, projection, 4112, 16);
+            NativeBattlePrimitiveReference before = NativeBattleDuel28Presentation.Start(current.Memory.PrimitiveProcess!);
+            graphics = DrawNativeEffectModelContext92(graphics, index, NativeBattleDuel274Body.Matrix68D1D0(world, view, angles, pivot, scale), pivot, projection, 4112, 16, pilotIdentity: current.PilotIdentity);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, graphics.PrimitiveFrame!.Pending, before, NativeEffectMemory!.PrimitiveProcess!) } };
             return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel body drawing lost its process owner."), Staging = NativeFileStaging ?? throw new NotSupportedException("Native Duel body drawing lost its shared byte owner.") };
         }
         NativeBattleDuel274Frame DrawEcho(NativeBattleDuel274Frame current, uint address)

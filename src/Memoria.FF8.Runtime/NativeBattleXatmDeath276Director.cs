@@ -18,7 +18,7 @@ public static partial class NativeBattleXatmDeath276Controller
             NativeBattleActionMatrix view = inputs.Projection.View ?? throw new NotSupportedException("Native6851F0 requires its actual current camera matrix.");
             short zsf3 = Frame.Memory.ScriptedGraphics?.Zsf3 ?? throw new NotSupportedException("Native6851F0 requires its current GTE ZSF3 register.");
             short zsf4 = Frame.Memory.ScriptedGraphics?.Zsf4 ?? throw new NotSupportedException("Native6851F0 requires its current GTE ZSF4 register.");
-            Execute(new NativeBattleXatmDeath276Packets(NativeBattleXatmDeath276DebrisDrawing.DrawDebris(task, view, inputs.Projection, zsf3, zsf4)));
+            Execute(new NativeBattleXatmDeath276Packets(NativeBattleXatmDeath276DebrisDrawing.DrawDebris(task, view, inputs.Projection, zsf3, zsf4, inputs.CapturePresentation)));
             if (counter is >= 100 and < 116)
             {
                 Execute(new NativeBattleXatmDeath276White((counter - 100) << 8));
@@ -76,6 +76,11 @@ public static class NativeBattleXatmDeath276DebrisDrawing
 {
     public static NativeBattleGfGeometryBatch DrawDebris(NativeBattleModulePoolTask director, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short zsf3, short zsf4)
     {
+        return DrawDebris(director, view, projection, zsf3, zsf4, false);
+    }
+
+    public static NativeBattleGfGeometryBatch DrawDebris(NativeBattleModulePoolTask director, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short zsf3, short zsf4, bool capturePresentation)
+    {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         for (int index = 0; index < 128; index++)
@@ -88,12 +93,17 @@ public static class NativeBattleXatmDeath276DebrisDrawing
             }
             bool quad = kind == 2;
             int count = quad ? 4 : 3;
+            System.Numerics.Vector3[]? world = capturePresentation ? new System.Numerics.Vector3[count] : null;
             NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[count];
             for (int corner = 0; corner < count; corner++)
             {
                 int source = record + 0x24 + corner * 6;
                 NativeBattleVector point = new(unchecked((short)(Word(record) + Word(source))), unchecked((short)(Word(record + 2) + Word(source + 2))), unchecked((short)(Word(record + 4) + Word(source + 4))));
                 vertices[corner] = NativeBattleModuleProjection.Project45FE10(view, point, projection);
+                if (world is not null)
+                {
+                    world[corner] = new(point.X, point.Y, point.Z);
+                }
             }
             int size = quad ? 40 : 32;
             byte[] bytes = new byte[size];
@@ -153,6 +163,13 @@ public static class NativeBattleXatmDeath276DebrisDrawing
                 ImmutableArray<uint> words = Enumerable.Range(0, size / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(word * 4))).ToImmutableArray();
                 ImmutableArray<int> payload = quad ? vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray() : [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0];
                 primitive = new(depth >> 2, words, payload) { PhysicalWriteMask = mask.ToImmutableArray() };
+                if (world is not null)
+                {
+                    NativeBattleTaskBankOwner owner = director.RequireOwner();
+                    uint address = checked(owner.Address + (uint)(director.PilotSlot * owner.Stride + record));
+                    NativeBattlePilotVisualIdentity identity = NativeBattleSelectedProgrammeVisuals.Workspace(276, director, address, 0x687150, index);
+                    primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)count)) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                }
             }
             attempts.Add(new(allocated, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (accepted)

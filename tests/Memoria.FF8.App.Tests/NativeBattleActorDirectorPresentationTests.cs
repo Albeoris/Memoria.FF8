@@ -198,6 +198,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int captured101Frames = 0;
         int contextBodyCapturedFrames = 0;
         int actorLowerCapturedFrames = 0;
+        int customComponentCapturedFrames = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -1624,6 +1625,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     actorLowerCapturedFrames++;
                 }
                 NativeBattleOriginalEffectState? after = Selected(current);
+                if (effectId is 279 or 282 && NativeBattleCustomComponentCaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    customComponentCapturedFrames++;
+                }
                 if (effectId is 133 or 137 && NativeBattleContextBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
                     contextBodyCapturedFrames++;
@@ -7174,6 +7179,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId is 279 or 282)
+            {
+                Assert.True(customComponentCapturedFrames > 1, "The full original component must retain moving owned geometry on multiple native callbacks.");
+            }
             if (effectId == 101)
             {
                 Assert.True(captured101Frames > 1);
@@ -8276,6 +8285,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();
                 direct.Tick();
+                if (effectId is 279 or 282)
+                {
+                    NativeBattleCustomComponentCaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleCustomComponentCaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
                 if (effectId is 133 or 137)
                 {
                     NativeBattleContextBodyCaptureAssertions.AssertFrame(direct.Capture(), effectId);

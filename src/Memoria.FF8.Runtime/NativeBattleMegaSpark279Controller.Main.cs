@@ -208,6 +208,7 @@ public static partial class NativeBattleMegaSpark279Controller
     {
         NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address, length);
         workspace = workspace.Initialize7016B0(source, length);
+        NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, address);
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address, workspace);
         return frame;
     }

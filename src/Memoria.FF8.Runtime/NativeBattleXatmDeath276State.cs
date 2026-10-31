@@ -22,7 +22,10 @@ public sealed record NativeBattleXatmDeath276White(int Level) : NativeBattleXatm
 public sealed record NativeBattleXatmDeath276StopVibration(int Handle) : NativeBattleXatmDeath276Operation;
 public sealed record NativeBattleXatmDeath276Fade(byte Red, byte Green, byte Blue, int Level) : NativeBattleXatmDeath276Operation;
 public sealed record NativeBattleXatmDeath276Vibration(NativeBattleXatmDeath276Frame Frame, int Handle);
-public sealed record NativeBattleXatmDeath276Inputs(NativeBattleCameraProjection Projection, Func<NativeBattleGraphicsModel> ReadCaster, Func<uint> ReadModelAddress, Func<int, short, NativeBattleVector> ReadBone, Func<int, int> ReadBoneVertexCount, Func<int, int, NativeBattleVector> ReadBoneVertex, Func<NativeBattleXatmDeath276Frame, NativeBattleXatmDeath276Operation, NativeBattleXatmDeath276Frame> Execute, Func<NativeBattleXatmDeath276Frame, NativeBattleXatmDeath276Vibration> StartVibration, Func<NativeBattleXatmDeath276Frame, int, NativeBattleXatmDeath276Step> AdvanceArc, Func<NativeBattleXatmDeath276Frame, int, NativeBattleXatmDeath276Frame> AdvancePrim);
+public sealed record NativeBattleXatmDeath276Inputs(NativeBattleCameraProjection Projection, Func<NativeBattleGraphicsModel> ReadCaster, Func<uint> ReadModelAddress, Func<int, short, NativeBattleVector> ReadBone, Func<int, int> ReadBoneVertexCount, Func<int, int, NativeBattleVector> ReadBoneVertex, Func<NativeBattleXatmDeath276Frame, NativeBattleXatmDeath276Operation, NativeBattleXatmDeath276Frame> Execute, Func<NativeBattleXatmDeath276Frame, NativeBattleXatmDeath276Vibration> StartVibration, Func<NativeBattleXatmDeath276Frame, int, NativeBattleXatmDeath276Step> AdvanceArc, Func<NativeBattleXatmDeath276Frame, int, NativeBattleXatmDeath276Frame> AdvancePrim)
+{
+    public bool CapturePresentation { get; init; }
+}
 
 public sealed partial record NativeBattleOriginalEffectState
 {

@@ -8,6 +8,32 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEvilEye282LowerTests
 {
+    [Fact]
+    public void Captured282_sprite_forwards_actual_physical_task_birth_and_resource_before_temporary_release()
+    {
+        NativeBattleEvilEye282Frame Build(out uint address)
+        {
+            var frame = Frame();
+            (frame, address) = Append(frame, 0x2507EA0, 0x67DC60);
+            return Write(frame, address, Read(frame, address).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 300).WriteWord(18, 0));
+        }
+        var nativeFrame = Build(out uint nativeAddress);
+        var capturedFrame = Build(out uint capturedAddress);
+        NativeBattlePilotVisualIdentity? owner = null;
+        var native = AdvanceSprite67DC60(nativeFrame, nativeAddress, NativeBattleEvilEye282StateTests.Resources(), Inputs());
+        var captured = AdvanceSprite67DC60(capturedFrame, capturedAddress, NativeBattleEvilEye282StateTests.Resources(), Inputs((current, operation) =>
+        {
+            owner = Assert.IsType<NativeBattleEvilEye282DrawSprite180>(operation).PilotIdentity;
+            Assert.NotNull(owner);
+            return current;
+        }) with { CapturePresentation = true });
+        Assert.Equal(native.Result, captured.Result);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal((ushort)282, owner!.Value.Effect);
+        Assert.Equal(0x2507EA0u, owner.Value.Bank);
+        Assert.Equal(NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(282, Read(capturedFrame, capturedAddress)), SpriteAddress).ResourceGeneration, owner.Value.ResourceGeneration);
+    }
+
     [Theory]
     [InlineData(0u, 1100, 2300, 2800, 1)]
     [InlineData(0x200u, 1100, 2200, 3300, 0)]

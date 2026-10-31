@@ -54,6 +54,11 @@ public static class NativeBattleCinematicActorDissolve52
 
     public static NativeBattleCinematicActorDissolve52Emission EmitFace(ImmutableArray<byte> face, bool quad, byte counter, short initialPaletteIndex, Func<int, NativeBattleCinematicActorDissolve52Vertex> readVertex, Func<int, uint> readPalette, uint orderingBase)
     {
+        return EmitFace(face, quad, counter, initialPaletteIndex, readVertex, readPalette, orderingBase, null, null);
+    }
+
+    public static NativeBattleCinematicActorDissolve52Emission EmitFace(ImmutableArray<byte> face, bool quad, byte counter, short initialPaletteIndex, Func<int, NativeBattleCinematicActorDissolve52Vertex> readVertex, Func<int, uint> readPalette, uint orderingBase, NativeBattlePilotVisualIdentity? pilotIdentity, Func<int, System.Numerics.Vector3>? readWorld)
+    {
         if (face.IsDefault || face.Length != (quad ? 20 : 16))
         {
             throw new InvalidDataException("Native actor dissolve requires its complete original actor face.");
@@ -109,6 +114,11 @@ public static class NativeBattleCinematicActorDissolve52
         ImmutableArray<NativeBattleGfPacketByteState> physicalMask = mask.ToImmutableArray();
         ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
         NativeBattleGeometryPrimitive? primitive = accepted ? new(0, words, []) { PhysicalWriteMask = physicalMask } : null;
+        if (primitive is not null && pilotIdentity is { } identity && readWorld is not null)
+        {
+            System.Numerics.Vector3[] world = Enumerable.Range(0, corners).Select(corner => readWorld(FaceWord(corner * 2) & 0xFFF)).ToArray();
+            primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)corners)) { SourceDepths = new System.Numerics.Vector4(vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, quad ? vertices[3].Depth : 0), UseSourceDepths = true } };
+        }
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), physicalMask, primitive);
         return new(counter, new([attempt], accepted ? length : 0), ordering);
 

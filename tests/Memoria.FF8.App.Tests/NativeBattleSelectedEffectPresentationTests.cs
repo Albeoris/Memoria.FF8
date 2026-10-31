@@ -84,7 +84,9 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int text218Count = 0;
         int capturedResourceFrames = 0;
         int captured30Frames = 0;
+        int captured31Frames = 0;
         int captured30 = 0;
+        int customComponentCapturedFrames = 0;
         HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
@@ -98,6 +100,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effect is 265 or 266 or 267 or 268 or 269 or 270 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
+                {
+                    captured31Frames++;
+                }
                 if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
                 {
                     captured30Frames++;
@@ -105,6 +111,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 if (effect is 236 or 237 or 243 or 244 or 245 or 246 or 247 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
                 {
                     capturedResourceFrames++;
+                }
+                if (effect == 276 && NativeBattleCustomComponentCaptureAssertions.AssertFrame(current, effect) > 0)
+                {
+                    customComponentCapturedFrames++;
                 }
                 if (effect == 18 && current.NativeGraphics!.OriginalEffect?.Binding.Effect == 18)
                 {
@@ -232,7 +242,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                         NativeBattleCinematicCaptureAssertions.AssertCommands(current, effect, NativeBattleSelectedEffect218Packets.CurrentCommands(current));
                     }
                 }
-                if (effect is 9 or 17 or 168 or 179 or 180 or 187 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (effect is 9 or 17 or 168 or 179 or 180 or 187 or 276 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> appended = currentEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
                     ownedCommands = primitive.LastCommands.Select(item => item.Command).Where(command => appended.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
@@ -299,9 +309,17 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.True(casting18Tail, "The original18 casting seed must reach its final native counters before release.");
                 Assert.False(NativeBattleControl18CastingAssertions.HasCasting(battle.Capture()));
             }
+            if (effect == 276)
+            {
+                Assert.True(customComponentCapturedFrames > 1, "The strict original276 component must reach owned moving geometry on multiple native callbacks.");
+            }
             if (effect == 30)
             {
                 Assert.True(captured30 > 0);
+            }
+            if (effect is 265 or 266 or 267 or 268 or 269 or 270)
+            {
+                Assert.True(captured31Frames > 1);
             }
             if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264)
             {
@@ -400,12 +418,22 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();
             direct.Tick();
+            if (effect == 276)
+            {
+                NativeBattleCustomComponentCaptureAssertions.AssertFrame(direct.Capture(), effect);
+                NativeBattleCustomComponentCaptureAssertions.AssertFrame(cold.Capture(), effect);
+            }
             NativeBattleCloudBombPresentationOwnership.AssertFrame(direct.Capture(), effect);
             NativeBattleCloudBombPresentationOwnership.AssertFrame(cold.Capture(), effect);
             if (effect == 187)
             {
                 _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(cold.Capture(), 187);
                 _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(direct.Capture(), 187);
+            }
+            if (effect is 265 or 266 or 267 or 268 or 269 or 270)
+            {
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effect);
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), effect);
             }
             if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264)
             {

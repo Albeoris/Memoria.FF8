@@ -37,6 +37,7 @@ public static partial class NativeBattleEvilEye282Controller
             }
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 28, 1352);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 1352);
+            NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, main + 28);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 28, workspace);
         }
         int mainSurvivors = 1;
@@ -105,6 +106,7 @@ public static partial class NativeBattleEvilEye282Controller
                 frame = Write(frame, child, Read(frame, child).WriteWord(18, 0));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, child + 24, 384);
                 workspace = workspace.Initialize7016B0(resources.ProgrammeB, 384);
+                NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, child + 24);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, child + 24, workspace);
             }
         }

@@ -49,8 +49,13 @@ public static class NativeBattleDuel274Banks
         NativeBattleEffectTaskStep advanced = frame.Effect.Pools[index].Advance((pool, slot) =>
         {
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
+            NativeBattlePilotVisualIdentity? previousIdentity = frame.PilotIdentity;
+            if (frame.CapturePresentation)
+            {
+                frame = frame with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(274, pool.Slots[slot]) };
+            }
             NativeBattleDuel274TaskStep step = callback(frame, slot);
-            frame = step.Frame;
+            frame = step.Frame with { PilotIdentity = previousIdentity };
             return new(step.Pool, step.Result);
         });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, advanced.Pool) } };

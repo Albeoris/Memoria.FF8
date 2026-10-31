@@ -32,7 +32,7 @@ public static class NativeBattleDuelEchoWalker
             int groups = Signed(cursor);
             cursor = checked(cursor + 2);
             int destination = 0;
-            Dictionary<int, System.Numerics.Vector3>? world = pilotIdentity is { Effect: 212 or 216 } ? new() : null;
+            Dictionary<int, System.Numerics.Vector3>? world = pilotIdentity is { Effect: 212 or 216 or 274 } ? new() : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = Signed(cursor);

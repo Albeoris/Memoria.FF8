@@ -4,11 +4,14 @@ public sealed record NativeBattleMegaSpark279Frame(NativeBattleEffectMemory Memo
 {
     public NativeBattleFileStaging? Staging { get; init; }
     public NativeBattleStackBytes? StackBytes { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal System.Collections.Immutable.ImmutableDictionary<uint, NativeBattleProgrammeProjectedPoint> PresentationPoints { get; init; } = System.Collections.Immutable.ImmutableDictionary<uint, NativeBattleProgrammeProjectedPoint>.Empty;
 }
 
 public sealed record NativeBattleMegaSpark279PointStep(NativeBattleMegaSpark279Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleMegaSpark279Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, Func<NativeBattleMegaSpark279Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMegaSpark279Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMegaSpark279Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMegaSpark279Frame, uint, int> ReadBoneCount, Func<NativeBattleMegaSpark279Frame, uint, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix, Func<NativeBattleMegaSpark279Frame, uint, int, int, NativeBattleMegaSpark279PointStep> ReadBone502170, Func<NativeBattleMegaSpark279Frame, uint, NativeBattleMegaSpark279PointStep> ReadAnchor571400, Func<NativeBattleMegaSpark279Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleMegaSpark279Frame, NativeBattleMegaSpark279Operation, NativeBattleMegaSpark279Frame> Execute)
 {
+    public bool CapturePresentation { get; init; }
     public Func<NativeBattleMegaSpark279Frame, short>? ReadRowPointW { get; init; }
 }
 
@@ -19,6 +22,14 @@ public sealed record NativeBattleMegaSpark279ModelFields(uint ModelAddress, usho
 public sealed record NativeBattleMegaSpark279Contact506BA0(int FirstContactIndex, int Count) : NativeBattleMegaSpark279Operation;
 public sealed record NativeBattleMegaSpark279Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleMegaSpark279Operation;
 public sealed record NativeBattleMegaSpark279Flash5712C0(int Arg0, int Arg1, int Arg2, int Arg3) : NativeBattleMegaSpark279Operation;
-public sealed record NativeBattleMegaSpark279DrawMesh7043B0(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMegaSpark279Operation;
-public sealed record NativeBattleMegaSpark279DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMegaSpark279Operation;
+public sealed record NativeBattleMegaSpark279DrawMesh7043B0(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMegaSpark279Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleMegaSpark279DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMegaSpark279Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleMegaSpark279DeliverBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleMegaSpark279Operation;

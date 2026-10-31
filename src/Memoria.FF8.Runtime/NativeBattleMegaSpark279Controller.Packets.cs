@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleMegaSpark279Controller
 {
-    private static NativeBattleMegaSpark279Frame DrawStrip279(NativeBattleMegaSpark279Frame frame, IReadOnlyList<uint> rows, bool attachment, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs)
+    private static NativeBattleMegaSpark279Frame DrawStrip279(NativeBattleMegaSpark279Frame frame, IReadOnlyList<uint> rows, bool attachment, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         int stride = attachment ? 16 : 40;
         int xy = attachment ? 0 : 16;
@@ -63,6 +63,14 @@ public static partial class NativeBattleMegaSpark279Controller
             ImmutableArray<uint> words = Enumerable.Range(0, 13).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
             ImmutableArray<int> payload = (frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Mega Spark packets require their current depth FIFO.")).Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Mega Spark quad insertion requires four current depths.")))).ToImmutableArray();
             var primitive = new NativeBattleGeometryPrimitive(unchecked(17 + ((za + zb) >> 3)), words, payload);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = attachment ? pilotIdentity ?? throw new InvalidDataException("Attachment strip capture requires its actual task.") : NativeBattleSelectedProgrammeVisuals.RowPair(frame.Memory.Arena!, pilotIdentity ?? throw new InvalidDataException("Linked strip capture requires its actual task."), rows[index], rows[index + 1], index);
+                NativeBattleProgrammeProjectedPoint first = frame.PresentationPoints[rows[index]];
+                NativeBattleProgrammeProjectedPoint second = frame.PresentationPoints[rows[index + 1]];
+                System.Numerics.Vector2 Offset(NativeBattleEffectArena row, int offset, uint center) => new System.Numerics.Vector2(Word279(row, offset), Word279(row, offset + 2)) - new System.Numerics.Vector2(unchecked((short)center), unchecked((short)(center >> 16)));
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, first.World, first.World, second.World, second.World, 4) { ScreenOffsets = [Offset(a, xy, first.Screen), Offset(a, other, first.Screen), Offset(b, xy, second.Screen), Offset(b, other, second.Screen)], SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
             attempts.Add(new(attempts.Count * 52, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
         }
         if (attempts.Count == 0)

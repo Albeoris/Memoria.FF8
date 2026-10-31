@@ -88,6 +88,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     before = selected;
                     battle.Tick();
                     clone.Tick();
+
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
@@ -151,6 +152,7 @@ public sealed partial class NativeBattleDuel112CastTests
         Console.WriteLine("Duel evidence: " + output);
         BattleSnapshot before = battle.Capture();
         int captured28Frames = 0;
+        int captured274Frames = 0;
         BattleNativeDuelState? savedDuel = namedSource?.NativeLimits.SingleOrDefault(owner => owner.ActorId == "party")?.Duel;
         bool queuedChoice = savedDuel is { Phase: BattleNativeDuelPhase.Finisher } && NativeBattleDuelRules.ActionId(definition.Combatants[0].NativeLimit!, savedDuel.MoveSetId) == action.ActionId;
         bool selected = false;
@@ -229,6 +231,10 @@ public sealed partial class NativeBattleDuel112CastTests
                         captured112Frames++;
                     }
                 }
+                if (requiredBasicAction.HasValue && NativeBattleDuel274CaptureAssertions.AssertFrame(battle.Capture()) > 0)
+                {
+                    captured274Frames++;
+                }
                 if (effectId is 212 or 215 or 216 && NativeBattleDuel28CaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     captured28Frames++;
@@ -266,6 +272,10 @@ public sealed partial class NativeBattleDuel112CastTests
                     }
                     Assert.True(drawn);
                     Assert.True(midpoint);
+                    if (requiredBasicAction.HasValue)
+                    {
+                        Assert.True(captured274Frames > 1);
+                    }
                     Assert.True(requiredBasicAction is null || basicObserved);
                     Assert.True(requiredBasicAction is null || basicMidpoint);
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
@@ -331,6 +341,11 @@ public sealed partial class NativeBattleDuel112CastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
+            if (requiredBasicAction.HasValue)
+            {
+                _ = NativeBattleDuel274CaptureAssertions.AssertFrame(battle.Capture());
+                _ = NativeBattleDuel274CaptureAssertions.AssertFrame(clone.Capture());
+            }
             if (effectId is 212 or 215 or 216)
             {
                 if (NativeBattleDuel28CaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)

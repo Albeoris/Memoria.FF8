@@ -38,12 +38,23 @@ public static class NativeBattleXatmDeath276Arcs
 
     public static NativeBattleXatmDeath276ArcStep Advance(NativeBattleModulePoolTask task, NativeBattleXatmDeath276ArcResources resources, ImmutableArray<short> profile, NativeBattleCameraProjection projection, NativeBattleSharedEffectRandomState random, Func<uint, NativeBattleQuezacotlRibbonSample> triangleFrame, uint? stackResidue = null)
     {
+        return Advance(task, resources, profile, projection, random, triangleFrame, stackResidue, null);
+    }
+
+    public static NativeBattleXatmDeath276ArcStep Advance(NativeBattleModulePoolTask task, NativeBattleXatmDeath276ArcResources resources, ImmutableArray<short> profile, NativeBattleCameraProjection projection, NativeBattleSharedEffectRandomState random, Func<uint, NativeBattleQuezacotlRibbonSample> triangleFrame, uint? stackResidue, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         if (profile.IsDefault || profile.Length != 8 || resources.Lengths.IsDefault || resources.Lengths.Length != 256)
         {
             throw new InvalidDataException("Native X-ATM092 arc requires its original profile and square-root table.");
         }
-        NativeBattleQuezacotlRibbonSample first = triangleFrame(task.ReadDword(16));
-        NativeBattleQuezacotlRibbonSample last = triangleFrame(task.ReadDword(20));
+        uint firstSource = task.ReadDword(16);
+        NativeBattleQuezacotlRibbonSample first = triangleFrame(firstSource);
+        uint lastSource = task.ReadDword(20);
+        NativeBattleQuezacotlRibbonSample last = triangleFrame(lastSource);
+        if (pilotIdentity is { } owner)
+        {
+            pilotIdentity = NativeBattleSelectedProgrammeVisuals.Resource(owner, firstSource, lastSource);
+        }
         int squared = NativeBattleQuezacotlRibbonMath.SquaredLength(last.Position.X - first.Position.X, last.Position.Y - first.Position.Y, last.Position.Z - first.Position.Z);
         int length = NativeBattleQuezacotlRibbonMath.SqrtQ12(squared, resources.Lengths);
         int amplitude = length >> 12;
@@ -73,7 +84,7 @@ public static class NativeBattleXatmDeath276Arcs
         }
         ImmutableArray<short> widths = Enumerable.Range(0, 8).Select(index => unchecked((short)task.ReadWord(0x1C + index * 6))).ToImmutableArray();
         ImmutableArray<short> brightness = Enumerable.Range(0, 8).Select(index => unchecked((short)task.ReadWord(0x1E + index * 6))).ToImmutableArray();
-        ImmutableArray<NativeBattleGeometryPrimitive> primitives = Draw686DB0(points.ToImmutableArray(), widths, brightness, projection, resources.Distance, stackResidue);
+        ImmutableArray<NativeBattleGeometryPrimitive> primitives = Draw686DB0(points.ToImmutableArray(), widths, brightness, projection, resources.Distance, stackResidue, pilotIdentity);
         int counter = unchecked((short)task.ReadWord(12));
         if (counter >= 10)
         {
@@ -102,6 +113,11 @@ public static class NativeBattleXatmDeath276Arcs
 
     public static ImmutableArray<NativeBattleGeometryPrimitive> Draw686DB0(ImmutableArray<NativeBattleVector> positions, ImmutableArray<short> widths, ImmutableArray<short> brightness, NativeBattleCameraProjection projection, ImmutableArray<byte> distances, uint? stackResidue = null)
     {
+        return Draw686DB0(positions, widths, brightness, projection, distances, stackResidue, null);
+    }
+
+    public static ImmutableArray<NativeBattleGeometryPrimitive> Draw686DB0(ImmutableArray<NativeBattleVector> positions, ImmutableArray<short> widths, ImmutableArray<short> brightness, NativeBattleCameraProjection projection, ImmutableArray<byte> distances, uint? stackResidue, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         if (positions.Length != 8 || widths.Length != 8 || brightness.Length != 8 || distances.Length != 16384)
         {
             throw new InvalidDataException("Native X-ATM092 arc requires eight ribbon points and its complete distance lookup.");
@@ -112,9 +128,14 @@ public static class NativeBattleXatmDeath276Arcs
         short[] depth = new short[8];
         short[] rightX = new short[8];
         short[] rightY = new short[8];
+        uint[]? centers = pilotIdentity.HasValue ? new uint[8] : null;
         for (int index = 0; index < 8; index++)
         {
             NativeBattleModuleProjectedVertex point = NativeBattleModuleProjection.Project45FE10(view, positions[index], projection);
+            if (centers is not null)
+            {
+                centers[index] = point.Screen;
+            }
             x[index] = unchecked((short)point.Screen);
             y[index] = unchecked((short)(point.Screen >> 16));
             depth[index] = unchecked((short)(point.Depth >> 2));
@@ -138,7 +159,14 @@ public static class NativeBattleXatmDeath276Arcs
             uint nextColor = Color(brightness[index + 1]);
             uint[] words = [0x0C000000, (firstColor & 0xFFFFFF) | 0x3E000000, Screen(x[index], y[index]), 0x3CD4C008, firstColor, Screen(rightX[index], rightY[index]), 0x00BAC038, nextColor, Screen(x[index + 1], y[index + 1]), 0xC008, nextColor, Screen(rightX[index + 1], rightY[index + 1]), 0xC038];
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 52).Select(offset => offset is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToImmutableArray();
-            result.Add(new(17 + ((depth[index] + depth[index + 1]) >> 3), words.ToImmutableArray(), [depth[index], depth[index], depth[index + 1], depth[index + 1]]) { PhysicalWriteMask = mask });
+            NativeBattleGeometryPrimitive primitive = new(17 + ((depth[index] + depth[index + 1]) >> 3), words.ToImmutableArray(), [depth[index], depth[index], depth[index + 1], depth[index + 1]]) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && centers is not null)
+            {
+                System.Numerics.Vector3 World(int row) => new(positions[row].X, positions[row].Y, positions[row].Z);
+                System.Numerics.Vector2 Offset(int row, bool right) => new System.Numerics.Vector2(right ? rightX[row] : x[row], right ? rightY[row] : y[row]) - new System.Numerics.Vector2(unchecked((short)centers[row]), unchecked((short)(centers[row] >> 16)));
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(index), World(index), World(index + 1), World(index + 1), 4) { ScreenOffsets = [Offset(index, false), Offset(index, true), Offset(index + 1, false), Offset(index + 1, true)], SourceDepths = new(depth[index], depth[index], depth[index + 1], depth[index + 1]), UseSourceDepths = true } };
+            }
+            result.Add(primitive);
         }
         return result.ToImmutable();
 

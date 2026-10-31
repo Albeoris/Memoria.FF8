@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleXatmDeath276ArcsTests
 {
     [Fact]
+    public void Captured276_arc_keeps_original_task_fade_random_draw_count_packet_masks_and_actual_world_centers()
+    {
+        NativeBattleModulePoolTask Task()
+        {
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x4C, 1);
+            (pool, _) = pool.Append(0x686A10);
+            return NativeBattleXatmDeath276Arcs.Initialize(pool.Slots[0], 0x3000, 0x4000, 0x5000, 12, 7).WriteWord(12, 10);
+        }
+        NativeBattleXatmDeath276ArcResources resources = new(Enumerable.Repeat((ushort)4096, 256).ToImmutableArray(), Distances);
+        NativeBattleQuezacotlRibbonSample Triangle(uint address) => new(new(address == 0x4000 ? (short)0 : (short)700, 0, 1000), new(0, 4096, 0));
+        var native = NativeBattleXatmDeath276Arcs.Advance(Task(), resources, new short[8].ToImmutableArray(), Projection, new(17), Triangle);
+        NativeBattlePilotVisualIdentity identity = new(276, 0x1000, 0, 1, 0) { ResourceGeneration = 0x40005000 };
+        var captured = NativeBattleXatmDeath276Arcs.Advance(Task(), resources, new short[8].ToImmutableArray(), Projection, new(17), Triangle, null, identity);
+        Assert.Equal(native.Result, captured.Result);
+        Assert.Equal(native.Random, captured.Random);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Task)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Task)));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(native.FramePrimitives), System.Text.Json.JsonSerializer.Serialize(captured.FramePrimitives));
+        Assert.NotEmpty(captured.FramePrimitives);
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.FramePrimitives[0].PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 1000), visual.A);
+        Assert.Equal(4, visual.ScreenOffsets.Length);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(captured.FramePrimitives[0].VertexPayload4[0], visual.SourceDepths!.Value.X);
+    }
+
+    [Fact]
     public void Spawn_compares_triangle_sums_at_exact_256_boundary()
     {
         byte[] triangles = new byte[48];

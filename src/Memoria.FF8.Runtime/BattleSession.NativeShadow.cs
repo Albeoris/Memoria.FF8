@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         {
             System.Numerics.Vector3 World(int corner) => pilotScreenSpace ? new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), vertices[corner].Depth) : NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, shape.Vertices[corner]), projection);
             int Depth(int corner) => 4 * (vertices[corner].Depth >> 2) - 300;
-            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = callerPilotIdentity.HasValue ? unchecked(identity.Primitive * 397 + index - 1) : index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace } } } : attempt).ToImmutableArray() };
+            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = callerPilotIdentity.HasValue ? unchecked(identity.Primitive * 397 + index - 1) : index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace || identity.Effect is 274 or 276 } } } : attempt).ToImmutableArray() };
         }
         if (privateOrderingAddress is uint table)
         {
@@ -46,6 +46,12 @@ public sealed partial class BattleSession
             NativeBattleRinoa89CaptureStep captured = NativeBattleRinoa89Capture.AppendCommon(capture, frame.Pending, batch, table);
             NativeEffectMemory = captured.Frame.Memory;
             return graphics with { PrimitiveFrame = frame with { Pending = captured.Ordering } };
+        }
+        NativeBattleOriginalEffectState? selected = graphics.OriginalEffect;
+        if (callerPilotIdentity is { Effect: 276 } && selected is { Binding.Effect: 276 })
+        {
+            selected = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, packets.PacketBank!, packets.PacketBuffer, packets.ByteCursor!.Value, batch) };
+            graphics = graphics with { OriginalEffect = selected };
         }
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(packets, frame.Pending, batch);
         NativeEffectMemory = memory with { PrimitiveProcess = written.Process };

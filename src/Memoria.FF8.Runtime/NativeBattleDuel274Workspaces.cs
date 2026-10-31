@@ -11,6 +11,10 @@ public static class NativeBattleDuel274Workspaces
         NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, destination, size);
         workspace = workspace.Initialize7016B0(resources.Hierarchy(sourceAddress), size);
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, destination, workspace);
+        if (frame.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, destination, 0);
+        }
         return frame;
     }
 
@@ -36,7 +40,13 @@ public static class NativeBattleDuel274Workspaces
         NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleDuel274HierarchyStep drawn = NativeBattleDuel274Hierarchy.Draw68A400(frame, resources, source, node, context, projection, colors);
+            NativeBattlePilotVisualIdentity? identity = frame.PilotIdentity;
+            if (frame.CapturePresentation && identity is { } owner)
+            {
+                long birth = NativeBattlePilotVisualLifetimes.Identity(274, frame.Memory.Arena!, address, 0).Generation;
+                identity = owner with { Primitive = node.ResourceOffset, ResourceGeneration = unchecked((birth * 397 ^ resourceAddress) * 397 ^ address) };
+            }
+            NativeBattleDuel274HierarchyStep drawn = NativeBattleDuel274Hierarchy.Draw68A400(frame, resources, source, node, context, projection, colors, identity);
             frame = submit(drawn.Frame, drawn.Batch);
             return current;
         });

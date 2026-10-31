@@ -11,12 +11,33 @@ public sealed class NativeBattleControl18ShardsTests
     [InlineData(true)]
     public void Effect77_shards_keep_signed_Q8_corners_native_flag_payload_and_record_birth(bool quad)
     {
+        AssertSelectedCapture(77, quad);
+    }
+
+    [Theory]
+    [InlineData((ushort)266, false)]
+    [InlineData((ushort)266, true)]
+    [InlineData((ushort)267, false)]
+    [InlineData((ushort)267, true)]
+    [InlineData((ushort)268, false)]
+    [InlineData((ushort)268, true)]
+    [InlineData((ushort)269, false)]
+    [InlineData((ushort)269, true)]
+    [InlineData((ushort)270, false)]
+    [InlineData((ushort)270, true)]
+    public void Selected_death_shards_retain_actual_record_birth_Q8_depth_and_native_packets(ushort effect, bool quad)
+    {
+        AssertSelectedCapture(effect, quad);
+    }
+
+    private static void AssertSelectedCapture(ushort effect, bool quad)
+    {
         byte[] records = [.. new byte[68], .. Record(quad)];
         BinaryPrimitives.WriteInt32LittleEndian(records.AsSpan(68 + 4), 32767 << 8);
         BinaryPrimitives.WriteInt16LittleEndian(records.AsSpan(68 + 16), 1);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
         NativeBattlePilotVisualLifetimes.Allocated(arena, 0x2000, 1);
-        NativeBattlePilotVisualIdentity Identity(int slot) => NativeBattlePilotVisualLifetimes.Identity(77, arena, 0x2000, slot, 3) with { ResourceGeneration = 17 };
+        NativeBattlePilotVisualIdentity Identity(int slot) => NativeBattlePilotVisualLifetimes.Identity(effect, arena, 0x2000, slot, 3) with { ResourceGeneration = 17 };
         NativeBattleModuleProjectedVertex Project(NativeBattleVector point) => new(0, 4096, 0x80004000);
         System.Numerics.Vector3 World(NativeBattleVector point) => new(point.X, point.Y, point.Z);
         NativeBattleGfGeometryBatch plain = NativeBattleControl18Shards.Emit(records, Polygon, new uint[] { 0, 0 }, Project, 17);

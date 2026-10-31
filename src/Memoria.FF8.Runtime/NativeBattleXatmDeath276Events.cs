@@ -193,6 +193,10 @@ public static partial class NativeBattleXatmDeath276Controller
             NativeBattleModuleResource resource = resources.Sprites.Single(item => item.Address == address);
             ushort frame = unchecked((ushort)phase);
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, Phase = frame, SpriteFrame = resource.ProjectedFrame571C80(frame), Anchor = new(Word(task, offset), Word(task, offset + 2), Word(task, offset + 4), Word(task, offset + 6)), Scale = size, DepthOffset = -(size >> 2), SpriteFlags = 0 };
+            if (inputs.CapturePresentation)
+            {
+                draw = draw with { PilotIdentity = NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, task), address) };
+            }
             Execute(new NativeBattleXatmDeath276Sprite(draw));
         }
     }

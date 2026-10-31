@@ -8,6 +8,80 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleMegaSpark279LowerTests
 {
     [Fact]
+    public void Captured279_linked_strip_keeps_actual_prewrite_world_centers_offsets_CRT_and_all_native_row_updates()
+    {
+        NativeBattleMegaSpark279Frame Build(out uint address)
+        {
+            var frame = Frame();
+            frame = frame with { Memory = frame.Memory with { GeometryRegisters = frame.Memory.GeometryRegisters! with { Sz = [null, null, 303u, 404u] } } };
+            var a = PointView(new(-100, 0, 2000), 0);
+            var b = PointView(new(100, 0, 2000), 0);
+            var zero = PointView(new(0, 0, 0), 0);
+            var first = BirthRow67FA80(frame, a, a, zero, zero, 0, 4096, 512, 1, 2, Resources(), Inputs());
+            var second = BirthRow67FA80(first.Frame, b, b, zero, zero, 0, 4096, 512, 1, 2, Resources(), Inputs());
+            address = Pools[4].Bank;
+            frame = WriteBytes(second.Frame, first.RowAddress + 36, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(second.RowAddress)), 4);
+            return Write(frame, address, Read(frame, address).WriteWord(12, 2).WriteDword(20, second.RowAddress));
+        }
+        var nativeFrame = Build(out uint nativeAddress);
+        var capturedFrame = Build(out uint capturedAddress);
+        NativeBattleGfGeometryBatch? nativeBatch = null;
+        NativeBattleGfGeometryBatch? capturedBatch = null;
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = AdvanceRows67FC30(nativeFrame, nativeAddress, Resources(), Inputs((current, operation) =>
+        {
+            nativeBatch = Assert.IsType<NativeBattleMegaSpark279DeliverBatch>(operation).Batch;
+            return current;
+        }) with { ReadProjection = _ => projection });
+        var captured = AdvanceRows67FC30(capturedFrame, capturedAddress, Resources(), Inputs((current, operation) =>
+        {
+            capturedBatch = Assert.IsType<NativeBattleMegaSpark279DeliverBatch>(operation).Batch;
+            return current;
+        }) with { ReadProjection = _ => projection, CapturePresentation = true });
+        Assert.NotNull(nativeBatch);
+        Assert.NotNull(capturedBatch);
+        Assert.Equal(new[] { 303, 404, 2000, 2000 }, Assert.Single(nativeBatch!.Attempts).Primitive!.VertexPayload4);
+        Assert.Equal(new[] { 303, 404, 2000, 2000 }, Assert.Single(capturedBatch!.Attempts).Primitive!.VertexPayload4);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(nativeBatch), System.Text.Json.JsonSerializer.Serialize(capturedBatch));
+        Assert.Equal(native.Result, captured.Result);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(capturedBatch!.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, 0, 2000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(100, 0, 2000), visual.C);
+        Assert.Equal(4, visual.ScreenOffsets.Length);
+        Assert.False(visual.ScreenSpace);
+        Assert.True(visual.Continuous);
+        Assert.True(visual.UseSourceDepths);
+    }
+
+    [Fact]
+    public void Captured279_sprite_forwards_actual_physical_task_birth_and_resource_before_temporary_release()
+    {
+        NativeBattleMegaSpark279Frame Build(out uint address)
+        {
+            var frame = Frame();
+            (frame, address) = Append(frame, 0x2508080, 0x6800F0);
+            return Write(frame, address, Read(frame, address).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 300).WriteWord(18, 0));
+        }
+        var nativeFrame = Build(out uint nativeAddress);
+        var capturedFrame = Build(out uint capturedAddress);
+        NativeBattlePilotVisualIdentity? owner = null;
+        var native = AdvanceSprite6800F0(nativeFrame, nativeAddress, Resources(), Inputs());
+        var captured = AdvanceSprite6800F0(capturedFrame, capturedAddress, Resources(), Inputs((current, operation) =>
+        {
+            owner = Assert.IsType<NativeBattleMegaSpark279DrawSprite180>(operation).PilotIdentity;
+            Assert.NotNull(owner);
+            return current;
+        }) with { CapturePresentation = true });
+        Assert.Equal(native.Result, captured.Result);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native.Frame)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured.Frame)));
+        Assert.Equal((ushort)279, owner!.Value.Effect);
+        Assert.Equal(0x2508080u, owner.Value.Bank);
+        Assert.True(owner.Value.Generation > 0);
+        Assert.Equal(NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(279, Read(capturedFrame, capturedAddress)), Resources().Sprite.Address).ResourceGeneration, owner.Value.ResourceGeneration);
+    }
+
+    [Fact]
     public void Known_packed_W_is_preserved_and_a_second_row_skips_the_live_first_sentinel()
     {
         var frame = Frame();

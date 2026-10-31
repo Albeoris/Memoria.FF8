@@ -27,13 +27,14 @@ public static partial class NativeBattleMegaSpark279Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         byte mode = TaskView(task, 13, 1).Read(0, 1)[0];
         uint row100 = task.ReadDword(28);
+        uint firstSource = task.ReadDword(24);
         NativeBattleEffectArena center;
         NativeBattleEffectArena displaced;
         NativeBattleEffectArena endpoint;
         int distance;
         if (mode == 0)
         {
-            (frame, center, NativeBattleEffectArena normal) = Triangle704130(frame, row100, task.ReadDword(24), resources, inputs);
+            (frame, center, NativeBattleEffectArena normal) = Triangle704130(frame, row100, firstSource, resources, inputs);
             (frame, endpoint) = BonePoint279(frame, row100, TaskView(task, 16, 8), Signed(task, 22), inputs);
             int[] difference = Enumerable.Range(0, 3).Select(axis => Word279(endpoint, axis * 2) - Word279(center, axis * 2)).ToArray();
             (frame, distance, int root) = Length279(frame, difference, resources);
@@ -49,7 +50,7 @@ public static partial class NativeBattleMegaSpark279Controller
         }
         else
         {
-            NativeBattleEffectArena first = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(task.ReadDword(24), 8).AsSpan());
+            NativeBattleEffectArena first = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(firstSource, 8).AsSpan());
             (frame, center) = BonePoint279(frame, row100, first, Word279(first, 6), inputs);
             displaced = center;
             (frame, endpoint) = BonePoint279(frame, row100, TaskView(task, 16, 8), Signed(task, 22), inputs);
@@ -87,7 +88,7 @@ public static partial class NativeBattleMegaSpark279Controller
             frame = ProjectTemporary279(frame, row, inputs);
             addresses.Add(row);
         }
-        frame = DrawTemporaryStrip279(frame, temporary, addresses, resources, inputs);
+        frame = DrawTemporaryStrip279(frame, temporary, addresses, resources, inputs, inputs.CapturePresentation ? NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(279, task), firstSource, row100) : null);
         frame = Release(frame, 128);
         task = Read(frame, address);
         byte age = TaskView(task, 12, 1).Read(0, 1)[0];
@@ -119,14 +120,25 @@ public static partial class NativeBattleMegaSpark279Controller
     {
         NativeBattleEffectArena point = Context(frame, address, 16);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Mega Spark attachment requires its current projection controls.");
-        var registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(Registers279(frame), 0, Vector279(point), Padding279(point)), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+        NativeBattleGeometryRegisterStep registers = Registers279(frame);
+        NativeBattleVector vector = Vector279(point);
+        short? w = Padding279(point);
+        registers = NativeBattleGeometry.LoadVector(registers, 0, vector, w);
+        NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+        registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
+        if (inputs.CapturePresentation)
+        {
+            NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+            System.Numerics.Vector3 world = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vector), projection);
+            frame = frame with { PresentationPoints = frame.PresentationPoints.SetItem(address, new(world, registers.Geometry.Sxy[2]!.Value)) };
+        }
         point = point.Write(0, BitConverter.GetBytes(registers.Geometry.Sxy[2]!.Value)).Write(4, BitConverter.GetBytes(unchecked((short)((int)registers.Geometry.Sz[3]!.Value >> 2))));
         frame = Publish279(frame, registers);
         return PublishContext(frame, address, point, 16);
     }
 
-    private static NativeBattleMegaSpark279Frame DrawTemporaryStrip279(NativeBattleMegaSpark279Frame frame, uint temporary, List<uint> rows, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs)
+    private static NativeBattleMegaSpark279Frame DrawTemporaryStrip279(NativeBattleMegaSpark279Frame frame, uint temporary, List<uint> rows, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
-        return DrawStrip279(frame, rows, true, resources, inputs);
+        return DrawStrip279(frame, rows, true, resources, inputs, pilotIdentity);
     }
 }

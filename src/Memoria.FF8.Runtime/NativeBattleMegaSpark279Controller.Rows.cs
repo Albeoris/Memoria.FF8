@@ -30,6 +30,7 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             return (frame, 0);
         }
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, RowsBase279, checked((int)((address - RowsBase279) / 40)));
         NativeBattleEffectArena row = NativeBattleEffectNodeContextMemory.Copy(point, 0, ReadBytes(frame, address, 40), 0, 8).Write(14, BitConverter.GetBytes((short)2)).Write(32, BitConverter.GetBytes((short)512)).Write(34, BitConverter.GetBytes((short)768)).Write(36, BitConverter.GetBytes(0u));
         return (WriteBytes(frame, address, row, 40), address);
     }
@@ -212,7 +213,7 @@ public static partial class NativeBattleMegaSpark279Controller
         }
         if (rows.Count >= 2)
         {
-            frame = DrawStrip279(frame, rows, false, resources, inputs);
+            frame = DrawStrip279(frame, rows, false, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(279, Read(frame, address)) : null);
         }
         foreach (uint row in rows)
         {
@@ -304,6 +305,7 @@ public static partial class NativeBattleMegaSpark279Controller
         }
         NativeBattleGfAnimationSource source = resources.ReadProgramme(programme);
         var workspace = NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), 44, size).Initialize7016B0(source, size);
+        NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, address + 44);
         NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(0x2508078));
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Mega Spark programme requires its current caster transform.");
         NativeBattleActionMatrix matrix = NativeBattleFunguarLaser277.Basis50CBA0(Signed(task, 32) - transform.Position28.X, 0, Signed(task, 36) - transform.Position28.Z).Matrix;
@@ -335,7 +337,17 @@ public static partial class NativeBattleMegaSpark279Controller
         NativeBattleEffectArena point = ReadBytes(frame, address, 8);
         NativeBattleGeometryRegisterStep registers = Registers279(frame);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Mega Spark projection requires its current controls.");
-        registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, Vector279(point), Padding279(point)), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+        NativeBattleVector vector = Vector279(point);
+        short? w = Padding279(point);
+        registers = NativeBattleGeometry.LoadVector(registers, 0, vector, w);
+        NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+        registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
+        if (inputs.CapturePresentation)
+        {
+            NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+            System.Numerics.Vector3 world = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vector), projection);
+            frame = frame with { PresentationPoints = frame.PresentationPoints.SetItem(address, new(world, registers.Geometry.Sxy[2]!.Value)) };
+        }
         frame = Publish279(frame, registers);
         frame = WriteBytes(frame, address + (uint)screenOffset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(registers.Geometry.Sxy[2]!.Value)), 4);
         return WriteBytes(frame, address + (uint)depthOffset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((short)((int)registers.Geometry.Sz[3]!.Value >> 2)))), 2);

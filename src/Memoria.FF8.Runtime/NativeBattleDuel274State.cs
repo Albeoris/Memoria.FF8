@@ -20,7 +20,14 @@ public sealed partial record NativeBattleEffectMemory
     }
 }
 
-public sealed record NativeBattleDuel274Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random);
+public sealed record NativeBattleDuel274Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
+{
+    [JsonIgnore]
+    public bool CapturePresentation { get; init; }
+
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleDuel274TaskStep(NativeBattleDuel274Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
 
 public sealed record NativeBattleDuel274ActorServices(Func<int, ushort> ReadFlags, Action<int, ushort> WriteFlags, Func<int, uint> ReadLinkedModel140, Func<int, int> ResolveMinimum501FF0, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90);

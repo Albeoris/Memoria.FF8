@@ -8,11 +8,12 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEvilEye282(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Evil-Eye requires its selected original effect.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEvilEye282Resources resources = effect.Binding.EvilEye282Resources ?? throw new NotSupportedException("Evil-Eye requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Evil-Eye requires its actual process memory.");
         NativeBattleEvilEye282Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Evil-Eye requires its actual CRT stream."), memory.EvilEye282 ?? throw new NotSupportedException("Evil-Eye requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Evil-Eye requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Evil-Eye requires its original arithmetic constants.");
-        NativeBattleEvilEye282Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, _ => nativeActionPackets, Execute);
+        NativeBattleEvilEye282Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEvilEye282Controller.Initialize(frame, resources, inputs) : NativeBattleEvilEye282Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -93,8 +94,10 @@ public sealed partial class BattleSession
 
         NativeBattleEvilEye282Frame Deliver(NativeBattleEvilEye282Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleCinematicActorPresentation.NativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Evil-Eye requires its current ordering table.");
             uint address = current.State.ReadDword(NativeBattleEvilEye282Profile.CursorGlobal);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, NativeBattleWaterExecutionFields.ArenaOffset(address, 0), batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, NativeBattleWaterExecutionFields.ArenaOffset(address, 0), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleEvilEye282Profile.CursorGlobal, checked(NativeBattleEvilEye282Profile.ArenaAddress + (uint)written.Cursor)) };
@@ -137,7 +140,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Evil-Eye mesh selected pointer differs from its actual context.");
             }
-            NativeBattleEvilEye282MeshContext88Step drawn = NativeBattleEvilEye282MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleEvilEye282MeshContext88Step drawn = NativeBattleEvilEye282MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -178,7 +181,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Evil-Eye sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Evil-Eye sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Evil-Eye sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -32,6 +32,10 @@ public sealed partial class BattleSession
         if (clone == 0)
         {
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
+            if (visualIdentity.Effect == 265)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, clone, 0);
+            }
             SetSlot(0xBC, clone);
             Put32(clone + 0xC, actorAddress);
             RefreshClone();
@@ -71,6 +75,10 @@ public sealed partial class BattleSession
         else if (Dword(clone + 0xC) != actorAddress)
         {
             throw new InvalidDataException("Native actor dissolve clone belongs to another physical actor.");
+        }
+        if (visualIdentity.Effect == 265)
+        {
+            visualIdentity = NativeBattleCinematic31Presentation.DissolveSource(visualIdentity, frame.Arena, clone, NativeBattleModelResourceRow.Address100(actor), geometry.PhysicalAddress);
         }
         uint state = Slot32(0xC0);
         uint counters = Slot32(0xC4);
@@ -166,14 +174,18 @@ public sealed partial class BattleSession
                 {
                     uint address = projectedWork + checked((uint)(index * 8));
                     return new(Dword(address), Word(address + 4), Read(address + 6, 1)[0]);
-                }, index => Dword(unchecked(Dword(state + 4) + (uint)(index * 4))), frame.ReadTemporaryDword(0x14C));
+                }, index => Dword(unchecked(Dword(state + 4) + (uint)(index * 4))), frame.ReadTemporaryDword(0x14C), visualIdentity.Effect == 265 ? visualIdentity with { Primitive = unchecked(meshIndex * 65537 + faceIndex) } : null, visualIdentity.Effect == 265 ? index => worldVertices[index] : null);
                 if (emitted.Counter != before)
                 {
                     Put(counters + (uint)faceIndex, [emitted.Counter]);
                 }
-                int[] indices = Enumerable.Range(0, face.Quad ? 4 : 3).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(corner * 2)) & 4095).ToArray();
-                NativeBattlePilotVisualGeometry pilotGeometry = new(visualIdentity with { Primitive = unchecked(meshIndex * 65537 + faceIndex) }, worldVertices[indices[0]], worldVertices[indices[1]], worldVertices[indices[2]], face.Quad ? worldVertices[indices[3]] : default, checked((byte)indices.Length));
-                NativeBattleGfGeometryBatch captured = emitted.Packets with { Attempts = emitted.Packets.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = pilotGeometry } } : attempt).ToImmutableArray() };
+                NativeBattleGfGeometryBatch captured = emitted.Packets;
+                if (visualIdentity.Effect != 265)
+                {
+                    int[] indices = Enumerable.Range(0, face.Quad ? 4 : 3).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(corner * 2)) & 4095).ToArray();
+                    NativeBattlePilotVisualGeometry pilotGeometry = new(visualIdentity with { Primitive = unchecked(meshIndex * 65537 + faceIndex) }, worldVertices[indices[0]], worldVertices[indices[1]], worldVertices[indices[2]], face.Quad ? worldVertices[indices[3]] : default, checked((byte)indices.Length));
+                    captured = emitted.Packets with { Attempts = emitted.Packets.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = pilotGeometry } } : attempt).ToImmutableArray() };
+                }
                 var appended = AppendNativeCinematicPackets(frame, output, emitted.OrderingAddress, captured, graphics);
                 frame = appended.Frame;
                 graphics = appended.Graphics;

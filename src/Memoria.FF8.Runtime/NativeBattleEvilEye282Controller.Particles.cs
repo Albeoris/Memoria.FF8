@@ -45,7 +45,7 @@ public static partial class NativeBattleEvilEye282Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0x109EAB8u)).Write(4, BitConverter.GetBytes(task.ReadWord(18))).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleEvilEye282DrawSprite180(temporary, 0x109EAB8));
+        frame = inputs.Execute(frame, new NativeBattleEvilEye282DrawSprite180(temporary, 0x109EAB8) { PilotIdentity = inputs.CapturePresentation ? NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(282, task), 0x109EAB8) : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         short phase = unchecked((short)(task.ReadWord(18) + 1));
