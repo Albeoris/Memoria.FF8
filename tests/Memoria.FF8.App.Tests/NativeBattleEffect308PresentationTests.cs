@@ -24,7 +24,8 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
         AssertOriginalTrioRing(source, assets);
-        RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
+        BattleSnapshot admitted = NativeBattleEffect308PrerequisiteTests.PrepareOriginalTrio(source, game, assets, Path.Combine(output!, "native-prerequisite"));
+        RunPrepared(QueueComponent(admitted, game, assets), game, assets, output!);
     }
 
     private static void AssertOriginalTrioRing(BattleSnapshot source, BattleAssets assets)

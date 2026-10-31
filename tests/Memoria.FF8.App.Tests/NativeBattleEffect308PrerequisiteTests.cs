@@ -14,10 +14,16 @@ public sealed class NativeBattleEffect308PrerequisiteTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT308_PREREQUISITE_EVIDENCE");
         Assert.SkipUnless(directory is not null && path is not null && output is not null, "Select original resources, the intact trio standalone and a distinct prerequisite output directory.");
         Assert.False(Directory.Exists(output));
-        Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        PrepareOriginalTrio(source, game, assets, output!);
+    }
+
+    internal static BattleSnapshot PrepareOriginalTrio(BattleSnapshot source, GameAssets game, BattleAssets assets, string output)
+    {
+        Assert.False(Directory.Exists(output));
+        Directory.CreateDirectory(output);
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
@@ -63,10 +69,12 @@ public sealed class NativeBattleEffect308PrerequisiteTests
             Assert.True(callbacks < 600, "The preceding original action74 did not complete.");
             Assert.True(unlinked);
             BattleSnapshot completed = session.Capture();
+            Assert.All(completed.NativeGraphics!.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
             Assert.Equal(0, completed.NativeEffectMemory!.Active);
             Assert.Null(completed.NativeGraphics!.OriginalEffect);
             NativeBattleEffect308PresentationTests.VerifyColdNext("after-prerequisite", completed, game, assets, output!);
             File.WriteAllText(Path.Combine(output!, "prerequisite-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 308, PrecedingAction = 74, Sequence = 12, Callbacks = callbacks + 1, completed.Frame, Callback = completed.NativeGraphics.Callback, RingReleasedByNativeSequence = true, Scope = "Declared zero-amount presentation prerequisite; original death-AI eligibility, KO and damage formula excluded" }));
+            return completed;
         }
         catch (Exception error)
         {
