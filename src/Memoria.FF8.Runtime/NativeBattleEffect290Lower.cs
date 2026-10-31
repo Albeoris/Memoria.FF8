@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect290Lower
         NativeBattleEffectArena context = PutWord290(PutWord290(Put290(Context(frame, temporary, 180), 0, second ? SecondSpriteAddress : FirstSpriteAddress), 4, Signed(task, 0x12)), 0x24, 0);
         NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(290, frame.Effect.Pools, address, second ? SecondSpriteAddress : FirstSpriteAddress) : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
-        frame = inputs.Execute(frame, new NativeBattleEffect290DrawBatch(draw.Batch, CursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect290DrawBatch(inputs.CapturePresentation ? CaptureSpriteDepths290(draw.Batch) : draw.Batch, CursorGlobal));
         frame = Release(frame, 180);
         task = Read(frame, address);
         for (int axis = 0; axis < 3; axis++)

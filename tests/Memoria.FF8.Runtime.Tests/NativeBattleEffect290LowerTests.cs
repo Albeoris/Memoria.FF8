@@ -9,6 +9,48 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect290LowerTests
 {
     [Theory]
+    [InlineData(0x677550u)]
+    [InlineData(0x6775F0u)]
+    public void Selected_lower_sprite_preserves_native_callback_and_cold_state_with_accepted_world_depth_capture(uint callback)
+    {
+        Fixture fixture = new(callback);
+        fixture.Frame = Write(fixture.Frame, Fixture.Main, Read(fixture.Frame, Fixture.Main).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 4000));
+        uint resourceAddress = callback == 0x6775F0 ? SecondSpriteAddress : FirstSpriteAddress;
+        byte[] sprite = fixture.Resources.Sprites[resourceAddress].Bytes.ToArray();
+        int frameOffset = BinaryPrimitives.ReadUInt16LittleEndian(sprite.AsSpan(10));
+        Array.Resize(ref sprite, frameOffset + 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(sprite.AsSpan(frameOffset), 1);
+        sprite[frameOffset + 4] = 8;
+        sprite[frameOffset + 5] = 128;
+        sprite[frameOffset + 6] = 8;
+        sprite[frameOffset + 7] = 0x2E;
+        fixture.Resources = fixture.Resources with { Sprites = fixture.Resources.Sprites.SetItem(resourceAddress, fixture.Resources.Sprites[resourceAddress] with { Bytes = sprite.ToImmutableArray() }) };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108);
+        string source = NativeBattleTestSnapshots.Json(fixture.Frame);
+        foreach (bool cold in new[] { false, true })
+        {
+            Fixture nativeFixture = new(callback);
+            Fixture capturedFixture = new(callback);
+            NativeBattleEffect290Frame nativeSource = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect290Frame>(source);
+            NativeBattleEffect290Frame capturedSource = cold ? NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect290Frame>(source) : fixture.Frame;
+            NativeBattlePilotVisualIdentity owner = NativeBattleOffsetBodyVisuals.At(290, capturedSource.Effect.Pools, Fixture.Main, resourceAddress);
+            NativeBattleEffect290Step native = Advance(nativeSource, Fixture.Main, fixture.Resources, nativeFixture.Inputs() with { ReadProjection = _ => projection });
+            NativeBattleEffect290Step captured = Advance(capturedSource, Fixture.Main, fixture.Resources, capturedFixture.Inputs() with { ReadProjection = _ => projection, CapturePresentation = true });
+            Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+            Assert.Equal(NativeBattleTestSnapshots.Json(nativeFixture.Deliveries), NativeBattleTestSnapshots.Json(capturedFixture.Deliveries));
+            NativeBattleGfGeometryBatch batch = Assert.Single(capturedFixture.Deliveries).Batch;
+            NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts.Where(attempt => attempt.Primitive is { Words.Length: 10 })).Primitive!;
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal(owner, visual.Identity);
+            Assert.False(visual.ScreenSpace);
+            Assert.True(visual.Continuous);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), visual.SourceDepths);
+            Assert.All(Assert.Single(nativeFixture.Deliveries).Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        }
+    }
+
+    [Theory]
     [InlineData(16)]
     [InlineData(4)]
     public void Captured290_fragment_and_glow_preserve_native_rows_FIFOs_padding_and_each_accepted_pass(int life)

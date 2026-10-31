@@ -128,7 +128,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.False(selected.Known[18]);
         Assert.False(selected.Known[19]);
         Assert.All(selected.Known.Where((_, index) => index is not (18 or 19)), known => Assert.True(known));
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(pose.Skeleton.AsSpan())), model.CurrentBodyBoneMatrices!.SkeletonSha256);
+        Assert.Equal(NativeBattleBodyBoneMatrices.Identity(pose), model.CurrentBodyBoneMatrices!.SkeletonSha256);
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(110, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 293 && action.MagicId == 286)));
         NativeBattleParticipantSnapshot retainedCaller = Assert.Single(ready.Combatants, actor => actor.Id == caller.Id).NativeParticipant!;
         Assert.True(retainedCaller.Active);

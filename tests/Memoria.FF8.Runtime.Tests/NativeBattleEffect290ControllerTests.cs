@@ -12,6 +12,76 @@ public sealed class NativeBattleEffect290ControllerTests
     private const uint Main = Arena + 0x1CDC;
     private const uint Script = Arena;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(15)]
+    public void Selected_main_sprite_captures_actual_main_birth_world_and_four_native_depths_after_cold_restore(int age)
+    {
+        NativeBattleEffect290Resources resources = Resources();
+        byte[] sprite = resources.Sprites[MainSpriteAddress].Bytes.ToArray();
+        Array.Resize(ref sprite, 68);
+        BinaryPrimitives.WriteUInt32LittleEndian(sprite.AsSpan(44), 1);
+        sprite[48] = 8;
+        sprite[49] = 128;
+        sprite[50] = 8;
+        sprite[51] = 0x2E;
+        BinaryPrimitives.WriteUInt16LittleEndian(sprite.AsSpan(54), 0x1234);
+        resources = resources with { Sprites = resources.Sprites.SetItem(MainSpriteAddress, resources.Sprites[MainSpriteAddress] with { Bytes = sprite.ToImmutableArray() }) };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108);
+        NativeBattleEffect290Frame source = Frame(mainAge: age);
+        foreach (bool cold in new[] { false, true })
+        {
+            NativeBattleEffect290Frame nativeSource = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect290Frame>(NativeBattleTestSnapshots.Json(source));
+            NativeBattleEffect290Frame capturedSource = cold ? NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect290Frame>(NativeBattleTestSnapshots.Json(source)) : Frame(mainAge: age);
+            Harness nativeHarness = new();
+            Harness capturedHarness = new();
+            int nativeProjections = 0;
+            int capturedProjections = 0;
+            NativeBattleEffect290Inputs nativeInputs = nativeHarness.Inputs() with { ReadProjection = _ =>
+            {
+                nativeProjections++;
+                return projection;
+            } };
+            NativeBattleEffect290Inputs capturedInputs = capturedHarness.Inputs() with { ReadProjection = _ =>
+            {
+                capturedProjections++;
+                return projection;
+            }, CapturePresentation = true };
+            NativeBattleEffect290Step native = AdvanceMain6767B0(nativeSource, Main, resources, nativeInputs);
+            NativeBattlePilotVisualIdentity owner = NativeBattleOffsetBodyVisuals.At(290, capturedSource.Effect.Pools, Main, MainSpriteAddress);
+            NativeBattleEffect290Step captured = AdvanceMain6767B0(capturedSource, Main, resources, capturedInputs);
+            Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+            string OperationJson(NativeBattleEffect290Operation operation)
+            {
+                if (operation is NativeBattleEffect290WriteModelBytes write)
+                {
+                    operation = write with { Data = NativeBattleStorageSnapshots.Capture(write.Data) };
+                }
+                return JsonSerializer.Serialize(operation, operation.GetType());
+            }
+            Assert.Equal(nativeHarness.Operations.Select(OperationJson), capturedHarness.Operations.Select(OperationJson));
+            Assert.Equal(1, nativeProjections);
+            Assert.Equal(nativeProjections, capturedProjections);
+            Assert.Equal(age + 1, Read(captured.Frame, Main).ReadWord(12));
+            NativeBattleGfGeometryBatch nativeBatch = Assert.Single(nativeHarness.Operations.OfType<NativeBattleEffect290DrawBatch>()).Batch;
+            NativeBattleGfGeometryBatch capturedBatch = Assert.Single(capturedHarness.Operations.OfType<NativeBattleEffect290DrawBatch>()).Batch;
+            Assert.All(nativeBatch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+            NativeBattleGeometryPrimitive primitive = Assert.Single(capturedBatch.Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!;
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal(owner, visual.Identity);
+            Assert.True(visual.Identity.Generation > 0);
+            Assert.NotEqual(0, visual.Identity.ResourceGeneration);
+            Assert.False(visual.ScreenSpace);
+            Assert.True(visual.Continuous);
+            Assert.NotNull(visual.Sprite);
+            Assert.NotEqual(visual.A, visual.D);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), visual.SourceDepths);
+            Assert.Equal(0x2Eu, primitive.Words[1] >> 24);
+        }
+        Assert.Equal(sprite, resources.Sprites[MainSpriteAddress].Bytes);
+    }
+
     [Fact]
     public void Root_first_visit_selects_second_bank_before_initialization_and_next_visit_keeps_retained_lcg()
     {

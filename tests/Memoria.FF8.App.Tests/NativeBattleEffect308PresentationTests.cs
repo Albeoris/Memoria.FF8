@@ -23,8 +23,38 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.All(source.NativeGraphics.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
+        AssertOriginalTrioRing(source, assets);
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
+    }
+
+    private static void AssertOriginalTrioRing(BattleSnapshot source, BattleAssets assets)
+    {
+        BattleEncounter formation = assets.LoadEncounter(794);
+        Assert.Equal(65, formation.StageId);
+        BattleEnemyPlacement[] placements = NativeBattleEffectFixtureExporter.SelectEnemies(formation, true);
+        Assert.Equal(new[] { 105, 106, 107 }, placements.Select(enemy => enemy.ModelId));
+        Assert.Equal(new[] { 0, 1, 2 }, placements.Select(enemy => enemy.Slot));
+        Assert.Equal(new[] { 105, 106, 107 }, source.Definition.Combatants.Where(actor => !actor.IsPlayer).OrderBy(actor => actor.SceneSlot).Select(actor => actor.ModelId));
+        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        byte[] nativeModels = [121, 122, 123];
+        int[] nextModels = [4, 5, 3];
+        byte[][] initializers = [[0xB5, 0, 6, 2, 0x90, 122, 0xA8, 1, 0xA2], [0x90, 123, 0xA8, 1, 0xA2], [0x90, 121, 0xA8, 1, 0xA2]];
+        for (int slot = 0; slot < placements.Length; slot++)
+        {
+            int physical = slot + 3;
+            NativeBattleGraphicsModel model = graphics.Models[physical];
+            BattleCombatantDefinition definition = Assert.Single(source.Definition.Combatants, actor => actor.Id == graphics.ActorIds[physical]);
+            Assert.Equal(placements[slot].ModelId, definition.ModelId);
+            Assert.Equal((int?)placements[slot].Slot, definition.SceneSlot);
+            Assert.Equal(physical, model.Index);
+            Assert.Equal((byte?)nativeModels[slot], model.ModelId4);
+            NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
+            int start = resource.SequenceStart(8);
+            int end = resource.SequenceEnd(8);
+            Assert.Equal(initializers[slot], resource.SequenceSection.AsSpan().Slice(start, end - start).ToArray());
+            Assert.Equal((int?)nextModels[slot], model.ReadLinkedModelIndex140());
+        }
+        Assert.Equal(new[] { 3, 4, 5 }, NativeBattleModelRings.Walk(graphics.Models, 3));
     }
 
     internal static BattleSnapshot QueueComponent(BattleSnapshot original, GameAssets game, BattleAssets assets)

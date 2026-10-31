@@ -54,7 +54,7 @@ public sealed class NativeBattleEffect298PresentationTests
         Assert.Equal(45, resource.PoseSource.BoneCount);
         Assert.Equal((byte)118, model.ModelId4);
         Assert.Equal("3E2A29DF495089D7D3221B84E7F06721869B08DAB3405D90A4D310A59655BBDC", Convert.ToHexString(SHA256.HashData(resource.PoseSource.Skeleton.AsSpan())));
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(resource.PoseSource.Skeleton.AsSpan())), model.CurrentBodyBoneMatrices!.SkeletonSha256);
+        Assert.Equal(NativeBattleBodyBoneMatrices.Identity(resource.PoseSource), model.CurrentBodyBoneMatrices!.SkeletonSha256);
         Assert.Equal(resource.PoseSource.BoneCount, NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource).Length);
         NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(model.SequenceState ?? throw new InvalidDataException("effect298 requires its actual decoded caster pose."), resource.PoseSource);
         Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.StageBoneMatrices(resource.PoseSource, decoded)), JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource)));

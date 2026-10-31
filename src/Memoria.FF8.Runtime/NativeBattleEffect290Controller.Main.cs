@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect290Controller
             NativeBattleEffectArena caller = ProgrammeCaller290(frame, position.X, position.Y - 1000, position.Z, 0, -512, inputs);
             NativeBattleEffect290Step programme = (inputs.AdvanceProgramme ?? throw new NotSupportedException("Effect290 requires its selected programme provider."))(frame, address + 0x64E0, 0x110, caller, resources, inputs);
             frame = programme.Frame;
-            frame = DrawMainSprite290(frame, point, age, resources, inputs);
+            frame = DrawMainSprite290(frame, address, point, age, resources, inputs);
         }
         if (age is >= 20 and < 42)
         {
@@ -75,7 +75,7 @@ public static partial class NativeBattleEffect290Controller
         return CopyBytes(PackedArena(matrix), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 56), 0, 32).Write(0x2C, BitConverter.GetBytes(0u)).Write(0x30, BitConverter.GetBytes(depth)).Write(0x34, BitConverter.GetBytes(checked(frame.State.ReadDword(ArenaGlobal) + MorphOffset)));
     }
 
-    private static NativeBattleEffect290Frame DrawMainSprite290(NativeBattleEffect290Frame frame, NativeBattleEffectArena point, short age, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)
+    private static NativeBattleEffect290Frame DrawMainSprite290(NativeBattleEffect290Frame frame, uint main, NativeBattleEffectArena point, short age, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)
     {
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Vector(point), null, 16384, -1024) };
         (byte[] bytes, bool[] known) = point.ReadSnapshot(0, 8);
@@ -83,10 +83,29 @@ public static partial class NativeBattleEffect290Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(MainSpriteAddress)).Write(4, BitConverter.GetBytes(age)).Write(0x24, BitConverter.GetBytes((short)0));
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(290, frame.Effect.Pools, main, MainSpriteAddress) : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
-        frame = inputs.Execute(frame, new NativeBattleEffect290DrawBatch(draw.Batch, CursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect290DrawBatch(inputs.CapturePresentation ? CaptureSpriteDepths290(draw.Batch) : draw.Batch, CursorGlobal));
         return Release(frame, 180);
+    }
+
+    internal static NativeBattleGfGeometryBatch CaptureSpriteDepths290(NativeBattleGfGeometryBatch batch)
+    {
+        return batch with
+        {
+            Attempts = batch.Attempts.Select(attempt =>
+            {
+                if (attempt.Primitive is not { PilotGeometry: { } visual } primitive)
+                {
+                    return attempt;
+                }
+                if (primitive.VertexPayload4.Length != 4)
+                {
+                    throw new InvalidDataException("Effect290 accepted sprite capture requires its actual four native depth lanes.");
+                }
+                return attempt with { Primitive = primitive with { PilotGeometry = visual with { SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true } } };
+            }).ToImmutableArray()
+        };
     }
 
     private static NativeBattleEffect290Frame BlendModelColor290(NativeBattleEffect290Frame frame, uint main, short age, NativeBattleEffect290Inputs inputs)
