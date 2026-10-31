@@ -113,6 +113,19 @@ try {
                 }
             }
         }
+        # Exercise the signed-version guard portably. Native tests separately
+        # create and validate an actual schema 3 signature on macOS.
+        $signedDescriptor = Get-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/distribution.json') -Raw | ConvertFrom-Json
+        $signedDescriptor.SchemaVersion = 3
+        $signedDescriptor | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $bundle 'Contents/MacOS/Data/distribution.json') -Encoding utf8NoBOM
+        $guardArchive = Join-Path $temporary ($macRid + '-version-guard.tar.gz')
+        Invoke-Checker @('--create-tar', $extracted, $guardArchive)
+        $guardHash = (Get-FileHash -LiteralPath $guardArchive -Algorithm SHA256).Hash
+        Invoke-Checker @('--set-version', $guardArchive, 'v1.2.3.4', $before.BuildId)
+        Invoke-Checker @('--set-version', $guardArchive, 'v1.2.4', $before.BuildId) -ExpectFailure
+        if ((Get-FileHash -LiteralPath $guardArchive -Algorithm SHA256).Hash -cne $guardHash) {
+            throw 'A signed-version check or refused mutation changed archive bytes.'
+        }
     }
     Write-Output 'Packaging descriptor, tar modes, Linux/Mac source-preserving tag metadata and foreign-native rejection passed.'
 }

@@ -134,12 +134,13 @@ static class PackagedDistribution
         PayloadImages.Validate(destination, rid);
     }
 
-    private static void Validate(string root, string rid)
+    public static void Validate(string root, string rid)
     {
         string prefix = HostPlatforms.IsMacRuntime(rid) ? "Contents/MacOS/" : "";
         using JsonDocument json = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, prefix + "Data/distribution.json")));
         JsonElement manifest = json.RootElement;
-        if (manifest.GetProperty("RuntimeIdentifier").GetString() != rid || manifest.GetProperty("SchemaVersion").GetInt32() != (rid == "win-x64" ? 1 : 2))
+        bool mac = HostPlatforms.IsMacRuntime(rid);
+        if (manifest.GetProperty("RuntimeIdentifier").GetString() != rid || manifest.GetProperty("SchemaVersion").GetInt32() != (rid == "win-x64" ? 1 : mac ? 3 : 2))
         {
             throw new InvalidDataException("Package descriptor RID/schema mismatch.");
         }
@@ -148,12 +149,21 @@ static class PackagedDistribution
             MacBundleVersion.Validate(File.ReadAllBytes(Path.Combine(root, "Contents", "Info.plist")), manifest.GetProperty("Version").GetString()!);
         }
         HashSet<string> expected = new(StringComparer.Ordinal) { prefix + "Data/distribution.json" };
+        if (mac)
+        {
+            MacCodeSigning.VerifyBundle(root);
+            expected.Add(MacCodeSigning.ResourceEnvelope);
+        }
         foreach (JsonElement file in manifest.GetProperty("Files").EnumerateArray())
         {
             string relative = file.GetProperty("Path").GetString()!;
             if (!expected.Add(relative) || relative.Contains('\\') || relative.Split('/').Any(part => part is "" or "." or ".." || part.Contains(':')))
             {
                 throw new InvalidDataException("Invalid inventory path.");
+            }
+            if (mac && relative != "Contents/Info.plist" && !relative.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
             }
             string path = Path.Combine(root, relative);
             if (rid != "win-x64")
@@ -164,8 +174,15 @@ static class PackagedDistribution
                     throw new InvalidDataException("Package executable modes do not match inventory: " + relative);
                 }
             }
+            string hashKind = file.TryGetProperty("HashKind", out JsonElement kind) ? kind.GetString()! : "sha256";
+            bool canonicalLauncher = mac && relative == MacCodeSigning.Launcher;
+            if (hashKind != (canonicalLauncher ? MacCodeSigning.UnsignedHashKind : "sha256"))
+            {
+                throw new InvalidDataException("Unsupported package hash kind: " + relative);
+            }
             using FileStream input = File.OpenRead(path);
-            if (input.Length != file.GetProperty("Size").GetInt64() || Convert.ToHexStringLower(SHA256.HashData(input)) != file.GetProperty("Sha256").GetString())
+            (long size, string hash) = canonicalLauncher ? MacCodeSigning.UnsignedHash(path) : (input.Length, Convert.ToHexStringLower(SHA256.HashData(input)));
+            if (size != file.GetProperty("Size").GetInt64() || hash != file.GetProperty("Sha256").GetString())
             {
                 throw new InvalidDataException("Package inventory hash mismatch: " + relative);
             }

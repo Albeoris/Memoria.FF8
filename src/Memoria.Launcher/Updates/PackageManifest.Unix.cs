@@ -69,13 +69,21 @@ internal sealed partial record PackageManifest
         }
         manifest.ValidateTarget(expectedRuntimeIdentifier ?? "linux-x64");
         HashSet<string> expected = new(manifest.Files.Select(file => file.Path), StringComparer.Ordinal) { inventoryPath };
+        if (manifest.SchemaVersion == 3)
+        {
+            expected.Add(Memoria.FF8.Platform.MacCodeSigning.ResourceEnvelope);
+            if (!entries.TryGetValue(Memoria.FF8.Platform.MacCodeSigning.ResourceEnvelope, out var envelope) || envelope.Mode != 420)
+            {
+                throw new InvalidDataException("The macOS update has no valid bundle resource envelope.");
+            }
+        }
         if (!expected.SetEquals(entries.Keys) || entries[inventoryPath].Mode != 420)
         {
             throw new InvalidDataException("The update entries do not match its inventory.");
         }
         foreach (PackageFile file in manifest.Files)
         {
-            if (entries[file.Path] != (file.Size, file.UnixMode))
+            if (entries[file.Path].Mode != file.UnixMode || (file.HashKind == "sha256" && entries[file.Path].Length != file.Size))
             {
                 throw new InvalidDataException("The update size or executable mode does not match its inventory: " + file.Path);
             }

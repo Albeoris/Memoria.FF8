@@ -278,6 +278,9 @@ try {
     }
     $manifestRoot = if ($RuntimeIdentifier -like 'osx-*') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
     & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier
+    if ($RuntimeIdentifier -like 'osx-*') {
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--sign-mac-bundle', $manifestRoot))
+    }
 
     # Replace only this script's known output directory after every publish succeeds.
     $resolvedArtifacts = [IO.Path]::GetFullPath((Join-Path $artifacts "package"))

@@ -26,6 +26,20 @@ The release includes the .NET runtimes it needs. Players do not need to install 
 
 The launcher remembers the selected folder after a successful start and offers it as the last-used installation on later launches. Its selection is stored in `%LOCALAPPDATA%/Memoria/FF8/launcher.json`. Choosing a game directory does not copy its assets into the Memoria distribution.
 
+## macOS first launch
+
+On macOS 26 or later, download the matching `osx-arm64` (Apple Silicon) or `osx-x64` (Intel) archive, extract it and move `Memoria.FF8.app` to a writable location. The app has an ad hoc integrity signature, but no Apple Developer ID or notarization. macOS may therefore require your explicit approval: after attempting to open it, use **System Settings → Privacy & Security → Open Anyway**, if offered. See [Apple's instructions](https://support.apple.com/en-us/102445).
+
+Older Mac launchers that only support distribution schema 2 cannot install the new signed schema 3 package automatically. Download and replace the complete `.app` once; keep your saves and user mods in their existing external locations.
+
+If you trust the downloaded release and its archive SHA-256 matches the GitHub asset digest, but macOS offers no approval button, you can remove quarantine from this app only. Substitute its actual location:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Memoria.FF8.app"
+```
+
+This does not repair damaged signatures. If the app still fails, retain the error and run `codesign --verify --deep --strict --verbose=4 "/Applications/Memoria.FF8.app"` for diagnostics. Do not modify files inside the app bundle; keep saves and user mods outside it.
+
 ## Model resources from another installation
 
 The launcher's **Model resources** selector is independent of the game installation. **Same as game** keeps the default. Use its **Browse** button to select another complete installed edition when a texture pack requires that edition's models and UV layout. The choice is remembered and takes effect on the next start.

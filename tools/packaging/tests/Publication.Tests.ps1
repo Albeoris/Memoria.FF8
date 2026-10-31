@@ -20,7 +20,7 @@ try {
         $extension = if ($rid -eq 'win-x64') { '.zip' } else { '.tar.gz' }
         $archive = Join-Path $temporary ('Memoria-FF8-' + $rid + $extension)
         [IO.File]::WriteAllText($archive, $rid)
-        @{ source = $source; rid = $rid; recipe = 'b' * 64; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
+        @{ source = $source; rid = $rid; recipe = 'b' * 64; version = 'nightly'; macSignature = 'adhoc-v1'; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
     }
     $publisher = Join-Path $product 'tools/Publish-Distributions.ps1'
     & $publisher -Directory $temporary -Source $source -Reference main
@@ -32,6 +32,25 @@ try {
     if ($publication.artifacts.Count -ne 4) {
         throw 'The release digest inventory must contain all four native targets.'
     }
+    $macReceiptPath = Join-Path $temporary 'receipt-osx-arm64.json'
+    $macReceiptText = Get-Content -LiteralPath $macReceiptPath -Raw
+    foreach ($property in @('macSignature', 'version')) {
+        $receipt = $macReceiptText | ConvertFrom-Json
+        $receipt.$property = 'invalid'
+        $receipt | ConvertTo-Json | Set-Content -LiteralPath $macReceiptPath -Encoding utf8NoBOM
+        $global:MemoriaPublicationTestCalls.Clear()
+        $rejected = $false
+        try {
+            & $publisher -Directory $temporary -Source $source -Reference main
+        }
+        catch {
+            $rejected = $true
+        }
+        if (!$rejected -or $global:MemoriaPublicationTestCalls.Count -ne 0) {
+            throw 'An unsigned or incorrectly versioned Mac receipt must reject publication before any release operation.'
+        }
+    }
+    Set-Content -LiteralPath $macReceiptPath -Value $macReceiptText -Encoding utf8NoBOM
     Remove-Item -LiteralPath (Join-Path $temporary 'receipt-osx-arm64.json')
     $global:MemoriaPublicationTestCalls.Clear()
     $rejected = $false

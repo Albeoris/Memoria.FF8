@@ -15,11 +15,21 @@ static class ArchiveVersion
         Dictionary<string, byte[]> metadata = ReadMetadata(path);
         string manifestName = metadata.ContainsKey(MacManifest) ? MacManifest : LinuxManifest;
         JsonObject document = JsonNode.Parse(metadata[manifestName])?.AsObject() ?? throw new InvalidDataException("Missing manifest.");
-        if (document["BuildId"]?.GetValue<string>() != buildId || document["SchemaVersion"]?.GetValue<int>() != 2)
+        int schema = document["SchemaVersion"]?.GetValue<int>() ?? 0;
+        if (document["BuildId"]?.GetValue<string>() != buildId || schema is not (2 or 3))
         {
             throw new InvalidDataException("Archive source/schema does not match the tested payload.");
         }
         bool mac = manifestName == MacManifest;
+        if (schema == 3)
+        {
+            if (!mac || document["Version"]?.GetValue<string>() != version || !metadata.TryGetValue(MacInfo, out byte[]? signedInfo))
+            {
+                throw new InvalidDataException("A signed macOS archive must be built and validated with its final release version; post-signing version mutation is forbidden.");
+            }
+            MacBundleVersion.Validate(signedInfo, version);
+            return;
+        }
         document["Version"] = version;
         if (mac)
         {

@@ -24,11 +24,19 @@ write permission. Manual runs follow the selected branch or tag's publication
 gate.
 
 Packaging is serialized by source and platform. A tested artifact from an
-earlier run of the same source and recipe is reused, including when a version
-tag points to an already built main commit. Reuse skips SDK setup, dependency
-restore and compilation. Publication verifies the source receipts and archive
-digests before applying version metadata. An expired or deleted tested artifact
+earlier run of the same source and recipe is reused. macOS reuse also requires
+the same final version: its signed bundle cannot be restamped from nightly to a
+tag. Reuse skips SDK setup, dependency restore and compilation. Publication
+verifies source receipts and archive digests before applying Windows/Linux
+version metadata; signed macOS archives are uploaded unchanged. Their receipts
+require successful native signature validation and the final release version.
+An expired or deleted tested artifact
 must be recovered; it is not silently rebuilt.
+
+Both Mac jobs run the native signing regression tests, sign all nested Mach-O
+files and the assembled app with free ad hoc signatures, and verify signatures
+again after archive extraction. No Apple account or signing secret is used.
+Ad hoc signing does not provide Developer ID trust or notarization.
 
 Fresh builds first ask the installed SDK to resolve the unchanged `global.json`.
 `setup-dotnet` runs only if that resolution fails. Jobs restore the NuGet cache;

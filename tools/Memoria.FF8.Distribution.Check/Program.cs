@@ -10,6 +10,25 @@ using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+if (args.Length == 2 && args[0] == "--sign-mac-bundle")
+{
+    MacBundleSigning.SignBundle(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--validate-mac-signatures")
+{
+    MacCodeSigning.VerifyBundle(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--validate-mac-inventory")
+{
+    using JsonDocument manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(args[1], "Contents/MacOS/Data/distribution.json")));
+    PackagedDistribution.Validate(Path.GetFullPath(args[1]), manifest.RootElement.GetProperty("RuntimeIdentifier").GetString()!);
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--set-mac-bundle-version")
 {
     File.WriteAllBytes(args[1], MacBundleVersion.Stamp(File.ReadAllBytes(args[1]), args[2]));

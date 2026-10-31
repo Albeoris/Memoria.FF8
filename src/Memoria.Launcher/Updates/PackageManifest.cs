@@ -1,10 +1,11 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 
-internal sealed record PackageFile(string Path, long Size, string Sha256, int UnixMode = 0);
+internal sealed record PackageFile(string Path, long Size, string Sha256, int UnixMode = 0, string HashKind = "sha256");
 
 internal sealed partial record PackageManifest(int SchemaVersion, string BuildId, string Version, DateTimeOffset BuiltAt, PackageFile[] Files)
 {
@@ -61,7 +62,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 
     internal void ValidatePaths()
     {
-        if ((SchemaVersion != 1 && SchemaVersion != 2) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64" or "osx-arm64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
+        if ((SchemaVersion != 1 && SchemaVersion != 2 && SchemaVersion != 3) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64" or "osx-arm64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || (SchemaVersion == 3 && !HostPlatforms.IsMacRuntime(RuntimeIdentifier)) || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
         {
             throw new InvalidDataException("The distribution manifest has an unsupported schema or missing identity.");
         }
@@ -88,9 +89,14 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             {
                 throw new InvalidDataException("The Windows inventory contains an unowned path.");
             }
-            if (RuntimeIdentifier != "win-x64" && file.UnixMode != (System.IO.Path.GetFileName(file.Path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" ? 493 : 420))
+            if (RuntimeIdentifier != "win-x64" && file.UnixMode != (System.IO.Path.GetFileName(file.Path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder" ? 493 : 420))
             {
                 throw new InvalidDataException("The Unix inventory has an unsupported file mode.");
+            }
+            string requiredHashKind = SchemaVersion == 3 && file.Path == MacCodeSigning.Launcher ? MacCodeSigning.UnsignedHashKind : "sha256";
+            if (file.HashKind != requiredHashKind)
+            {
+                throw new InvalidDataException("The distribution inventory has an unsupported hash kind.");
             }
             if (!paths.Add(file.Path) || file.Size < 0 || file.Size > MaximumFileSize || file.Sha256 is null || file.Sha256.Length != 64 || !file.Sha256.All(Uri.IsHexDigit))
             {
@@ -144,6 +150,10 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
     internal static void Verify(string root, PackageManifest manifest)
     {
         manifest.ValidatePaths();
+        if (manifest.SchemaVersion == 3)
+        {
+            MacCodeSigning.VerifyBundle(root);
+        }
         foreach (PackageFile file in manifest.Files)
         {
             string path = ResolvePath(root, file.Path);
@@ -153,7 +163,8 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
                 throw new InvalidDataException("Distribution executable mode verification failed: " + file.Path);
             }
             using FileStream stream = File.OpenRead(path);
-            if (stream.Length != file.Size || !Convert.ToHexString(SHA256.HashData(stream)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
+            (long size, string hash) = file.HashKind == MacCodeSigning.UnsignedHashKind ? MacCodeSigning.UnsignedHash(path) : (stream.Length, Convert.ToHexString(SHA256.HashData(stream)));
+            if (size != file.Size || !hash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException($"Distribution verification failed: {file.Path}");
             }
@@ -302,7 +313,8 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
     {
         ValidateSegments(path);
         bool portableRoot = !path.Contains('/') && (path == "Memoria.Launcher" || path.EndsWith(".dll", StringComparison.Ordinal) || path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith(".so", StringComparison.Ordinal) || path.EndsWith(".dylib", StringComparison.Ordinal));
-        if ((!portableRoot && path != "Contents/Info.plist" && !path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
+        bool signatureEnvelope = allowManifest && path == MacCodeSigning.ResourceEnvelope;
+        if ((!signatureEnvelope && !portableRoot && path != "Contents/Info.plist" && !path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"The path is not owned by the distribution: {path}");
         }

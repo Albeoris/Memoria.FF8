@@ -166,6 +166,10 @@ internal static class MacBundleUpdate
         ValidateBundleTarget(manifest);
         ValidateTree(root);
         HashSet<string> expected = new(manifest.Files.Select(file => file.Path), StringComparer.Ordinal) { PackageManifest.MacManifestPath };
+        if (manifest.SchemaVersion == 3)
+        {
+            expected.Add(Memoria.FF8.Platform.MacCodeSigning.ResourceEnvelope);
+        }
         HashSet<string> actual = new(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')), StringComparer.Ordinal);
         if (!expected.SetEquals(actual))
         {

@@ -98,6 +98,7 @@ jobs:
           ./tools/linux-testing/tests/Orchestration.Tests.ps1
           ./tools/packaging/tests/Packaging.Tests.ps1
           ./tools/packaging/tests/Publication.Tests.ps1
+          ./tools/packaging/tests/MacSigning.Tests.ps1
           ./tools/Get-PlatformInventory.ps1 -Check
       - name: Install Linux build and font dependencies
         if: runner.os == 'Linux' && steps.distribution.outputs.reuse != 'true'
@@ -141,7 +142,9 @@ jobs:
           $archives = @(Get-ChildItem artifacts/Memoria-FF8-${{ matrix.rid }}.*)
           if ($archives.Count -ne 1) { throw 'Expected one RID archive.' }
           $archive = $archives[0]
-          @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { 'nightly' }
+          $signature = if ('${{ matrix.rid }}' -like 'osx-*') { 'adhoc-v1' } else { 'none' }
+          @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); version = $version; macSignature = $signature; archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
       # Re-upload reused payloads into this run: publication collects a complete
       # RID set without an overwritten matrix-job output or a cross-run race.
       - uses: actions/upload-artifact@v7

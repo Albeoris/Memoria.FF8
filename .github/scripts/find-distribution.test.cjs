@@ -26,6 +26,26 @@ test('artifact recipe identity is stable and RID-specific', async () => {
     assert.equal(linux, await identity('linux-x64'));
 });
 
+test('signed Mac artifacts are specific to the final release version', async () => {
+    const nightly = await identity('osx-arm64');
+    const tag = fixture();
+    tag.context.ref = 'refs/tags/v1.2.3';
+    await find({ ...tag, rid: 'osx-arm64' });
+    assert.notEqual(tag.outputs['artifact-name'], nightly);
+    const retry = fixture({ runs: [{ id: 7, head_branch: 'v1.2.3' }], artifacts: { 7: [{ name: tag.outputs['artifact-name'], expired: false }] } });
+    retry.context.ref = tag.context.ref;
+    await find({ ...retry, rid: 'osx-arm64' });
+    assert.equal(retry.outputs.reuse, 'true');
+    const missingTag = fixture({ runs: [{ id: 7, head_branch: 'main' }], artifacts: { 7: [{ name: nightly, expired: false }] }, jobs: { 7: [{ steps: [{ name: 'Validated package receipt osx-arm64', conclusion: 'success' }] }] } });
+    missingTag.context.ref = tag.context.ref;
+    await find({ ...missingTag, rid: 'osx-arm64' });
+    assert.equal(missingTag.outputs.reuse, 'false');
+    const windows = fixture();
+    windows.context.ref = tag.context.ref;
+    await find({ ...windows, rid: 'win-x64' });
+    assert.equal(windows.outputs['artifact-name'], await identity('win-x64'));
+});
+
 test('a successful Windows artifact never satisfies Linux reuse', async () => {
     const input = fixture({ runs: [{ id: 7, conclusion: 'success' }], artifacts: { 7: [{ name: await identity('win-x64'), expired: false }] }, jobs: { 7: [{ steps: [{ name: 'Validated package receipt win-x64', conclusion: 'success' }] }] } });
     await find({ ...input, rid: 'linux-x64' });
