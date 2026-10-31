@@ -24,7 +24,26 @@ internal static class NativeBattleActor32CaptureAssertions
             Assert.True(visual.UseSourceDepths);
             Assert.NotNull(visual.SourceDepths);
         }
-        Assert.Equal(commands.Length, commands.Select(command => command.PilotGeometry!.Identity).Distinct().Count());
+        AssertPhysicalIdentities(commands);
         return commands.Length;
     }
+
+    internal static void AssertPhysicalIdentities(IEnumerable<NativeBattleLogicalCommand> commands)
+    {
+        NativeBattleLogicalCommand[] physical = commands.GroupBy(command => (Packet: NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet), command.WordOffset)).Select(group =>
+        {
+            NativeBattleLogicalCommand first = group.First();
+            foreach (NativeBattleLogicalCommand replay in group)
+            {
+                Assert.Equal(first.PilotGeometry!.Identity, replay.PilotGeometry!.Identity);
+                Assert.Equal(first.PilotGeometry, replay.PilotGeometry);
+                Assert.Equal(first.Opcode, replay.Opcode);
+                Assert.Equal(first.Words.ToArray(), replay.Words.ToArray());
+                Assert.Equal(first.VertexPayload4.ToArray(), replay.VertexPayload4.ToArray());
+            }
+            return first;
+        }).ToArray();
+        Assert.Equal(physical.Length, physical.Select(command => command.PilotGeometry!.Identity).Distinct().Count());
+    }
+
 }
