@@ -42,6 +42,13 @@ static class MacBundleSigning
         {
             throw new InvalidDataException("Signing requires an exact, freshly assembled unsigned bundle inventory.");
         }
+        foreach (string path in files)
+        {
+            // SDK/NuGet payloads can retain executable bits on managed DLLs.
+            // Normalize the complete bundle before recording modes or signing.
+            bool executable = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder";
+            File.SetUnixFileMode(path, (UnixFileMode)(executable ? 493 : 420));
+        }
         foreach (string path in files.OrderByDescending(path => path.Length))
         {
             if (MacCodeSigning.IsMachO(path))

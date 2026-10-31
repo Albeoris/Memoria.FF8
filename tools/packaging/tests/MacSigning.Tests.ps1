@@ -74,6 +74,9 @@ try {
     foreach ($file in Get-ChildItem -LiteralPath $resources -File -Recurse) {
         [IO.File]::SetUnixFileMode($file.FullName, [IO.UnixFileMode]420)
     }
+    # NuGet can publish managed assemblies with executable bits; finalization
+    # must enforce the distribution's data-file mode before sealing the app.
+    [IO.File]::SetUnixFileMode((Join-Path $resources 'SigningFixture.dll'), [IO.UnixFileMode]493)
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $bundle ('Contents/Resources/' + $relative)
         New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($path)) | Out-Null
@@ -107,6 +110,10 @@ try {
     }
     $manifestPath = Join-Path $bundle 'Contents/Resources/Data/distribution.json'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $managed = @($manifest.Files | Where-Object Path -ceq 'Contents/Resources/SigningFixture.dll')
+    if ($managed.Count -ne 1 -or $managed[0].UnixMode -ne 420 -or [int][IO.File]::GetUnixFileMode((Join-Path $resources 'SigningFixture.dll')) -ne 420) {
+        throw 'Managed assembly modes were not normalized before signing.'
+    }
     $launcher = @($manifest.Files | Where-Object Path -ceq 'Contents/MacOS/Memoria.Launcher')
     if ($manifest.SchemaVersion -ne 3 -or $manifest.Version -cne $version -or $manifest.BuildId -cne $buildId -or $launcher.Count -ne 1 -or $launcher[0].HashKind -cne 'macos-unsigned-sha256') {
         throw 'The signed bundle identity or canonical launcher inventory is incorrect.'
