@@ -12,6 +12,7 @@
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../Mods/Memoria/Reorientation/fields/*.json" Link="BundledMods/Memoria/Reorientation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
+    <Compile Include="../../tools/Memoria.FF8.BattleEffects/FreshEntryRecipeCanonicalization.cs" Link="FreshEntryRecipeCanonicalization.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />

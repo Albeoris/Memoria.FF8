@@ -26,13 +26,18 @@ public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, d
 public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null)
 {
     public bool MuteOutput { get; init; }
+    public string? ExecutionStackProfile { get; init; }
 }
 public sealed record PilotStageDurations(double StagingMs, double SupervisionMs, double ValidationMs, double ResultFinalizationMs);
-public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors, int Executions, double TotalMs, double EffectDurationMs, double ExecutionWindowMs, double OverheadMs, bool OverheadWithinBudget, string Directory, bool ProcessExited, PilotStageDurations? Stages = null, int? EffectId = null, string ScenarioStatus = "RUNNABLE", string[]? DiagnosticIssues = null, string? CopyTrafficScope = null);
+public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors, int Executions, double TotalMs, double EffectDurationMs, double ExecutionWindowMs, double OverheadMs, bool OverheadWithinBudget, string Directory, bool ProcessExited, PilotStageDurations? Stages = null, int? EffectId = null, string ScenarioStatus = "RUNNABLE", string[]? DiagnosticIssues = null, string? CopyTrafficScope = null)
+{
+    public string ExecutionProtocol { get; init; } = "same-battle-repeat";
+    public string? PairPinsPath { get; init; }
+}
 public sealed record PilotBatchSummary(int SchemaVersion, string Verdict, string BuildFingerprint, int Requested, int Passed, int Failed, int Errors, double TotalMs, PilotCaseSummary[] Cases);
 
 /// <summary>External manifest runner. Each runnable case gets a fresh bounded owned host and two live executions; measurements never overlap.</summary>
-public static class PilotRunner
+public static partial class PilotRunner
 {
     public const double MaximumOverheadMs = 10000;
     private static string MeasurementPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "Validation", "measurement.lock");
@@ -89,6 +94,10 @@ public static class PilotRunner
 
     private static async Task<PilotCaseSummary> RunCaseAsync(PilotManifest manifest, PilotCase item, int index, string directory, string measurementPath, CancellationToken cancellationToken)
     {
+        if (HasFreshEntryDeclaration(item.Recipe))
+        {
+            return await RunFreshEntryPairAsync(manifest, item, index, directory, measurementPath, cancellationToken).ConfigureAwait(false);
+        }
         Stopwatch total = Stopwatch.StartNew();
         long stagingEnded = 0;
         long supervisionEnded = 0;

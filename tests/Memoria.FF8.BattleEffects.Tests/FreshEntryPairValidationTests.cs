@@ -431,7 +431,7 @@ public sealed class FreshEntryPairValidationTests
         Assert.NotEqual("PASS", LiveEvidenceValidation.ValidateFreshEntry(document.RootElement).Verdict);
     }
 
-    private static string ActualExecutable()
+    internal static string ActualExecutable()
     {
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EXECUTABLE");
         Assert.SkipUnless(path is not null && File.Exists(path), "Select the existing authenticated original executable for full-file pair source validation.");
@@ -439,7 +439,7 @@ public sealed class FreshEntryPairValidationTests
         return path!;
     }
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-entry-pair-" + Guid.NewGuid().ToString("N"));
         private readonly FreshEntryFilePin recipe;

@@ -58,6 +58,23 @@ public sealed class PilotSlowEffectsTests : IDisposable
     }
 
     [Fact]
+    public void Recalculation_authenticates_full_catalog_manifest_larger_than_case_records()
+    {
+        string attempt = Attempt("01", requested, [(40, 10)]);
+        PilotCase[] additional = Enumerable.Range(0, 9000).Select(index => new PilotCase($"blocked-{index}", null, "PLANNED_BLOCKED", [new string('x', 400)], 2)).ToArray();
+        string path = Path.Combine(attempt, "manifest.json");
+        Write(path, requested with { Cases = [requested.Cases[0], .. additional] });
+        Assert.True(new FileInfo(path).Length > 4 * 1024 * 1024);
+        Directory.CreateDirectory(Path.Combine(root, "discovery"));
+
+        PilotFpsRecalculationResult result = PilotFpsRecalculation.Recalculate(requested, root, 30);
+
+        Assert.Equal(1, result.Report.CompletedCases);
+        Assert.Empty(result.Report.Diagnostics);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path))), Assert.Single(result.Report.Cases).SourceManifestSha256);
+    }
+
+    [Fact]
     public void Latest_authoritative_scenario_is_returned_once()
     {
         string older = Attempt("01", requested, [(80, 10)]);
@@ -233,6 +250,8 @@ public sealed class PilotSlowEffectsTests : IDisposable
         Assert.Equal(100, item.Effect.MedianFps);
         Assert.Equal("PASS", item.OriginalVerdict);
         Assert.Empty(result.SlowEffects.Effects);
+        Assert.NotNull(item.CandidatePath);
+        Assert.NotNull(item.TelemetryPath);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(item.CandidatePath))), item.CandidateSha256);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(item.TelemetryPath))), item.TelemetrySha256);
     }

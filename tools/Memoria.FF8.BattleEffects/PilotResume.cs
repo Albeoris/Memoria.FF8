@@ -36,9 +36,13 @@ public static class PilotResume
             foreach (string attempt in attempts)
             {
                 string manifestPath = Path.Combine(attempt, "manifest.json");
+                if (!File.Exists(manifestPath))
+                {
+                    continue;
+                }
                 try
                 {
-                    PilotManifest manifest = Read<PilotManifest>(manifestPath);
+                    PilotManifest manifest = ReadManifest(manifestPath);
                     if (manifest.SchemaVersion != 1 || manifest.Cases is null || manifest.Cases.Any(item => item is null) || manifest.Cases.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != manifest.Cases.Length)
                     {
                         throw new InvalidDataException("History manifest has an invalid scenario inventory.");
@@ -100,6 +104,10 @@ public static class PilotResume
                     string resultPath = Path.Combine(caseDirectory, "pilot-result.json");
                     diagnosticPath = resultPath;
                     PilotCaseSummary result = Read<PilotCaseSummary>(resultPath);
+                    if (result.ExecutionProtocol is not ("same-battle-repeat" or "fresh-entry-pair"))
+                    {
+                        throw new InvalidDataException("Historical execution protocol is unsupported.");
+                    }
                     if (result.Id != item.Id || result.EffectId != item.EffectId || result.ScenarioStatus != item.Status || result.Errors is null || result.Errors.Any(string.IsNullOrWhiteSpace))
                     {
                         throw new InvalidDataException("Historical result identity or errors are invalid.");
@@ -107,8 +115,13 @@ public static class PilotResume
                     bool tested = item.Status == "RUNNABLE" && result.Verdict is "PASS" or "FAIL";
                     string? telemetryPath = null;
                     string? candidatePath = null;
+                    string? pairFingerprint = null;
                     if (item.Status == "RUNNABLE" && result.Verdict == "ERROR")
                     {
+                        if (result.ExecutionProtocol == "fresh-entry-pair")
+                        {
+                            throw new InvalidDataException("Incomplete fresh-entry pair requires a new authenticated attempt.");
+                        }
                         if (result.Errors.Length == 0 || result.Executions is < 0 or > 2)
                         {
                             throw new InvalidDataException("Historical ERROR result has no finalized error evidence.");
@@ -128,22 +141,32 @@ public static class PilotResume
                         {
                             throw new InvalidDataException("Historical scenario was not completely checked; it must be retried.");
                         }
-                        telemetryPath = Path.Combine(caseDirectory, "output", "telemetry-report.json");
-                        candidatePath = Path.Combine(caseDirectory, "output", "candidate.json");
-                        byte[] candidateBytes = ReadBytes(candidatePath, MaximumRecordBytes);
-                        OrdinaryPath(telemetryPath);
-                        using JsonDocument candidate = JsonDocument.Parse(candidateBytes);
-                        RejectDuplicateProperties(candidate.RootElement);
-                        if (candidate.RootElement.GetProperty("status").GetString() != "CANDIDATE_COMPLETED" || candidate.RootElement.TryGetProperty("reason", out JsonElement reason) && reason.ValueKind != JsonValueKind.Null)
+                        LiveEvidenceVerdict validation;
+                        if (result.ExecutionProtocol == "fresh-entry-pair")
                         {
-                            throw new InvalidDataException("Historical candidate was blocked or incomplete.");
+                            PilotFreshEntryEvidence pair = PilotFreshEntryHistory.Read(result, caseDirectory, recipe!, item.EffectId);
+                            validation = pair.Validation;
+                            pairFingerprint = pair.Pins.CandidateFingerprint;
                         }
-                        JsonElement report = PilotRunner.ValidateCandidate(candidateBytes, telemetryPath, recipe!);
-                        if (item.EffectId is int effect && report.GetProperty("expected_effect").GetInt32() != effect)
+                        else
                         {
-                            throw new InvalidDataException("Historical report differs from the requested effect.");
+                            telemetryPath = Path.Combine(caseDirectory, "output", "telemetry-report.json");
+                            candidatePath = Path.Combine(caseDirectory, "output", "candidate.json");
+                            byte[] candidateBytes = ReadBytes(candidatePath, MaximumRecordBytes);
+                            OrdinaryPath(telemetryPath);
+                            using JsonDocument candidate = JsonDocument.Parse(candidateBytes);
+                            RejectDuplicateProperties(candidate.RootElement);
+                            if (candidate.RootElement.GetProperty("status").GetString() != "CANDIDATE_COMPLETED" || candidate.RootElement.TryGetProperty("reason", out JsonElement reason) && reason.ValueKind != JsonValueKind.Null)
+                            {
+                                throw new InvalidDataException("Historical candidate was blocked or incomplete.");
+                            }
+                            JsonElement report = PilotRunner.ValidateCandidate(candidateBytes, telemetryPath, recipe!);
+                            if (item.EffectId is int effect && report.GetProperty("expected_effect").GetInt32() != effect)
+                            {
+                                throw new InvalidDataException("Historical report differs from the requested effect.");
+                            }
+                            validation = LiveEvidenceValidation.Validate(report);
                         }
-                        LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(report);
                         PilotCaseSummary recomputed = PilotRunner.Summarize(item.Id, validation.Verdict, validation.Errors, validation.Executions.Length, result.TotalMs, validation.EffectDurationsMs.Sum(), caseDirectory, true, validation.Executions.Sum(execution => execution.DurationMs), result.Stages);
                         if (validation.Verdict == "ERROR" || validation.EffectDurationsMs.Length != 2 || recomputed.Verdict != result.Verdict || !recomputed.Errors.Order(StringComparer.Ordinal).SequenceEqual(result.Errors.Order(StringComparer.Ordinal)) || recomputed.EffectDurationMs != result.EffectDurationMs || recomputed.ExecutionWindowMs != result.ExecutionWindowMs || recomputed.OverheadMs != result.OverheadMs || recomputed.OverheadWithinBudget != result.OverheadWithinBudget)
                         {
@@ -160,6 +183,10 @@ public static class PilotResume
                     {
                         JsonElement build = Read<JsonElement>(fingerprintPath);
                         fingerprint = build.GetProperty("fingerprint").GetString();
+                    }
+                    if (pairFingerprint is not null && pairFingerprint != fingerprint)
+                    {
+                        throw new InvalidDataException("Fresh-entry pair source build differs from its historical build fingerprint.");
                     }
                     reused.Add(new(item, result, manifestPath, resultPath, telemetryPath, candidatePath, fingerprint, tested));
                     found = true;
@@ -217,7 +244,17 @@ public static class PilotResume
         return document.RootElement.Deserialize<T>(RecordJson.Options) ?? throw new InvalidDataException("History record is null.");
     }
 
-    private static void RejectDuplicateProperties(JsonElement value)
+    private static PilotManifest ReadManifest(string path)
+    {
+        OrdinaryPath(path);
+        // Full selections grow with the catalog; the per-case record limit does not apply to their manifest.
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using JsonDocument document = JsonDocument.Parse(stream);
+        RejectDuplicateProperties(document.RootElement);
+        return document.RootElement.Deserialize<PilotManifest>(RecordJson.Options) ?? throw new InvalidDataException("History manifest is null.");
+    }
+
+    internal static void RejectDuplicateProperties(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {
@@ -253,7 +290,7 @@ public static class PilotResume
         return bytes;
     }
 
-    private static void OrdinaryPath(string path)
+    internal static void OrdinaryPath(string path)
     {
         string? current = Path.GetFullPath(path);
         while (current is not null)
@@ -264,5 +301,79 @@ public static class PilotResume
             }
             current = Path.GetDirectoryName(current);
         }
+    }
+}
+
+internal sealed record PilotFreshEntryEvidence(FreshEntryPairPins Pins, LiveEvidenceVerdict Validation, JsonElement ActionIdentity);
+
+internal static class PilotFreshEntryHistory
+{
+    internal static PilotFreshEntryEvidence Read(PilotCaseSummary result, string caseDirectory, byte[] recipe, int? expectedEffect)
+    {
+        string path = Path.Combine(caseDirectory, "fresh-entry-pair-pins.json");
+        PilotResume.OrdinaryPath(path);
+        if (result.PairPinsPath is null || !Path.IsPathFullyQualified(result.PairPinsPath) || Path.GetFullPath(result.PairPinsPath) != Path.GetFullPath(path))
+        {
+            throw new InvalidDataException("Fresh-entry history requires its explicit case-local pair pins path.");
+        }
+        FileInfo file = new(path);
+        if (file.Length is <= 0 or > 4 * 1024 * 1024)
+        {
+            throw new InvalidDataException("Fresh-entry pair pins exceed their bounded size.");
+        }
+        using JsonDocument pinDocument = JsonDocument.Parse(File.ReadAllBytes(path));
+        PilotResume.RejectDuplicateProperties(pinDocument.RootElement);
+        FreshEntryPairPins pins = pinDocument.RootElement.Deserialize<FreshEntryPairPins>(RecordJson.Options) ?? throw new InvalidDataException("Fresh-entry pair pins are absent.");
+        if (pins.Entries.IsDefault || pins.Entries.Length != 2 || !string.Equals(pins.Recipe.Sha256, Convert.ToHexStringLower(SHA256.HashData(recipe)), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Fresh-entry pair differs from the requested recipe or entry count.");
+        }
+        for (int index = 0; index < 2; index++)
+        {
+            PilotResume.OrdinaryPath(pins.Entries[index].Report.Path);
+            PilotResume.OrdinaryPath(pins.Entries[index].Initialization.Path);
+            string output = Path.Combine(caseDirectory, $"entry-{index + 1}", "output");
+            if (Path.GetFullPath(pins.Entries[index].Report.Path) != Path.GetFullPath(Path.Combine(output, "telemetry-report.json")) || Path.GetFullPath(pins.Entries[index].Initialization.Path) != Path.GetFullPath(Path.Combine(output, "fresh-entry-initialization.json")))
+            {
+                throw new InvalidDataException("Fresh-entry pair must retain both independent case-local report and initialization paths.");
+            }
+        }
+        FreshEntryPairVerdict pair = FreshEntryPairValidation.ValidateFiles(pins);
+        if (!pair.FunctionalPass || pair.Entries.Length != 2)
+        {
+            throw new InvalidDataException("Fresh-entry pair authentication failed: " + string.Join("; ", pair.Errors));
+        }
+        JsonElement identity = default;
+        foreach (FreshEntryRunPins entry in pins.Entries)
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(entry.Report.Path));
+            JsonElement report = document.RootElement;
+            PilotResume.RejectDuplicateProperties(report);
+            if (expectedEffect is not int effect || report.GetProperty("expected_effect").GetInt32() != effect)
+            {
+                throw new InvalidDataException("Fresh-entry report differs from the requested effect.");
+            }
+            JsonElement current = report.GetProperty("input");
+            if (identity.ValueKind == JsonValueKind.Undefined)
+            {
+                identity = current.Clone();
+            }
+            else if (!JsonElement.DeepEquals(identity, current))
+            {
+                throw new InvalidDataException("Fresh-entry pair differs in action identity.");
+            }
+        }
+        string[] errors = pair.Entries.SelectMany(entry => entry.Errors).Distinct(StringComparer.Ordinal).ToArray();
+        LiveEvidenceVerdict validation = pair.Entries[0] with
+        {
+            Verdict = errors.Length == 0 ? "PASS" : "FAIL",
+            Errors = errors,
+            Executions = pair.Entries.SelectMany(entry => entry.Executions).ToArray(),
+            EffectDurationsMs = pair.Entries.SelectMany(entry => entry.EffectDurationsMs).ToArray(),
+            EffectExecutions = pair.Entries.SelectMany(entry => entry.EffectExecutions).ToArray(),
+            Combined = null,
+            CampaignAcceptance = false
+        };
+        return new(pins, validation, identity);
     }
 }

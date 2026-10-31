@@ -10,6 +10,7 @@
     "game_dir": { "$ref": "#/$defs/path" },
     "output_root": { "$ref": "#/$defs/path" },
     "mute_output": { "type": "boolean" },
+    "execution_stack_profile": { "type": ["string", "null"], "minLength": 1 },
     "build_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "budgets": {
       "type": "object",

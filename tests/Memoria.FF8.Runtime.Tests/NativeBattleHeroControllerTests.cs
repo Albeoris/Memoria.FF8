@@ -293,6 +293,49 @@ public sealed class NativeBattleHeroControllerTests
         Assert.Equal(0x100u, frame.Memory.SoundPendingFlags);
     }
 
+    [Theory]
+    [InlineData((ushort)309, NativeBattleHeroCrtStackContract.Win32X86Profile)]
+    [InlineData((ushort)309, NativeBattleHeroCrtStackContract.Win32X86UpdatedProfile)]
+    [InlineData((ushort)310, NativeBattleHeroCrtStackContract.Win32X86Profile)]
+    [InlineData((ushort)310, NativeBattleHeroCrtStackContract.Win32X86UpdatedProfile)]
+    public void Explicit_CRT_environment_survives_JSON_and_covers_only_creation_callbacks(ushort effect, string profile)
+    {
+        var fixture = Fixture(effect, effect == 309 ? new byte[] { 3 } : new byte[] { 3, 4 });
+        NativeBattleExecutionStack execution = fixture.Inputs.Stack.Execution!;
+        NativeBattleHeroCrtStackContract contract = new(profile, execution.CaptureSha256, execution.CapturedThreadId);
+        execution = execution with { HeroCrtStack = contract };
+        NativeBattleHeroFrame frame = fixture.Frame with { Memory = fixture.Frame.Memory with { ExecutionStack = execution, HeroCrtStack = contract } };
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(contract, frame.Memory.HeroCrtStack);
+        Assert.Equal(contract, frame.Memory.ExecutionStack!.HeroCrtStack);
+        int precreationReads = 0;
+        NativeBattleHeroStackInput stack = new(frame.Memory.ExecutionStack, 0, null, frame.Memory.HeroCrtStack)
+        {
+            ResolveCurrentWord = initialized =>
+            {
+                Assert.False(initialized);
+                precreationReads++;
+                return fixture.Inputs.Stack.CurrentWord;
+            }
+        };
+        NativeBattleHeroInputs inputs = fixture.Inputs with { Stack = stack };
+        for (int tick = 0; tick < 64 && frame.Effect.ReturnedDescriptor != 0; tick++)
+        {
+            frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
+            if (tick == 6)
+            {
+                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(frame, fixture.Resources, inputs)), NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(restored, fixture.Resources, inputs)));
+                frame = restored;
+            }
+        }
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.True(precreationReads > 0);
+        Assert.Throws<NotSupportedException>(() => (stack with { Crt = contract with { ExecutionCaptureOwner = new string('B', 64) } }).RequireScale(true));
+        Assert.Throws<NotSupportedException>(() => (stack with { Crt = contract with { ThreadId = execution.CapturedThreadId + 1 } }).RequireScale(true));
+        Assert.Throws<NotSupportedException>(() => (stack with { ResolveCurrentWord = _ => null }).RequireScale(false));
+    }
+
     private static (NativeBattleHeroFrame Frame, NativeBattleHeroResources Resources, NativeBattleHeroInputs Inputs, List<NativeBattleHeroOperation> Operations) Fixture(ushort effect, byte[] actors)
     {
         NativeBattleHeroProfile profile = NativeBattleHeroProfile.ForEffect(effect);

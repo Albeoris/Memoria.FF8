@@ -221,6 +221,34 @@ public sealed class PilotResumeTests : IDisposable
         Assert.Single(PilotResume.Plan(manifest with { Cases = [blocked with { Blockers = ["OTHER_BLOCKER"] }] }, root).PendingCases);
     }
 
+    [Fact]
+    public void Full_catalog_manifest_is_not_limited_to_one_case_record_size()
+    {
+        string attempt = Attempt("01", requested);
+        PilotCase[] additional = Enumerable.Range(0, 9000).Select(index => new PilotCase($"blocked-{index}", null, "PLANNED_BLOCKED", [new string('x', 400)], 2)).ToArray();
+        string path = Path.Combine(attempt, "manifest.json");
+        Write(path, requested with { Cases = [requested.Cases[0], .. additional] });
+        Assert.True(new FileInfo(path).Length > 4 * 1024 * 1024);
+
+        PilotResumePlan plan = PilotResume.Plan(requested, root);
+
+        Assert.Equal(1, plan.PreviouslyTested);
+        Assert.Empty(plan.PendingCases);
+        Assert.Empty(plan.Diagnostics);
+    }
+
+    [Fact]
+    public void Sibling_discovery_directory_is_not_an_invalid_history_attempt()
+    {
+        Attempt("01", requested);
+        Directory.CreateDirectory(Path.Combine(root, "discovery"));
+
+        PilotResumePlan plan = PilotResume.Plan(requested, root);
+
+        Assert.Equal(1, plan.PreviouslyTested);
+        Assert.Empty(plan.Diagnostics);
+    }
+
     private string Attempt(string name, PilotManifest manifest, bool slow = false, bool overhead = false)
     {
         string attempt = Path.Combine(root, name);

@@ -364,6 +364,11 @@ public static partial class ScenarioDiscovery
         {
             fixture["items"] = new JsonArray(new JsonObject { ["id"] = definition.Id, ["count"] = 2 });
         }
+        if (native.AttackType is 17 or 19 && !TryPrepareSpecialActionRecipient(assets, native, result, out blocker))
+        {
+            return false;
+        }
+        DeclareOrdinaryPlayerStatusRearm(result, native, party, "party-0", initial.GetMagicMaximumHitPoints(0));
         recipe = result;
         return true;
     }

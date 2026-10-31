@@ -23,11 +23,12 @@ public sealed record NativeBattleHeroDrawContext(NativeBattleVector Anchor, shor
 public sealed record NativeBattleHeroCrtStackContract(string Profile, string ExecutionCaptureOwner, int ThreadId)
 {
     public const string Win32X86Profile = "win32-x86-10.0.26100.9444-main-crt";
+    public const string Win32X86UpdatedProfile = "win32-x86-10.0.26100.9711-main-crt";
 
     public void Validate(NativeBattleExecutionStack execution)
     {
         execution.Validate();
-        if (Profile != Win32X86Profile || ExecutionCaptureOwner != execution.CaptureSha256 || ThreadId != execution.CapturedThreadId)
+        if ((Profile != Win32X86Profile && Profile != Win32X86UpdatedProfile) || ExecutionCaptureOwner != execution.CaptureSha256 || ThreadId != execution.CapturedThreadId)
         {
             throw new NotSupportedException("The Hero CRT stack requires its explicitly verified imported-code profile and actual main-thread capture owner.");
         }

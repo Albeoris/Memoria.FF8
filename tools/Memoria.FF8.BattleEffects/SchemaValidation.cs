@@ -6,7 +6,7 @@ namespace Memoria.FF8.BattleEffects;
 /// <summary>Validates the deliberately small JSON Schema vocabulary used by this tool's version 1 records.</summary>
 public static class SchemaValidation
 {
-    private static readonly HashSet<string> Keywords = ["$schema", "$id", "$ref", "$defs", "title", "description", "type", "properties", "required", "additionalProperties", "items", "minItems", "uniqueItems", "enum", "const", "pattern", "minimum", "exclusiveMinimum", "maximum", "minLength"];
+    private static readonly HashSet<string> Keywords = ["$schema", "$id", "$ref", "$defs", "title", "description", "type", "properties", "required", "additionalProperties", "items", "minItems", "uniqueItems", "enum", "const", "pattern", "minimum", "exclusiveMinimum", "maximum", "minLength", "if", "then", "else"];
 
     public static void ValidateFile(string recordPath, string schemaName)
     {
@@ -56,6 +56,23 @@ public static class SchemaValidation
 
             Validate(value, root.GetProperty("$defs").GetProperty(name[8..]), root, path, depth + 1);
             return;
+        }
+
+        if (schema.TryGetProperty("if", out JsonElement condition))
+        {
+            bool matches = true;
+            try
+            {
+                Validate(value, condition, root, path, depth + 1);
+            }
+            catch (InvalidDataException exception) when (exception.Message.StartsWith(path + ":", StringComparison.Ordinal) || exception.Message.StartsWith(path + ".", StringComparison.Ordinal) || exception.Message.StartsWith(path + "[", StringComparison.Ordinal))
+            {
+                matches = false;
+            }
+            if (schema.TryGetProperty(matches ? "then" : "else", out JsonElement branch))
+            {
+                Validate(value, branch, root, path, depth + 1);
+            }
         }
 
         if (schema.TryGetProperty("type", out JsonElement type))

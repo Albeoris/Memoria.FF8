@@ -2,7 +2,10 @@ using System.Text.Json;
 
 namespace Memoria.FF8.BattleEffects;
 
-internal sealed record PilotMeasuredCase(PilotReusedCase Source, string ManifestSha256, string TelemetrySha256, string CandidateSha256, JsonElement ActionIdentity, LiveEvidenceVerdict Validation);
+internal sealed record PilotMeasuredCase(PilotReusedCase Source, string ManifestSha256, string TelemetrySha256, string CandidateSha256, JsonElement ActionIdentity, LiveEvidenceVerdict Validation)
+{
+    public FreshEntryRunPins[] EntrySources { get; init; } = [];
+}
 internal sealed record PilotFpsMeasurement(PilotResumePlan Plan, PilotMeasuredCase[] Cases, int PendingCases, PilotResumeDiagnostic[] Diagnostics);
 
 public sealed record PilotFpsMetrics(int FrameCount, bool Available, double DurationMs, double? MinimumFps, double? MaximumFps, double? MedianFps, double? MinimumFrameMs, double? MedianFrameMs, double? P95FrameMs, double? P99FrameMs, double? MaximumFrameMs, int SlowIntervalCount)
@@ -14,8 +17,15 @@ public sealed record PilotFpsMetrics(int FrameCount, bool Available, double Dura
     }
 }
 
-public sealed record PilotFpsCast(int Index, PilotFpsMetrics Effect, PilotFpsMetrics Invocation, PilotFpsMetrics Boundary, int BoundaryIntervalCount, long EffectStartedTicks, long EffectCompletedTicks, string BoundaryPolicy);
-public sealed record PilotFpsCase(PilotCase Case, string OriginalVerdict, string[] OriginalErrors, string EffectFpsVerdict, string SourceManifestPath, string SourceManifestSha256, string? SourceBuildFingerprint, string ResultPath, string TelemetryPath, string TelemetrySha256, string CandidatePath, string CandidateSha256, JsonElement ActionIdentity, PilotFpsMetrics Effect, PilotFpsMetrics Invocation, PilotFpsMetrics Boundary, PilotFpsCast[] Casts);
+public sealed record PilotFpsCast(int Index, PilotFpsMetrics Effect, PilotFpsMetrics Invocation, PilotFpsMetrics Boundary, int BoundaryIntervalCount, long EffectStartedTicks, long EffectCompletedTicks, string BoundaryPolicy)
+{
+    public FreshEntryRunPins? Source { get; init; }
+}
+public sealed record PilotFpsCase(PilotCase Case, string OriginalVerdict, string[] OriginalErrors, string EffectFpsVerdict, string SourceManifestPath, string SourceManifestSha256, string? SourceBuildFingerprint, string ResultPath, string? TelemetryPath, string? TelemetrySha256, string? CandidatePath, string? CandidateSha256, JsonElement ActionIdentity, PilotFpsMetrics Effect, PilotFpsMetrics Invocation, PilotFpsMetrics Boundary, PilotFpsCast[] Casts)
+{
+    public string ExecutionProtocol { get; init; } = "same-battle-repeat";
+    public string? PairPinsPath { get; init; }
+}
 public sealed record PilotFpsRecalculationReport(int SchemaVersion, string FpsScope, double BelowFps, int Requested, int CompletedCases, int IgnoredErrors, int IgnoredBlocked, int PendingCases, int UnavailableEffectCasts, int UnavailableEffectCases, PilotFpsCase[] Cases, PilotResumeDiagnostic[] Diagnostics)
 {
     public string BoundaryPolicy { get; init; } = TelemetryEffectFrames.Policy;
@@ -39,12 +49,12 @@ public static class PilotFpsRecalculation
     private static PilotFpsCase CreateCase(PilotMeasuredCase item)
     {
         LiveEvidenceVerdict validation = item.Validation;
-        PilotFpsCast[] casts = validation.EffectExecutions.Select((effect, index) => new PilotFpsCast(index + 1, PilotFpsMetrics.From(effect.Frames), PilotFpsMetrics.From(validation.Executions[index]), PilotFpsMetrics.From(TelemetryFrameCollector.Recompute(effect.BoundaryIntervals.ToArray(), 0)), effect.BoundaryIntervalCount, effect.StartedTicks, effect.CompletedTicks, effect.Policy)).ToArray();
+        PilotFpsCast[] casts = validation.EffectExecutions.Select((effect, index) => new PilotFpsCast(index + 1, PilotFpsMetrics.From(effect.Frames), PilotFpsMetrics.From(validation.Executions[index]), PilotFpsMetrics.From(TelemetryFrameCollector.Recompute(effect.BoundaryIntervals.ToArray(), 0)), effect.BoundaryIntervalCount, effect.StartedTicks, effect.CompletedTicks, effect.Policy) { Source = item.EntrySources.Length == 2 ? item.EntrySources[index] : null }).ToArray();
         TelemetryFrameSummary effectFrames = TelemetryFrameCollector.Combine(validation.EffectExecutions.Select(effect => effect.Frames).ToArray());
         TelemetryFrameSummary invocationFrames = TelemetryFrameCollector.Combine(validation.Executions);
         TelemetryFrameSummary boundaryFrames = TelemetryFrameCollector.Recompute(validation.EffectExecutions.SelectMany(effect => effect.BoundaryIntervals).ToArray(), 0);
         string verdict = validation.EffectExecutions.Any(effect => effect.Frames.SlowIntervalCount > 0) ? "FAIL" : validation.EffectExecutions.All(effect => effect.Available) ? "PASS" : "UNAVAILABLE";
         PilotReusedCase source = item.Source;
-        return new(source.Case, source.PreviousResult.Verdict, source.PreviousResult.Errors, verdict, source.ManifestPath, item.ManifestSha256, source.PreviousBuildFingerprint, source.ResultPath, source.TelemetryPath!, item.TelemetrySha256, source.CandidatePath!, item.CandidateSha256, item.ActionIdentity, PilotFpsMetrics.From(effectFrames), PilotFpsMetrics.From(invocationFrames), PilotFpsMetrics.From(boundaryFrames), casts);
+        return new(source.Case, source.PreviousResult.Verdict, source.PreviousResult.Errors, verdict, source.ManifestPath, item.ManifestSha256, source.PreviousBuildFingerprint, source.ResultPath, source.TelemetryPath, source.TelemetryPath is null ? null : item.TelemetrySha256, source.CandidatePath, source.CandidatePath is null ? null : item.CandidateSha256, item.ActionIdentity, PilotFpsMetrics.From(effectFrames), PilotFpsMetrics.From(invocationFrames), PilotFpsMetrics.From(boundaryFrames), casts) { ExecutionProtocol = source.PreviousResult.ExecutionProtocol, PairPinsPath = source.PreviousResult.PairPinsPath };
     }
 }

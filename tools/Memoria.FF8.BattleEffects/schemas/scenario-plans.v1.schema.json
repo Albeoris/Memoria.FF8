@@ -28,13 +28,32 @@
       "target_policy": { "type": "string", "minLength": 1 },
       "preparation": { "$ref": "#/$defs/strings" },
       "invocation": { "$ref": "#/$defs/strings" },
-      "executions": { "type": "integer", "minimum": 2 },
+      "executions": { "type": "integer", "minimum": 0 },
       "repeat_policy": { "$ref": "#/$defs/strings" },
       "mapping_evidence": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
       "execution_blockers": { "$ref": "#/$defs/strings" },
       "acceptance_blockers": { "$ref": "#/$defs/strings" },
       "owner_context_ids": { "$ref": "#/$defs/strings" },
       "covered_by_case_ids": { "$ref": "#/$defs/strings" }
+    },
+    "if": {
+      "required": ["status", "family"],
+      "properties": {
+        "status": { "const": "EXCLUDED" },
+        "family": { "const": "unused_installed_archive_entry" }
+      }
+    },
+    "then": {
+      "properties": {
+        "executions": { "const": 0 },
+        "disposition": { "const": "excluded_with_reason" },
+        "effect_id": { "type": "null" },
+        "diagnostic_recipe": { "type": "null" },
+        "execution_blockers": { "const": [] }
+      }
+    },
+    "else": {
+      "properties": { "executions": { "minimum": 2 } }
     }
   },
   "$defs": { "strings": { "type": "array", "items": { "type": "string", "minLength": 1 } } }

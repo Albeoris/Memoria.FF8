@@ -93,6 +93,7 @@ public static partial class ScenarioDiscovery
             int? mappedEffect = action.MappedEffectId;
             string caseId = "action-" + action.Id;
             string? recipePath = null;
+            bool freshEntryPair = false;
             List<string> blockers = ActionBlockers(native);
             string targetPolicy = TargetPolicy(native);
             bool ordinaryMagic = native.Command == 2 && native.ActionId is >= 1 and <= 63 && native.MagicId is >= 1 and <= 400 && native.TargetFlags is not null;
@@ -130,13 +131,18 @@ public static partial class ScenarioDiscovery
             if (recipePath is null && templatePath is not null && native.KernelSection is 2 or 7 or 10)
             {
                 blockers.Clear();
-                if (TryPrepareOrdinaryPlayerRecipe(assets, initialVitals, native, templatePath, out JsonObject? ordinaryRecipe, out string? ordinaryBlocker))
+                if (TryPrepareOrdinaryPlayerRecipe(assets, initialVitals, native, templatePath, out JsonObject? ordinaryRecipe, out string? ordinaryBlocker) && TryConfigurePlayerStatusExecutionProfile(ordinaryRecipe!, native, gameDirectory, out ordinaryBlocker))
                 {
                     string copied = Path.Combine(output, "recipes", caseId + ".json");
                     Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
                     File.WriteAllText(copied, ordinaryRecipe!.ToJsonString(RecordJson.Options));
                     recipePath = copied;
                     targetPolicy = "Installed ordinary command/semantic action and shared target rules; actual target=" + ordinaryRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
+                    if (ordinaryRecipe["driver"]!["fresh_entry"] is not null)
+                    {
+                        freshEntryPair = true;
+                        targetPolicy += "; explicit two-process fresh-entry pair, not same-battle repetition; actual unprotected native statuses retained";
+                    }
                 }
                 else
                 {
@@ -166,6 +172,10 @@ public static partial class ScenarioDiscovery
                 blockers.Add("OWNER_UNRESOLVED: no installed DAT ability-bank owner was found for this exact command/action variant; do not substitute a generic monster.");
             }
             scenarios.Add(new(caseId, mappedEffect, action.Id, action.Family, recipePath is null ? "PLANNED_BLOCKED" : "RUNNABLE", recipePath is null ? "unresolved" : "scheduled", false, recipePath, enemy ? null : templateEncounter, enemy ? null : templateStage, enemy ? "Actual installed owner; see owner_context_ids" : native is { CharacterId: 3, Command: 15 } ? "Quistis" : "Squall", native.CharacterId?.ToString(System.Globalization.CultureInfo.InvariantCulture), native.Command, native.ActionId, native.CrisisLevel, native.TargetFlags, targetPolicy, Preparation(native), [$"native command={native.Command}; action={native.ActionId}; kernel={native.KernelSection}/{native.KernelIndex}; crisis={native.CrisisLevel?.ToString() ?? "not applicable"}", recipePath is null ? "Invocation adapter/prerequisites must be resolved before execution." : "Submit the copied recipe's declared semantic input and typed adapters twice."], 2, ["One uninterrupted BattleSession and owner lineage; no snapshot restore/reseed/allocator reset.", "No generic between-cast repair; terminal/KO/stock/trigger prerequisites require a proved typed repair if needed."], [action.MappingEvidence, "BattleActionKernelReader.Native.cs:ReadNativeActions; BattleSession.NativeActionAdmission.cs:BuildNativeActionHeaderPreparation"], blockers.Distinct().ToArray(), enemy ? ["ENEMY_REACHABILITY: table membership is not proof of a legal selectable AI/trigger path."] : [PhaseBlocker], ownerIds));
+            if (freshEntryPair)
+            {
+                scenarios[^1] = scenarios[^1] with { Invocation = ["Two separately initialized cold processes each submit this exact original native action once; retain its actual unprotected native statuses."], RepeatPolicy = ["Explicit fresh-entry-pair protocol with identical pinned recipe, original sources, build and execution stack; distinct actual process/battle/native-owner lineages.", "Certify each native focal release and separate aftercare plus actual presented tail. This does not establish same-battle repetition or suppress subsequent compelled actions."] };
+            }
             if (native.TargetFlags is byte targetFlags && (targetFlags & 0x30) is 0 or 0x20 && (targetFlags & 2) == 0)
             {
                 scenarios.Add(scenarios[^1] with { CaseId = caseId + "-multiple-targets", Status = "PLANNED_BLOCKED", Disposition = "unresolved", DiagnosticRecipe = null, TargetPolicy = $"Multiple legal actual recipients required by installed group selector 0x{targetFlags:X2}; NativeBattleLimitRules.PlayerTargetMask and BattleHudController.SelectingTargetGroup preserve native group mode.", ExecutionBlockers = ["MULTI_TARGET_PRECONDITION: prove at least two legitimate actual recipients and their active targetable/life-state conditions in the required canonical phase or original enemy context. The current one-party/direct-participant recipe does not certify this branch; no synthetic enemy or arbitrary target-count override is substituted."] });
@@ -254,6 +264,7 @@ public static partial class ScenarioDiscovery
             PlanIssue issue = enemies.Issues[index];
             scenarios.Add(new($"discovery-boundary-{index:D6}", null, issue.Identity, "unresolved_installed_resource", "UNRESOLVED", "unresolved", false, null, null, null, issue.Identity, null, null, null, null, null, "Unknown until this installed resource boundary is decoded.", [], [], 2, ["Original invocation and repetition cannot be guessed across an unresolved resource boundary."], [issue.Identity], [issue.Message], ["Resource discovery is incomplete for this exact owner/path."], [issue.Identity]));
         }
+        scenarios.AddRange(enemies.ExcludedArchiveModels.Select(ScenarioEnemyArchiveCatalog.ExcludedScenario));
         // Command rows without a projected action are obligations too; no guessed effect ID is assigned.
         DiscoveredCommand[] commands = kernel.BattleCommands.Select((command, index) =>
         {

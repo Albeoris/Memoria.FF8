@@ -16,6 +16,7 @@ public sealed record EnemyScenarioScriptedAction(int ModelId, string Name, int C
 public sealed record EnemyScenarioStartup(int ModelId, bool AllocationAbsenceProved);
 public sealed record EnemyScenarioDiscoveryResult(EnemyScenarioActionOwner[] Owners, PlanIssue[] Issues)
 {
+    public EnemyScenarioArchiveExclusion[] ExcludedArchiveModels { get; init; } = [];
     public EnemyScenarioScriptedAction[] ScriptedActions { get; init; } = [];
     public EnemyScenarioStartup[] Startups { get; init; } = [];
 }
@@ -40,10 +41,17 @@ public static class ScenarioEnemyDiscovery
             }
         }
         List<EnemyScenarioModel> models = [];
+        List<EnemyScenarioArchiveExclusion> excluded = [];
+        ScenarioEnemyArchiveCatalog archiveCatalog = new(formations);
         foreach (int modelId in assets.EnemyModelIds)
         {
             try
             {
+                if (archiveCatalog.CanExclude(modelId, assets.HasEmptyNativeEnemyAiSection(modelId)))
+                {
+                    excluded.Add(ScenarioEnemyArchiveCatalog.Exclusion(modelId));
+                    continue;
+                }
                 // ReadEnemyAi returns the complete three-band, 48-row bank regardless of the requested level.
                 models.Add(new(modelId, assets.ReadEnemyName(modelId), assets.ReadEnemyAi(modelId, 0)));
             }
@@ -53,7 +61,7 @@ public static class ScenarioEnemyDiscovery
             }
         }
         EnemyScenarioDiscoveryResult result = Discover(formations, models, assets.NativeActions);
-        return result with { Issues = issues.Concat(result.Issues).ToArray() };
+        return result with { Issues = issues.Concat(result.Issues).ToArray(), ExcludedArchiveModels = excluded.ToArray() };
     }
 
     public static EnemyScenarioDiscoveryResult Discover(IEnumerable<BattleEncounter> formations, IEnumerable<EnemyScenarioModel> models, IReadOnlyList<BattleNativeAction> actions)

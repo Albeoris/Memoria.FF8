@@ -3,8 +3,11 @@ using System.Text.Json;
 
 namespace Memoria.FF8.BattleEffects;
 
-public sealed record PilotSlowCase(PilotCase Case, string SourceManifestPath, string SourceManifestSha256, string TelemetryPath, string? SourceBuildFingerprint, double?[] MedianFps, double MinimumCastMedianFps, string ResultPath, JsonElement ActionIdentity)
+public sealed record PilotSlowCase(PilotCase Case, string SourceManifestPath, string SourceManifestSha256, string? TelemetryPath, string? SourceBuildFingerprint, double?[] MedianFps, double MinimumCastMedianFps, string ResultPath, JsonElement ActionIdentity)
 {
+    public string ExecutionProtocol { get; init; } = "same-battle-repeat";
+    public string? PairPinsPath { get; init; }
+    public FreshEntryRunPins[] EntrySources { get; init; } = [];
     public double[] InvocationMedianFps { get; init; } = [];
     public int[] EffectFrameCounts { get; init; } = [];
     public int[] BoundaryIntervalCounts { get; init; } = [];
@@ -40,15 +43,34 @@ public static class PilotSlowEffects
         PilotResumePlan plan = PilotResume.Plan(requested, historyRoot);
         List<PilotResumeDiagnostic> diagnostics = [.. plan.Diagnostics];
         List<PilotMeasuredCase> measured = [];
+        Dictionary<string, string> manifestHashes = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         int pending = plan.PendingCases.Length;
         foreach (PilotReusedCase reused in plan.ReusedCases.Where(item => item.Tested))
         {
             try
             {
-                using JsonDocument document = JsonDocument.Parse(ReadBytes(reused.TelemetryPath!, 64 * 1024 * 1024));
-                JsonElement report = document.RootElement;
-                LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(report);
-                if (validation.Verdict is not ("PASS" or "FAIL") || validation.Executions.Length != 2 || reused.Case.EffectId is not int effectId || report.GetProperty("expected_effect").GetInt32() != effectId)
+                LiveEvidenceVerdict validation;
+                JsonElement actionIdentity;
+                FreshEntryRunPins[] entries = [];
+                if (reused.PreviousResult.ExecutionProtocol == "fresh-entry-pair")
+                {
+                    PilotFreshEntryEvidence pair = PilotFreshEntryHistory.Read(reused.PreviousResult, Path.GetDirectoryName(reused.ResultPath)!, ReadBytes(reused.Case.Recipe!, 4 * 1024 * 1024), reused.Case.EffectId);
+                    validation = pair.Validation;
+                    actionIdentity = pair.ActionIdentity;
+                    entries = pair.Pins.Entries.ToArray();
+                }
+                else
+                {
+                    using JsonDocument document = JsonDocument.Parse(ReadBytes(reused.TelemetryPath!, 64 * 1024 * 1024));
+                    JsonElement report = document.RootElement;
+                    validation = LiveEvidenceValidation.Validate(report);
+                    if (reused.Case.EffectId is not int effectId || report.GetProperty("expected_effect").GetInt32() != effectId)
+                    {
+                        throw new InvalidDataException("Historical scenario differs from the requested effect.");
+                    }
+                    actionIdentity = report.GetProperty("input").Clone();
+                }
+                if (validation.Verdict is not ("PASS" or "FAIL") || validation.Executions.Length != 2)
                 {
                     throw new InvalidDataException("Historical scenario requires two completed casts and an explicit matching effect identity.");
                 }
@@ -56,10 +78,15 @@ public static class PilotSlowEffects
                 {
                     throw new InvalidDataException("Historical cast median FPS is not finite and positive.");
                 }
-                string manifestHash = Convert.ToHexStringLower(SHA256.HashData(ReadBytes(reused.ManifestPath, 4 * 1024 * 1024)));
-                string telemetryHash = Convert.ToHexStringLower(SHA256.HashData(ReadBytes(reused.TelemetryPath!, 64 * 1024 * 1024)));
-                string candidateHash = Convert.ToHexStringLower(SHA256.HashData(ReadBytes(reused.CandidatePath!, 4 * 1024 * 1024)));
-                measured.Add(new(reused, manifestHash, telemetryHash, candidateHash, report.GetProperty("input").Clone(), validation));
+                if (!manifestHashes.TryGetValue(reused.ManifestPath, out string? manifestHash))
+                {
+                    using FileStream manifestStream = new(reused.ManifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    manifestHash = Convert.ToHexStringLower(SHA256.HashData(manifestStream));
+                    manifestHashes.Add(reused.ManifestPath, manifestHash);
+                }
+                string telemetryHash = reused.TelemetryPath is null ? "" : Convert.ToHexStringLower(SHA256.HashData(ReadBytes(reused.TelemetryPath, 64 * 1024 * 1024)));
+                string candidateHash = reused.CandidatePath is null ? "" : Convert.ToHexStringLower(SHA256.HashData(ReadBytes(reused.CandidatePath, 4 * 1024 * 1024)));
+                measured.Add(new(reused, manifestHash, telemetryHash, candidateHash, actionIdentity, validation) { EntrySources = entries });
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or InvalidOperationException or ArgumentException or KeyNotFoundException or FormatException or OverflowException or NullReferenceException)
             {
@@ -84,6 +111,9 @@ public static class PilotSlowEffects
             PilotReusedCase reused = item.Source;
             slow.Add(new(reused.Case, reused.ManifestPath, item.ManifestSha256, reused.TelemetryPath!, reused.PreviousBuildFingerprint, medians, available.Min(), reused.ResultPath, item.ActionIdentity)
             {
+                ExecutionProtocol = reused.PreviousResult.ExecutionProtocol,
+                PairPinsPath = reused.PreviousResult.PairPinsPath,
+                EntrySources = item.EntrySources,
                 InvocationMedianFps = item.Validation.Executions.Select(execution => execution.MedianFps).ToArray(),
                 EffectFrameCounts = item.Validation.EffectExecutions.Select(execution => execution.Frames.FrameCount).ToArray(),
                 BoundaryIntervalCounts = item.Validation.EffectExecutions.Select(execution => execution.BoundaryIntervalCount).ToArray()

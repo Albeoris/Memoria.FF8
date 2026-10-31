@@ -14,6 +14,7 @@ public sealed class ScenarioEnemyRearmTests
     [InlineData(22, 80, 0)]
     [InlineData(26, 0, 1)]
     [InlineData(27, 100, 0)]
+    [InlineData(36, 64, 0)]
     [InlineData(2, 0, 1)]
     public void NativeDamageAndKoProfilesDeclareProspectiveDefeatHoldAndExplicitRevival(byte type, byte power, ushort statuses)
     {
