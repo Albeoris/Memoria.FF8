@@ -175,7 +175,8 @@ internal sealed class NativeBattleEffect227PresentationObserver
             Assert.Equal(4, graphics.Models[3].Flags0 & 4);
             terminalFlag = true;
             mainRetired = true;
-            NativeBattleEffectTaskPool? previousParticles = prior.NativeGraphics!.OriginalEffect!.Pools.FirstOrDefault(pool => pool.DescriptorAddress == ParticleDescriptor);
+            BattleSnapshot reference = NativeBattleStorageSnapshots.Restore(prior);
+            NativeBattleEffectTaskPool? previousParticles = reference.NativeGraphics!.OriginalEffect!.Pools.FirstOrDefault(pool => pool.DescriptorAddress == ParticleDescriptor);
             if (previousParticles is not null)
             {
                 NativeBattleEffectArena bank = NativeBattleEffectTaskMemory.CaptureBank(previousParticles);
