@@ -741,7 +741,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(new NativeBattleEffectInitializerResource("mag288.tim", NativeBattleEffect289Profile.InitializerGlobal), original.InitializerResource);
                 Assert.Equal(NativeBattleEffect289Profile.TextureLength, original.InitializerAsset!.Data.Length);
                 Assert.Same(game.ReadNativeEffect289Resources(), original.Effect289Resources);
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect289State.FromColdProcess()), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect289));
+                Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect289State.FromColdProcess())), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect289));
             }
             if (effectId == 315)
             {
@@ -752,7 +752,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(new NativeBattleEffectInitializerResource("mag314.tim", NativeBattleEffect315Profile.InitializerGlobal), original.InitializerResource);
                 Assert.Equal(NativeBattleEffect315Profile.TextureLength, original.InitializerAsset!.Data.Length);
                 Assert.Same(game.ReadNativeEffect315Resources(), original.Effect315Resources);
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect315State.FromColdProcess()), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect315));
+                Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect315State.FromColdProcess())), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect315));
                 List<object> loaded = [];
                 foreach ((byte index, int modelId, byte nativeId) in new[] { ((byte)3, 75, (byte)91), ((byte)4, 34, (byte)50) })
                 {
