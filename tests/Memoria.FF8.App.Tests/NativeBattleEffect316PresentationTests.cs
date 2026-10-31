@@ -38,7 +38,7 @@ public sealed class NativeBattleEffect316PresentationTests
         Assert.Equal(124, original.Definition.StageId);
         Assert.True(BattleSession.Restore(original).NativeEntryReady);
         Assert.Null(original.NativeGraphics!.OriginalEffect);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect316State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory!.Effect316));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect316State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory!.Effect316)));
         BattleSnapshot prepared = QueueComponent(original, game, assets);
         _ = RunPrepared(prepared, game, assets, output);
     }

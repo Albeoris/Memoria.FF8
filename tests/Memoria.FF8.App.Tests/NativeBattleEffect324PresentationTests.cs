@@ -250,7 +250,7 @@ public sealed class NativeBattleEffect324PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect324State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect324));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect324State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory.Effect324)));
         string casterId = graphics.ActorIds[physicalCaster] ?? throw new InvalidDataException("Effect324 requires its current caster.");
         string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect324 requires its current party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);

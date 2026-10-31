@@ -20,19 +20,24 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         this.source = source;
         this.effect = effect;
         this.contact = contact;
-        Assert.InRange(effect, (ushort)327, (ushort)330);
-        Assert.Equal((byte)0, header.ReadByte(0));
-        Assert.Equal((byte)245, header.ReadByte(1));
-        Assert.Equal((byte)9, header.ReadByte(2));
-        Assert.Equal(effect switch { 327 => (ushort)10, 328 => (ushort)9, 329 => (ushort)7, _ => (ushort)8 }, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((byte)3, contact.Primary.ActorIndex);
-        Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((byte)0, contact.Primary.Flags2);
-        Assert.Equal((byte)0, contact.Primary.HitFlags3);
+        AssertQueuedInvocation(effect, header, contact);
         Assert.IsType<NativeBattleGilgameshProcess>(source.NativeEffectMemory!.Gilgamesh).Validate();
         Assert.IsType<NativeBattlePcRenderRequest>(source.NativeEffectMemory!.PcRenderRequest);
         Assert.NotNull(source.NativeStage);
         Assert.True(source.NativeStage!.Groups.Length >= 4);
+    }
+
+    internal static void AssertQueuedInvocation(ushort effect, NativeBattleActionHeaderSlot header, NativeBattleContactPacket contact)
+    {
+        Assert.InRange(effect, (ushort)327, (ushort)330);
+        Assert.Equal((byte)0, header.ReadByte(0));
+        Assert.Equal((byte)245, header.ReadByte(1));
+        Assert.Equal((byte)0, header.ReadByte(2));
+        Assert.Equal(effect switch { 327 => (ushort)10, 328 => (ushort)9, 329 => (ushort)7, _ => (ushort)8 }, NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+        Assert.Equal((ushort)7, contact.Primary.Amount6);
+        Assert.Equal((byte)1, contact.Primary.Flags2);
+        Assert.Equal((byte)0, contact.Primary.HitFlags3);
     }
 
     internal static NativeBattleLogicalCommand[] Commands(BattleSnapshot snapshot, ushort effect)
