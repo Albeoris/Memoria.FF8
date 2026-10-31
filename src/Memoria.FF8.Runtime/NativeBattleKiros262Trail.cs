@@ -5,11 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleKiros262Tip(NativeBattleWaterExecutionFrame Frame, NativeBattleVector Position, int DirectionX, int DirectionY, int DirectionZ);
 public sealed record NativeBattleKiros262TrailStep(NativeBattleWaterExecutionFrame Frame, NativeBattleKiros262TrailState State);
-public sealed record NativeBattleKiros262TrailServices(Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleKiros262Tip> ReadTip, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> Emit);
+public sealed record NativeBattleKiros262TrailServices(Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleKiros262Tip> ReadTip, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> Emit)
+{
+    public Action<NativeBattlePilotVisualIdentity>? ObserveIdentity { get; init; }
+}
 
 public static class NativeBattleKiros262Trail
 {
-    public static NativeBattleKiros262TrailStep Draw(NativeBattleWaterExecutionFrame frame, NativeBattleKiros262TrailState state, NativeBattleKiros262TrailServices services)
+    public static NativeBattleKiros262TrailStep Draw(NativeBattleWaterExecutionFrame frame, NativeBattleKiros262TrailState state, NativeBattleKiros262TrailServices services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         state.Validate();
         uint payload = SlotDword(0xB8);
@@ -45,17 +48,27 @@ public static class NativeBattleKiros262Trail
         int ring = counter % capacity;
         int history = NativeBattleKiros262TrailState.History + ring * 20;
         memory = memory.Write(history, BitConverter.GetBytes(1));
+        if (pilotIdentity.HasValue)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(memory, NativeBattleKiros262TrailState.Address + NativeBattleKiros262TrailState.History, ring);
+        }
         StorePoint(history + 4, tip.Position);
         StorePoint(history + 12, end);
         memory = memory.MarkUnknown(history + 10, 2).MarkUnknown(history + 18, 2);
         int admitted = counter < 100 - capacity ? capacity : 100 - counter;
         int count = 0;
+        long resourceGeneration = pilotIdentity is { } ownerIdentity ? unchecked((ownerIdentity.ResourceGeneration * 397 ^ payload) * 397 ^ model) : 0;
         for (int index = ring; count < admitted; index = index == 0 ? capacity - 1 : index - 1)
         {
             int source = NativeBattleKiros262TrailState.History + index * 20;
             if (BinaryPrimitives.ReadInt32LittleEndian(memory.Read(source, 4)) == 0)
             {
                 break;
+            }
+            if (pilotIdentity is { } sampleOwner)
+            {
+                NativeBattlePilotVisualIdentity sample = NativeBattlePilotVisualLifetimes.Identity(sampleOwner.Effect, memory, NativeBattleKiros262TrailState.Address + NativeBattleKiros262TrailState.History, index);
+                resourceGeneration = unchecked(resourceGeneration * 397 ^ sample.Generation);
             }
             Copy(source + 4, NativeBattleKiros262TrailState.GatherA + count * 8, 8);
             Copy(source + 12, NativeBattleKiros262TrailState.GatherB + count * 8, 8);
@@ -77,6 +90,10 @@ public static class NativeBattleKiros262Trail
             Normalize(0x298, Point(NativeBattleKiros262TrailState.CurveB), Point(NativeBattleKiros262TrailState.CurveB + 8));
             Copy(NativeBattleKiros262TrailState.CurveA, 0x2A8, 8);
             Normalize(0x2B0, Point(0x280), Point(NativeBattleKiros262TrailState.CurveA));
+            if (pilotIdentity is { } capturedIdentity)
+            {
+                services.ObserveIdentity?.Invoke(capturedIdentity with { ResourceGeneration = resourceGeneration });
+            }
             frame = services.Emit(frame, state with { Memory = memory }, 0x3A000000u | (SlotDword(0xCC) & 0xFFFFFF));
         }
         frame = frame with { Arena = frame.Arena.Write(ArenaOffset(counterAddress, 2), BitConverter.GetBytes(unchecked((ushort)(counter + 1)))) };

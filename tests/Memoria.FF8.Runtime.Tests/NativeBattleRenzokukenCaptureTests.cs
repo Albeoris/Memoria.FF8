@@ -190,6 +190,40 @@ public sealed class NativeBattleRenzokukenCaptureTests
         Assert.NotEqual(birth.ResourceGeneration, reused.ResourceGeneration);
     }
 
+    [Fact]
+    public void Captured259_actual_5A8340_mesh_keeps_native_bytes_registers_and_real_resource_identity()
+    {
+        var native = Mesh(259, false);
+        var captured = Mesh(259, true);
+        Assert.Equal(native.Native, captured.Native);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal((ushort)259, visual.Identity.Effect);
+        Assert.Equal(0xDAB970L, visual.Identity.ResourceGeneration);
+        Assert.True(visual.Identity.Generation > 0);
+        Assert.True(visual.Continuous);
+        Assert.Equal(primitive.VertexPayload4[0], (int)visual.A.Z);
+    }
+
+    [Fact]
+    public void Captured259_spiral_birth_reuse_and_pause_keep_original_CRT_and_native_rows()
+    {
+        Successful_spiral_allocation_changes_only_reused_physical_row_birth_and_preserves_pause_and_CRT(259);
+    }
+
+    [Fact]
+    public void Captured259_shared_streak_births_and_cold_recapture_keep_original_payload_links_and_CRT()
+    {
+        Shared_streak_children_keep_distinct_actual_births_without_changing_native_payloads_links_or_CRT(259);
+    }
+
+    [Fact]
+    public void Captured259_live_history_keeps_original_curve_W_and_actual_sample_pair_capture()
+    {
+        Live_history_curve_capture_keeps_native_curve_W_CRT_and_authored_sample_pair_identity(259);
+    }
+
     private static (string Native, NativeBattleGfGeometryBatch Batch) Mesh(ushort effect, bool capture)
     {
         NativeBattleRenzokuken160Frame frame = Frame(effect);
@@ -217,6 +251,7 @@ public sealed class NativeBattleRenzokukenCaptureTests
         }
         NativeBattleRenzokuken160ChildStep result = effect switch
         {
+            259 => NativeBattleRenzokukenVariantController.Advance5A8340(frame, pool, 0, inputs, Resources(), view, projection, colors),
             141 => NativeBattleRenzokukenVariantController.Advance61F590(frame, pool, 0, inputs, Resources(), view, projection, colors),
             160 => NativeBattleRenzokuken160Controller.Advance600780(frame, pool, 0, inputs, Resources(), view, projection, colors),
             161 => NativeBattleRenzokukenSpecialController.Advance5FEA70(frame, pool, 0, inputs, Resources(), view, projection, colors),
@@ -230,23 +265,27 @@ public sealed class NativeBattleRenzokukenCaptureTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 16, 1);
         (root, _) = root.Append(1);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x3000, 0x4000, 36, 100);
-        (children, _) = children.Append(2);
+        (children, _) = children.Append(effect == 259 ? 0x5A8340u : 2u);
         children = children.WriteSlot(0, children.Slots[0].WriteWord(20, 4096).WriteWord(28, 4096).WriteWord(32, 4096));
         NativeBattleRenzokuken160State core = NativeBattleRenzokuken160State.FromColdProcess().Enter(0, 0, 3, false) with { Duration = 100 };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = core, RenzokukenVariants = ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState>.Empty.Add(141, new(core, new(0, 0, 4096), new(0, 0, 4096), null)), RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(161, new(core, Resources())) };
+        if (effect == 259)
+        {
+            memory = memory with { RenzokukenVariants = memory.RenzokukenVariants!.Add(259, new(core, new(0, 0, 4096), new(0, 0, 4096), null)) };
+        }
         return new(memory, new(effect, effect - 1, new(effect, 1, 1), null, null) { Pools = [root, children] }, NativeCrtRandomState.FromColdProcess());
     }
 
     private static NativeBattleRenzokuken160State Core(NativeBattleRenzokuken160Frame frame) => frame.Effect.Binding.Effect switch
     {
-        141 => NativeBattleRenzokukenVariantController.ReadState(frame).Core,
+        141 or 259 => NativeBattleRenzokukenVariantController.ReadState(frame).Core,
         161 => NativeBattleRenzokukenSpecialController.ReadState(frame).Core,
         _ => frame.Memory.Renzokuken160!
     };
 
     private static NativeBattleRenzokuken160Frame Store(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160State core) => frame.Effect.Binding.Effect switch
     {
-        141 => NativeBattleRenzokukenVariantController.WriteState(frame, core),
+        141 or 259 => NativeBattleRenzokukenVariantController.WriteState(frame, core),
         161 => NativeBattleRenzokukenSpecialController.WriteState(frame, core),
         _ => frame with { Memory = frame.Memory with { Renzokuken160 = core } }
     };

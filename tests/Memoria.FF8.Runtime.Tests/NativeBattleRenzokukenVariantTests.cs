@@ -153,6 +153,12 @@ public sealed class NativeBattleRenzokukenVariantTests
         Assert.Throws<NotSupportedException>(() => NativeBattleRenzokuken160Controller.Advance600110(frame, pool, slot, inputs, resources, profile.ImpactCallback));
     }
 
+    [Fact]
+    public void Selected259_late_birth_retains_original_single_CRT_draw_and_physical_5A8340_callback()
+    {
+        VariantLateBranchesRetainNativeRngOrderAndPhysicalLinks(259, 58, 1, 0x5A8340, 0);
+    }
+
     private static NativeBattleRenzokuken160Frame Frame(ushort selectedEffect = 141)
     {
         NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.ForEffect(selectedEffect);

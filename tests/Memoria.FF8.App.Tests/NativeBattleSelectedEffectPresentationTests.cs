@@ -83,6 +83,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int contact218Services = 0;
         int text218Count = 0;
         int capturedResourceFrames = 0;
+        int captured30Frames = 0;
         int captured30 = 0;
         HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
@@ -97,6 +98,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
+                {
+                    captured30Frames++;
+                }
                 if (effect is 236 or 237 or 243 or 244 or 245 or 246 or 247 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
                 {
                     capturedResourceFrames++;
@@ -298,6 +303,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 Assert.True(captured30 > 0);
             }
+            if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264)
+            {
+                Assert.True(captured30Frames > 1);
+            }
             if (effect is 236 or 237 or 243 or 244 or 245 or 246 or 247)
             {
                 Assert.True(capturedResourceFrames > 1);
@@ -397,6 +406,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(cold.Capture(), 187);
                 _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(direct.Capture(), 187);
+            }
+            if (effect is 248 or 250 or 253 or 254 or 255 or 261 or 262 or 263 or 264)
+            {
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effect);
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), effect);
             }
             if (effect is 236 or 237 or 243 or 244 or 245 or 246 or 247)
             {

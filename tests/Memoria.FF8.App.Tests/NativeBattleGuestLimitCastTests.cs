@@ -13,6 +13,24 @@ public sealed class NativeBattleGuestLimitCastTests
         Installed_guest_limit_completes_original_graphics_and_independent_standalones(7, 228);
     }
 
+    [Fact]
+    public void Installed_guest261_completes_original_graphics_and_independent_standalones()
+    {
+        Installed_guest_limit_completes_original_graphics_and_independent_standalones(8, 261);
+    }
+
+    [Fact]
+    public void Installed_guest262_completes_original_graphics_and_independent_standalones()
+    {
+        Installed_guest_limit_completes_original_graphics_and_independent_standalones(9, 262);
+    }
+
+    [Fact]
+    public void Installed_guest263_completes_original_graphics_and_independent_standalones()
+    {
+        Installed_guest_limit_completes_original_graphics_and_independent_standalones(10, 263);
+    }
+
     [Theory]
     [InlineData(7, 228)]
     [InlineData(8, 261)]
@@ -35,6 +53,7 @@ public sealed class NativeBattleGuestLimitCastTests
         bool drawn = false;
         bool midpoint = false;
         int captured228Frames = 0;
+        int capturedGuestFrames = 0;
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -55,6 +74,10 @@ public sealed class NativeBattleGuestLimitCastTests
                 before = battle.Capture();
                 battle.Tick();
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                if (effectId is 261 or 262 or 263 && NativeBattleCinematicCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    capturedGuestFrames++;
+                }
                 if (effectId == 228 && NativeBattleCinematicCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     captured228Frames++;
@@ -81,6 +104,10 @@ public sealed class NativeBattleGuestLimitCastTests
                 }
                 if (selected && Released(battle))
                 {
+                    if (effectId is 261 or 262 or 263)
+                    {
+                        Assert.True(capturedGuestFrames > 1);
+                    }
                     Assert.True(drawn);
                     if (effectId == 228)
                     {
@@ -116,6 +143,11 @@ public sealed class NativeBattleGuestLimitCastTests
             before = current.Capture();
             current.Tick();
             clone.Tick();
+            if (effectId is 261 or 262 or 263)
+            {
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(current.Capture(), effectId);
+                _ = NativeBattleCinematicCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            }
             if (effectId == 228)
             {
                 NativeBattleCinematicCaptureAssertions.AssertFrame(current.Capture(), effectId);

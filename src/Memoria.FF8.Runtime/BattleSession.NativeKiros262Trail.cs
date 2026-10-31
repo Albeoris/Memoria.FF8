@@ -9,11 +9,14 @@ public sealed partial class BattleSession
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeKiros262Trail(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
     {
         NativeBattleKiros262TrailState state = RequireWaterMemory().Kiros262Trail ?? throw new NotSupportedException("Native trail requires its retained original process workspace; migrate the selected older snapshot explicitly.");
+        NativeBattlePilotVisualIdentity? trailIdentity = null;
+        long sourceGeneration = 0;
         NativeBattleKiros262TrailServices services = new((current, pointer, selector) =>
         {
             int actorIndex = ActorIndex(pointer);
             NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native trail requires the actual body skeleton.");
+            sourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(source) * 397 ^ selector);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native trail requires the current actor world matrix."));
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             int bone = selector;
@@ -49,7 +52,8 @@ public sealed partial class BattleSession
             byte[] raw = current.Core.Read(0x27979E8, 32);
             NativeBattleActionMatrix view = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(index * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(28)), 4096);
             NativeBattleEffectMemory memory = RequireWaterMemory();
-            NativeBattleGilgameshSwordTrailPacketResult packets = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, NativeCamera?.Projection ?? throw new NotSupportedException("Native trail requires its current camera projection."), memory.ScriptedGraphics, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native trail requires its original color arithmetic."), color);
+            NativeBattleGilgameshSwordTrailPacketResult packets = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, NativeCamera?.Projection ?? throw new NotSupportedException("Native trail requires its current camera projection."), memory.ScriptedGraphics, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native trail requires its original color arithmetic."), color, pilotIdentity: trailIdentity);
+            packets = packets with { Batch = NativeBattleCinematicActorPresentation.NativeDepths(packets.Batch) };
             uint manager = CoreDword(current, 0x27973EC);
             uint start = CoreDword(current, manager + 0x7C);
             var appended = AppendNativeCinematicPackets(current, start, null, packets.Batch, graphics);
@@ -80,8 +84,13 @@ public sealed partial class BattleSession
                     }
                 }
             }
-        });
-        NativeBattleKiros262TrailStep drawn = NativeBattleKiros262Trail.Draw(frame, state, services);
+        })
+        {
+            ObserveIdentity = identity => trailIdentity = identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ sourceGeneration) }
+        };
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, NativeBattleEffectInitializerPolicy.Assets(graphics.OriginalEffect!.Binding)[1].Data.Length);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        NativeBattleKiros262TrailStep drawn = NativeBattleKiros262Trail.Draw(frame, state, services, identity);
         NativeEffectMemory = RequireWaterMemory() with { Kiros262Trail = drawn.State };
         return (drawn.Frame, graphics);
 

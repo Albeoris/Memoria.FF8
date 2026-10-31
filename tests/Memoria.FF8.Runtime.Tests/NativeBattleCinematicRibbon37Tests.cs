@@ -79,6 +79,21 @@ public sealed class NativeBattleCinematicRibbon37Tests
     [Fact]
     public void Selected219_ribbon_keeps_parent_and_both_physical_segment_births_without_native_changes()
     {
+        AssertSelectedRibbon(219);
+    }
+
+    [Theory]
+    [InlineData((ushort)250)]
+    [InlineData((ushort)253)]
+    [InlineData((ushort)254)]
+    [InlineData((ushort)255)]
+    public void Selected_enemy_ribbon_keeps_actual_parent_and_sample_pair_births_with_native_parity(ushort effect)
+    {
+        AssertSelectedRibbon(effect);
+    }
+
+    private static void AssertSelectedRibbon(ushort effect)
+    {
         (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches) Run(bool capture)
         {
             List<NativeBattleGfGeometryBatch> batches = [];
@@ -92,7 +107,7 @@ public sealed class NativeBattleCinematicRibbon37Tests
                 batches.Add(batch);
                 return current;
             });
-            return (NativeBattleCinematicRibbon37.Draw(Fixture(), services, capture ? new(219, 1, 2, 3, 4) : null), batches);
+            return (NativeBattleCinematicRibbon37.Draw(Fixture(), services, capture ? new(effect, 1, 2, 3, 4) : null), batches);
         }
         var native = Run(false);
         string frozen = NativeBattleTestSnapshots.Json(native.Frame);
@@ -103,7 +118,7 @@ public sealed class NativeBattleCinematicRibbon37Tests
         foreach (NativeBattleGfGeometryBatch batch in captured.Batches)
         {
             NativeBattlePilotVisualGeometry visual = Assert.Single(batch.Attempts).Primitive!.PilotGeometry!;
-            Assert.Equal((ushort)219, visual.Identity.Effect);
+            Assert.Equal(effect, visual.Identity.Effect);
             Assert.Equal(1u, visual.Identity.Bank);
             Assert.Equal(2, visual.Identity.Slot);
             Assert.Equal(3L, visual.Identity.Generation);

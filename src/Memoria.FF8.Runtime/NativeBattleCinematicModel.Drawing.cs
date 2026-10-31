@@ -26,7 +26,7 @@ public static partial class NativeBattleCinematicModel
         uint table = Dword(unchecked(model + 0x14));
         uint skeleton = Dword(table);
         uint geometry = Dword(unchecked(table + 4));
-        if (pilotIdentity is { Effect: 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } resourceIdentity)
+        if (pilotIdentity is { } resourceIdentity && (resourceIdentity.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || NativeBattleCinematic30Presentation.Owns(resourceIdentity.Effect)))
         {
             pilotIdentity = resourceIdentity with { ResourceGeneration = unchecked(resourceIdentity.ResourceGeneration * 397 ^ geometry) };
         }

@@ -229,7 +229,7 @@ public static class NativeBattleCinematicRibbon37
                         int newerSegment = checked((int)((Segment(Word(state) - strip + 1) - state - 32) / 72));
                         NativeBattlePilotVisualIdentity segmentIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, state + 32, newerSegment, face);
                         NativeBattlePilotVisualGeometry geometry = new(segmentIdentity, pilotVertices[addresses[0]], pilotVertices[addresses[1]], pilotVertices[addresses[2]], pilotVertices[addresses[3]], 4);
-                        if (identity.Effect is 219 or 229)
+                        if (identity.Effect is 219 or 229 || NativeBattleCinematic30Presentation.OwnsRibbon(identity.Effect))
                         {
                             int olderSegment = checked((int)((segment - state - 32) / 72));
                             NativeBattlePilotVisualIdentity olderIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, state + 32, olderSegment);

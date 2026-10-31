@@ -106,6 +106,27 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 BattleSnapshot current = battle.Capture();
                 NativeBattleCloudBombPresentationOwnership.AssertFrame(current, native.MagicId);
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                if (control is not null && native.MagicId == 248)
+                {
+                    if (NativeBattleCinematicCaptureAssertions.AssertFrame(current, 248) > 0)
+                    {
+                        capturedControlFrames++;
+                    }
+                    if (graphics.OriginalEffect is { Binding.Effect: 248, Parameters: { } parameters })
+                    {
+                        Assert.Equal((byte)3, parameters.Actor78);
+                        NativeBattleActionHeaderSlot header = current.NativeActionPackets!.Headers[parameters.HeaderIndex7C];
+                        Assert.Equal((byte)3, header.ReadByte(0));
+                        Assert.Equal((byte)252, header.ReadByte(1));
+                        Assert.Equal((byte)0, header.ReadByte(2));
+                        Assert.Equal((ushort)1, NativeBattleActionGraphics.Word(header, 4));
+                        Assert.Equal((ushort)248, NativeBattleActionGraphics.Word(header, 6));
+                        Assert.Equal((byte)1, header.ReadByte(16));
+                        Assert.NotNull(header.FirstContactIndex);
+                        NativeBattleContactPacket contact = current.NativeActionPackets.ReadContact(header.FirstContactIndex.Value);
+                        Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                    }
+                }
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");
                 if (control is not null && native.MagicId == 110 && graphics.OriginalEffect is { Binding.Effect: 110 } streamEffect && (streamEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
@@ -201,7 +222,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             {
                 Assert.True(capturedControlFrames > 1, "The component must capture its actual moving producers across multiple callbacks.");
             }
-            if (control is not null && native.MagicId is 17 or 18 or 110)
+            if (control is not null && native.MagicId is 17 or 18 or 110 or 248)
             {
                 Assert.True(capturedControlFrames > 1, "The original control component must reach captured owned geometry on multiple callbacks.");
                 if (native.MagicId == 17)
@@ -256,6 +277,11 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             second.Tick();
             NativeBattleCloudBombPresentationOwnership.AssertFrame(first.Capture(), native.MagicId);
             NativeBattleCloudBombPresentationOwnership.AssertFrame(second.Capture(), native.MagicId);
+            if (control is not null && native.MagicId == 248)
+            {
+                NativeBattleCinematicCaptureAssertions.AssertFrame(first.Capture(), 248);
+                NativeBattleCinematicCaptureAssertions.AssertFrame(second.Capture(), 248);
+            }
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
             Publish(name + "-next", first.Capture());
