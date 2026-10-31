@@ -24,7 +24,8 @@ public static class NativeBattleRenzokukenSpecialSpriteDrawing
             Anchor = new(0, 0, 0, 0),
             Scale = sprite.Scale,
             SpriteFlags = sprite.Flags,
-            SpriteColor = sprite.Color ?? 0x808080
+            SpriteColor = sprite.Color ?? 0x808080,
+            PilotIdentity = sprite.PilotIdentity
         };
         NativeBattleActionMatrix main = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), cameraRoll) with { X = x, Y = y, Z = z };
         return new(NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, 17, 2, main), selected.NextOffset < 0);

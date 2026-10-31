@@ -85,6 +85,10 @@ public static partial class NativeBattleRenzokukenSpecialController
                 int speed = Rand() % 160 + 250;
                 Put161(particles, row + 16, (speed * sine) >> 12);
                 Put161(particles, row + 20, (speed * cosine) >> 12);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, row / 32);
+                }
             }
         }
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = unchecked((short)task.ReadWord(16)), Y = 0, Z = unchecked((short)task.ReadWord(20)) };
@@ -99,7 +103,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             short age = Get161(particles, row + 4);
             short scale = Get161(particles, row + 6);
             NativeBattleVector position = new(Get161(particles, row + 8), Get161(particles, row + 10), Get161(particles, row + 12));
-            NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokukenSpecialSpriteDrawing.Draw64DD70(new(sprite, unchecked((ushort)age), position, scale, null, 8), transform, projection, cameraRoll);
+            NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokukenSpecialSpriteDrawing.Draw64DD70(new(sprite, unchecked((ushort)age), position, scale, null, 8) { PilotIdentity = inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, row / 32, sprite.Address) : null }, transform, projection, cameraRoll);
             frame = inputs.Execute(frame, new NativeBattleRenzokukenSpecialSpriteDraw(drawn.Packets));
             if (!advance)
             {

@@ -26,6 +26,10 @@ public static partial class NativeBattleRenzokukenSpecialController
         frame = Store(frame, state with { ExtraStorage = storage.ToImmutableArray() });
         (pool, int slot) = pool.Append(callback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, checked((ushort)row)));
+        if (frame.Effect.Binding.Effect is 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343)
+        {
+            NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, row);
+        }
         return (frame, pool, slot);
     }
 
@@ -73,6 +77,10 @@ public static partial class NativeBattleRenzokukenSpecialController
                 StoredWrite(bank, offset + 16, StoredRand(40) + (unchecked(speed * rotated.X) >> 12) - 20);
                 StoredWrite(bank, offset + 18, unchecked(speed * rotated.Y) >> 12);
                 StoredWrite(bank, offset + 20, unchecked(speed * rotated.Z) >> 12);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, row);
+                }
             }
         }
         int alive = 0;
@@ -83,7 +91,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             {
                 continue;
             }
-            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)StoredWord(bank, offset + 4)), new(StoredWord(bank, offset + 8), StoredWord(bank, offset + 10), StoredWord(bank, offset + 12)), StoredWord(bank, offset + 6), null, 0);
+            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)StoredWord(bank, offset + 4)), new(StoredWord(bank, offset + 8), StoredWord(bank, offset + 10), StoredWord(bank, offset + 12)), StoredWord(bank, offset + 6), null, 0) { PilotIdentity = inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, row, sprite.Address) : null };
             NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokukenSpecialSpriteDrawing.Draw64DD70(current, view, projection, cameraRoll);
             frame = inputs.Execute(frame, new NativeBattleRenzokukenSpecialSpriteDraw(drawn.Packets));
             if ((inputs.GraphicsFlags & 0x201) != 0)

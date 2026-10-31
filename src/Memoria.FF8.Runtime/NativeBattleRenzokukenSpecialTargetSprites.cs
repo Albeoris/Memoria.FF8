@@ -58,6 +58,10 @@ public static partial class NativeBattleRenzokukenSpecialController
                 GroupPut(bank, offset + 16, unchecked(direction.X * speed) >> 12);
                 GroupPut(bank, offset + 18, unchecked(direction.Y * speed) >> 12);
                 GroupPut(bank, offset + 20, unchecked(direction.Z * speed) >> 12);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, offset / 32);
+                }
             }
         }
         int alive = 0;
@@ -67,7 +71,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             {
                 continue;
             }
-            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)GroupWord(bank, offset + 4)), new(GroupWord(bank, offset + 8), GroupWord(bank, offset + 10), GroupWord(bank, offset + 12)), GroupWord(bank, offset + 6), null, 0);
+            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)GroupWord(bank, offset + 4)), new(GroupWord(bank, offset + 8), GroupWord(bank, offset + 10), GroupWord(bank, offset + 12)), GroupWord(bank, offset + 6), null, 0) { PilotIdentity = inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, offset / 32, sprite.Address) : null };
             NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokukenSpecialSpriteDrawing.Draw64DD70(current, view, projection, cameraRoll);
             frame = inputs.Execute(frame, new NativeBattleRenzokukenSpecialSpriteDraw(drawn.Packets));
             if (!advance)

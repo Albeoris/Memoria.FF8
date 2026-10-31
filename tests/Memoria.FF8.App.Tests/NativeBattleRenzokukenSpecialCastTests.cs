@@ -18,6 +18,60 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         RunSpecial(161, 91, false);
     }
 
+    [Fact]
+    public void Installed_original334_model67_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(334, 67, false);
+    }
+
+    [Fact]
+    public void Installed_original335_model77_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(335, 77, false);
+    }
+
+    [Fact]
+    public void Installed_original336_model90_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(336, 90, false);
+    }
+
+    [Fact]
+    public void Installed_original337_model117_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(337, 117, false);
+    }
+
+    [Fact]
+    public void Installed_original339_model112_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(339, 112, false);
+    }
+
+    [Fact]
+    public void Installed_original340_model126_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(340, 126, false);
+    }
+
+    [Fact]
+    public void Installed_original341_model84_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(341, 84, false);
+    }
+
+    [Fact]
+    public void Installed_original342_model124_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(342, 124, false);
+    }
+
+    [Fact]
+    public void Installed_original343_model122_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(343, 122, false);
+    }
+
     [Theory]
     [InlineData((ushort)161, 91)]
     [InlineData((ushort)161, 131)]
@@ -133,7 +187,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
                 interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
-                if (effectId is 159 or 161 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     capturedFrames++;
                 }
@@ -157,7 +211,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 }
                 if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
-                    if (effectId is 159 or 161)
+                    if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343)
                     {
                         Assert.True(capturedFrames > 1);
                     }
@@ -211,7 +265,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
-            if (effectId is 159 or 161)
+            if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343)
             {
                 if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {

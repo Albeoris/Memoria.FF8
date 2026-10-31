@@ -12,7 +12,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         int scale = unchecked((short)task.ReadWord(28));
         world = NativeBattlePoseMatrices.Scale56BEF0(world, scale, scale, scale);
         NativeBattleModuleMeshContext context = new(counter >= fadeStart ? 243u : 51u, 0, counter >= fadeStart ? fadeStep * (counter - fadeStart) : null, null, null, null, 17, depthShift);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, mesh.Address) : null);
         frame = inputs.Execute(frame, new NativeBattleRenzokuken160MeshDraw(packets));
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -112,6 +112,10 @@ public static partial class NativeBattleRenzokukenSpecialController
                 int speed = Rand() % (second ? 160 : 150) + (second ? 190 : 220);
                 GroupPut(bank, row + 16, unchecked(speed * sine) >> 12);
                 GroupPut(bank, row + 20, unchecked(speed * cosine) >> 12);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, row / 32);
+                }
             }
         }
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = unchecked((short)task.ReadWord(16)), Y = 0, Z = unchecked((short)task.ReadWord(20)) };
@@ -123,7 +127,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             {
                 continue;
             }
-            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)GroupWord(bank, row + 4)), new(GroupWord(bank, row + 8), GroupWord(bank, row + 10), GroupWord(bank, row + 12)), GroupWord(bank, row + 6), null, 8);
+            NativeBattleRenzokuken160Sprite current = new(sprite, unchecked((ushort)GroupWord(bank, row + 4)), new(GroupWord(bank, row + 8), GroupWord(bank, row + 10), GroupWord(bank, row + 12)), GroupWord(bank, row + 6), null, 8) { PilotIdentity = inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, row / 32, sprite.Address) : null };
             NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokukenSpecialSpriteDrawing.Draw64DD70(current, transform, projection, cameraRoll);
             frame = inputs.Execute(frame, new NativeBattleRenzokukenSpecialSpriteDraw(drawn.Packets));
             if (!advance)

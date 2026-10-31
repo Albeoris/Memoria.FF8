@@ -40,7 +40,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             world = NativeBattlePoseMatrices.Scale56BEF0(world, dx, GroupWord(bank, row + 18), dz);
             short phase = GroupWord(bank, row + 4);
             NativeBattleModuleMeshContext context = new(phase >= 4 ? 243u : 51u, 0, phase >= 4 ? (phase - 4) << 9 : null, null, null, null, 17, 2);
-            NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[4].Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors);
+            NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[4].Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, row / 32, resources.Meshes[4].Address) : null);
             frame = inputs.Execute(frame, new NativeBattleRenzokuken160MeshDraw(packets));
             if (!advance)
             {
@@ -83,6 +83,10 @@ public static partial class NativeBattleRenzokukenSpecialController
             GroupPut(bank, row + 24, normalized.X);
             GroupPut(bank, row + 26, normalized.Y);
             GroupPut(bank, row + 28, normalized.Z);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, row / 32);
+            }
         }
     }
 }

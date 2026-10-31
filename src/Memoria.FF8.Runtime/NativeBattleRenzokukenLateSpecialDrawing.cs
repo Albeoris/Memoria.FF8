@@ -149,7 +149,13 @@ public static partial class NativeBattleRenzokukenSpecialController
         short counter = unchecked((short)task.ReadWord(12));
         NativeBattleModuleMeshContext context = new(counter >= fadeStart ? 0xF3u : 0x33u, 0, counter >= fadeStart ? fadeStep * (counter - fadeStart) : null, null, null, null, 17, checked((byte)mode));
         NativeBattleStaticMeshResource resource = resources.Meshes.Single(value => value.Address == mesh);
-        NativeBattleGfGeometryBatch drawn = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors);
+        NativeBattlePilotVisualIdentity? identity = inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, resource.Address) : null;
+        if (identity is { } owner && storedRow is int stored)
+        {
+            NativeBattlePilotVisualIdentity rowIdentity = NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, 3, stored / 32, resource.Address) ?? throw new InvalidDataException("Stored mesh presentation requires its admitted physical row.");
+            identity = owner with { ResourceGeneration = rowIdentity.ResourceGeneration };
+        }
+        NativeBattleGfGeometryBatch drawn = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, colors, pilotIdentity: identity);
         frame = inputs.Execute(frame, new NativeBattleRenzokuken160MeshDraw(drawn));
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

@@ -30,6 +30,12 @@ public sealed class NativeBattleRenzokukenCastTests
         Installed_selected_Renzokuken_completes_original_effect_and_standalones(332, 7, 3);
     }
 
+    [Fact]
+    public void Installed_original333_completes_eight_authored_contacts_at_crisis4_and_standalones()
+    {
+        Installed_selected_Renzokuken_completes_original_effect_and_standalones(333, 8, 4);
+    }
+
     [Theory]
     [InlineData((ushort)160, 4, (byte)1)]
     [InlineData((ushort)141, 5, (byte)1)]
@@ -88,7 +94,7 @@ public sealed class NativeBattleRenzokukenCastTests
                 Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
                 interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
-                if (effectId is 141 or 160 or 259 or 332 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     capturedFrames++;
                 }
@@ -106,7 +112,7 @@ public sealed class NativeBattleRenzokukenCastTests
                 }
                 if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
-                    if (effectId is 141 or 160 or 259 or 332)
+                    if (effectId is 141 or 160 or 259 or 332 or 333)
                     {
                         Assert.True(capturedFrames > 1);
                     }
@@ -144,7 +150,7 @@ public sealed class NativeBattleRenzokukenCastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
-            if (effectId is 141 or 160 or 259 or 332)
+            if (effectId is 141 or 160 or 259 or 332 or 333)
             {
                 if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
