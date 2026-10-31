@@ -44,14 +44,14 @@ public static class NativeBattleRawGeometryPackets
                 // Retain native scratch flags while allowing presentation to submit a wider bounded canvas.
                 publishProjectedScratch(viewport.HasValue ? Project(new(0, 0, 320, 216)) : projected);
             }
-            System.Numerics.Vector3[]? world = null;
+            IReadOnlyList<System.Numerics.Vector3>? world = null;
             NativeBattlePilotVisualIdentity? meshIdentity = null;
             if (pilotIdentity is { } identity)
             {
                 meshIdentity = identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = unchecked(identity.Primitive * 257 + index) };
                 if (!pilotScreenSpace)
                 {
-                    world = mesh.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrices[vertex.Bone], vertex.Position), projection)).ToArray();
+                    world = new CapturedWorldVertices(mesh.Vertices, matrices, projection);
                 }
             }
             result.AddRange(EmitProjected5099D0(mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous));
@@ -62,6 +62,27 @@ public static class NativeBattleRawGeometryPackets
             }
         }
         return result.ToImmutable();
+    }
+
+    private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection) : IReadOnlyList<System.Numerics.Vector3>
+    {
+        private readonly Dictionary<int, System.Numerics.Vector3> values = [];
+        public int Count => vertices.Length;
+        public System.Numerics.Vector3 this[int index]
+        {
+            get
+            {
+                if (!values.TryGetValue(index, out System.Numerics.Vector3 value))
+                {
+                    NativeBattleRawVertex vertex = vertices[index];
+                    value = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrices[vertex.Bone], vertex.Position), projection);
+                    values.Add(index, value);
+                }
+                return value;
+            }
+        }
+        public IEnumerator<System.Numerics.Vector3> GetEnumerator() => Enumerable.Range(0, Count).Select(index => this[index]).GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
