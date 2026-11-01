@@ -106,16 +106,19 @@ public sealed class FieldMovementModTests
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
     }
 
-    [Fact]
-    public void BundledReorientationPatchTargetsOnlyTheGgkodo1InputHeading()
+    [Theory]
+    [InlineData("ggkodo1", 687, -47.8125f)]
+    [InlineData("tihtl1", 900, 47.8125f)]
+    public void BundledReorientationPatchTargetsOnlyTheSelectedFieldInputHeading(string fieldName, int fieldId, float rotationDegrees)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Reorientation", "fields", "ggkodo1.json");
-        ModFile file = new("Memoria/Reorientation", ModFormat.Memoria, "fields/ggkodo1.json", 1, () => File.ReadAllBytes(path));
+        string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Reorientation", "fields", fieldName + ".json");
+        ModFile file = new("Memoria/Reorientation", ModFormat.Memoria, $"fields/{fieldName}.json", 1, () => File.ReadAllBytes(path));
         FieldScenePatch patch = Assert.Single(Prepare(file).Patches).Patch;
-        Assert.Equal("ggkodo1", patch.FieldName);
+        Assert.Equal(fieldId, patch.FieldId);
+        Assert.Equal(fieldName, patch.FieldName);
         Assert.Empty(patch.Backgrounds);
         Assert.Empty(patch.Actors);
-        Assert.Equal(-47.8125f, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
+        Assert.Equal(rotationDegrees, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
     }
 
     private static ModFile Patch(string package, int fieldId, string fieldName, float rotationDegrees)

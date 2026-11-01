@@ -1,6 +1,9 @@
 # Reorientation
 
-This bundled Memoria mod adjusts movement projection in individual fields. The Galbadia Garden lobby (`ggkodo1`) rotates ordinary player input by -47.8125 degrees to align movement with the screen axes.
+This bundled Memoria mod adjusts movement projection in individual fields to align ordinary player input with the screen axes:
+
+- Galbadia Garden lobby (`ggkodo1`): -47.8125 degrees.
+- Timber hotel lobby (`tihtl1`): +47.8125 degrees.
 
 The correction applies to future player movement, including stick input and movement during field movies. Scripted actors, saved positions, native INF/AXIS values and world-map controls retain their existing contracts. No save migration is needed. The view and geometry are unchanged.
 
