@@ -147,11 +147,17 @@ public sealed partial class BattleSession
 
     private void RemoveNativeUiReady(BattleCombatant actor)
     {
+        NativeGraphics = PrepareNativeUiReadyRemoval(actor);
+    }
+
+    private NativeBattleGraphicsState? PrepareNativeUiReadyRemoval(BattleCombatant actor)
+    {
         if (NativeGraphics?.UiServices is { } ui && actor.NativeIndex is >= 0 and < 3)
         {
             //4BB9E0/4ADDB0 submit18 after accepting the menu command;4AD400 consumes it next service.
-            NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x12) } };
+            return NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x12) } };
         }
+        return NativeGraphics;
     }
 
     public void OpenNativeActionMenu()

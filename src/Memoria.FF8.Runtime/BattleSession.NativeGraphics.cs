@@ -34,12 +34,18 @@ public sealed partial class BattleSession
     private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, ushort? diagnosticSelectedTargetMask = null)
     {
         command = PrepareNativeEventCommand(actor, command);
+        NativeBattleCommandBanks? input = playerInput ? PrepareNativeInputCommand(command) : null;
+        PublishNativePacket(actor, command, name, input, diagnosticSelectedTargetMask);
+    }
+
+    private void PublishNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, NativeBattleCommandBanks? input, ushort? diagnosticSelectedTargetMask = null)
+    {
         StopTurnAdvance();
         actor.Atb = 0;
         actor.IsBusy = true;
-        if (playerInput)
+        if (input is not null)
         {
-            EnqueueNativeInputCommand(command);
+            nativeCommandBanks = input;
         }
         else
         {

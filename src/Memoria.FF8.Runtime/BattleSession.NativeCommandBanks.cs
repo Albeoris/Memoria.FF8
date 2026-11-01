@@ -8,6 +8,11 @@ public sealed partial class BattleSession
 
     private void EnqueueNativeInputCommand(BattleAttackCommand command)
     {
+        nativeCommandBanks = PrepareNativeInputCommand(command);
+    }
+
+    private NativeBattleCommandBanks PrepareNativeInputCommand(BattleAttackCommand command)
+    {
         BattleCombatant actor = GetActor(command.ActorId);
         byte nativeCommand = command.NativeQueuedCommand ?? command.NativeAction?.Command ?? throw new InvalidDataException("Native4847F0 input requires its command BYTE.");
         byte bank = nativeCommand is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 254 ? (byte)1 : (byte)2;
@@ -19,7 +24,7 @@ public sealed partial class BattleSession
         ushort[] targets = command.NativeSlots is { } slots ? Enumerable.Repeat(mask, slots.Repetitions).ToArray() : command.NativeMagicTargets.IsDefaultOrEmpty ? [mask] : command.NativeMagicTargets.ToArray();
         (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.Allocate(bank);
         state = state.WriteCommand(location, 0, checked((byte)actor.NativeIndex), nativeCommand, flags2, flags3, id, targets);
-        nativeCommandBanks = state.BindCommand(location, 0, command);
+        return state.BindCommand(location, 0, command);
     }
 
     private bool TryTakeNativeBankCommand(out BattleAttackCommand command)

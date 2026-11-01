@@ -37,20 +37,24 @@ public sealed partial class BattleSession
 
     private void QueueNativeSlots(BattleCombatant actor, BattleNativeAction action, byte sequence, byte? crisis)
     {
+        BattleAttackCommand command = PrepareNativeSlotsCommand(actor, action, sequence, nativeSlotsRolls[actor.Id]);
+        EnqueueNativePacket(actor, command, action.Name ?? "Slots", playerInput: true);
+    }
+
+    private BattleAttackCommand PrepareNativeSlotsCommand(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
+    {
         ValidateNativeActionContract(action);
         if (action.ActionId >= 51 && definition.LimitProgress?.SpecialMagicFlags is null)
         {
             throw new NotSupportedException("Special Slots magic requires the actual saved learned BYTE1CFE771 owner.");
         }
-        BattleNativeSlotsRoll roll = nativeSlotsRolls[actor.Id];
         if (roll.Repetitions is < 1 or > 3)
         {
             throw new NotSupportedException("Native Slots input exceeds its three physical target WORDs.");
         }
         ushort mask = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? actor;
-        BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeTargetMask = mask, NativeSequence = sequence, NativeSlots = roll };
-        EnqueueNativePacket(actor, command, action.Name ?? "Slots", playerInput: true);
+        return new(actor.Id, target.Id, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeTargetMask = mask, NativeSequence = sequence, NativeSlots = roll };
     }
 
     private void ResolveNativeSlotsGroup(BattleCombatant actor, BattleActionPresentation command)

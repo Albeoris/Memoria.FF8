@@ -65,10 +65,37 @@ public sealed class NativeBattleSlotsDealTests
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
     }
 
-    [Fact]
-    public void Failed_command_admission_releases_choice_without_publishing_a_partial_queue()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(0x10)]
+    public void Selected_card_uses_ordinary_command_owners_without_resetting_the_battle(byte targetFlags)
     {
-        BattleSession battle = CreateBattle(BattleAtbMode.TurnBased);
+        BattleSession battle = CreateBattle(BattleAtbMode.TurnBased, targetFlags);
+        BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal("selphie");
+        Assert.True(battle.SelectNativeSlotsCard(deal.Id, 1));
+        BattleNativeSlotsRoll roll = deal.Candidates[1];
+        BattleSnapshot selected = battle.Capture();
+        BattleSession ordinary = BattleSession.Restore(selected with { PendingSlotsDeal = null, NativeLimits = [new("selphie", deal.CrisisLevel) { Slots = roll }] });
+        ordinary.QueueNativePlayerCommand("selphie", "selphie", 16, roll.MagicId, crisis: deal.CrisisLevel);
+        ordinary.CloseNativeActionMenu();
+        long resets = battle.DiagnosticResetCount;
+        BattleCombatant actor = battle.Combatants[0];
+
+        Assert.True(battle.SubmitNativeSlotsCard(deal.Id));
+
+        Assert.Equal(resets, battle.DiagnosticResetCount);
+        Assert.Same(actor, battle.Combatants[0]);
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Capture()), JsonSerializer.Serialize(battle.Capture()));
+        Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
+        Assert.Equal(roll, Assert.Single(battle.QueuedActions).NativeSlots);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(0x10)]
+    public void Failed_command_admission_releases_choice_without_publishing_a_partial_queue(byte targetFlags)
+    {
+        BattleSession battle = CreateBattle(BattleAtbMode.TurnBased, targetFlags);
         NativeBattleCommandBanks banks = battle.NativeCommandBanks;
         for (int index = 0; index < 11; index++)
         {
@@ -77,17 +104,25 @@ public sealed class NativeBattleSlotsDealTests
         battle = BattleSession.Restore(battle.Capture() with { NativeCommandBanks = banks });
         BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal("selphie");
         Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
+        BattleCombatant actor = battle.Combatants[0];
+        actor.NativeStatus1 |= 0x880000;
+        BattleSnapshot before = battle.Capture();
         // The limit bank has eleven reserved physical entries and cannot admit another command.
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => battle.SubmitNativeSlotsCard(deal.Id));
         Assert.Contains("exhausted", error.Message);
         Assert.Null(battle.PendingSlotsDeal);
         Assert.Empty(battle.QueuedActions);
         Assert.Equal(JsonSerializer.Serialize(banks), JsonSerializer.Serialize(battle.NativeCommandBanks));
+        BattleSnapshot after = battle.Capture();
+        Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(after.Random));
+        Assert.Equal(JsonSerializer.Serialize(before.Combatants), JsonSerializer.Serialize(after.Combatants));
+        Assert.Equal(JsonSerializer.Serialize(before.NativeGraphics), JsonSerializer.Serialize(after.NativeGraphics));
+        Assert.Equal(before.Events, after.Events);
         Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
         battle.CloseNativeActionMenu();
     }
 
-    private static BattleSession CreateBattle(BattleAtbMode mode)
+    private static BattleSession CreateBattle(BattleAtbMode mode, byte targetFlags = 2)
     {
         BattleNativeLimitDefinition rules = new(5, 16, 0, 0, Enumerable.Repeat((byte)0, 32).ToImmutableArray())
         {
@@ -96,7 +131,7 @@ public sealed class NativeBattleSlotsDealTests
         };
         BattleNativeAction action = new(16, 1, 0, 0)
         {
-            Name = "Spell", MagicId = 1, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = 2, AttackFlags = 0, DamagePresentation = 0,
+            Name = "Spell", MagicId = 1, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = targetFlags, AttackFlags = 0, DamagePresentation = 0,
             Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = [], SupplementalRecord = []
         };
         BattleSession battle = new(new BattleDefinition

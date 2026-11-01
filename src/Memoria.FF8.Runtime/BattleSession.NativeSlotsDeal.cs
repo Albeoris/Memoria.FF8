@@ -104,20 +104,31 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        // Apply the existing command pipeline transactionally so failed admission cannot publish a partial command.
+        NativeBattleRandomState before = random;
         try
         {
-            BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
-            candidate.pendingSlotsDeal = null;
+            RequireNativeEntryReady();
+            RequireNormalGuardianFormCommands(deal.ActorId);
+            BattleCombatant actor = GetActor(deal.ActorId);
             BattleNativeSlotsRoll roll = deal.Candidates[selected];
-            candidate.nativeSlotsRolls[deal.ActorId] = roll;
-            candidate.QueueNativePlayerCommand(deal.ActorId, deal.ActorId, 16, roll.MagicId, crisis: deal.CrisisLevel);
-            candidate.CloseNativeActionMenu();
-            PublishCandidate(candidate);
+            BattleNativeAction action = FindNativeCommandAction(actor, 16, roll.MagicId, deal.CrisisLevel);
+            BattleAttackCommand command = PrepareNativeSlotsCommand(actor, action, 0, roll);
+            NativeBattleCommandBanks input = PrepareNativeInputCommand(command);
+            NativeBattleGraphicsState? graphics = PrepareNativeUiReadyRemoval(actor);
+
+            // Admission only prepares the immutable packet bank and its target RNG draws.
+            // Publish through the ordinary command owners without restoring unrelated battle state.
+            pendingSlotsDeal = null;
+            PublishNativePlayerCommandSubmission(actor, 16, graphics);
+            PublishNativePacket(actor, command, action.Name ?? "Slots", input);
+            nativeLimitLevels.Remove(deal.ActorId);
+            nativeSlotsRolls.Remove(deal.ActorId);
+            CloseNativeActionMenu();
             return true;
         }
         catch
         {
+            random = before;
             pendingSlotsDeal = null;
             nativeLimitLevels.Remove(deal.ActorId);
             nativeSlotsRolls.Remove(deal.ActorId);
