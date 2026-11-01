@@ -109,24 +109,23 @@ public sealed class NativeGfMenuTests
         controller.Open("junction-gf");
         controller.Navigate(MenuInput.Confirm);
         Assert.Contains(0, vitals.Records[0].Junction.GuardianForceAssignments);
-        Assert.Equal(PlayerActionKind.JunctionGuardianForce, Assert.Single(inputs).Kind);
+        NativeJunctionEditRow guardianEdit = AssertAssignment(Assert.Single(inputs), 0);
+        Assert.Contains(0, guardianEdit.Junction.GuardianForceAssignments);
         controller.Open("junction-command");
+        controller.SelectEntry("junction-dashboard", "command-0");
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-command-choice", controller.ScreenId);
-        int choice = controller.Entries.ToList().FindIndex(entry => entry.Label == "Magic");
-        Assert.True(choice >= 0);
-        for (int index = 0; index < choice; index++)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
+        Assert.Equal("junction-dashboard", controller.ScreenId);
+        controller.SelectEntry("junction-dashboard", "candidate-20");
         controller.Navigate(MenuInput.Confirm);
         PlayerAction command = inputs.Last();
-        Assert.Equal(PlayerActionKind.SetJunctionCommand, command.Kind);
-        Assert.Equal(0, command.Value);
-        Assert.Equal(0, command.Quantity);
-        Assert.Equal(byte.Parse(command.Text!), (byte)vitals.Records[0].Junction.Commands);
+        NativeJunctionEditRow commandEdit = AssertAssignment(command, 0);
+        Assert.Equal(20u, commandEdit.Junction.Commands & 0xFF);
+        Assert.Equal(0u, commandEdit.Junction.Commands & 0xFFFFFF00);
+        Assert.Equal((byte)20, (byte)vitals.Records[0].Junction.Commands);
         Assert.Equal("Magic", controller.Data.Characters.First(character => character.Id == "character-0").Commands[1]);
-        Assert.DoesNotContain(controller.Entries, entry => entry.Label == "Revive");
+        controller.SelectEntry("junction-dashboard", "command-0");
+        controller.Navigate(MenuInput.Confirm);
+        Assert.DoesNotContain(controller.Entries, entry => entry.Id == "candidate-38");
         Assert.Throws<InvalidOperationException>(() => vitals.ToggleGuardianForceJunction(1, 0));
         Assert.Throws<InvalidOperationException>(() => vitals.SetJunctionAbility(0, 0, 38, true));
         vitals = vitals.ToggleGuardianForceJunction(0, 0);
@@ -161,17 +160,14 @@ public sealed class NativeGfMenuTests
         controller.Open("junction-gf");
         controller.Navigate(MenuInput.Confirm);
         controller.Open("junction-ability");
-        Assert.Equal(2, controller.Entries.Count);
+        Assert.Equal(2, controller.Entries.Count(entry => entry.Id.StartsWith("passive-", StringComparison.Ordinal) && entry.Enabled));
+        controller.SelectEntry("junction-dashboard", "passive-0");
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-ability-choice", controller.ScreenId);
-        selected = controller.Entries.ToList().FindIndex(entry => entry.Id == target.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.True(selected > 0);
-        for (int index = 0; index < selected; index++)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
+        Assert.Equal("junction-dashboard", controller.ScreenId);
+        controller.SelectEntry("junction-dashboard", "candidate-" + target.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal(PlayerActionKind.SetJunctionAbility, inputs.Last().Kind);
+        NativeJunctionEditRow passiveEdit = AssertAssignment(inputs.Last(), 0);
+        Assert.Equal(target.Ability, (byte)passiveEdit.Junction.Abilities);
         Assert.Equal(target.Ability, (byte)vitals.Records[0].Junction.Abilities);
         Assert.Equal(names.AbilityName(target.Ability), controller.Data.Characters.First(character => character.Id == "character-0").Abilities[0]);
     }
@@ -199,17 +195,19 @@ public sealed class NativeGfMenuTests
             vitals = NativeJunctionMenuInput.Apply(vitals, input);
         });
         controller.Open("junction-magic");
-        Assert.True(controller.Entries[0].Enabled);
-        Assert.True(controller.Entries[1].Enabled);
-        Assert.False(controller.Entries[2].Enabled);
+        Assert.True(controller.Entries.Single(entry => entry.Id == "slot-HP").Enabled);
+        Assert.True(controller.Entries.Single(entry => entry.Id == "slot-Str").Enabled);
+        Assert.False(controller.Entries.Single(entry => entry.Id == "slot-Vit").Enabled);
+        controller.SelectEntry("junction-dashboard", "slot-HP");
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-stock", controller.ScreenId);
-        controller.Navigate(MenuInput.Down);
-        Assert.Equal("Fire", controller.SelectedEntry!.Label);
-        Assert.Equal(40, Assert.Single(controller.Data.Magic, magic => magic.Id == controller.SelectedEntry.Action!.SubjectId).Quantity);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
+        Assert.DoesNotContain(controller.Entries, entry => entry.Id == "candidate-magic-0-2");
+        controller.SelectEntry("junction-dashboard", "candidate-magic-0-1");
+        Assert.Equal("candidate-magic-0-1", controller.BuildView().FocusedElement?.Id);
+        Assert.Equal(40, Assert.Single(controller.Data.Magic, magic => magic.Id == "magic-0-1").Quantity);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal(PlayerActionKind.SetJunctionMagic, Assert.Single(inputs).Kind);
-        Assert.Equal(0, inputs[0].Quantity);
+        NativeJunctionEditRow magicEdit = AssertAssignment(Assert.Single(inputs), 0);
+        Assert.Equal(1, magicEdit.Junction.MagicJunctions[0]);
         Assert.Equal(1, vitals.Records[0].Junction.MagicJunctions[0]);
         Assert.Equal(40, vitals.Records[0].MagicInventory[0].Count);
         Assert.True(vitals.Definitions.CharacterMaximum(vitals.Records[0]) > unjunctionedMaximum);
@@ -217,15 +215,16 @@ public sealed class NativeGfMenuTests
         records[0] = records[0] with { HitPoints = new NativeHpWord((ushort)(unjunctionedMaximum + 1), (ushort)(unjunctionedMaximum + 1)) };
         vitals = vitals with { Records = records };
         controller.Open("junction-magic");
-        controller.SelectEntry("junction-magic", "Str");
-        Assert.Equal("Str", controller.SelectedEntry!.Id);
+        controller.SelectEntry("junction-dashboard", "slot-Str");
+        Assert.Equal("slot-Str", controller.BuildView().FocusedElement?.Id);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-stock", controller.ScreenId);
-        controller.SelectEntry("junction-stock", "magic-0-1");
-        Assert.Equal("Fire", controller.SelectedEntry!.Label);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
+        controller.SelectEntry("junction-dashboard", "candidate-magic-0-1");
+        Assert.Equal("candidate-magic-0-1", controller.BuildView().FocusedElement?.Id);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal(PlayerActionKind.SetJunctionMagic, inputs.Last().Kind);
-        Assert.Equal(1, inputs.Last().Quantity);
+        NativeJunctionEditRow movedMagicEdit = AssertAssignment(inputs.Last(), 0);
+        Assert.Equal(0, movedMagicEdit.Junction.MagicJunctions[0]);
+        Assert.Equal(1, movedMagicEdit.Junction.MagicJunctions[1]);
         Assert.Equal(0, vitals.Records[0].Junction.MagicJunctions[0]);
         Assert.Equal(1, vitals.Records[0].Junction.MagicJunctions[1]);
         Assert.Equal(new NativeHpWord(unjunctionedMaximum, unjunctionedMaximum), vitals.Records[0].HitPoints);
@@ -246,6 +245,16 @@ public sealed class NativeGfMenuTests
     {
         PlayerAction action = new(kind, row, choice, Quantity: slot);
         Assert.Throws<ArgumentException>(() => NativeJunctionMenuInput.Validate(action));
+    }
+
+    private static NativeJunctionEditRow AssertAssignment(PlayerAction action, int record)
+    {
+        Assert.Equal(PlayerActionKind.ApplyJunctionEdit, action.Kind);
+        NativeJunctionEditPlan plan = JsonSerializer.Deserialize<NativeJunctionEditPlan>(action.Text!)!;
+        Assert.Equal(NativeJunctionEditOperation.Assignments, plan.Operation);
+        NativeJunctionEditRow row = Assert.Single(plan.Rows);
+        Assert.Equal(record, row.Record);
+        return row;
     }
 
     private static GameAssets InstalledAssets()

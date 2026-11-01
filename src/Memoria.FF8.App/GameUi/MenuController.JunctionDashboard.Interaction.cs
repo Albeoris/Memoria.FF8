@@ -1,4 +1,4 @@
-using Memoria.FF8.Ui;
+﻿using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -89,13 +89,10 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionBindingHints()
     {
-        UiGrid hints = Grid([1, 1, 1, 1], [1], 3);
-        string confirm = junctionTransferModal ? J("confirm-transfer", "Confirm transfer") : junctionReview ? J("apply", "Apply changes") : junctionEditor is "magic" or "command" or "passive" ? J("assign", "Assign") : J("edit", "Edit");
-        Place(hints, JunctionLabel(CurrentBindingText(ControlAction.Confirm) + "  " + confirm, 13), 0);
-        Place(hints, JunctionLabel(CurrentBindingText(ControlAction.Cancel) + "  " + (JunctionHasActiveScope ? J("back", "Back") : J("close", "Close")), 13), 1);
-        Place(hints, JunctionLabel(CurrentBindingText(ControlAction.Card) + "  " + J("actions", "Actions"), 13, JunctionHasActiveScope), 2);
-        Place(hints, JunctionLabel(CurrentBindingText(ControlAction.CameraLeft) + " / " + CurrentBindingText(ControlAction.CameraRight) + "  " + J("character", "Character"), 12, JunctionHasActiveScope), 3);
-        return hints;
+        UiLabel hint = JunctionLabel(CurrentBindingText(ControlAction.Card) + "  " + J("actions", "Actions"), 13, JunctionHasActiveScope);
+        hint.HorizontalAlignment = UiAlignment.End;
+        hint.VerticalAlignment = UiAlignment.End;
+        return hint;
     }
 
     private bool JunctionControlIsActive(UiElement element)

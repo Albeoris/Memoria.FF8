@@ -202,13 +202,11 @@ public sealed class UiView
             return true;
         }
 
-        int direction = key switch
+        if (key is UiKey.Up or UiKey.Down or UiKey.Left or UiKey.Right)
         {
-            UiKey.Tab or UiKey.Down or UiKey.Right => 1,
-            UiKey.Up or UiKey.Left => -1,
-            _ => 0
-        };
-        if (direction == 0)
+            return MoveFocus(key);
+        }
+        if (key != UiKey.Tab)
         {
             return false;
         }
@@ -220,9 +218,62 @@ public sealed class UiView
         }
 
         int index = _focusedElement == null ? -1 : candidates.IndexOf(_focusedElement);
-        int next = (index + direction + candidates.Count) % candidates.Count;
+        int next = (index + 1 + candidates.Count) % candidates.Count;
         SetFocus(candidates[next]);
         return true;
+    }
+
+    /// <summary>Moves focus through navigation containers and then the nearest eligible control in the requested direction.</summary>
+    public bool MoveFocus(UiKey direction, Func<UiElement, bool>? eligible = null)
+    {
+        if (direction is not (UiKey.Up or UiKey.Down or UiKey.Left or UiKey.Right))
+        {
+            throw new ArgumentOutOfRangeException(nameof(direction));
+        }
+        EnsureLayout();
+        EnsureFocus();
+        if (_focusedElement is not { } origin)
+        {
+            return false;
+        }
+        List<UiElement> ancestors = [];
+        FindAncestors(Root, origin, ancestors);
+        for (int index = ancestors.Count - 1; index >= 0; index--)
+        {
+            if (ancestors[index].TryNavigate(origin, direction, out UiElement? target))
+            {
+                if (target != null && (eligible == null || eligible(target)))
+                {
+                    Focus(target);
+                }
+                return true;
+            }
+        }
+        UiElement? next = UiSpatialNavigation.FindNext(origin, FocusableElements().Where(element => eligible == null || eligible(element)), direction);
+        if (next == null)
+        {
+            return false;
+        }
+        SetFocus(next);
+        return true;
+    }
+
+    private static bool FindAncestors(UiElement node, UiElement target, List<UiElement> ancestors)
+    {
+        if (ReferenceEquals(node, target))
+        {
+            return true;
+        }
+        ancestors.Add(node);
+        foreach (UiElement child in node.Children)
+        {
+            if (FindAncestors(child, target, ancestors))
+            {
+                return true;
+            }
+        }
+        ancestors.RemoveAt(ancestors.Count - 1);
+        return false;
     }
 
     public (float X, float Y) ToDesignPoint(float x, float y)

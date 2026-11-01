@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -315,12 +315,17 @@ public sealed partial class MenuController
             UiButton button = JunctionButton("gf-portrait-" + id, "", () => ActivateGuardian(id));
             button.DrawBackground = false;
             button.SuppressSelection = true;
-            button.Hover = () => PreviewGuardian(id);
+            button.Hover = () =>
+            {
+                junctionFocus = button.Id!;
+                PreviewGuardian(id);
+            };
             button.Children.Add(content);
             button.FocusChanged = focused =>
             {
                 if (focused && !junctionRestoringFocus)
                 {
+                    junctionFocus = button.Id!;
                     PreviewGuardian(id);
                 }
             };
@@ -331,22 +336,21 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionStats()
     {
-        UiGrid body = JunctionRows([24, 20, 0], [1]);
-        Place(body, JunctionLabel(J("stats", "Stats") + (junctionPlan?.HasChanges == true ? " · " + J("current-preview", "Current → Preview") : ""), 15, true), 0);
+        UiGrid body = JunctionRows([24 * TextScale, 0], [1]);
         UiGrid legend = Grid([1], [42, 112, 45, 87], 0);
         string[] labels = [J("stat", "Stat"), J("magic", "Magic"), J("stock", "Stock"), J("value", "Value")];
         for (int index = 0; index < labels.Length; index++)
         {
-            Place(legend, JunctionLabel(labels[index], 11, true), 0, index);
+            Place(legend, JunctionLabel(labels[index], 15, true), 0, index);
         }
-        Place(body, legend, 1);
+        Place(body, legend, 0);
         UiGrid rows = Grid(Enumerable.Repeat(1f, 9).ToArray(), [1], 0);
         for (int index = 0; index < 9; index++)
         {
             string slot = LiveMenuData.JunctionSlotName(index);
             Place(rows, BuildJunctionBindingRow(slot, true), index);
         }
-        Place(body, rows, 2);
+        Place(body, rows, 1);
         return JunctionPanel(body);
     }
 

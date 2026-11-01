@@ -133,6 +133,13 @@ public class UiElement
         return false;
     }
 
+    /// <summary>Lets a navigation container reveal or constrain the next focused descendant.</summary>
+    public virtual bool TryNavigate(UiElement origin, UiKey key, out UiElement? target)
+    {
+        target = null;
+        return false;
+    }
+
     public virtual void Pointer(float x, float y)
     {
     }

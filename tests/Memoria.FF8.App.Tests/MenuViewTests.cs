@@ -1,4 +1,4 @@
-using Memoria.FF8.GameUi;
+﻿using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -47,22 +47,18 @@ public sealed class MenuViewTests
     {
         foreach (string textScale in new[] { "100%", "125%", "150%" })
         {
-            foreach (string screen in new[] { "junction-options", "junction-off", "junction-auto" })
+            MenuController menus = new() { Presentation = MenuPresentation.Classic };
+            menus.Open("junction", true);
+            menus.Data.Settings["Text scale"] = textScale;
+            menus.PrepareViewport(width, height);
+            UiView view = menus.BuildView();
+            UiLabel[] headings = Descendants(view.Root).OfType<UiLabel>().Where(label => label.Text is "Stat" or "Value").ToArray();
+            Assert.Equal(2, headings.Length);
+            Assert.DoesNotContain(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == "Stats");
+            foreach (UiLabel label in headings)
             {
-                MenuController menus = new() { Presentation = MenuPresentation.Classic };
-                menus.Open(screen, true);
-                menus.Data.Settings["Text scale"] = textScale;
-                UiView view = menus.BuildView();
-                view.Resize(width, height);
-                UiList commands = Assert.Single(Descendants(view.Root).OfType<UiList>(), list => list.Id == "commands");
-                float textWidth = commands.Bounds.Width / commands.Items.Count - commands.TextInset - 4;
-                foreach (string label in commands.Items)
-                {
-                    float advance = SystemTextLayout.MeasureAdvance(label, commands.FontSize);
-                    var measured = SystemTextLayout.MeasureWrapped(label, commands.FontSize, textWidth);
-                    Assert.True(advance <= textWidth, $"{screen} at {textScale}: '{label}' exceeds its header cell width ({advance} > {textWidth}).");
-                    Assert.True(measured.Y <= commands.Bounds.Height, $"{screen} at {textScale}: '{label}' exceeds its header cell height ({measured.Y} > {commands.Bounds.Height}).");
-                }
+                Assert.True(SystemTextLayout.MeasureAdvance(label.Text, label.FontSize) <= label.Bounds.Width);
+                Assert.True(label.FontSize <= label.Bounds.Height);
             }
         }
     }
@@ -71,35 +67,25 @@ public sealed class MenuViewTests
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
     [InlineData(1920, 1080)]
-    public void JunctionSubmenusKeepStatsVisibleWithCategoriesAboveAndEntitiesOnRight(int width, int height)
+    public void JunctionAliasesKeepAllDashboardGroupsAvailable(int width, int height)
     {
-        string[] categories = ["junction-options", "junction-off", "junction-auto"];
-        string[] entities = ["junction-gf"];
-        foreach (string screen in categories.Concat(entities))
+        foreach (string screen in new[] { "junction-options", "junction-off", "junction-auto", "junction-gf" })
         {
             MenuController menus = new() { Presentation = MenuPresentation.Classic };
             menus.Open(screen, true);
+            menus.PrepareViewport(width, height);
             UiView view = menus.BuildView();
-            view.Resize(width, height);
             UiElement[] elements = Descendants(view.Root).ToArray();
-            UiElement stats = Assert.Single(elements, element => element.Id == "junction-stats");
-            UiList commands = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
-            UiImage portrait = Assert.Single(elements.OfType<UiImage>(), image => image.Source?.Kind == UiImageKind.CharacterPortrait);
-            Assert.True(commands.Bounds.Bottom <= stats.Bounds.Y);
-            Assert.True(stats.Bounds.Bottom <= view.DesignHeight);
-            Assert.Contains(Descendants(stats).OfType<UiLabel>(), label => label.Text == "Str");
-            Assert.Contains(Descendants(stats).OfType<UiLabel>(), label => label.Text == "Luck");
-            if (categories.Contains(screen))
+            Assert.Equal("junction-dashboard", menus.ScreenId);
+            Assert.Contains(elements, element => element.Id == "junction-character-portrait");
+            foreach (string slot in new[] { "HP", "Str", "Luck", "Elem-Atk", "ST-Atk" })
             {
-                Assert.Equal(UiOrientation.Horizontal, commands.Orientation);
-                Assert.True(commands.Bounds.Bottom <= portrait.Bounds.Y);
+                Assert.Contains(elements, element => element.Id == "slot-" + slot);
             }
-            else
-            {
-                Assert.Equal(UiOrientation.Vertical, commands.Orientation);
-                Assert.True(commands.Bounds.X >= portrait.Bounds.Right);
-                Assert.True(commands.Bounds.Y >= portrait.Bounds.Y);
-            }
+            Assert.Contains(elements, element => element.Id == "command-0");
+            Assert.Contains(elements, element => element.Id == "passive-0");
+            Assert.Contains(elements.OfType<UiLabel>(), label => label.Text.EndsWith("Actions", StringComparison.Ordinal));
+            Assert.DoesNotContain(elements.OfType<UiLabel>(), label => label.Text.EndsWith("Assign", StringComparison.Ordinal) || label.Text.EndsWith("Close", StringComparison.Ordinal));
         }
     }
 
@@ -224,62 +210,45 @@ public sealed class MenuViewTests
     }
 
     [Fact]
-    public void JunctionRootExposesFourCommandsAndReachesAllJunctionCategories()
+    public void JunctionDashboardExposesAllDestinationsAndCardActions()
     {
         MenuController menus = new();
         menus.Open("junction", true);
-        UiList commands = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == "commands");
-        Assert.Equal(new[] { "Junction", "Off", "Auto", "Ability" }, commands.Items);
-        string[] categories = ["junction-gf", "junction-magic", "junction-element", "junction-status"];
-        for (int index = 0; index < categories.Length; index++)
+        Assert.Equal("junction-dashboard", menus.ScreenId);
+        foreach (string control in new[] { "slot-HP", "slot-Elem-Atk", "slot-ST-Atk", "command-0", "passive-0" })
         {
-            menus.Open("junction", true);
-            ActivateEntry(menus, 0);
-            Assert.Equal("junction-options", menus.ScreenId);
-            ActivateEntry(menus, index);
-            Assert.Equal(categories[index], menus.ScreenId);
-            Assert.NotNull(menus.BuildView().Root);
+            menus.SelectEntry("junction-dashboard", control);
+            Assert.Equal(control, menus.BuildView().FocusedElement?.Id);
         }
-        string[] roots = ["junction-off", "junction-auto", "junction-command"];
-        for (int index = 0; index < roots.Length; index++)
+        menus.Navigate(MenuInput.Alternate);
+        foreach (string action in new[] { "optimize", "clear-magic", "remove-junctions", "clear-party-magic" })
         {
-            menus.Open("junction", true);
-            ActivateEntry(menus, index + 1);
-            Assert.Equal(roots[index], menus.ScreenId);
+            Assert.Contains(menus.Entries, entry => entry.Id == action);
         }
-        menus.Open("junction", true);
-        ActivateEntry(menus, 3);
-        Assert.Equal("junction-command", menus.ScreenId);
-        Assert.Equal("1", menus.SelectedEntry?.Id);
     }
 
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
     [InlineData(1920, 1080)]
-    public void JunctionAbilitiesShowCommandSlotsAbovePassiveSlotsAndCandidatesOnRight(int width, int height)
+    public void JunctionAliasesKeepCommandsAbovePassivesAndOpenTheirPicker(int width, int height)
     {
-        string[] screens = ["junction-command", "junction-ability", "junction-command-choice", "junction-ability-choice"];
-        foreach (string screen in screens)
+        foreach (string screen in new[] { "junction-command", "junction-ability", "junction-command-choice", "junction-ability-choice" })
         {
             MenuController menus = new();
             menus.Open(screen, true);
+            menus.PrepareViewport(width, height);
             UiView view = menus.BuildView();
-            view.Resize(width, height);
             UiElement[] elements = Descendants(view.Root).ToArray();
-            UiElement commandSlots = Assert.Single(elements, element => element.Id == "junction-command-slots");
-            UiElement passiveSlots = Assert.Single(elements, element => element.Id == "junction-passive-slots");
-            UiElement candidates = Assert.Single(elements, element => element.Id == "junction-ability-choices");
-            Assert.True(commandSlots.Bounds.Bottom <= passiveSlots.Bounds.Y);
-            Assert.True(commandSlots.Bounds.Right <= candidates.Bounds.X);
-            Assert.True(passiveSlots.Bounds.Right <= candidates.Bounds.X);
-            Assert.True(passiveSlots.Bounds.Bottom <= view.DesignHeight);
-            Assert.True(candidates.Bounds.Bottom <= view.DesignHeight);
-            UiList active = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
-            UiElement activePanel = screen.EndsWith("-choice", StringComparison.Ordinal) ? candidates : screen == "junction-command" ? commandSlots : passiveSlots;
-            Assert.Contains(active, Descendants(activePanel));
-            Assert.Same(active, view.FocusedElement);
-            Assert.NotEmpty(Descendants(candidates).OfType<UiList>().SelectMany(list => list.Items));
+            UiElement command = Assert.Single(elements, element => element.Id == "command-0");
+            UiElement passive = Assert.Single(elements, element => element.Id == "passive-0");
+            Assert.True(command.Bounds.Bottom <= passive.Bounds.Y);
+            string target = screen.Contains("command", StringComparison.Ordinal) ? "command-0" : "passive-0";
+            menus.SelectEntry("junction-dashboard", target);
+            menus.Navigate(MenuInput.Confirm);
+            Assert.StartsWith("candidate-", menus.BuildView().FocusedElement?.Id);
+            Assert.Equal("junction-dashboard", menus.ScreenId);
+            Assert.NotEmpty(Descendants(menus.BuildView().Root).OfType<UiButton>().Where(button => button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true));
         }
     }
 
@@ -288,25 +257,17 @@ public sealed class MenuViewTests
     {
         MenuController menus = new();
         menus.Open("junction", true);
-        ActivateEntry(menus, 3);
+        menus.SelectEntry("junction-dashboard", "command-2");
         menus.Navigate(MenuInput.Down);
-        menus.Navigate(MenuInput.Down);
-        Assert.Equal("3", menus.SelectedEntry?.Id);
-        menus.Navigate(MenuInput.Down);
-        Assert.Equal("junction-ability", menus.ScreenId);
-        Assert.Equal("0", menus.SelectedEntry?.Id);
+        Assert.Equal("passive-0", menus.BuildView().FocusedElement?.Id);
         menus.Navigate(MenuInput.Up);
-        Assert.Equal("junction-command", menus.ScreenId);
-        Assert.Equal("3", menus.SelectedEntry?.Id);
+        Assert.Equal("command-2", menus.BuildView().FocusedElement?.Id);
         menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-ability-choice", menus.ScreenId);
-        Assert.Equal(0, menus.AbilitySlot);
+        Assert.StartsWith("candidate-", menus.BuildView().FocusedElement?.Id);
         menus.Navigate(MenuInput.Cancel);
-        Assert.Equal("junction-ability", menus.ScreenId);
-        Assert.Equal("0", menus.SelectedEntry?.Id);
-        menus.Navigate(MenuInput.Cancel);
-        Assert.Equal("junction", menus.ScreenId);
+        Assert.Equal("junction-dashboard", menus.ScreenId);
+        Assert.Equal("passive-0", menus.BuildView().FocusedElement?.Id);
     }
 
     [Theory]
@@ -318,12 +279,12 @@ public sealed class MenuViewTests
         menus.Open(screen, true);
         string[] commands = menus.Character!.Commands.ToArray();
         string[] abilities = menus.Character.Abilities.ToArray();
-        UiView view = menus.BuildView();
-        view.Resize(960, 672);
-        UiElement panel = Assert.Single(Descendants(view.Root), element => element.Id == "junction-ability-choices");
-        UiList candidates = Assert.Single(Descendants(panel).OfType<UiList>());
-        view.Pointer(candidates.Bounds.X + candidates.Bounds.Width / 2, candidates.Bounds.Y + candidates.RowHeight / 2, true);
-        Assert.Equal(screen, menus.ScreenId);
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
+        menus.SelectEntry("junction-dashboard", screen == "junction-command" ? "command-0" : "passive-0");
+        menus.Navigate(MenuInput.Confirm);
+        UiButton candidate = Descendants(menus.BuildView().Root).OfType<UiButton>().First(button => button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true);
+        candidate.Hover?.Invoke();
+        Assert.Equal("junction-dashboard", menus.ScreenId);
         Assert.Equal(commands, menus.Character.Commands);
         Assert.Equal(abilities, menus.Character.Abilities);
     }
@@ -335,20 +296,14 @@ public sealed class MenuViewTests
     {
         MenuController menus = new();
         menus.Open(screen, true);
+        menus.PrepareViewport(1280, 720);
         UiView view = menus.BuildView();
-        view.Resize(960, 672);
-        UiElement panel = Assert.Single(Descendants(view.Root), element => element.Id == panelId);
-        UiList slots = Assert.Single(Descendants(panel).OfType<UiList>());
-        view.Pointer(slots.Bounds.X + slots.Bounds.Width / 2, slots.Bounds.Y + slots.RowHeight * (row + 0.5f), true);
-        Assert.Equal(destination, menus.ScreenId);
-        if (destination == "junction-command-choice")
-        {
-            Assert.Equal(row + 1, menus.CommandSlot);
-        }
-        else
-        {
-            Assert.Equal(row, menus.AbilitySlot);
-        }
+        string target = destination == "junction-command-choice" ? "command-" + row : "passive-" + row;
+        UiElement button = Assert.Single(Descendants(view.Root), element => element.Id == target);
+        view.Pointer(button.Bounds.X + button.Bounds.Width / 2, button.Bounds.Y + button.Bounds.Height / 2, true);
+        Assert.Equal("junction-dashboard", menus.ScreenId);
+        Assert.Equal(target, menus.CaptureJunctionDashboard().Origin);
+        Assert.StartsWith("candidate-", menus.BuildView().FocusedElement?.Id);
     }
 
     [Theory]

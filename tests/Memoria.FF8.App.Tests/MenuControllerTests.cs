@@ -130,12 +130,11 @@ public sealed class MenuControllerTests
     }
 
     [Fact]
-    public void JunctionCommandsTargetSelectedSlotAndExchangePreservesMagicOwnership()
+    public void JunctionCommandsTargetExplicitSlotAndExchangePreservesMagicOwnership()
     {
         var controller = new MenuController();
         controller.Open("junction-command", demo: true);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Confirm);
+        controller.Execute(new MenuAction("select-command-slot", "2"));
         Assert.Equal(2, controller.CommandSlot);
         controller.Execute(new MenuAction("junction-command", Value: "Item"));
         Assert.Equal("Item", controller.Character!.Commands[2]);

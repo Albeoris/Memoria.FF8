@@ -299,6 +299,31 @@ public sealed partial class MenuController
             return;
         }
         UiView view = BuildView();
+        if (view.FocusedElement is not UiList && (input is MenuInput.Up or MenuInput.Down || input is MenuInput.Left or MenuInput.Right && !IsConfigSettingsScreen && !IsHostSettingsScreen && ScreenId != "quick-save-editor"))
+        {
+            view.Key(input switch
+            {
+                MenuInput.Left => UiKey.Left,
+                MenuInput.Right => UiKey.Right,
+                MenuInput.Up => UiKey.Up,
+                _ => UiKey.Down
+            });
+            string? focusedId = view.FocusedElement?.Id;
+            int focusedIndex = -1;
+            for (int index = 0; index < entries.Count; index++)
+            {
+                if (entries[index].Id == focusedId)
+                {
+                    focusedIndex = index;
+                    break;
+                }
+            }
+            if (focusedIndex >= 0 && focusedIndex != SelectedIndex)
+            {
+                Select(focusedIndex, entries.Count);
+            }
+            return;
+        }
         if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list && !(ScreenId == "shop-junk" && input is MenuInput.Up or MenuInput.Down) &&
             (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && !IsConfigSettingsScreen && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
         {

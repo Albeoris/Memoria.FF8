@@ -1,4 +1,4 @@
-using Memoria.FF8.Ui;
+﻿using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -83,6 +83,10 @@ public sealed partial class MenuController
         if (control is null || !JunctionControlIsActive(control) || !allowDisabled && !control.Enabled)
         {
             throw new InvalidOperationException($"Junction dashboard has no enabled control '{id}'.");
+        }
+        if (junctionEditor == "magic")
+        {
+            junctionMagicColumns?.EnsureVisible(control);
         }
         junctionFocus = id;
         view.Focus(control);

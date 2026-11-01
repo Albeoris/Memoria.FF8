@@ -58,7 +58,7 @@ public sealed class JunctionNavigationTests
     }
 
     [Fact]
-    public void StockPaginationKeepsTheSelectedCharacterAndEveryDashboardGroup()
+    public void StockColumnScrollingKeepsAllCandidatesAccessibleAndPreservesTheCharacterAndDashboardGroups()
     {
         MenuController menu = new();
         menu.Open("junction-magic", demo: true);
@@ -66,22 +66,66 @@ public sealed class JunctionNavigationTests
         menu.Data.Magic.Clear();
         for (int index = 1; index <= 32; index++)
         {
-            menu.Data.Magic.Add(new MenuMagic { Id = "spell-" + index, Name = $"Magic {index}", CharacterId = character, Quantity = 100 });
+            menu.Data.Magic.Add(new MenuMagic { Id = "spell-" + index, Name = $"A long magic name {index}", CharacterId = character, Quantity = 100 });
         }
         menu.Execute(new("junction-ui", "slot-HP"));
-        string[] firstPage = CandidateIds();
-        menu.Navigate(MenuInput.PageDown);
-        Assert.Equal("junction-dashboard", menu.ScreenId);
-        Assert.Equal(character, menu.Character!.Id);
-        string[] secondPage = CandidateIds();
-        Assert.Equal(8, firstPage.Length);
-        Assert.Equal(8, secondPage.Length);
-        Assert.Empty(firstPage.Intersect(secondPage));
-        Assert.Contains(menu.Entries, entry => entry.Id == "slot-ST-Atk");
-        menu.Navigate(MenuInput.PageUp);
-        Assert.Equal(firstPage, CandidateIds());
-        Assert.Equal(character, menu.Character!.Id);
+        string[] candidates = CandidateIds();
+        Assert.Equal(33, candidates.Length);
+        string? initialFocus = menu.BuildView().FocusedElement?.Id;
+        int rightSteps = 0;
+        while (Picker().FirstVisibleColumn == 0 && rightSteps < candidates.Length)
+        {
+            menu.Navigate(MenuInput.Right);
+            rightSteps++;
+            AssertDashboardAndVisibleFocus();
+        }
+        Assert.True(Picker().FirstVisibleColumn > 0);
+        Assert.Contains(Picker().Children, child => !child.Visible);
+        string? beforeDown = menu.BuildView().FocusedElement?.Id;
+        menu.Navigate(MenuInput.Down);
+        AssertDashboardAndVisibleFocus();
+        Assert.NotEqual(beforeDown, menu.BuildView().FocusedElement?.Id);
+        menu.Navigate(MenuInput.Up);
+        for (int step = 0; step < rightSteps; step++)
+        {
+            menu.Navigate(MenuInput.Left);
+            AssertDashboardAndVisibleFocus();
+        }
+        Assert.Equal(initialFocus, menu.BuildView().FocusedElement?.Id);
+        Assert.Equal(0, Picker().FirstVisibleColumn);
 
         string[] CandidateIds() => menu.Entries.Where(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal) && entry.Id is not ("candidate-previous" or "candidate-next")).Select(entry => entry.Id).ToArray();
+
+        UiColumnPicker Picker() => Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+
+        void AssertDashboardAndVisibleFocus()
+        {
+            Assert.Equal("junction-dashboard", menu.ScreenId);
+            Assert.Equal(character, menu.Character!.Id);
+            Assert.Equal(candidates, CandidateIds());
+            Assert.DoesNotContain(menu.Entries, entry => entry.Id is "candidate-previous" or "candidate-next");
+            foreach (string group in new[] { "slot-HP", "slot-Elem-Atk", "slot-ST-Atk", "command-0", "passive-0" })
+            {
+                Assert.Contains(menu.Entries, entry => entry.Id == group);
+            }
+            UiElement focused = Assert.IsType<UiButton>(menu.BuildView().FocusedElement);
+            Assert.True(focused.Visible);
+            Assert.Contains(focused, Picker().Children);
+            UiRect viewport = Picker().Bounds;
+            Assert.True(focused.Bounds.X >= viewport.X - 0.01f && focused.Bounds.Right <= viewport.Right + 0.01f);
+            Assert.True(focused.Bounds.Y >= viewport.Y - 0.01f && focused.Bounds.Bottom <= viewport.Bottom + 0.01f);
+        }
+    }
+
+    private static IEnumerable<UiElement> Descendants(UiElement root)
+    {
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 }

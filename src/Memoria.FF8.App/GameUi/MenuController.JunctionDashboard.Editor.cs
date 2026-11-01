@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using Memoria.FF8.Ui;
 
@@ -8,6 +8,7 @@ public sealed partial class MenuController
 {
     private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action);
     private string junctionSort = "benefit";
+    private int junctionMagicFirstColumn;
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
     private string junctionCacheSource = "";
@@ -18,6 +19,10 @@ public sealed partial class MenuController
 
     private void OpenJunctionEditor(string editor, string origin, string candidate = "")
     {
+        if (editor == "magic")
+        {
+            junctionMagicFirstColumn = 0;
+        }
         if (junctionReview)
         {
             Message = J("resolve-review", "Apply or cancel the current review before editing another assignment.");
@@ -206,7 +211,7 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionDock()
     {
-        UiGrid dock = Grid([1], [4.2f, 1], 12);
+        UiGrid dock = JunctionRows([0, 20], [1]);
         UiElement content;
         if (junctionExitReview)
         {
@@ -258,13 +263,17 @@ public sealed partial class MenuController
             content = help;
         }
         Place(dock, content, 0);
-        Place(dock, BuildJunctionBindingHints(), 0, 1);
+        Place(dock, BuildJunctionBindingHints(), 1);
         return JunctionPanel(dock);
     }
 
     private UiElement BuildJunctionCandidatePicker()
     {
         IReadOnlyList<JunctionCandidate> candidates = JunctionCandidates();
+        if (junctionEditor == "magic")
+        {
+            return BuildJunctionMagicColumns(candidates);
+        }
         int pageSize = JunctionCandidatePageSize;
         int start = Math.Clamp(junctionCandidatePage * pageSize, 0, Math.Max(0, candidates.Count - 1));
         UiGrid picker = JunctionRows([22, 0, 22], [1], 2);
@@ -602,6 +611,11 @@ public sealed partial class MenuController
 
     private void PageJunctionCandidates(int delta)
     {
+        if (junctionEditor == "magic")
+        {
+            BuildView().MoveFocus(delta < 0 ? UiKey.Left : UiKey.Right, JunctionControlIsActive);
+            return;
+        }
         int maximum = Math.Max(0, (JunctionCandidates().Count - 1) / JunctionCandidatePageSize);
         junctionCandidatePage = Math.Clamp(junctionCandidatePage + delta, 0, maximum);
         junctionFocus = "candidate-" + JunctionCandidates().ElementAtOrDefault(junctionCandidatePage * JunctionCandidatePageSize)?.Id;
@@ -834,50 +848,12 @@ public sealed partial class MenuController
 
     private void MoveJunctionSpatialFocus(UiView view, MenuInput input)
     {
-        if (view.FocusedElement is not { } focused)
+        view.MoveFocus(input switch
         {
-            return;
-        }
-        UiRect origin = focused.Bounds;
-        bool horizontal = input is MenuInput.Left or MenuInput.Right;
-        bool positive = input is MenuInput.Right or MenuInput.Down;
-        UiElement? best = null;
-        float distance = float.PositiveInfinity;
-        foreach (UiElement target in FocusableDescendants(view.Root).Where(JunctionControlIsActive).Where(element => element.Enabled && element.Visible && !element.Bounds.IsEmpty && element != focused))
-        {
-            UiRect bounds = target.Bounds;
-            float primaryGap = input switch
-            {
-                MenuInput.Left => origin.X - bounds.Right,
-                MenuInput.Right => bounds.X - origin.Right,
-                MenuInput.Up => origin.Y - bounds.Bottom,
-                _ => bounds.Y - origin.Bottom
-            };
-            if (primaryGap < -1)
-            {
-                continue;
-            }
-            float primaryCenter = horizontal ? bounds.X + bounds.Width / 2 - origin.X - origin.Width / 2 : bounds.Y + bounds.Height / 2 - origin.Y - origin.Height / 2;
-            if (positive ? primaryCenter <= 1 : primaryCenter >= -1)
-            {
-                continue;
-            }
-            float firstStart = horizontal ? origin.Y : origin.X;
-            float firstEnd = horizontal ? origin.Bottom : origin.Right;
-            float secondStart = horizontal ? bounds.Y : bounds.X;
-            float secondEnd = horizontal ? bounds.Bottom : bounds.Right;
-            float perpendicularGap = Math.Max(0, Math.Max(secondStart - firstEnd, firstStart - secondEnd));
-            float perpendicularCenter = Math.Abs((firstStart + firstEnd - secondStart - secondEnd) / 2);
-            float score = Math.Max(0, primaryGap) + perpendicularGap * 5 + perpendicularCenter * 0.01f;
-            if (score < distance)
-            {
-                distance = score;
-                best = target;
-            }
-        }
-        if (best is not null)
-        {
-            view.Focus(best);
-        }
+            MenuInput.Left => UiKey.Left,
+            MenuInput.Right => UiKey.Right,
+            MenuInput.Up => UiKey.Up,
+            _ => UiKey.Down
+        }, JunctionControlIsActive);
     }
 }

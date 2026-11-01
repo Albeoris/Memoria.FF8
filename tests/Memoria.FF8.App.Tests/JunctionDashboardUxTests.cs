@@ -5,6 +5,41 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionDashboardUxTests
 {
+    [Fact]
+    public void MagicColumnScrollingKeepsFocusAcrossPreviewRebuildsAndReturnsToTheStart()
+    {
+        MenuData data = Fixture();
+        for (int index = 0; index < 56; index++)
+        {
+            data.Magic.Add(new MenuMagic { Id = "magic-" + index, CharacterId = "character-0", Name = "Long magic specimen " + index.ToString("D2"), Quantity = 100, Capacity = 4, RemainingUses = 1 });
+        }
+        MenuController menu = Open(data);
+        menu.PrepareViewport(640, 448);
+        menu.SelectEntry("junction-dashboard", "slot-HP");
+        menu.Navigate(MenuInput.Confirm);
+        UiColumnPicker initial = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+        string[] ids = initial.Children.Select(element => element.Id!).ToArray();
+        int rows = initial.RowCount;
+        for (int index = 0; index < ids.Length; index += rows)
+        {
+            UiView view = menu.BuildView();
+            Assert.Equal(ids[index], view.FocusedElement?.Id);
+            UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+            Assert.All(columns.Children.Where(element => element.Visible), element => Assert.True(element.Bounds.Right <= columns.Bounds.Right));
+            menu.Navigate(MenuInput.Right);
+        }
+        UiColumnPicker last = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+        Assert.True(last.FirstVisibleColumn > 0);
+        for (int index = ids.Length / rows; index > 0; index--)
+        {
+            menu.Navigate(MenuInput.Left);
+        }
+        Assert.Equal(ids[0], menu.BuildView().FocusedElement?.Id);
+        Assert.Equal(0, Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>()).FirstVisibleColumn);
+        Assert.Equal("0", data.Characters[0].JunctionIds["HP"]);
+        Assert.DoesNotContain(Descendants(menu.BuildView().Root).OfType<UiButton>(), button => button.Id is "candidate-next" or "candidate-previous");
+    }
+
     [Theory]
     [InlineData(MenuPresentation.Classic)]
     [InlineData(MenuPresentation.Vector)]
@@ -29,6 +64,29 @@ public sealed class JunctionDashboardUxTests
         menu.SelectEntry("junction-dashboard", "slot-HP");
         menu.Navigate(MenuInput.Right);
         Assert.Equal("slot-Elem-Atk", menu.BuildView().FocusedElement?.Id);
+    }
+
+    [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void MovingUpFromTheFirstCommandReachesTheNearestGuardianAndKeepsItsFocus(MenuPresentation presentation)
+    {
+        MenuData data = Fixture();
+        data.GuardianForces.AddRange([
+            new() { Id = "gf-0", NativeId = 0, Name = "Quezacotl" },
+            new() { Id = "gf-1", NativeId = 1, Name = "Shiva" },
+            new() { Id = "gf-2", NativeId = 2, Name = "Ifrit" }
+        ]);
+        MenuController menu = Open(data, presentation);
+        menu.SelectEntry("junction-dashboard", "basic-action");
+        menu.Navigate(MenuInput.Up);
+        Assert.Equal("gf-portrait-gf-2", menu.BuildView().FocusedElement?.Id);
+        menu.Navigate(MenuInput.Left);
+        Assert.Equal("gf-portrait-gf-1", menu.BuildView().FocusedElement?.Id);
+        menu.Navigate(MenuInput.Left);
+        Assert.Equal("gf-portrait-gf-0", menu.BuildView().FocusedElement?.Id);
+        menu.Navigate(MenuInput.Right);
+        Assert.Equal("gf-portrait-gf-1", menu.BuildView().FocusedElement?.Id);
     }
 
     [Fact]

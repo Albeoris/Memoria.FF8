@@ -85,7 +85,7 @@ public sealed class MenuColumnTests
 
     [Theory]
     [MemberData(nameof(MagicCases))]
-    public void JunctionDockKeepsStockAndFiniteCastRatiosBesideEveryCandidate(bool shared, bool finite, int stock, int uses, bool bound)
+    public void JunctionDockPairsEveryNameWithItsPlainStockInTheSameStyle(bool shared, bool finite, int stock, int uses, bool bound)
     {
         MenuData data = MagicData(shared, finite, stock, uses, bound);
         MenuController menu = new(() => data);
@@ -94,14 +94,18 @@ public sealed class MenuColumnTests
         foreach (MenuMagic spell in data.Magic)
         {
             UiElement candidate = Descendants(menu.BuildView().Root).Single(element => element.Id == "candidate-" + spell.Id);
-            string[] labels = Descendants(candidate).OfType<UiLabel>().Select(label => label.Text).ToArray();
-            Assert.Contains(labels, label => label.Contains(spell.Name, StringComparison.Ordinal));
-            Assert.Contains(labels, label => label.Contains("×" + spell.Quantity, StringComparison.Ordinal));
-            if (finite)
-            {
-                Assert.Contains(labels, label => label.Contains($"{spell.RemainingUses}/{spell.Capacity}", StringComparison.Ordinal));
-            }
+            UiLabel[] labels = Descendants(candidate).OfType<UiLabel>().ToArray();
+            Assert.Equal(2, labels.Length);
+            UiLabel name = Assert.Single(labels, label => label.Text == spell.Name);
+            UiLabel quantity = Assert.Single(labels, label => label.Text == spell.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(name.FontSize, quantity.FontSize);
+            Assert.Equal(name.Muted, quantity.Muted);
+            Assert.Equal(name.Color, quantity.Color);
+            Assert.Equal(name.Enabled, quantity.Enabled);
         }
+        UiColumnPicker picker = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+        Assert.DoesNotContain(Descendants(picker).OfType<UiLabel>(), label => label.Text.Contains("Stock", StringComparison.Ordinal) || label.Text.Contains("Casts", StringComparison.Ordinal) || label.Text.Contains("Clear this slot", StringComparison.Ordinal));
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "candidate-previous" or "candidate-next");
         Assert.Contains(menu.Entries, entry => entry.Id == "candidate-none");
         Assert.Contains(menu.Entries, entry => entry.Id == "slot-HP");
         Assert.Equal("junction-dashboard", menu.ScreenId);
