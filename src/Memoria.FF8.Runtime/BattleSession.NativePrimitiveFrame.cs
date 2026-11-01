@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
             }
             NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, primitive, linked);
-            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry);
+            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId);
             if (linked)
             {
                 stores.Add(new(cursor, ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));
@@ -136,12 +136,12 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index, index)));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index, index)).Select(primitive => primitive with { PresentationActorId = index == 1 ? null : graphics.ActorIds[model.Index] }));
             }
         }
         else if (bodyDraw)
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index)));
+            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index)).Select(primitive => primitive with { PresentationActorId = graphics.ActorIds[model.Index] }));
         }
         if (bodyDraw)
         {

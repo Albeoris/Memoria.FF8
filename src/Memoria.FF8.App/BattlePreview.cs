@@ -130,6 +130,7 @@ internal static class BattlePreview
             }
             UiView view = hud.BuildView();
             view.Resize(width, height);
+            hud.TargetModelBounds = actorId => scene.GetActorBounds(actorId, new UiRect(0, 0, width, height));
             view.Draw(canvas, new UiTheme());
         }
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);

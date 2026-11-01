@@ -286,15 +286,24 @@ internal sealed partial class BattleScenePresentation
             float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0.
-            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose };
+            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose, ActorId = actor.Id };
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {
-                actors.Add(drawing with { Model = weapon });
+                actors.Add(drawing with { Model = weapon, ActorId = null });
             }
         }
         byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
         return pixels;
+    }
+
+    internal UiRect? GetActorBounds(string actorId, UiRect viewport)
+    {
+        if (renderer is null || !renderer.TryGetActorBounds(actorId, out Vector4 bounds))
+        {
+            return null;
+        }
+        return new UiRect(viewport.X + bounds.X * viewport.Width / renderer.Width, viewport.Y + bounds.Y * viewport.Height / renderer.Height, (bounds.Z - bounds.X) * viewport.Width / renderer.Width, (bounds.W - bounds.Y) * viewport.Height / renderer.Height);
     }
 
     public void DrawEffects(BattleSession session, IUiCanvas canvas, UiRect viewport)

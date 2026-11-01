@@ -67,6 +67,7 @@ public sealed partial class BattleHudController
         systemMessage = text;
     }
     public float TextScale { get; set; } = 1;
+    internal Func<string, UiRect?>? TargetModelBounds { get; set; }
     public string GunbladeBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.RotateRight);
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();

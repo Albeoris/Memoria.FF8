@@ -110,6 +110,7 @@ public sealed partial class BattleRenderer
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
+        actorBounds.Clear();
         textureDiagnosticRender++;
         if (PilotDiagnosticsEnabled)
         {
@@ -276,6 +277,10 @@ public sealed partial class BattleRenderer
             PrimitiveVertex c = At(2);
             int submitted = DrawnTriangles;
             QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, centroidTextureSampling: textured);
+            if (DrawnTriangles > submitted)
+            {
+                ObserveActorTriangle(command.PresentationActorId, a, b, c);
+            }
             if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
             {
                 ObservePilotSubmittedTriangle(resolved, a, b, c, 0, 1, 2);
@@ -285,6 +290,10 @@ public sealed partial class BattleRenderer
                 PrimitiveVertex d = At(3);
                 submitted = DrawnTriangles;
                 QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured);
+                if (DrawnTriangles > submitted)
+                {
+                    ObserveActorTriangle(command.PresentationActorId, b, d, c);
+                }
                 if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
                 {
                     ObservePilotSubmittedTriangle(resolved, b, d, c, 1, 3, 2);

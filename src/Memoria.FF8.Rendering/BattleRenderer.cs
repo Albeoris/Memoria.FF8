@@ -27,6 +27,7 @@ public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float Fi
 
 public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0, bool LoopAnimation = true)
 {
+    public string? ActorId { get; init; }
     public NativeBattleDecodedPose? NativePose { get; init; }
     public uint MeshMask { get; init; } = uint.MaxValue;
     public NativeBattleModelTextureBinding? NativeTextureBinding { get; init; }
@@ -105,6 +106,7 @@ public sealed partial class BattleRenderer
     private void Begin(BattleCamera camera)
     {
         sceneProjectionReady = true;
+        actorBounds.Clear();
         if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
@@ -147,7 +149,18 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, edited ? null : actor.NativeTextureBinding, edited ? null : actor.NativeTextures, replacements, replacementPages);
+            Vector3[] vertices = pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray();
+            if (actor.ActorId is string actorId && actor.Opacity > 0)
+            {
+                foreach (Vector3 vertex in vertices)
+                {
+                    if (TryProject(vertex, out Vector2 screen))
+                    {
+                        ObserveActorPoint(actorId, screen);
+                    }
+                }
+            }
+            Draw(actor.Model.Meshes[mesh], vertices, actor.Model.Textures, actor.Opacity, edited ? null : actor.NativeTextureBinding, edited ? null : actor.NativeTextures, replacements, replacementPages);
         }
     }
 

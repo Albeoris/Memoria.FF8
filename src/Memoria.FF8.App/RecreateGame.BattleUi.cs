@@ -608,6 +608,7 @@ internal sealed partial class RecreateGame
         battleScene!.DrawEffects(active, uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
+        battleHud.TargetModelBounds = actorId => battleScene.GetActorBounds(actorId, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
         view.Draw(uiCanvas!, uiTheme);
         if (!SlotsModalBlocksGameplay && battleScene.PresentedNativeFrame is { Scan: { } scan } presentation)
         {

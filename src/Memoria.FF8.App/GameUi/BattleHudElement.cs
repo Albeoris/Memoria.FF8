@@ -255,6 +255,7 @@ internal sealed partial class BattleHudElement : UiElement
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
+        DrawTargetModelPointers(canvas, theme, targets);
         float nameWidth = targets.Select(actor => canvas.MeasureText(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
         float x = 54;
         int columns = Math.Max(1, (targets.Count + 3) / 4);
@@ -297,6 +298,26 @@ internal sealed partial class BattleHudElement : UiElement
         theme.Panel(canvas, Rect(54, helpY, 440, helpPanelHeight));
         Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
+    }
+
+    private void DrawTargetModelPointers(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> targets)
+    {
+        float size = 24 * Scale;
+        float width = size * 1.5f;
+        foreach (BattleCombatant target in targets)
+        {
+            if (!target.IsActive || target.Hidden || !controller.SelectingTargetGroup && controller.SelectedTarget?.Id != target.Id)
+            {
+                continue;
+            }
+            if (controller.TargetModelBounds?.Invoke(target.Id) is not { IsEmpty: false } model || model.Right <= Bounds.X || model.X >= Bounds.Right || model.Bottom <= Bounds.Y || model.Y >= Bounds.Bottom)
+            {
+                continue;
+            }
+            float x = Math.Clamp(model.X - width - 4 * Scale, Bounds.X, Math.Max(Bounds.X, Bounds.Right - width));
+            float y = Math.Clamp(model.Y + model.Height * 0.35f - size / 2, Bounds.Y, Math.Max(Bounds.Y, Bounds.Bottom - size));
+            theme.Pointer(canvas, x, y, size);
+        }
     }
 
     private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, uint statuses)
