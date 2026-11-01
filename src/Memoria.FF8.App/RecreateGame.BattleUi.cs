@@ -95,6 +95,11 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        if (DiagnosticPresentationHeld)
+        {
+            battlePresentationUpdated = true;
+            return true;
+        }
         bool duelOwned = DuelOwnsInput;
         bool slotsOwned = SlotsModalBlocksGameplay;
         bool confirmHeld = (keyboard.HeldFieldButtons & 0x40) != 0;

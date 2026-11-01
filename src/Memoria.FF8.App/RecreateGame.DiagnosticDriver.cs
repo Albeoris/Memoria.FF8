@@ -8,6 +8,9 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private DiagnosticBattleDriver? diagnosticDriver;
+    private DiagnosticPresentationGate? diagnosticPresentation;
+
+    private bool DiagnosticPresentationHeld => diagnosticDriver?.Stage is DiagnosticDriverStage.AwaitPresentation or DiagnosticDriverStage.PresentationHold;
     private Exception? diagnosticBattleFault;
     private DiagnosticBattleDriverRecipe? diagnosticDriverRecipe;
     private BattleSession? diagnosticDriverBattle;
@@ -39,6 +42,7 @@ internal sealed partial class RecreateGame
         diagnosticHostWasActive = IsActive;
         diagnosticBattleFault = null;
         diagnosticDriverRecipe = recipe;
+        diagnosticPresentation = recipe.Presentation is { } presentation ? new(presentation, recipe.ExpectedEffect) : null;
         diagnosticFreshEntryInitializationPublished = false;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
@@ -145,7 +149,8 @@ internal sealed partial class RecreateGame
                 }
                 DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
                 DiagnosticDriverStage previousStage = driver.Stage;
-                if (driver.Advance(observation))
+                bool presentationReleased = driver.Stage == DiagnosticDriverStage.AwaitPresentation && diagnosticPresentation!.Released(DateTimeOffset.UtcNow);
+                if (driver.Advance(observation, presentationReleased))
                 {
                     diagnosticRenderer ??= battleGpu ?? throw new NotSupportedException("Scored diagnostic execution requires the GPU renderer.");
                     diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
@@ -193,12 +198,21 @@ internal sealed partial class RecreateGame
                             driver.ShotCycle!.Opened(ObserveDiagnosticShot(active));
                         }
                     }
+                    diagnosticPresentation?.Write("started", observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow);
+                }
+                if (driver.Stage == DiagnosticDriverStage.AwaitPresentation)
+                {
+                    diagnosticPresentation!.Ready(observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow);
+                }
+                if (previousStage != DiagnosticDriverStage.PresentationHold && driver.Stage == DiagnosticDriverStage.PresentationHold)
+                {
+                    diagnosticPresentation!.Write("completed", observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow);
                 }
                 if (diagnosticDriverRecipe.FreshEntry is null && previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
                 {
                     diagnosticTelemetry.MarkDrained(presentedTimestamp);
                 }
-                if (previousStage == DiagnosticDriverStage.Tail && driver.Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Completed)
+                if (previousStage == DiagnosticDriverStage.Tail && driver.Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Completed or DiagnosticDriverStage.PresentationHold)
                 {
                     diagnosticTelemetry.Complete(diagnosticPresentedFrames, true, diagnosticDriverRecipe!.TailFrames, null);
                     if (driver.Stage == DiagnosticDriverStage.Readiness && diagnosticDriverRecipe.Repairs.Length > 0)
@@ -221,7 +235,7 @@ internal sealed partial class RecreateGame
                 }
             }
         }
-        catch (Exception exception) when (exception is NotSupportedException or InvalidOperationException or InvalidDataException or ArgumentException or IOException)
+        catch (Exception exception) when (exception is NotSupportedException or InvalidOperationException or InvalidDataException or ArgumentException or IOException or JsonException or KeyNotFoundException or FormatException)
         {
             driver.Fail($"DRIVER_PREREQUISITE: {exception.GetType().Name}: {exception.Message}");
         }
@@ -251,6 +265,10 @@ internal sealed partial class RecreateGame
 
     private void FinalizeDiagnosticDriverCore(DiagnosticBattleDriver driver)
     {
+        if (driver.Stage == DiagnosticDriverStage.Blocked)
+        {
+            diagnosticPresentation?.Write("blocked", diagnosticDriverBattle?.NativeHostCallbacks ?? -1, diagnosticPresentedFrames, DateTimeOffset.UtcNow, driver.Blocker);
+        }
         ReleaseDiagnosticTerminalHold(diagnosticDriverBattle!);
         PublishDiagnosticDriverProgress();
         diagnosticTelemetry!.Complete(diagnosticPresentedFrames, false, 0, driver.Blocker);

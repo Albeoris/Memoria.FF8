@@ -14,6 +14,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public double OverallTimeoutSeconds { get; init; } = 300;
     public int TailFrames { get; init; } = 2;
     public string? ProgressPath { get; init; }
+    public DiagnosticPresentationDeclaration? Presentation { get; init; }
     public bool RequiresCapabilityAdapter { get; init; }
     public bool RequiresCombatRepairs { get; init; }
     public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
@@ -36,6 +37,11 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Diagnostic driver requires a semantic input.");
         }
         Input.Validate();
+        Presentation?.Validate();
+        if (Presentation is not null && (FreshEntry is not null || ShotCycle is not null || CounterCycle is not null || Repairs is null || Repairs.Length != 0 || TerminalHold is not null))
+        {
+            throw new InvalidDataException("Presentation requires one ordinary invocation without composed cycles, fresh-entry scoring or rearm protocols.");
+        }
         FreshEntry?.Validate();
         if (FreshEntry is not null && (ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0 || Repairs is null || Repairs.Length != 0 || TerminalHold is not null || ExpectedNativeCommand == 250))
         {
@@ -98,9 +104,11 @@ internal enum DiagnosticDriverStage
 {
     Readiness,
     Baseline,
+    AwaitPresentation,
     AwaitDispatch,
     Drain,
     Tail,
+    PresentationHold,
     Completed,
     Blocked
 }
@@ -294,7 +302,7 @@ internal sealed class DiagnosticBattleDriver
         }
     }
 
-    internal bool Advance(DiagnosticDriverObservation observation)
+    internal bool Advance(DiagnosticDriverObservation observation, bool presentationReleased = false)
     {
         if (Finished)
         {
@@ -343,6 +351,19 @@ internal sealed class DiagnosticBattleDriver
                 stageStarted = observation.Seconds;
             }
             else if (observation.Seconds - stageStarted >= recipe.BaselineSeconds)
+            {
+                Stage = recipe.Presentation is null ? DiagnosticDriverStage.AwaitDispatch : DiagnosticDriverStage.AwaitPresentation;
+                executionStarted = observation.Seconds;
+                return recipe.Presentation is null;
+            }
+        }
+        else if (Stage == DiagnosticDriverStage.AwaitPresentation)
+        {
+            if (!observation.Ready || !observation.Drained)
+            {
+                Fail("PRESENTATION_READINESS_LOST");
+            }
+            else if (presentationReleased)
             {
                 Stage = DiagnosticDriverStage.AwaitDispatch;
                 executionStarted = observation.Seconds;
@@ -401,13 +422,17 @@ internal sealed class DiagnosticBattleDriver
             }
             else if (observation.PresentedFrame - tailStarted >= recipe.TailFrames)
             {
-                Stage = recipe.FreshEntry is not null || Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
-                if (recipe.FreshEntry is null)
+                Stage = recipe.Presentation is not null ? DiagnosticDriverStage.PresentationHold : recipe.FreshEntry is not null || Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
+                if (recipe.FreshEntry is null && recipe.Presentation is null)
                 {
                     Execution = 2;
                 }
                 stageStarted = observation.Seconds;
             }
+        }
+        else if (Stage == DiagnosticDriverStage.PresentationHold && observation.Seconds - stageStarted >= recipe.Presentation!.TailSeconds)
+        {
+            Stage = DiagnosticDriverStage.Completed;
         }
         return false;
     }
