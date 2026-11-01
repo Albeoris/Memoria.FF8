@@ -112,6 +112,37 @@ public sealed class FieldPresentationTests
     }
 
     [Theory]
+    [InlineData(8, 7, -16, 7)]
+    [InlineData(0, 15.9375f, -16, -0.0625f)]
+    [InlineData(7, 8, 16, 8)]
+    [InlineData(15, 0, 16, 16)]
+    [InlineData(8, 8, 0, 8)]
+    [InlineData(8, 6, -32, 6)]
+    public void Captured_ladder_animation_uses_its_signed_callback_step(float first, float last, int callbackStep, float expectedCurrent)
+    {
+        JsonObject state = JsonNode.Parse(JsonSerializer.Serialize(new ActorState(1, 0)))!.AsObject();
+        state["AnimationFirst"] = 0;
+        state["AnimationLast"] = 15;
+        state["AnimationLoop"] = true;
+        state["AnimationSpeed"] = 16;
+        ActorState actor = state.Deserialize<ActorState>()!;
+        typeof(ActorState).GetProperty("PresentationAnimationStep")!.SetValue(actor, callbackStep);
+        ActorVisual visual = new(1, 0, 0, 0, 0, 0, 0, first, true);
+        FieldActorSample previous = GameWorld.CaptureFieldActor(actor, visual, 16);
+        FieldActorSample current = GameWorld.CaptureFieldActor(actor, visual with { AnimationFrame = last }, 16);
+        object scene = new();
+        FieldPresentationFrame before = Frame(scene, 7, previous);
+        FieldPresentationFrame after = Frame(scene, 8, current);
+        FieldAnimationBlend blend = Assert.Single(Prime(before, after).Sample(after, 0.5f, true).Actors).AnimationBlend!.Value;
+        Assert.Equal(callbackStep, current.AnimationStep);
+        Assert.Equal(first, blend.PreviousFrame);
+        Assert.Equal(expectedCurrent, blend.CurrentFrame);
+        Assert.Equal((first + expectedCurrent) / 2, float.Lerp(blend.PreviousFrame, blend.CurrentFrame, blend.Fraction));
+        Assert.Equal(0.5f, blend.Fraction);
+        Assert.True(blend.Loop);
+    }
+
+    [Theory]
     [InlineData("scene")]
     [InlineData("camera")]
     [InlineData("instant camera")]

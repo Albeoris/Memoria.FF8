@@ -335,6 +335,10 @@ public sealed partial class EventEngine
 
     private void StepFieldCallback()
     {
+        foreach (ActorState actor in actors)
+        {
+            actor.PresentationAnimationStep = null;
+        }
         if (LastFault is EventFault fault)
         {
             throw new EventScriptException(fault.Message);

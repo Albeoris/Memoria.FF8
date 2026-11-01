@@ -22,6 +22,8 @@ public sealed class ActorState
     public long PresentationPositionRevision { get; internal set; }
     [JsonIgnore]
     public long PresentationAnimationRevision { get; internal set; }
+    [JsonIgnore]
+    public int? PresentationAnimationStep { get; internal set; }
     [JsonInclude]
     public int ModelId { get; internal set; } = -1;
     [JsonIgnore]

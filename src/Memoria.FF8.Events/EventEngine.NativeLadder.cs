@@ -128,6 +128,8 @@ public sealed partial class EventEngine
     private void StepLadderAnimation(ActorState actor, int animation, int step, bool footsteps = false)
     {
         step = unchecked((sbyte)step);
+        // The renderer must unwrap this callback in the direction actually used by the physical controller.
+        actor.PresentationAnimationStep = step * unchecked((ushort)actor.AnimationSpeed);
         int total = checked(AnimationFrameCount!(actor.RenderModelId, animation) * 16);
         ushort frame = actor.AnimationId == animation ? unchecked((ushort)(int)(actor.AnimationFrame * 16)) : (ushort)0;
         SelectFullNativeAnimation(actor, animation, actor.AnimationId != animation, false);

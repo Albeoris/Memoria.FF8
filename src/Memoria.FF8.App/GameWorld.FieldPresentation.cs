@@ -70,6 +70,6 @@ internal sealed partial class GameWorld
         {
             terminal = Math.Min(terminal, count);
         }
-        return new FieldActorSample(actor, actor.PresentationPositionRevision, actor.PresentationAnimationRevision, visual, first, terminal, customAnimation || actor.AnimationLoop, customAnimation ? 1 : actor.AnimationSpeed);
+        return new FieldActorSample(actor, actor.PresentationPositionRevision, actor.PresentationAnimationRevision, visual, first, terminal, customAnimation || actor.AnimationLoop, customAnimation ? 1 : actor.PresentationAnimationStep ?? actor.AnimationSpeed);
     }
 }

@@ -146,7 +146,43 @@ internal static partial class Program
         NativeLadderAutomaticContract();
         NativeLadderRequestContract();
         NativeLadderTraceWriteBeforeReadContract();
+        NativeLadderPresentationStepContract();
         Console.WriteLine("Native mode4 ladder: fullDWORD coordinates, old-counter phases, direction masks/priority, mapped held input, triangle transfer, return2 successor and independent restore passed.");
+    }
+
+    private static void NativeLadderPresentationStepContract()
+    {
+        foreach (bool up in new[] { false, true })
+        {
+            EventEngine live = CreateNativeLadder(up);
+            ReachNativeLadderClimb(live);
+            ActorState actor = live.Actors[0];
+            int forward = up ? 0x3000 : 0xC000;
+            int reverse = up ? 0xC000 : 0x3000;
+            int forwardStep = up ? 16 : -16;
+            NativeLadderButtons(live, forward);
+            live.Step();
+            Require(actor.PresentationAnimationStep == forwardStep, "Ladder presentation lost the signed forward animation step.");
+            JsonElement saved = live.Capture();
+            Require(saved.GetProperty("Actors").EnumerateArray().All(savedActor => !savedActor.TryGetProperty("PresentationAnimationStep", out _)), "Transient ladder presentation step leaked into the standalone save.");
+            EventEngine restored = CreateNativeLadder(up);
+            restored.Restore(saved);
+            Require(restored.Actors.All(restoredActor => restoredActor.PresentationAnimationStep is null), "Restored ladder inherited a transient presentation step.");
+            NativeLadderButtons(live, reverse);
+            live.Step();
+            Require(actor.PresentationAnimationStep == -forwardStep, "Ladder presentation lost the signed reverse animation step.");
+            NativeLadderButtons(live, 0);
+            live.Step();
+            Require(actor.PresentationAnimationStep == 0, "Idle ladder retained the preceding moving presentation step.");
+            NativeLadderButtons(live, forward);
+            for (int update = 0; update < 20 && actor.NativeLadder is { Active: true }; update++)
+            {
+                live.Step();
+            }
+            Require(actor.NativeLadder is not { Active: true }, "Presentation-step fixture did not finish its ladder.");
+            live.Step();
+            Require(actor.PresentationAnimationStep is null, "Completed ladder retained its transient animation step on an ordinary callback.");
+        }
     }
 
     private static void NativeLadderTraceWriteBeforeReadContract()
