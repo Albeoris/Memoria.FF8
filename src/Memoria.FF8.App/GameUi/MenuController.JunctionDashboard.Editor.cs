@@ -557,7 +557,7 @@ public sealed partial class MenuController
             junctionPlan = null;
             junctionReview = false;
             junctionEditor = "";
-            junctionFocus = junctionOrigin.StartsWith("assigned-", StringComparison.Ordinal) && Character?.GuardianForceIds.Contains(junctionOrigin[9..]) != true ? "manage-gfs" : junctionOrigin;
+            junctionFocus = junctionOrigin;
             Message = J("applied", "Junction changes applied.");
             if (firstCommands && Character is { AvailableCommands.Count: > 0 } after && after.CommandIds.All(id => id == "0"))
             {
@@ -671,10 +671,16 @@ public sealed partial class MenuController
             _view = null;
             return;
         }
+        if (JunctionAdjacentCharacter(delta) is not { } next)
+        {
+            return;
+        }
         string focus = junctionEditor.Length > 0 ? junctionOrigin : junctionFocus;
         CancelJunctionEditor();
         junctionFocus = focus;
-        ChangePageSubject(delta);
+        _characterId = next.Id;
+        _magicId = "";
+        _abilitySlot = Math.Clamp(_abilitySlot, 0, Math.Max(0, next.AbilitySlots - 1));
         _view = null;
     }
 
@@ -690,7 +696,7 @@ public sealed partial class MenuController
             string assigned = actor.Junctions.GetValueOrDefault(slot) ?? J("none", "None");
             return actor.Name + " · " + StatText(slot) + " · " + assigned + (junctionDashboard.IsPinned(actor.Id, slot) ? " · " + J("pinned", "Pinned") : "");
         }
-        if (junctionFocus.StartsWith("assigned-", StringComparison.Ordinal) && Data.GuardianForces.FirstOrDefault(force => "assigned-" + force.Id == junctionFocus) is { } gf)
+        if (junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal) && Data.GuardianForces.FirstOrDefault(force => "gf-portrait-" + force.Id == junctionFocus) is { } gf)
         {
             return gf.Name + " · " + J("learning", "Learning") + ": " + gf.Learning;
         }
@@ -824,7 +830,7 @@ public sealed partial class MenuController
         }
         if (input is MenuInput.Tab or MenuInput.ReverseTab or MenuInput.FocusLeft or MenuInput.FocusRight)
         {
-            string[] groups = ["manage-gfs", "slot-HP", "slot-Elem-Atk", "slot-ST-Atk", "elemental-attack", "status-attack", "command-0", "passive-0", "candidate-" + (JunctionCandidates().FirstOrDefault()?.Id ?? "0"), "junction-undo", "optimize", "junction-back"];
+            string[] groups = [JunctionGfFocusId, "slot-HP", "slot-Elem-Atk", "slot-ST-Atk", "elemental-attack", "status-attack", "command-0", "passive-0", "candidate-" + (JunctionCandidates().FirstOrDefault()?.Id ?? "0"), "junction-undo", "optimize", "junction-back"];
             UiElement[] controls = FocusableDescendants(view.Root).Where(element => groups.Contains(element.Id)).ToArray();
             int index = Array.FindIndex(controls, element => element.Id == junctionFocus);
             int delta = input is MenuInput.ReverseTab or MenuInput.FocusLeft ? -1 : 1;

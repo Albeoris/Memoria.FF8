@@ -54,15 +54,22 @@ public sealed class JunctionDashboardRenderTests
                 Assert.True(overlap.Width <= 0.01f || overlap.Height <= 0.01f, $"Overlapping controls: {assignments[first].Id}, {assignments[second].Id}");
             }
         }
-        HashSet<string> essentialNames = data.Magic.Select(spell => spell.Name).Concat(data.GuardianForces.Select(force => force.Name)).Concat(data.Characters[0].Abilities).Concat(data.Characters[0].JunctionEffects!.Elements.Select(effect => effect.Name)).Concat(data.Characters[0].JunctionEffects!.Statuses.Select(effect => effect.Name)).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> essentialNames = data.Magic.Select(spell => spell.Name).Concat(data.Characters[0].Abilities).Concat(data.Characters[0].JunctionEffects!.Elements.Select(effect => effect.Name)).Concat(data.Characters[0].JunctionEffects!.Statuses.Select(effect => effect.Name)).ToHashSet(StringComparer.Ordinal);
         foreach (var text in canvas.Texts.Where(text => essentialNames.Contains(text.Value) || text.Value.EndsWith('%')))
         {
             Assert.True(text.Measured.Width <= text.Bounds.Width + 1, $"Text width: {text.Value}, needs {text.Measured.Width}, has {text.Bounds.Width}");
             Assert.True(text.Measured.Height <= text.Bounds.Height + 1, $"Text height: {text.Value}, needs {text.Measured.Height}, has {text.Bounds.Height}");
         }
-        foreach (string gf in data.GuardianForces.Select(force => force.Name))
+        UiImage[] guardianPortraits = elements.OfType<UiImage>().Where(image => image.Source?.Kind == UiImageKind.GuardianForcePortrait).ToArray();
+        Assert.Equal(16, guardianPortraits.Length);
+        for (int index = 0; index < guardianPortraits.Length; index++)
         {
-            Assert.Contains(canvas.Texts, text => text.Value.Contains(gf, StringComparison.Ordinal));
+            UiImage portrait = guardianPortraits[index];
+            Assert.Equal(data.GuardianForces[index].NativeId, portrait.Source?.Id);
+            Assert.Equal((byte)255, portrait.Source?.Opacity);
+            Assert.InRange(Math.Abs(portrait.Bounds.Width - portrait.Bounds.Height), 0, 0.01f);
+            Assert.InRange(Math.Abs(portrait.Bounds.Y - guardianPortraits[0].Bounds.Y), 0, 0.01f);
+            AssertContained(portrait.Bounds, view.Root.Bounds);
         }
         Assert.Contains(canvas.Texts, text => text.Value == "150%");
         Assert.Contains(canvas.Texts, text => text.Value == "0%");
@@ -197,7 +204,7 @@ public sealed class JunctionDashboardRenderTests
     private static MenuData MaximumFixture()
     {
         MenuData data = new();
-        MenuCharacter character = new() { Id = "character-0", Name = "Squall", Level = 100, CurrentHp = 9999, MaximumHp = 9999, AbilitySlots = 4 };
+        MenuCharacter character = new() { Id = "character-0", NativeId = 0, Name = "Squall", Level = 100, CurrentHp = 9999, MaximumHp = 9999, AbilitySlots = 4 };
         character.Commands.AddRange(["Mug", "Magic", "Draw", "--"]);
         character.CommandIds.AddRange(["20", "22", "0"]);
         character.AvailableCommands.AddRange([new("20", "Magic", true), new("21", "GF", true), new("22", "Draw", true), new("23", "Item", true)]);
@@ -228,7 +235,7 @@ public sealed class JunctionDashboardRenderTests
         for (int index = 0; index < 16; index++)
         {
             string id = "gf-" + index;
-            data.GuardianForces.Add(new() { Id = id, Name = "Guardian " + index });
+            data.GuardianForces.Add(new() { Id = id, NativeId = index, Name = "Guardian " + index, Owner = new(character.Id, character.NativeId, character.Name) });
             character.GuardianForceIds.Add(id);
         }
         data.Characters.Add(character);
@@ -263,7 +270,7 @@ public sealed class JunctionDashboardRenderTests
         }
         public UiSize MeasureText(string text, float fontSize, float maximumWidth) => renderer.MeasureText(text, fontSize, maximumWidth);
         public UiSize MeasureText(string text, float fontSize, float maximumWidth, string? family) => renderer.MeasureText(text, fontSize, maximumWidth, family);
-        public void Image(UiImageSource source, UiRect bounds) => renderer.Fill(bounds, new UiColor(70, 100, 125));
+        public void Image(UiImageSource source, UiRect bounds) => renderer.Fill(bounds, new UiColor(70, 100, 125, source.Opacity));
         public void MenuPointer(UiRect bounds) => renderer.Fill(bounds, new UiColor(240, 205, 80));
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness) => renderer.Line(x1, y1, x2, y2, color, thickness);
         public void PushClip(UiRect bounds) => renderer.PushClip(bounds);

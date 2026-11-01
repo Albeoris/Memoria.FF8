@@ -203,8 +203,8 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Vitals.Records[7] = fixture.Vitals.Records[7] with { MemberFlags = 0 };
         fixture.Refresh();
         Assert.DoesNotContain(fixture.Data.Characters, actor => actor.Id == "character-7");
-        fixture.Hit("manage-gfs");
-        fixture.Hit("candidate-gf-0");
+        fixture.Hit("gf-portrait-gf-0");
+        Assert.Equal("candidate-gf-0", fixture.Menu.BuildView().FocusedElement?.Id);
         Assert.Equal(0, fixture.Actions);
         fixture.Apply();
         Assert.Contains(0, fixture.Vitals.Records[0].Junction.GuardianForceAssignments);

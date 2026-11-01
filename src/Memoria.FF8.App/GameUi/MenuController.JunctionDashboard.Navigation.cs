@@ -6,7 +6,7 @@ internal sealed record JunctionDashboardNavigationState(string Editor, string Or
 
 public sealed partial class MenuController
 {
-    private IReadOnlyList<MenuEntry> JunctionDashboardEntries() => FocusableDescendants(BuildView().Root).OfType<UiButton>().Select(button => new MenuEntry(button.Id ?? "", button.Text, J("select-preview", "Select · Preview"), Action: new MenuAction("junction-ui", button.Id ?? ""), Enabled: button.Enabled)).ToArray();
+    private IReadOnlyList<MenuEntry> JunctionDashboardEntries() => FocusableDescendants(BuildView().Root).OfType<UiButton>().Select(button => new MenuEntry(button.Id ?? "", JunctionControlLabel(button), J("select-preview", "Select · Preview"), Action: new MenuAction("junction-ui", button.Id ?? ""), Enabled: button.Enabled)).ToArray();
 
     internal JunctionDashboardNavigationState CaptureJunctionDashboard() => new(junctionEditor, junctionOrigin, junctionCandidate, junctionReview, junctionPriority, junctionFocus, junctionCandidatePage, junctionImpactPage, junctionSearch, junctionSort, junctionDashboard.ElementalDirection, junctionDashboard.StatusDirection, junctionReviewedAction);
 

@@ -14,7 +14,7 @@ public sealed class MenuPresentationTests
         Assert.IsType<VectorUiTheme>(menu.CreateTheme());
         menu.Open("main", demo: true);
         menu.Push("junction-options");
-        menu.Execute(new("junction-ui", "manage-gfs"));
+        menu.Execute(new("junction-ui", "gf-portrait-0"));
         MenuNavigationState navigation = menu.CaptureNavigation();
         Assert.NotEmpty(navigation.History);
         string saved = JsonSerializer.Serialize(navigation);

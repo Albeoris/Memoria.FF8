@@ -11,7 +11,7 @@ public sealed class JunctionNavigationTests
     [InlineData("junction-status", "slot-ST-Atk")]
     [InlineData("junction-command", "command-0")]
     [InlineData("junction-ability", "passive-0")]
-    [InlineData("junction-gf", "manage-gfs")]
+    [InlineData("junction-gf", "gf-portrait-0")]
     public void OrdinaryLegacyEntriesSelectTheCorrespondingPersistentDashboardGroup(string screen, string focus)
     {
         MenuController menu = new();

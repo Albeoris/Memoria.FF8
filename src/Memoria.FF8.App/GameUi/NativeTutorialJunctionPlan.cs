@@ -182,6 +182,12 @@ internal static class NativeTutorialJunctionPlan
             throw new InvalidDataException($"Original tutorial {id} has an unresolved native input WORD.");
         }
         Dictionary<int, NativeTutorialMenuStep> dashboard = [];
+        int firstGuardianForce = Array.FindIndex(party.GuardianForces, force => (force.Flags & 1) != 0);
+        if (firstGuardianForce < 0)
+        {
+            throw new NotSupportedException("The Junction lesson requires an acquired GF portrait.");
+        }
+        string firstPortrait = $"gf-portrait-gf-{firstGuardianForce}";
         string commandPosition = "1";
         string passivePosition = "0";
         foreach ((int position, NativeTutorialMenuStep step) in steps.OrderBy(pair => pair.Key))
@@ -194,17 +200,17 @@ internal static class NativeTutorialJunctionPlan
             {
                 passivePosition = passive;
             }
-            dashboard.Add(position, Dashboard(step, step.ScreenId == "junction-command-choice" ? commandPosition : passivePosition));
+            dashboard.Add(position, Dashboard(step, step.ScreenId == "junction-command-choice" ? commandPosition : passivePosition, firstPortrait));
         }
         return dashboard;
     }
 
-    private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition)
+    private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition, string firstPortrait)
     {
         NativeTutorialMenuStep Target(string control, NativeTutorialPress press = NativeTutorialPress.Select, params string[] preparation) => new("junction-dashboard", control, press, step.CharacterId, DashboardPreparation: preparation);
         if (step.Press == NativeTutorialPress.Cancel)
         {
-            return Target(step.ScreenId switch { "junction-element" => "slot-Elem-Atk", "junction-status" => "slot-ST-Atk", "junction-gf" or "gf-abilities" => "manage-gfs", _ => "slot-HP" });
+            return Target(step.ScreenId switch { "junction-element" => "slot-Elem-Atk", "junction-status" => "slot-ST-Atk", "junction-gf" or "gf-abilities" => firstPortrait, _ => "slot-HP" });
         }
         if (step.ScreenId == "junction-stock")
         {
@@ -212,7 +218,7 @@ internal static class NativeTutorialJunctionPlan
         }
         if (step.ScreenId == "junction-gf")
         {
-            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "manage-gfs");
+            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "gf-portrait-" + step.EntryId);
         }
         if (step.ScreenId is "junction-command-choice" or "junction-ability-choice")
         {
@@ -239,6 +245,6 @@ internal static class NativeTutorialJunctionPlan
             string priority = step.EntryId switch { "magic" => "Magic", "defense" => "Defense", _ => "Attack" };
             return Target("priority-" + priority, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "junction-actions", "optimize");
         }
-        return Target(step.EntryId switch { "junction-gf" or "junction-options" => "manage-gfs", "junction-auto" => "optimize", "junction-off" => "junction-actions", _ => "slot-HP" }, NativeTutorialPress.Select, step.EntryId == "junction-auto" ? ["junction-actions"] : []);
+        return Target(step.EntryId switch { "junction-gf" or "junction-options" => firstPortrait, "junction-auto" => "optimize", "junction-off" => "junction-actions", _ => "slot-HP" }, NativeTutorialPress.Select, step.EntryId == "junction-auto" ? ["junction-actions"] : []);
     }
 }

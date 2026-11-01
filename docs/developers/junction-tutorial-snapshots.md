@@ -4,6 +4,8 @@ Junction lessons use the same dashboard, candidate previews, consequences review
 
 Tutorial playback snapshot version **2** records the dashboard destination, candidate, review, priority, focus, paging, search, sort and both effect-table directions. Restoring a pending preview reconstructs its proposal from the saved isolated party and current authenticated rules. The committed assignment and statistics remain visible until Apply.
 
+The GF steps target acquired GF portraits directly. Earlier version 1 or 2 dashboard snapshots that reference the removed GF-management button have their recognized focus/origin mapped to the first acquired GF portrait. The selected candidate and isolated party remain unchanged; this is a navigation adaptation without rewriting external snapshot files.
+
 Version **1** is accepted through a narrow in-memory adapter when its resource hash, initialization hashes, immutable definitions and program boundary still match:
 
 - Only the isolated tutorial copy is adapted. The supplied snapshot JSON and the loaded game party remain unchanged. Saving playback afterward produces version 2; no archive or external save file is rewritten.

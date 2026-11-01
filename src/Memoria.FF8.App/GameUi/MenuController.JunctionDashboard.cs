@@ -73,7 +73,7 @@ public sealed partial class MenuController
         junctionVisited.Clear();
         junctionFocus = screen switch
         {
-            "junction-gf" => "manage-gfs",
+            "junction-gf" => "junction-gfs",
             "junction-command" or "junction-command-choice" => "command-0",
             "junction-ability" or "junction-ability-choice" => "passive-0",
             "junction-element" => "slot-Elem-Atk",
@@ -167,6 +167,10 @@ public sealed partial class MenuController
     private UiElement BuildJunctionDashboard()
     {
         EnsureJunctionSession();
+        if (junctionFocus is "junction-gfs" or "manage-gfs")
+        {
+            junctionFocus = JunctionGfFocusId;
+        }
         if (junctionFocus.StartsWith("slot-", StringComparison.Ordinal))
         {
             junctionDashboard.SetDestination(junctionFocus[5..]);
@@ -236,40 +240,88 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionHeader()
     {
-        UiGrid header = Grid([1], [44, 250, 44, 380, 250], 8);
-        Place(header, JunctionButton("previous-character", "‹", () => SwitchJunctionCharacter(-1), !junctionReview), 0);
+        UiGrid header = new() { Gap = 8 };
+        header.RowDefinitions.Add(UiGridLength.Star());
+        header.ColumnDefinitions.Add(UiGridLength.Pixel(44));
+        header.ColumnDefinitions.Add(UiGridLength.Star(250));
+        header.ColumnDefinitions.Add(UiGridLength.Star(380));
+        header.ColumnDefinitions.Add(UiGridLength.Pixel(JunctionAccessible && junctionViewportWidth < 850 ? 96 : 250));
+        UiImage face = Portrait(Character);
+        face.Id = "junction-character-portrait";
+        Place(header, face, 0);
         UiGrid identity = JunctionRows([14, 0], [1]);
         Place(identity, JunctionLabel(J("title", "Junction"), 11, true), 0);
         Place(identity, JunctionLabel($"{Character?.Name}   {J("level", "Lv")} {Number(Character?.Level)}", 23), 1);
         Place(header, identity, 0, 1);
-        Place(header, JunctionButton("next-character", "›", () => SwitchJunctionCharacter(1), !junctionReview), 0, 2);
         UiGrid hp = JunctionRows([0, 5], [1], 4);
         Place(hp, JunctionLabel("HP  " + (Character is null ? "—" : Hp(Character)), 22), 0);
         Place(hp, new UiProgressBar { Min = 0, Max = Math.Max(1, Character?.MaximumHp ?? 1), Value = Character?.CurrentHp ?? 0 }, 1);
-        Place(header, hp, 0, 3);
-        int count = Character?.CommandIds.Count(id => id != "0") ?? 0;
-        Place(header, JunctionButton("command-attention", J("commands", "Commands") + $" {count} / 3", () => OpenJunctionEditor("command", "command-0")), 0, 4);
+        Place(header, hp, 0, 2);
+        UiGrid navigation = new() { Gap = 8 };
+        navigation.RowDefinitions.Add(UiGridLength.Star());
+        navigation.ColumnDefinitions.Add(UiGridLength.Star());
+        int column = 1;
+        foreach (int direction in new[] { -1, 1 })
+        {
+            if (JunctionAdjacentCharacter(direction) is not { } neighbor)
+            {
+                continue;
+            }
+            string id = direction < 0 ? "previous-character" : "next-character";
+            navigation.ColumnDefinitions.Add(UiGridLength.Pixel(44));
+            UiButton button = JunctionButton(id, "", () => SwitchJunctionCharacter(direction), !junctionReview);
+            button.DrawBackground = false;
+            UiImage portrait = Portrait(neighbor);
+            portrait.Id = id + "-portrait";
+            button.Children.Add(portrait);
+            Place(navigation, button, 0, column++);
+        }
+        Place(header, navigation, 0, 3);
         return header;
     }
 
     private UiElement BuildJunctionGfs()
     {
-        UiGrid body = JunctionRows([20, 0], [1]);
-        UiGrid heading = Grid([1], [3, 1]);
-        Place(heading, JunctionLabel(J("guardian-forces", "Guardian Forces") + $" · {Character?.GuardianForceIds.Count ?? 0}", 13, true), 0);
-        Place(heading, JunctionButton("manage-gfs", J("manage-gfs", "Manage GFs"), () => OpenJunctionEditor("gf", "manage-gfs"), size: 13), 0, 1);
-        Place(body, heading, 0);
-        int columns = JunctionAccessible && junctionViewportWidth < 850 ? 4 : 8;
-        UiGrid chips = Grid(Enumerable.Repeat(1f, 16 / columns).ToArray(), Enumerable.Repeat(1f, columns).ToArray(), 3);
-        string[] ids = Character?.GuardianForceIds.ToArray() ?? [];
-        for (int index = 0; index < ids.Length; index++)
+        JunctionGuardianPortraitRow portraits = new() { Id = "junction-gf-portraits" };
+        foreach (MenuGuardianForce force in Data.GuardianForces.Take(16))
         {
-            string id = ids[index];
-            string name = Data.GuardianForces.FirstOrDefault(force => force.Id == id)?.Name ?? id;
-            Place(chips, JunctionButton("assigned-" + id, name, () => OpenJunctionEditor("gf", "assigned-" + id, id), size: 15), index / columns, index % columns);
+            string id = force.Id;
+            bool assigned = Character?.GuardianForceIds.Contains(id) == true;
+            bool foreign = force.Owner is { } owner && owner.Id != Character?.Id;
+            bool selected = junctionFocus == "gf-portrait-" + id || junctionEditor == "gf" && junctionCandidate == id && !junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal);
+            UiGrid content = JunctionRows([20, 0], [1]);
+            UiImage ownerPortrait = new()
+            {
+                Id = "gf-owner-" + id,
+                Source = foreign && force.Owner?.NativeId is int ownerId ? new UiImageSource(UiImageKind.CharacterPortrait, ownerId) : null,
+                Visible = foreign && selected
+            };
+            Place(content, ownerPortrait, 0);
+            Place(content, new UiImage
+            {
+                Id = "gf-image-" + id,
+                Source = force.NativeId is int nativeId ? new UiImageSource(UiImageKind.GuardianForcePortrait, nativeId, Opacity: assigned ? (byte)255 : (byte)128) : null
+            }, 1);
+            UiButton button = JunctionButton("gf-portrait-" + id, "", () => OpenJunctionEditor("gf", "gf-portrait-" + id, id));
+            button.DrawBackground = false;
+            button.Children.Add(content);
+            button.FocusChanged = focused =>
+            {
+                ownerPortrait.Visible = foreign && (focused || junctionEditor == "gf" && junctionCandidate == id && !junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal));
+                if (focused)
+                {
+                    bool changed = junctionFocus != button.Id;
+                    junctionFocus = button.Id!;
+                    junctionSearchEditing = false;
+                    if (changed)
+                    {
+                        _view = null;
+                    }
+                }
+            };
+            portraits.Children.Add(button);
         }
-        Place(body, chips, 1);
-        return JunctionPanel(body);
+        return JunctionPanel(portraits);
     }
 
     private UiElement BuildJunctionStats()

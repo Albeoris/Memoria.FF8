@@ -320,7 +320,7 @@ internal sealed partial class NativeTutorialPlayer
     {
         (string Key, string Text) message = definition.Id switch
         {
-            0 when pc < 136 => ("gfs", "All junction assignments stay on this dashboard. Open Manage GFs to inspect a GF and preview attaching it."),
+            0 when pc < 136 => ("gfs", "All junction assignments stay on this dashboard. Select an acquired GF portrait to inspect that GF and preview attaching it."),
             0 when pc < 303 => ("commands", "Attaching a GF unlocks learned capabilities. Commands are separate assignments: choose each command position and inspect its choices."),
             0 when pc < 379 => ("command-preview", "A highlighted choice is a preview. Apply equips it; Cancel keeps the current command. The fixed basic action is separate from the three configurable commands."),
             0 => ("passives", "Passive abilities occupy their own stable positions. Choose a learned passive, inspect its consequences and Apply it."),
@@ -440,13 +440,28 @@ internal sealed partial class NativeTutorialPlayer
         }
         else
         {
-            Menu.RestoreNavigation(saved.Navigation);
+            Menu.RestoreNavigation(AdaptGuardianPortraitNavigation(saved.Navigation));
         }
         if (Menu.Entries.Count > 0 && Menu.SelectedIndex >= Menu.Entries.Count || Menu.IsSelectingCharacter && Menu.CharacterSelectionIndex >= Menu.CharacterChoices.Count)
         {
             throw new InvalidDataException("Saved tutorial cursor is outside its current command or character choices.");
         }
         UpdateMessage();
+    }
+
+    private MenuNavigationState AdaptGuardianPortraitNavigation(MenuNavigationState saved)
+    {
+        if (saved.JunctionDashboard is not { } dashboard || dashboard.Origin != "manage-gfs" && dashboard.Focus != "manage-gfs")
+        {
+            return saved;
+        }
+        int firstGuardianForce = Array.FindIndex(party.GuardianForces, force => (force.Flags & 1) != 0);
+        if (firstGuardianForce < 0)
+        {
+            throw new InvalidDataException("This earlier tutorial's GF control has no acquired portrait to restore.");
+        }
+        string portrait = $"gf-portrait-gf-{firstGuardianForce}";
+        return saved with { JunctionDashboard = dashboard with { Origin = dashboard.Origin == "manage-gfs" ? portrait : dashboard.Origin, Focus = dashboard.Focus == "manage-gfs" ? portrait : dashboard.Focus } };
     }
 
     private void RestoreLegacyJunctionNavigation(MenuNavigationState saved)
@@ -472,7 +487,7 @@ internal sealed partial class NativeTutorialPlayer
         {
             Menu.Open("junction");
             Menu.Execute(new MenuAction("select-character", expectedCharacter));
-            string origin = step.DashboardPreparation?.LastOrDefault(control => control.StartsWith("slot-", StringComparison.Ordinal) || control.StartsWith("command-", StringComparison.Ordinal) || control.StartsWith("passive-", StringComparison.Ordinal) || control == "manage-gfs") ?? "slot-HP";
+            string origin = step.DashboardPreparation?.LastOrDefault(control => control.StartsWith("slot-", StringComparison.Ordinal) || control.StartsWith("command-", StringComparison.Ordinal) || control.StartsWith("passive-", StringComparison.Ordinal) || control.StartsWith("gf-portrait-", StringComparison.Ordinal)) ?? "slot-HP";
             Menu.SelectEntry("junction-dashboard", origin, allowDisabled: true);
             return;
         }

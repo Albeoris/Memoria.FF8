@@ -228,6 +228,68 @@ public sealed class NativeTutorialBindingsTests
         Assert.Throws<NotSupportedException>(() => new NativeTutorialPlayer(catalog, menus, 1, JsonSerializer.SerializeToElement(unsupportedCommand)));
     }
 
+    [Fact]
+    public void GuardianLessonUsesAcquiredPortraitTargetsAndPreservesItsInputBoundaries()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        NativeCharacterVitals party = catalog.CreateIsolatedParty(0);
+        IReadOnlyDictionary<int, NativeTutorialMenuStep> steps = NativeTutorialJunctionPlan.Create(0, catalog.Get(0), party);
+        Assert.DoesNotContain(steps.Values, step => step.EntryId == "manage-gfs" || step.DashboardPreparation?.Contains("manage-gfs") == true);
+        Assert.Equal("gf-portrait-gf-0", steps[58].EntryId);
+        Assert.Equal("candidate-gf-1", steps[122].EntryId);
+        Assert.Equal(new[] { "gf-portrait-gf-1" }, steps[122].DashboardPreparation);
+        Assert.Equal(NativeTutorialPress.ApplyDashboard, steps[136].Press);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void EarlierGuardianDashboardControlRestoresToAnAcquiredPortraitWithoutChangingItsCandidate(int version)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        LiveMenuCatalog menus = LiveMenuCatalog.ReadInstalled(assets);
+        NativeTutorialPlayer player = new(catalog, menus, 0);
+        AdvanceUntilOperation(player, 122);
+        NativeTutorialSnapshot current = player.Capture().Deserialize<NativeTutorialSnapshot>()!;
+        JunctionDashboardNavigationState dashboard = current.Navigation.JunctionDashboard! with { Origin = "manage-gfs", Focus = "manage-gfs" };
+        NativeTutorialSnapshot earlier = current with { Version = version, Navigation = current.Navigation with { JunctionDashboard = dashboard } };
+        JsonElement source = JsonSerializer.SerializeToElement(earlier);
+        string original = source.GetRawText();
+        NativeTutorialPlayer restored = new(catalog, menus, 0, source);
+        int firstGuardianForce = Array.FindIndex(current.Party.GuardianForces, force => (force.Flags & 1) != 0);
+        string portrait = $"gf-portrait-gf-{firstGuardianForce}";
+        Assert.Equal(original, source.GetRawText());
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current.Party), JsonSerializer.SerializeToElement(restored.Party)));
+        Assert.Equal("gf-1", restored.Menu.CaptureJunctionDashboard().Candidate);
+        Assert.Equal(portrait, restored.Menu.CaptureJunctionDashboard().Origin);
+        Assert.Equal(portrait, restored.Menu.CaptureJunctionDashboard().Focus);
+        Assert.DoesNotContain(restored.Menu.Entries, entry => entry.Id == "manage-gfs");
+        NativeTutorialPlayer roundtrip = new(catalog, menus, 0, restored.Capture());
+        Assert.True(JsonElement.DeepEquals(restored.Capture(), roundtrip.Capture()));
+        AdvanceUntilOperation(restored, 136);
+        Assert.Contains(0, restored.Party.Records[catalog.Get(0).Descriptor.CharacterId].Junction.GuardianForceAssignments);
+    }
+
+    [Fact]
+    public void EarlierGuardianPickerReconstructsItsPortraitAndPreviewWithoutApplying()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        LiveMenuCatalog menus = LiveMenuCatalog.ReadInstalled(assets);
+        NativeTutorialPlayer player = new(catalog, menus, 0);
+        AdvanceUntilOperation(player, 122);
+        NativeTutorialSnapshot current = player.Capture().Deserialize<NativeTutorialSnapshot>()!;
+        NativeTutorialSnapshot earlier = current with { Version = 1, Navigation = current.Navigation with { ScreenId = "junction-gf", GuardianForceId = "gf-1", JunctionDashboard = null } };
+        JsonElement source = JsonSerializer.SerializeToElement(earlier);
+        NativeTutorialPlayer restored = new(catalog, menus, 0, source);
+        Assert.Equal("gf-portrait-gf-1", restored.Menu.CaptureJunctionDashboard().Origin);
+        Assert.Equal("gf-1", restored.Menu.CaptureJunctionDashboard().Candidate);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current.Party), JsonSerializer.SerializeToElement(restored.Party)));
+        Assert.DoesNotContain(restored.Menu.Entries, entry => entry.Id == "manage-gfs");
+    }
+
     private static void AdvanceUntilOperation(NativeTutorialPlayer player, int operation)
     {
         bool reached = false;

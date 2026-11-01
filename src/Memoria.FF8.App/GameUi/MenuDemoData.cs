@@ -62,6 +62,10 @@ public static class MenuDemoData
         for (var i = 0; i < guardianForces.Length; i++)
         {
             var gf = new MenuGuardianForce { Id = i.ToString(), NativeId = i, Name = guardianForces[i], Level = 12 + i, CurrentHp = 800 + i * 100, MaximumHp = 900 + i * 100, Experience = 5000 + i * 100, AbilityPoints = 35, Learning = "HP-J", Element = i % 3 == 0 ? "Thunder" : i % 3 == 1 ? "Ice" : "Fire" };
+            if (data.Characters.FirstOrDefault(character => character.GuardianForceIds.Contains(gf.Id)) is { } owner)
+            {
+                gf.Owner = new MenuGuardianForceOwner(owner.Id, owner.NativeId, owner.Name);
+            }
             gf.Abilities.AddRange(["HP-J", "Str-J", "Vit-J", "Mag-J", "Spr-J", "Elem-Atk-J", "Elem-Def-J", "ST-Atk-J", "ST-Def-J", "Ability x3", "Boost", "GFHP+10%"]);
             int[] abilityIds = [1, 2, 3, 4, 5, 10, 12, 11, 13, 18, 91, 87];
             gf.LearningAbilityId = abilityIds[0].ToString(System.Globalization.CultureInfo.InvariantCulture);

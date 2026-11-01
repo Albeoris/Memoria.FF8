@@ -2,6 +2,8 @@
 
 Junction shows the selected character's GFs, nine statistics, elemental and status assignments, commands and passive abilities together. The two percentage tables have independent **Attack / Defense** controls. Selecting an elemental or status destination sets its corresponding table to that direction; inspecting the other direction keeps the current edit.
 
+The character's face appears beside their name. Portrait buttons at the upper right select the previous or next available character; a button disappears at its corresponding end of the character list. Shoulder navigation observes the same boundaries. Acquired GF portraits form one row, with up to sixteen portraits resized to fit. GFs attached to this character appear normally; unassigned GFs and those attached elsewhere are translucent. Highlighting a GF attached elsewhere shows its owner's face above it. Select the GF portrait to review attaching, removing or transferring it in the editor.
+
 Select a slot to open its editor beneath the dashboard. Choosing a candidate previews the entire move, including a vacated slot, lost protection, HP changes and any affected character. Mouse selection previews; the named action applies. Keyboard/controller Confirm applies the selected ordinary candidate. Longer or shared consequences open a review before the final confirmation. Cancel leaves gameplay unchanged. **None** clears a magic slot without deleting stock.
 
 Use the remappable **Card / detail** button, or the visible **Actions** button, for additional operations:
