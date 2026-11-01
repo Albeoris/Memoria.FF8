@@ -108,6 +108,7 @@ public sealed class FieldMovementModTests
 
     [Theory]
     [InlineData("ggkodo1", 687, -47.8125f)]
+    [InlineData("glstage1", 754, 168.75f)]
     [InlineData("tihtl1", 900, 47.8125f)]
     public void BundledReorientationPatchTargetsOnlyTheSelectedFieldInputHeading(string fieldName, int fieldId, float rotationDegrees)
     {

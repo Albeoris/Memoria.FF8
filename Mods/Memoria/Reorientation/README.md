@@ -3,6 +3,7 @@
 This bundled Memoria mod adjusts movement projection in individual fields to align ordinary player input with the screen axes:
 
 - Galbadia Garden lobby (`ggkodo1`): -47.8125 degrees.
+- Deling City parade float (`glstage1`): +168.75 degrees.
 - Timber hotel lobby (`tihtl1`): +47.8125 degrees.
 
 The correction applies to future player movement, including stick input and movement during field movies. Scripted actors, saved positions, native INF/AXIS values and world-map controls retain their existing contracts. No save migration is needed. The view and geometry are unchanged.
