@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -11,9 +12,12 @@ internal static partial class Program
 {
     private static void NativeActorShadowContract()
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         EventEngine Create(byte[] content, bool authenticated = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session);
             engine.LoadField(100, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;

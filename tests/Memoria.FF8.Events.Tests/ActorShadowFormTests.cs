@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -11,25 +12,29 @@ internal static partial class Program
 {
     private static void NativeActorShadowFormContract()
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         EventEngine Create(byte[] content, bool authenticated = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session);
             engine.LoadField(100, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
         foreach (int[] sizes in new int[][] { [50, 200, 50, 50, 50, 100, 50, 50], [0, 1, 3, -1, -3, 4, -4, 300], [1024, -1024, 1027, -1027, 1028, -1028, 0x7fffff, -0x800000] })
         {
-            List<(Jsm.Opcode, int)> instructions = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.SHADELEVEL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SHADESET, 0)];
+            List<(Jsm.Opcode, int)> instructions = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.SHADELEVEL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SHADESET, 0)];
             instructions.AddRange(sizes.Select(size => (Jsm.Opcode.PSHN_L, size)));
-            instructions.AddRange([(Jsm.Opcode.SHADEFORM, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.SHADESET, 0), (Jsm.Opcode.RET, 0)]);
-            byte[] content = SyntheticProgram(instructions.ToArray());
+            instructions.AddRange([(Jsm.Opcode.SHADEFORM, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.SHADESET, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+            byte[] content = BattleModeCallbackProgram(instructions.ToArray());
             EventEngine engine = Create(content);
+            engine.Step();
             Require(engine.Actors[0].NativeShadowForm is null, "Allocation invented an executed SHADEFORM receipt.");
             engine.Step();
             ActorState actor = engine.Actors[0];
             byte[] expected = Enumerable.Range(0, 8).Select(index => unchecked((byte)(sizes[(index + 4) & 7] / 4))).ToArray();
-            Require(actor.NativeShadowSet is null && actor.NativeShadowForm is { } form && form.RawSizes.SequenceEqual(sizes) && form.Radii601To608.SequenceEqual(expected) && actor.NativeShadowLevel is { Level609: 255 } && actor.ShadeLevel == 255 && actor.PolygonColor == new Vector3(128), "SHADEFORM changed native division, BYTE order, current-shape replacement or independent color.");
+            Require(actor.NativeShadowSet is null && actor.NativeShadowForm is { } form && form.RawSizes.SequenceEqual(sizes) && form.Radii601To608.SequenceEqual(expected) && actor.NativeShadowLevel is { Level609: 255 } && actor.ShadeLevel == 255 && actor.PolygonColor == new Vector3(128), $"SHADEFORM changed native division, BYTE order, current-shape replacement or independent color: sizes={string.Join(',', sizes)}, form={JsonSerializer.Serialize(actor.NativeShadowForm)}, set={actor.NativeShadowSet}, level={actor.ShadeLevel}, color={actor.PolygonColor}.");
             Require(CapturedVariables(engine.Capture()).GetProperty("500").GetInt32() == 7, "SHADEFORM did not return immediately to the following script store.");
             JsonElement saved = engine.Capture();
             EventEngine restored = Create(content);
@@ -74,15 +79,21 @@ internal static partial class Program
                 instructions.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0)]);
             }
             instructions.AddRange([(Jsm.Opcode.SHADEFORM, 0), (Jsm.Opcode.RET, 0)]);
-            EventEngine engine = Create(SyntheticProgram(instructions.ToArray()), authenticated);
             if (authenticated)
             {
+                instructions[0] = (Jsm.Opcode.LBL, 1);
+            }
+            byte[] content = authenticated ? BattleModeCallbackProgram(instructions.ToArray()) : SyntheticProgram(instructions.ToArray());
+            EventEngine engine = Create(content, authenticated);
+            if (authenticated)
+            {
+                engine.Step();
                 engine.Step();
                 // A deliberately malformed synthetic checkpoint verifies runtime
                 // underflow refusal; the JSM expression parser requires eight pushes.
                 JsonNode incomplete = JsonNode.Parse(engine.Capture().GetRawText())!;
-                incomplete["Fibers"]![0]!["Stack"]!.AsArray().RemoveAt(0);
-                incomplete["Fibers"]![0]!["StackExpressions"]!.AsArray().RemoveAt(0);
+                incomplete["Fibers"]![1]!["Stack"]!.AsArray().RemoveAt(0);
+                incomplete["Fibers"]![1]!["StackExpressions"]!.AsArray().RemoveAt(0);
                 engine.Restore(JsonSerializer.SerializeToElement(incomplete));
             }
             try
@@ -93,8 +104,9 @@ internal static partial class Program
             catch (EventScriptException) when (engine.LastFault?.Opcode == "SHADEFORM")
             {
             }
-            JsonElement fiber = engine.Capture().GetProperty("Fibers")[0];
-            Require(engine.Actors[0].NativeShadowForm is null && fiber.GetProperty("Position").GetInt32() == (authenticated ? 11 : 9) && fiber.GetProperty("Stack").GetArrayLength() == (authenticated ? 7 : 8), "SHADEFORM preflight refusal consumed the original PC or operands.");
+            JsonElement fiber = engine.Capture().GetProperty("Fibers")[authenticated ? 1 : 0];
+            int operation = JsmProgram.Read(content).Operations.Single(item => item.Opcode == Jsm.Opcode.SHADEFORM).Index;
+            Require(engine.Actors[0].NativeShadowForm is null && fiber.GetProperty("Position").GetInt32() == operation && fiber.GetProperty("Stack").GetArrayLength() == (authenticated ? 7 : 8), "SHADEFORM preflight refusal consumed the original PC or operands.");
         }
     }
 }

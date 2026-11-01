@@ -16,6 +16,10 @@ public sealed partial class FieldRenderer
 
     private void DrawActorShadow(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
     {
+        if (!actor.GroundShadowEnabled)
+        {
+            return;
+        }
         IReadOnlyList<byte>? radii = actor.GroundShadowRadii601To608;
         if (radii is not null && (radii.Count != 8 || actor.GroundShadowRadius601To608 is not null))
         {

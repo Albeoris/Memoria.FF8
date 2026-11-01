@@ -5,7 +5,10 @@ namespace Memoria.FF8.Events;
 public sealed record NativeActorShadowSet(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawSize, byte Radius601To608);
 public sealed record NativeActorShadowForm(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int[] RawSizes, IReadOnlyList<byte> Radii601To608);
 public sealed record NativeActorShadowLevel(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawLevel, byte Level609);
-public sealed record NativeActorShadowAllocation(int Version, int FieldId, int ObjectId, string ProgramHash, string ExecutableHash, byte Level609);
+public sealed record NativeActorShadowAllocation(int Version, int FieldId, int ObjectId, string ProgramHash, string ExecutableHash, byte Level609)
+{
+    public const byte DefaultRadius601To608 = 12;
+}
 
 public sealed partial class EventEngine
 {

@@ -1,7 +1,10 @@
 using System.Numerics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -9,6 +12,57 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeActorShadowTests
 {
+    [Fact]
+    public void RestoredAllocatedActorsSubmitDefaultShadowsWithoutExecutedShadeCommands()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NEAR_CAMERA_SHADOW_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone field shadow fixture is required.");
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        JsonElement before = world.Events.Capture();
+        ActorState[] defaults = world.Events.Actors.Where(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0 && actor.NativeMovementGroundContact600 == 1 && actor.NativeShadowAllocation is not null && actor.NativeShadowSet is null && actor.NativeShadowForm is null).ToArray();
+        Assert.NotEmpty(defaults);
+        int darkenedPixels = 0;
+        foreach (ActorState actor in defaults)
+        {
+            ActorVisual visual = world.CreateVisual(actor);
+            Assert.True(visual.Visible);
+            Assert.True(visual.GroundShadowEnabled);
+            Assert.Equal((byte)12, visual.GroundShadowRadius601To608);
+            Assert.Equal(actor.NativeShadowLevel?.Level609 ?? (byte)96, visual.GroundShadowLevel609);
+            Assert.Equal(new Vector3(actor.X, actor.Y, actor.Z), visual.GroundShadowCentre);
+            ShadowRecorder recorder = new();
+            FieldRenderer renderer = new(world.Field!) { TriangleRenderer = recorder };
+            renderer.Render(world.Events.BackgroundStates, [visual], TimeSpan.Zero);
+            Assert.True(recorder.Triangles.Count(triangle => triangle.Material.Blend == TriangleBlend.Subtract) >= 8);
+            FieldRenderer cpu = new(world.Field!);
+            byte[] shaded = cpu.Render(world.Events.BackgroundStates, [visual], TimeSpan.Zero).ToArray();
+            byte[] unshaded = cpu.Render(world.Events.BackgroundStates, [visual with { GroundShadowEnabled = false }], TimeSpan.Zero).ToArray();
+            darkenedPixels += Enumerable.Range(0, shaded.Length / 4).Count(pixel => shaded[pixel * 4] < unshaded[pixel * 4] || shaded[pixel * 4 + 1] < unshaded[pixel * 4 + 1] || shaded[pixel * 4 + 2] < unshaded[pixel * 4 + 2]);
+        }
+        Assert.True(darkenedPixels > 0, "Allocated default shadows must darken visible ground pixels.");
+        foreach (ActorState actor in world.Events.Actors.Where(actor => actor.NativeMovementGroundContact600 != 1))
+        {
+            Assert.False(world.CreateVisual(actor).GroundShadowEnabled);
+        }
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+
+        JsonNode airborne = JsonNode.Parse(before.GetRawText())!;
+        int objectId = defaults[0].ObjectId;
+        airborne["Actors"]![objectId]!["NativeMovementGroundContact600"] = 0;
+        world.Events.Restore(JsonSerializer.SerializeToElement(airborne));
+        ActorVisual suppressed = world.CreateVisual(world.Events.Actors[objectId]);
+        Assert.False(suppressed.GroundShadowEnabled);
+        Assert.Equal((byte)12, suppressed.GroundShadowRadius601To608);
+
+        JsonNode unproved = JsonNode.Parse(before.GetRawText())!;
+        unproved["Actors"]![objectId]!.AsObject().Remove("NativeShadowAllocation");
+        world.Events.Restore(JsonSerializer.SerializeToElement(unproved));
+        ActorVisual withoutAllocation = world.CreateVisual(world.Events.Actors[objectId]);
+        Assert.Null(withoutAllocation.GroundShadowRadius601To608);
+    }
+
     [Theory]
     [InlineData(8)]
     [InlineData(0)]
@@ -275,6 +329,7 @@ public sealed class NativeActorShadowTests
         Assert.Equal(baseline, renderer.Render(new Dictionary<int, int>(), [actor with { Visible = false }], TimeSpan.Zero));
         Assert.Equal(baseline, renderer.Render(new Dictionary<int, int>(), [actor with { ModelId = -1 }], TimeSpan.Zero));
         Assert.Equal(baseline, renderer.Render(new Dictionary<int, int>(), [actor with { GroundShadowLevel609 = 0 }], TimeSpan.Zero));
+        Assert.Equal(baseline, renderer.Render(new Dictionary<int, int>(), [actor with { GroundShadowEnabled = false }], TimeSpan.Zero));
         // Fourteen native vertical pixels become fifteen PC viewport pixels.
         Assert.Equal(shadow[center], renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero, actorScrollOffset: new Vector2(14, 14))[((135 * 320) + 174) * 4]);
         Assert.Throws<NotSupportedException>(() => renderer.Render(new Dictionary<int, int>(), [actor with { GroundShadowLevel609 = null }], TimeSpan.Zero));
