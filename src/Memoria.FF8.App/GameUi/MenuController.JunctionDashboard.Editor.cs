@@ -321,10 +321,6 @@ public sealed partial class MenuController
         content.Focusable = true;
         Place(content, JunctionLabel(junctionEditor == "optimize" ? J("optimize", "Optimize stats") + " · " + J("priority-" + junctionPriority.ToLowerInvariant(), junctionPriority) : J("review", "Review consequences"), 18), 0);
         IReadOnlyList<MenuJunctionChange> changes = junctionPlan?.Changes ?? [];
-        if (junctionTransferModal && Data.GuardianForces.FirstOrDefault(force => force.Id == junctionCandidate)?.Owner is { } donor)
-        {
-            changes = changes.OrderBy(change => change.CharacterId == donor.Id ? change.Category is "Stat" or "HP" ? 0 : 1 : 2).ToArray();
-        }
         int start = Math.Min(junctionImpactPage * 5, Math.Max(0, changes.Count - 1));
         UiGrid rows = Grid([1, 1, 1, 1, 1], [1]);
         for (int index = 0; index < Math.Min(5, changes.Count - start); index++)
@@ -795,7 +791,11 @@ public sealed partial class MenuController
         }
         if (input is MenuInput.PageUp or MenuInput.PageDown)
         {
-            if (junctionReview)
+            if (junctionTransferModal)
+            {
+                junctionTransferColumns?.ScrollColumns(input == MenuInput.PageUp ? -1 : 1);
+            }
+            else if (junctionReview)
             {
                 int maximum = Math.Max(0, ((junctionPlan?.Changes.Count ?? 0) - 1) / 5);
                 junctionImpactPage = Math.Clamp(junctionImpactPage + (input == MenuInput.PageUp ? -1 : 1), 0, maximum);

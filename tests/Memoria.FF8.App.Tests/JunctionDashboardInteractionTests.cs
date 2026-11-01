@@ -408,12 +408,69 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal(overlay.Bounds.Y + overlay.Bounds.Height / 2, panel.Bounds.Y + panel.Bounds.Height / 2, 3);
         Assert.Equal(0, fixture.Actions);
         Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "junction-transfer-yes" && entry.Enabled);
-        Assert.All(fixture.Menu.Entries.Where(entry => entry.Enabled), entry => Assert.True(entry.Id is "junction-transfer-yes" or "junction-transfer-no" or "impact-previous" or "impact-next", entry.Id));
+        Assert.All(fixture.Menu.Entries.Where(entry => entry.Enabled), entry => Assert.True(entry.Id is "junction-transfer-yes" or "junction-transfer-no" || entry.Id.StartsWith("transfer-loss-", StringComparison.Ordinal), entry.Id));
         fixture.Menu.Navigate(MenuInput.PageRight);
         Assert.Equal(selected, fixture.Menu.Character!.Id);
         fixture.Hit("junction-transfer-no");
         Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
         Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-transfer-yes" or "junction-transfer-no");
+    }
+
+    [Theory]
+    [InlineData(1280, 720, 100)]
+    [InlineData(640, 448, 100)]
+    [InlineData(1280, 720, 150)]
+    public void TransferShowsOnlyUncompensatedDonorLossesInCompactColumns(int width, int height, int textScale)
+    {
+        using Fixture fixture = new(shared: true);
+        fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(7, 0);
+        foreach (int ability in Enumerable.Range(39, 19))
+        {
+            fixture.Vitals = fixture.Vitals.TeachGuardianForceAbility(0, ability);
+        }
+        fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 39).ToggleGuardianForceJunction(7, 1);
+        fixture.Refresh();
+        fixture.Data.Settings["Text scale"] = textScale + "%";
+        fixture.Menu.PrepareViewport(width, height);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Hit("gf-portrait-gf-0");
+        UiView view = fixture.Menu.BuildView();
+        UiElement modal = Descendants(view.Root).Single(element => element.Id == "junction-transfer-modal");
+        UiElement[] elements = Descendants(modal).ToArray();
+        Assert.Equal(new UiImageSource(UiImageKind.CharacterPortrait, 7), elements.OfType<UiImage>().Single(image => image.Id == "junction-transfer-donor").Source);
+        Assert.Equal(new UiImageSource(UiImageKind.GuardianForcePortrait, 0), elements.OfType<UiImage>().Single(image => image.Id == "junction-transfer-guardian").Source);
+        Assert.Equal(new UiImageSource(UiImageKind.CharacterPortrait, 0), elements.OfType<UiImage>().Single(image => image.Id == "junction-transfer-recipient").Source);
+        Assert.DoesNotContain(elements, element => element.Id is "impact-previous" or "impact-next" or "junction-review");
+        Assert.DoesNotContain(elements.OfType<UiLabel>(), label => label.Text.Contains("Caster:", StringComparison.Ordinal) || label.Text.Contains("Review consequences", StringComparison.Ordinal));
+        UiColumnPicker columns = Assert.Single(elements.OfType<UiColumnPicker>());
+        Assert.Equal("gf-transfer-loss-columns", columns.Id);
+        Assert.DoesNotContain(columns.Children, row => row.Id == "transfer-loss-gf-capability-passive-39");
+        Assert.Contains(columns.Children, row => row.Id == "transfer-loss-gf-capability-passive-40");
+        Assert.All(columns.Children, row =>
+        {
+            UiLabel label = row.Children.OfType<UiLabel>().First();
+            Assert.StartsWith("− ", label.Text);
+            Assert.Equal(new UiColor(245, 90, 90), label.Color);
+            Assert.Single(row.Children.OfType<UiImage>());
+        });
+        Assert.True(columns.Children.Count > columns.RowCount);
+        Assert.Equal(23 * textScale / 100f, columns.Children[1].Bounds.Y - columns.Children[0].Bounds.Y, 3);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            foreach (MenuPresentation presentation in new[] { MenuPresentation.Classic, MenuPresentation.Vector })
+            {
+                fixture.Menu.Presentation = presentation;
+                using SKBitmap bitmap = new(width, height);
+                using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
+                canvas.BeginFrame(TimeSpan.Zero);
+                fixture.Menu.BuildView().Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
+                bitmap.SavePng(Path.Combine(directory, $"guardian-transfer-{presentation}-{width}x{height}-text{textScale}.png"));
+            }
+        }
     }
 
     [Fact]

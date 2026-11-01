@@ -389,7 +389,8 @@ public sealed class MenuJunctionPlanner
                     {
                         Add("Ownership", magic.Name, Owner(before, magic), Owner(after, projected));
                     }
-                    if (magic.Caster != projected.Caster || magic.Availability != projected.Availability)
+                    // A shared stock's preferred caster is repeated on every character's row; it does not change their access.
+                    if (magic.Availability != projected.Availability)
                     {
                         Add("Access", magic.Name, Access(magic), Access(projected));
                     }

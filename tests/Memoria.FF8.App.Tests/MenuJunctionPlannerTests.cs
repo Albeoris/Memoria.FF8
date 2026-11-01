@@ -151,6 +151,54 @@ public sealed class MenuJunctionPlannerTests
     }
 
     [Fact]
+    public void Gf_transfer_does_not_report_preferred_shared_caster_changes_as_character_access_changes()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = FullBank(assets, true) with { CombatParty = [0, 4, 255] };
+        source.Records[4] = source.Records[4] with { StatBonuses = Enumerable.Repeat((byte)10, source.Records[4].StatBonuses.Length).ToArray() };
+        MenuJunctionPlan optimized = Planner(source, catalog).Optimize("character-0", "Magic", new HashSet<string>());
+        Assert.Null(optimized.UnavailableReason);
+        Assert.True(optimized.HasChanges);
+        source = Apply(source, optimized);
+        MenuJunctionPlan plan = Planner(source, catalog).Plan(new("junction-gf-reassign", "gf-0", "character-4", "character-0"));
+        Assert.Null(plan.UnavailableReason);
+        Assert.True(plan.HasChanges);
+        MenuMagic[] unbound = plan.Before.Magic.Where(magic => magic.CharacterId == "character-1" && magic.OwnerCharacterId is null).ToArray();
+        Assert.NotEmpty(unbound);
+        foreach (MenuMagic magic in unbound)
+        {
+            MenuMagic projected = plan.After.Magic.Single(value => value.Id == magic.Id);
+            Assert.NotEmpty(magic.Caster);
+            Assert.NotEmpty(projected.Caster);
+            Assert.NotEqual(magic.Caster, projected.Caster);
+            Assert.Equal(magic.Availability, projected.Availability);
+        }
+        Assert.DoesNotContain(plan.Changes, change => change.Category == "Access");
+        Assert.All(plan.Changes, change => Assert.Contains(change.CharacterId, new[] { "character-0", "character-4" }));
+        NativeCharacterVitals result = Apply(source, plan);
+        foreach (int row in new[] { 1, 2, 3, 5, 6, 7 })
+        {
+            Assert.Equal(source.Records[row], result.Records[row]);
+        }
+    }
+
+    [Fact]
+    public void Shared_magic_preview_still_reports_actual_casting_availability_changes()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = FullBank(assets, true).ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(7, 0).SetJunctionMagic(7, 0, 1);
+        source.Records[7] = source.Records[7] with { MemberFlags = 0 };
+        MenuJunctionPlan plan = Planner(source, catalog).Plan(new("junction-gf-reassign", "gf-0", "character-0", "character-7"));
+        Assert.Null(plan.UnavailableReason);
+        MenuMagic before = plan.Before.Magic.Single(magic => magic.Id == "magic-0-1");
+        MenuMagic after = plan.After.Magic.Single(magic => magic.Id == before.Id);
+        Assert.NotEqual(before.Availability, after.Availability);
+        Assert.Contains(plan.Changes, change => change.CharacterId == "character-0" && change.Category == "Access" && change.Slot == before.Name);
+    }
+
+    [Fact]
     public void Fill_preserves_equipped_commands_and_preview_is_one_reversible_transaction()
     {
         using GameAssets assets = new(TestResources.GameDirectory);

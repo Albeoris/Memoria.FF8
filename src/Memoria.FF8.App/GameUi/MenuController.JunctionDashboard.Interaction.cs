@@ -5,6 +5,7 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private bool junctionTransferModal;
+    private UiColumnPicker? junctionTransferColumns;
     private bool junctionRestoringFocus;
     private bool JunctionHasActiveScope => junctionTransferModal || junctionExitReview || junctionReview || junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize" or "fill" or "attack-mode";
     private bool JunctionHasTransferModal => junctionTransferModal;
@@ -100,7 +101,7 @@ public sealed partial class MenuController
         string id = element.Id ?? "";
         if (junctionTransferModal)
         {
-            return id is "junction-transfer-yes" or "junction-transfer-no" or "junction-review" or "impact-previous" or "impact-next";
+            return id is "junction-transfer-yes" or "junction-transfer-no" || id.StartsWith("transfer-loss-", StringComparison.Ordinal);
         }
         if (junctionExitReview)
         {
@@ -146,13 +147,35 @@ public sealed partial class MenuController
         {
             return null;
         }
-        UiGrid body = JunctionRows([64, 0, 38], [1], 10);
+        UiGrid body = JunctionRows([84 * TextScale, 0, 38 * TextScale], [1], 10);
         MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(value => value.Id == junctionCandidate);
-        string question = string.Format(System.Globalization.CultureInfo.CurrentCulture, J("transfer-question", "Remove {0} from {1} and junction to {2}?"), force?.Name ?? "", force?.Owner?.Name ?? "", Character?.Name ?? "");
-        UiLabel title = JunctionLabel(question, 20);
-        title.TextFlow = UiTextFlow.Wrap;
-        Place(body, title, 0);
-        Place(body, BuildJunctionImpactList(), 1);
+        UiGrid transfer = new() { Gap = 16 * TextScale };
+        transfer.RowDefinitions.Add(UiGridLength.Star());
+        transfer.ColumnDefinitions.Add(UiGridLength.Pixel(84 * TextScale));
+        transfer.ColumnDefinitions.Add(UiGridLength.Star());
+        transfer.ColumnDefinitions.Add(UiGridLength.Pixel(84 * TextScale));
+        transfer.ColumnDefinitions.Add(UiGridLength.Star());
+        transfer.ColumnDefinitions.Add(UiGridLength.Pixel(84 * TextScale));
+        UiImage donorPortrait = new()
+        {
+            Id = "junction-transfer-donor",
+            Source = force?.Owner?.NativeId is int ownerId ? new UiImageSource(UiImageKind.CharacterPortrait, ownerId) : null
+        };
+        Place(transfer, donorPortrait, 0);
+        Place(transfer, new JunctionTransferArrow(), 0, 1);
+        Place(transfer, new UiImage
+        {
+            Id = "junction-transfer-guardian",
+            Source = force?.NativeId is int nativeId ? new UiImageSource(UiImageKind.GuardianForcePortrait, nativeId) : null
+        }, 0, 2);
+        Place(transfer, new JunctionTransferArrow(), 0, 3);
+        UiImage recipientPortrait = Portrait(Character);
+        recipientPortrait.Id = "junction-transfer-recipient";
+        Place(transfer, recipientPortrait, 0, 4);
+        Place(body, transfer, 0);
+        MenuCharacter? donor = plan.Before.Characters.FirstOrDefault(actor => actor.Id == force?.Owner?.Id);
+        junctionTransferColumns = null;
+        Place(body, BuildJunctionGuardianCapabilities(donor ?? throw new InvalidOperationException("Guardian transfer requires its current owner.")), 1);
         UiGrid choices = Grid([1], [1, 1], 14);
         Place(choices, JunctionButton("junction-transfer-yes", J("yes", "Yes"), () =>
         {
@@ -164,6 +187,19 @@ public sealed partial class MenuController
         UiPanel panel = new() { CaptionHeight = 0, Padding = 18 };
         panel.Children.Add(body);
         return new JunctionTransferOverlay(panel, TextScale) { Id = "junction-transfer-modal" };
+    }
+
+    private sealed class JunctionTransferArrow : UiElement
+    {
+        protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
+        {
+            float y = Bounds.Y + Bounds.Height / 2;
+            float tip = Math.Min(12, Bounds.Width / 3);
+            UiColor color = new(225, 230, 235);
+            canvas.Line(Bounds.X, y, Bounds.Right, y, color, 2);
+            canvas.Line(Bounds.Right - tip, y - tip / 2, Bounds.Right, y, color, 2);
+            canvas.Line(Bounds.Right - tip, y + tip / 2, Bounds.Right, y, color, 2);
+        }
     }
 
     private sealed class JunctionTransferOverlay : UiElement
@@ -179,8 +215,8 @@ public sealed partial class MenuController
         public override void Arrange(UiRect bounds)
         {
             Bounds = bounds;
-            float width = Math.Min(bounds.Width - 32, 760 * scale);
-            float height = Math.Min(bounds.Height - 32, 400 * scale);
+            float width = Math.Min(bounds.Width - 32, 840 * scale);
+            float height = Math.Min(bounds.Height - 32, 440 * scale);
             Children[0].Arrange(new UiRect(bounds.X + (bounds.Width - width) / 2, bounds.Y + (bounds.Height - height) / 2, width, height));
         }
 

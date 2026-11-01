@@ -6,13 +6,17 @@ public sealed partial class MenuController
 {
     private UiColumnPicker? junctionGuardianColumns;
 
-    private UiElement BuildJunctionGuardianCapabilities()
+    private UiElement BuildJunctionGuardianCapabilities(MenuCharacter? donor = null)
     {
-        junctionGuardianColumns = null;
+        if (donor is null)
+        {
+            junctionGuardianColumns = null;
+        }
         UiGrid body = JunctionRows([22 * TextScale, 0], [1], 2);
         Place(body, JunctionLabel(J("available-abilities", "Available abilities"), 14, true), 0);
-        MenuCharacter? preview = JunctionPreviewCharacter;
-        var changes = Capabilities(true).Concat(Capabilities(false)).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
+        MenuCharacter? currentCharacter = donor ?? Character;
+        MenuCharacter? preview = donor is null ? JunctionPreviewCharacter : junctionPlan?.After.Characters.FirstOrDefault(actor => actor.Id == donor.Id);
+        var changes = Capabilities(true).Concat(Capabilities(false)).Where(change => donor is null || change.Delta < 0).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
         if (changes.Length == 0)
         {
             Place(body, JunctionLabel("---", 16, true), 1);
@@ -20,28 +24,35 @@ public sealed partial class MenuController
         }
         UiColumnPicker columns = new()
         {
-            Id = "gf-capability-columns",
+            Id = donor is null ? "gf-capability-columns" : "gf-transfer-loss-columns",
             RowHeight = 23 * TextScale,
             HorizontalPadding = 8 * TextScale,
             ColumnGap = 16 * TextScale,
             NameQuantityGap = 0,
             ImageSize = 18 * TextScale,
             ImageNameGap = 6 * TextScale,
-            InitialIndex = Math.Max(0, Array.FindIndex(changes, change => change.Id == junctionFocus))
+            InitialIndex = Math.Max(0, Array.FindIndex(changes, change => (donor is null ? change.Id : "transfer-loss-" + change.Id) == junctionFocus))
         };
-        junctionGuardianColumns = columns;
+        if (donor is null)
+        {
+            junctionGuardianColumns = columns;
+        }
+        else
+        {
+            junctionTransferColumns = columns;
+        }
         foreach (var change in changes)
         {
             UiButton row = new()
             {
-                Id = change.Id,
+                Id = donor is null ? change.Id : "transfer-loss-" + change.Id,
                 DrawBackground = false,
                 PointerSize = 0,
                 FocusChanged = focused =>
                 {
                     if (focused)
                     {
-                        junctionFocus = change.Id;
+                        junctionFocus = donor is null ? change.Id : "transfer-loss-" + change.Id;
                     }
                 }
             };
@@ -55,7 +66,7 @@ public sealed partial class MenuController
 
         IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capabilities(bool commands)
         {
-            IReadOnlyList<MenuAbilityChoice> current = commands ? Character?.AvailableCommands ?? [] : Character?.AvailableAbilities ?? [];
+            IReadOnlyList<MenuAbilityChoice> current = commands ? currentCharacter?.AvailableCommands ?? [] : currentCharacter?.AvailableAbilities ?? [];
             IReadOnlyList<MenuAbilityChoice> next = preview is null ? current : commands ? preview.AvailableCommands : preview.AvailableAbilities;
             HashSet<string> before = current.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
             HashSet<string> after = next.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
