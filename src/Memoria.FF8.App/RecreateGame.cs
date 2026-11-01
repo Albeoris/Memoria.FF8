@@ -847,7 +847,7 @@ internal sealed partial class RecreateGame : Game
         playerSaves.Save(slot, session, ValidatePlayerState);
         if (slot == 0)
         {
-            ShowSaveNotice("Quick Saved");
+            ShowSaveNotice("Quick Saved", 1);
         }
         else
         {

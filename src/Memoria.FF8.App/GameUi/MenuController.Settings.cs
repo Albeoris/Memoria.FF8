@@ -74,6 +74,7 @@ public sealed partial class MenuController
         return key switch
         {
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
+            "Achievement progress" => preferences.ShowAchievementProgress ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "UI presentation" => preferences.MenuPresentation.ToString(),
             "Text scale" => preferences.TextScale + "%",

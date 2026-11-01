@@ -195,6 +195,7 @@ public static class MenuSettings
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
         new("Show FPS", "Show presentation FPS and visual Changes/s. A static scene can present frames while Changes/s is zero.", ["Off", "On"]),
+        new("Achievement progress", "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.", ["Off", "On"]),
         new("Window mode", "Choose a resizable window or borderless full-screen display. Alt+Enter toggles the mode. Shared across saves and retained across launches.", ["Windowed", "Borderless"]),
         new("V-Sync", "Synchronize presentation with display refresh; frame limits may cap it further. Shared across saves for this user.", ["On", "Off"]),
         new("Graphics backend", "Requires restart. The selected graphics backend applies on the next start. Auto tries Direct3D11, Direct3D12, then Vulkan on Windows. Other platforms use Vulkan. Restart now to preserve and resume the current game, or choose Later.", Memoria.FF8.Platform.GraphicsBackendSelection.Available(Memoria.FF8.Platform.HostPlatforms.Current).Select(backend => backend.ToString()).ToArray()),

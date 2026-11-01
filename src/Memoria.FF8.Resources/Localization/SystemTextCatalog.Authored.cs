@@ -1077,6 +1077,10 @@ public static partial class SystemTextCatalog
         defaults["setting.field-cap.option.0"] = "30";
         defaults["setting.field-cap.option.1"] = "60";
         defaults["setting.frame-counter"] = "Frame-rate counter";
+        defaults["setting.achievement-progress"] = "Achievement progress";
+        defaults["setting.achievement-progress.help"] = "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.";
+        defaults["setting.achievement-progress.option.0"] = "Off";
+        defaults["setting.achievement-progress.option.1"] = "On";
         defaults["setting.frame-counter.help"] = "Show presentation FPS and visual Changes/s. A static scene can present frames while Changes/s is zero.";
         defaults["setting.frame-counter.option.0"] = "Off";
         defaults["setting.frame-counter.option.1"] = "On";

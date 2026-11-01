@@ -188,6 +188,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Show FPS requires On or Off.")
             };
         }
+        if (key == "Achievement progress")
+        {
+            return value switch
+            {
+                "On" => this with { ShowAchievementProgress = true },
+                "Off" => this with { ShowAchievementProgress = false },
+                _ => throw new ArgumentException("Achievement progress requires On or Off.")
+            };
+        }
         if (key == "Window mode")
         {
             return value switch

@@ -138,6 +138,8 @@ internal sealed partial class RecreateGame
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
         data.Settings["Quick saves"] = uiPreferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Achievement progress"] = uiPreferences.ShowAchievementProgress ? "On" : "Off";
+        data.SupportedActions.Add("config:Achievement progress");
         data.SupportedActions.Add("config:Quick saves");
         data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
         data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";

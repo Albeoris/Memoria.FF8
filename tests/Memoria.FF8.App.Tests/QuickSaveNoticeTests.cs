@@ -21,7 +21,7 @@ public sealed class QuickSaveNoticeTests
             Assert.True(File.Exists(store.GetPath(0)));
             Func<string> notice = (Func<string>)typeof(RecreateGame).GetField("saveNotice", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game)!;
             Assert.Equal("Quick Saved", notice());
-            Assert.Equal(5d, typeof(RecreateGame).GetField("saveNoticeSeconds", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game));
+            Assert.Equal(1d, typeof(RecreateGame).GetField("saveNoticeSeconds", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game));
         }
         finally
         {

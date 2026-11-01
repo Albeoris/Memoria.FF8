@@ -99,11 +99,9 @@ The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/
 
 Achievement unlock notifications appear automatically. Progress notifications are disabled by default; achievement tracking continues while they are hidden.
 
-To show progress notifications, close the game and set the top-level `ShowAchievementProgress` property to `true` in `%LOCALAPPDATA%/Memoria/FF8/ui-settings.json`. Set it to `false` to hide them again. This preference applies across saves; existing configuration files without the property keep progress notifications disabled.
+To show progress notifications, open **Config → Interface → Achievement progress** and select **On**. Select **Off** to hide them again. The change applies immediately and is retained across saves and launches.
 
-```json
-"ShowAchievementProgress": true
-```
+The preference is stored as `ShowAchievementProgress` in `ui-settings.json`; existing configurations without the property default to Off.
 
 ## Movies and naming
 
