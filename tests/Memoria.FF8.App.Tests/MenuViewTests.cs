@@ -248,7 +248,7 @@ public sealed class MenuViewTests
             menus.Navigate(MenuInput.Confirm);
             Assert.StartsWith("candidate-", menus.BuildView().FocusedElement?.Id);
             Assert.Equal("junction-dashboard", menus.ScreenId);
-            Assert.NotEmpty(Descendants(menus.BuildView().Root).OfType<UiButton>().Where(button => button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true));
+            Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiButton>(), button => button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true);
         }
     }
 
@@ -290,9 +290,9 @@ public sealed class MenuViewTests
     }
 
     [Theory]
-    [InlineData("junction-command", "junction-passive-slots", "junction-ability-choice", 0)]
-    [InlineData("junction-ability", "junction-command-slots", "junction-command-choice", 2)]
-    public void JunctionInactiveSlotClickSelectsItsGroupAndOpensCandidates(string screen, string panelId, string destination, int row)
+    [InlineData("junction-command", "junction-ability-choice", 0)]
+    [InlineData("junction-ability", "junction-command-choice", 2)]
+    public void JunctionInactiveSlotClickSelectsItsGroupAndOpensCandidates(string screen, string destination, int row)
     {
         MenuController menus = new();
         menus.Open(screen, true);

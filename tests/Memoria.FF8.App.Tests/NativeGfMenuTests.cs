@@ -4,6 +4,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -160,7 +161,10 @@ public sealed class NativeGfMenuTests
         controller.Open("junction-gf");
         controller.Navigate(MenuInput.Confirm);
         controller.Open("junction-ability");
-        Assert.Equal(2, controller.Entries.Count(entry => entry.Id.StartsWith("passive-", StringComparison.Ordinal) && entry.Enabled));
+        Assert.Equal(2, controller.Character!.AbilitySlots);
+        Assert.Equal(4, controller.Entries.Count(entry => entry.Id.StartsWith("passive-", StringComparison.Ordinal)));
+        string[] passiveLocks = Descendants(controller.BuildView().Root).Where(element => element.Id?.StartsWith("junction-lock-passive-", StringComparison.Ordinal) == true).Select(element => element.Id!).Order().ToArray();
+        Assert.Equal(new[] { "junction-lock-passive-2", "junction-lock-passive-3" }, passiveLocks);
         controller.SelectEntry("junction-dashboard", "passive-0");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("junction-dashboard", controller.ScreenId);
@@ -195,9 +199,10 @@ public sealed class NativeGfMenuTests
             vitals = NativeJunctionMenuInput.Apply(vitals, input);
         });
         controller.Open("junction-magic");
-        Assert.True(controller.Entries.Single(entry => entry.Id == "slot-HP").Enabled);
-        Assert.True(controller.Entries.Single(entry => entry.Id == "slot-Str").Enabled);
-        Assert.False(controller.Entries.Single(entry => entry.Id == "slot-Vit").Enabled);
+        Assert.Contains("HP", controller.Character!.AvailableJunctionSlots);
+        Assert.Contains("Str", controller.Character.AvailableJunctionSlots);
+        Assert.DoesNotContain("Vit", controller.Character.AvailableJunctionSlots);
+        Assert.Contains(Descendants(controller.BuildView().Root), element => element.Id == "junction-lock-Vit");
         controller.SelectEntry("junction-dashboard", "slot-HP");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("junction-dashboard", controller.ScreenId);
@@ -245,6 +250,18 @@ public sealed class NativeGfMenuTests
     {
         PlayerAction action = new(kind, row, choice, Quantity: slot);
         Assert.Throws<ArgumentException>(() => NativeJunctionMenuInput.Validate(action));
+    }
+
+    private static IEnumerable<UiElement> Descendants(UiElement root)
+    {
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static NativeJunctionEditRow AssertAssignment(PlayerAction action, int record)
