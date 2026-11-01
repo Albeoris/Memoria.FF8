@@ -41,6 +41,12 @@ public sealed partial record NativeFootWorldRuntimeState
     public const string CarDismountRule = "ff8-en-car-foot-54a7f0-54b460-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldParkedCar? ParkedCar { get; init; }
+    //These owners remain unknown until the selected foot body executes its query.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PrimaryContact { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BroadContact { get; init; }
+
 
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
@@ -236,6 +242,21 @@ public sealed partial record NativeFootWorldRuntimeState
     public void Validate()
     {
         ParkedCar?.Validate();
+        if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact >= 0 && BroadContact != PrimaryContact || ParkedCar is null && PrimaryContact is not null)
+        {
+            throw new InvalidDataException("Parked-car foot contacts require the actual paired physical query results.");
+        }
+        if (ParkedCar is { } parkedContactOwner)
+        {
+            NativeCarWorldRuntimeState contactCar = parkedContactOwner.Car;
+            int objectCount = contactCar.GardenObjects?.Objects.Length ?? contactCar.RagnarokObjects?.Objects.Length ?? contactCar.AllocatedObjects.Length;
+            bool rails = contactCar.ObjectProcess?.Primary is not null || contactCar.ObjectProcess?.Alternate is not null || contactCar.GardenObjects?.BackgroundRails?.HasBanks == true || contactCar.RagnarokObjects?.BackgroundRails?.HasBanks == true;
+            int maximumContact = objectCount - 1 + (rails ? 1 : 0);
+            if (PrimaryContact > maximumContact || BroadContact > maximumContact)
+            {
+                throw new InvalidDataException("Parked-car foot contact index leaves its actual dense objects and rail tail.");
+            }
+        }
         if (Rule == CarDismountRule && ParkedCar is null || ParkedCar is not null && Rule is not (CarDismountRule or FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule))
         {
             throw new InvalidDataException("Car foot state requires its actual parked vehicle receipt.");

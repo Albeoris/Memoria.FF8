@@ -296,8 +296,18 @@ public sealed class NativeCarWorldTests
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0 });
+        int callbacks = 0;
+        scene.ProcessRandomEncounters = (world, _, encounters) =>
+        {
+            if (++callbacks == 2)
+            {
+                throw new NotSupportedException("Declared downstream producer failure after a completed car callback.");
+            }
+            return (world, encounters);
+        };
         GameState before = session.State;
         Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 20)));
+        Assert.Equal(2, callbacks);
         Assert.Same(before, session.State);
         Assert.Equal(0, session.ExamTimer!.ClockCalls);
     }

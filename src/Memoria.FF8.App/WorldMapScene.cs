@@ -455,12 +455,16 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     salary = salary.AdvanceFuelMessage(graphicsSpeed);
                 }
-                WorldState? carTransfer = mapScriptMode != 12 ? PrepareGardenCarReboard(candidate, salary) ?? PrepareRagnarokCarBoarding(candidate, salary) ?? PrepareCarDisembark(candidate, salary) ?? PrepareCarGardenReboard(candidate, salary) ?? PrepareCarRagnarokReboard(candidate, salary) ?? PrepareCarReboard(candidate, salary) ?? PrepareStationCarReboard(candidate, salary) : null;
+                WorldState? carTransfer = mapScriptMode != 12 && ragnarokFootBoardingTarget is null ? PrepareGardenCarReboard(candidate, salary) ?? PrepareRagnarokCarBoarding(candidate, salary) ?? PrepareCarDisembark(candidate, salary) ?? PrepareCarGardenReboard(candidate, salary) ?? PrepareCarRagnarokReboard(candidate, salary) ?? PrepareCarReboard(candidate, salary) ?? PrepareStationCarReboard(candidate, salary) : null;
+                if (carTransfer is not null)
+                {
+                    boardingTarget = null;
+                }
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
                     byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? mapScriptMode : (byte)0);
                     //54A7F0 sets2040A40 before54D7E0 for either admitted boarding action; Garden leaves2036B70 unchanged.
-                    bool? activity = carTransfer is not null || boardingTarget is not null || ragnarokFootBoardingTarget is not null ? true : null;
+                    bool? activity = CompleteNativeTransportActivity(candidate, salary, mapScriptMode != 12 && ragnarokFootBoardingTarget is null, carTransfer is not null || boardingTarget is not null || ragnarokFootBoardingTarget is not null);
                     fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, activity) ?? fieldEntry;
                 }
                 if (carTransfer is not null && fieldEntry is null)
@@ -548,7 +552,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     candidate = encounterResult.World;
                     salary = salary with { RandomEncounters = encounterResult.Encounters };
                 }
-                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback)
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback && candidate.NativeGardenRuntime is not null)
                 {
                     candidate = StepGardenCactuar(candidate, out fieldEntry);
                 }
@@ -564,7 +568,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     candidate = StepFootType2Cactuar(candidate, out fieldEntry);
                 }
-                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback)
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback && candidate.NativeRagnarokRuntime is not null)
                 {
                     candidate = StepRagnarokCactuar(candidate, out fieldEntry);
                 }
@@ -879,6 +883,11 @@ internal sealed partial class WorldMapScene : IDisposable
         int? previousInput = foot.PreviousHorizontalInput ?? (session.State.WorldProcess is { } inputProcess ? PreviousFootHorizontalInput(inputProcess) : null);
         int? selectedGroup = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
         WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, previousInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: foot.ParkedCar is { } parkedCar ? (probes, padding) => CarTransferContact(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, parkedCar.Car, probes, foot.EntityType, padding, parkedCar) : ragnarokCameraState is not null ? (probes, padding) => RagnarokFootContact(ragnarokCameraState, probes, foot.EntityType, padding) : gardenCameraState is not null ? (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding) : null, commitSuppressed: gardenFootCallback?.BoardingTarget is not null || ragnarokFootCallback?.BoardingTarget is not null);
+        RecordTransportContactPublication(before.Frame + 1, ground.BroadContact);
+        if (foot.ParkedCar is not null)
+        {
+            foot = foot with { PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native primary contact publication."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native broad contact publication.") };
+        }
         x = ground.X;
         z = ground.Z;
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
@@ -900,6 +909,10 @@ internal sealed partial class WorldMapScene : IDisposable
             if (completedCar.GardenObjects is { } carGarden)
             {
                 completedCar = completedCar with { GardenObjects = carGarden with { PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native primary contact publication."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native broad contact publication.") } };
+            }
+            if (completedCar.RagnarokObjects is { } carRagnarok)
+            {
+                completedCar = completedCar with { RagnarokObjects = carRagnarok with { PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native primary contact publication."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native broad contact publication.") } };
             }
             foot = foot with { ParkedCar = completedParked with { Car = completedCar } };
         }

@@ -130,6 +130,11 @@ public sealed record NativeCarWorldRuntimeState
             throw new InvalidDataException("Car selected from Ragnarok must retain its sole original dense allocation and selected vehicle.");
         }
         int maximumContact = GardenObjects is { } objects ? objects.Objects.Length - 1 + (objects.BackgroundRails?.Primary is not null || objects.BackgroundRails?.Alternate is not null ? 1 : 0) : RagnarokObjects is { } ragnarokObjects ? ragnarokObjects.Objects.Length - 1 + (ragnarokObjects.BackgroundRails?.HasBanks == true ? 1 : 0) : (Allocation?.Objects.Length ?? 0) + (AppendedObjects.IsDefault ? 0 : AppendedObjects.Length) - 1 + (ObjectProcess?.Primary is not null || ObjectProcess?.Alternate is not null || GardenObjects?.BackgroundRails?.HasBanks == true || RagnarokObjects?.BackgroundRails?.HasBanks == true ? 1 : 0);
+        int selectedCarIndex = GardenObjects?.Allocation.SavedCarIndex ?? RagnarokObjects?.Allocation.SavedCarIndex ?? (Allocation is not null && !AppendedObjects.IsDefaultOrEmpty ? Allocation.Objects.Length : -1);
+        if (selectedCarIndex >= 0 && (PrimaryContact == selectedCarIndex || BroadContact == selectedCarIndex))
+        {
+            throw new InvalidDataException("Native selected-car queries cannot retain their own skipped vehicle as a contact.");
+        }
         if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact > maximumContact || BroadContact > maximumContact || PrimaryContact >= 0 && BroadContact != PrimaryContact)
         {
             throw new InvalidDataException("Native car contacts differ from their executed allocation and hard/broad query order.");

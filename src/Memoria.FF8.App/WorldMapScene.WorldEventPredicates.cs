@@ -10,11 +10,74 @@ internal sealed partial class WorldMapScene
         return state.NativeGardenRuntime ?? state.NativeCarRuntime?.GardenObjects ?? state.NativeFootRuntime?.ParkedCar?.Car.GardenObjects;
     }
 
+    private static NativeRagnarokWorldRuntimeState? WorldEventRagnarokObjects(WorldState state)
+    {
+        return state.NativeRagnarokRuntime ?? state.NativeCarRuntime?.RagnarokObjects ?? state.NativeFootRuntime?.ParkedCar?.Car.RagnarokObjects;
+    }
+
+    private static NativeCarWorldRuntimeState? WorldEventCarOwner(WorldState state)
+    {
+        return state.NativeCarRuntime ?? state.NativeFootRuntime?.ParkedCar?.Car;
+    }
+
+    private IReadOnlyList<NativeTrainWorldObject> WorldEventCarAllocationObjects(WorldState state, NativeCarWorldRuntimeState car)
+    {
+        return car.Allocation!.Objects.AddRange(CarContactAppendedObjects(state, car));
+    }
+
     private bool IsNearWorldEventShape(WorldState accepted, WorldState cameraState, ushort shape)
     {
-        if (accepted.NativeRagnarokRuntime is not null)
+        if (WorldEventRagnarokObjects(accepted) is { } ragnarok)
         {
-            return IsNearRagnarokWorldEventShape(accepted, cameraState, shape);
+            NativeRagnarokWorldRuntimeState source = WorldEventRagnarokObjects(cameraState) ?? throw new NotSupportedException("World event FF17 lost its actual pre-terrain Ragnarok object publication.");
+            NativeWorldPathProjectionCertificate projection = WorldEventProjection(cameraState);
+            for (int index = 1; index < ragnarok.Objects.Length; index++)
+            {
+                NativeWorldPathPosition position = source.Objects[index].Position;
+                if (shape != unchecked((sbyte)ragnarok.Objects[index].ShapeId) || !projection.IsNear(position) || !(projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible)
+                {
+                    continue;
+                }
+                short dx = unchecked((short)(ragnarok.Objects[index].Position.X - accepted.X));
+                short dz = unchecked((short)(ragnarok.Objects[index].Position.Z + accepted.Z));
+                if (unchecked(dx * dx + dz * dz) <= 9000000)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (WorldEventCarOwner(accepted) is { Allocation: not null } car)
+        {
+            IReadOnlyList<NativeTrainWorldObject> objects = WorldEventCarAllocationObjects(accepted, car);
+            NativeCarWorldRuntimeState source = WorldEventCarOwner(cameraState) ?? throw new NotSupportedException("World event FF17 lost its actual pre-terrain car allocation.");
+            IReadOnlyList<NativeTrainWorldObject> drawObjects = WorldEventCarAllocationObjects(cameraState, source);
+            NativeWorldPathProjectionCertificate? projection = null;
+            for (int index = 1; index < objects.Count; index++)
+            {
+                NativeTrainWorldObject item = objects[index];
+                if (shape != unchecked((sbyte)item.ShapeId))
+                {
+                    continue;
+                }
+                if (item.EntityType is >= 0 and <= 9 or 128 or 49)
+                {
+                    throw new NotSupportedException("World event FF17 requires its allocated foot object's executed drawing eligibility.");
+                }
+                projection ??= WorldEventProjection(cameraState);
+                NativeWorldPathPosition position = drawObjects[index].Position;
+                if (!projection.IsNear(position) || !(projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible)
+                {
+                    continue;
+                }
+                short dx = unchecked((short)(item.Position.X - accepted.X));
+                short dz = unchecked((short)(item.Position.Z + accepted.Z));
+                if (unchecked(dx * dx + dz * dz) <= 9000000)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, 0, 0);
         if (WorldEventGardenObjects(accepted) is { } garden)
@@ -73,16 +136,18 @@ internal sealed partial class WorldMapScene
             case 0xFF1B:
             case 0xFF1C:
             case 0xFF1D:
-                if (state.NativeRagnarokRuntime is { } ragnarok)
+                if (WorldEventRagnarokObjects(state) is { } ragnarok)
                 {
                     int FindRagnarokShape(byte shape) => ragnarok.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
-                    int[] excluded = [FindRagnarokShape(0), FindRagnarokShape(2), FindRagnarokShape(3), ragnarok.Allocation.RagnarokIndex, -1, FindRagnarokShape(64), FindRagnarokShape(65)];
-                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, ragnarok.PrimaryContact, ragnarok.BroadContact, ragnarok.Objects.Length, index => ragnarok.Objects[index].ShapeId, index => ragnarok.Objects[index].Position, excluded);
+                    int[] excluded = [FindRagnarokShape(0), FindRagnarokShape(2), FindRagnarokShape(3), ragnarok.Allocation.RagnarokIndex, ragnarok.Allocation.SavedCarIndex, FindRagnarokShape(64), FindRagnarokShape(65)];
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, state.NativeCarRuntime is { } selectedRagnarokCar ? selectedRagnarokCar.PrimaryContact : ragnarok.PrimaryContact, state.NativeCarRuntime is { } selectedRagnarokBroadCar ? selectedRagnarokBroadCar.BroadContact : ragnarok.BroadContact, ragnarok.Objects.Length, index => ragnarok.Objects[index].ShapeId, index => ragnarok.Objects[index].Position, excluded);
                 }
-                if (state.NativeCarRuntime is { Allocation: { } carAllocation } carRuntime)
+                if (WorldEventCarOwner(state) is { Allocation: { } carAllocation } carRuntime)
                 {
-                    // The retained allocation excludes appended selected vehicles;548CD0 skips them.
-                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, carRuntime.PrimaryContact, carRuntime.BroadContact, carAllocation.Objects.Length, index => carAllocation.Objects[index].ShapeId, index => carAllocation.Objects[index].Position, [carAllocation.ControlledObjectIndex]);
+                    IReadOnlyList<NativeTrainWorldObject> objects = WorldEventCarAllocationObjects(state, carRuntime);
+                    int? primary = state.NativeFootRuntime is { } foot ? foot.PrimaryContact : carRuntime.PrimaryContact;
+                    int? broad = state.NativeFootRuntime is { } broadFoot ? broadFoot.BroadContact : carRuntime.BroadContact;
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, primary, broad, objects.Count, index => objects[index].ShapeId, index => objects[index].Position, [carAllocation.ControlledObjectIndex, CarSelectedAllocationIndex(carRuntime)]);
                 }
                 if (WorldEventGardenObjects(state) is { } garden)
                 {
@@ -128,6 +193,9 @@ internal sealed partial class WorldMapScene
                     return null;
                 }
                 return saved.MatchesWorldEventVariable(opcode, operand);
+            case 0xFF38:
+                int? acceptedMagnitude = state.NativeFootRuntime is { } movementFoot ? movementFoot.MovementMagnitude20409F4 : state.NativeCarRuntime is { } movementCar ? movementCar.MovementMagnitude20409F4 : state.NativeGardenRuntime?.MovementMagnitude20409F4;
+                return acceptedMagnitude is int magnitude ? operand == (magnitude != 0 ? 1 : 0) : null;
             case 0xFF32:
             case 0xFF33:
                 NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException($"World event {opcode:X4} requires the executed accepted-ground owner.");
@@ -151,11 +219,15 @@ internal sealed partial class WorldMapScene
 
     private static NativeTrainWorldAllocation WorldEventStaticAllocation(WorldState state)
     {
-        return state.NativeFootRuntime?.NormalObjects?.Allocation ?? state.NativeFootRuntime?.StationTrains?.Load.Allocation ?? state.NativeCarRuntime?.Allocation ?? state.NativeTrainRuntime?.Load.Allocation ?? throw new NotSupportedException("World shape predicates require the executed dense allocation; this runtime retains only a partial loader receipt.");
+        return state.NativeFootRuntime?.NormalObjects?.Allocation ?? state.NativeFootRuntime?.StationTrains?.Load.Allocation ?? state.NativeFootRuntime?.ParkedCar?.Car.Allocation ?? state.NativeCarRuntime?.Allocation ?? state.NativeTrainRuntime?.Load.Allocation ?? throw new NotSupportedException("World shape predicates require the executed dense allocation; this runtime retains only a partial loader receipt.");
     }
 
     private bool IsAbsentFromOriginalAllocation(WorldState state, ushort shape)
     {
+        if (WorldEventGardenObjects(state) is not null || WorldEventRagnarokObjects(state) is not null || WorldEventCarOwner(state)?.Allocation is not null)
+        {
+            return false;
+        }
         bool sparseFoot = state.NativeFootRuntime is { EntityType: 0 or 1, NormalObjects: null, StationTrains: null };
         bool sparseCar = state.NativeCarRuntime is { EntityType: 33, Allocation: null } && state.NativeFootRuntime is null;
         bool sparseScripted = state.NativeScriptedRuntime is not null && state.NativeFootRuntime is null && state.NativeCarRuntime is null && state.NativeTrainRuntime is null;
@@ -188,6 +260,10 @@ internal sealed partial class WorldMapScene
 
     private void RequireWorldEventShapeAllocation(WorldState state, ushort shape)
     {
+        if (WorldEventGardenObjects(state) is not null || WorldEventRagnarokObjects(state) is not null || WorldEventCarOwner(state)?.Allocation is not null)
+        {
+            return;
+        }
         //544860 appends94 independently of section9, and appends the current saved car.
         //These records are absent from the section9-only allocation receipt.
         bool scriptedShape = state.NativeScriptedRuntime is { } scripted && shape <= sbyte.MaxValue && NativeTrainWorldObject.ClassifyShape((byte)shape) == scripted.Path.EntityType;
@@ -214,6 +290,18 @@ internal sealed partial class WorldMapScene
         if (state.NativeTrainRuntime is { } train)
         {
             return NativeWorldPathProjectionCertificate.Create(train.Camera, train.BodyPosition, train.EntityType);
+        }
+        if (state.NativeRagnarokRuntime is not null)
+        {
+            return RagnarokProjection(state);
+        }
+        if (state.NativeFootRuntime is not null)
+        {
+            return NativeWorldPathProjectionCertificate.CreateFoot(NativeWorldFootCameraState.Create(state));
+        }
+        if (state.NativeGardenRuntime is { } garden)
+        {
+            return NativeWorldPathProjectionCertificate.CreateFoot(garden.ProjectionCamera ?? throw new NotSupportedException("World event projection requires its current Garden camera."));
         }
         throw new NotSupportedException("World event FF17 has no executed native projection owner.");
     }

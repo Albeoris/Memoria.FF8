@@ -35,6 +35,10 @@ public sealed class NativeLateCarLoaderTests
         Assert.Equal((byte)85, initial.ShapeId);
         Assert.Null(initial.Allocation);
         Assert.Null(initial.ObjectProcess);
+        int selectedCarIndex = initial.GardenObjects?.Allocation.SavedCarIndex ?? initial.RagnarokObjects!.Allocation.SavedCarIndex;
+        Assert.True(selectedCarIndex >= 0);
+        Assert.Throws<InvalidDataException>(() => (initial with { PrimaryContact = -1, BroadContact = selectedCarIndex }).Validate());
+        Assert.Throws<InvalidDataException>(() => (initial with { PrimaryContact = selectedCarIndex, BroadContact = selectedCarIndex }).Validate());
         NativeWorldBackgroundRailState initialRails = initial.GardenObjects?.BackgroundRails ?? initial.RagnarokObjects!.BackgroundRails!;
         initialRails.Validate();
         Assert.Equal(flags265, initialRails.LoadFlags265);

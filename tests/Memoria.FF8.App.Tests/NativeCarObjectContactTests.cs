@@ -50,7 +50,9 @@ public sealed class NativeCarObjectContactTests
         Assert.Null(oldCar.BroadContact);
         Assert.Throws<InvalidDataException>(() => (initialCar with { PrimaryContact = -1 }).Validate());
         Assert.Throws<InvalidDataException>(() => (initialCar with { PrimaryContact = -2, BroadContact = -2 }).Validate());
+        Assert.Equal(initialCar.ShapeId, initialCar.AllocatedObjects[allocation.Objects.Length].ShapeId);
         Assert.Throws<InvalidDataException>(() => (initialCar with { PrimaryContact = -1, BroadContact = allocation.Objects.Length }).Validate());
+        Assert.Throws<InvalidDataException>(() => (initialCar with { PrimaryContact = allocation.Objects.Length, BroadContact = allocation.Objects.Length }).Validate());
         Assert.Throws<InvalidDataException>(() => (initialCar with { PrimaryContact = contactIndex, BroadContact = -1 }).Validate());
         (initialCar with { PrimaryContact = -1, BroadContact = -1 }).Validate();
 

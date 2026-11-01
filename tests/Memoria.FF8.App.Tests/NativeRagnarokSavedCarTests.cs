@@ -19,7 +19,9 @@ public sealed class NativeRagnarokSavedCarTests
         WorldGroundSelection carGround = assets.LookupNativeGround(carX, carZ, replacements, [])!;
         short carHeight = checked((short)NativeWorldTerrain.ResolveHeight(38, -(int)carGround.Ground.Height, carGround.Ground.Triangle.GroundType, 0).Height);
         NativeSavedWorldVehicleSlot slot = new(85, new(carX, carZ, carHeight, 3008));
-        session.Restore(session.State with { CharacterVitals = session.State.CharacterVitals!.AcquireGuardianForce(13), WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(265, 1, 1), SavedWorld = session.State.SavedWorld! with { Slot4 = slot, Slot5 = new(86, new(12345, -23456, -300, 512)) } });
+        //The declared transfer component has already shown the car tutorial,
+        //as in the ordinary car transfer tests; the message is a separate interaction.
+        session.Restore(session.State with { CharacterVitals = session.State.CharacterVitals!.AcquireGuardianForce(13), WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(265, 1, 1), SavedWorld = session.State.SavedWorld! with { Slot4 = slot, Slot5 = new(86, new(12345, -23456, -300, 512)), WorldEventFlags116 = session.State.SavedWorld.WorldEventFlags116!.WithOperand(256) } });
         using WorldMapScene scene = new(session, directory);
         Assert.Equal(slot, scene.State.NativeRagnarokRuntime!.Allocation.SavedCarSlot);
         NativeRagnarokFootTests.Land(scene);
@@ -47,14 +49,27 @@ public sealed class NativeRagnarokSavedCarTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
         GameSession drivenRestore = new(Clone(session.State));
         using WorldMapScene drivenReplay = new(drivenRestore, directory);
-        foreach (PlayerAction action in new[] { new PlayerAction(PlayerActionKind.Wait, Frames: 24), new PlayerAction(PlayerActionKind.WorldButtons, 0x40) })
+        PlayerAction release = new(PlayerActionKind.Wait);
+        Assert.Equal(scene.Apply(release), drivenReplay.Apply(release));
+        for (int callback = 0; callback < 61 && session.State.World?.NativeCarRuntime?.CameraTransition is { Flags: not 0 }; callback++)
         {
-            Assert.Equal(scene.Apply(action), drivenReplay.Apply(action));
+            Assert.True(session.State.Scene == SceneKind.WorldMap && session.State.World is not null, TransferBoundary(session));
+            Assert.Equal((byte)0, scene.State.EventUi!.ScriptMode);
+            Assert.Equal(scene.Apply(release), drivenReplay.Apply(release));
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(drivenRestore.State)));
         }
-        Assert.NotNull(scene.State.NativeFootRuntime!.ParkedCar!.Car.RagnarokObjects);
+        Assert.True(session.State.Scene == SceneKind.WorldMap && session.State.World?.NativeCarRuntime is not null, TransferBoundary(session));
+        Assert.True(scene.State.NativeCarRuntime!.CameraTransition is null or { Flags: 0 }, TransferBoundary(session));
+        Assert.Equal((byte)0, scene.State.EventUi!.ScriptMode);
+        PlayerAction exit = new(PlayerActionKind.WorldButtons, 0x40);
+        Assert.Equal(scene.Apply(exit), drivenReplay.Apply(exit));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(drivenRestore.State)));
+        Assert.True(session.State.Scene == SceneKind.WorldMap && session.State.World?.NativeFootRuntime is not null, TransferBoundary(session));
+        NativeFootWorldRuntimeState exitedFoot = Assert.IsType<NativeFootWorldRuntimeState>(scene.State.NativeFootRuntime);
+        NativeWorldParkedCar exitedCar = Assert.IsType<NativeWorldParkedCar>(exitedFoot.ParkedCar);
+        Assert.NotNull(exitedCar.Car.RagnarokObjects);
         Assert.Null(scene.State.NativeCarRuntime);
-        Assert.Equal(ship, scene.State.NativeFootRuntime.ParkedCar.Car.RagnarokObjects!.Objects[landed.Allocation.RagnarokIndex]);
+        Assert.Equal(ship, exitedCar.Car.RagnarokObjects!.Objects[landed.Allocation.RagnarokIndex]);
         GameSession walkingRestore = new(Clone(session.State));
         using WorldMapScene walkingReplay = new(walkingRestore, directory);
         Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), walkingReplay.Apply(new(PlayerActionKind.Wait)));
@@ -76,6 +91,12 @@ public sealed class NativeRagnarokSavedCarTests
         Assert.Null(scene.State.NativeRagnarokRuntime.Transfer);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(shipRestore.State)));
         Assert.Equal((byte)85, scene.State.NativeRagnarokRuntime.Objects[landed.Allocation.SavedCarIndex].ShapeId);
+    }
+
+    private static string TransferBoundary(GameSession session)
+    {
+        WorldState? world = session.State.World;
+        return $"Scene={session.State.Scene}, field={session.State.FieldId}, frame={world?.Frame}, car={world?.NativeCarRuntime?.EntityType}, foot={world?.NativeFootRuntime?.EntityType}, cameraFlags={world?.NativeCarRuntime?.CameraTransition?.Flags}, scriptMode={world?.EventUi?.ScriptMode}, windows={world?.EventUi?.Windows.Length}.";
     }
 
     private static GameState Clone(GameState source)

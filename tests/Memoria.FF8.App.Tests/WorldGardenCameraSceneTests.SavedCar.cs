@@ -12,9 +12,8 @@ public sealed partial class WorldGardenCameraSceneTests
     {
         GameSession session = Fixture();
         using WorldAssets assets = new(TestResources.GameDirectory);
-        WorldSpawn spawn = assets.Spawns[41];
-        int carX = spawn.X + 1200;
-        int carZ = spawn.Z;
+        const int carX = -21894;
+        const int carZ = -41257;
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(WorldTerrainSelection.ReplacementMask(0, 0));
         WorldGroundSelection carGround = assets.LookupNativeGround(carX, carZ, replacements, [])!;
         Assert.NotNull(carGround);
@@ -29,6 +28,7 @@ public sealed partial class WorldGardenCameraSceneTests
         WorldState originalFoot = scene.State;
         NativeGardenWorldRuntimeState originalGarden = scene.State.NativeGardenRuntime!;
         PlaceGardenFoot(session, assets, carX + 200, carZ);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
         AssertGardenCarBoardingGates(session, assets);
         Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x40)).Accepted);
         Assert.NotNull(scene.State.NativeCarRuntime);
@@ -52,6 +52,7 @@ public sealed partial class WorldGardenCameraSceneTests
         Assert.NotNull(scene.State.NativeFootRuntime?.ParkedCar);
         Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 48)).Accepted);
         PlaceGardenFoot(session, assets, originalFoot.X, originalFoot.Z);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
         Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x40)).Accepted);
         Assert.Null(scene.State.NativeFootRuntime);
         Assert.Null(scene.State.NativeCarRuntime);
