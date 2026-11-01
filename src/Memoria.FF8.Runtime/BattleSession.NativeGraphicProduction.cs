@@ -18,12 +18,14 @@ public sealed partial class BattleSession
         {
             recipient.NativeRemainingHits = targets.Contains(recipient) ? (byte)1 : (byte)0;
         }
-        if (NativeFirstHitAdmitted(actor, command, context))
+        bool aborted = targets.Length == 0 || !NativeFirstHitAdmitted(actor, command, context);
+        if (!aborted)
         {
             foreach (BattleCombatant recipient in targets)
             {
                 if ((NativeSavedStatusBits(recipient) & 1) != 0 && ((command.NativeTargetMask & 0x4000) == 0 || recipient.NativeIndex >= 3))
                 {
+                    aborted = true;
                     break;
                 }
                 BattleNativeAction native = NativeGraphicContactAction(actor, graphic.MagicId);
@@ -49,7 +51,7 @@ public sealed partial class BattleSession
         {
             NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
         }
-        if (nativeAiDepth == 0 && context.MultiCastMode != 0)
+        if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !aborted)
         {
             nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
         }

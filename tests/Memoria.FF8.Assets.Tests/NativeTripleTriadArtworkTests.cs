@@ -2,11 +2,40 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeTripleTriadArtworkTests
 {
+    [Fact]
+    public void Standalone_back_reads_only_the_card_atlas_and_matches_the_complete_artwork()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(File.Exists(Path.Combine(directory, "FF8_EN.exe")), "Installed original executable is required.");
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        CardAtlasMemory memory = new(GameDataResources.ReadNativeMemory(new ResourceService(source)));
+        PixelImage back = NativeTripleTriadArtwork.ReadBack(memory);
+        Assert.Equal(1, memory.ReadCount);
+        Assert.Equal(NativeTripleTriadArtwork.Load(directory).Back.Pixels, back.Pixels);
+    }
+
+    private sealed class CardAtlasMemory(IGameNativeMemorySource memory) : IGameNativeMemorySource
+    {
+        public string SourceHash => memory.SourceHash;
+        public int ReadCount { get; private set; }
+
+        public byte[] Read(uint address, int count)
+        {
+            Assert.Equal(0xBA9B10u, address);
+            Assert.Equal(487456, count);
+            ReadCount++;
+            return memory.Read(address, count);
+        }
+
+        public byte[] ReadLoader(uint address, int count) => throw new InvalidOperationException();
+    }
+
     [Fact]
     public void Authenticated_rules_background_decodes_the_complete_opaque_native_framebuffer()
     {

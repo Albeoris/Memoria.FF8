@@ -80,6 +80,22 @@ public sealed class NativeTripleTriadArtwork
         return new NativeTripleTriadArtwork(elements, fronts, outcomes, captures, back, background, boardBackground);
     }
 
+    /// <summary>Loads only the hidden-card back, without preparing a complete Triple Triad match.</summary>
+    public static PixelImage LoadBack(string gameDirectory, ResourceService? resources = null)
+    {
+        using IResourceSource? ownedSource = resources is null ? GameDataSourceFactory.Open(gameDirectory) : null;
+        ResourceService active = resources ?? new ResourceService(ownedSource!);
+        IResourceSource source = ownedSource ?? active.GetSource<IResourceSource>() ?? throw new NotSupportedException("Card artwork requires its resource source.");
+        PixelImage original = ReadBack(GameDataResources.ReadNativeMemory(active));
+        return NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original, subresource: "back", resources: resources);
+    }
+
+    public static PixelImage ReadBack(IGameNativeMemorySource memory)
+    {
+        RequireSupportedMemory(memory);
+        return ReadBack(ReadCards(memory));
+    }
+
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)
     {
         return Read(new NativeExecutableMemory(executable));
@@ -87,10 +103,7 @@ public sealed class NativeTripleTriadArtwork
 
     public static NativeTripleTriadArtwork Read(IGameNativeMemorySource memory)
     {
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
-        {
-            throw new NotSupportedException("Triple Triad artwork requires authenticated English native data.");
-        }
+        RequireSupportedMemory(memory);
         // Native 5343xx loads B96A90 via 539450. 53A100 draws each element with tpage 0xC,
         // UV (index%4*64,(index/4+1)*16), CLUT (x0,y225+index); the CLUT is 48 words wide.
         TimImage sprites = ReadTim(memory, 0xB96A90, 76832);
@@ -108,18 +121,14 @@ public sealed class NativeTripleTriadArtwork
         PixelImage[] captures = Enumerable.Range(0, 3).Select(id => CropIndexed(sprites, 512, id * 64, 255, 64, id * 48 + 32)).ToArray();
         // Native 53A428..53A4BA uses a separate 128-color half-row CLUT for each card.
         // Its keyed background differs from the opaque inventory-menu mcXX.TEX artwork.
-        TimImage cards = ReadTim(memory, 0xBA9B10, 487456);
-        if (cards.PixelWidth != 1792 || cards.Height != 256 || cards.Clut is not { Width: 256, Height: 56 })
-        {
-            throw new InvalidDataException("Native Triple Triad card texture has unexpected dimensions.");
-        }
+        TimImage cards = ReadCards(memory);
         PixelImage[] fronts = new PixelImage[CardArtwork.CardCount];
         for (int cardId = 0; cardId < fronts.Length; cardId++)
         {
             fronts[cardId] = CropIndexed(cards, (cardId >> 3) * 128 + (cardId % 2) * 64, ((cardId >> 1) & 3) * 64, 64, 64, (cardId >> 1) * 256 + (cardId % 2) * 128);
         }
         // Native 53A590: tpage 0x9D, UV (0,192)..(63,255), CLUT 0x3FF0.
-        PixelImage back = CropIndexed(cards, 1664, 192, 64, 64, 55 * 256);
+        PixelImage back = ReadBack(cards);
         // Native 536C80 queues C4AB58 through 539410 as a raw framebuffer image.
         // The display environment initialized by 537DD0 supplies its 384 by 224 extent.
         PixelImage background = ReadFramebuffer(memory.Read(0xC4AB58, 384 * 224 * 2));
@@ -127,6 +136,26 @@ public sealed class NativeTripleTriadArtwork
         PixelImage boardBackground = ReadFramebuffer(memory.Read(0xC20B44, 384 * 224 * 2));
         return new NativeTripleTriadArtwork(elements, fronts, outcomes, captures, back, background, boardBackground);
     }
+
+    private static void RequireSupportedMemory(IGameNativeMemorySource memory)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
+        {
+            throw new NotSupportedException("Triple Triad artwork requires authenticated English native data.");
+        }
+    }
+
+    private static TimImage ReadCards(IGameNativeMemorySource memory)
+    {
+        TimImage cards = ReadTim(memory, 0xBA9B10, 487456);
+        if (cards.PixelWidth != 1792 || cards.Height != 256 || cards.Clut is not { Width: 256, Height: 56 })
+        {
+            throw new InvalidDataException("Native Triple Triad card texture has unexpected dimensions.");
+        }
+        return cards;
+    }
+
+    private static PixelImage ReadBack(TimImage cards) => CropIndexed(cards, 1664, 192, 64, 64, 55 * 256);
 
     private static PixelImage ReadFramebuffer(byte[] bytes)
     {

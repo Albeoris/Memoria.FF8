@@ -24,4 +24,7 @@ public enum NativeBattleDeferredContactKind
 }
 
 /// <summary>Already-applied factual contacts for the single canonical header/contact bank; presentation cannot apply them again.</summary>
-public sealed record NativeBattleActionProductionResult(NativeBattleActionHeaderPreparation Header, ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedTargetCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex);
+public sealed record NativeBattleActionProductionResult(NativeBattleActionHeaderPreparation Header, ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedTargetCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex)
+{
+    public bool RepeatAborted { get; init; }
+}

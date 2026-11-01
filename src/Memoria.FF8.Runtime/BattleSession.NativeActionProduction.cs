@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex);
+    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context)
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context);
         byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial ? produced.PublishedCount : (byte)0;
-        return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex);
+        return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex) { RepeatAborted = produced.RepeatAborted };
     }
 
     private NativeProducedContacts ProduceNativeInstalledContacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionProductionContext? context = null)
@@ -76,6 +76,7 @@ public sealed partial class BattleSession
             publishedCount = unchecked((byte)(publishedCount + targets.Length));
             if (targets.Length == 0 || hit == 0 && !NativeFirstHitAdmitted(actor, command, context))
             {
+                aborted = true;
                 break;
             }
             foreach (BattleCombatant recipient in targets)
@@ -117,7 +118,7 @@ public sealed partial class BattleSession
                 }
             }
         }
-        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.NativeIndex));
+        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.NativeIndex), aborted);
     }
 
     private NativeBattleDeferredContactKind NativeDeferredContact(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)

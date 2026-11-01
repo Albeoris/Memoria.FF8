@@ -154,7 +154,9 @@ public sealed partial class BattleSession
             NativeGraphics = graphics;
         }
         nativeProductionContext = context;
-        if (nativeAiDepth == 0 && context.MultiCastMode != 0)
+        //48E830's abort decrements the repeat counter before485610 increments it.
+        //The physical header and its pre-admission target population still remain published.
+        if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !produced.RepeatAborted)
         {
             nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
         }
@@ -162,7 +164,7 @@ public sealed partial class BattleSession
         {
             ResolveNativeReflection(actor, combatants.Single(candidate => candidate.NativeIndex == reflector), command, action.NativeAction!, headerIndex);
         }
-        return produced.PublishedTargetCount != 0;
+        return !produced.RepeatAborted && produced.PublishedTargetCount != 0;
     }
 
     private BattleCombatant[] ResolveNativeActionMask(ushort targetMask)

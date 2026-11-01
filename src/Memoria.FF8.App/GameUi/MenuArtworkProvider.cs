@@ -14,6 +14,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
     private NativeTutorialArtwork? tutorials;
     private NativeMagazineArtwork? magazines;
     private NativeTripleTriadArtwork? tripleTriad;
+    private PixelImage? cardBack;
     private TripleTriadCatalog? cardDefinitions;
     private CardFaceComposer? cardComposer;
     private string? cardFontFamily;
@@ -54,6 +55,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             tutorials = null;
             cards = null;
             tripleTriad = null;
+            cardBack = null;
             cardFaces.Clear();
             artworkGeneration = Generation;
         }
@@ -74,7 +76,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.CardFaceGrayscale => ReadCardFace(source.Id, source.Palette, fontFamily, grayscale: true, modifier: source.RankModifier),
             UiImageKind.TripleTriadCapture => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).GetCaptureBanner(source.Id),
             UiImageKind.TripleTriadOutcome => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).GetOutcomeBanner(source.Id),
-            UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Back,
+            UiImageKind.CardBack => cardBack ??= tripleTriad?.Back ?? NativeTripleTriadArtwork.LoadBack(gameDirectory, resources),
             UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Background,
             UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).BoardBackground,
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetIcon(source.Id, source.Palette),

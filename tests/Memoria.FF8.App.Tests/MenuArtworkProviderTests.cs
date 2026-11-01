@@ -12,6 +12,50 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MenuArtworkProviderTests(ITestOutputHelper output)
 {
     [Fact]
+    public void Slots_card_back_loads_only_its_own_texture_and_refreshes_replacements()
+    {
+        string directory = InstalledGameDirectory();
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        ResourceService resources = new(source);
+        _ = GameDataResources.ReadNativeMemory(resources).SourceHash;
+        MenuArtworkProvider provider = new(directory, resources);
+        UiImageSource back = new(UiImageKind.CardBack, 0);
+        Stopwatch clock = Stopwatch.StartNew();
+        PixelImage original = provider.Read(back);
+        TimeSpan narrowLoad = clock.Elapsed;
+        Assert.Equal(1, resources.ResidentTextureCount);
+        Assert.Same(original, provider.Read(back));
+        clock.Restart();
+        NativeTripleTriadArtwork complete = NativeTripleTriadArtwork.Load(directory);
+        TimeSpan completeLoad = clock.Elapsed;
+        Assert.Equal(complete.Back.Pixels, original.Pixels);
+        output.WriteLine($"First card-back request with resident native resources: {narrowLoad.TotalMilliseconds:F2} ms; full match artwork load previously used by that request: {completeLoad.TotalMilliseconds:F2} ms.");
+        clock.Restart();
+        for (int sample = 0; sample < 10; sample++)
+        {
+            _ = NativeTripleTriadArtwork.LoadBack(directory, resources);
+        }
+        TimeSpan narrowSamples = clock.Elapsed;
+        ResourceService benchmarkResources = new(source);
+        clock.Restart();
+        for (int sample = 0; sample < 10; sample++)
+        {
+            _ = NativeTripleTriadArtwork.Load(directory, benchmarkResources);
+        }
+        output.WriteLine($"Ten warm back-only loads: {narrowSamples.TotalMilliseconds:F2} ms; ten full match loads: {clock.Elapsed.TotalMilliseconds:F2} ms.");
+        BackOnlyResolver resolver = new();
+        resources.Prepare(resolver).Commit();
+        PixelImage replacement = provider.Read(back);
+        Assert.Equal(new Rgba32(13, 57, 91), replacement[0, 0]);
+        Assert.NotSame(original, replacement);
+        Assert.Same(replacement, provider.Read(back));
+        Assert.Equal(1, resources.ResidentTextureCount);
+        Assert.All(resolver.Requests, key => Assert.Equal(new TextureKey(new ResourceKey("cards/cards"), "back"), key));
+        resources.Prepare(null).Commit();
+        Assert.Equal(original.Pixels, provider.Read(back).Pixels);
+    }
+
+    [Fact]
     public void Card_faces_cache_complete_owner_layers_and_refresh_when_the_system_font_changes()
     {
         MenuArtworkProvider provider = new(InstalledGameDirectory());
@@ -176,6 +220,19 @@ public sealed class MenuArtworkProviderTests(ITestOutputHelper output)
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    private sealed class BackOnlyResolver : ITextureReplacementResolver
+    {
+        public List<TextureKey> Requests { get; } = [];
+
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            Requests.Add(context.Key);
+            PixelImage image = new(context.LogicalWidth, context.LogicalHeight);
+            Array.Fill(image.Pixels, new Rgba32(13, 57, 91));
+            return new TextureReplacement(image, "test-artwork", context.LogicalWidth, context.LogicalHeight);
         }
     }
 
