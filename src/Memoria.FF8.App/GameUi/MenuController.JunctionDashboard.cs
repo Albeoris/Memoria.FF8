@@ -492,7 +492,7 @@ public sealed partial class MenuController
             }
             UiGrid readout = Grid([1], [1, 1.1f], 2);
             readout.Id = prefix + "-readout-" + position;
-            Place(readout, JunctionLabel(label, elemental ? 15 : 14), 0);
+            Place(readout, JunctionEffectLabel(elemental, index, label, elemental ? 15 : 14), 0);
             UiLabel number = JunctionLabel(percentage, elemental ? 16 : 15, value is null);
             if (value is not null && preview is not null && (attack ? value.Attack != preview.Attack : value.Defense != preview.Defense))
             {

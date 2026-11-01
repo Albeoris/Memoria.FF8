@@ -7,6 +7,27 @@ public sealed partial class MenuController
     private static readonly UiColor JunctionIncreaseColor = new(110, 220, 135);
     private static readonly UiColor JunctionDecreaseColor = new(245, 90, 90);
 
+    private UiElement JunctionEffectLabel(bool elemental, int index, string name, float size)
+    {
+        int count = elemental ? 8 : 13;
+        if ((uint)index >= (uint)count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+        UiGrid identity = new() { Gap = 3 };
+        identity.RowDefinitions.Add(UiGridLength.Star());
+        identity.ColumnDefinitions.Add(UiGridLength.Pixel(18 * TextScale));
+        identity.ColumnDefinitions.Add(UiGridLength.Star());
+        UiImage icon = new()
+        {
+            Id = (elemental ? "elemental" : "status") + "-icon-" + index,
+            Source = new UiImageSource(UiImageKind.Icon, (elemental ? 288 : 272) + index)
+        };
+        Place(identity, icon, 0);
+        Place(identity, JunctionLabel(name, size), 0, 1);
+        return identity;
+    }
+
     private sealed class JunctionLockIcon : UiElement
     {
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)

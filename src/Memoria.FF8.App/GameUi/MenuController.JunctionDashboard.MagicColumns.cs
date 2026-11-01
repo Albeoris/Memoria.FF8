@@ -16,6 +16,7 @@ public sealed partial class MenuController
             RowHeight = 26 * TextScale,
             NameQuantityGap = 8 * TextScale,
             ColumnGap = 16 * TextScale,
+            HorizontalPadding = 8 * TextScale,
             FirstVisibleColumn = junctionMagicFirstColumn,
             InitialIndex = Math.Max(0, candidates.ToList().FindIndex(candidate => "candidate-" + candidate.Id == junctionFocus)),
             FirstColumnChanged = first => junctionMagicFirstColumn = first

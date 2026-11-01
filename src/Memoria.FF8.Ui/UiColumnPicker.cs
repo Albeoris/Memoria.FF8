@@ -12,6 +12,7 @@ public sealed class UiColumnPicker : UiElement
     public float RowHeight { get; set; } = 26;
     public float NameQuantityGap { get; set; } = 8;
     public float ColumnGap { get; set; } = 16;
+    public float HorizontalPadding { get; set; } = 8;
     public int FirstVisibleColumn { get; set; }
     public int InitialIndex { get; set; }
     public int RowCount { get; private set; } = 1;
@@ -52,7 +53,7 @@ public sealed class UiColumnPicker : UiElement
         ArrangeItems();
     }
 
-    private float ColumnWidth(int column) => nameWidths[column] + NameQuantityGap + quantityWidths[column];
+    private float ColumnWidth(int column) => HorizontalPadding * 2 + nameWidths[column] + NameQuantityGap + quantityWidths[column];
 
     private int LastVisibleColumn()
     {
@@ -115,8 +116,8 @@ public sealed class UiColumnPicker : UiElement
                 }
                 UiRect cell = new(x, Bounds.Y + row * RowHeight, ColumnWidth(column), RowHeight);
                 item.Button.Arrange(cell);
-                item.Name.Arrange(new UiRect(x, cell.Y, nameWidths[column], RowHeight));
-                item.Quantity.Arrange(new UiRect(x + nameWidths[column] + NameQuantityGap, cell.Y, quantityWidths[column], RowHeight));
+                item.Name.Arrange(new UiRect(x + HorizontalPadding, cell.Y, nameWidths[column], RowHeight));
+                item.Quantity.Arrange(new UiRect(x + HorizontalPadding + nameWidths[column] + NameQuantityGap, cell.Y, quantityWidths[column], RowHeight));
             }
             if (visible)
             {

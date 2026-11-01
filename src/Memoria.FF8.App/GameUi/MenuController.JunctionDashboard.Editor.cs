@@ -81,7 +81,7 @@ public sealed partial class MenuController
         if (junctionEditor == "magic")
         {
             candidates.Add(new("none", "---", _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
-            foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
+            foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0 && (Data.JunctionPlanner is not { } planner || spell.SpellId is int spellId && planner.IsMagicCandidate(actor.Id, spellId, _junctionSlot))))
             {
                 string detail = J("stock", "Stock") + $" ×{spell.Quantity}";
                 if (spell.RemainingUses is not null || spell.UnlimitedUses)

@@ -71,7 +71,7 @@ public sealed partial class MenuController
                 MenuJunctionPercentage? value = values?.ElementAtOrDefault(index);
                 MenuJunctionPercentage? next = projected?.ElementAtOrDefault(index);
                 var row = Grid([1], [0.85f, 1.4f], 3);
-                Place(row, Label(name, 17), 0);
+                Place(row, JunctionEffectLabel(elemental, index, name, 17), 0);
                 var numbers = Grid([1], [1, 1], 5);
                 Place(numbers, Percentage("attack", value?.Attack, next?.Attack), 0);
                 Place(numbers, Percentage("defense", value?.Defense, next?.Defense), 0, 1);

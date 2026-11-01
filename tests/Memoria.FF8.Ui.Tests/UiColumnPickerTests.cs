@@ -18,16 +18,39 @@ public sealed class UiColumnPickerTests
         picker.Add(first, firstName, firstQuantity);
         picker.Add(second, secondName, secondQuantity);
         picker.Add(third, thirdName, thirdQuantity);
-        picker.Arrange(new(10, 20, 200, 52));
+        picker.Arrange(new(10, 20, 232, 52));
         Assert.Equal(2, picker.RowCount);
         Assert.Equal(80, firstName.Bounds.Width);
         Assert.Equal(firstQuantity.Bounds.X, secondQuantity.Bounds.X);
         Assert.Equal(8, firstQuantity.Bounds.X - firstName.Bounds.Right);
         Assert.Equal(24, firstQuantity.Bounds.Width);
+        Assert.Equal(8, firstName.Bounds.X - first.Bounds.X);
+        Assert.Equal(8, first.Bounds.Right - firstQuantity.Bounds.Right);
         Assert.Equal(16, third.Bounds.X - first.Bounds.Right);
         Assert.Equal(first.Bounds.Y, third.Bounds.Y);
         Assert.Equal(first.Bounds.Bottom, second.Bounds.Y);
         Assert.False(picker.Focusable);
+    }
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.5f)]
+    [InlineData(2f)]
+    public void EverySelectionEnclosesBothLabelsWithSymmetricScaledPadding(float scale)
+    {
+        UiColumnPicker picker = new() { RowHeight = 26 * scale, HorizontalPadding = 8 * scale };
+        UiButton button = new();
+        UiLabel name = new() { Text = "Blizzaga", Width = 80 * scale };
+        UiLabel quantity = new() { Text = "24", Width = 20 * scale };
+        picker.Add(button, name, quantity);
+        picker.Arrange(new(10, 20, 300 * scale, 52 * scale));
+        UiRect selection = button.Bounds.Inset(3);
+        Assert.Equal(8 * scale, name.Bounds.X - button.Bounds.X);
+        Assert.Equal(name.Bounds.X - button.Bounds.X, button.Bounds.Right - quantity.Bounds.Right);
+        Assert.True(name.Bounds.X > selection.X + 3);
+        Assert.True(quantity.Bounds.Right < selection.Right);
+        Assert.Equal(button.Bounds.Y, name.Bounds.Y);
+        Assert.Equal(button.Bounds.Bottom, quantity.Bounds.Bottom);
     }
 
     [Fact]
@@ -80,7 +103,7 @@ public sealed class UiColumnPickerTests
             picker.Add(buttons[index], new UiLabel { Text = "Magic", Width = 40 }, new UiLabel { Text = "100", Width = 20 });
         }
         UiView view = new(picker);
-        view.Resize(160, 52);
+        view.Resize(192, 52);
         return (picker, buttons, view);
     }
 }

@@ -9,6 +9,50 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MenuJunctionPlannerTests
 {
     [Theory]
+    [InlineData("Elem-Atk", 9)]
+    [InlineData("ST-Atk", 10)]
+    [InlineData("Elem-Def 1", 11)]
+    [InlineData("ST-Def 1", 15)]
+    public void Effect_candidates_and_direct_assignment_share_original_mask_eligibility(string slot, int index)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = Setup(assets, false);
+        MenuJunctionPlanner planner = Planner(source, catalog);
+        BattleNativePlayerStatRules rules = catalog.ReadStatRules(source, 0);
+        string original = JsonSerializer.Serialize(source);
+        int eligible = 0;
+        int rejected = 0;
+        foreach (int spell in Enumerable.Range(1, 32))
+        {
+            bool expected = NativeJunctionMagicEligibility.HasContribution(rules.MagicRecords[spell].AsSpan(), index);
+            Assert.Equal(expected, planner.IsMagicCandidate("character-0", spell, slot));
+            foreach (string action in new[] { "junction-magic", "junction-magic-reassign" })
+            {
+                MenuJunctionPlan plan = planner.Plan(new(action, $"magic-0-{spell}", "character-0", slot));
+                Assert.Equal(expected, plan.UnavailableReason is null);
+                if (!expected)
+                {
+                    Assert.Empty(plan.Changes);
+                    Assert.False(plan.HasChanges);
+                }
+            }
+            if (expected)
+            {
+                eligible++;
+            }
+            else
+            {
+                rejected++;
+            }
+        }
+        Assert.True(eligible > 0);
+        Assert.True(rejected > 0);
+        Assert.True(planner.IsMagicCandidate("character-0", 0, slot));
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Optimizer_preserves_pins_effects_other_owners_and_reserved_byte(bool shared)

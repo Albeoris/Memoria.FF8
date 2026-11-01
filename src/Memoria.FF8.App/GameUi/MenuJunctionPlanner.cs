@@ -62,6 +62,20 @@ public sealed class MenuJunctionPlanner
 
     public bool IsCurrent(MenuJunctionPlan plan) => plan.SourceFingerprint == SourceFingerprint;
 
+    public bool IsMagicCandidate(string characterId, int spellId, string slot)
+    {
+        int index = Enumerable.Range(0, 19).Single(index => LiveMenuData.JunctionSlotName(index) == slot);
+        if (spellId == 0 || index < 9)
+        {
+            return true;
+        }
+        if (catalog is null || spellId is < 1 or >= 57)
+        {
+            return false;
+        }
+        return NativeJunctionMagicEligibility.HasContribution(Rules(source, CharacterRow(characterId)).MagicRecords[spellId].AsSpan(), index);
+    }
+
     public MenuJunctionPlan Plan(MenuAction action)
     {
         if (planCache.TryGetValue(action, out MenuJunctionPlan? cached))
@@ -74,7 +88,12 @@ public sealed class MenuJunctionPlanner
             {
                 return Cache(action, Unavailable(action.Kind, unavailable));
             }
-            NativeCharacterVitals intended = NativeJunctionMenuInput.Apply(source.DeepCopy(), NativeJunctionMenuProjection.PlayerAction(action));
+            PlayerAction input = NativeJunctionMenuProjection.PlayerAction(action);
+            if (input.Kind is PlayerActionKind.SetJunctionMagic or PlayerActionKind.ReassignJunctionMagic && !IsMagicCandidate(action.TargetId, int.Parse(input.Text!, CultureInfo.InvariantCulture), action.Value))
+            {
+                return Cache(action, Unavailable(action.Kind, "This magic has no contribution for the selected junction slot."));
+            }
+            NativeCharacterVitals intended = NativeJunctionMenuInput.Apply(source.DeepCopy(), input);
             NativeJunctionEditOperation operation = action.Kind switch
             {
                 "junction-off" when action.Value == "Magic" => NativeJunctionEditOperation.ClearCharacterMagic,

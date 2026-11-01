@@ -9,6 +9,27 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionDashboardInteractionTests
 {
+    [Theory]
+    [InlineData("Elem-Atk", 9)]
+    [InlineData("ST-Atk", 10)]
+    [InlineData("Elem-Def 1", 11)]
+    [InlineData("ST-Def 1", 15)]
+    public void Effect_picker_only_lists_stock_with_the_selected_native_junction_mask(string slot, int index)
+    {
+        using Fixture fixture = new();
+        fixture.Hit("slot-" + slot);
+        BattleNativePlayerStatRules rules = fixture.Catalog.ReadStatRules(fixture.Vitals, 0);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "candidate-none");
+        string[] candidates = fixture.Menu.Entries.Select(entry => entry.Id).Where(id => id.StartsWith("candidate-magic-0-", StringComparison.Ordinal)).ToArray();
+        Assert.NotEmpty(candidates);
+        foreach (string candidate in candidates)
+        {
+            int spell = int.Parse(candidate.AsSpan("candidate-magic-0-".Length));
+            Assert.True(NativeJunctionMagicEligibility.HasContribution(rules.MagicRecords[spell].AsSpan(), index));
+        }
+        Assert.Equal(0, fixture.Actions);
+    }
+
     [Fact]
     public void ClickingACandidateCommitsImmediatelyWithoutSearchOrConfirmationButtons()
     {
