@@ -10,6 +10,14 @@ public sealed partial class GameSession
 
     private static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
     {
+        if (finalWorld.NativeFootRuntime?.ParkedCar?.Car.GardenObjects is { } carGarden)
+        {
+            saved = saved.WithGardenParking(carGarden);
+        }
+        if (finalWorld.NativeFootRuntime?.ParkedCar?.Car.RagnarokObjects is { } carRagnarok)
+        {
+            saved = saved.WithRagnarokParking(carRagnarok);
+        }
         saved = finalWorld.NativeFootRuntime?.ParkedCar is { } car ? saved.WithCarParking(car) : saved;
         saved = finalWorld.NativeGardenRuntime is NativeGardenWorldRuntimeState garden ? saved.WithGardenParking(garden) : saved;
         return finalWorld.NativeRagnarokRuntime is NativeRagnarokWorldRuntimeState ragnarok ? saved.WithRagnarokParking(ragnarok) : saved;
@@ -53,7 +61,7 @@ public sealed partial class GameSession
             World = null,
             DepartingWorldState = finalWorld,
             DebugView = null,
-            SavedWorld = departure.SavedWorld.WithGardenReturn(receipt),
+            SavedWorld = departure.SavedWorld.WithGardenParking(finalWorld.NativeGardenRuntime!).WithGardenReturn(receipt),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorld),

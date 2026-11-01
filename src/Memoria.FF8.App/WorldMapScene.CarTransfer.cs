@@ -12,6 +12,14 @@ internal sealed partial class WorldMapScene
         {
             return null;
         }
+        if (parked.Car.RagnarokObjects is not null)
+        {
+            return PrepareRagnarokCarBoarding(state, salary);
+        }
+        if (parked.Car.GardenObjects is not null)
+        {
+            return PrepareGardenCarBoarding(state, salary, parked);
+        }
         NativeFootWorldRuntimeState foot = state.NativeFootRuntime;
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(NativeWorldFootCameraState.Create(state));
         NativeWorldContactShape shape = assets.ReadNativeContactShape(parked.Car.ShapeId);
@@ -49,6 +57,14 @@ internal sealed partial class WorldMapScene
 
     private int CarTransferContact(WorldState state, NativeCarWorldRuntimeState car, IReadOnlyList<WorldNativeGardenProbe> probes, int entity, int padding, NativeWorldParkedCar? parked = null, bool forceCircle = false)
     {
+        if (car.RagnarokObjects is not null)
+        {
+            return CarRagnarokContact(state, car, probes, entity, padding, forceCircle);
+        }
+        if (car.GardenObjects is not null)
+        {
+            return CarGardenContact(state, car, probes, entity, padding, forceCircle);
+        }
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(car.ObjectProcess?.Camera ?? (state.NativeFootRuntime is not null ? NativeWorldFootCameraState.Create(state) : car.ProjectionCamera ?? new(state.X, state.Z, state.NativeHeight, state.CameraTargetX, state.CameraTargetZ, state.CameraTargetNativeHeight, state.CameraYaw, -112, -341, -7168)));
         WorldNativeGardenProbe center = probes[0];
         NativeWorldPathWords player = context.RelativeWords(new(center.X, center.Y, -center.Z));
@@ -58,6 +74,14 @@ internal sealed partial class WorldMapScene
 
     private WorldState? PrepareCarDisembark(WorldState state, NativeWorldSalaryState salary)
     {
+        if (state.NativeCarRuntime?.RagnarokObjects is not null)
+        {
+            return PrepareCarRagnarokDisembark(state, salary);
+        }
+        if (state.NativeCarRuntime?.GardenObjects is not null)
+        {
+            return PrepareCarGardenDisembark(state, salary);
+        }
         if (state.NativeCarRuntime is not { } car || salary.InputHistory is not { PreviousButtons: { } previous } input || (input.CurrentButtons & ~previous & 0x40) == 0 || salary.EventUi?.ScriptMode != 0 || state.Frame < 24 || car.CameraTransition is { Flags: not 0 })
         {
             return null;
@@ -122,6 +146,14 @@ internal sealed partial class WorldMapScene
     private IReadOnlyList<NativeWorldStaticModelDraw> ReadParkedCarModels(WorldState state)
     {
         NativeWorldParkedCar parked = state.NativeFootRuntime!.ParkedCar!;
+        if (parked.Car.RagnarokObjects is not null)
+        {
+            return ReadCarRagnarokModels(state, parked.Car, true);
+        }
+        if (parked.Car.GardenObjects is not null)
+        {
+            return ReadCarGardenModels(state, parked.Car, true);
+        }
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(NativeWorldFootCameraState.Create(state));
         List<NativeWorldStaticModelDraw> result = [];
         NativeTrainWorldAllocation allocation = CarTransferAllocation(parked.Car);
@@ -135,7 +167,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathNodeProjection projection = context.ProjectNode(item.Position) ?? throw new NotSupportedException(context.UnsupportedReason);
             if (projection.Visible)
             {
-                result.Add(new(assets.ReadScriptedStaticModel(item.ShapeId), new(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AllocationAngles(item))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
+                result.Add(new(assets.ReadScriptedStaticModel(item.ShapeId), new(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AnimatedAllocationAngles(item, parked.Car.AllocationAnimationCounter))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
         result.AddRange(ReadCarRailModels(parked.Car));

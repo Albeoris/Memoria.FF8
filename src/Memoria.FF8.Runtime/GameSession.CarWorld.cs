@@ -2,6 +2,26 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    private static void ValidateCarGardenBody(WorldState world, NativeCarWorldRuntimeState car)
+    {
+        if (car.GardenObjects is not { } garden)
+        {
+            return;
+        }
+        NativeGardenWorldObject foot = garden.Objects[garden.Allocation.FootObjectIndex];
+        if (foot.Position != new NativeWorldPathPosition(world.X, world.NativeHeight, -world.Z) || ((foot.RotationY % 4096 + 4096) % 4096) != world.BodyYaw)
+        {
+            throw new InvalidDataException("Car-allocation Garden foot object differs from the actual controlled body.");
+        }
+        NativeGardenWorldObject vehicle = garden.Objects[garden.Allocation.SavedCarIndex];
+        NativeWorldPathPosition expected = world.NativeFootRuntime?.ParkedCar?.Position ?? new(world.X, world.NativeHeight, -world.Z);
+        int yaw = world.NativeFootRuntime?.ParkedCar?.BodyYaw ?? world.BodyYaw;
+        if (vehicle.Position != expected || ((vehicle.RotationY % 4096 + 4096) % 4096) != yaw || !NativeWorldForestState.ContentEquals(garden.Forest, world.NativeFootRuntime?.Forest ?? car.Forest))
+        {
+            throw new InvalidDataException("Car selected from Garden lost its actual parked/current vehicle or shared forest owner.");
+        }
+    }
+
     private static bool HasNativeCarArrivalAuthority(GameState state, WorldState world, NativeCarWorldRuntimeState car)
     {
         if (state.WorldArrival is not { } arrival)
@@ -43,7 +63,7 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("The prepared native car save differs from its current world action endpoint.");
         }
-        GameState candidate = salary.ApplyTo(departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, FieldLoadContext = NativeFieldLoadContext.FromWorldReturn(transition.FieldId), PreviousFieldId = receipt.LastFieldId, FieldName = transition.FieldId == 106 ? "bcgate_1" : $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, FieldRequestPacket = (departure.FieldRequestPacket ?? new()).WithWorldReturn(transition), WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = departure.SavedWorld.WithCarReturn(receipt), WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldProcess = PrepareWorldProcess(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) }, finalWorld);
+        GameState candidate = salary.ApplyTo(departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, FieldLoadContext = NativeFieldLoadContext.FromWorldReturn(transition.FieldId), PreviousFieldId = receipt.LastFieldId, FieldName = transition.FieldId == 106 ? "bcgate_1" : $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, FieldRequestPacket = (departure.FieldRequestPacket ?? new()).WithWorldReturn(transition), WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = (finalWorld.NativeCarRuntime!.RagnarokObjects is { } parkedRagnarok ? departure.SavedWorld.WithRagnarokParking(parkedRagnarok) : finalWorld.NativeCarRuntime.GardenObjects is { } parkedGarden ? departure.SavedWorld.WithGardenParking(parkedGarden) : departure.SavedWorld).WithCarReturn(receipt), WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldProcess = PrepareWorldProcess(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) }, finalWorld);
         candidate = candidate with { SavedWorld = PrepareOrdinaryWorldFieldEntry(candidate.SavedWorld!) };
         candidate = StageOriginalAchievementNativeMutations(candidate, salary.Payments > 0);
         candidate = AdvanceNativePlaytime(candidate);

@@ -17,6 +17,7 @@ internal sealed partial class WorldMapScene
         foot.RequireNativeGroundState();
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Parked Garden entry requires its retained native process owner.");
         NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, foot.GroundCache!, process, assets.ReadGardenCameraDefaults(), NativeWorldFootCameraState.Create(world), selectedGroundHeight, ReadInitialGardenTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
+        garden = garden with { BackgroundRails = CreateBackgroundRails(allocation.Flags265, garden.ProjectionCamera!) };
         WorldState result = world with { NativeGardenRuntime = garden };
         if (auxiliaryEntry is not null)
         {
@@ -32,6 +33,12 @@ internal sealed partial class WorldMapScene
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Parked Garden restoration requires its actual world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Parked Garden allocation requires its actual saved GF13 flags.");
         NativeGardenWorldRuntimeState garden = world.NativeGardenRuntime ?? throw new InvalidDataException("Parked Garden restoration lost its executed allocation owner.");
+        if (garden.CarBodyPose is not null)
+        {
+            ValidateRetainedGardenCarHistory(garden, arrival, inputs);
+            world.NativeFootRuntime!.RequireNativeGroundState();
+            return;
+        }
         NativeGardenWorldAllocation allocation = assets.ReadParkedGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals, garden.AuxiliaryEntry, battleReload);
         NativeFootWorldRuntimeState foot = world.NativeFootRuntime ?? throw new InvalidDataException("Parked Garden restoration lost its controlled foot owner.");
         garden.Validate();

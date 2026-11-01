@@ -17,6 +17,8 @@ public sealed class NativeCarWorldAllocationTests
         byte[] coordinates = Coordinates();
         NativeSavedWorldVehicleSlot selected = new(85, new(1234, -2345, -100, 1024));
         var objects = NativeCarWorldAllocationReader.ReadAppended(coordinates, selected, flags, 1, new(0, 0, 0));
+        NativeTrainWorldObject[] restored = System.Text.Json.JsonSerializer.Deserialize<NativeTrainWorldObject[]>(System.Text.Json.JsonSerializer.Serialize(objects))!;
+        Assert.True(objects.Select(item => item.Flags).SequenceEqual(restored.Select(item => item.Flags)));
         Assert.Equal(count, objects.Length);
         Assert.Equal((byte)85, objects[0].ShapeId);
         Assert.Equal(selected.Pose, objects[0].Pose);
@@ -29,6 +31,8 @@ public sealed class NativeCarWorldAllocationTests
             }
             Assert.Equal((byte)79, objects[index].ShapeId);
             Assert.Equal((byte)80, objects[index + 1].ShapeId);
+            Assert.Equal((byte)0, objects[index].Flags);
+            Assert.Equal((byte)4, objects[index + 1].Flags);
             Assert.Equal((byte)(31 + group), objects[index].CoordinateIndex);
             Assert.Equal((byte)(31 + group), objects[index + 1].CoordinateIndex);
             Assert.Equal(1000 + group, objects[index].Position.X);

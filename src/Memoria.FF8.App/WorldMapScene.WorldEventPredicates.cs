@@ -5,6 +5,11 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
+    private static NativeGardenWorldRuntimeState? WorldEventGardenObjects(WorldState state)
+    {
+        return state.NativeGardenRuntime ?? state.NativeCarRuntime?.GardenObjects ?? state.NativeFootRuntime?.ParkedCar?.Car.GardenObjects;
+    }
+
     private bool IsNearWorldEventShape(WorldState accepted, WorldState cameraState, ushort shape)
     {
         if (accepted.NativeRagnarokRuntime is not null)
@@ -12,13 +17,14 @@ internal sealed partial class WorldMapScene
             return IsNearRagnarokWorldEventShape(accepted, cameraState, shape);
         }
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, 0, 0);
-        if (accepted.NativeGardenRuntime is { } garden)
+        if (WorldEventGardenObjects(accepted) is { } garden)
         {
             return WorldAllocatedShapeProximity.Evaluate(input, shape, garden.Objects, index =>
             {
-                NativeGardenWorldRuntimeState source = cameraState.NativeGardenRuntime ?? throw new NotSupportedException("World event FF17 lost its actual pre-terrain Garden object publication.");
+                NativeGardenWorldRuntimeState source = WorldEventGardenObjects(cameraState) ?? throw new NotSupportedException("World event FF17 lost its actual pre-terrain Garden object publication.");
                 NativeWorldPathPosition position = source.Objects[index].Position;
-                NativeWorldPathProjectionCertificate projection = GardenProjection(accepted);
+                NativeWorldFootCameraState camera = accepted.NativeCarRuntime?.ProjectionCamera ?? (accepted.NativeFootRuntime is not null ? NativeWorldFootCameraState.Create(accepted) : garden.ProjectionCamera) ?? throw new NotSupportedException("World event FF17 lost its current Garden-allocation projection.");
+                NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
                 return projection.IsNear(position) && (projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible;
             });
         }
@@ -78,12 +84,12 @@ internal sealed partial class WorldMapScene
                     // The retained allocation excludes appended selected vehicles;548CD0 skips them.
                     return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, carRuntime.PrimaryContact, carRuntime.BroadContact, carAllocation.Objects.Length, index => carAllocation.Objects[index].ShapeId, index => carAllocation.Objects[index].Position, [carAllocation.ControlledObjectIndex]);
                 }
-                if (state.NativeGardenRuntime is { } garden)
+                if (WorldEventGardenObjects(state) is { } garden)
                 {
                     int FindShape(byte shape) => garden.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
                     int car = garden.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.EntityType is >= 32 and <= 40 or 132).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
                     int[] excluded = [garden.Allocation.FootObjectIndex, FindShape(2), FindShape(3), FindShape(1), car, garden.Allocation.Garden64Index, garden.Allocation.Garden65Index];
-                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, garden.PrimaryContact, garden.BroadContact, garden.Objects.Length, index => garden.Objects[index].ShapeId, index => garden.Objects[index].Position, excluded);
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, state.NativeCarRuntime?.PrimaryContact ?? garden.PrimaryContact, state.NativeCarRuntime?.BroadContact ?? garden.BroadContact, garden.Objects.Length, index => garden.Objects[index].ShapeId, index => garden.Objects[index].Position, excluded);
                 }
                 else
                 {

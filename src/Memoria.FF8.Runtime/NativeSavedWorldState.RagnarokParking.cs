@@ -16,6 +16,12 @@ public sealed partial record NativeSavedWorldState
         //the current controlled foot0 pose and auxiliary return fields.
         NativeRagnarokWorldObject garden = runtime.Objects.Last(item => item.ShapeId == 64);
         NativeSavedWorldPose gardenPose = new(garden.Position.X, unchecked(-garden.Position.Z), unchecked((short)garden.Position.Y), unchecked((ushort)garden.Yaw));
-        return this with { RagnarokPose2 = pose, GardenPose3 = gardenPose, RagnarokReturn = null };
+        NativeSavedWorldVehicleSlot car = Slot4;
+        if (runtime.Allocation.SavedCarIndex >= 0)
+        {
+            NativeRagnarokWorldObject parkedCar = runtime.Objects[runtime.Allocation.SavedCarIndex];
+            car = new(parkedCar.ShapeId, new(parkedCar.Position.X, -parkedCar.Position.Z, checked((short)parkedCar.Position.Y), checked((ushort)parkedCar.Yaw)));
+        }
+        return this with { RagnarokPose2 = pose, GardenPose3 = gardenPose, RagnarokReturn = null, Slot4 = car };
     }
 }

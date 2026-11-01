@@ -121,7 +121,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = garden.ProjectionCamera ?? throw new NotSupportedException("Garden foot contact lost its actual pre-terrain camera.");
         NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         bool trainContactsExcluded = WorldFootContactCertificate.ExcludesOriginalTrainRoutes(projection);
-        return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, cameraState.NativeFootRuntime!.EntityType, selectedEntity, probes, projection, padding, forceCircle, trainContactsExcluded);
+        return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, cameraState.NativeFootRuntime!.EntityType, selectedEntity, probes, projection, padding, forceCircle, trainContactsExcluded, garden.BackgroundRails);
     }
 
     private WorldState CompleteGardenFootCallback(WorldState after, WorldNativeGroundResult ground, int graphicsSpeed)

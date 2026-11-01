@@ -13,6 +13,11 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Garden allocation requires the current executed world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Garden allocation requires its actual saved GF13 flags.");
+        if (session.State.World?.NativeGardenRuntime is { CarBodyPose: not null } retainedGarden)
+        {
+            ValidateRetainedGardenCarHistory(retainedGarden, arrival, inputs);
+            return;
+        }
         //The allocation packet remains the original foot entry after54B460 reboards
         //Garden. Authenticate that retained allocation without rerunning a48 loader.
         NativeGardenWorldAllocation allocation = unchecked((byte)arrival.Mode) == 0
@@ -26,6 +31,7 @@ internal sealed partial class WorldMapScene
             NativeWorldGroundCacheState cache = CreateFreshGroundCache(ground.Identity);
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Garden entry requires its retained native process owner.");
             NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, cache, process, assets.ReadGardenCameraDefaults(), currentGroundHeight: unchecked((short)-(int)ground.Ground.Height), priorTerrainOcclusion: ReadInitialGardenTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
+            garden = garden with { BackgroundRails = CreateBackgroundRails(allocation.Flags265, garden.ProjectionCamera!) };
             WorldState initial = new()
             {
                 X = pose.X,
@@ -70,6 +76,21 @@ internal sealed partial class WorldMapScene
         }
     }
 
+    private void ValidateRetainedGardenCarHistory(NativeGardenWorldRuntimeState garden, WorldTransition arrival, WorldEntryVariables inputs)
+    {
+        garden.Validate();
+        assets.ValidateGardenAllocationResources(garden.Allocation);
+        assets.ValidateNativeGroundCache(garden.GroundCache, replacements);
+        if (garden.Allocation.Packet != arrival || garden.Allocation.Story != inputs.StoryWord || (garden.Allocation.ReplacementFlags264 & 7) != (inputs.ReplacementFlags & 7) || garden.Allocation.SavedCarSlot?.ShapeId != session.State.SavedWorld?.Slot4.ShapeId)
+        {
+            throw new InvalidDataException("Garden car-control history differs from its original allocation, current story or actual saved vehicle.");
+        }
+        if (garden.AuxiliaryEntry is not null)
+        {
+            assets.ValidateGardenAuxiliaryRelocations(garden.AuxiliaryEntry);
+        }
+    }
+
     private static NativeWorldPathProjectionCertificate GardenProjection(WorldState state)
     {
         NativeWorldFootCameraState camera = state.NativeGardenRuntime?.ProjectionCamera ?? throw new NotSupportedException("Garden contact requires its current executed pre-terrain projection camera.");
@@ -82,6 +103,11 @@ internal sealed partial class WorldMapScene
         garden.Validate();
         NativeWorldPathProjectionCertificate projection = GardenProjection(state);
         List<NativeWorldStaticModelDraw> models = [];
+        if (garden.BackgroundRails is { } background)
+        {
+            ValidateBackgroundRails(state, background, true);
+            models.AddRange(ReadBackgroundRailModels(background));
+        }
         for (int index = 0; index < garden.Objects.Length; index++)
         {
             NativeGardenWorldObject item = garden.Objects[index];

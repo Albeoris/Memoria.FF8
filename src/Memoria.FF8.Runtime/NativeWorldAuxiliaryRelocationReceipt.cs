@@ -27,7 +27,7 @@ public sealed record NativeWorldAuxiliaryRelocationReceipt([property: JsonRequir
     public void RequireGardenPublication(WorldTransition packet, NativeSavedWorldPose loadPose)
     {
         Validate();
-        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 48) || Relocations.Any(item => item.EntityType != 48))
+        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 48) && !NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)) || Relocations.Any(item => item.EntityType != 48))
         {
             throw new NotSupportedException("Native auxiliary relocation requires its actual Garden48 target and controlled48 or parked-foot548080/548300 loader pose.");
         }
@@ -52,7 +52,7 @@ public sealed record NativeWorldAuxiliaryRelocationReceipt([property: JsonRequir
     public void RequireRagnarokPublication(WorldTransition packet, NativeSavedWorldPose loadPose)
     {
         Validate();
-        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 50))
+        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)))
         {
             throw new NotSupportedException("Native auxiliary relocation requires its actual Ragnarok allocation packet and final548080/548300 loader pose.");
         }

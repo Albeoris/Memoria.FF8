@@ -45,12 +45,21 @@ internal sealed partial class WorldMapScene
         forest = forest with { CameraPitch = motor.State.CameraPitch };
         runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
         WorldState cameraState = before with { BodyYaw = motor.State.BodyYaw, CameraYaw = motor.State.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeRagnarokRuntime = runtime };
+        if (runtime.BackgroundRails is { } background)
+        {
+            runtime = runtime with { BackgroundRails = StepBackgroundRails(background, runtime.ProjectionCamera!, 50, scriptMode, runtime.ProjectionCurveThreshold ?? 6144) };
+            cameraState = cameraState with { NativeRagnarokRuntime = runtime };
+        }
         if (mapOnly)
         {
             consumeRequest = false;
             movementUnits = 0;
             graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
             runtime = runtime.PublishBody(new(before.X, before.NativeHeight, -before.Z), motor.State.BodyPitch, checked((short)motor.State.BodyYaw), motor.State.BodyRoll);
+            if (runtime.BackgroundRails is { } mapRails)
+            {
+                runtime = runtime with { BackgroundRails = CompleteBackgroundRails(mapRails, before.X, before.Z, before.NativeHeight) };
+            }
             WorldState mapped = cameraState with { Frame = before.Frame + 1, NativeRagnarokRuntime = runtime };
             fieldEntry = SelectWorldCallback(mapped, cameraState, scriptMode, ref salary, buttons, false);
             return mapped;
@@ -67,6 +76,10 @@ internal sealed partial class WorldMapScene
         runtime = runtime with { GroundCache = ground.Cache, GroundYaw = checked((short)ground.GroundYaw), CurrentGroundHeight = ground.GroundCommitted ? ground.GroundHeight : runtime.CurrentGroundHeight, PrimaryContact = ground.PrimaryContact, BroadContact = ground.BroadContact, PriorTerrainOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason), Motor = motor.State with { FlightHeight = ground.FlightHeight, Speed = ground.ResetSpeed ? 0 : motor.State.Speed } };
         WorldState after = cameraState with { Frame = before.Frame + 1, X = WrapCoordinate(ground.X, 262144), Z = WrapCoordinate(ground.Z, 196608), NativeHeight = ground.BodyHeight, GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType, NativeRagnarokRuntime = runtime };
         runtime = runtime.PublishBody(new(after.X, after.NativeHeight, -after.Z), runtime.Motor.BodyPitch, checked((short)after.BodyYaw), runtime.Motor.BodyRoll);
+        if (runtime.BackgroundRails is { } completedRails)
+        {
+            runtime = runtime with { BackgroundRails = CompleteBackgroundRails(completedRails, after.X, after.Z, after.NativeHeight) };
+        }
         after = after with { NativeRagnarokRuntime = runtime };
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
         //53FAC0 excludes entity50 from6519D0 movement aging and salary distance.

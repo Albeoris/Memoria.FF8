@@ -27,7 +27,7 @@ public sealed class NativeGardenSavedCarTests
         NativeSavedWorldPose gardenPose = baseline.LoadPose;
         NativeSavedWorldPose carPose = new(gardenPose.X + 1800, gardenPose.RawZ, gardenPose.Height, 256);
         byte shape = NativeCarWorldRuntimeState.ShapeForEntity(checked((byte)entity));
-        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = new(shape, carPose) };
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = new(shape, carPose), Slot5 = new(86, new(17000, -21000, -30, 128)) };
         NativeGardenWorldAllocation allocation = assets.ReadGardenAllocation(new(12, 48, -1), entry, NativeEventMemory.Empty, saved, game.ReadNewGameCharacterVitals());
         Assert.Equal(new byte[] { 0, 2, 64, 65, shape, 94, 79, 80 }, allocation.Objects.Select(item => item.ShapeId));
         Assert.Equal(saved.Slot4, allocation.SavedCarSlot);

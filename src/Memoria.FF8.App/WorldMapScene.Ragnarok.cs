@@ -13,7 +13,24 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Ragnarok allocation requires current executed entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Ragnarok allocation requires current original GF13 flags.");
-        NativeRagnarokWorldAllocation allocation = assets.ReadRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, saved.RagnarokPose2, saved.RagnarokReturn?.CameraYaw96 ?? saved.GardenReturn?.CameraYaw96 ?? saved.FootReturn?.CameraYaw96, saved.RagnarokReturn is not null ? saved.RagnarokReturn.AnimationVariant108 : saved.GardenReturn?.AnimationVariant108 ?? saved.FootReturn?.AnimationVariant108, session.State.World?.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry);
+        NativeRagnarokWorldAllocation allocation;
+        if (session.State.World?.NativeRagnarokRuntime is { } retained)
+        {
+            allocation = retained.Allocation;
+            assets.ValidateRagnarokAllocationResources(allocation);
+            if (allocation.Packet != arrival || allocation.Story != entry.StoryWord || (allocation.ReplacementFlags264 & 7) != (entry.ReplacementFlags264 & 7) || allocation.GuardianForce13Flags != vitals.GuardianForces[13].Flags || allocation.ChocoboFlags1536 != session.State.EventMemory.Read(1536, 1).RequireExact() || allocation.SavedCarSlot is { } storedCar && storedCar.ShapeId != saved.Slot4.ShapeId)
+            {
+                throw new InvalidDataException("Retained Ragnarok allocation differs from its actual packet and current original allocation inputs.");
+            }
+            if (allocation.AuxiliaryEntry is { } auxiliary)
+            {
+                assets.ValidateWorldAuxiliaryRelocations(auxiliary);
+            }
+        }
+        else
+        {
+            allocation = assets.ReadRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, saved.RagnarokPose2, saved.RagnarokReturn?.CameraYaw96 ?? saved.GardenReturn?.CameraYaw96 ?? saved.FootReturn?.CameraYaw96, saved.RagnarokReturn is not null ? saved.RagnarokReturn.AnimationVariant108 : saved.GardenReturn?.AnimationVariant108 ?? saved.FootReturn?.AnimationVariant108);
+        }
         if (session.State.World is null)
         {
             NativeSavedWorldPose pose = allocation.LoadPose;
@@ -26,6 +43,7 @@ internal sealed partial class WorldMapScene
             NativeRagnarokCameraDefaults defaults = assets.ReadRagnarokCameraDefaults();
             runtime = runtime with { GroundCache = cache, CurrentGroundHeight = unchecked((short)-(int)ground.Ground.Height), PrimaryContact = -1, BroadContact = -1, ProjectionCamera = new(pose.X, pose.RawZ, pose.Height, pose.X, pose.RawZ, pose.Height - 256, allocation.CameraYaw, runtime.Motor.CameraPitch, defaults.OffsetY, defaults.OffsetZ) };
             runtime = runtime with { AnimationVariant = unchecked((sbyte)arrival.EntryIndex) == 62 ? saved.RagnarokReturn?.AnimationVariant108 ?? saved.GardenReturn?.AnimationVariant108 ?? saved.FootReturn?.AnimationVariant108 ?? 0 : (byte)0, ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundYaw = 0, ProjectionCurveThreshold = 6144, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) with { CameraPitch = runtime.Motor.CameraPitch }, PreviousParticleNativeHeight = pose.Height, Cactuar = allocation.Objects.Any(item => item.ShapeId == 94) ? NativeCactuarWorldState.CreateAfterLoad() : null };
+            runtime = runtime with { BackgroundRails = CreateBackgroundRails(inputs.EventFlags265, runtime.ProjectionCamera!) };
             runtime.RequireSceneState();
             session.SetWorldState(new WorldState
             {
@@ -97,6 +115,11 @@ internal sealed partial class WorldMapScene
         runtime.RequireSceneState();
         NativeWorldPathProjectionCertificate projection = RagnarokProjection(state);
         var models = new List<NativeWorldStaticModelDraw>();
+        if (runtime.BackgroundRails is { } background)
+        {
+            ValidateBackgroundRails(state, background, true);
+            models.AddRange(ReadBackgroundRailModels(background));
+        }
         List<NativeWorldAnimatedModelDraw> animated = [];
         for (int index = 0; index < runtime.Objects.Length; index++)
         {

@@ -42,6 +42,8 @@ public static class WorldStationContactCertificate
             {
                 continue;
             }
+            // Byte17 is5472C0 animation mode;548CD0 does not filter it.
+            // The contact polygon consumes only the retained yaw, including mode4.
             NativeWorldPathNodeProjection projection = projectStatic(item.Position);
             NativeWorldContactShape shape = assets.ReadNativeContactShape(item.ShapeId);
             if (forceCircle)
@@ -73,6 +75,19 @@ public static class WorldStationContactCertificate
             }
         }
         return new WorldStationContactResult(-1, null, null);
+    }
+
+    public static int EvaluateRailTail(WorldAssets assets, NativeWorldBackgroundRailState rails, int objectCount, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, bool forceCircle = false, NativeWorldContactShape? selectedShape = null)
+    {
+        rails.Validate();
+        foreach (NativeTrainRailBank bank in rails.Banks)
+        {
+            if (EvaluateTrain(assets, bank, assets.ReadScriptedPath(bank.TrackIndex), player, playerHeight, proximity, padding, probeRadius, forceCircle, selectedShape) >= 0)
+            {
+                return objectCount;
+            }
+        }
+        return -1;
     }
 
     public static bool EvaluateForcedCircle(NativeWorldContactShape target, NativeWorldContactShape selected, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0)

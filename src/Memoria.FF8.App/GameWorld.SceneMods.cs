@@ -25,6 +25,10 @@ internal sealed partial class GameWorld
         }
         if (ReferenceEquals(current, appliedSceneMods) && ReferenceEquals(Field, appliedSceneField))
         {
+            if (renderer is null || renderer.OutputWidth != renderWidth || renderer.OutputHeight != renderHeight)
+            {
+                renderer = new FieldRenderer(presentationField ?? Field, renderWidth, renderHeight);
+            }
             RevalidateDebugAnimations();
             return;
         }

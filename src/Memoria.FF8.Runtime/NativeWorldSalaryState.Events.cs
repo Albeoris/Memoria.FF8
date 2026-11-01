@@ -7,6 +7,8 @@ public sealed partial record NativeWorldSalaryState
     private NativeSavedWorldCarReturn? CameraToggleCarReturn { get; init; }
     private NativeSavedWorldGardenReturn? CameraToggleGardenReturn { get; init; }
     private NativeSavedWorldRagnarokReturn? CameraToggleRagnarokReturn { get; init; }
+    private NativeGardenWorldRuntimeState? CameraToggleGardenParking { get; init; }
+    private NativeRagnarokWorldRuntimeState? CameraToggleRagnarokParking { get; init; }
 
     public NativeWorldSalaryState WithTerrainEntranceFlag(bool? entrance)
     {
@@ -15,6 +17,13 @@ public sealed partial record NativeWorldSalaryState
     }
 
     public NativeWorldSalaryState WithFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
+    {
+        NativeGardenWorldRuntimeState? gardenParking = world.NativeGardenRuntime ?? world.NativeCarRuntime?.GardenObjects ?? world.NativeFootRuntime?.ParkedCar?.Car.GardenObjects;
+        NativeRagnarokWorldRuntimeState? ragnarokParking = world.NativeRagnarokRuntime ?? world.NativeCarRuntime?.RagnarokObjects ?? world.NativeFootRuntime?.ParkedCar?.Car.RagnarokObjects;
+        return (this with { CameraToggleGardenParking = gardenParking, CameraToggleRagnarokParking = ragnarokParking }).PrepareFootCameraToggle(world, lastFieldId, storyWord, mapLocationId);
+    }
+
+    private NativeWorldSalaryState PrepareFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
     {
         NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Camera mode saving requires the actual saved-world owner.");
         if (world.NativeFootRuntime is null)
@@ -78,6 +87,14 @@ public sealed partial record NativeWorldSalaryState
         if (saved is null)
         {
             return null;
+        }
+        if (CameraToggleGardenParking is not null)
+        {
+            saved = saved.WithGardenParking(CameraToggleGardenParking);
+        }
+        if (CameraToggleRagnarokParking is not null)
+        {
+            saved = saved.WithRagnarokParking(CameraToggleRagnarokParking);
         }
         if (CameraToggleParkedCar is not null)
         {

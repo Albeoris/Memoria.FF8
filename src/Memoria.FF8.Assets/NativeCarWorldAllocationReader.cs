@@ -37,7 +37,7 @@ public static class NativeCarWorldAllocationReader
             {
                 NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan()), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan()[4..]), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan()[8..]));
                 int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan()[12..]);
-                var item = new NativeTrainWorldObject(shape, coordinate, new(position.X, -position.Z, checked((short)position.Y), unchecked((ushort)orientation)), checked((ushort)(shape | coordinate << 8)), raw);
+                var item = new NativeTrainWorldObject(shape, coordinate, new(position.X, -position.Z, checked((short)position.Y), unchecked((ushort)orientation)), checked((ushort)(shape | coordinate << 8)), raw) { Flags = shape == 80 ? (byte)4 : (byte)0 };
                 item.Validate();
                 objects.Add(item);
             }

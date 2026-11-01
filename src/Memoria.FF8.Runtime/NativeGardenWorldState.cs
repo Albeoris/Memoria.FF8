@@ -53,7 +53,7 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
             }
         }
         static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) || ControlledEntityType == 48 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant > 1 || MapDisplayMode > 3)
+        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || (ControlledEntityType == 48 || NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType)) && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant > 1 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Native Garden allocation lacks its original clause, exact loader packet or current pose authority.");
         }
@@ -102,9 +102,14 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         {
             throw new InvalidDataException("Garden allocation lost its authenticated C76630 Cactuar load pose.");
         }
-        if (SavedCarSlot is { } savedCar && Objects[SavedCarIndex] != new NativeGardenWorldObject(savedCar.ShapeId, 0, new(savedCar.Pose.X, savedCar.Pose.Height, -savedCar.Pose.RawZ), 0, unchecked((short)savedCar.Pose.Yaw), 0))
+        NativeSavedWorldPose? expectedCarPose = NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) ? LoadPose : SavedCarSlot?.Pose;
+        if (SavedCarSlot is { } savedCar && Objects[SavedCarIndex] != new NativeGardenWorldObject(savedCar.ShapeId, 0, new(expectedCarPose!.X, expectedCarPose.Height, -expectedCarPose.RawZ), 0, unchecked((short)expectedCarPose.Yaw), 0))
         {
             throw new InvalidDataException("Garden appended car differs from its retained original saved pose4.");
+        }
+        if (NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) && (SavedCarSlot is null || NativeTrainWorldObject.ClassifyShape(SavedCarSlot.ShapeId) != ControlledEntityType))
+        {
+            throw new InvalidDataException("Fresh car Garden allocation lost its actual selected vehicle append.");
         }
     }
 }
@@ -112,6 +117,10 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
 /// <summary>Current ordinary Garden body and dense objects; parking keeps Garden objects separate from the controlled foot record.</summary>
 public sealed record NativeGardenWorldRuntimeState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldPose? CarBodyPose { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldBackgroundRailState? BackgroundRails { get; init; }
     public const string RuntimeRule = "ff8-en-garden-ordinary-557a90-548300-v1";
     [JsonRequired]
     public required int Version { get; init; }
@@ -211,7 +220,21 @@ public sealed record NativeGardenWorldRuntimeState
             throw new InvalidDataException("Native Garden runtime lost its current motor, allocation, camera or ground-query owner.");
         }
         Allocation.Validate();
-        if (Allocation.SavedCarIndex >= 0 && Objects[Allocation.SavedCarIndex] != Allocation.Objects[Allocation.SavedCarIndex])
+        BackgroundRails?.Validate();
+        if (BackgroundRails is { } background && (background.LoadFlags265 & 1) != (Allocation.Flags265 & 1))
+        {
+            throw new InvalidDataException("Garden background rails differ from the original loader's actual rail-allocation flag.");
+        }
+        NativeGardenWorldObject? expectedCar = Allocation.SavedCarIndex < 0 ? null : Allocation.Objects[Allocation.SavedCarIndex];
+        if (CarBodyPose is { } carPose)
+        {
+            if (expectedCar is null || carPose.X is < -131072 or >= 131072 || carPose.RawZ is < -98304 or >= 98304 || carPose.Yaw >= 4096)
+            {
+                throw new InvalidDataException("Garden car-body publication requires its original selected car and native pose widths.");
+            }
+            expectedCar = expectedCar with { Position = new(carPose.X, carPose.Height, -carPose.RawZ), RotationX = 0, RotationY = unchecked((short)carPose.Yaw), RotationZ = 0 };
+        }
+        if (expectedCar is not null && Objects[Allocation.SavedCarIndex] != expectedCar)
         {
             throw new InvalidDataException("Garden callbacks cannot move or replace the separately parked saved car.");
         }
@@ -221,7 +244,8 @@ public sealed record NativeGardenWorldRuntimeState
             throw new InvalidDataException("Garden allocation lost its admitted Cactuar process owner.");
         }
         Cactuar?.Validate();
-        if (PrimaryContact < -1 || PrimaryContact >= Objects.Length || BroadContact < -1 || BroadContact >= Objects.Length)
+        int maximumContact = Objects.Length - 1 + (BackgroundRails?.Primary is not null || BackgroundRails?.Alternate is not null ? 1 : 0);
+        if (PrimaryContact < -1 || PrimaryContact > maximumContact || BroadContact < -1 || BroadContact > maximumContact)
         {
             throw new NotSupportedException("Garden retained contacts require an actual dense allocation index or the native no-contact sentinel.");
         }
@@ -248,5 +272,16 @@ public sealed record NativeGardenWorldRuntimeState
             objects = objects.SetItem(Allocation.Garden65Index, objects[Allocation.Garden65Index] with { Position = position, RotationX = pitch, RotationY = yaw, RotationZ = roll });
         }
         return this with { Objects = objects };
+    }
+
+    public NativeGardenWorldRuntimeState PublishCarBody(NativeWorldPathPosition position, short yaw)
+    {
+        Validate();
+        if (Allocation.SavedCarIndex < 0)
+        {
+            throw new InvalidDataException("Native car publication requires the actual appended Garden-allocation car.");
+        }
+        NativeGardenWorldObject body = Objects[Allocation.SavedCarIndex] with { Position = position, RotationX = 0, RotationY = yaw, RotationZ = 0 };
+        return this with { CarBodyPose = new(position.X, -position.Z, checked((short)position.Y), checked((ushort)yaw)), Objects = Objects.SetItem(Allocation.SavedCarIndex, body).SetItem(Allocation.FootObjectIndex, Objects[Allocation.FootObjectIndex] with { Position = position, RotationX = 0, RotationY = yaw, RotationZ = 0 }) };
     }
 }

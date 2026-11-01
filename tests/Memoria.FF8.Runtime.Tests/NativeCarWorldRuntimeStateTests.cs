@@ -57,6 +57,19 @@ public sealed class NativeCarWorldRuntimeStateTests
         Assert.Throws<NotSupportedException>(() => NativeCarWorldRuntimeState.ShapeForEntity(entity));
     }
 
+    [Fact]
+    public void NewRentalReplacesSelectedShapeAndPreservesBothStoredPosesAndInactiveSlot()
+    {
+        NativeSavedWorldVehicleSlot previous = new(82, new(128, -256, -42, 1024));
+        NativeSavedWorldVehicleSlot inactive = new(85, new(-512, 1024, -73, 2048));
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = previous, Slot5 = inactive };
+        NativeSavedWorldState rented = saved.WithOrdinaryCarEntry(38);
+        Assert.Equal((byte)85, rented.Slot4.ShapeId);
+        Assert.Equal(previous.Pose, rented.Slot4.Pose);
+        Assert.Equal(inactive, rented.Slot5);
+        Assert.Equal(previous, saved.Slot4);
+    }
+
     private static NativeTrainWorldAllocation Allocation()
     {
         string hash = new('0', 64);

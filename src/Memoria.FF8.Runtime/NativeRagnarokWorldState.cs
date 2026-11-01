@@ -9,6 +9,11 @@ public sealed record NativeRagnarokWorldObject([property: JsonRequired] byte Sha
 public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] string ProgramHash, [property: JsonRequired] string CoordinateHash, [property: JsonRequired] string ClauseHash, [property: JsonRequired] ushort Story, [property: JsonRequired] byte ChocoboFlags1536, [property: JsonRequired] byte ReplacementFlags264, [property: JsonRequired] byte GuardianForce13Flags, [property: JsonRequired] ImmutableArray<ushort> ClauseWords, [property: JsonRequired] ImmutableArray<NativeRagnarokWorldObject> Objects, [property: JsonRequired] int RagnarokIndex, [property: JsonRequired] WorldTransition Packet, [property: JsonRequired] NativeSavedWorldPose LoadPose, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] byte MapDisplayMode)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldVehicleSlot? SavedCarSlot { get; init; }
+    [JsonIgnore]
+    public int SavedCarIndex => Objects.Select((item, index) => (item, index)).Where(pair => NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(pair.item.ShapeId))).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldFootReturn? BattleReload { get; init; }
     [JsonIgnore]
     public byte ControlledEntityType => BattleReload?.EntityType105 ?? unchecked((byte)Packet.Mode);
@@ -34,11 +39,19 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
             return value is { Length: 64 } && value.All(Uri.IsHexDigit);
         }
         ushort[] expectedClause = [0xFF01, 0, 0xFF02, 3100, 0xFF03, 3900, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 1, 0xFF13, 64, 0xFF13, 65, 0xFF13, 7514, 0xFF13, 7515, 0xFF05, 0];
-        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || Story is < 3100 or >= 3900 || ClauseWords.IsDefault || !ClauseWords.AsSpan().SequenceEqual(expectedClause) || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 50) || ControlledEntityType == 0 && ParkedRagnarokPose2 is null || ControlledEntityType == 50 && ParkedRagnarokPose2 is not null || ControlledEntityType == 50 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
+        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || Story is < 3100 or >= 3900 || ClauseWords.IsDefault || !ClauseWords.AsSpan().SequenceEqual(expectedClause) || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || ControlledEntityType != 50 && ParkedRagnarokPose2 is null || ControlledEntityType == 50 && ParkedRagnarokPose2 is not null || ControlledEntityType == 50 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Ragnarok allocation requires the exact original selected clause, loader packet and published pose owners.");
         }
         List<byte> expected = (ChocoboFlags1536 & 3) == 1 ? [0, 2, 3, 1, 64, 65, 90, 91] : [0, 2, 1, 64, 65, 90, 91];
+        if (SavedCarSlot is { } car)
+        {
+            if (!NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(car.ShapeId)) || car.Pose is null || car.Pose.X is < -131072 or >= 131072 || car.Pose.RawZ is < -98304 or >= 98304 || car.Pose.Yaw >= 4096)
+            {
+                throw new InvalidDataException("Ragnarok allocation lost its appended saved car shape and pose authority.");
+            }
+            expected.Add(car.ShapeId);
+        }
         if ((GuardianForce13Flags & 1) == 0)
         {
             expected.Add(94);
@@ -55,13 +68,26 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
         {
             throw new InvalidDataException("Ragnarok allocation lost the native dense shape1 owner or original conditional objects.");
         }
+        if (SavedCarSlot is { } savedCar)
+        {
+            bool controlledCar = NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType);
+            NativeSavedWorldPose pose = controlledCar ? LoadPose : savedCar.Pose;
+            if (controlledCar && NativeCarWorldRuntimeState.ShapeForEntity(ControlledEntityType) != savedCar.ShapeId || Objects[SavedCarIndex] != new NativeRagnarokWorldObject(savedCar.ShapeId, 0, new(pose.X, pose.Height, -pose.RawZ), 0, unchecked((short)pose.Yaw), 0))
+            {
+                throw new InvalidDataException("Ragnarok appended car differs from its retained saved pose4 or actual548300 selected body publication.");
+            }
+        }
+        else if (NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType))
+        {
+            throw new InvalidDataException("Ragnarok car loader requires its selected original appended saved vehicle.");
+        }
         AuxiliaryEntry?.RequireRagnarokPublication(Packet, LoadPose);
         foreach (NativeRagnarokWorldObject item in Objects.Where(item => item.ShapeId is 0 or 1 or 3))
         {
             NativeSavedWorldPose pose = item.ShapeId == 1 && ParkedRagnarokPose2 is not null ? ParkedRagnarokPose2 : LoadPose;
             NativeWorldPathPosition expectedPosition = new(pose.X, pose.Height, -pose.RawZ);
             short expectedYaw = unchecked((short)pose.Yaw);
-            if (item.ShapeId == 1 && ControlledEntityType == 0 && AuxiliaryEntry?.Relocations.LastOrDefault(row => row.EntityType == 50) is { } parkedRelocation)
+            if (item.ShapeId == 1 && ControlledEntityType != 50 && AuxiliaryEntry?.Relocations.LastOrDefault(row => row.EntityType == 50) is { } parkedRelocation)
             {
                 expectedPosition = parkedRelocation.Position;
                 expectedYaw = parkedRelocation.Yaw;
@@ -77,6 +103,11 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
 /// <summary>Component checkpoint only; does not stand in for full world ground/contact/transfer persistence.</summary>
 public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] NativeRagnarokWorldAllocation Allocation, [property: JsonRequired] ImmutableArray<NativeRagnarokWorldObject> Objects, [property: JsonRequired] NativeRagnarokMotorState Motor)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldPose? CarBodyPose { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldBackgroundRailState? BackgroundRails { get; init; }
+
     public byte AnimationVariant { get; init; }
     public int ManualCameraVelocity { get; init; }
     [JsonRequired]
@@ -152,10 +183,55 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         }
         Allocation.Validate();
         Motor.Validate();
+        BackgroundRails?.Validate();
+        int contactCount = Objects.Length + (BackgroundRails?.Primary is not null || BackgroundRails?.Alternate is not null ? 1 : 0);
+        if (PrimaryContact < -1 || PrimaryContact >= contactCount || BroadContact < -1 || BroadContact >= contactCount)
+        {
+            throw new InvalidDataException("Ragnarok contact differs from its dense objects and actual background rail tail.");
+        }
+        NativeRagnarokWorldObject? expectedCar = Allocation.SavedCarIndex < 0 ? null : Allocation.Objects[Allocation.SavedCarIndex];
+        if (CarBodyPose is { } carPose)
+        {
+            if (expectedCar is null || carPose.X is < -131072 or >= 131072 || carPose.RawZ is < -98304 or >= 98304 || carPose.Yaw >= 4096)
+            {
+                throw new InvalidDataException("Ragnarok car-body publication requires its original selected car and native pose widths.");
+            }
+            expectedCar = expectedCar with { Position = new(carPose.X, carPose.Height, -carPose.RawZ), Pitch = 0, Yaw = unchecked((short)carPose.Yaw), Roll = 0 };
+        }
+        if (expectedCar is not null && Objects[Allocation.SavedCarIndex] != expectedCar)
+        {
+            throw new InvalidDataException("Ragnarok callbacks cannot move or replace the separately parked saved car.");
+        }
+
         if (Objects.Length != Allocation.Objects.Length || Objects.Where((item, index) => item is null || item.ShapeId != Allocation.Objects[index].ShapeId || item.Flags != Allocation.Objects[index].Flags || item.Position.X is < -131072 or >= 131072 || item.Position.Z is < -98304 or >= 98304).Any())
         {
             throw new InvalidDataException("Ragnarok runtime lost an allocated native object identity or centered pose.");
         }
+    }
+
+    public NativeRagnarokWorldRuntimeState PublishCarBody(NativeWorldPathPosition position, short yaw)
+    {
+        Validate();
+        if (Allocation.SavedCarIndex < 0)
+        {
+            throw new InvalidDataException("Native car publication requires its actual appended Ragnarok-allocation car.");
+        }
+        NativeRagnarokWorldRuntimeState foot = PublishFootBody(position, 0, yaw, 0);
+        NativeRagnarokWorldObject car = Objects[Allocation.SavedCarIndex] with { Position = position, Pitch = 0, Yaw = yaw, Roll = 0 };
+        return foot with { CarBodyPose = new(position.X, -position.Z, checked((short)position.Y), checked((ushort)yaw)), Objects = foot.Objects.SetItem(Allocation.SavedCarIndex, car) };
+    }
+
+    public NativeRagnarokWorldRuntimeState PublishFootBody(NativeWorldPathPosition position, short pitch, short yaw, short roll)
+    {
+        var objects = Objects.ToBuilder();
+        for (int index = 0; index < objects.Count; index++)
+        {
+            if (objects[index].ShapeId is 0 or 3)
+            {
+                objects[index] = objects[index] with { Position = position, Pitch = pitch, Yaw = yaw, Roll = roll };
+            }
+        }
+        return this with { Objects = objects.ToImmutable() };
     }
 
     public NativeRagnarokWorldRuntimeState PublishBody(NativeWorldPathPosition position, short pitch, short yaw, short roll)

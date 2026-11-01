@@ -185,7 +185,7 @@ public sealed class NativeRagnarokFootTests
         Assert.Equal(scene.State.NativeRagnarokRuntime!.Allocation.RagnarokIndex, scene.State.NativeRagnarokRuntime.BroadContact);
     }
 
-    private static void Land(WorldMapScene scene)
+    internal static void Land(WorldMapScene scene)
     {
         scene.Apply(new(PlayerActionKind.Wait, Frames: 24));
         scene.Apply(new(PlayerActionKind.Confirm));
@@ -195,7 +195,7 @@ public sealed class NativeRagnarokFootTests
         Assert.NotNull(scene.State.NativeFootRuntime);
     }
 
-    private static GameSession Fixture(ushort story = 3500)
+    internal static GameSession Fixture(ushort story = 3500)
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();

@@ -13,9 +13,9 @@ public static class NativeRagnarokWorldAllocationReader
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (controlledType is not (0 or 50) || controlledType == 0 && parkedRagnarokPose2 is null || controlledType == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (controlledType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) || controlledType != 50 && parkedRagnarokPose2 is null || controlledType == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
         {
-            throw new NotSupportedException("Ragnarok allocation requires ordinary controlled50 and the original unoccupied-car allocation branch.");
+            throw new NotSupportedException("Ragnarok allocation requires its ordinary packet and represented active saved vehicle branch.");
         }
         if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
         {
@@ -103,6 +103,17 @@ public static class NativeRagnarokWorldAllocationReader
         objects.Add(new(65, 2, gardenPosition, 0, unchecked((short)garden.Yaw), 0));
         AddCoordinate(objects, coordinates, 90, 29, 0);
         AddCoordinate(objects, coordinates, 91, 29, 0);
+        NativeSavedWorldVehicleSlot? savedCarSlot = null;
+        if (NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
+        {
+            savedCarSlot = saved.Slot4;
+            NativeSavedWorldPose car = NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) ? loadPose : savedCarSlot.Pose;
+            if (NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) && savedCarSlot.ShapeId != NativeCarWorldRuntimeState.ShapeForEntity(controlledType))
+            {
+                throw new InvalidDataException("Ragnarok-allocation car loader lost its selected saved shape.");
+            }
+            objects.Add(new(savedCarSlot.ShapeId, 0, new(car.X, car.Height, -car.RawZ), 0, unchecked((short)car.Yaw), 0));
+        }
         if ((guardianForce13Flags & 1) == 0)
         {
             objects.Add(new(94, 0, cactuarLoadPosition, 0, 0, 0));
@@ -116,7 +127,7 @@ public static class NativeRagnarokWorldAllocationReader
             //receive the final load pose; controlled50 also republishes shape1.
             for (int index = 0; index < objects.Count; index++)
             {
-                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && controlledType == 50)
+                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && controlledType == 50 || NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) && objects[index].ShapeId == savedCarSlot?.ShapeId)
                 {
                     objects[index] = objects[index] with { Position = body, Pitch = 0, Yaw = unchecked((short)loadPose.Yaw), Roll = 0 };
                 }
@@ -130,7 +141,7 @@ public static class NativeRagnarokWorldAllocationReader
                 AddCoordinate(objects, coordinates, 80, 31 + group, 4);
             }
         }
-        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry, BattleReload = battleReload };
+        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry, BattleReload = battleReload, SavedCarSlot = savedCarSlot };
         result.Validate();
         return result;
     }
@@ -160,6 +171,53 @@ public static class NativeRagnarokWorldAllocationReader
 
 public sealed partial class WorldAssets
 {
+    public NativeRagnarokWorldAllocation ReadRagnarokCarAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay)
+    {
+        if (!NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)))
+        {
+            throw new InvalidDataException("Ragnarok car allocation requires its actual original car packet.");
+        }
+        vitals.Validate();
+        NativeSavedWorldPose ship = saved.RagnarokPose2 ?? throw new NotSupportedException("Car allocation requires the actual separately saved Ragnarok pose2.");
+        NativeWorldAuxiliaryRelocationReceipt? auxiliary = ReadWorldAuxiliaryRelocations(packet, memory, loadPose);
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
+        return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, loadPose, cameraYaw, mapDisplay, parkedRagnarokPose2: ship, auxiliaryEntry: auxiliary);
+    }
+
+    public void ValidateRagnarokAllocationResources(NativeRagnarokWorldAllocation allocation)
+    {
+        allocation.Validate();
+        string programHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[9], sections[10] - sections[9])));
+        string coordinateHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[10], sections[11] - sections[10])));
+        NativeWorldAllocationClause clause = ReadWorldAllocationClause(allocation.Story);
+        if (allocation.ProgramHash != programHash || allocation.CoordinateHash != coordinateHash || clause.Index != 14 || !allocation.ClauseWords.SequenceEqual(clause.Words))
+        {
+            throw new InvalidDataException("Retained Ragnarok allocation differs from its actual current native resources.");
+        }
+        NativeRagnarokWorldObject Coordinate(byte shape, byte flags, int row)
+        {
+            ReadOnlySpan<byte> bytes = wmset.AsSpan(sections[10] + row * 16, 16);
+            int orientation = BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
+            return new(shape, flags, new(BinaryPrimitives.ReadInt32LittleEndian(bytes), BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[8..])), 0, unchecked((short)orientation), unchecked((short)(orientation >> 16)));
+        }
+        if (allocation.Objects.Single(item => item.ShapeId == 90) != Coordinate(90, 0, 29) || allocation.Objects.Single(item => item.ShapeId == 91) != Coordinate(91, 0, 29))
+        {
+            throw new InvalidDataException("Retained Ragnarok fixed objects differ from their actual original section10 coordinates.");
+        }
+        int objectIndex = allocation.Objects.Length;
+        for (int group = 2; group >= 0; group--)
+        {
+            if ((allocation.ReplacementFlags264 & (1 << group)) != 0)
+            {
+                objectIndex -= 2;
+                if (allocation.Objects[objectIndex] != Coordinate(79, 0, 31 + group) || allocation.Objects[objectIndex + 1] != Coordinate(80, 4, 31 + group))
+                {
+                    throw new InvalidDataException("Retained Ragnarok auxiliary objects differ from their actual original section10 coordinates.");
+                }
+            }
+        }
+    }
+
     public NativeRagnarokWorldAllocation ReadRagnarokAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldPose? savedRagnarokPose2 = null, ushort? savedCameraYaw96 = null, byte? savedVariant108 = null, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null)
     {
         int spawn = unchecked((sbyte)packet.EntryIndex);

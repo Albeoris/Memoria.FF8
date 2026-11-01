@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 /// <summary>548CD0 ordered dense-object scan for the actual Garden allocation, including549320's forced-circle transfer path.</summary>
 public static class WorldGardenContactCertificate
 {
-    public static int Evaluate(WorldAssets assets, NativeGardenWorldAllocation allocation, IReadOnlyList<NativeGardenWorldObject> objects, int currentEntity, int selectedEntity, IReadOnlyList<WorldNativeGardenProbe> probes, NativeWorldPathProjectionCertificate projection, int padding = 0, bool forceCircle = false, bool trainContactsExcluded = false)
+    public static int Evaluate(WorldAssets assets, NativeGardenWorldAllocation allocation, IReadOnlyList<NativeGardenWorldObject> objects, int currentEntity, int selectedEntity, IReadOnlyList<WorldNativeGardenProbe> probes, NativeWorldPathProjectionCertificate projection, int padding = 0, bool forceCircle = false, bool trainContactsExcluded = false, NativeWorldBackgroundRailState? rails = null)
     {
         allocation.Validate();
         if (objects.Count != allocation.Objects.Length || objects.Where((item, index) => item.ShapeId != allocation.Objects[index].ShapeId).Any() || probes.Count != 5 || padding is not (0 or 200))
@@ -50,7 +50,17 @@ public static class WorldGardenContactCertificate
                 return index;
             }
         }
-        if (currentEntity != 48 && selectedEntity is not (>= 16 and <= 22) && !trainContactsExcluded)
+        //548CD0 excludes the train tail for a currently controlled Garden,
+        //while549B40 still lets the background trains react to its selected body.
+        if (currentEntity == 48 || selectedEntity is >= 16 and <= 22)
+        {
+            return -1;
+        }
+        if (rails is not null)
+        {
+            return WorldStationContactCertificate.EvaluateRailTail(assets, rails, objects.Count, points[0], probes[0].Y, projection.IsNear, padding, NativeWorldTerrain.ProbeRadius(selectedEntity), forceCircle, selected);
+        }
+        if (!trainContactsExcluded)
         {
             throw new NotSupportedException("Parked Garden foot contacts require actual rail-bank state or the existing camera-based train-route exclusion proof.");
         }

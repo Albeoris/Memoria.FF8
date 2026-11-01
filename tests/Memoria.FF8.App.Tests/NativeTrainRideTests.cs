@@ -171,11 +171,12 @@ public sealed class NativeTrainRideTests
         Assert.Null(session.State.World);
     }
 
-    private static GameSession CreateComponent(GameAssets assets)
+    internal static GameSession CreateComponent(GameAssets assets)
     {
         //Declared world-return component boundary, not a live NewGame journey or patched historical checkpoint.
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
+        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
         var car = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess());
         var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = car };

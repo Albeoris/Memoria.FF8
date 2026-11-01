@@ -230,7 +230,17 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("Parked Garden yaw is outside the normalized native object angle.");
         }
-        return this with { GardenPose3 = pose, GardenReturn = null };
+        NativeSavedWorldVehicleSlot slot = Slot4;
+        if (garden.Allocation.SavedCarIndex >= 0)
+        {
+            NativeGardenWorldObject car = garden.Objects[garden.Allocation.SavedCarIndex];
+            if (slot.ShapeId != car.ShapeId)
+            {
+                throw new InvalidDataException("Garden car parking differs from its actual active saved vehicle shape.");
+            }
+            slot = new(car.ShapeId, new(car.Position.X, -car.Position.Z, checked((short)car.Position.Y), checked((ushort)((car.RotationY % 4096 + 4096) % 4096))));
+        }
+        return this with { GardenPose3 = pose, GardenReturn = null, Slot4 = slot, CarReturn = garden.Allocation.SavedCarIndex >= 0 ? null : CarReturn };
     }
 
     public NativeSavedWorldState WithCarReturn(NativeSavedWorldCarReturn receipt)
@@ -261,10 +271,6 @@ public sealed partial record NativeSavedWorldState
     public NativeSavedWorldState WithOrdinaryCarEntry(byte entityType = 33)
     {
         Validate();
-        if (Slot4.ShapeId is not 0 and not 255 || Slot5.ShapeId != 0)
-        {
-            throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
-        }
         byte shape = NativeCarWorldRuntimeState.ShapeForEntity(entityType);
         return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }

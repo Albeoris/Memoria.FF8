@@ -40,13 +40,13 @@ internal sealed partial class WorldMapScene : IDisposable
         bool battleMode2 = battleReload is not null || session.State.World?.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.BattleReloadRule;
         battleReload ??= battleMode2 ? session.State.World?.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } ? session.State.SavedWorld?.FootReturn : null : null;
         bool parkedCarFoot = session.State.World?.NativeFootRuntime?.ParkedCar is not null;
-        bool car = !battleMode2 && !parkedCarFoot && (session.State.World?.NativeCarRuntime is not null || NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)arrival.Mode)));
-        bool garden = !battleMode2 && (unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null });
-        bool ragnarok = !battleMode2 && unchecked((byte)arrival.Mode) == 50;
+        bool car = !battleMode2 && !parkedCarFoot && (session.State.World?.NativeCarRuntime is not null || session.State.World is null && NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)arrival.Mode)));
+        bool garden = !battleMode2 && !car && !parkedCarFoot && (session.State.World?.NativeGardenRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 48);
+        bool ragnarok = !battleMode2 && !car && !parkedCarFoot && (session.State.World?.NativeRagnarokRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 50);
         bool stationFoot = !battleMode2 && session.State.World?.NativeFootRuntime?.StationTrains is not null;
-        bool ridingTrain = !car && !parkedCarFoot && IsRidingTrainPacket(arrival) && !stationFoot;
-        bool scripted = !battleMode2 && !car && !parkedCarFoot && (IsSupportedScriptedPacket(arrival) || ridingTrain);
-        byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : stationFoot || parkedCarFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
+        bool ridingTrain = !car && !garden && !ragnarok && !parkedCarFoot && !stationFoot && (session.State.World?.NativeTrainRuntime is not null || session.State.World is null && IsRidingTrainPacket(arrival));
+        bool scripted = !battleMode2 && !car && !garden && !ragnarok && !parkedCarFoot && (session.State.World?.NativeScriptedRuntime is not null || session.State.World is null && IsSupportedScriptedPacket(arrival) || ridingTrain);
+        byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : session.State.World?.NativeFootRuntime?.EntityType ?? unchecked((byte)arrival.Mode);
         if (!car && !garden && !ragnarok && !scripted && session.State.World is { } restoredFoot)
         {
             NativeFootWorldRuntimeState runtime = restoredFoot.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
@@ -204,13 +204,9 @@ internal sealed partial class WorldMapScene : IDisposable
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original car spawn has no native ground lookup result.");
                     NativeWorldProcess carProcess = session.State.WorldProcess ?? throw new NotSupportedException("Native car loader requires its executed process camera-follow owner.");
                     carProcess.Validate();
-                    byte carType = unchecked((byte)arrival.Mode);
-                    NativeWorldFootCameraState? carProjection = carType != 33 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
-                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carType, carType != 33 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
-                    NativeTrainWorldAllocation carAllocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
-                    carProjection ??= new NativeWorldFootCameraState(x, z, height, x, z, height - 256, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16, -112, -341, -7168);
-                    initialCarRuntime = initialCarRuntime with { Allocation = carAllocation, ProjectionCamera = carProjection, ObjectProcess = CreateCarObjectProcess(carAllocation, carProjection) };
-                    initialCarRuntime = InitializeCarAllocation(initialCarRuntime, session.State.SavedWorld!, inputs);
+                    NativeSavedWorldPose carPose = new(x, z, checked((short)height), carReload?.Pose.Yaw ?? checked((ushort)((spawn.Unknown >> 8) * 16)));
+                    NativeWorldFootCameraState carProjection = new(x, z, height, x, z, height - 256, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16, -112, -341, -7168);
+                    initialCarRuntime = CreateCarObjectLoader(arrival, inputs, carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carPose, carProjection);
                     if (carReload is not null)
                     {
                         initialCarRuntime = initialCarRuntime with { AnimationVariant = carReload.AnimationVariant108 };
@@ -366,13 +362,15 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new ArgumentOutOfRangeException(nameof(action), "Native world station choices use visible lines1 and2.");
         }
         bool worldMessageConfirm = sourceDialogue is { CanConfirm: true, FirstChoice: null } && action.Kind == PlayerActionKind.Confirm;
+        bool ragnarokCar = State.NativeFootRuntime is not null && State.NativeRagnarokRuntime?.Allocation.SavedCarIndex >= 0;
+        bool gardenCar = State.NativeFootRuntime is not null && State.NativeGardenRuntime?.Allocation.SavedCarIndex >= 0;
         bool stationCar = State.NativeFootRuntime?.StationTrains?.Load.SavedVehicleObjects.IsEmpty == false;
-        bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar) && action.Kind == PlayerActionKind.Confirm;
+        bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar) && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokButtons = State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
-        bool carButtons = (State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar) && action.Kind == PlayerActionKind.WorldButtons;
+        bool carButtons = (State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar) && action.Kind == PlayerActionKind.WorldButtons;
         bool gardenButtons = State.NativeGardenRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         bool vehicleButtons = ragnarokButtons || carButtons || gardenButtons;
-        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(State.NativeFootRuntime?.ParkedCar is not null || stationCar ? 0x142 : 0x102)) != 0))
+        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar ? 0x142 : 0x102)) != 0))
         {
             throw new ArgumentException("Ordinary world button levels support camera and map display controls on Move or Wait actions.", nameof(action));
         }
@@ -457,7 +455,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     salary = salary.AdvanceFuelMessage(graphicsSpeed);
                 }
-                WorldState? carTransfer = mapScriptMode != 12 ? PrepareCarDisembark(candidate, salary) ?? PrepareCarReboard(candidate, salary) ?? PrepareStationCarReboard(candidate, salary) : null;
+                WorldState? carTransfer = mapScriptMode != 12 ? PrepareGardenCarReboard(candidate, salary) ?? PrepareRagnarokCarBoarding(candidate, salary) ?? PrepareCarDisembark(candidate, salary) ?? PrepareCarGardenReboard(candidate, salary) ?? PrepareCarRagnarokReboard(candidate, salary) ?? PrepareCarReboard(candidate, salary) ?? PrepareStationCarReboard(candidate, salary) : null;
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
                     byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? mapScriptMode : (byte)0);
@@ -553,6 +551,14 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback)
                 {
                     candidate = StepGardenCactuar(candidate, out fieldEntry);
+                }
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null)
+                {
+                    candidate = StepCarGardenObjects(candidate, out fieldEntry);
+                    if (fieldEntry is null)
+                    {
+                        candidate = StepCarRagnarokObjects(candidate, out fieldEntry);
+                    }
                 }
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeFootRuntime?.EntityType == 2)
                 {
@@ -676,7 +682,9 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? ReadCarModels(state, position, car) : state.NativeFootRuntime?.ParkedCar is not null ? ReadParkedCarModels(state) : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
-        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, AvatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, StaticModels: models, Forest: state.NativeFootRuntime?.Forest ?? state.NativeCarRuntime?.Forest);
+        NativeCarWorldRuntimeState? presentationCar = state.NativeCarRuntime ?? state.NativeFootRuntime?.ParkedCar?.Car;
+        IReadOnlyList<NativeWorldAnimatedModelDraw>? animated = presentationCar?.RagnarokObjects is not null ? ReadCarRagnarokAnimatedModels(state, presentationCar) : null;
+        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, AvatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, StaticModels: models, Forest: state.NativeFootRuntime?.Forest ?? state.NativeCarRuntime?.Forest, AnimatedModels: animated);
     }
 
     private static int? PreviousFootHorizontalInput(NativeWorldProcess process, bool worldLoad = false)
@@ -810,7 +818,9 @@ internal sealed partial class WorldMapScene : IDisposable
                 NativeCarWorldRuntimeState mapCar = StepCarObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, mapParked.Car, foot.EntityType);
                 foot = foot with { ParkedCar = mapParked with { Car = CompleteCarObjectCallback(mapCar, before.X, before.Z, before.NativeHeight) } };
             }
-            return CompleteMapFootMotor(before with { Frame = before.Frame + 1, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, mapButtons);
+            WorldState mapFoot = before with { Frame = before.Frame + 1, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot };
+            mapFoot = CompleteFootBackgroundRails(StepFootBackgroundRails(mapFoot));
+            return CompleteMapFootMotor(mapFoot, mapButtons);
         }
         NativeWorldFootType2AnimationResult? type2Animation = null;
         if (foot.EntityType == 2)
@@ -838,12 +848,14 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldState? ragnarokCameraState = null;
         if (before.NativeGardenRuntime is not null)
         {
-            gardenCameraState = PrepareGardenFootCallback(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+            gardenCameraState = PrepareGardenFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }));
+            before = before with { NativeGardenRuntime = gardenCameraState.NativeGardenRuntime };
             foot = gardenCameraState.NativeFootRuntime!;
         }
         if (before.NativeRagnarokRuntime is not null)
         {
-            ragnarokCameraState = PrepareRagnarokFootCallback(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+            ragnarokCameraState = PrepareRagnarokFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }));
+            before = before with { NativeRagnarokRuntime = ragnarokCameraState.NativeRagnarokRuntime };
             foot = ragnarokCameraState.NativeFootRuntime!;
         }
         int x = WrapCoordinate(before.X + moveX, 262144);
@@ -861,6 +873,7 @@ internal sealed partial class WorldMapScene : IDisposable
         if (foot.ParkedCar is { } movingParked)
         {
             NativeCarWorldRuntimeState movingCar = StepCarObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, movingParked.Car, foot.EntityType);
+            movingCar = StepCarAllocationAnimation(movingCar, before);
             foot = foot with { ParkedCar = movingParked with { Car = movingCar } };
         }
         int? previousInput = foot.PreviousHorizontalInput ?? (session.State.WorldProcess is { } inputProcess ? PreviousFootHorizontalInput(inputProcess) : null);
@@ -883,7 +896,12 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (foot.ParkedCar is { } completedParked)
         {
-            foot = foot with { ParkedCar = completedParked with { Car = CompleteCarObjectCallback(completedParked.Car, x, z, nativeHeight) } };
+            NativeCarWorldRuntimeState completedCar = CompleteCarObjectCallback(completedParked.Car, x, z, nativeHeight);
+            if (completedCar.GardenObjects is { } carGarden)
+            {
+                completedCar = completedCar with { GardenObjects = carGarden with { PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native primary contact publication."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Parked-car foot callback omitted its native broad contact publication.") } };
+            }
+            foot = foot with { ParkedCar = completedParked with { Car = completedCar } };
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? graphicsMoveZ : 0);
         encounterMovementMagnitude = ground.PositionCommitted ? graphicsSpeed : 0;
@@ -904,6 +922,7 @@ internal sealed partial class WorldMapScene : IDisposable
             GroundType = groundType,
             NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX, MovementMagnitude20409F4 = encounterMovementMagnitude }
         };
+        after = CompleteFootBackgroundRails(after);
         return ragnarokCameraState is not null ? CompleteRagnarokFootCallback(after, ground) : gardenCameraState is not null ? CompleteGardenFootCallback(after, ground, graphicsSpeed) : after;
     }
 

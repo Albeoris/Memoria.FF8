@@ -13,8 +13,9 @@ public static class NativeGardenWorldAllocationReader
         entry.Validate();
         saved.Validate();
         memory.Validate();
+        bool controlledCar = NativeCarWorldRuntimeState.IsSupportedEntity(controlledType);
         bool savedCar = NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId));
-        if (controlledType is not (0 or 48) || controlledType == 0 && parkedGardenPose is null || controlledType == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || !savedCar && saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (controlledType is not (0 or 48) && !controlledCar || controlledType == 0 && parkedGardenPose is null || (controlledType == 48 || controlledCar) && unchecked((sbyte)packet.Extra) != -1 || controlledCar && (parkedGardenPose is null || saved.Slot4.ShapeId != NativeCarWorldRuntimeState.ShapeForEntity(controlledType)) || (entry.ReadBytes(264, 1) & 0x10) != 0 || !savedCar && saved.Slot4.ShapeId is not (0 or 255))
         {
             throw new NotSupportedException("Garden allocation requires its ordinary packet and represented active saved vehicle slot.");
         }
@@ -83,7 +84,7 @@ public static class NativeGardenWorldAllocationReader
             NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
             NativeSavedWorldPose gardenPose = parkedGardenPose ?? loadPose;
             short gardenYaw = unchecked((short)gardenPose.Yaw);
-            if (controlledType == 0 && auxiliaryEntry is not null)
+            if ((controlledType == 0 || controlledCar) && auxiliaryEntry is not null)
             {
                 //54D6A0's ordered writes survive548300 when foot0 is controlled.
                 NativeWorldAuxiliaryRelocation last = auxiliaryEntry.Relocations[^1];
@@ -117,7 +118,7 @@ public static class NativeGardenWorldAllocationReader
             }
             if (savedCar)
             {
-                NativeSavedWorldPose car = saved.Slot4.Pose;
+                NativeSavedWorldPose car = controlledCar ? loadPose : saved.Slot4.Pose;
                 objects.Add(new NativeGardenWorldObject(saved.Slot4.ShapeId, 0, new(car.X, car.Height, -car.RawZ), 0, unchecked((short)car.Yaw), 0));
             }
             if ((guardianForce13Flags & 1) == 0)
@@ -175,6 +176,29 @@ public static class NativeGardenWorldAllocationReader
 
 public sealed partial class WorldAssets
 {
+    public NativeGardenWorldAllocation ReadCarGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeSavedWorldPose carSpawnPose, ushort cameraYaw, byte mapDisplay, byte variant = 0)
+    {
+        if (!NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)))
+        {
+            throw new NotSupportedException("Car Garden-allocation loading requires the actual original car packet.");
+        }
+        NativeSavedWorldPose parkedGarden = saved.GardenPose3 ?? throw new NotSupportedException("Car Garden allocation requires its actual persisted Garden pose3.");
+        NativeWorldAuxiliaryRelocationReceipt? auxiliary = ReadGardenAuxiliaryRelocations(packet, memory, carSpawnPose);
+        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, guardianForce13Flags, ReadFootType2CactuarLoadPosition(), carSpawnPose, cameraYaw, variant, mapDisplay, parkedGarden, auxiliary);
+    }
+
+    public void ValidateGardenAllocationResources(NativeGardenWorldAllocation allocation)
+    {
+        allocation.Validate();
+        string programHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[9], sections[10] - sections[9])));
+        string coordinateHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[10], sections[11] - sections[10])));
+        NativeWorldAllocationClause clause = ReadWorldAllocationClause(allocation.Story);
+        if (allocation.ProgramHash != programHash || allocation.CoordinateHash != coordinateHash || allocation.ClauseIndex != clause.Index || !allocation.ClauseWords.SequenceEqual(clause.Words))
+        {
+            throw new InvalidDataException("Retained Garden allocation differs from its actual current native program and coordinate resources.");
+        }
+    }
+
     public NativeGardenWorldAllocation ReadGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals)
     {
         int spawn = unchecked((sbyte)packet.EntryIndex);

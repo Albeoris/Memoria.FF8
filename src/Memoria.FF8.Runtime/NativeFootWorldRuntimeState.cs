@@ -240,7 +240,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Car foot state requires its actual parked vehicle receipt.");
         }
-        if (ParkedCar is not null && Rule is not (CarDismountRule or TrainDismountRule) && (NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || GroundCache is null || Forest is null || EntityType != (ParkedCar.Car.Allocation is { } parkedAllocation ? parkedAllocation.Objects[parkedAllocation.ControlledObjectIndex].EntityType : 1)))
+        if (ParkedCar is not null && Rule is not (CarDismountRule or TrainDismountRule) && (NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || GroundCache is null || Forest is null || EntityType != ParkedCar.Car.FootEntityType))
         {
             throw new InvalidDataException("Reloaded parked car differs from its selected foot allocation and fresh loader owners.");
         }
@@ -260,7 +260,7 @@ public sealed partial record NativeFootWorldRuntimeState
         NormalObjects?.Validate();
         CameraTransition?.Validate();
         StationTrainEntrySavedWorld?.Validate();
-        if (Rule == CarDismountRule && (GroundCache is null || GroundYaw is null || Forest is null || CameraTransition is null || ReloadSourceWorldFrame is not null || NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || EntityType != (ParkedCar!.Car.Allocation is { } carAllocation ? carAllocation.Objects[carAllocation.ControlledObjectIndex].EntityType : 1)))
+        if (Rule == CarDismountRule && (GroundCache is null || GroundYaw is null || Forest is null || CameraTransition is null || ReloadSourceWorldFrame is not null || NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || EntityType != ParkedCar!.Car.FootEntityType))
         {
             throw new InvalidDataException("Native car dismount lost its retained ground, process or selected foot allocation.");
         }

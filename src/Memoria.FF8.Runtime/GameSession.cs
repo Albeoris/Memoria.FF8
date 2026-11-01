@@ -387,7 +387,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
         }
         NativeEventMemory memory = preparedEventMemory ?? departure.EventMemory;
-        NativeWorldAuxiliaryRelocationReceipt? relocation = initialState.NativeGardenRuntime?.AuxiliaryEntry ?? initialState.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry;
+        NativeWorldAuxiliaryRelocationReceipt? relocation = initialState.NativeGardenRuntime?.AuxiliaryEntry ?? initialState.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry ?? initialState.NativeCarRuntime?.GardenObjects?.AuxiliaryEntry ?? initialState.NativeCarRuntime?.RagnarokObjects?.Allocation.AuxiliaryEntry;
         NativeEventMemory expectedMemory = relocation?.ApplyTo(departure.EventMemory) ?? departure.EventMemory;
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(expectedMemory)))
         {
@@ -911,12 +911,20 @@ public sealed partial class GameSession : IEventServices
         {
             world.EventUi?.Validate();
             ValidateWorldState(world);
+            if (world.NativeCarRuntime is { } carGardenBody)
+            {
+                ValidateCarGardenBody(world, carGardenBody);
+            }
+            if (world.NativeFootRuntime?.ParkedCar?.Car is { } parkedCarGardenBody)
+            {
+                ValidateCarGardenBody(world, parkedCarGardenBody);
+            }
             if (world.NativeFootRuntime?.Forest is NativeWorldForestState forest && (state.WorldProcess is null || forest.CameraCooldown != state.WorldProcess.CameraCooldown))
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
             bool battleFootReload = world.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } battleFoot && ValidateWorldBattleFootReload(state, world, battleFoot);
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : !battleFootReload && unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(foot.ParkedCar is { } parkedCar && unchecked((byte)state.WorldArrival.Mode) == parkedCar.Car.EntityType) && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : !battleFootReload && unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(foot.ParkedCar is { } parkedCar && (unchecked((byte)state.WorldArrival.Mode) == parkedCar.Car.EntityType || parkedCar.Car.Boarding is { } carBoarding && carBoarding.OriginalPacket == state.WorldArrival && carBoarding.SourceWorldFrame <= world.Frame)) && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }

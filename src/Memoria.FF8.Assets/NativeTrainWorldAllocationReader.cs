@@ -53,7 +53,7 @@ public static class NativeTrainWorldAllocationReader
             {
                 throw new NotSupportedException("Native world allocation requires a coordinate outside the represented saved-pose widths.");
             }
-            var item = new NativeTrainWorldObject(shape, coordinate, new NativeSavedWorldPose(x, -z, (short)y, unchecked((ushort)orientation)), operand, ImmutableArray.CreateRange(raw.ToArray()));
+            var item = new NativeTrainWorldObject(shape, coordinate, new NativeSavedWorldPose(x, -z, (short)y, unchecked((ushort)orientation)), operand, ImmutableArray.CreateRange(raw.ToArray())) { Flags = shape == 80 ? (byte)4 : (byte)0 };
             item.Validate();
             if (controlled < 0 && (item.EntityType is >= 0 and <= 9 or 128))
             {

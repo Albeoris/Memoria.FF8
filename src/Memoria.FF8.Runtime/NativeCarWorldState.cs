@@ -40,7 +40,15 @@ public sealed record NativeCarWorldRuntimeState
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeNormalFootObjectProcess? ObjectProcess { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeGardenWorldRuntimeState? GardenObjects { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeRagnarokWorldRuntimeState? RagnarokObjects { get; init; }
+    [JsonIgnore]
+    public byte FootEntityType => checked((byte)(GardenObjects is { } garden ? garden.Objects[garden.Allocation.FootObjectIndex].EntityType : RagnarokObjects is not null ? 0 : Allocation is { } allocation ? allocation.Objects[allocation.ControlledObjectIndex].EntityType : 1));
     public ImmutableArray<NativeTrainWorldObject> AppendedObjects { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? AllocationAnimationCounter { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? AllocationReplacementFlags264 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -60,13 +68,13 @@ public sealed record NativeCarWorldRuntimeState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? BroadContact { get; init; }
 
-    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeWorldGroundCacheState cache, NativeWorldProcess process, byte entityType = 33, NativeTrainWorldAllocation? allocation = null, NativeWorldFootCameraState? projectionCamera = null)
+    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeWorldGroundCacheState cache, NativeWorldProcess process, byte entityType = 33, NativeTrainWorldAllocation? allocation = null, NativeWorldFootCameraState? projectionCamera = null, NativeGardenWorldRuntimeState? gardenObjects = null, NativeRagnarokWorldRuntimeState? ragnarokObjects = null)
     {
         saved.Validate();
         cache.Validate();
         process.Validate();
         byte shape = ShapeForEntity(entityType);
-        var result = new NativeCarWorldRuntimeState { Version = 4, Rule = LoadRule, EntityType = entityType, ShapeId = shape, Speed = 0, CameraFollowSpeed = process.CarCameraFollowSpeed, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundCache = cache, GroundYaw = 0, MovementMagnitude20409F4 = 0, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown), Allocation = allocation, ProjectionCamera = projectionCamera };
+        var result = new NativeCarWorldRuntimeState { Version = 4, Rule = LoadRule, EntityType = entityType, ShapeId = shape, Speed = 0, CameraFollowSpeed = process.CarCameraFollowSpeed, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundCache = cache, GroundYaw = 0, MovementMagnitude20409F4 = 0, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown), Allocation = allocation, ProjectionCamera = projectionCamera, GardenObjects = gardenObjects, RagnarokObjects = ragnarokObjects };
         result.Validate();
         return result;
     }
@@ -107,11 +115,21 @@ public sealed record NativeCarWorldRuntimeState
         }
         GroundCache.Validate();
         Forest?.Validate();
-        if (EntityType != 33 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && ObjectProcess is null && (Allocation is not null || ProjectionCamera is not null && CameraTransition is null))
+        if (GardenObjects is null && RagnarokObjects is null && (EntityType != 33 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && ObjectProcess is null && (Allocation is not null || ProjectionCamera is not null && CameraTransition is null)))
         {
             throw new InvalidDataException("Native car object allocation differs from its executed loader contract.");
         }
-        int maximumContact = (Allocation?.Objects.Length ?? 0) + (AppendedObjects.IsDefault ? 0 : AppendedObjects.Length) - 1 + (ObjectProcess?.Primary is not null || ObjectProcess?.Alternate is not null ? 1 : 0);
+        GardenObjects?.Validate();
+        if (GardenObjects is { } garden && (RagnarokObjects is not null || Allocation is not null || ObjectProcess is not null || !AppendedObjects.IsEmpty || ProjectionCamera is null || garden.Allocation.SavedCarIndex < 0 || garden.Objects[garden.Allocation.SavedCarIndex].ShapeId != ShapeId))
+        {
+            throw new InvalidDataException("Car selected from Garden must retain its sole original dense allocation and selected vehicle.");
+        }
+        RagnarokObjects?.Validate();
+        if (RagnarokObjects is { } ragnarok && (GardenObjects is not null || Allocation is not null || ObjectProcess is not null || !AppendedObjects.IsEmpty || ProjectionCamera is null || ragnarok.Allocation.SavedCarIndex < 0 || ragnarok.Objects[ragnarok.Allocation.SavedCarIndex].ShapeId != ShapeId))
+        {
+            throw new InvalidDataException("Car selected from Ragnarok must retain its sole original dense allocation and selected vehicle.");
+        }
+        int maximumContact = GardenObjects is { } objects ? objects.Objects.Length - 1 + (objects.BackgroundRails?.Primary is not null || objects.BackgroundRails?.Alternate is not null ? 1 : 0) : RagnarokObjects is { } ragnarokObjects ? ragnarokObjects.Objects.Length - 1 + (ragnarokObjects.BackgroundRails?.HasBanks == true ? 1 : 0) : (Allocation?.Objects.Length ?? 0) + (AppendedObjects.IsDefault ? 0 : AppendedObjects.Length) - 1 + (ObjectProcess?.Primary is not null || ObjectProcess?.Alternate is not null || GardenObjects?.BackgroundRails?.HasBanks == true || RagnarokObjects?.BackgroundRails?.HasBanks == true ? 1 : 0);
         if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact > maximumContact || BroadContact > maximumContact || PrimaryContact >= 0 && BroadContact != PrimaryContact)
         {
             throw new InvalidDataException("Native car contacts differ from their executed allocation and hard/broad query order.");
@@ -143,9 +161,13 @@ public sealed record NativeCarWorldRuntimeState
         foreach (NativeTrainWorldObject item in AppendedObjects)
         {
             item.Validate();
+            if (item.Flags != (item.ShapeId == 80 ? 4 : 0))
+            {
+                throw new InvalidDataException("Native car appended object animation mode differs from its original loader.");
+            }
         }
         ObjectProcess?.ValidateCar();
-        if (ObjectProcess is not null && (Allocation is null || ProjectionCamera is null || ObjectProcess.Allocation.ProgramHash != Allocation.ProgramHash || ObjectProcess.Allocation.CoordinateHash != Allocation.CoordinateHash || ObjectProcess.Allocation.Story != Allocation.Story || ObjectProcess.Allocation.EventFlags103 != Allocation.EventFlags103 || !ObjectProcess.Allocation.ClauseWords.SequenceEqual(Allocation.ClauseWords) || ObjectProcess.Allocation.Objects.Length != Allocation.Objects.Length || ObjectProcess.Allocation.Objects.Where((item, index) => item.RawOperand != Allocation.Objects[index].RawOperand || !item.CoordinateBytes.SequenceEqual(Allocation.Objects[index].CoordinateBytes)).Any()))
+        if (ObjectProcess is not null && (Allocation is null || ProjectionCamera is null || ObjectProcess.Allocation.ProgramHash != Allocation.ProgramHash || ObjectProcess.Allocation.CoordinateHash != Allocation.CoordinateHash || ObjectProcess.Allocation.Story != Allocation.Story || ObjectProcess.Allocation.EventFlags103 != Allocation.EventFlags103 || !ObjectProcess.Allocation.ClauseWords.SequenceEqual(Allocation.ClauseWords) || ObjectProcess.Allocation.Objects.Length != Allocation.Objects.Length || ObjectProcess.Allocation.Objects.Where((item, index) => item.Flags != Allocation.Objects[index].Flags || item.RawOperand != Allocation.Objects[index].RawOperand || !item.CoordinateBytes.SequenceEqual(Allocation.Objects[index].CoordinateBytes)).Any()))
         {
             throw new InvalidDataException("Native car object process differs from its retained dense allocation or projection owner.");
         }

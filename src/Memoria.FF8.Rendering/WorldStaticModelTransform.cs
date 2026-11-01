@@ -17,6 +17,41 @@ public static class WorldStaticModelTransform
         return AllocationAngles(item.ShapeId, 0, unchecked((short)item.PackedOrientation), item.Roll);
     }
 
+    /// <summary>5472C0's original byte17 animation mode, using the last executed physical draw counter.</summary>
+    public static NativeWorldPathAngles AnimatedAllocationAngles(NativeTrainWorldObject item, uint? mainLoopCounter)
+    {
+        item.Validate();
+        if (mainLoopCounter is null || item.Flags == 0)
+        {
+            return AllocationAngles(item);
+        }
+        if (item.Flags != 4)
+        {
+            throw new NotSupportedException("Native allocation animation requires its executed original mode state.");
+        }
+        return AllocationAngles(item.ShapeId, 786, unchecked((short)item.PackedOrientation), unchecked((short)(8 * mainLoopCounter.Value)));
+    }
+
+    public static NativeWorldPathAngles AnimatedAllocationAngles(NativeGardenWorldObject item, uint? mainLoopCounter)
+    {
+        if (mainLoopCounter is null || item.Flags == 0)
+        {
+            return AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
+        }
+        return item.Flags switch
+        {
+            1 => AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, unchecked((short)(16 * mainLoopCounter.Value))),
+            2 => AllocationAngles(item.ShapeId, item.RotationX, unchecked((short)(8 * mainLoopCounter.Value)), item.RotationZ),
+            4 => AllocationAngles(item.ShapeId, 786, item.RotationY, unchecked((short)(8 * mainLoopCounter.Value))),
+            _ => throw new NotSupportedException("Native allocation animation requires its executed original mode state.")
+        };
+    }
+
+    public static NativeWorldPathAngles AnimatedAllocationAngles(NativeRagnarokWorldObject item, uint? mainLoopCounter)
+    {
+        return AnimatedAllocationAngles(new NativeGardenWorldObject(item.ShapeId, item.Flags, item.Position, item.Pitch, item.Yaw, item.Roll), mainLoopCounter);
+    }
+
     public static NativeWorldPathAngles AllocationAngles(byte shape, short nativeX, short nativeY, short nativeZ)
     {
         int entity = NativeTrainWorldObject.ClassifyShape(shape);

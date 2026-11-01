@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class WorldGardenCameraSceneTests
+public sealed partial class WorldGardenCameraSceneTests
 {
     [Fact]
     public void FreshOriginalGardenToggleManualYawAndSaveReceiptRestoreTheSameNextCallback()

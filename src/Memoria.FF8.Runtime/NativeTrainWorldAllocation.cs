@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The original allocation operand and full sixteen-byte coordinate, without dropping packed orientation words.</summary>
 public sealed record NativeTrainWorldObject([property: JsonRequired] byte ShapeId, [property: JsonRequired] byte CoordinateIndex, [property: JsonRequired] NativeSavedWorldPose Pose, [property: JsonRequired] ushort RawOperand, [property: JsonRequired] ImmutableArray<byte> CoordinateBytes)
 {
+    public byte Flags { get; init; }
     public int EntityType => ClassifyShape(ShapeId);
     public NativeWorldPathPosition Position => new(ReadCoordinate(0), ReadCoordinate(4), ReadCoordinate(8));
     public int PackedOrientation => ReadCoordinate(12);
@@ -14,7 +15,7 @@ public sealed record NativeTrainWorldObject([property: JsonRequired] byte ShapeI
 
     public void Validate()
     {
-        if (RawOperand != ShapeId + (CoordinateIndex << 8) || CoordinateIndex >= 128 || CoordinateBytes.IsDefault || CoordinateBytes.Length != 16 || Pose is null)
+        if (Flags > 4 || RawOperand != ShapeId + (CoordinateIndex << 8) || CoordinateIndex >= 128 || CoordinateBytes.IsDefault || CoordinateBytes.Length != 16 || Pose is null)
         {
             throw new InvalidDataException("Native world allocation lost its original operand or complete coordinate record.");
         }

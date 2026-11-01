@@ -56,12 +56,21 @@ internal sealed partial class WorldMapScene
             ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.CameraYaw, cameraStep.Pitch, garden.CameraDefaults.OffsetY, garden.CameraDefaults.OffsetZ)
         };
         WorldState cameraState = before with { BodyYaw = motor.BodyYaw, CameraYaw = motor.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeGardenRuntime = garden };
+        if (garden.BackgroundRails is { } background)
+        {
+            garden = garden with { BackgroundRails = StepBackgroundRails(background, garden.ProjectionCamera!, 48, before.EventUi?.ScriptMode ?? 0) };
+            cameraState = cameraState with { NativeGardenRuntime = garden };
+        }
         if (mapOnly)
         {
             consumeGardenRequest = false;
             fieldEntry = null;
             salaryMovementUnits = 0;
             garden = (garden with { Buttons = garden.Buttons.Observe(buttons) }).PublishBody(new(before.X, before.NativeHeight, -before.Z), 0, unchecked((short)motor.BodyYaw), 0);
+            if (garden.BackgroundRails is { } mapRails)
+            {
+                garden = garden with { BackgroundRails = CompleteBackgroundRails(mapRails, before.X, before.Z, before.NativeHeight) };
+            }
             return cameraState with { Frame = before.Frame + 1, NativeGardenRuntime = garden };
         }
         NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory));
@@ -102,6 +111,10 @@ internal sealed partial class WorldMapScene
             NativeGardenRuntime = garden
         };
         garden = garden.PublishBody(new(after.X, after.NativeHeight, -after.Z), 0, unchecked((short)after.BodyYaw), 0);
+        if (garden.BackgroundRails is { } completedRails)
+        {
+            garden = garden with { BackgroundRails = CompleteBackgroundRails(completedRails, after.X, after.Z, after.NativeHeight) };
+        }
         after = after with { NativeGardenRuntime = garden };
         fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, admission.Action ? true : null);
         if (fieldEntry is null && scriptMode == 0)
@@ -150,7 +163,7 @@ internal sealed partial class WorldMapScene
     private int GardenContact(WorldState cameraState, IReadOnlyList<WorldNativeGardenProbe> probes, int selectedEntity, int padding, bool forceCircle = false)
     {
         NativeGardenWorldRuntimeState garden = cameraState.NativeGardenRuntime!;
-        return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, 48, selectedEntity, probes, GardenProjection(cameraState), padding, forceCircle);
+        return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, 48, selectedEntity, probes, GardenProjection(cameraState), padding, forceCircle, rails: garden.BackgroundRails);
     }
 
     private NativeGardenWorldRuntimeState PrepareGardenDismount(WorldState state)

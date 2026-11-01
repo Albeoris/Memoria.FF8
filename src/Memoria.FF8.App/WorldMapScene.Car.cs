@@ -12,6 +12,16 @@ internal sealed partial class WorldMapScene
         state.NativeCarRuntime!.Validate();
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeSavedWorldState saved = session.State.SavedWorld!;
+        if (state.NativeCarRuntime.RagnarokObjects is not null)
+        {
+            ValidateCarRagnarok(state, state.NativeCarRuntime);
+            return;
+        }
+        if (state.NativeCarRuntime.GardenObjects is not null)
+        {
+            ValidateCarGarden(state, state.NativeCarRuntime);
+            return;
+        }
         if (state.NativeCarRuntime.Allocation is null)
         {
             throw new NotSupportedException("Native car callbacks require their executed dense allocation; migrate the historical snapshot explicitly.");
@@ -45,11 +55,11 @@ internal sealed partial class WorldMapScene
         NativeTrainWorldAllocation allocation = car.Allocation!;
         if (saved.Slot4.ShapeId != car.ShapeId)
         {
-            throw new NotSupportedException("Native fuel-using car requires its actual selected vehicle, inactive auxiliary slots.");
+            throw new NotSupportedException("Native car requires its actual selected saved vehicle.");
         }
         ValidateCarAppendedAllocation(car, inputs);
         NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
-        if (actual.EventFlags103 != allocation.EventFlags103 || actual.Story != allocation.Story || actual.ProgramHash != allocation.ProgramHash || actual.CoordinateHash != allocation.CoordinateHash || !actual.ClauseWords.SequenceEqual(allocation.ClauseWords) || actual.Objects.Length != allocation.Objects.Length || actual.Objects.Where((item, index) => !item.CoordinateBytes.SequenceEqual(allocation.Objects[index].CoordinateBytes)).Any())
+        if (actual.EventFlags103 != allocation.EventFlags103 || actual.Story != allocation.Story || actual.ProgramHash != allocation.ProgramHash || actual.CoordinateHash != allocation.CoordinateHash || !actual.ClauseWords.SequenceEqual(allocation.ClauseWords) || actual.Objects.Length != allocation.Objects.Length || actual.Objects.Where((item, index) => item.Flags != allocation.Objects[index].Flags || !item.CoordinateBytes.SequenceEqual(allocation.Objects[index].CoordinateBytes)).Any())
         {
             throw new InvalidDataException("Native fuel-using car retained allocation differs from its actual original clause and coordinate records.");
         }
@@ -58,6 +68,14 @@ internal sealed partial class WorldMapScene
     private int DenseCarContact(WorldState cameraState, IReadOnlyList<WorldNativeGardenProbe> probes, int padding)
     {
         NativeCarWorldRuntimeState car = cameraState.NativeCarRuntime!;
+        if (car.RagnarokObjects is not null)
+        {
+            return CarRagnarokContact(cameraState, car, probes, car.EntityType, padding);
+        }
+        if (car.GardenObjects is not null)
+        {
+            return CarGardenContact(cameraState, car, probes, car.EntityType, padding);
+        }
         NativeWorldPathProjectionCertificate context = CarProjection(cameraState);
         WorldNativeGardenProbe center = probes[0];
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(center.X, center.Y, -center.Z));
@@ -68,6 +86,16 @@ internal sealed partial class WorldMapScene
     private IReadOnlyList<NativeWorldStaticModelDraw> ReadCarModels(WorldState world, Vector3 position, NativeCarWorldRuntimeState car)
     {
         List<NativeWorldStaticModelDraw> models = [new NativeWorldStaticModelDraw(assets.GetCarModel(car.EntityType), new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(world.BodyYaw - 1024)), 0))) { ObjectId = new(WorldRenderObjectKind.Controlled, 0) }];
+        if (car.RagnarokObjects is not null)
+        {
+            models.AddRange(ReadCarRagnarokModels(world, car, false));
+            return models;
+        }
+        if (car.GardenObjects is not null)
+        {
+            models.AddRange(ReadCarGardenModels(world, car, false));
+            return models;
+        }
         if (car.Allocation is not { } allocation)
         {
             return models;
@@ -89,7 +117,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathNodeProjection projection = context.ProjectNode(item.Position) ?? throw new NotSupportedException(context.UnsupportedReason);
             if (projection.Visible)
             {
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AllocationAngles(item))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AnimatedAllocationAngles(item, car.AllocationAnimationCounter))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
         return models;
@@ -164,6 +192,8 @@ internal sealed partial class WorldMapScene
             salaryMovementUnits = (uint)car.MovementMagnitude20409F4!.Value / 8;
             return candidate with { X = before.X, Z = before.Z, NativeCarRuntime = CompleteCarObjectCallback(car with { Speed = speed, CameraFollowSpeed = follow }, before.X, before.Z, before.NativeHeight) };
         }
+        car = StepCarAllocationAnimation(car, before);
+        candidate = candidate with { NativeCarRuntime = car };
         EnsureCarContactCertificate(candidate);
         int previousHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         // Drawing uses the prior ground pointers and lookup cache before this callback's movement query.
@@ -177,7 +207,7 @@ internal sealed partial class WorldMapScene
         int? selectedGroup = horizontal > 0 ? 0 : horizontal < 0 ? 1 : null;
         //53BB90 queries the selected terrain fan before publishing XYZ. A hard contact rejects
         //that commit; padding200 alone retains proximity and accepts ordinary movement.
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements, car.EntityType, footprintContact: car.Allocation is not null ? (probes, padding) => DenseCarContact(candidate, probes, padding) : null);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements, car.EntityType, footprintContact: car.Allocation is not null || car.GardenObjects is not null || car.RagnarokObjects is not null ? (probes, padding) => DenseCarContact(candidate, probes, padding) : null);
         candidate = candidate with { X = ground.X, Z = ground.Z };
         if (car.CameraTransition is not null)
         {

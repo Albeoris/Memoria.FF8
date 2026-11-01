@@ -133,7 +133,7 @@ public sealed class NativeTrainStationChoiceTests
     {
         string directory = GameDirectory();
         using WorldAssets assets = new(directory);
-        GameState source = Clone(LoadStationPrompt());
+        GameState source = CreateCurrentStationPrompt();
         NativeTrainWorldRuntimeState train = source.World!.NativeTrainRuntime!;
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(source.World.ReplacementMask);
         // Declared roadside component inputs exercise the transfer after an actual
@@ -144,7 +144,10 @@ public sealed class NativeTrainStationChoiceTests
         short carHeight = checked((short)NativeWorldTerrain.ResolveHeight(38, -(int)carGround.Ground.Height, carGround.Ground.Triangle.GroundType, 0).Height);
         NativeSavedWorldVehicleSlot slot = new(85, new(carX, carZ, carHeight, 3008));
         train = train with { Load = train.Load with { Slot4 = slot } };
-        source = source with { World = source.World with { NativeTrainRuntime = train }, SavedWorld = source.SavedWorld! with { CarReturn = null, Slot4 = slot } };
+        WorldState precedingFoot = source.DepartingWorldState! with { NativeCarRuntime = null, NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()) };
+        NativeSavedWorldFootReturn footReturn = NativeSavedWorldFootReturn.RecordFootDeparture(precedingFoot, 262, 290, 1);
+        NativeSavedWorldState parkedSaved = (source.SavedWorld! with { CarReturn = null, Slot4 = slot }).WithFootReturn(footReturn);
+        source = source with { World = source.World with { NativeTrainRuntime = train }, DepartingWorldState = precedingFoot, SavedWorld = parkedSaved };
         GameSession session = new(source);
         using WorldMapScene scene = new(session, directory);
         Assert.True(scene.Apply(new(PlayerActionKind.Choose, Value: 1)).Accepted);
@@ -192,7 +195,7 @@ public sealed class NativeTrainStationChoiceTests
     public void DismountContractRetainsProcessOwnersForEachOriginalStation(int stationIndex, int trackIndex, sbyte direction, byte stopCounter)
     {
         using WorldAssets assets = new(GameDirectory());
-        GameState boundary = Clone(LoadStationPrompt());
+        GameState boundary = CreateCurrentStationPrompt();
         NativeTrainWorldRuntimeState source = boundary.World!.NativeTrainRuntime!;
         NativeTrainRailBank primary = trackIndex == 0 ? source.Primary : source.Alternate!;
         NativeTrainRailBank? alternate = trackIndex == 0 ? source.Alternate : source.Primary;
@@ -200,7 +203,7 @@ public sealed class NativeTrainStationChoiceTests
         // this does not claim these banks were reached through a complete train journey.
         NativeTrainWorldRuntimeState train = source with
         {
-            Packet = new(trackIndex == 0 ? 64 : 66, source.EntityType, -1),
+            Packet = new(checked((short)(trackIndex == 0 ? 64 : 66)), source.EntityType, -1),
             CameraListIndex = trackIndex,
             Primary = primary with { Status = 1, Direction = direction, StopCounter = stopCounter, Pause = -1 },
             Alternate = alternate
@@ -219,6 +222,22 @@ public sealed class NativeTrainStationChoiceTests
         NativeFootWorldRuntimeState restored = JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(foot))!;
         restored.RequireNativeGroundState();
         Assert.Equal(stationIndex, restored.TrainDismount!.Station.Index);
+    }
+
+    private static GameState CreateCurrentStationPrompt()
+    {
+        string directory = GameDirectory();
+        using GameAssets initialization = new(directory);
+        GameSession session = NativeTrainRideTests.CreateComponent(initialization);
+        WorldTransition packet = new(64, 16, -1);
+        using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(session.State, directory, packet);
+        session.CommitPreparedWorldEntry(packet, prepared.InitialState, session.WorldControls!, prepared.ValidateAdoption, prepared.InitialSavedWorld);
+        using WorldMapScene scene = prepared.Adopt(session);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 400)).Accepted);
+        Assert.Equal((short)-1, scene.State.NativeTrainRuntime!.Primary.Pause);
+        Assert.InRange(scene.State.Frame, 1, 400);
+        Assert.Equal(4, scene.CurrentDialogue!.MessageId);
+        return session.State;
     }
 
     private static void AssertStationPrompt(GameWorld world)

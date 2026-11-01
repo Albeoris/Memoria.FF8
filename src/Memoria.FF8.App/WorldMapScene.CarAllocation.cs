@@ -30,10 +30,15 @@ internal sealed partial class WorldMapScene
         NativeTrainWorldObject initialCar = car.AppendedObjects[0];
         NativeSavedWorldVehicleSlot selected = new(car.ShapeId, initialCar.Pose);
         ImmutableArray<NativeTrainWorldObject> actual = assets.ReadCarAppendedAllocation(selected, replacements264, guardianFlags);
-        if (actual.Length != car.AppendedObjects.Length || actual.Where((item, index) => item.RawOperand != car.AppendedObjects[index].RawOperand || !item.CoordinateBytes.SequenceEqual(car.AppendedObjects[index].CoordinateBytes)).Any())
+        if (actual.Length != car.AppendedObjects.Length || actual.Where((item, index) => item.Flags != car.AppendedObjects[index].Flags || item.RawOperand != car.AppendedObjects[index].RawOperand || !item.CoordinateBytes.SequenceEqual(car.AppendedObjects[index].CoordinateBytes)).Any())
         {
             throw new InvalidDataException("Native car appended objects differ from their original selected saved pose, GF flag or section10 coordinates.");
         }
+    }
+
+    private NativeCarWorldRuntimeState StepCarAllocationAnimation(NativeCarWorldRuntimeState car, WorldState before)
+    {
+        return car with { AllocationAnimationCounter = GameSession.PrepareWorldProcess(session.State, before).MainLoopCounter };
     }
 
     private static int CarSelectedAllocationIndex(NativeCarWorldRuntimeState car)
