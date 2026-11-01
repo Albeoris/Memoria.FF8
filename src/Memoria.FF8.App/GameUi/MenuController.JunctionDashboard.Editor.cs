@@ -451,7 +451,6 @@ public sealed partial class MenuController
             _view = null;
             return;
         }
-        bool firstCommands = Character is { } before && before.CommandIds.All(id => id == "0") && before.AvailableCommands.Count == 0;
         string operationLabel = JunctionOperationLabel();
         if (_liveAction is null || !Data.SupportedActions.Contains(plan.Action.Kind))
         {
@@ -485,11 +484,6 @@ public sealed partial class MenuController
             junctionEditor = "";
             junctionFocus = junctionOrigin;
             Message = J("applied", "Junction changes applied.");
-            if (firstCommands && Character is { AvailableCommands.Count: > 0 } after && after.CommandIds.All(id => id == "0"))
-            {
-                OpenJunctionEditor("command", "command-0");
-                Message = J("first-gf", "The GF unlocked commands. Choose which commands to equip.");
-            }
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or InvalidDataException or NotSupportedException)
         {

@@ -313,6 +313,26 @@ public sealed class JunctionDashboardInteractionTests
     }
 
     [Fact]
+    public void AttachingTheFirstGuardianKeepsFocusOnItsPortraitWithoutOpeningCommandSelection()
+    {
+        using Fixture fixture = new();
+        fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0);
+        fixture.Refresh();
+        Assert.Empty(fixture.Menu.Character!.AvailableCommands);
+        for (int operation = 0; operation < 2; operation++)
+        {
+            fixture.Hit("gf-portrait-gf-0");
+            UiView view = fixture.Menu.BuildView();
+            Assert.Equal("gf-portrait-gf-0", view.FocusedElement?.Id);
+            Assert.NotEqual("command", fixture.Menu.CaptureJunctionDashboard().Editor);
+            Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
+            Assert.All(fixture.Menu.Character!.CommandIds, id => Assert.Equal("0", id));
+            Assert.Equal(operation + 1, fixture.Actions);
+        }
+        Assert.DoesNotContain(0, fixture.Vitals.Records[0].Junction.GuardianForceAssignments);
+    }
+
+    [Fact]
     public void OwnGuardianRemovalCommitsImmediatelyDespiteCapabilityAndHpLoss()
     {
         using Fixture fixture = new();
@@ -553,11 +573,12 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal("junction-transfer-no", fixture.Menu.BuildView().FocusedElement?.Id);
         Assert.Equal(0, fixture.Actions);
         fixture.Hit("junction-transfer-yes");
+        Assert.Equal("gf-portrait-gf-0", fixture.Menu.BuildView().FocusedElement?.Id);
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
         Assert.Contains(0, fixture.Vitals.Records[0].Junction.GuardianForceAssignments);
         Assert.DoesNotContain(0, fixture.Vitals.Records[7].Junction.GuardianForceAssignments);
         Assert.Equal(0u, fixture.Vitals.Records[7].Junction.Commands);
         Assert.Equal(0, fixture.Vitals.Records[7].Junction.MagicJunctions[0]);
-        fixture.Menu.Navigate(MenuInput.Cancel);
         fixture.Undo();
         Assert.Contains(0, fixture.Vitals.Records[7].Junction.GuardianForceAssignments);
         Assert.Equal(21u, fixture.Vitals.Records[7].Junction.Commands);
