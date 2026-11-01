@@ -43,7 +43,8 @@ public enum PlayerActionKind
     RemoveAllMagicJunctions,
     ReassignGuardianForce,
     ToggleGuardianForcePassiveAbility,
-    ApplyJunctionEdit = 39
+    ApplyJunctionEdit = 39,
+    ExchangeJunctions = 40
 }
 
 public enum PlayerTriggerKind

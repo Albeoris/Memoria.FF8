@@ -14,6 +14,8 @@ public sealed class MenuData
     public string SessionId { get; set; } = "";
     [System.Text.Json.Serialization.JsonIgnore]
     public MenuJunctionPlanner? JunctionPlanner { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<string, string, bool>? JunctionExchangeLowersHp { get; set; }
     public bool? CardCollectionComplete { get; set; }
     public string? ChocoboWorldUnavailableReason { get; set; }
     public bool SharedMagicStock { get; set; }

@@ -6,13 +6,21 @@ namespace Memoria.FF8.Events;
 
 public static class NativeJunctionMenuInput
 {
-    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.ApplyJunctionEdit or PlayerActionKind.JunctionGuardianForce or PlayerActionKind.ReassignGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.ToggleGuardianForcePassiveAbility or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
+    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.ExchangeJunctions or PlayerActionKind.ApplyJunctionEdit or PlayerActionKind.JunctionGuardianForce or PlayerActionKind.ReassignGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.ToggleGuardianForcePassiveAbility or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
 
     public static void Validate(PlayerAction action)
     {
         if (!IsMenuAction(action.Kind))
         {
             throw new ArgumentException("Expected a junction or GF learning action.", nameof(action));
+        }
+        if (action.Kind == PlayerActionKind.ExchangeJunctions)
+        {
+            if ((uint)action.Value >= 8u || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int target) || (uint)target >= 8u || target == action.Value || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            {
+                throw new ArgumentException("Junction exchange requires two distinct saved character rows and one ordinary menu callback.", nameof(action));
+            }
+            return;
         }
         if (action.Kind == PlayerActionKind.ApplyJunctionEdit)
         {
@@ -77,6 +85,7 @@ public static class NativeJunctionMenuInput
         int choice = int.Parse(action.Text!, CultureInfo.InvariantCulture);
         return action.Kind switch
         {
+            PlayerActionKind.ExchangeJunctions => vitals.ExchangeJunctions(action.Value, choice),
             PlayerActionKind.JunctionGuardianForce => vitals.ToggleGuardianForceJunction(action.Value, choice),
             PlayerActionKind.ReassignGuardianForce => vitals.ReassignGuardianForceJunction(action.Value, choice, action.Quantity!.Value),
             PlayerActionKind.SetJunctionCommand => vitals.SetJunctionAbility(action.Value, action.Quantity!.Value, choice, true),

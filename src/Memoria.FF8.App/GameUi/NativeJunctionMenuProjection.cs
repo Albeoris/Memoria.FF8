@@ -5,7 +5,7 @@ namespace Memoria.FF8.GameUi;
 
 public static class NativeJunctionMenuProjection
 {
-    public static bool IsAction(MenuAction action) => action.Kind is "junction-edit" or "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "gf-passive-toggle" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
+    public static bool IsAction(MenuAction action) => action.Kind is "junction-exchange" or "junction-edit" or "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "gf-passive-toggle" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
 
     public static PlayerAction PlayerAction(MenuAction action)
     {
@@ -19,6 +19,7 @@ public static class NativeJunctionMenuProjection
         }
         PlayerAction result = action.Kind switch
         {
+            "junction-exchange" => new PlayerAction(PlayerActionKind.ExchangeJunctions, Id(action.SubjectId, "character-"), Id(action.TargetId, "character-").ToString(CultureInfo.InvariantCulture)),
             "junction-edit" => new PlayerAction(PlayerActionKind.ApplyJunctionEdit, Text: action.Value),
             "junction-gf" => new PlayerAction(PlayerActionKind.JunctionGuardianForce, Id(action.TargetId, "character-"), Id(action.SubjectId, "gf-").ToString(CultureInfo.InvariantCulture)),
             "junction-gf-reassign" => new PlayerAction(PlayerActionKind.ReassignGuardianForce, Id(action.TargetId, "character-"), Id(action.SubjectId, "gf-").ToString(CultureInfo.InvariantCulture), Quantity: Id(action.Value, "character-")),

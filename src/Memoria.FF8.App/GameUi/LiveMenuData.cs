@@ -104,6 +104,14 @@ public static class LiveMenuData
                     }
                 }
             }
+            result.JunctionExchangeLowersHp = (sourceId, targetId) =>
+            {
+                MenuAction menu = new("junction-exchange", sourceId, targetId);
+                Memoria.FF8.Events.PlayerAction input = NativeJunctionMenuProjection.PlayerAction(menu);
+                int target = int.Parse(input.Text!, System.Globalization.CultureInfo.InvariantCulture);
+                NativeCharacterVitals exchanged = vitals.ExchangeJunctions(input.Value, target);
+                return exchanged.GetMagicMaximumHitPoints(input.Value) < vitals.Records[input.Value].HitPoints.Maximum || exchanged.GetMagicMaximumHitPoints(target) < vitals.Records[target].HitPoints.Maximum;
+            };
             IEnumerable<int> rows = vitals.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, vitals.Records.Length).Where(row => !vitals.CombatParty.Contains((byte)row)));
             foreach (int row in rows)
             {
@@ -337,7 +345,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-gf-reassign", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn", "gf-passive-toggle"]);
+                result.SupportedActions.UnionWith(["junction-exchange", "attack-mode", "junction-gf", "junction-gf-reassign", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn", "gf-passive-toggle"]);
                 if (!vitals.MagicSystem.SharedMagicStock)
                 {
                     result.SupportedActions.Add("magic-transfer");

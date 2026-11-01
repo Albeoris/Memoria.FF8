@@ -135,6 +135,7 @@ public sealed partial class MenuController
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
         ClearBattleLearningReview();
         exitGame = null;
+        pendingJunctionExchange = null;
         pendingGuardianForceTransfer = null;
         CancelControlsCapture();
         _nameTarget = null;
@@ -486,6 +487,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (ScreenId == "switch-junction-confirm")
+        {
+            pendingJunctionExchange = null;
+        }
         if (ScreenId == "junction-gf-confirm")
         {
             pendingGuardianForceTransfer = null;
@@ -787,6 +792,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (ExecuteJunctionExchangeConfirmation(action))
+        {
+            return;
+        }
         if (ExecuteGuardianForceTransfer(action))
         {
             return;
@@ -958,7 +967,7 @@ public sealed partial class MenuController
             }
             action = action.Kind switch
             {
-                "party-switch" => action with { SubjectId = _exchangeId },
+                "party-switch" or "junction-exchange" => action with { SubjectId = _exchangeId },
                 "item-use" => action with { SubjectId = Item?.Id ?? "" },
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
                 "junction-off" => action with { TargetId = Character?.Id ?? "" },
@@ -994,9 +1003,9 @@ public sealed partial class MenuController
                 ScreenId = "item-use";
                 _itemId = "";
             }
-            if (action.Kind == "party-switch")
+            if (action.Kind is "party-switch" or "junction-exchange")
             {
-                ScreenId = _history.TryPop(out string? sourceScreen) ? sourceScreen : "switch-party";
+                ScreenId = _history.TryPop(out string? sourceScreen) ? sourceScreen : action.Kind == "party-switch" ? "switch-party" : "switch-junction";
                 ScreenOpened?.Invoke(ScreenId);
             }
             if (action.Kind is "junction-magic" or "junction-auto")
