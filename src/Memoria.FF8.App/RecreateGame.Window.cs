@@ -18,7 +18,7 @@ internal sealed partial class RecreateGame
         nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics);
 #endif
         IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
-        if (options.BattleTestPath is null)
+        if (!options.IsDiagnosticGraphicalHost)
         {
             platform.Maximize();
         }
@@ -31,7 +31,7 @@ internal sealed partial class RecreateGame
 
     private void UpdateWindowModeHotkey()
     {
-        Microsoft.Xna.Framework.Input.KeyboardState keys = options.BattleTestPath is null ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        Microsoft.Xna.Framework.Input.KeyboardState keys = !options.IsDiagnosticGraphicalHost ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
         if (windowModeHotkey.Read(keys, IsActive))
         {
             var preferences = uiPreferences with { BorderlessWindow = !uiPreferences.BorderlessWindow };

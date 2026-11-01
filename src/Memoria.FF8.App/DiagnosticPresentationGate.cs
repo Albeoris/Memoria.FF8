@@ -8,6 +8,7 @@ internal sealed record DiagnosticPresentationDeclaration(string SignalPath, stri
 {
     public double TailSeconds { get; init; } = 3;
     public bool FillSelectedActorAtb { get; init; } = true;
+    public string? VisualSignalPath { get; init; }
 
     internal void Validate()
     {
@@ -15,16 +16,23 @@ internal sealed record DiagnosticPresentationDeclaration(string SignalPath, stri
         {
             throw new InvalidDataException("Presentation requires a signal path, a fresh receipt directory, a run identity and a finite nonnegative tail.");
         }
+        if (VisualSignalPath is not null && (string.IsNullOrWhiteSpace(VisualSignalPath) || Path.GetFullPath(VisualSignalPath) == Path.GetFullPath(SignalPath)))
+        {
+            throw new InvalidDataException("Visual presentation requires a distinct signal path.");
+        }
     }
 }
 
 /// <summary>A coordinator releases a held, genuinely ready invocation with a shared UTC signal.</summary>
 internal sealed class DiagnosticPresentationGate
 {
+    private static readonly JsonSerializerOptions ReceiptJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     private readonly DiagnosticPresentationDeclaration declaration;
     private readonly ushort expectedEffect;
     private DateTimeOffset? readyUtc;
     private DateTimeOffset? startUtc;
+    private DateTimeOffset? visualStartUtc;
+    private bool visualReady;
 
     internal DiagnosticPresentationGate(DiagnosticPresentationDeclaration declaration, ushort expectedEffect)
     {
@@ -32,20 +40,20 @@ internal sealed class DiagnosticPresentationGate
         this.declaration = declaration;
         this.expectedEffect = expectedEffect;
         Directory.CreateDirectory(declaration.ReceiptDirectory);
-        if (new[] { "ready", "started", "completed", "blocked" }.Any(state => File.Exists(Path.Combine(declaration.ReceiptDirectory, state + ".json"))))
+        if (new[] { "ready", "started", "visual-ready", "visual-started", "completed", "blocked" }.Any(state => File.Exists(Path.Combine(declaration.ReceiptDirectory, state + ".json"))))
         {
             throw new InvalidDataException("Presentation requires fresh lifecycle receipt paths to exclude stale receipts.");
         }
     }
 
-    internal void Ready(long callback, long frame, DateTimeOffset now)
+    internal void Ready(long callback, long frame, DateTimeOffset now, bool? atbGating = null)
     {
         if (readyUtc is not null)
         {
             return;
         }
         readyUtc = now;
-        Write("ready", callback, frame, now);
+        Write("ready", callback, frame, now, atbGating: atbGating);
     }
 
     internal bool Released(DateTimeOffset now)
@@ -54,9 +62,42 @@ internal sealed class DiagnosticPresentationGate
         {
             return false;
         }
-        if (startUtc is null && File.Exists(declaration.SignalPath))
+        return ReadRelease(declaration.SignalPath, ref startUtc, now);
+    }
+
+    internal void VisualReady(long callback, long frame, DateTimeOffset now, object nativeIdentity)
+    {
+        if (declaration.VisualSignalPath is null || visualReady)
         {
-            using JsonDocument signal = JsonDocument.Parse(File.ReadAllText(declaration.SignalPath));
+            throw new InvalidOperationException("Visual readiness requires its distinct unconsumed presentation gate.");
+        }
+        visualReady = true;
+        Write("visual-ready", callback, frame, now, nativeIdentity: nativeIdentity);
+    }
+
+    internal bool VisualReleased(DateTimeOffset now) => visualReady && ReadRelease(declaration.VisualSignalPath!, ref visualStartUtc, now);
+
+    internal void WaitForVisualRelease(TimeSpan timeout)
+    {
+        if (!visualReady || timeout <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("Visual entry requires a ready gate within its remaining overall deadline.");
+        }
+        using CancellationTokenSource cancellation = new(timeout);
+        Task.Run(async () =>
+        {
+            while (!VisualReleased(DateTimeOffset.UtcNow))
+            {
+                await Task.Delay(1, cancellation.Token).ConfigureAwait(false);
+            }
+        }, cancellation.Token).GetAwaiter().GetResult();
+    }
+
+    private bool ReadRelease(string path, ref DateTimeOffset? targetUtc, DateTimeOffset now)
+    {
+        if (targetUtc is null && File.Exists(path))
+        {
+            using JsonDocument signal = JsonDocument.Parse(File.ReadAllText(path));
             JsonElement root = signal.RootElement;
             if (root.GetProperty("run_id").GetString() != declaration.RunId)
             {
@@ -67,16 +108,16 @@ internal sealed class DiagnosticPresentationGate
             {
                 throw new InvalidDataException("Presentation signal must declare a future UTC start time.");
             }
-            startUtc = target;
+            targetUtc = target;
         }
-        return startUtc is { } start && now >= start;
+        return targetUtc is { } start && now >= start;
     }
 
-    internal void Write(string state, long callback, long frame, DateTimeOffset now, string? blocker = null)
+    internal void Write(string state, long callback, long frame, DateTimeOffset now, string? blocker = null, object? nativeIdentity = null, DateTimeOffset? dispatchUtc = null, bool? atbGating = null)
     {
         string path = Path.Combine(declaration.ReceiptDirectory, state + ".json");
         string temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new { schema_version = 1, run_id = declaration.RunId, pid = Environment.ProcessId, expected_effect = expectedEffect, state, utc = now, start_at_utc = startUtc, callback, frame, blocker }));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(new { schema_version = 1, run_id = declaration.RunId, pid = Environment.ProcessId, expected_effect = expectedEffect, state, utc = now, start_at_utc = startUtc, visual_start_at_utc = visualStartUtc, dispatch_utc = dispatchUtc, native_identity = nativeIdentity, atb_gating = atbGating, callback, frame, blocker }, ReceiptJson));
         File.Move(temporary, path, false);
     }
 }

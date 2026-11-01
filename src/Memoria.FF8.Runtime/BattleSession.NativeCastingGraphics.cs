@@ -63,6 +63,7 @@ public sealed partial class BattleSession
         }
         if (phase == 5)
         {
+            AdmitDiagnosticVisualEntry(header);
             NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
             graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.ActorIndex) & ~0x20) }) };
             if ((graphics.Flags & 0x20000000) != 0)

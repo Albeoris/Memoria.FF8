@@ -78,7 +78,7 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Interactive battle requires native495530 sealed-command slot flags and admission; enabled commands cannot substitute for those restrictions.");
         }
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
-        BattleEncounter encounter = BattleResources.LoadEncounter(encounterId);
+        BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
         List<BattleCombatantDefinition> combatants = [.. CreateBattleParty(entryVitals)];
         NativeBattleRandomState random = NativeBattleRandomState.Initialize(nativeSeed);
@@ -155,6 +155,10 @@ internal sealed partial class GameWorld
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()
         };
+        if (effectPreviewRequest is not null)
+        {
+            definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
+        }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }

@@ -10,6 +10,10 @@ internal sealed partial class RecreateGame
     private DiagnosticBattleDriver? diagnosticDriver;
     private DiagnosticPresentationGate? diagnosticPresentation;
     private bool diagnosticPresentationAtbPrepared;
+    private BattleDiagnosticEffectDispatch? diagnosticVisualDispatch;
+    private DateTimeOffset? diagnosticVisualDispatchUtc;
+    private bool diagnosticVisualStartedPublished;
+    private double diagnosticDriverStartedSeconds;
 
     private bool DiagnosticPresentationHeld => diagnosticDriver?.Stage is DiagnosticDriverStage.AwaitPresentation or DiagnosticDriverStage.PresentationHold;
     private Exception? diagnosticBattleFault;
@@ -47,9 +51,17 @@ internal sealed partial class RecreateGame
         diagnosticPresentationAtbPrepared = false;
         diagnosticFreshEntryInitializationPublished = false;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
+        diagnosticVisualDispatch = null;
+        diagnosticVisualDispatchUtc = null;
+        diagnosticVisualStartedPublished = false;
+        if (recipe.Presentation?.VisualSignalPath is not null)
+        {
+            diagnosticDriverBattle.ArmDiagnosticVisualEntry(recipe.Input.ActorId!, recipe.ExpectedNativeCommand!.Value, checked((ushort)recipe.ExpectedNativeAction!.Value), recipe.ExpectedEffect, AdmitDiagnosticVisualPresentation);
+        }
         diagnosticEnemySubmissions.Clear();
         diagnosticSlotsAdmissions.Clear();
-        diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
+        diagnosticDriverStartedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
+        diagnosticDriver = new(recipe, diagnosticDriverStartedSeconds);
         diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.SlotsAdmission is not null ? (byte)16 : recipe.ShotCycle is not null ? (byte)237 : recipe.CounterCycle is not null ? (byte)8 : null, recipe.SlotsAdmission is not null ? world.DiagnosticReceipt.SlotsSource : null);
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
@@ -61,6 +73,25 @@ internal sealed partial class RecreateGame
             diagnosticDriverBattle.ConfigureDiagnosticInvocationCompletion(recipe.ExpectedEffect, recipe.Input.ActorId!, recipe.ExpectedNativeCommand, recipe.ExpectedNativeAction ?? recipe.Input.ActionId);
         }
         PublishDiagnosticDriverProgress();
+    }
+
+    private void AdmitDiagnosticVisualPresentation(BattleDiagnosticVisualEntryBoundary boundary)
+    {
+        DiagnosticBattleDriver driver = diagnosticDriver ?? throw new InvalidOperationException("Visual entry lost its diagnostic driver.");
+        try
+        {
+            driver.HoldVisualPresentation();
+            diagnosticPresentation!.VisualReady(boundary.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow, boundary);
+            PublishDiagnosticDriverProgress();
+            double remaining = diagnosticDriverRecipe!.OverallTimeoutSeconds - (Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds - diagnosticDriverStartedSeconds);
+            diagnosticPresentation.WaitForVisualRelease(TimeSpan.FromSeconds(Math.Max(0, remaining)));
+            driver.ReleaseVisualPresentation(Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
+            ResetElapsedTime();
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException("Visual presentation admission failed before the native effect entry.", exception);
+        }
     }
 
     private void ObserveDiagnosticInvocationRelease(BattleDiagnosticInvocationRelease release)
@@ -155,6 +186,11 @@ internal sealed partial class RecreateGame
                     diagnosticFreshEntryInitializationPublished = true;
                 }
                 DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
+                if (diagnosticVisualDispatch is { } visualDispatch && !diagnosticVisualStartedPublished)
+                {
+                    diagnosticPresentation!.Write("visual-started", observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: visualDispatch, dispatchUtc: diagnosticVisualDispatchUtc);
+                    diagnosticVisualStartedPublished = true;
+                }
                 DiagnosticDriverStage previousStage = driver.Stage;
                 bool presentationReleased = driver.Stage == DiagnosticDriverStage.AwaitPresentation && diagnosticPresentation!.Released(DateTimeOffset.UtcNow);
                 if (driver.Advance(observation, presentationReleased))

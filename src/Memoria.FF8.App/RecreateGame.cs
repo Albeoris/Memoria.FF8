@@ -77,7 +77,7 @@ internal sealed partial class RecreateGame : Game
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
-        playerSaves = new PlayerSaveStore(options.SavePath, directory: options.BattleTestPath is null ? null : Path.Combine(globalSettings.DirectoryPath, "player-saves"), locationName: state =>
+        playerSaves = new PlayerSaveStore(options.SavePath, directory: !options.IsDiagnosticGraphicalHost ? null : Path.Combine(globalSettings.DirectoryPath, "player-saves"), locationName: state =>
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
@@ -139,6 +139,10 @@ internal sealed partial class RecreateGame : Game
         if (options.BattleTestPath is not null)
         {
             StartDiagnosticBattleHost();
+        }
+        else if (options.EffectPreviewPath is not null)
+        {
+            StartEffectPreviewHost();
         }
         Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} scene-renderer={(options.SoftwareRenderer ? "software-diagnostic" : "gpu")} cwd={Environment.CurrentDirectory}");
     }
@@ -220,7 +224,7 @@ internal sealed partial class RecreateGame : Game
         long updateStarted = Stopwatch.GetTimestamp();
         SynchronizeMenuPresentation();
         ControllerDevice inputController = controller ?? throw new InvalidOperationException("The graphical host requires its initialized input device.");
-        GamePadState pad = options.BattleTestPath is null ? inputController.Read() : default;
+        GamePadState pad = !options.IsDiagnosticGraphicalHost ? inputController.Read() : default;
         if (gameMenus is not null)
         {
             gameMenus.NamingControllerConnected = pad.IsConnected;
@@ -229,7 +233,7 @@ internal sealed partial class RecreateGame : Game
         {
             SynchronizeNativeNamePrompt();
         }
-        KeyboardState keys = options.BattleTestPath is null ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        KeyboardState keys = !options.IsDiagnosticGraphicalHost ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
         keys = windowModeHotkey.Filter(keys);
         keyboard.ControllerPresentation = inputController.Presentation;
         keyboard.ControllerGeneration = inputController.Generation;

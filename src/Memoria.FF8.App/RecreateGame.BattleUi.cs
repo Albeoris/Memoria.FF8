@@ -95,6 +95,17 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        if (effectPreview is not null)
+        {
+            if (effectPreviewSubmitted)
+            {
+                active.AdvanceNativeGraphicsPresentation(elapsed);
+                battleScene!.AdvancePresentation(elapsed);
+                SynchronizeBattleAudio();
+            }
+            battlePresentationUpdated = true;
+            return true;
+        }
         if (DiagnosticPresentationHeld)
         {
             battlePresentationUpdated = true;
@@ -244,7 +255,7 @@ internal sealed partial class RecreateGame
 
     private void PointerBattleView(UiView view)
     {
-        if (options.BattleTestPath is not null)
+        if (options.IsDiagnosticGraphicalHost)
         {
             return;
         }

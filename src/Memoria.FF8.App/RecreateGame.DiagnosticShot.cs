@@ -9,6 +9,11 @@ internal sealed partial class RecreateGame
 
     private void ObserveDiagnosticDriverDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
+        if (diagnosticDriverRecipe?.Presentation?.VisualSignalPath is not null && dispatch.ActorId == diagnosticDriverRecipe.Input.ActorId && dispatch.RequestedEffect == diagnosticDriverRecipe.ExpectedEffect && dispatch.ExecutedEffect == diagnosticDriverRecipe.ExpectedEffect)
+        {
+            diagnosticVisualDispatch = dispatch;
+            diagnosticVisualDispatchUtc = DateTimeOffset.UtcNow;
+        }
         DiagnosticBattleDriver driver = diagnosticDriver!;
         if (diagnosticDriverRecipe!.CounterCycle is not null)
         {

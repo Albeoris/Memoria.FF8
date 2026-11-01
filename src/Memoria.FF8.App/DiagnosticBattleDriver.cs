@@ -38,6 +38,10 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         Input.Validate();
         Presentation?.Validate();
+        if (Presentation?.VisualSignalPath is not null && (Input.Ability != BattleAbility.Magic || ExpectedNativeCommand != 2 || ExpectedNativeAction is null || EnemyAbility is not null || LimitSelection is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0))
+        {
+            throw new NotSupportedException("Visual presentation currently requires one explicit ordinary native magic command/action without supporting invocations.");
+        }
         if (Presentation is not null && (FreshEntry is not null || ShotCycle is not null || CounterCycle is not null || Repairs is null || Repairs.Length != 0 || TerminalHold is not null))
         {
             throw new InvalidDataException("Presentation requires one ordinary invocation without composed cycles, fresh-entry scoring or rearm protocols.");
@@ -105,6 +109,7 @@ internal enum DiagnosticDriverStage
     Readiness,
     Baseline,
     AwaitPresentation,
+    AwaitVisualPresentation,
     AwaitDispatch,
     Drain,
     Tail,
@@ -165,6 +170,25 @@ internal sealed class DiagnosticBattleDriver
     internal DiagnosticDriverStage Stage { get; private set; }
     internal int Execution { get; private set; } = 1;
     internal string? Blocker { get; private set; }
+
+    internal void HoldVisualPresentation()
+    {
+        if (recipe.Presentation?.VisualSignalPath is null || Stage != DiagnosticDriverStage.AwaitDispatch || dispatches.Count != 0)
+        {
+            throw new InvalidOperationException("Visual hold requires the undispatched first native invocation.");
+        }
+        Stage = DiagnosticDriverStage.AwaitVisualPresentation;
+    }
+
+    internal void ReleaseVisualPresentation(double seconds)
+    {
+        if (Stage != DiagnosticDriverStage.AwaitVisualPresentation)
+        {
+            throw new InvalidOperationException("Visual release requires the held native entry boundary.");
+        }
+        Stage = DiagnosticDriverStage.AwaitDispatch;
+        executionStarted = seconds;
+    }
     internal BattleDiagnosticInvocationRelease? FocalRelease { get; private set; }
     internal BattleDiagnosticInvocationAftercareReceipt? InvocationAftercare { get; private set; }
 

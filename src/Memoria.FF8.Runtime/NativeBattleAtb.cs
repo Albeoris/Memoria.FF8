@@ -69,6 +69,10 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeUiAtbService()
     {
+        if (diagnosticEffectPreview)
+        {
+            return;
+        }
         if (nativeBattleClock is null)
         {
             // TODO(TD-009): Graphics-only components do not own kernel ATB inputs.

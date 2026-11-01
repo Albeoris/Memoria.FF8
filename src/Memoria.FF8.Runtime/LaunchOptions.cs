@@ -26,14 +26,16 @@ public sealed record LaunchOptions
     public string? UpdateControlDirectory { get; init; }
     public bool ControlStep { get; init; }
     public bool MuteAudio { get; init; }
-    public bool AudioEnabled => !MuteAudio && (ControlDirectory is null || BattleTestPath is not null) && !System.Diagnostics.Debugger.IsAttached;
+    public bool AudioEnabled => !MuteAudio && (ControlDirectory is null || IsDiagnosticGraphicalHost) && !System.Diagnostics.Debugger.IsAttached;
     public int WorldRenderLimit { get; init; } = 2048;
     public bool SoftwareRenderer { get; init; }
     public string? DebugUiScreen { get; init; }
     public string? BattleTestPath { get; init; }
+    public string? EffectPreviewPath { get; init; }
+    public bool IsDiagnosticGraphicalHost => BattleTestPath is not null || EffectPreviewPath is not null;
     public string? SettingsDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_SETTINGS_DIRECTORY");
     public bool AchievementsLocalOnly { get; init; }
-    public bool IsAchievementToolSession => ValidateOnly || ControlDirectory is not null || CaptureFramePath is not null || ExitAfterSeconds is not null || ExitAfterFrames is not null || DebugUiScreen is not null || BattleTestPath is not null;
+    public bool IsAchievementToolSession => ValidateOnly || ControlDirectory is not null || CaptureFramePath is not null || ExitAfterSeconds is not null || ExitAfterFrames is not null || DebugUiScreen is not null || IsDiagnosticGraphicalHost;
 
     public static LaunchOptions Parse(string[] args)
     {
@@ -78,21 +80,26 @@ public sealed record LaunchOptions
                 "--world-render-limit" => options with { WorldRenderLimit = int.Parse(Value()) },
                 "--software-renderer" => options with { SoftwareRenderer = true },
                 "--battle-test" => options with { BattleTestPath = Path.GetFullPath(Value()) },
+                "--effect-preview" => options with { EffectPreviewPath = Path.GetFullPath(Value()) },
                 "--settings-dir" => options with { SettingsDirectory = Path.GetFullPath(Value()) },
                 "--debug-room" => options with { DebugUiScreen = "debug-room" },
                 "--ui-screen" => options with { DebugUiScreen = Value() },
                 _ => throw new ArgumentException($"Unknown argument: {argument}")
             };
         }
-        if (options.BattleTestPath is not null && (options.StatePath is not null || options.DebugUiScreen is not null || options.ControlStep || options.SoftwareRenderer || options.ValidateOnly || options.InitialState.Scene != SceneKind.Title))
+        if (options.BattleTestPath is not null && options.EffectPreviewPath is not null)
+        {
+            throw new ArgumentException("Select either --battle-test or --effect-preview.");
+        }
+        if (options.IsDiagnosticGraphicalHost && (options.StatePath is not null || options.DebugUiScreen is not null || options.ControlStep || options.SoftwareRenderer || options.ValidateOnly || options.InitialState.Scene != SceneKind.Title))
         {
             throw new ArgumentException("--battle-test requires a fresh graphical GPU host with normal real-time pacing; state, scene, debug UI, validation, software rendering and control stepping are incompatible.");
         }
-        if (options.BattleTestPath is not null && (options.SettingsDirectory is null || options.ControlDirectory is null || !args.Contains("--save-state", StringComparer.Ordinal)))
+        if (options.IsDiagnosticGraphicalHost && (options.SettingsDirectory is null || options.ControlDirectory is null || !args.Contains("--save-state", StringComparer.Ordinal)))
         {
             throw new ArgumentException("--battle-test requires isolated --settings-dir, --control-dir and an explicit disposable --save-state path.");
         }
-        if (options.BattleTestPath is not null)
+        if (options.IsDiagnosticGraphicalHost)
         {
             string[] paths = [Path.GetFullPath(options.SettingsDirectory!), Path.GetFullPath(options.ControlDirectory!), Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!];
             string global = ApplicationPaths.Current.Configuration;

@@ -48,7 +48,7 @@ internal sealed class StartupSequence(bool enabled)
 
     public static bool ShouldPlay(LaunchOptions options)
     {
-        return options.BattleTestPath is null && options.StatePath is null && options.InitialState.Scene == SceneKind.Title && options.DebugUiScreen is null;
+        return !options.IsDiagnosticGraphicalHost && options.StatePath is null && options.InitialState.Scene == SceneKind.Title && options.DebugUiScreen is null;
     }
 
     public bool HandleInput(bool confirm, bool cancel)
