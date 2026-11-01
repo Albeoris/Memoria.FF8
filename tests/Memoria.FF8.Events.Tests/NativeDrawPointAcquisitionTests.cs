@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -67,6 +68,14 @@ internal static partial class Program
                 Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Eligible draw-point stage continuation changed after independent restore.");
             }
             short? Phase() => engine.Actors[0].NativeMovementAccelerationTarget;
+            void RestoreForeignFocus()
+            {
+                JsonNode state = JsonNode.Parse(engine.Capture().GetRawText())!;
+                state["Scene"]!["NativeDialogueFocus"] = 4;
+                state["Scene"]!["NativeAaskPreviousFocus"] = 7;
+                state["CurrentDialogueChannel"] = null;
+                engine.Restore(JsonSerializer.SerializeToElement(state));
+            }
             while (engine.Scene.DrawPointInteraction is null && engine.Frame < 8)
             {
                 engine.Step();
@@ -87,9 +96,15 @@ internal static partial class Program
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Eligible discovery message refused ordinary acknowledgement.");
             StepRestored();
             Require(Phase() == 2 && engine.CurrentDialogue is null, "Acknowledged eligible draw skipped its separate selection preparation callback.");
+            // Another window may take focus between discovery and selection.
+            RestoreForeignFocus();
             StepRestored();
             Require(Phase() == 3 && engine.CurrentDialogue is { FirstChoice: 1, LastChoice: 2, InitialChoice: 2, CancelChoice: 1 } selection && selection.Text == catalog.FormatSelection([0], session.CharacterVitals!, magic, expectedEligible), "Draw selection lost its original character/cancel rows or actual choice metadata.");
+            Require(engine.Scene.NativeDialogueFocus == 6 && engine.Scene.NativeAaskPreviousFocus == 7, "Generated draw choice failed to focus its own window or overwrote AASK focus history.");
+            // A retained choice must recover on its next native poll, including after restore.
+            RestoreForeignFocus();
             StepRestored();
+            Require(engine.Scene.NativeDialogueFocus == 6 && engine.CurrentDialogue?.FirstChoice == 1 && engine.Scene.NativeAaskPreviousFocus == 7, "Draw choice poll failed to recover an unfocused saved selection.");
             if (cancel)
             {
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Original draw selection Cancel refused.");

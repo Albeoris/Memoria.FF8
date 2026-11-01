@@ -190,6 +190,9 @@ public sealed partial class EventEngine
                     actor.NativeMovementAccelerationTarget = 3;
                     break;
                 case 3:
+                    // 522770 reselects channel6 before each 49FD70 selection poll.
+                    Scene.NativeDialogueFocus = 6;
+                    RefreshCurrentDialogue();
                     if (dialogues.ContainsKey(6))
                     {
                         break;

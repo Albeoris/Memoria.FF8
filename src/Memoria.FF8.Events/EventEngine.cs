@@ -898,7 +898,7 @@ public sealed partial class EventEngine
         }
         if (NativeRuntimeProfile is { IsVerified: true } || Scene.NativeDialogueFocus is not null)
         {
-            if (dialogue.FirstChoice is not null)
+            if (dialogue.FirstChoice is not null && program!.Operations[dialogue.Operation].Opcode is Jsm.Opcode.ASK or Jsm.Opcode.AASK)
             {
                 //529520/5296C0 capture separate global prior markers at issue;
                 //the first incomplete VM poll, rather than opening, selects focus.

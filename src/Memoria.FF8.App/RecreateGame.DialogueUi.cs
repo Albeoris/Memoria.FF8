@@ -199,14 +199,14 @@ internal sealed partial class RecreateGame
             position.Y += lineHeight * page.SpeakerScale + DialogueLayout.SpeakerGap * scale;
         }
         int remaining = presentation.Pager.VisibleCharacters;
-        int choiceLine = LocalizedChoiceLine(dialogue, selectedChoice);
+        int choiceLine = LocalizedChoiceLine(dialogue, DialoguePresentation.ResolveSelection(dialogue, selectedChoice));
         if (authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && localizationWorkbench.Session?.Mode == Localization.Authoring.LocalizationSessionMode.Preview)
         {
             choiceLine = AuthoringPreviewChoiceLine(page, localizationWorkbench.PreviewChoice, choiceLine);
         }
         foreach (var line in page.Lines)
         {
-            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == choiceLine)
+            if (line.IsChoice && line.SourceLineIndex == choiceLine)
             {
                 uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }

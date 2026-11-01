@@ -55,6 +55,7 @@ internal static class DialoguePresentation
         }
         if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
         {
+            selectedChoice = ResolveSelection(dialogue, selectedChoice);
             selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
             if (input.Cancel && !input.Confirm && dialogue.CancelChoice is int cancelChoice)
             {
@@ -76,8 +77,17 @@ internal static class DialoguePresentation
     {
         if (dialogue is not null && draft is not null && draft.Channel == dialogue.Channel && draft.MessageId == dialogue.MessageId)
         {
-            return (draft.SelectedChoice, draft.EnteredName);
+            return (ResolveSelection(dialogue, draft.SelectedChoice), draft.EnteredName);
         }
-        return (dialogue?.InitialChoice ?? dialogue?.FirstChoice ?? 0, defaultName);
+        return (dialogue is null ? 0 : ResolveSelection(dialogue, dialogue.InitialChoice ?? dialogue.FirstChoice ?? 0), defaultName);
+    }
+
+    public static int ResolveSelection(DialogueState dialogue, int selection)
+    {
+        if (dialogue.FirstChoice is not int first || dialogue.LastChoice is not int last)
+        {
+            return selection;
+        }
+        return selection >= first && selection <= last ? selection : Math.Clamp(dialogue.InitialChoice ?? first, first, last);
     }
 }

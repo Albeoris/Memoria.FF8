@@ -6,6 +6,27 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DialogueInputTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(4)]
+    public void Choice_selection_is_valid_before_input_and_after_restoring_an_out_of_range_draft(int previous)
+    {
+        DialogueState dialogue = new(6, -1, "Who will draw?{Line}Don't draw{Line}Squall{Line}Irvine", 0, 0, FirstChoice: 1, LastChoice: 3, InitialChoice: 2, CancelChoice: 1);
+        Assert.Equal(2, DialoguePresentation.ResolveSelection(dialogue, previous));
+        Assert.Equal(2, DialoguePresentation.ResolveDraft(dialogue, new DialogueDraft(6, -1, previous, ""), "").Selection);
+        int selected = previous;
+        Assert.Equal(new PlayerAction(PlayerActionKind.Choose, 2), DialoguePresentation.ResolveInput(dialogue, new InputFrame(0, 0, true, false, false, false), ref selected, ""));
+        Assert.Equal(2, selected);
+        foreach (bool native in new[] { false, true })
+        {
+            DialogueDocument document = DialogueTextFormatter.Parse(dialogue.Text, originalCompatible: native);
+            var pages = native ? DialogueLayout.CreateNative(document, dialogue, null, 10, text => text.Length) : DialogueLayout.Create(document, dialogue, null, 10, text => text.Length);
+            DialogueVisualPage page = Assert.Single(pages);
+            Assert.Contains(page.Lines, line => line.IsChoice && line.SourceLineIndex == DialoguePresentation.ResolveSelection(dialogue, previous));
+        }
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
