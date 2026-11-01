@@ -81,35 +81,50 @@ public sealed partial class BattleHudController
             return commands.Count == 0 ? BattleAbility.Attack : commands[Math.Clamp(commandIndex, 0, commands.Count - 1)];
         }
     }
-    public IReadOnlyList<BattleActionDefinition> ActionChoices
+    private bool drawingPresentation;
+    private IReadOnlyList<BattleActionDefinition>? presentationActionChoices;
+
+    internal void BeginPresentationDraw()
     {
-        get
+        drawingPresentation = true;
+    }
+
+    internal void EndPresentationDraw()
+    {
+        drawingPresentation = false;
+        presentationActionChoices = null;
+    }
+
+    // Share live choices only within one draw. Input and subsequent frames must see current stocks and reservations.
+    public IReadOnlyList<BattleActionDefinition> ActionChoices => drawingPresentation ? presentationActionChoices ??= ReadActionChoices() : ReadActionChoices();
+
+    private IReadOnlyList<BattleActionDefinition> ReadActionChoices()
+    {
+        BattleAbility command = SelectedCommand;
+        if (HasGuardianFormCommands)
         {
-            BattleAbility command = SelectedCommand;
-            if (HasGuardianFormCommands)
-            {
-                return [];
-            }
-            if (command == BattleAbility.Attack || SelectedActor is not { } actor)
-            {
-                return [];
-            }
-            if (command == BattleAbility.Draw)
-            {
-                return DrawActionChoices();
-            }
-            if (command is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
-            {
-                return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak);
-            }
-            return session.ActionDefinitions.Where(action => command switch
-            {
-                BattleAbility.Magic => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0) && session.QuoteMagic(actor.Id, action.Id).Capacity > 0,
-                BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
-                BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
-                _ => false
-            }).ToArray();
+            return [];
         }
+        if (command == BattleAbility.Attack || SelectedActor is not { } actor)
+        {
+            return [];
+        }
+        if (command == BattleAbility.Draw)
+        {
+            return DrawActionChoices();
+        }
+        if (command is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
+        {
+            return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak);
+        }
+        IReadOnlyList<BattleStock> magicStocks = command == BattleAbility.Magic ? actor.MagicStocks : [];
+        return session.ActionDefinitions.Where(action => command switch
+        {
+            BattleAbility.Magic => action.Ability == BattleAbility.Magic && magicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0) && session.QuoteMagic(actor.Id, action.Id).Capacity > 0,
+            BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+            BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
+            _ => false
+        }).ToArray();
     }
     public BattleActionDefinition? SelectedAction
     {

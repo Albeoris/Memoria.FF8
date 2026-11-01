@@ -52,6 +52,19 @@ internal sealed partial class BattleHudElement : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
+        controller.BeginPresentationDraw();
+        try
+        {
+            DrawPresentation(canvas, theme);
+        }
+        finally
+        {
+            controller.EndPresentationDraw();
+        }
+    }
+
+    private void DrawPresentation(IUiCanvas canvas, UiTheme theme)
+    {
         if (controller.CardSlotsOwnsInput)
         {
             if (controller.SlotsCards is { } cards && controller.Session.PendingSlotsDeal is { } deal)
@@ -88,9 +101,9 @@ internal sealed partial class BattleHudElement : UiElement
             }
         }
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
-        IReadOnlyList<string> choices = controller.ChoiceLabels;
+        IReadOnlyList<string> choices = controller.SelectingTarget ? [] : controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingDrawMode ? controller.SystemText("battle.hud.draw", "DRAW") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
-        IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
+        IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
@@ -255,7 +268,9 @@ internal sealed partial class BattleHudElement : UiElement
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
-        DrawTargetModelPointers(canvas, theme, targets);
+        bool group = controller.SelectingTargetGroup;
+        string? selectedTargetId = controller.SelectedTarget?.Id;
+        DrawTargetModelPointers(canvas, theme, targets, group, selectedTargetId);
         float nameWidth = targets.Select(actor => canvas.MeasureText(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
         float x = 54;
         int columns = Math.Max(1, (targets.Count + 3) / 4);
@@ -275,7 +290,7 @@ internal sealed partial class BattleHudElement : UiElement
             BattleCombatant actor = targets[index];
             float rowY = y + TargetContentOffset + index % 4 * TargetRowHeight;
             float columnX = x + index / 4 * TargetColumnWidth;
-            if (controller.SelectingTargetGroup || controller.SelectedTarget?.Id == actor.Id)
+            if (group || selectedTargetId == actor.Id)
             {
                 theme.Pointer(canvas, Left + (columnX + (columns > 1 ? 3 : -48)) * Scale, Top + (rowY + 5) * Scale, 24 * Scale);
             }
@@ -290,7 +305,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             DrawStatuses(canvas, theme, controller.Session.ReadStatusPresentation(actor.Id), columnX + textInset, rowY + 25, textWidth);
         }
-        string help = controller.SelectingTargetGroup ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
+        string help = group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
         float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
         float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
         float helpPanelHeight = 14 + actionHeight + helpHeight;
@@ -300,13 +315,13 @@ internal sealed partial class BattleHudElement : UiElement
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
     }
 
-    private void DrawTargetModelPointers(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> targets)
+    private void DrawTargetModelPointers(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> targets, bool group, string? selectedTargetId)
     {
         float size = 24 * Scale;
         float width = size * 1.5f;
         foreach (BattleCombatant target in targets)
         {
-            if (!target.IsActive || target.Hidden || !controller.SelectingTargetGroup && controller.SelectedTarget?.Id != target.Id)
+            if (!target.IsActive || target.Hidden || !group && selectedTargetId != target.Id)
             {
                 continue;
             }

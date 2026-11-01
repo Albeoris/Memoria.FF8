@@ -6,6 +6,65 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleTargetSelectionPerformanceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Target_draw_shares_choices_and_releases_them_after_success_or_failure(bool failDrawing)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Magic], MagicStocks = [new(1, 1), new(2, 20)] },
+                new() { Id = "enemy", Name = "Enemy" }
+            ],
+            ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 1, false), new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 1, false)]
+        }, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(battle, (_, _) => Assert.Fail("Drawing must not submit an action."), () => { }, () => { })
+        {
+            TargetModelBounds = _ => new UiRect(400, 100, 100, 100)
+        };
+        hud.Navigate(MenuInput.Confirm);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+        UiView view = hud.BuildView();
+        InspectingTheme theme = new(hud, failDrawing);
+        if (failDrawing)
+        {
+            Assert.Throws<InvalidOperationException>(() => view.Draw(new BattleUiTests.TestCanvas(), theme));
+        }
+        else
+        {
+            view.Draw(new BattleUiTests.TestCanvas(), theme);
+        }
+        Assert.NotNull(theme.Choices);
+        Assert.Equal(2, theme.Choices.Count);
+        Assert.True(battle.Combatants.Single(actor => actor.Id == "party").TryConsumeMagic(1));
+        Assert.Equal(2, Assert.Single(hud.ActionChoices).Id);
+        BattleUiTests.TestCanvas nextFrame = new();
+        hud.BuildView().Draw(nextFrame, new UiTheme());
+        Assert.Contains("Blizzard", nextFrame.Texts);
+        Assert.DoesNotContain("Fire", nextFrame.Texts);
+        Assert.Equal(2, hud.SelectedAction!.Id);
+        Assert.Equal(0, battle.Frame);
+    }
+
+    private sealed class InspectingTheme(BattleHudController hud, bool failDrawing) : UiTheme
+    {
+        public IReadOnlyList<BattleActionDefinition>? Choices { get; private set; }
+
+        public override void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
+        {
+            Choices ??= hud.ActionChoices;
+            Assert.Same(Choices, hud.ActionChoices);
+            if (failDrawing)
+            {
+                throw new InvalidOperationException("Test draw failure.");
+            }
+            base.Pointer(canvas, x, y, size);
+        }
+    }
+
     [Fact]
     public void Attack_target_refresh_cost_is_independent_of_the_magic_catalog()
     {

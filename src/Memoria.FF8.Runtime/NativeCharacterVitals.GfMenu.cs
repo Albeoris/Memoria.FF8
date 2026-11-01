@@ -37,13 +37,9 @@ public sealed partial record NativeCharacterVitals
         ImmutableArray<GuardianForceAbilityTemplate> templates = ResolveGuardianForceTemplates()[id];
         Dictionary<int, GuardianForceAbilityProgress>? ledger = gf.Progression?.Abilities.ToDictionary(entry => entry.Ability);
         HashSet<int> active = templates.Select(entry => entry.Ability).ToHashSet();
-        for (int ability = 1; ability < MenuDefinitions.AbilityPoints.Length; ability++)
+        foreach (int ability in GuardianForceLearnedAbilities(gf, ledger, active))
         {
-            bool learned = ledger is null ? gf.LearnedBank.Has(ability) : ledger.TryGetValue(ability, out GuardianForceAbilityProgress? progress) && progress.Learned && !progress.Forgotten && (active.Contains(ability) || progress.ItemTaught);
-            if (learned)
-            {
-                result.Add(ability, new(ability, true, -1, 0, 0));
-            }
+            result.Add(ability, new(ability, true, -1, 0, 0));
         }
         int level = NativeStatDefinitions.Level(gf.Experience, Definitions.GuardianForces[id]);
         for (int index = 0; index < templates.Length; index++)
@@ -67,6 +63,18 @@ public sealed partial record NativeCharacterVitals
             display.Insert(position < 0 ? display.Count : position, extra);
         }
         return display;
+    }
+
+    private IEnumerable<int> GuardianForceLearnedAbilities(NativeGuardianForceVital gf, IReadOnlyDictionary<int, GuardianForceAbilityProgress>? ledger, IReadOnlySet<int>? active)
+    {
+        for (int ability = 1; ability < MenuDefinitions.AbilityPoints.Length; ability++)
+        {
+            bool learned = ledger is null ? gf.LearnedBank.Has(ability) : ledger.TryGetValue(ability, out GuardianForceAbilityProgress? progress) && progress.Learned && !progress.Forgotten && (active!.Contains(ability) || progress.ItemTaught);
+            if (learned)
+            {
+                yield return ability;
+            }
+        }
     }
 
     private int SelectNativeGuardianForceLearningIndex(int id, GuardianForceAbilityTemplate template, int level, IReadOnlyDictionary<int, NativeGuardianForceAbility> abilities)
@@ -146,7 +154,24 @@ public sealed partial record NativeCharacterVitals
     {
         Validate();
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
-        return Records[row].Junction.GuardianForceAssignments.SelectMany(id => GuardianForceAbilities(id).Where(entry => entry.Learned).Select(entry => entry.Ability)).ToHashSet();
+        HashSet<int> learned = [];
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = default;
+        foreach (int id in Records[row].Junction.GuardianForceAssignments)
+        {
+            NativeGuardianForceVital gf = GuardianForces[id];
+            Dictionary<int, GuardianForceAbilityProgress>? ledger = gf.Progression?.Abilities.ToDictionary(entry => entry.Ability);
+            HashSet<int>? active = null;
+            if (ledger is not null)
+            {
+                if (templates.IsDefault)
+                {
+                    templates = ResolveGuardianForceTemplates();
+                }
+                active = templates[id].Select(entry => entry.Ability).ToHashSet();
+            }
+            learned.UnionWith(GuardianForceLearnedAbilities(gf, ledger, active));
+        }
+        return learned;
     }
 
     public int JunctionAbilitySlots(int row)
