@@ -473,6 +473,55 @@ public sealed class JunctionDashboardInteractionTests
         }
     }
 
+    [Theory]
+    [InlineData(false, 1280, 720, 100)]
+    [InlineData(true, 1280, 720, 100)]
+    [InlineData(false, 640, 448, 100)]
+    [InlineData(true, 640, 448, 100)]
+    [InlineData(false, 1280, 720, 150)]
+    [InlineData(true, 1280, 720, 150)]
+    public void InstalledAbilityPickerShowsNativeIconsAndSelectedDescription(bool passive, int width, int height, int textScale)
+    {
+        using Fixture fixture = new();
+        foreach (int ability in Enumerable.Range(40, 18))
+        {
+            fixture.Vitals = fixture.Vitals.TeachGuardianForceAbility(0, ability);
+        }
+        fixture.Refresh();
+        fixture.Data.Settings["Text scale"] = textScale + "%";
+        fixture.Menu.PrepareViewport(width, height);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Hit(passive ? "passive-0" : "command-0");
+        IReadOnlyList<MenuAbilityChoice> choices = passive ? fixture.Menu.Character!.AvailableAbilities : fixture.Menu.Character!.AvailableCommands;
+        MenuAbilityChoice selected = choices.First(choice => choice.Id != "0");
+        fixture.Preview("candidate-" + selected.Id);
+        UiView view = fixture.Menu.BuildView();
+        UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+        Assert.Equal(selected.Description, Descendants(view.Root).OfType<UiLabel>().Single(label => label.Id == "junction-candidate-description").Text);
+        foreach (MenuAbilityChoice choice in choices)
+        {
+            UiElement row = columns.Children.Single(row => row.Id == "candidate-" + choice.Id);
+            Assert.Equal(choice.Icon, Assert.Single(row.Children.OfType<UiImage>()).Source);
+            Assert.Equal(choice.Name, row.Children.OfType<UiLabel>().First().Text);
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            foreach (MenuPresentation presentation in new[] { MenuPresentation.Classic, MenuPresentation.Vector })
+            {
+                fixture.Menu.Presentation = presentation;
+                using SKBitmap bitmap = new(width, height);
+                using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
+                canvas.BeginFrame(TimeSpan.Zero);
+                fixture.Menu.BuildView().Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
+                bitmap.SavePng(Path.Combine(directory, $"ability-picker-{(passive ? "passive" : "command")}-{presentation}-{width}x{height}-text{textScale}.png"));
+            }
+        }
+    }
+
     [Fact]
     public void CommandFocusPreviewsAndConfirmCommitsExactlyOnce()
     {

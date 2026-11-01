@@ -41,6 +41,61 @@ public sealed class JunctionDashboardUxTests
     }
 
     [Theory]
+    [InlineData(false, 1280, 720, 100)]
+    [InlineData(true, 1280, 720, 100)]
+    [InlineData(false, 640, 448, 100)]
+    [InlineData(true, 640, 448, 100)]
+    [InlineData(false, 1280, 720, 150)]
+    [InlineData(true, 1280, 720, 150)]
+    public void AbilityCandidatesUseIconColumnsAndOnlyTheSelectedDescription(bool passive, int width, int height, int textScale)
+    {
+        MenuData data = Fixture();
+        data.Settings["Text scale"] = textScale + "%";
+        List<MenuAbilityChoice> choices = passive ? data.Characters[0].AvailableAbilities : data.Characters[0].AvailableCommands;
+        choices.Clear();
+        for (int index = 1; index <= 36; index++)
+        {
+            choices.Add(new(index.ToString(), "Ability specimen " + index.ToString("D2"), true)
+            {
+                Description = "Description of ability " + index,
+                Icon = new UiImageSource(UiImageKind.Icon, 7)
+            });
+        }
+        MenuController menu = Open(data);
+        menu.PrepareViewport(width, height);
+        menu.SelectEntry("junction-dashboard", passive ? "passive-0" : "command-0");
+        menu.Navigate(MenuInput.Confirm);
+        UiView view = menu.BuildView();
+        UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+        Assert.Equal("junction-ability-columns", columns.Id);
+        Assert.Equal(37, columns.Children.Count);
+        Assert.True(columns.Children.Count > columns.RowCount);
+        Assert.DoesNotContain(Descendants(view.Root).OfType<UiButton>(), button => button.Id is "candidate-next" or "candidate-previous");
+        Assert.All(columns.Children.Skip(1), row =>
+        {
+            Assert.Equal(new UiImageSource(UiImageKind.Icon, 7), Assert.Single(row.Children.OfType<UiImage>()).Source);
+            Assert.Equal("", row.Children.OfType<UiLabel>().Last().Text);
+            Assert.DoesNotContain(row.Children.OfType<UiLabel>(), label => label.Text.Contains("Description", StringComparison.Ordinal) || label.Text.Contains('◆'));
+        });
+        menu.SelectEntry("junction-dashboard", "candidate-36");
+        view = menu.BuildView();
+        Assert.Equal("candidate-36", view.FocusedElement?.Id);
+        UiLabel description = Assert.Single(Descendants(view.Root).OfType<UiLabel>(), label => label.Id == "junction-candidate-description");
+        Assert.Equal(choices[^1].Description, description.Text);
+        Assert.Single(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.StartsWith("Description", StringComparison.Ordinal));
+        Assert.Equal("Ability specimen 36", menu.Entries.Single(entry => entry.Id == "candidate-36").Label);
+        Assert.True(Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>()).FirstVisibleColumn > 0);
+        MenuNavigationState saved = menu.CaptureNavigation();
+        menu.Navigate(MenuInput.Cancel);
+        menu.RestoreNavigation(saved);
+        Assert.Equal("candidate-36", menu.BuildView().FocusedElement?.Id);
+        menu.SelectEntry("junction-dashboard", "candidate-0");
+        view = menu.BuildView();
+        Assert.Equal("Clear this slot", Descendants(view.Root).OfType<UiLabel>().Single(label => label.Id == "junction-candidate-description").Text);
+        Assert.Equal(0, Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>()).FirstVisibleColumn);
+    }
+
+    [Theory]
     [InlineData(MenuPresentation.Classic)]
     [InlineData(MenuPresentation.Vector)]
     public void DashboardColumnsFollowCommandsStatsBindingsAndEffects(MenuPresentation presentation)

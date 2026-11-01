@@ -68,25 +68,13 @@ public sealed partial class MenuController
     {
         UiView view = BuildView();
         UiElement? control = FocusableDescendants(view.Root).FirstOrDefault(element => element.Id == id);
-        if (control is null && id.StartsWith("candidate-", StringComparison.Ordinal))
-        {
-            int candidate = JunctionCandidates().ToList().FindIndex(value => "candidate-" + value.Id == id);
-            if (candidate >= 0)
-            {
-                junctionCandidatePage = candidate / JunctionCandidatePageSize;
-                junctionFocus = id;
-                _view = null;
-                view = BuildView();
-                control = FocusableDescendants(view.Root).FirstOrDefault(element => element.Id == id);
-            }
-        }
         if (control is null || !JunctionControlIsActive(control) || !allowDisabled && !control.Enabled)
         {
             throw new InvalidOperationException($"Junction dashboard has no enabled control '{id}'.");
         }
-        if (junctionEditor == "magic")
+        if (junctionEditor is "magic" or "command" or "passive")
         {
-            junctionMagicColumns?.EnsureVisible(control);
+            junctionCandidateColumns?.EnsureVisible(control);
         }
         junctionFocus = id;
         view.Focus(control);

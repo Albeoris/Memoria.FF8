@@ -4,24 +4,30 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private UiColumnPicker? junctionMagicColumns;
+    private UiColumnPicker? junctionCandidateColumns;
 
-    private UiElement BuildJunctionMagicColumns(IReadOnlyList<JunctionCandidate> candidates)
+    private UiElement BuildJunctionCandidateColumns(IReadOnlyList<JunctionCandidate> candidates)
     {
-        UiGrid body = JunctionRows([22, 0], [1], 2);
-        Place(body, JunctionLabel((Character?.Name ?? "") + " · " + StatText(_junctionSlot), 14), 0);
+        bool magic = junctionEditor == "magic";
+        UiGrid body = JunctionRows([4 * TextScale, 24 * TextScale, 0], [1], 2 * TextScale);
+        UiLabel description = JunctionLabel(magic ? (Character?.Name ?? "") + " · " + StatText(_junctionSlot) : candidates.FirstOrDefault(candidate => candidate.Id == junctionCandidate)?.Detail ?? "", 14);
+        description.Id = "junction-candidate-description";
+        description.Margin = new UiThickness(8 * TextScale, 0, 8 * TextScale, 0);
+        Place(body, description, 1);
         UiColumnPicker columns = new()
         {
-            Id = "junction-magic-columns",
+            Id = magic ? "junction-magic-columns" : "junction-ability-columns",
             RowHeight = 26 * TextScale,
-            NameQuantityGap = 8 * TextScale,
+            NameQuantityGap = magic ? 8 * TextScale : 0,
+            ImageSize = 18 * TextScale,
+            ImageNameGap = 6 * TextScale,
             ColumnGap = 16 * TextScale,
             HorizontalPadding = 8 * TextScale,
-            FirstVisibleColumn = junctionMagicFirstColumn,
+            FirstVisibleColumn = junctionCandidatePage,
             InitialIndex = Math.Max(0, candidates.ToList().FindIndex(candidate => "candidate-" + candidate.Id == junctionFocus)),
-            FirstColumnChanged = first => junctionMagicFirstColumn = first
+            FirstColumnChanged = first => junctionCandidatePage = first
         };
-        junctionMagicColumns = columns;
+        junctionCandidateColumns = columns;
         Dictionary<string, int> stock = JunctionMagicInventory.Where(spell => spell.CharacterId == Character?.Id).ToDictionary(spell => spell.Id, spell => spell.Quantity);
         foreach (JunctionCandidate candidate in candidates)
         {
@@ -43,9 +49,10 @@ public sealed partial class MenuController
                     }
                 }
             };
-            columns.Add(row, JunctionLabel(candidate.Name, 16), JunctionLabel(stock.TryGetValue(candidate.Id, out int quantity) ? Number(quantity) : "", 16));
+            UiImage? icon = candidate.Icon is { } image ? new() { Source = image } : null;
+            columns.Add(row, JunctionLabel(candidate.Name, 16), JunctionLabel(magic && stock.TryGetValue(candidate.Id, out int quantity) ? Number(quantity) : "", 16), icon);
         }
-        Place(body, columns, 1);
+        Place(body, columns, 2);
         return body;
     }
 }

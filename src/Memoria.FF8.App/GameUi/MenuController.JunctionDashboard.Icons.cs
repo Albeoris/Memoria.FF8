@@ -33,15 +33,23 @@ public sealed partial class MenuController
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
             UiColor gray = new(128, 128, 128);
-            float scale = Math.Min(1, Math.Min(Bounds.Width / 14, Bounds.Height / 19));
-            float x = Bounds.X + 3;
-            float y = Bounds.Y + (Bounds.Height - 18 * scale) / 2;
-            canvas.Line(x + 3 * scale, y + 8 * scale, x + 3 * scale, y + 3 * scale, gray, 2 * scale);
-            canvas.Line(x + 3 * scale, y + 3 * scale, x + 5 * scale, y + scale, gray, 2 * scale);
-            canvas.Line(x + 5 * scale, y + scale, x + 9 * scale, y + scale, gray, 2 * scale);
-            canvas.Line(x + 9 * scale, y + scale, x + 11 * scale, y + 3 * scale, gray, 2 * scale);
-            canvas.Line(x + 11 * scale, y + 3 * scale, x + 11 * scale, y + 8 * scale, gray, 2 * scale);
-            canvas.Fill(new UiRect(x, y + 7 * scale, 14 * scale, 11 * scale), gray);
+            float scale = Math.Min(1, Math.Min(Bounds.Width / 16, Bounds.Height / 20));
+            float x = Bounds.X + Math.Min(3, Math.Max(0, Bounds.Width - 16 * scale));
+            float y = Bounds.Y + (Bounds.Height - 20 * scale) / 2;
+            canvas.Line(x + 4 * scale, y + 9 * scale, x + 4 * scale, y + 5 * scale, gray, 2 * scale);
+            canvas.Line(x + 12 * scale, y + 9 * scale, x + 12 * scale, y + 5 * scale, gray, 2 * scale);
+            for (int segment = 0; segment < 12; segment++)
+            {
+                float start = MathF.PI + segment * MathF.PI / 12;
+                float end = MathF.PI + (segment + 1) * MathF.PI / 12;
+                canvas.Line(x + (8 + 4 * MathF.Cos(start)) * scale, y + (5 + 4 * MathF.Sin(start)) * scale, x + (8 + 4 * MathF.Cos(end)) * scale, y + (5 + 4 * MathF.Sin(end)) * scale, gray, 2 * scale);
+            }
+            canvas.Fill(new UiRect(x + 2 * scale, y + 8 * scale, 12 * scale, scale), gray);
+            canvas.Fill(new UiRect(x + scale, y + 9 * scale, 14 * scale, 3 * scale), gray);
+            canvas.Fill(new UiRect(x + scale, y + 12 * scale, 6 * scale, 4 * scale), gray);
+            canvas.Fill(new UiRect(x + 9 * scale, y + 12 * scale, 6 * scale, 4 * scale), gray);
+            canvas.Fill(new UiRect(x + scale, y + 16 * scale, 14 * scale, 3 * scale), gray);
+            canvas.Fill(new UiRect(x + 2 * scale, y + 19 * scale, 12 * scale, scale), gray);
         }
     }
 }

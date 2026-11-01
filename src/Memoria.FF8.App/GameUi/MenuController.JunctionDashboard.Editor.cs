@@ -6,23 +6,17 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action);
+    private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action, UiImageSource? Icon = null);
     private string junctionSort = "benefit";
-    private int junctionMagicFirstColumn;
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
     private string junctionCacheSource = "";
     private MenuAction? junctionReviewedAction;
-    private int JunctionCandidatePageSize => JunctionAccessible ? junctionViewportWidth < 850 ? 2 : 4 : 8;
 
     private JunctionCommandConfiguration JunctionConfiguration(MenuCharacter character) => new(character.Id, character.CommandIds.Cast<string?>().ToArray(), character.AvailableCommands.Select(choice => choice.Id).ToArray(), Data.SmartAttack && character.AttackMode == "SmartMagic");
 
     private void OpenJunctionEditor(string editor, string origin, string candidate = "")
     {
-        if (editor == "magic")
-        {
-            junctionMagicFirstColumn = 0;
-        }
         if (junctionReview)
         {
             Message = J("resolve-review", "Apply or cancel the current review before editing another assignment.");
@@ -64,8 +58,6 @@ public sealed partial class MenuController
         if (candidate.Length > 0 && junctionEditor.Length > 0)
         {
             PreviewJunctionCandidate(candidate);
-            int index = JunctionCandidates().ToList().FindIndex(value => value.Id == candidate);
-            junctionCandidatePage = Math.Max(0, index) / JunctionCandidatePageSize;
         }
         junctionFocus = "candidate-" + (candidate.Length > 0 ? candidate : JunctionCandidates().FirstOrDefault()?.Id);
         _view = null;
@@ -107,7 +99,7 @@ public sealed partial class MenuController
             candidates.Add(new("0", J("empty", "Empty"), J("clear-slot", "Clear this slot"), new(action, "0", actor.Id, slot)));
             foreach (MenuAbilityChoice choice in command ? actor.AvailableCommands : actor.AvailableAbilities)
             {
-                candidates.Add(new(choice.Id, choice.Name, choice.Description, new(action, choice.Id, actor.Id, slot)));
+                candidates.Add(new(choice.Id, choice.Name, choice.Description, new(action, choice.Id, actor.Id, slot), choice.Icon));
             }
         }
         else if (junctionEditor == "gf")
@@ -269,49 +261,7 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionCandidatePicker()
     {
-        IReadOnlyList<JunctionCandidate> candidates = JunctionCandidates();
-        if (junctionEditor == "magic")
-        {
-            return BuildJunctionMagicColumns(candidates);
-        }
-        int pageSize = JunctionCandidatePageSize;
-        int start = Math.Clamp(junctionCandidatePage * pageSize, 0, Math.Max(0, candidates.Count - 1));
-        UiGrid picker = JunctionRows([22, 0, 22], [1], 2);
-        string destination = junctionEditor == "magic" ? StatText(_junctionSlot) : J(junctionEditor, junctionEditor) + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1);
-        Place(picker, JunctionLabel((Character?.Name ?? "") + " · " + destination, 14), 0);
-        int columns = JunctionAccessible && junctionViewportWidth < 850 ? 1 : 2;
-        int rowCount = pageSize / columns;
-        UiGrid rows = Grid(Enumerable.Repeat(1f, rowCount).ToArray(), Enumerable.Repeat(1f, columns).ToArray(), 5);
-        for (int index = 0; index < Math.Min(pageSize, candidates.Count - start); index++)
-        {
-            JunctionCandidate candidate = candidates[start + index];
-            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id));
-            row.DrawBackground = false;
-            UiGrid text = Grid([1], [1.1f, 1.8f], 5);
-            Place(text, JunctionLabel((candidate.Id == junctionCandidate ? "◆ " : "") + candidate.Name, 16), 0);
-            Place(text, JunctionLabel(candidate.Detail, 12, true), 0, 1);
-            row.Children.Add(text);
-            row.Hover = () => PreviewJunctionCandidate(candidate.Id);
-            row.FocusChanged = focused =>
-            {
-                if (focused && !junctionRestoringFocus)
-                {
-                    junctionFocus = row.Id!;
-                    if (junctionCandidate != candidate.Id)
-                    {
-                        PreviewJunctionCandidate(candidate.Id);
-                    }
-                }
-            };
-            Place(rows, row, index % rowCount, index / rowCount);
-        }
-        Place(picker, rows, 1);
-        UiGrid paging = Grid([1], [5, 1, 1], 5);
-        Place(paging, JunctionLabel($"{(candidates.Count == 0 ? 0 : start + 1)}–{Math.Min(start + pageSize, candidates.Count)} / {candidates.Count}", 12, true), 0);
-        Place(paging, JunctionButton("candidate-previous", "‹", () => PageJunctionCandidates(-1), start > 0, 13), 0, 1);
-        Place(paging, JunctionButton("candidate-next", "›", () => PageJunctionCandidates(1), start + pageSize < candidates.Count, 13), 0, 2);
-        Place(picker, paging, 2);
-        return picker;
+        return BuildJunctionCandidateColumns(JunctionCandidates());
     }
 
     private UiElement BuildJunctionImpactList()
@@ -607,15 +557,7 @@ public sealed partial class MenuController
 
     private void PageJunctionCandidates(int delta)
     {
-        if (junctionEditor == "magic")
-        {
-            BuildView().MoveFocus(delta < 0 ? UiKey.Left : UiKey.Right, JunctionControlIsActive);
-            return;
-        }
-        int maximum = Math.Max(0, (JunctionCandidates().Count - 1) / JunctionCandidatePageSize);
-        junctionCandidatePage = Math.Clamp(junctionCandidatePage + delta, 0, maximum);
-        junctionFocus = "candidate-" + JunctionCandidates().ElementAtOrDefault(junctionCandidatePage * JunctionCandidatePageSize)?.Id;
-        _view = null;
+        BuildView().MoveFocus(delta < 0 ? UiKey.Left : UiKey.Right, JunctionControlIsActive);
     }
 
     private static bool IsJunctionStat(string slot) => slot is "HP" or "Str" or "Vit" or "Mag" or "Spr" or "Spd" or "Eva" or "Hit" or "Luck";

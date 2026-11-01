@@ -28,7 +28,7 @@ public sealed partial class MenuController
         {
             return JunctionAdjacentCharacter(button.Id == "previous-character" ? -1 : 1)?.Name ?? "";
         }
-        if (button.Id?.StartsWith("gf-capability-", StringComparison.Ordinal) == true)
+        if (button.Id?.StartsWith("gf-capability-", StringComparison.Ordinal) == true || button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true)
         {
             return button.Children.OfType<UiLabel>().FirstOrDefault()?.Text ?? "";
         }

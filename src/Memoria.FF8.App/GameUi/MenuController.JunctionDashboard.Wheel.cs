@@ -23,12 +23,17 @@ public sealed partial class MenuController
             junctionGuardianColumns.ScrollColumns(-Math.Sign(delta));
             return;
         }
+        if (junctionEditor is "magic" or "command" or "passive" && junctionCandidateColumns?.Bounds.Contains(point.X, point.Y) == true)
+        {
+            junctionCandidateColumns.ScrollColumns(-Math.Sign(delta));
+            return;
+        }
         if (junctionScroll?.Bounds.Contains(point.X, point.Y) == true)
         {
             junctionScroll.ScrollBy(-Math.Sign(delta) * 64 * TextScale);
             return;
         }
-        var dock = FocusableDescendants(view.Root).FirstOrDefault(element => element.Id is "candidate-previous" or "impact-previous");
+        var dock = FocusableDescendants(view.Root).FirstOrDefault(element => element.Id == "impact-previous");
         if (dock is not null && point.Y >= dock.Bounds.Y && point.Y < view.DesignHeight - 48)
         {
             if (junctionReview)

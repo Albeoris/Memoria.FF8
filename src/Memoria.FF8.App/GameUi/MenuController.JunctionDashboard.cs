@@ -338,6 +338,7 @@ public sealed partial class MenuController
     {
         UiGrid body = JunctionRows([24 * TextScale, 0], [1]);
         UiGrid legend = Grid([1], [42, 112, 45, 87], 0);
+        legend.Margin = new UiThickness(8, 0, 0, 0);
         string[] labels = [J("stat", "Stat"), J("magic", "Magic"), J("stock", "Stock"), J("value", "Value")];
         for (int index = 0; index < labels.Length; index++)
         {
@@ -390,10 +391,9 @@ public sealed partial class MenuController
         {
             name = slot == "ST-Atk" ? J("attack-short", "Atk") : J("defense-short", "Def") + " " + slot[^1];
         }
-        bool pinned = junctionDashboard.IsPinned(Character?.Id ?? "", slot);
         UiGrid content = Grid([1], stat ? [42, 112, 45, 87] : [55, 178, 45], 0);
         content.Margin = new UiThickness(8, 0, 0, 0);
-        UiLabel slotLabel = JunctionLabel((pinned ? "◆ " : "") + name, 12, true);
+        UiLabel slotLabel = JunctionLabel(name, stat ? 15 : 12, true);
         if (availabilityChanged)
         {
             slotLabel.Color = projectedAvailable ? JunctionIncreaseColor : JunctionDecreaseColor;
@@ -416,7 +416,7 @@ public sealed partial class MenuController
         {
             Place(content, available ? JunctionLabel(assigned, 16) : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
         }
-        Place(content, JunctionLabel(magic?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "—", 14, true), 0, 2);
+        Place(content, JunctionLabel(magic?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "—", stat ? 15 : 14, true), 0, 2);
         if (stat)
         {
             int? current = Character?.Stats.TryGetValue(slot, out int existing) == true ? existing : null;
