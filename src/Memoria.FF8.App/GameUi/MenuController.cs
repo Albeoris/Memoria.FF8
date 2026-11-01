@@ -210,7 +210,6 @@ public sealed partial class MenuController
         junctionEditor = "";
         junctionPlan = null;
         junctionReview = false;
-        junctionExitReview = false;
         ClearBattleLearningReview();
         exitGame = null;
         if (ScreenId == "mode-review")

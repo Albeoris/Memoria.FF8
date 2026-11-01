@@ -13,7 +13,6 @@ public sealed partial class MenuController
     private string junctionCacheSource = "";
     private MenuAction? junctionReviewedAction;
 
-    private JunctionCommandConfiguration JunctionConfiguration(MenuCharacter character) => new(character.Id, character.CommandIds.Cast<string?>().ToArray(), character.AvailableCommands.Select(choice => choice.Id).ToArray(), Data.SmartAttack && character.AttackMode == "SmartMagic");
 
     private void OpenJunctionEditor(string editor, string origin, string candidate = "")
     {
@@ -29,7 +28,6 @@ public sealed partial class MenuController
         junctionCandidatePage = 0;
         junctionImpactPage = 0;
         junctionPlan = null;
-        junctionExitReview = false;
         if (origin.StartsWith("slot-", StringComparison.Ordinal))
         {
             _junctionSlot = origin[5..];
@@ -205,11 +203,7 @@ public sealed partial class MenuController
     {
         UiGrid dock = JunctionRows([0, 20], [1]);
         UiElement content;
-        if (junctionExitReview)
-        {
-            content = BuildJunctionExitReview();
-        }
-        else if (junctionReview && !junctionTransferModal)
+        if (junctionReview && !junctionTransferModal)
         {
             content = BuildJunctionImpactList();
         }
@@ -484,7 +478,6 @@ public sealed partial class MenuController
             foreach (string id in plan.Changes.Select(change => change.CharacterId).Distinct())
             {
                 junctionVisited.Add(id);
-                junctionAudit.MarkAffected(id);
             }
             junctionPlan = null;
             junctionTransferModal = false;
@@ -516,7 +509,6 @@ public sealed partial class MenuController
             {
                 _liveAction(new MenuAction("attack-mode", TargetId: attack.CharacterId, Value: attack.Mode));
                 _liveData = null;
-                junctionAudit.MarkAffected(attack.CharacterId);
             }
             else
             {
@@ -548,7 +540,6 @@ public sealed partial class MenuController
         junctionPlan = null;
         junctionTransferModal = false;
         junctionReview = false;
-        junctionExitReview = false;
         junctionEditor = "";
         junctionFocus = junctionOrigin;
         Message = "";
@@ -641,42 +632,9 @@ public sealed partial class MenuController
         return J("select-slot", "Select an assignment to inspect or edit it.");
     }
 
-    private UiElement BuildJunctionExitReview()
-    {
-        var actors = JunctionAttentionCharacters();
-        UiGrid rows = Grid([1, 1, 1], [1]);
-        Place(rows, JunctionLabel(J("exit-review", "Some available command positions are empty, or Smart magic lacks Magic / Draw."), 15), 0);
-        UiGrid links = Grid([1], Enumerable.Repeat(1f, Math.Max(1, actors.Count)).ToArray(), 5);
-        for (int index = 0; index < actors.Count; index++)
-        {
-            MenuCharacter actor = actors[index];
-            Place(links, JunctionButton("configure-" + actor.Id, actor.Name + " · " + J("configure", "Configure commands"), () =>
-            {
-                _characterId = actor.Id;
-                junctionExitReview = false;
-                OpenJunctionEditor("command", "command-" + (JunctionCommandAudit.Inspect(JunctionConfiguration(actor)).ActionableEmptySlots.FirstOrDefault()));
-            }), 0, index);
-        }
-        Place(rows, links, 1);
-        Place(rows, JunctionButton("leave-configured", J("leave", "Leave as configured"), () =>
-        {
-            foreach (MenuCharacter actor in actors)
-            {
-                junctionAudit.Acknowledge(JunctionConfiguration(actor));
-            }
-            junctionExitReview = false;
-            junctionLeaving = true;
-            Back();
-            junctionLeaving = false;
-        }), 2);
-        return rows;
-    }
-
-    private List<MenuCharacter> JunctionAttentionCharacters() => (Data.JunctionPlanner?.Snapshot ?? Data).Characters.Where(actor => actor.Id == Character?.Id || junctionVisited.Contains(actor.Id)).Where(actor => actor.CommandIds.Count == 3 && junctionAudit.RequiresReview(JunctionConfiguration(actor))).ToList();
-
     private bool BackFromJunctionDashboard()
     {
-        if (!IsJunctionDashboard || junctionLeaving)
+        if (!IsJunctionDashboard)
         {
             return false;
         }
@@ -686,16 +644,9 @@ public sealed partial class MenuController
             junctionCandidate = "";
             junctionPlan = null;
         }
-        if (junctionEditor.Length > 0 || junctionPlan is not null || junctionExitReview)
+        if (junctionEditor.Length > 0 || junctionPlan is not null)
         {
             CancelJunctionEditor();
-            return true;
-        }
-        if (JunctionAttentionCharacters().Count > 0)
-        {
-            junctionExitReview = true;
-            junctionFocus = "leave-configured";
-            _view = null;
             return true;
         }
         return false;
@@ -760,7 +711,7 @@ public sealed partial class MenuController
         UiView view = BuildView();
         if (input == MenuInput.Confirm)
         {
-            if (junctionReview && !junctionTransferModal && !junctionExitReview)
+            if (junctionReview && !junctionTransferModal)
             {
                 ConfirmJunctionPlan();
             }

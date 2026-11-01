@@ -113,7 +113,6 @@ public sealed partial class MenuController
         junctionAttackUndo = (actor.Id, previousMode, planner.SourceFingerprint);
         junctionUndoLabel = J("attack-mode", "Attack mode");
         junctionVisited.Add(actor.Id);
-        junctionAudit.MarkAffected(actor.Id);
         junctionUndo = null;
         CancelJunctionEditor();
     }

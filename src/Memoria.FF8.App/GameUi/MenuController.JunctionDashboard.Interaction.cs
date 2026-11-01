@@ -7,7 +7,7 @@ public sealed partial class MenuController
     private bool junctionTransferModal;
     private UiColumnPicker? junctionTransferColumns;
     private bool junctionRestoringFocus;
-    private bool JunctionHasActiveScope => junctionTransferModal || junctionExitReview || junctionReview || junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize" or "fill" or "attack-mode";
+    private bool JunctionHasActiveScope => junctionTransferModal || junctionReview || junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize" or "fill" or "attack-mode";
     private bool JunctionHasTransferModal => junctionTransferModal;
 
     private void PreviewGuardian(string id)
@@ -102,10 +102,6 @@ public sealed partial class MenuController
         if (junctionTransferModal)
         {
             return id is "junction-transfer-yes" or "junction-transfer-no" || id.StartsWith("transfer-loss-", StringComparison.Ordinal);
-        }
-        if (junctionExitReview)
-        {
-            return id == "leave-configured" || id.StartsWith("configure-", StringComparison.Ordinal);
         }
         if (junctionReview)
         {

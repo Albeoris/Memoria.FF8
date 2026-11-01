@@ -240,21 +240,27 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
     }
 
-    [Fact]
-    public void ExitAcknowledgmentSurvivesAnUnrelatedStatEdit()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CancelClosesTheDashboardWithoutQuestionsAndPreservesCurrentAssignments(bool changed)
     {
         using Fixture fixture = new();
+        if (changed)
+        {
+            fixture.Hit("slot-Str");
+            fixture.Preview("candidate-magic-0-2");
+            fixture.Apply();
+        }
+        string current = JsonSerializer.Serialize(fixture.Vitals);
         fixture.Menu.Navigate(MenuInput.Cancel);
-        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "leave-configured");
-        fixture.Hit("leave-configured");
         Assert.False(fixture.Menu.IsOpen);
+        Assert.Equal(current, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(changed ? 1 : 0, fixture.Actions);
         fixture.Menu.Open("junction");
-        fixture.Hit("slot-Str");
-        fixture.Preview("candidate-magic-0-2");
-        fixture.Apply();
         fixture.Menu.Navigate(MenuInput.Cancel);
         Assert.False(fixture.Menu.IsOpen);
-        Assert.Equal(1, fixture.Actions);
+        Assert.Equal(current, JsonSerializer.Serialize(fixture.Vitals));
     }
 
     [Fact]
@@ -294,15 +300,13 @@ public sealed class JunctionDashboardInteractionTests
     }
 
     [Fact]
-    public void CancelFromGuardianHoverRunsTheExitAuditWithoutAnEndlessPreviewLoop()
+    public void CancelFromGuardianHoverClosesImmediatelyWithoutChangingAssignments()
     {
         using Fixture fixture = new();
         string original = JsonSerializer.Serialize(fixture.Vitals);
         fixture.Menu.SelectEntry("junction-dashboard", "gf-portrait-gf-0");
         Assert.Equal("gf", fixture.Menu.CaptureJunctionDashboard().Editor);
         fixture.Menu.Navigate(MenuInput.Cancel);
-        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "leave-configured" && entry.Enabled);
-        fixture.Hit("leave-configured");
         Assert.False(fixture.Menu.IsOpen);
         Assert.Equal(0, fixture.Actions);
         Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));

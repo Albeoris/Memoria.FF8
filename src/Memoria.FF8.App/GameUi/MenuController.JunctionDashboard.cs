@@ -19,10 +19,7 @@ public sealed partial class MenuController
     private int junctionImpactPage;
     private string junctionPriority = "Attack";
     private bool junctionReview;
-    private bool junctionExitReview;
-    private bool junctionLeaving;
     private readonly HashSet<string> junctionVisited = new(StringComparer.Ordinal);
-    private readonly JunctionCommandAudit junctionAudit = new();
     private string junctionSession = "";
     private float junctionViewportWidth = 1280;
     private float junctionViewportHeight = 720;
@@ -69,7 +66,6 @@ public sealed partial class MenuController
         junctionEditor = "";
         junctionPlan = null;
         junctionReview = false;
-        junctionExitReview = false;
         junctionVisited.Clear();
         junctionFocus = screen switch
         {
@@ -105,7 +101,6 @@ public sealed partial class MenuController
             junctionUndo = null;
             junctionAttackUndo = null;
             junctionDashboard.SetSession(junctionSession);
-            junctionAudit.SetSession(junctionSession);
         }
     }
 
