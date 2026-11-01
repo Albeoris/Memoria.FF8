@@ -96,11 +96,17 @@ internal sealed partial class GameWorld
             {
                 request = PrepareDiagnosticPrelude(request, active, observer);
             }
+            bool presentationAtbPrepared = false;
             bool Ready()
             {
                 if (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0 || request.Target is not null && VerifyDiagnosticTarget() is null)
                 {
                     return false;
+                }
+                if (!presentationAtbPrepared && request.Driver is { Presentation.FillSelectedActorAtb: true, EnemyAbility: null } driver)
+                {
+                    active.PrepareDiagnosticPlayerReadiness(driver.Input.ActorId!);
+                    presentationAtbPrepared = true;
                 }
                 return request.Driver is null || RecreateGame.DiagnosticCommandReady(active, request.Driver);
             }

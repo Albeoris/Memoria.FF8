@@ -7,6 +7,7 @@ namespace Memoria.FF8;
 internal sealed record DiagnosticPresentationDeclaration(string SignalPath, string ReceiptDirectory, string RunId)
 {
     public double TailSeconds { get; init; } = 3;
+    public bool FillSelectedActorAtb { get; init; } = true;
 
     internal void Validate()
     {

@@ -9,6 +9,7 @@ internal sealed partial class RecreateGame
 {
     private DiagnosticBattleDriver? diagnosticDriver;
     private DiagnosticPresentationGate? diagnosticPresentation;
+    private bool diagnosticPresentationAtbPrepared;
 
     private bool DiagnosticPresentationHeld => diagnosticDriver?.Stage is DiagnosticDriverStage.AwaitPresentation or DiagnosticDriverStage.PresentationHold;
     private Exception? diagnosticBattleFault;
@@ -43,6 +44,7 @@ internal sealed partial class RecreateGame
         diagnosticBattleFault = null;
         diagnosticDriverRecipe = recipe;
         diagnosticPresentation = recipe.Presentation is { } presentation ? new(presentation, recipe.ExpectedEffect) : null;
+        diagnosticPresentationAtbPrepared = false;
         diagnosticFreshEntryInitializationPublished = false;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
@@ -136,6 +138,11 @@ internal sealed partial class RecreateGame
                 if (diagnosticDriverRecipe.CounterCycle is not null)
                 {
                     blockers = active.NativeEntryReady ? active.ObserveDiagnosticDrainBlockers().ToArray() : ["native-entry"];
+                }
+                if (!diagnosticPresentationAtbPrepared && diagnosticDriverRecipe is { Presentation.FillSelectedActorAtb: true, EnemyAbility: null } && active.NativeEntryReady && blockers.Length == 0)
+                {
+                    active.PrepareDiagnosticPlayerReadiness(diagnosticDriverRecipe.Input.ActorId!);
+                    diagnosticPresentationAtbPrepared = true;
                 }
                 bool ready = active.NativeEntryReady && (world!.DiagnosticReceipt?.Preparation.Target is null || diagnosticTargetVerified) && DiagnosticCommandReady(active, diagnosticDriverRecipe!);
                 if (diagnosticDriverRecipe!.FreshEntry is not null && ready && blockers.Length == 0 && driver.Stage == DiagnosticDriverStage.Readiness && !diagnosticFreshEntryInitializationPublished)

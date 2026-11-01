@@ -8,6 +8,7 @@ The graphical host accepts an optional `presentation` block inside a `--battle-t
     "signal_path": "start.json",
     "receipt_directory": "receipts",
     "run_id": "unique-coordinator-run",
+    "fill_selected_actor_atb": true,
     "tail_seconds": 3
   }
 }
@@ -15,7 +16,9 @@ The graphical host accepts an optional `presentation` block inside a `--battle-t
 
 Use absolute paths when the coordinator and host have different working directories. Paths for `ready.json`, `started.json`, `completed.json` and `blocked.json` must be fresh. Other diagnostic outputs may share the receipt directory. The coordinator supplies the existing complete battle recipe, installed resources, `--resolution`, and optional `--mute-audio`; this block supplies no game content or fallback state.
 
-After entry, target verification, command readiness, drain and the declared baseline, the host publishes `ready.json`. Native battle advancement and interactive battle input are held while drawing continues. No focal command is submitted before release. Start the recorder, retain any desired leading frames, then atomically publish this signal by renaming a complete temporary file:
+After genuine entry and drain, presentation mode fills only the selected player's existing raw ATB current value to its actual maximum and invokes normal full-gauge registration. Other actors retain their gauges. This preparation admits no command or effect, and refuses compelled or script-owned player commands. Enemy-ability presentation keeps its existing readiness contract. Set `fill_selected_actor_atb` to `false` to retain natural gauge growth; its default is `true` only when a presentation block exists.
+
+After target verification, command readiness, drain and the declared baseline, the host publishes `ready.json`. Native battle advancement and interactive battle input are held while drawing continues. No focal command is submitted before release. Start the recorder, retain any desired leading frames, then atomically publish this signal by renaming a complete temporary file:
 
 ```json
 {
