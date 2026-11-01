@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8;
 
-/// <summary>Projects the canonical saved combat party into the shared encounter and laboratory scaffold.</summary>
+/// <summary>Projects the player's saved combat party into the shared encounter and laboratory scaffold.</summary>
 internal static class BattlePartyProjection
 {
     public static BattleActionDefinition[] CreateActions(NativeCharacterVitals vitals, IReadOnlyList<BattleActionDefinition> installed)
@@ -63,7 +63,7 @@ internal static class BattlePartyProjection
         }
         if (party.Count == 0)
         {
-            throw new NotSupportedException("Battle requires a nonempty canonical combat party.");
+            throw new NotSupportedException("Battle requires a nonempty saved combat party.");
         }
         return party.ToArray();
     }

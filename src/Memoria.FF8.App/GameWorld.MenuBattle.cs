@@ -103,9 +103,6 @@ internal sealed partial class GameWorld
         }
         BattleSnapshot snapshot = battle.Capture();
         BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, snapshot.Definition.NativeSeed, request.Flags), snapshot, session.ExamTimer);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(snapshot.Definition)))
-        {
-            throw new InvalidDataException("Saved menu combat differs from the installed encounter and saved party.");
-        }
+        ValidateBattleDefinition(current, snapshot.Definition);
     }
 }

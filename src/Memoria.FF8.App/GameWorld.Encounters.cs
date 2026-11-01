@@ -148,10 +148,7 @@ internal sealed partial class GameWorld
         }
         BattleSnapshot saved = battle.Capture();
         BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, saved.Definition.NativeSeed, flags), saved, session.ExamTimer);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(saved.Definition)))
-        {
-            throw new InvalidDataException("Saved random combat differs from its current installed formation and party.");
-        }
+        ValidateBattleDefinition(current, saved.Definition);
     }
 
 }
