@@ -82,8 +82,3 @@ public sealed class NativeBattleRepeatAbortTests
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", 4)] });
     }
 }
-
-
-
-
-
