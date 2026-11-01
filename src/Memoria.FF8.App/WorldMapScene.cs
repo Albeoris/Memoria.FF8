@@ -286,7 +286,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
     internal string AllocationProgramSha256 => assets.AllocationProgramSha256;
     internal NativeWorldEncounterDefinition? ReadRandomEncounterDefinition(WorldState state) => assets.ReadRandomEncounterDefinition(state.X, state.Z, state.GroundType ?? throw new NotSupportedException("Encounters require native ground."), session.State.DiscProcess!.SavedDisc204);
-    public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0 || State.NativeTrainRuntime?.Callback == 0;
+    public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0 || State.NativeTrainRuntime?.Callback == 0 || State.NativeFootRuntime?.NormalObjects is { Callback: 0 } normalObjects && (normalObjects.Primary is not null || normalObjects.Alternate is not null);
 
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
     {

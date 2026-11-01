@@ -165,6 +165,66 @@ public sealed class NativeNormalFootObjectTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void OrdinaryRailEntryPreflightRetainsTheLoaderUntilItsFirstRealCallback(byte eventFlags265)
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldPathPosition[] railNodes = Enumerable.Range(0, 2).SelectMany(track => NativeTrainRailBank.Create(assets.ReadScriptedPath(track), 1).Nodes.Where((node, index) => NativeTrainRailBank.Link(index) != 0).Select(node => node.Position)).ToArray();
+        int spawnIndex = Enumerable.Range(0, Math.Min(62, assets.Spawns.Count)).OrderBy(index => railNodes.Min(node =>
+        {
+            WorldSpawn spawn = assets.Spawns[index];
+            double dx = spawn.X - node.X;
+            double dz = spawn.Z + node.Z;
+            return dx * dx + dz * dz;
+        })).First();
+        GameState departure = ComponentSession(eventFlags265, story: 352, replacementFlags: 8, spawn: checked((byte)spawnIndex)).State with { Scene = SceneKind.Field, FieldLoadContext = null, WorldArrival = null, WorldConfiguration = null };
+        GameSession session = new(departure);
+        string before = JsonSerializer.Serialize(departure);
+        WorldTransition packet = new(checked((short)spawnIndex), 0, -1);
+        using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(departure, TestResources.GameDirectory, packet);
+        Assert.Equal(before, JsonSerializer.Serialize(session.State));
+        Assert.Equal(0, prepared.InitialState.Frame);
+        NativeNormalFootObjectProcess allocation = prepared.InitialState.NativeFootRuntime!.NormalObjects!;
+        Assert.Equal(0, allocation.Callback);
+        bool railsEnabled = eventFlags265 == 0;
+        Assert.Equal(railsEnabled, allocation.Primary is not null);
+        Assert.Equal(railsEnabled, allocation.Alternate is not null);
+        if (railsEnabled)
+        {
+            NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(allocation.Camera);
+            Assert.Contains(railNodes, context.IsNear);
+            Assert.All(allocation.Primary!.Presentation, pose => Assert.Null(pose.Projection));
+            Assert.All(allocation.Alternate!.Presentation, pose => Assert.Null(pose.Projection));
+        }
+        session.CommitPreparedWorldEntry(packet, prepared.InitialState, session.WorldControls!, prepared.ValidateAdoption, prepared.InitialSavedWorld, prepared.InitialEventMemory);
+        using WorldMapScene world = prepared.Adopt(session);
+        Assert.Equal(railsEnabled, world.IsPresentationDeferred);
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, TestResources.GameDirectory);
+        Assert.Equal(railsEnabled, restored.IsPresentationDeferred);
+        if (railsEnabled)
+        {
+            Assert.Throws<NativeWorldPresentationDeferredException>(() => world.Render(320, 224));
+            Assert.Throws<NativeWorldPresentationDeferredException>(() => restored.Render(320, 224));
+        }
+        else
+        {
+            Assert.Equal(world.Render(320, 224), restored.Render(320, 224));
+        }
+        PlayerAction wait = new(PlayerActionKind.Wait);
+        Assert.Equal(world.Apply(wait), restored.Apply(wait));
+        Assert.Equal(1, world.State.Frame);
+        Assert.Equal(1, world.State.NativeFootRuntime!.NormalObjects!.Callback);
+        Assert.False(world.IsPresentationDeferred);
+        Assert.False(restored.IsPresentationDeferred);
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restoredSession.State));
+        byte[] pixels = world.Render(320, 224);
+        Assert.Equal(320 * 224 * 4, pixels.Length);
+        Assert.Equal(pixels, restored.Render(320, 224));
+    }
+
+    [Theory]
     [InlineData(315, 9)]
     [InlineData(345, 13)]
     [InlineData(352, 1)]
