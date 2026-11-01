@@ -262,6 +262,7 @@ internal static class MenuPreview
                 }
             }
             menus.Presentation = preferences.MenuPresentation;
+            menus.PrepareViewport(width, height);
             view = menus.BuildView();
             theme = menus.CreateTheme();
         }

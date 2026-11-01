@@ -13,7 +13,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Projects canonical session owners and supported input kinds without creating or mutating native state.</summary>
 public static class LiveMenuData
 {
-    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null, int? placeId = null)
+    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null, int? placeId = null, bool includeJunctionPlanner = true)
     {
         ArgumentNullException.ThrowIfNull(state);
         string Text(string id, string original) => catalog?.SystemText(id, original) ?? original;
@@ -114,15 +114,20 @@ public static class LiveMenuData
                 {
                     character.GuardianForceIds.Add($"gf-{id}");
                 }
-                character.Commands.Add(catalog?.CommandName(1) ?? Text("fallback.command.attack", "Attack"));
+                BattleNativePlayerStatRules? projectedRules = catalog?.ReadStatRules(vitals, row);
+                uint passiveFlags = projectedRules?.NativeStatusPassiveFlags ?? 0;
+                int basicCommand = (passiveFlags & 1) != 0 ? 12 : 1;
+                character.Commands.Add(catalog?.CommandName(basicCommand) ?? Text("fallback.command.attack", "Attack"));
                 for (int slot = 0; slot < 4; slot++)
                 {
                     byte command = unchecked((byte)(native.Junction.Commands >> (8 * slot)));
                     byte ability = unchecked((byte)(native.Junction.Abilities >> (8 * slot)));
                     if (slot < 3)
                     {
+                        character.CommandIds.Add(command.ToString(System.Globalization.CultureInfo.InvariantCulture));
                         character.Commands.Add(command == 0 ? "--" : catalog?.AbilityName(command) ?? Format("fallback.command-ability.name", "Command ability {0}", command));
                     }
+                    character.AbilityIds.Add(ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     if (slot < vitals.JunctionAbilitySlots(row))
                     {
                         character.Abilities.Add(ability == 0 ? "--" : catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability));
@@ -145,7 +150,7 @@ public static class LiveMenuData
                 if (catalog is not null)
                 {
                     int characterRow = row;
-                    BattleNativePlayerStatRules rules = catalog.ReadStatRules(vitals, row);
+                    BattleNativePlayerStatRules rules = projectedRules!;
                     IReadOnlyList<NativeMagicStock> inventory = vitals.GetMagicInventory(row);
                     foreach (var stat in Statistics(rules, native, inventory))
                     {
@@ -174,13 +179,14 @@ public static class LiveMenuData
                         return JunctionEffects(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                     };
                 }
-                for (int slot = 0; slot < native.Junction.MagicJunctions.Length; slot++)
+                for (int slot = 0; slot < 19; slot++)
                 {
                     if (vitals.JunctionMagicSlotAvailable(row, slot))
                     {
                         character.AvailableJunctionSlots.Add(JunctionSlotName(slot));
                     }
                     byte spell = native.Junction.MagicJunctions[slot];
+                    character.JunctionIds[JunctionSlotName(slot)] = spell == 0 ? "0" : $"magic-{row}-{spell}";
                     if (spell != 0)
                     {
                         character.Junctions[JunctionSlotName(slot)] = catalog?.MagicName(spell) ?? Format("fallback.magic.name", "Magic {0}", spell);
@@ -196,6 +202,9 @@ public static class LiveMenuData
                     string availability = catalog is null ? "" : caster is null ? owner is not null && owner != row ? Text("magic.UnavailableOwner", MagicUiText.Get("UnavailableOwner")) : Text("magic.StatusRestricted", MagicUiText.Get("StatusRestricted")) : !quote.Allowed ? Text("magic.Exhausted", MagicUiText.Get("Exhausted")) : "";
                     MenuMagic magic = new()
                     {
+                        SpellId = stock.SpellId,
+                        OwnerCharacterId = owner is int ownerRecord ? $"character-{ownerRecord}" : null,
+                        BoundSlot = owner is int bindingRecord ? Enumerable.Range(0, 19).Where(index => vitals.Records[bindingRecord].Junction.MagicJunctions[index] == stock.SpellId).Select(JunctionSlotName).FirstOrDefault() : null,
                         RecoveryTargetScores = catalog?.MagicRecoveryTargetScores(state, stock.SpellId) ?? new(StringComparer.Ordinal),
                         Id = magicId,
                         Icon = owner is not null ? new UiImageSource(UiImageKind.Icon, 192) : null,
@@ -306,6 +315,11 @@ public static class LiveMenuData
         {
             result.SourceDescription = Text("projection.session.characters-unavailable", "Live session: character state unavailable");
         }
+        if (includeJunctionPlanner && state.CharacterVitals is not null && state.Scene is SceneKind.Field or SceneKind.WorldMap)
+        {
+            result.JunctionPlanner = new MenuJunctionPlanner(state, names, catalog, placeId);
+            result.SupportedActions.Add("junction-edit");
+        }
         return result;
     }
 
@@ -317,7 +331,7 @@ public static class LiveMenuData
         return level == 100 ? 0 : checked((int)(10L * level * curve.ExperienceStep + (long)level * level * curve.ExperienceFraction / 256 - experience));
     }
 
-    private static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)
+    internal static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)
     {
         BattleNativePlayerStatistics stats = rules.Project(inventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
         return new(StringComparer.Ordinal)
@@ -426,6 +440,7 @@ public static class LiveMenuData
 /// <summary>Original text metadata only. No font, texture or rendered original menu asset is loaded.</summary>
 public sealed partial class LiveMenuCatalog
 {
+    internal string StatRulesFingerprint { get; }
     private readonly KernelData kernel;
     private readonly ITextTermSource terms;
     private readonly BattlePlayerStatReader statistics;
@@ -441,6 +456,7 @@ public sealed partial class LiveMenuCatalog
 
     private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad, ITextTermSource terms)
     {
+        StatRulesFingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(kernelBytes));
         this.kernel = kernel;
         this.terms = terms;
         statistics = new BattlePlayerStatReader(kernelBytes);

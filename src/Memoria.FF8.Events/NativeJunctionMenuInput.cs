@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Globalization;
 using Memoria.FF8.Runtime;
 
@@ -5,13 +6,22 @@ namespace Memoria.FF8.Events;
 
 public static class NativeJunctionMenuInput
 {
-    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.ReassignGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.ToggleGuardianForcePassiveAbility or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
+    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.ApplyJunctionEdit or PlayerActionKind.JunctionGuardianForce or PlayerActionKind.ReassignGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.ToggleGuardianForcePassiveAbility or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
 
     public static void Validate(PlayerAction action)
     {
         if (!IsMenuAction(action.Kind))
         {
             throw new ArgumentException("Expected a junction or GF learning action.", nameof(action));
+        }
+        if (action.Kind == PlayerActionKind.ApplyJunctionEdit)
+        {
+            if (action.Value != 0 || action.Text is null || action.Text.Length > 32768 || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            {
+                throw new ArgumentException("A junction edit requires its versioned plan and one ordinary menu callback.", nameof(action));
+            }
+            NativeJunctionEdits.Validate(JsonSerializer.Deserialize<NativeJunctionEditPlan>(action.Text) ?? throw new ArgumentException("Missing junction plan."));
+            return;
         }
         if (action.Kind == PlayerActionKind.RemoveAllMagicJunctions)
         {
@@ -56,6 +66,10 @@ public static class NativeJunctionMenuInput
     public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? autoJunction = null)
     {
         Validate(action);
+        if (action.Kind == PlayerActionKind.ApplyJunctionEdit)
+        {
+            return NativeJunctionEdits.Apply(vitals, JsonSerializer.Deserialize<NativeJunctionEditPlan>(action.Text!)!);
+        }
         if (action.Kind == PlayerActionKind.RemoveAllMagicJunctions)
         {
             return vitals.RemoveAllMagicJunctions();
@@ -90,7 +104,15 @@ public sealed partial class EventEngine
             return false;
         }
         NativeCharacterVitals source = services.CharacterVitals ?? throw new NotSupportedException("Menu input requires authentic saved characters.");
-        NativeCharacterVitals next = NativeJunctionMenuInput.Apply(source, action, ResolveNativeAutoJunction);
+        NativeCharacterVitals next;
+        try
+        {
+            next = NativeJunctionMenuInput.Apply(source, action, ResolveNativeAutoJunction);
+        }
+        catch (InvalidOperationException) when (action.Kind == PlayerActionKind.ApplyJunctionEdit)
+        {
+            return false;
+        }
         if (activeMenu)
         {
             PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);

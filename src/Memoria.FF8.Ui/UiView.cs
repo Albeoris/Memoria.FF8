@@ -309,9 +309,12 @@ public sealed class UiView
             yield return element;
         }
 
+        UiRect childClip = element is UiScrollPanel scroll
+            ? new UiRect(visibleBounds.X, scroll.Bounds.Y - scroll.Offset, visibleBounds.Width, Math.Max(scroll.Bounds.Height, scroll.ContentHeight))
+            : visibleBounds;
         foreach (UiElement child in element.Children)
         {
-            foreach (UiElement candidate in TraverseFocusable(child, visibleBounds))
+            foreach (UiElement candidate in TraverseFocusable(child, childClip))
             {
                 yield return candidate;
             }
@@ -343,11 +346,32 @@ public sealed class UiView
         _focusedElement = element;
         if (element != null)
         {
+            RevealScrollAncestors(Root, element);
             element.IsFocused = true;
         }
 
         previous?.FocusChanged?.Invoke(false);
         element?.FocusChanged?.Invoke(true);
+    }
+
+    private static bool RevealScrollAncestors(UiElement parent, UiElement target)
+    {
+        if (ReferenceEquals(parent, target))
+        {
+            return true;
+        }
+        foreach (UiElement child in parent.Children)
+        {
+            if (RevealScrollAncestors(child, target))
+            {
+                if (parent is UiScrollPanel scroll)
+                {
+                    scroll.EnsureVisible(target);
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private UiRect LayoutBounds()

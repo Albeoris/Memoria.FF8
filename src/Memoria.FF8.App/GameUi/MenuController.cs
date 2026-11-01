@@ -43,6 +43,7 @@ public sealed partial class MenuController
         RegisterNamingScreens();
         RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
+        RegisterJunctionDashboard();
     }
 
     public bool IsOpen { get; private set; }
@@ -93,7 +94,7 @@ public sealed partial class MenuController
     public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values.Select(LocalizeSystemScreen).ToArray();
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
     public MenuScreenDefinition CurrentScreen => LocalizeSystemScreen(_screens[ScreenId]);
-    public int SelectedIndex => _selections.GetValueOrDefault(ScreenId);
+    public int SelectedIndex => IsJunctionDashboard ? Math.Max(0, Entries.ToList().FindIndex(entry => entry.Id == junctionFocus)) : _selections.GetValueOrDefault(ScreenId);
     public IReadOnlyList<MenuEntry> Entries => LocalizeSystemEntries(CurrentScreen.Entries(this));
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
     public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
@@ -130,6 +131,7 @@ public sealed partial class MenuController
     public void Open(string screenId = "main", bool demo = false)
     {
         screenId = ResolveSettingsAlias(screenId);
+        screenId = ResolveJunctionDashboard(screenId);
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
         ClearBattleLearningReview();
         exitGame = null;
@@ -226,6 +228,10 @@ public sealed partial class MenuController
     public void Navigate(MenuInput input)
     {
         if (!IsOpen || IsCapturingControls)
+        {
+            return;
+        }
+        if (NavigateJunctionDashboard(input))
         {
             return;
         }
@@ -406,6 +412,7 @@ public sealed partial class MenuController
 
     public void Push(string screenId)
     {
+        screenId = ResolveJunctionDashboard(screenId);
         if (!_screens.ContainsKey(screenId))
         {
             SetSystemMessage(() => FormatSystemText("ui.push.message.screen.is.not.registered", "Screen \u0027{0}\u0027 is not registered.", screenId));
@@ -432,6 +439,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (BackFromJunctionDashboard())
+        {
+            return;
+        }
         if (ScreenId == "localization-review" && (localizationPreparation is not null || localizationWriting is not null))
         {
             localizationCancellation?.Cancel();
@@ -715,6 +726,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (TryExecuteJunctionDashboard(action))
+        {
+            return;
+        }
         if (TryHandleLocalizationAction(action))
         {
             return;

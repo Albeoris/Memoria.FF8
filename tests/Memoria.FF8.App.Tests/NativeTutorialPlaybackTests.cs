@@ -111,6 +111,13 @@ public sealed class NativeTutorialPlaybackTests
             PlayerAction action = new(player.WaitingForInput ? PlayerActionKind.Confirm : PlayerActionKind.Wait);
             Assert.True(player.Apply(action));
             Assert.True(restored.Apply(action));
+            if (id <= 3)
+            {
+                Assert.Equal("junction-dashboard", player.Menu.ScreenId);
+                Assert.NotNull(player.Menu.Character?.JunctionEffects);
+                Assert.Equal(8, player.Menu.Character!.JunctionEffects!.Elements.Count);
+                Assert.Equal(13, player.Menu.Character.JunctionEffects.Statuses.Count);
+            }
             Assert.True(JsonElement.DeepEquals(player.Capture(), restored.Capture()), $"Tutorial{id} diverged after restored callback{ticks}, {JsonSerializer.Serialize(player.Status)}.");
             bool meaningful = callbackWords.Any(word => word >> 12 is 1 or 9) || player.WaitingForInput || player.IsComplete;
             if (meaningful)

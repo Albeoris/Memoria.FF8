@@ -36,6 +36,7 @@ Selection hands are drawn after content in the viewport-clipped adornment pass. 
 - `UiStack`: `Orientation`, `Gap`, `Padding`.
 - `UiGrid`: `RowDefinitions`, `ColumnDefinitions`, positive `Columns`, optional `Rows`, `Gap`, `Padding`.
 - `UiAnchorPanel`: normalized child `Anchors`, `Padding`.
+- `UiScrollPanel`: a clipped vertical viewport for child controls. `ContentHeight` sets the full layout height; `Offset`, `ScrollBy` and `EnsureVisible` move through it, with `OffsetChanged` available to retain position across rebuilt views. A visible scrollbar supports pointer clicks, and PageUp/PageDown scroll when the panel is focused. `UiView` automatically reveals focused descendants, including controls initially outside the viewport. Keep sticky controls outside this panel.
 
 Example template without absolute coordinates:
 

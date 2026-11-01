@@ -11,6 +11,9 @@ public sealed record MenuAction(string Kind, string SubjectId = "", string Targe
 
 public sealed class MenuData
 {
+    public string SessionId { get; set; } = "";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public MenuJunctionPlanner? JunctionPlanner { get; set; }
     public bool? CardCollectionComplete { get; set; }
     public string? ChocoboWorldUnavailableReason { get; set; }
     public bool SharedMagicStock { get; set; }
@@ -63,6 +66,9 @@ public sealed class MenuCharacter
     public List<string> Conditions { get; } = [];
     public List<string> Commands { get; } = [];
     public List<string> Abilities { get; } = [];
+    public List<string> CommandIds { get; } = [];
+    public List<string> AbilityIds { get; } = [];
+    public Dictionary<string, string> JunctionIds { get; } = new(StringComparer.Ordinal);
     public List<MenuAbilityChoice> AvailableCommands { get; } = [];
     public List<MenuAbilityChoice> AvailableAbilities { get; } = [];
     public int AbilitySlots { get; set; } = 2;
@@ -158,6 +164,9 @@ public sealed record MenuMaterial(string Name, UiImageSource? Icon, int Owned, i
 
 public sealed class MenuMagic
 {
+    public int? SpellId { get; set; }
+    public string? OwnerCharacterId { get; set; }
+    public string? BoundSlot { get; set; }
     public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
     public string Id { get; set; } = "";
     public UiImageSource? Icon { get; set; }

@@ -25,7 +25,7 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    internal MenuNavigationState CaptureNavigation() => new(ScreenId, _history.Reverse().ToArray(), new(_selections, StringComparer.Ordinal), _characterId, _gfId, _magicId, _exchangeId, _junctionSlot, _commandSlot, _abilitySlot, _characterSelectionDestination, _characterSelectionIndex);
+    internal MenuNavigationState CaptureNavigation() => new(ScreenId, _history.Reverse().ToArray(), new(_selections, StringComparer.Ordinal), _characterId, _gfId, _magicId, _exchangeId, _junctionSlot, _commandSlot, _abilitySlot, _characterSelectionDestination, _characterSelectionIndex, IsJunctionDashboard ? CaptureJunctionDashboard() : null);
 
     internal void RestoreNavigation(MenuNavigationState saved)
     {
@@ -53,12 +53,21 @@ public sealed partial class MenuController
         _abilitySlot = saved.AbilitySlot;
         _characterSelectionDestination = saved.CharacterSelectionDestination;
         _characterSelectionIndex = saved.CharacterSelectionIndex;
+        if (saved.JunctionDashboard is { } junction)
+        {
+            RestoreJunctionDashboard(junction);
+        }
         _view = null;
     }
 
     /// <summary>Selects the visible command by its identity. Confirmation remains a separate input so the pointer is drawn before activation.</summary>
     public void SelectEntry(string screenId, string entryId, bool allowDisabled = false)
     {
+        if (IsJunctionDashboard && screenId is "junction-dashboard" or "junction")
+        {
+            SelectJunctionControl(entryId, allowDisabled);
+            return;
+        }
         if (!IsOpen || ScreenId != screenId || IsSelectingCharacter)
         {
             throw new InvalidOperationException($"Expected menu '{screenId}', found '{ScreenId}'.");
@@ -85,4 +94,4 @@ public sealed partial class MenuController
     }
 }
 
-internal sealed record MenuNavigationState(string ScreenId, string[] History, Dictionary<string, int> Selections, string CharacterId, string GuardianForceId, string MagicId, string ExchangeId, string JunctionSlot, int CommandSlot, int AbilitySlot, string CharacterSelectionDestination, int CharacterSelectionIndex);
+internal sealed record MenuNavigationState(string ScreenId, string[] History, Dictionary<string, int> Selections, string CharacterId, string GuardianForceId, string MagicId, string ExchangeId, string JunctionSlot, int CommandSlot, int AbilitySlot, string CharacterSelectionDestination, int CharacterSelectionIndex, JunctionDashboardNavigationState? JunctionDashboard = null);

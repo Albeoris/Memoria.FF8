@@ -189,6 +189,10 @@ internal sealed partial class NativeTutorialPlayer
 
     private void PrepareMenuInput(NativeTutorialMenuStep step)
     {
+        if (step.ScreenId == "junction-dashboard")
+        {
+            Menu.Open("junction");
+        }
         if (Menu.ScreenId != step.ScreenId || !Menu.IsOpen)
         {
             Menu.Open(step.ScreenId);
@@ -200,6 +204,10 @@ internal sealed partial class NativeTutorialPlayer
         if (step.Context is MenuAction context)
         {
             Menu.Execute(context);
+        }
+        foreach (string control in step.DashboardPreparation ?? [])
+        {
+            Menu.Execute(new MenuAction("junction-ui", control));
         }
         if (step.ScreenId == "junction-stock" && step.EntryId is string magic)
         {
@@ -226,6 +234,19 @@ internal sealed partial class NativeTutorialPlayer
             case NativeTutorialPress.Inspect:
                 Menu.Push("gf-abilities");
                 break;
+            case NativeTutorialPress.ApplyDashboard:
+                if (step.EntryId is string control && !control.StartsWith("candidate-", StringComparison.Ordinal))
+                {
+                    Menu.Execute(new MenuAction("junction-ui", control));
+                }
+                for (int confirmation = 0; confirmation < 2; confirmation++)
+                {
+                    if (Menu.Entries.Any(entry => entry.Id == "apply-junction-preview" && entry.Enabled))
+                    {
+                        Menu.Execute(new MenuAction("junction-ui", "apply-junction-preview"));
+                    }
+                }
+                break;
         }
         if (step.Destination is string destination)
         {
@@ -241,6 +262,11 @@ internal sealed partial class NativeTutorialPlayer
         {
             Menu.ShowTutorialMessage(null, centerX, centerY);
             observedTextId = null;
+            return;
+        }
+        if (definition.Id <= 3)
+        {
+            Menu.ShowTutorialMessage(DashboardMessage(), centerX, centerY);
             return;
         }
         string file = $"mngrp_slot{definition.Descriptor.TextResource:000}_table";
@@ -261,9 +287,29 @@ internal sealed partial class NativeTutorialPlayer
         Menu.ShowTutorialMessage(rendered, centerX, centerY);
     }
 
+    private string DashboardMessage()
+    {
+        (string Key, string Text) message = definition.Id switch
+        {
+            0 when pc < 136 => ("gfs", "All junction assignments stay on this dashboard. Open Manage GFs to inspect a GF and preview attaching it."),
+            0 when pc < 303 => ("commands", "Attaching a GF unlocks learned capabilities. Commands are separate assignments: choose each command position and inspect its choices."),
+            0 when pc < 379 => ("command-preview", "A highlighted choice is a preview. Apply equips it; Cancel keeps the current command. The fixed basic action is separate from the three configurable commands."),
+            0 => ("passives", "Passive abilities occupy their own stable positions. Choose a learned passive, inspect its consequences and Apply it."),
+            1 when pc < 115 => ("stats", "Select a stat to open its magic picker. Highlight a spell to preview the complete change. Current assignments and values stay visible until Apply."),
+            1 when pc < 169 => ("stat-assigned", "Apply commits the selected magic. Every stat and effect assignment remains visible; Cancel closes the picker without changing the character."),
+            1 when pc < 181 => ("clear", "The Actions menu can clear this character's magic junctions. Review the complete removal before applying it."),
+            1 => ("optimize", "Actions → Optimize stats offers Attack, Magic or Defense priority. Review and Apply the proposal. Only unpinned stat magic changes; GFs, commands, passives and effect junctions stay configured."),
+            2 when pc < 152 => ("element-attack", "Elemental attack is an optional manual choice. None adds no element. Preview the affected elements and absorption warning before applying; an enemy may absorb that element."),
+            2 => ("element-defense", "Elemental defense combines every defense position. The permanent table shows all eight elements. Attack / Defense inspection changes the readout without changing assignments."),
+            3 when pc < 157 => ("status-attack", "Status attack is an optional manual choice. Preview its potency in the permanent status table. Actual success also depends on the target; Cancel leaves the current assignment unchanged."),
+            _ => ("status-defense", "Status defense combines all defense positions and relevant passive protection. Keep all thirteen readouts visible while choosing magic, then review and Apply the proposal.")
+        };
+        return Menu.SystemText("tutorial.junction-dashboard." + message.Key, message.Text);
+    }
+
     private MenuData BuildData()
     {
-        NativeCharacterVitals displayedParty = PreviewParty();
+        NativeCharacterVitals displayedParty = party;
         MenuData result = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = displayedParty }, names, menuCatalog, visibleCharacterRows: visibleRows);
         result.SourceDescription = Menu.SystemText("tutorial.source.initialization", "Original tutorial initialization");
         foreach (MenuCharacter character in result.Characters)
@@ -288,42 +334,8 @@ internal sealed partial class NativeTutorialPlayer
                 }
             }
         }
-        result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn", "tutorial-setting", "tutorial-party", "tutorial-exchange", "tutorial-exchange-preview", "tutorial-auto"]);
+        result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "junction-edit", "gf-learn", "tutorial-setting", "tutorial-party", "tutorial-exchange", "tutorial-exchange-preview"]);
         return result;
-    }
-
-    private NativeCharacterVitals PreviewParty()
-    {
-        if (Menu is null)
-        {
-            return party;
-        }
-        MenuNavigationState context = Menu.CaptureNavigation();
-        if (context.ScreenId != "junction-stock" || !context.CharacterId.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(context.CharacterId.AsSpan("character-".Length), out int row) || row is < 0 or >= 8)
-        {
-            return party;
-        }
-        string prefix = $"magic-{row}-";
-        if (!context.MagicId.StartsWith(prefix, StringComparison.Ordinal) || !int.TryParse(context.MagicId.AsSpan(prefix.Length), out int spell) || spell is < 1 or >= 57)
-        {
-            return party;
-        }
-        int slot = Enumerable.Range(0, 19).Single(index => LiveMenuData.JunctionSlotName(index) == context.JunctionSlot);
-        if (!party.JunctionMagicSlotAvailable(row, slot))
-        {
-            return party;
-        }
-        var magic = catalog.ReadStatRules(party, row).MagicRecords[spell];
-        // Original elemental/status choices retain a noneligible spell's cursor without previewing a junction.
-        bool eligible = slot switch
-        {
-            < 9 => true,
-            9 => magic[0x20] != 0,
-            10 => (magic[0x26] | magic[0x27]) != 0,
-            < 15 => magic[0x22] != 0,
-            _ => (magic[0x28] | magic[0x29]) != 0
-        };
-        return eligible ? party.SetJunctionMagic(row, slot, spell) : party;
     }
 
     private void ApplyMenuAction(MenuAction action)
@@ -342,7 +354,7 @@ internal sealed partial class NativeTutorialPlayer
             "tutorial-party" => SwitchParty(action),
             "tutorial-exchange" => ExchangeJunctions(action),
             "tutorial-exchange-preview" => PreviewExchange(action),
-            "tutorial-auto" => AutoJunction(action),
+            "junction-edit" => NativeJunctionMenuInput.Apply(party, NativeJunctionMenuProjection.PlayerAction(action)),
             _ => throw new InvalidOperationException($"Tutorial cannot dispatch '{action.Kind}' to a live owner.")
         };
         party.Validate();

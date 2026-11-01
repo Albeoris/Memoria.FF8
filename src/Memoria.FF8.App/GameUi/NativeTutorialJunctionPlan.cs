@@ -181,6 +181,64 @@ internal static class NativeTutorialJunctionPlan
         {
             throw new InvalidDataException($"Original tutorial {id} has an unresolved native input WORD.");
         }
-        return steps;
+        Dictionary<int, NativeTutorialMenuStep> dashboard = [];
+        string commandPosition = "1";
+        string passivePosition = "0";
+        foreach ((int position, NativeTutorialMenuStep step) in steps.OrderBy(pair => pair.Key))
+        {
+            if (step.ScreenId == "junction-command" && step.EntryId is string command)
+            {
+                commandPosition = command;
+            }
+            if (step.ScreenId == "junction-ability" && step.EntryId is string passive)
+            {
+                passivePosition = passive;
+            }
+            dashboard.Add(position, Dashboard(step, step.ScreenId == "junction-command-choice" ? commandPosition : passivePosition));
+        }
+        return dashboard;
+    }
+
+    private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition)
+    {
+        NativeTutorialMenuStep Target(string control, NativeTutorialPress press = NativeTutorialPress.Select, params string[] preparation) => new("junction-dashboard", control, press, step.CharacterId, DashboardPreparation: preparation);
+        if (step.Press == NativeTutorialPress.Cancel)
+        {
+            return Target(step.ScreenId switch { "junction-element" => "slot-Elem-Atk", "junction-status" => "slot-ST-Atk", "junction-gf" or "gf-abilities" => "manage-gfs", _ => "slot-HP" });
+        }
+        if (step.ScreenId == "junction-stock")
+        {
+            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "slot-" + step.Context!.SubjectId);
+        }
+        if (step.ScreenId == "junction-gf")
+        {
+            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "manage-gfs");
+        }
+        if (step.ScreenId is "junction-command-choice" or "junction-ability-choice")
+        {
+            bool command = step.ScreenId == "junction-command-choice";
+            int position = int.Parse(step.Context?.SubjectId ?? priorAbilityPosition ?? (command ? "1" : "0"), System.Globalization.CultureInfo.InvariantCulture) - (command ? 1 : 0);
+            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, (command ? "command-" : "passive-") + position);
+        }
+        if (step.ScreenId is "junction-command" or "junction-ability")
+        {
+            bool command = step.ScreenId == "junction-command";
+            int position = int.Parse(step.EntryId!, System.Globalization.CultureInfo.InvariantCulture) - (command ? 1 : 0);
+            return Target((command ? "command-" : "passive-") + position, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.Confirm : NativeTutorialPress.Select);
+        }
+        if (step.ScreenId is "junction-magic" or "junction-element" or "junction-status")
+        {
+            return Target("slot-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.Confirm : NativeTutorialPress.Select);
+        }
+        if (step.ScreenId == "junction-off")
+        {
+            return Target(step.EntryId == "All" ? "remove-junctions" : "clear-magic", NativeTutorialPress.ApplyDashboard, "junction-actions");
+        }
+        if (step.ScreenId == "junction-auto")
+        {
+            string priority = step.EntryId switch { "magic" => "Magic", "defense" => "Defense", _ => "Attack" };
+            return Target("priority-" + priority, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "junction-actions", "optimize");
+        }
+        return Target(step.EntryId switch { "junction-gf" or "junction-options" => "manage-gfs", "junction-auto" => "optimize", "junction-off" => "junction-actions", _ => "slot-HP" }, NativeTutorialPress.Select, step.EntryId == "junction-auto" ? ["junction-actions"] : []);
     }
 }

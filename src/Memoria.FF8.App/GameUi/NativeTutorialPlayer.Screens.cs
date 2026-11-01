@@ -6,7 +6,6 @@ namespace Memoria.FF8.GameUi;
 
 internal sealed partial class NativeTutorialPlayer
 {
-    private NativeCharacterVitals AutoJunction(MenuAction action) => catalog.AutoJunction(party, Menu.Character?.NativeId ?? definition.Descriptor.CharacterId, action.Value switch { "Attack" => 0, "Magic" => 1, "Defense" => 2, _ => throw new InvalidOperationException("Unknown native Auto priority.") });
     private void InitializeSettings()
     {
         settings["Auto"] = "Off";
@@ -42,8 +41,6 @@ internal sealed partial class NativeTutorialPlayer
             Register("switch-junction-target", "Junction Exchange", c => SwitchTargets(c, "tutorial-exchange-preview"));
             Register("switch-junction-confirm", "Junction Exchange", _ => [new("yes", "Yes", "", Action: new MenuAction("tutorial-exchange", settings.GetValueOrDefault("Exchange source", "1"), settings.GetValueOrDefault("Exchange target", "3"))), new("no", "No", "", "switch-junction")], c => [Menu.FormatNativeTutorialText(catalog.SwitchLabels[12].Value.Replace("{Dialog SelectedCharacter}", c.Data.Characters.FirstOrDefault(character => character.Id == settings.GetValueOrDefault("Exchange source"))?.Name ?? "", StringComparison.Ordinal).Replace("{Dialog SelectedMagic}", c.Data.Characters.FirstOrDefault(character => character.Id == settings.GetValueOrDefault("Exchange target"))?.Name ?? "", StringComparison.Ordinal), names)]);
         }
-        MenuScreenDefinition auto = Menu.Definitions.Single(screen => screen.Id == "junction-auto");
-        Menu.Register(new MenuScreenDefinition { Id = auto.Id, Title = auto.Title, Help = auto.Help, Layout = auto.Layout, Entries = _ => [new("attack", "Atk", "", Action: new MenuAction("tutorial-auto", Value: "Attack")), new("magic", "Mag", "", Action: new MenuAction("tutorial-auto", Value: "Magic")), new("defense", "Def", "", Action: new MenuAction("tutorial-auto", Value: "Defense"))] });
     }
 
     private MenuEntry Setting(string id, string label) => new(id, $"{label}   {settings[id]}", "", Action: new MenuAction("tutorial-setting", id, Value: settings[id] == "On" ? "Off" : "On"));

@@ -32,13 +32,26 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = PresentationProvider.Padding(this), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
-        anchored.Children.Add(PresentationProvider.Compose(this));
+        anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : PresentationProvider.Compose(this));
         AddTutorialMessage(anchored);
         _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor || ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
+        if (IsJunctionDashboard)
+        {
+            _view.DesignWidth = JunctionAccessible ? junctionViewportWidth : 1280;
+            _view.DesignHeight = JunctionAccessible ? junctionViewportHeight : 720;
+            _view.Resize(_view.DesignWidth, _view.DesignHeight);
+            if (junctionScroll is not null)
+            {
+                junctionScroll.Offset = junctionScrollOffset;
+            }
+            UiView dashboardView = _view;
+            FocusJunctionDashboard(dashboardView);
+            return dashboardView;
+        }
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
         string commandListId = ScreenId == "shop-junk" && SelectedIndex < Data.Characters.Count ? "weapon-characters" : "commands";
