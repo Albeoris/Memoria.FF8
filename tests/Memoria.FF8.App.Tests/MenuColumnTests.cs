@@ -28,6 +28,39 @@ public sealed class MenuColumnTests
     }
 
     [Theory]
+    [InlineData("item-target", 960, 672, "100%")]
+    [InlineData("magic-target", 1280, 720, "150%")]
+    [InlineData("magic-exchange-target", 960, 672, "100%")]
+    public void TargetStatusesUseBattleArtworkBelowNamesWithoutReplacingHp(string screen, int width, int height, string scale)
+    {
+        MenuData data = MagicData(false, false, 6, 1, false);
+        data.Settings["Text scale"] = scale;
+        data.Characters[0].SavedStatuses = 0x7f;
+        data.Characters[0].Conditions.Add("Localized status text");
+        MenuController menus = new(() => data);
+        menus.Open(screen);
+        UiView view = menus.BuildView();
+        view.Resize(width, height);
+        UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => element.Id == "commands");
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal("A", list.Items[0]);
+        Assert.Equal(Enumerable.Range(272, 7), list.ItemIcons[0].Select(image => image.Id));
+        Assert.Empty(list.ItemIcons[1]);
+        Assert.DoesNotContain(canvas.Texts, draw => draw.Text.Contains("Localized status text"));
+        Assert.Contains(canvas.Texts, draw => draw.Text == "HP 7 / 90");
+        TextDraw name = Assert.Single(canvas.Texts, draw => draw.Text == "A");
+        var icons = canvas.ImageBounds.Where(draw => draw.Source.Kind == UiImageKind.Icon).ToArray();
+        Assert.Equal(7, icons.Length);
+        Assert.All(icons, icon =>
+        {
+            Assert.True(icon.Bounds.Y >= name.Bounds.Bottom);
+            Assert.True(icon.Bounds.Right <= name.Bounds.Right);
+        });
+    }
+
+    [Theory]
     [MemberData(nameof(MagicCases))]
     public void FieldMagicRowsKeepStockAndUsesAlongsideNamesAndOwners(bool shared, bool finite, int stock, int uses, bool bound)
     {
@@ -295,6 +328,7 @@ public sealed class MenuColumnTests
     {
         public List<TextDraw> Texts { get; } = [];
         public List<UiImageSource> Images { get; } = [];
+        public List<(UiImageSource Source, UiRect Bounds)> ImageBounds { get; } = [];
         private readonly Stack<UiRect> clips = new();
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
@@ -316,6 +350,7 @@ public sealed class MenuColumnTests
         public void Image(UiImageSource source, UiRect bounds)
         {
             Images.Add(source);
+            ImageBounds.Add((source, bounds));
         }
 
         public void Fill(UiRect bounds, UiColor color)

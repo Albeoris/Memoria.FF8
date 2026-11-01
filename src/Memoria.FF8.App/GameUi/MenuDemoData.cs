@@ -46,6 +46,7 @@ public static class MenuDemoData
             character.GuardianForceIds.Add(i.ToString());
             if (i == 2)
             {
+                character.SavedStatuses = 2;
                 character.Conditions.Add("Poison");
             }
             data.Characters.Add(character);

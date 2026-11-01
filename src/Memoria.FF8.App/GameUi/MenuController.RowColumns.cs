@@ -30,7 +30,8 @@ public sealed partial class MenuController
             {
                 return;
             }
-            list.Items = entries.Select(entry => CommandTargetCharacter(entry) is { } character ? character.Name + (character.Conditions.Count == 0 ? "" : "\n" + string.Join(" / ", character.Conditions)) : CommandTargetGuardianForce(entry)?.Name ?? entry.Label).ToList();
+            list.Items = entries.Select(entry => CommandTargetCharacter(entry) is { } character ? character.Name : CommandTargetGuardianForce(entry)?.Name ?? entry.Label).ToList();
+            list.ItemIcons = entries.Select(entry => SavedStatusArtwork.Images(CommandTargetCharacter(entry)?.SavedStatuses ?? 0)).ToList();
             list.TextFlow = UiTextFlow.Wrap;
             list.SecondaryItems = entries.Select(entry => CommandTargetCharacter(entry) is { } character ? "HP " + Hp(character) : CommandTargetGuardianForce(entry) is { } force ? $"HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}" : "").ToList();
         }

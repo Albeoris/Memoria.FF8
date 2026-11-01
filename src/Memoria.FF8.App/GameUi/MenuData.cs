@@ -59,6 +59,7 @@ public sealed class MenuCharacter
     public string LimitBreak { get; set; } = "Unavailable";
     public int? NativeLimitCommand { get; set; }
     public float? AtbProgress { get; set; }
+    public uint SavedStatuses { get; set; }
     public List<string> Conditions { get; } = [];
     public List<string> Commands { get; } = [];
     public List<string> Abilities { get; } = [];

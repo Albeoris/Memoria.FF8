@@ -44,7 +44,8 @@ public sealed class FieldMenuStatusTests
         }
         UiList list = Commands(menus);
         Assert.True(list.Bounds.Width > 0);
-        Assert.Contains("Recipient\nPoison / Blind", list.Items);
+        Assert.Contains("Recipient", list.Items);
+        Assert.Equal(new[] { 273, 275 }, list.ItemIcons[1].Select(image => image.Id));
     }
 
     [Theory]
@@ -70,6 +71,7 @@ public sealed class FieldMenuStatusTests
         MenuCharacter projected = LiveMenuData.Build(state).Characters.Single(character => character.Id == "character-0");
 
         Assert.Equal(expected, string.Join(" / ", projected.Conditions));
+        Assert.Equal((uint)mask, projected.SavedStatuses);
         Assert.Equal(before, JsonSerializer.Serialize(state));
     }
 
@@ -82,14 +84,18 @@ public sealed class FieldMenuStatusTests
         MenuController menus = new(() => data);
         menus.Open(screen);
         UiList list = Commands(menus);
-        Assert.Equal(new[] { "Caster\nSilence", "Recipient\nPoison / Blind" }, list.Items);
+        Assert.Equal(new[] { "Caster", "Recipient" }, list.Items);
         Assert.Equal(new[] { "HP 20 / 100", "HP 30 / 200" }, list.SecondaryItems);
         Assert.Equal(UiTextFlow.Wrap, list.TextFlow);
+        Assert.Equal(new[] { 276 }, list.ItemIcons[0].Select(image => image.Id));
+        Assert.Equal(new[] { 273, 275 }, list.ItemIcons[1].Select(image => image.Id));
 
+        data.Characters[1].SavedStatuses = 0;
         data.Characters[1].Conditions.Clear();
         menus.InvalidateLiveData();
 
-        Assert.Equal(new[] { "Caster\nSilence", "Recipient" }, Commands(menus).Items);
+        Assert.Equal(new[] { "Caster", "Recipient" }, Commands(menus).Items);
+        Assert.Empty(Commands(menus).ItemIcons[1]);
     }
 
     [Fact]
@@ -98,23 +104,24 @@ public sealed class FieldMenuStatusTests
         MenuData data = Targets();
         MenuController menus = new(() => data);
         menus.Open("item-target");
-        Assert.Equal("Silence", StatusText(menus));
+        Assert.Equal(new[] { 276 }, StatusIcons(menus));
 
         menus.Navigate(MenuInput.Down);
 
         Assert.Equal("Caster", menus.Character!.Name);
-        Assert.Equal("Poison\nBlind", StatusText(menus));
+        Assert.Equal(new[] { 273, 275 }, StatusIcons(menus));
+        data.Characters[1].SavedStatuses = 0;
         data.Characters[1].Conditions.Clear();
         menus.InvalidateLiveData();
-        Assert.Equal("", StatusText(menus));
+        Assert.Empty(StatusIcons(menus));
     }
 
     private static MenuData Targets()
     {
         MenuData data = new();
-        MenuCharacter caster = new() { Id = "character-0", Name = "Caster", InParty = true, NativeFieldItemTargetAllowed = true, CurrentHp = 20, MaximumHp = 100 };
+        MenuCharacter caster = new() { Id = "character-0", Name = "Caster", SavedStatuses = 16, InParty = true, NativeFieldItemTargetAllowed = true, CurrentHp = 20, MaximumHp = 100 };
         caster.Conditions.Add("Silence");
-        MenuCharacter recipient = new() { Id = "character-1", Name = "Recipient", NativeFieldItemTargetAllowed = true, CurrentHp = 30, MaximumHp = 200 };
+        MenuCharacter recipient = new() { Id = "character-1", Name = "Recipient", SavedStatuses = 10, NativeFieldItemTargetAllowed = true, CurrentHp = 30, MaximumHp = 200 };
         recipient.Conditions.AddRange(["Poison", "Blind"]);
         data.Characters.AddRange([caster, recipient]);
         data.Items.Add(new() { Id = "item-1", Name = "Remedy", Quantity = 2, NativeFieldUseSupported = true });
@@ -125,10 +132,11 @@ public sealed class FieldMenuStatusTests
 
     private static UiList Commands(MenuController menus) => Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == "commands");
 
-    private static string StatusText(MenuController menus)
+    private static int[] StatusIcons(MenuController menus)
     {
         UiPanel panel = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiPanel>(), panel => panel.Caption == "STATUS");
-        return Assert.Single(Descendants(panel).OfType<UiLabel>()).Text;
+        Assert.Empty(Descendants(panel).OfType<UiLabel>());
+        return Assert.Single(Descendants(panel).OfType<StatusIconsElement>()).Images.Select(image => image.Id).ToArray();
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

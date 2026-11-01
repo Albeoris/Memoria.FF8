@@ -87,6 +87,7 @@ public static class LiveMenuData
                 }
                 MenuCharacter character = new()
                 {
+                    SavedStatuses = native.Status,
                     AttackMode = vitals.MagicSystem.AttackModes[row].ToString(),
                     NativeFieldItemTargetAllowed = (native.MemberFlags & 1) != 0 && (!vitals.DreamEnabled || inParty),
                     Id = $"character-{row}",

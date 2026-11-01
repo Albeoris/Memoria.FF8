@@ -14,7 +14,7 @@ public sealed class UiList : UiElement
     private bool _hasTextMeasurements;
     private bool _hasMeasuredRows;
 
-    private readonly record struct RowMeasurement(string Text, string? Secondary, float PrimaryWidth, float SecondaryWidth, float FontSize);
+    private readonly record struct RowMeasurement(string Text, string? Secondary, float PrimaryWidth, float SecondaryWidth, float FontSize, int IconCount);
 
     public UiList()
     {
@@ -192,6 +192,8 @@ public sealed class UiList : UiElement
     public IList<UiImageSource?> Images { get; set; } = new List<UiImageSource?>();
     public IList<UiImageSource?> LeadingImages { get; set; } = new List<UiImageSource?>();
     public IList<UiImageSource?> TrailingImages { get; set; } = new List<UiImageSource?>();
+    /// <summary>Artwork shown below the primary text in each row.</summary>
+    public IList<IReadOnlyList<UiImageSource>> ItemIcons { get; set; } = new List<IReadOnlyList<UiImageSource>>();
     public IList<string> SecondaryItems { get; set; } = new List<string>();
 
     public Func<int, UiColor?>? ItemTextColor { get; set; }
@@ -273,7 +275,21 @@ public sealed class UiList : UiElement
                 float secondaryLeft = row.X + rowColumns.SecondaryLeft;
                 float textRight = row.X + rowColumns.SecondaryRight;
                 UiTextFlow textFlow = TextFlow == UiTextFlow.Auto ? AutoRowHeight && Orientation == UiOrientation.Vertical ? UiTextFlow.Wrap : UiTextFlow.SingleLine : TextFlow;
-                canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, row.Height), textColor, UiAlignment.Center, textFlow);
+                float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
+                IReadOnlyList<UiImageSource> icons = index < ItemIcons.Count ? ItemIcons[index] : [];
+                float iconSize = fontSize * 0.75f;
+                float iconHeight = icons.Count > 0 ? iconSize + 2 : 0;
+                float nameHeight = Math.Max(0, row.Height - iconHeight);
+                canvas.Text(Items[index], fontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, nameHeight), textColor, UiAlignment.Center, textFlow);
+                for (int iconIndex = 0; iconIndex < icons.Count; iconIndex++)
+                {
+                    float iconX = textLeft + iconIndex * (iconSize + 3);
+                    if (iconX + iconSize > textLeft + rowColumns.PrimaryWidth)
+                    {
+                        break;
+                    }
+                    canvas.Image(icons[iconIndex], new UiRect(iconX, row.Y + nameHeight, iconSize, iconSize));
+                }
                 if (hasSecondary)
                 {
                     UiRect secondaryClip = new(secondaryLeft, row.Y, Math.Max(0, textRight - secondaryLeft), row.Height);
@@ -671,12 +687,12 @@ public sealed class UiList : UiElement
             RowColumns rowColumns = ColumnsForRow(columns, secondary);
             float primaryWidth = TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : rowColumns.PrimaryWidth;
             float secondaryWidth = TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : Math.Max(columns.SecondaryWrapWidth, rowColumns.SecondaryRight - rowColumns.SecondaryLeft);
-            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, primaryWidth, secondary ? secondaryWidth : 0, FontSize > 0 ? FontSize : theme.FontSize);
+            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, primaryWidth, secondary ? secondaryWidth : 0, FontSize > 0 ? FontSize : theme.FontSize, index < ItemIcons.Count ? ItemIcons[index].Count : 0);
             if (measurements[index] != measurement)
             {
                 UiSize? primary = TryMeasureText(canvas, measurement.Text, measurement.FontSize, measurement.PrimaryWidth);
                 UiSize? value = measurement.Secondary is null ? null : TryMeasureText(canvas, measurement.Secondary, measurement.FontSize, measurement.SecondaryWidth);
-                textHeights[index] = Math.Max(primary?.Height ?? 0, value?.Height ?? 0);
+                textHeights[index] = Math.Max((primary?.Height ?? (measurement.IconCount > 0 ? measurement.FontSize : 0)) + (measurement.IconCount > 0 ? measurement.FontSize * 0.75f + 2 : 0), value?.Height ?? 0);
                 if (primary.HasValue && (measurement.Secondary is null || value.HasValue))
                 {
                     measurements[index] = measurement;

@@ -9,13 +9,13 @@ internal sealed partial class BattleHudElement
 
     private static readonly StatusLabel[] StatusLabels =
     [
-        new(true, 1, "KO", 272),
-        new(true, 2, "Poison", 273),
-        new(true, 4, "Petrify", 274),
-        new(true, 8, "Blind", 275),
-        new(true, 16, "Silence", 276),
-        new(true, 32, "Berserk", 277),
-        new(true, 64, "Zombie", 278),
+        new(true, 1, "KO", SavedStatusArtwork.Icon(1)),
+        new(true, 2, "Poison", SavedStatusArtwork.Icon(2)),
+        new(true, 4, "Petrify", SavedStatusArtwork.Icon(4)),
+        new(true, 8, "Blind", SavedStatusArtwork.Icon(8)),
+        new(true, 16, "Silence", SavedStatusArtwork.Icon(16)),
+        new(true, 32, "Berserk", SavedStatusArtwork.Icon(32)),
+        new(true, 64, "Zombie", SavedStatusArtwork.Icon(64)),
         new(false, 1, "Sleep", 279),
         new(false, 2, "Haste"),
         new(false, 4, "Slow", 280),

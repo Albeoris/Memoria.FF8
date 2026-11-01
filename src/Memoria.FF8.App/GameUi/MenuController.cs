@@ -1047,6 +1047,7 @@ public sealed partial class MenuController
                     }
                     else if (item.Name is "Antidote" or "Remedy")
                     {
+                        target.SavedStatuses = 0;
                         target.Conditions.Clear();
                         item.Quantity--;
                         SetSystemMessage(() => FormatSystemText("ui.applydemo.message.fixture.conditions.cleared.on", "Fixture: conditions cleared on {0}.", target.Name));
