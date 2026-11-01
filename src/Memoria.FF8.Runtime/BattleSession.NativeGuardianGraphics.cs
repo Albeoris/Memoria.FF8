@@ -73,6 +73,7 @@ public sealed partial class BattleSession
                 NativeBattleGraphicsModel row2 = graphics.Models[2];
                 graphics = graphics with { Models = graphics.Models.SetItem(2, row2 with { Flags0 = (ushort)(row2.Flags0 & ~2) }) };
             }
+            AdmitDiagnosticVisualEntry(header);
             graphics = InvokeNativeOriginalEffect(graphics);
             if (header.ReadByte(1) == 0xFE)
             {

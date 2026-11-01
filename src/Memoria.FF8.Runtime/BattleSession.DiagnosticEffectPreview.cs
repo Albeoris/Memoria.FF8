@@ -30,6 +30,24 @@ public sealed partial class BattleSession
     /// <summary>Publishes one graphical carrier directly; no combat command, stock, formula or reward is evaluated.</summary>
     public void PublishDiagnosticEffectPreview(ushort effect)
     {
+        PublishDiagnosticEffectPreviewHeader(effect, 2, 1);
+    }
+
+    public BattleNativeAction ResolveDiagnosticPreviewAbility(byte menuCommand, int abilityId)
+    {
+        byte nativeCommand = menuCommand switch { 2 => 2, 3 => 254, _ => throw new NotSupportedException("Ability preview requires native Magic or GF command metadata.") };
+        int actionId = menuCommand == 3 ? checked(64 + abilityId) : abilityId;
+        return definition.NativeActions.SingleOrDefault(action => action.Command == nativeCommand && action.ActionId == actionId) ?? throw new NotSupportedException("Selected ability has no installed original kernel action record.");
+    }
+
+    public void PublishDiagnosticAbilityPreview(byte menuCommand, int abilityId)
+    {
+        BattleNativeAction ability = ResolveDiagnosticPreviewAbility(menuCommand, abilityId);
+        PublishDiagnosticEffectPreviewHeader(ability.MagicId, ability.Command, ability.ActionId);
+    }
+
+    private void PublishDiagnosticEffectPreviewHeader(ushort effect, byte command, ushort action)
+    {
         if (!diagnosticEffectPreview || diagnosticEffectPreviewPublished || effect is < 1 or > 400)
         {
             throw new InvalidOperationException("Graphical preview requires one native effect publication in its own arena.");
@@ -40,7 +58,9 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Graphical preview requires its initialized ally0/enemy3 resource owners.");
         }
-        NativeBattleActionHeaderPreparation header = new(0, 2, 11, -1, 1, effect, null);
+        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == 0);
+        byte sequence = ResolveNativeDispatchSequence(actor, command, 0, action);
+        NativeBattleActionHeaderPreparation header = new(0, command, sequence, -1, action, effect, null);
         (nativeActionPackets, int index) = nativeActionPackets.Prepare(header);
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(3, 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);

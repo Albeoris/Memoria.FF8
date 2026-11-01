@@ -12,9 +12,9 @@ public sealed partial class BattleSession
         int index = (int)(offset / 20);
         NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(nativeActionPackets, index, graphics.ActionGraphics);
         NativeBattleActionServiceSelection selection = NativeBattleActionGraphics.SelectService(nativeActionPackets.Headers[index]);
-        if (MatchesDiagnosticVisualEntry(nativeActionPackets.Headers[index]) && selection.Callback != 0x50A9A0)
+        if (MatchesDiagnosticVisualEntry(nativeActionPackets.Headers[index]) && selection.Callback is not (0x50A9A0 or 0x50B2A0))
         {
-            throw new NotSupportedException("Visual presentation gating requires the native casting service entry boundary.");
+            throw new NotSupportedException("Visual presentation gating requires the native casting or GF service entry boundary.");
         }
         nativeActionPackets = nativeActionPackets.ActivateHeader(index);
         if (selection.Sequence is byte sequence)

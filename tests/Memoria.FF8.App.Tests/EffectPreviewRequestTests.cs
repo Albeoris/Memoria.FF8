@@ -45,4 +45,18 @@ public sealed class EffectPreviewRequestTests
         Assert.False(StartupSequence.ShouldPlay(options));
         Assert.Throws<ArgumentException>(() => LaunchOptions.Parse(["--effect-preview", "preview.json", "--battle-test", "case.json"]));
     }
+
+    [Fact]
+    public void Whole_ability_uses_the_original_menu_namespace_and_excludes_a_raw_effect_override()
+    {
+        EffectPreviewRequest request = JsonSerializer.Deserialize<EffectPreviewRequest>("""{"enemy_id":1,"ally_id":0,"ability_id":1}""", new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower })!;
+        request.Validate();
+        Assert.Null(request.EffectId);
+        Assert.Equal(3, request.AbilityCommand);
+        Assert.Equal(1, request.AbilityId);
+        (request with { CommandId = 2 }).Validate();
+        Assert.Throws<InvalidDataException>(() => (request with { EffectId = 2 }).Validate());
+        Assert.Throws<InvalidDataException>(() => new EffectPreviewRequest(1, 0).Validate());
+        Assert.Throws<NotSupportedException>(() => (request with { CommandId = 4 }).Validate());
+    }
 }

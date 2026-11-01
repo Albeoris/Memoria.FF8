@@ -6,8 +6,11 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record EffectPreviewRequest([property: JsonRequired] int EnemyId, [property: JsonRequired] byte AllyId, [property: JsonRequired] ushort EffectId)
+internal sealed record EffectPreviewRequest([property: JsonRequired] int EnemyId, [property: JsonRequired] byte AllyId, ushort? EffectId = null)
 {
+    public int? AbilityId { get; init; }
+    public byte? CommandId { get; init; }
+    internal byte AbilityCommand => CommandId ?? 3;
     public int StageId { get; init; }
     public byte Seed { get; init; }
     public double DurationSeconds { get; init; } = 300;
@@ -15,9 +18,13 @@ internal sealed record EffectPreviewRequest([property: JsonRequired] int EnemyId
 
     internal void Validate()
     {
-        if (EnemyId is < 0 or > 238 || AllyId > 10 || EffectId is < 1 or > 400 || StageId is < 0 or > 255 || !double.IsFinite(DurationSeconds) || DurationSeconds <= 0 || DurationSeconds > 3600)
+        if (EnemyId is < 0 or > 238 || AllyId > 10 || EffectId is < 1 or > 400 || StageId is < 0 or > 255 || !double.IsFinite(DurationSeconds) || DurationSeconds <= 0 || DurationSeconds > 3600 || EffectId.HasValue == AbilityId.HasValue || AbilityId is < 0 or > ushort.MaxValue || CommandId is not null && AbilityId is null)
         {
             throw new InvalidDataException("Effect preview requires valid native enemy, ally, effect and stage identities and a bounded duration.");
+        }
+        if (AbilityId is not null && AbilityCommand is not (2 or 3))
+        {
+            throw new NotSupportedException("Whole ability preview currently supports native Magic command2 and GF command3.");
         }
         Presentation?.Validate();
     }

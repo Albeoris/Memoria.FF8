@@ -29,16 +29,20 @@ internal sealed class DiagnosticPresentationGate
     private static readonly JsonSerializerOptions ReceiptJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     private readonly DiagnosticPresentationDeclaration declaration;
     private readonly ushort expectedEffect;
+    private readonly byte? commandId;
+    private readonly int? abilityId;
     private DateTimeOffset? readyUtc;
     private DateTimeOffset? startUtc;
     private DateTimeOffset? visualStartUtc;
     private bool visualReady;
 
-    internal DiagnosticPresentationGate(DiagnosticPresentationDeclaration declaration, ushort expectedEffect)
+    internal DiagnosticPresentationGate(DiagnosticPresentationDeclaration declaration, ushort expectedEffect, byte? commandId = null, int? abilityId = null)
     {
         declaration.Validate();
         this.declaration = declaration;
         this.expectedEffect = expectedEffect;
+        this.commandId = commandId;
+        this.abilityId = abilityId;
         Directory.CreateDirectory(declaration.ReceiptDirectory);
         if (new[] { "ready", "started", "visual-ready", "visual-started", "completed", "blocked" }.Any(state => File.Exists(Path.Combine(declaration.ReceiptDirectory, state + ".json"))))
         {
@@ -117,7 +121,7 @@ internal sealed class DiagnosticPresentationGate
     {
         string path = Path.Combine(declaration.ReceiptDirectory, state + ".json");
         string temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new { schema_version = 1, run_id = declaration.RunId, pid = Environment.ProcessId, expected_effect = expectedEffect, state, utc = now, start_at_utc = startUtc, visual_start_at_utc = visualStartUtc, dispatch_utc = dispatchUtc, native_identity = nativeIdentity, atb_gating = atbGating, callback, frame, blocker }, ReceiptJson));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(new { schema_version = 1, run_id = declaration.RunId, pid = Environment.ProcessId, expected_effect = expectedEffect, command_id = commandId, ability_id = abilityId, state, utc = now, start_at_utc = startUtc, visual_start_at_utc = visualStartUtc, dispatch_utc = dispatchUtc, native_identity = nativeIdentity, atb_gating = atbGating, callback, frame, blocker }, ReceiptJson));
         File.Move(temporary, path, false);
     }
 }
