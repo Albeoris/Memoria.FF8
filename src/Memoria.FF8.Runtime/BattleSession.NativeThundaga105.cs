@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Thundaga requires its authenticated interpolation constants.");
         NativeBattleThundaga105Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Thundaga requires its retained process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Thundaga requires its retained CRT state."));
         NativeBattleActionMatrix? billboard = initialize ? null : NativeBattleGfMatrices.Normalize67AAE0(View());
-        NativeBattleThundaga105Inputs inputs = new(nativeActionPackets, Bone, actor => ReadNativeModelAnchor(graphics, actor), actor => graphics.Models[actor].Color40 ?? throw new NotSupportedException("Native Thundaga requires its actor color DWORD."), actor => Transform(actor).Scale38, DrawPrimary, Execute);
+        NativeBattleThundaga105Inputs inputs = new(nativeActionPackets, actor => ReadNativeThundaga105Anchor(graphics, actor), actor => ReadNativeModelAnchor(graphics, actor), actor => graphics.Models[actor].Color40 ?? throw new NotSupportedException("Native Thundaga requires its actor color DWORD."), actor => Transform(actor).Scale38, DrawPrimary, Execute);
         frame = initialize ? NativeBattleThundaga105Controller.Initialize6D3DE0(frame, inputs, resources) : NativeBattleThundaga105Controller.Advance6D3E50(frame, inputs, resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
@@ -21,17 +21,6 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection Projection() => NativeCamera?.Projection ?? throw new NotSupportedException("Native Thundaga requires its published projection.");
         NativeBattleActionMatrix View() => Projection().View ?? throw new NotSupportedException("Native Thundaga requires its published camera view.");
         NativeBattleModelTransform Transform(int actor) => graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
-
-        ImmutableArray<byte> Bone(int actor)
-        {
-            NativeBattleVector xyz = ReadNativeGraphicsBone(graphics, actor, 241, 0);
-            byte[] raw = new byte[8];
-            BinaryPrimitives.WriteInt16LittleEndian(raw, xyz.X);
-            BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), xyz.Y);
-            BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), xyz.Z);
-            BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(6), Transform(actor).Angle36);
-            return raw.ToImmutableArray();
-        }
 
         NativeBattleThundaga105TaskStep DrawPrimary(NativeBattleThundaga105Frame current, NativeBattleModulePoolTask task, int actor, ImmutableArray<byte> anchor)
         {
@@ -132,6 +121,18 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
         }
+    }
+
+    private ImmutableArray<byte> ReadNativeThundaga105Anchor(NativeBattleGraphicsState graphics, int actor)
+    {
+        NativeBattleVector xyz = ReadNativeGraphicsBone(graphics, actor, 241, 0);
+        NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
+        byte[] raw = new byte[8];
+        BinaryPrimitives.WriteInt16LittleEndian(raw, xyz.X);
+        BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), transform.Angle36);
+        BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), xyz.Z);
+        BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(6), transform.Angle36);
+        return raw.ToImmutableArray();
     }
 
     private bool TryWriteNativeThundaga105Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
