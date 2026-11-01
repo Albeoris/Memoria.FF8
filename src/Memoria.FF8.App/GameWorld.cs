@@ -50,6 +50,13 @@ internal sealed partial class GameWorld : IDisposable
         this.validateWorldPresentation = validateWorldPresentation;
         ownsAssets = sharedAssets is null;
         assets = sharedAssets ?? new GameAssets(gameDirectory, resources: resources, modelOverrides: modelOverrides);
+        if (session.State.CharacterVitals is { } savedVitals && savedVitals.Definitions.CharacterStatusPassiveFlags.IsDefault)
+        {
+            GameState restored = NativeCharacterInitialization.RestoreMissingStatusPassiveFlags(session.State, assets.ReadNewGameCharacterVitals());
+            session.SetCharacterVitals(restored.CharacterVitals!);
+            session.SetEventState(restored.EventState);
+            session.SetDepartingFieldState(restored.DepartingFieldState);
+        }
         bool initializedNativeParty = false;
         if (session.State.KnownMagic is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {

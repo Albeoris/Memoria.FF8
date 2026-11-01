@@ -1,12 +1,61 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
 public static class NativeCharacterInitialization
 {
+    public static GameState RestoreMissingStatusPassiveFlags(GameState saved, NativeCharacterVitals source)
+    {
+        if (saved.CharacterVitals is not { } vitals || !vitals.Definitions.CharacterStatusPassiveFlags.IsDefault)
+        {
+            return saved;
+        }
+        JsonElement? RestoreCheckpoint(JsonElement? checkpoint)
+        {
+            if (checkpoint is not { } value || !value.TryGetProperty("CharacterVitals", out JsonElement characters) || characters.ValueKind == JsonValueKind.Null)
+            {
+                return checkpoint;
+            }
+            NativeCharacterVitals current = characters.Deserialize<NativeCharacterVitals>(new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } }) ?? throw new InvalidDataException("Empty event character vitals.");
+            NativeCharacterVitals restored = RestoreMissingStatusPassiveFlags(current, source);
+            JsonObject result = JsonNode.Parse(value.GetRawText())!.AsObject();
+            result["CharacterVitals"]!["Definitions"]!["CharacterStatusPassiveFlags"] = JsonSerializer.SerializeToNode(restored.Definitions.CharacterStatusPassiveFlags);
+            return JsonSerializer.SerializeToElement(result);
+        }
+        return saved with
+        {
+            CharacterVitals = RestoreMissingStatusPassiveFlags(vitals, source),
+            EventState = RestoreCheckpoint(saved.EventState),
+            DepartingFieldState = RestoreCheckpoint(saved.DepartingFieldState)
+        };
+    }
+
+    /// <summary>Restores an omitted resource table in an older snapshot from its exact kernel, preserving saved progress.</summary>
+    public static NativeCharacterVitals RestoreMissingStatusPassiveFlags(NativeCharacterVitals saved, NativeCharacterVitals source)
+    {
+        saved.Validate();
+        if (!saved.Definitions.CharacterStatusPassiveFlags.IsDefault)
+        {
+            return saved;
+        }
+        source.Validate();
+        if (!string.Equals(saved.KernelSha256, source.KernelSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException("Restoring character ability definitions requires the same kernel used by the saved characters.");
+        }
+        if (source.Definitions.CharacterStatusPassiveFlags.IsDefault || source.Definitions.CharacterStatusPassiveFlags.Length != 20)
+        {
+            throw new NotSupportedException("Restoring character ability definitions requires all twenty original kernel flag records.");
+        }
+        return saved with { Definitions = saved.Definitions with { CharacterStatusPassiveFlags = source.Definitions.CharacterStatusPassiveFlags } };
+    }
+
     public static NativeCharacterVitals Read(byte[] initial, byte[] kernel)
     {
         NativeInitialData.Validate(initial);
