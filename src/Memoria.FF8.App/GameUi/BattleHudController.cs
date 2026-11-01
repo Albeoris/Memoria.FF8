@@ -279,6 +279,7 @@ public sealed partial class BattleHudController
             SelectingTarget = false;
             SelectingAction = false;
             SelectingDrawMode = false;
+            expandedDrawCastActionId = null;
             selectedDrawSourceId = null;
             session.CloseNativeActionMenu();
             selectedMagicTargets.Clear();
@@ -400,6 +401,7 @@ public sealed partial class BattleHudController
                 {
                     if (SelectingAction)
                     {
+                        expandedDrawCastActionId = null;
                         actionIndex = (actionIndex + direction + count) % count;
                     }
                     else
@@ -412,6 +414,15 @@ public sealed partial class BattleHudController
             }
             else if (SelectingAction && SelectedCommand == BattleAbility.Draw)
             {
+                if (input is MenuInput.Left or MenuInput.Right && SelectedAction is { } drawAction && CanExpandDrawCast(drawAction))
+                {
+                    int? expanded = input == MenuInput.Right ? drawAction.Id : null;
+                    if (expandedDrawCastActionId != expanded)
+                    {
+                        expandedDrawCastActionId = expanded;
+                        SoundRequested?.Invoke(MenuSound.Move);
+                    }
+                }
                 return;
             }
             else if (!SelectingAction && input is MenuInput.Left or MenuInput.Right)
@@ -610,6 +621,10 @@ public sealed partial class BattleHudController
         }
         else if (SelectingAction)
         {
+            if (actionIndex != index)
+            {
+                expandedDrawCastActionId = null;
+            }
             actionIndex = index;
         }
         else
@@ -622,7 +637,8 @@ public sealed partial class BattleHudController
     private string ChoiceLabel(BattleActionDefinition action)
     {
         string label = localizedActionName?.Invoke(action) ?? action.DisplayName ?? action.Name;
-        return FormatBattleText(label);
+        string formatted = FormatBattleText(label);
+        return IsExpandedDrawCast(action) ? SystemText("battle.ui.choicelabels.cast", "Cast") + ": " + formatted : formatted;
     }
 
     public void SelectParty(string actorId)
@@ -640,6 +656,7 @@ public sealed partial class BattleHudController
             magicCastCountSelected = false;
             SelectingAction = false;
             SelectingDrawMode = false;
+            expandedDrawCastActionId = null;
             selectedDrawSourceId = null;
             selectedTargetId = null;
             session.CloseNativeActionMenu();
@@ -774,6 +791,12 @@ public sealed partial class BattleHudController
         if (SelectingDrawCastRecipient)
         {
             SelectingTarget = false;
+            if (expandedDrawCastActionId == SelectedAction?.Id)
+            {
+                SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.magic.to.draw", "Choose magic to draw."));
+                SoundRequested?.Invoke(MenuSound.Cancel);
+                return;
+            }
             SelectingDrawMode = true;
             SetSystemMessage(() => SystemText("battle.ui.canceltarget.stock.or.cast", "Stock or Cast?"));
             SoundRequested?.Invoke(MenuSound.Cancel);
@@ -783,6 +806,12 @@ public sealed partial class BattleHudController
         {
             SelectingDrawMode = false;
             SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.magic.to.draw", "Choose magic to draw."));
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
+        if (SelectedCommand == BattleAbility.Draw && SelectingAction && expandedDrawCastActionId is not null)
+        {
+            expandedDrawCastActionId = null;
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }

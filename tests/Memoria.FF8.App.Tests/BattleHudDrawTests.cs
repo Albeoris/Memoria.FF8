@@ -65,6 +65,76 @@ public sealed class BattleHudDrawTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FullStockExpandsToCastAndSubmitsSeparateRecipient(bool infinite, bool shared)
+    {
+        BattleSession battle = CreateWithMagicPool(100, infinite, shared);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        hud.Choose(0);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.CanExpandDrawCast(hud.SelectedAction!));
+        hud.Navigate(MenuInput.Right);
+        Assert.Equal("Cast: Cure", Assert.Single(hud.ChoiceLabels));
+        Assert.Equal("", hud.ChoiceValue(hud.SelectedAction!));
+        Assert.False(hud.SelectingDrawMode);
+        hud.Navigate(MenuInput.Left);
+        Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
+        hud.Navigate(MenuInput.Right);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
+        hud.Navigate(MenuInput.Right);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingDrawCastRecipient);
+        Assert.Empty(inputs);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.Equal("Cast: Cure", Assert.Single(hud.ChoiceLabels));
+        Assert.False(hud.SelectingDrawMode);
+        hud.Navigate(MenuInput.Confirm);
+        hud.SelectTarget("ally", true);
+        BattleInput input = Assert.Single(inputs);
+        Assert.True(input.DrawCast);
+        Assert.Equal("source", input.TargetId);
+        Assert.Equal("ally", input.DrawCastTargetId);
+        Assert.Equal(2, input.ActionId);
+        input.Validate();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChangingSpellClearsInlineCastBeforeReturningFromRecipient(bool click)
+    {
+        BattleDefinition definition = CreateWithMagicPool(100, false, false).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
+        BattleHudController hud = new(new BattleSession(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { });
+        OpenDrawStage(hud, 0);
+        hud.Navigate(MenuInput.Right);
+        if (click)
+        {
+            hud.Choose(1);
+        }
+        else
+        {
+            hud.Navigate(MenuInput.Down);
+            hud.Navigate(MenuInput.Confirm);
+        }
+        hud.Navigate(MenuInput.Down);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingDrawCastRecipient);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.True(hud.SelectingDrawMode);
+        Assert.Equal(3, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Cancel);
+        hud.Navigate(MenuInput.Up);
+        Assert.Equal("Cure", hud.ChoiceLabels[0]);
+    }
+
+    [Theory]
     [InlineData(false, "ally")]
     [InlineData(true, "fallen")]
     public void CastSelectsSourceThenSeparateRecipient(bool revive, string recipient)

@@ -118,7 +118,21 @@ public sealed class BattleUiTests
         UiRect emptyQuantityClip = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y + 28 && clip.X > 216);
         Assert.Equal(quantityClip.Right, emptyQuantityClip.Right);
         Assert.Contains(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y && clip.Width == 156);
-        Assert.Equal(266, canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right));
+        Assert.Equal(count == 100 ? 288 : 266, canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right));
+        if (count == 100)
+        {
+            var arrow = Assert.Single(canvas.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 5));
+            Assert.True(arrow.Bounds.X >= quantityClip.Right);
+            hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / hud.BattleCallbackRate));
+            TestCanvas blink = new();
+            view.Draw(blink, theme);
+            Assert.Contains(blink.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 0));
+            hud.Navigate(MenuInput.Right);
+            TestCanvas expanded = new();
+            view.Draw(expanded, theme);
+            Assert.Contains(expanded.TextDraws, draw => draw.Text == "Cast: Blizzard" && draw.Color == theme.Foreground);
+            Assert.DoesNotContain(expanded.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
+        }
     }
 
     [Theory]

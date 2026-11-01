@@ -107,7 +107,7 @@ internal sealed partial class BattleHudElement : UiElement
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
-            ? controller.CanOpenGuardianFormActions(actions[index])
+            ? controller.CanOpenGuardianFormActions(actions[index]) || controller.CanExpandDrawCast(actions[index]) && !controller.IsExpandedDrawCast(actions[index])
             : !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.NativeLimitAvailable && controller.Commands.ElementAtOrDefault(index) == BattleAbility.Attack).ToArray();
         float arrowWidth = rightArrows.Any(value => value) ? 22 : 0;
         float fontSize = (ShowingMagicList ? 18 : 20) * controller.TextScale;
@@ -126,10 +126,10 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else if (controller.SelectedCommand == BattleAbility.Draw && valueWidth > 0)
             {
-                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38) / Math.Max(1, nameWidth)));
+                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38 - arrowWidth) / Math.Max(1, nameWidth)));
                 valueWidth = canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale * fit;
                 fontSize *= fit;
-                CommandWidth = Math.Clamp(38 + nameWidth * fit, 194, 440) + 12 + valueWidth;
+                CommandWidth = Math.Clamp(38 + nameWidth * fit, 194, 440 - arrowWidth) + arrowWidth + 12 + valueWidth;
             }
             else
             {
@@ -187,7 +187,7 @@ internal sealed partial class BattleHudElement : UiElement
                 {
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
-                bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                bool unavailable = actions.Count > start + row && (!actions[start + row].Available && !controller.IsExpandedDrawCast(actions[start + row]) || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Magic && !controller.MagicAvailable;
                 float valueLeft = 30 + CommandWidth - 8 - valueWidth - (guardianHpColumn ? 0 : arrowWidth);

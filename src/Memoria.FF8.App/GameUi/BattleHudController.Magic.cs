@@ -20,7 +20,7 @@ public sealed partial class BattleHudController
         }
         if (SelectedCommand == BattleAbility.Draw && action.Id < 64)
         {
-            return DrawStockCount(action.Id).ToString();
+            return IsExpandedDrawCast(action) ? "" : DrawStockCount(action.Id).ToString();
         }
         if (SelectedCommand == BattleAbility.Magic)
         {

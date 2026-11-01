@@ -6,6 +6,18 @@ public sealed partial class BattleHudController
 {
     private string? selectedDrawSourceId;
     private int? selectedDrawActionId;
+    private int? expandedDrawCastActionId;
+
+    internal bool CanExpandDrawCast(BattleActionDefinition action)
+    {
+        return SelectedCommand == BattleAbility.Draw && SelectingAction && !SelectingTarget && !SelectingDrawMode && action.Id < 64 && DrawStockCount(action.Id) >= 100 && session.ActionDefinitions.Any(definition => definition.Ability == BattleAbility.Magic && definition.Id == action.Id && definition.Available);
+    }
+
+    internal bool IsExpandedDrawCast(BattleActionDefinition action)
+    {
+        return expandedDrawCastActionId == action.Id && CanExpandDrawCast(action);
+    }
+
     public bool DrawAvailable => MagicAvailable && session.Combatants.Any(IsDrawSource);
     public bool SelectingDrawMode { get; private set; }
     public bool SelectingDrawSource => SelectedCommand == BattleAbility.Draw && SelectingTarget && selectedDrawSourceId is null;
@@ -36,6 +48,7 @@ public sealed partial class BattleHudController
             return false;
         }
         SelectingDrawMode = false;
+        expandedDrawCastActionId = null;
         DrawCast = false;
         selectedDrawActionId = null;
         selectedTargetId = null;
@@ -112,6 +125,7 @@ public sealed partial class BattleHudController
         {
             return true;
         }
+        expandedDrawCastActionId = null;
         selectedDrawSourceId = target.Id;
         selectedTargetId = null;
         SelectingTarget = false;
@@ -146,6 +160,14 @@ public sealed partial class BattleHudController
         else if (SelectedAction is null)
         {
             return true;
+        }
+        else if (!SelectingDrawMode && IsExpandedDrawCast(SelectedAction))
+        {
+            selectedDrawActionId = SelectedAction.Id;
+            DrawCast = true;
+            SelectingTarget = true;
+            RestoreTargetCursor();
+            SetSystemMessage(() => SystemText("battle.ui.confirmdrawselection.choose.the.spell.recipient", "Choose the spell recipient."));
         }
         else if (SelectedAction is { Available: false } && (!SelectingDrawMode || !CastSelectedDraw))
         {
