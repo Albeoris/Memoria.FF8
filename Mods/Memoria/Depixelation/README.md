@@ -1,9 +1,10 @@
 # Depixelation
 
-This bundled native Memoria mod removes pixelated background characters in two scenes:
+This bundled native Memoria mod removes pixelated background characters in these scenes:
 
 - `fields/bghall_6.json`: replaces Cid's background image during the Balamb Garden hall speech with the field's existing Cid model and idle animation.
 - `fields/bgroom_1.json`: hides the seated background student in the Balamb Garden classroom. The scripted student who leaves the room keeps her original behavior.
+- `fields/gltown1.json`: replaces the two uniformed background characters at the Deling City bus stop with the uniformed character model from `glstaup1`. The left character faces down and the right character faces right; their original interaction objects keep their positions and scripts.
 
 Each fix is a separate scene file. Models, animations and background pixels come from the user's installed game; this package contains only scene configuration.
 

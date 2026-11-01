@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "fieldId": 761,
+  "fieldName": "gltown1",
+  "backgrounds": [
+    { "layer": 0, "moduleId": 6, "state": 0, "visible": false }
+  ],
+  "actors": [
+    {
+      "objectId": 13,
+      "model": { "fieldId": 756, "modelId": 9 },
+      "animationId": 0,
+      "direction": 255,
+      "when": { "moduleId": 6, "state": 0 }
+    },
+    {
+      "objectId": 14,
+      "model": { "fieldId": 756, "modelId": 9 },
+      "animationId": 0,
+      "direction": 60,
+      "when": { "moduleId": 6, "state": 0 }
+    }
+  ]
+}
