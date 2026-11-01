@@ -97,7 +97,7 @@ public sealed class GameSessionLiveBattleTests
         Assert.Null(session.LiveBattle);
         Assert.False(session.HasActiveBattle);
         Assert.Same(published, session.State);
-        Assert.Same(published, session.PrepareSnapshot());
+        Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(session.PrepareSnapshot()));
     }
 
     [Fact]

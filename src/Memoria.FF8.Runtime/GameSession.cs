@@ -27,6 +27,7 @@ public sealed partial class GameSession : IEventServices
                 }
             }
         });
+        resolver.Modifiers.Add(SnapshotOwnership.ConfigureSerialization);
         return new() { WriteIndented = true, TypeInfoResolver = resolver, Converters = { new JsonStringEnumConverter() } };
     }
 
@@ -568,7 +569,7 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path, bool compact, Action<GameState>? validateContinuation = null)
     {
-        GameState snapshot = PrepareSnapshot();
+        GameState snapshot = SnapshotOwnership.Prepare(PrepareSnapshot());
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";

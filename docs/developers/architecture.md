@@ -23,6 +23,8 @@ Memoria runs its own game session, event interpreter, simulation and presentatio
 
 Engine libraries, launcher and music helper target plain .NET 10. The current DX11 application and its GPU title renderer retain Windows targets; the title vector/raster helpers also have a portable target. The vendored `Albeoris.Frameworks` projects supply format readers and related dependencies; project references resolve inside the product tree. They do not require another checkout. See [Cross-platform desktop migration](cross-platform.md) for complete project coverage and remaining host boundaries.
 
+Save cleanup follows the explicit [save-state ownership contract](save-state-ownership.md), separating shared physical memory from derived resource metadata and active battle continuation.
+
 ## Session and frame flow
 
 1. Startup parses options, loads a standalone state when requested and opens the selected installation through `GameResourceHost`.

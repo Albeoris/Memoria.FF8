@@ -85,7 +85,7 @@ public sealed partial class BattleSession
             }
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native effect body drawing requires its actual model CPU rows.");
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect body drawing requires its canonical projected CPU memory.");
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount);
+            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount, objectMask: mask);
             uint color = graphics.Models[index].Color40 ?? throw new NotSupportedException("Native effect body drawing requires its actual packed model color.");
             process = process.PublishModelColor(color);
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
             {
                 if (pointer.Length is int available && (offset < 0 || length < 0 || offset > available - length))
                 {
-                    throw new InvalidDataException("Native effect body geometry read leaves its actual source extent.");
+                    throw new InvalidDataException($"Native effect body geometry read at {offset} for {length} bytes leaves its actual source extent {available} (address 0x{pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress:X8}).");
                 }
                 if (pointer.Cpu is { } cpuPointer)
                 {

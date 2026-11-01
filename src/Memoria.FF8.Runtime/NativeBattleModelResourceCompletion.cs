@@ -7,6 +7,7 @@ public sealed record NativeBattleModelCpuResourceRow(ImmutableDictionary<int, Na
 {
     public int? PrivateLength4 { get; init; }
     public int? SharedLength8 { get; init; }
+    [SnapshotOwnership(SnapshotLifetime.BattleResource, SnapshotAuthority.Derived, SnapshotReconstruction.NativeModelLoadOperations)]
     public ImmutableDictionary<int, int> Lengths { get; init; } = ImmutableDictionary<int, int>.Empty;
     public byte? LinkedPhysicalIndex36 { get; init; }
     public static NativeBattleModelCpuResourceRow Unknown() => new(ImmutableDictionary<int, NativeBattleModelCpuReference?>.Empty);
@@ -29,6 +30,12 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     {
         ImmutableDictionary<int, NativeBattleModelCpuReference?> pointers = new[] { 8, 12, 16, 20, 24, 28, 32, 40, 44, 48 }.ToImmutableDictionary(offset => offset, _ => (NativeBattleModelCpuReference?)null);
         return Unknown() with { Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, 11).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+    }
+
+    /// <summary>Invalidated resource rows retain physical bytes, but no derived extent belongs to the next load.</summary>
+    public NativeBattleModelCpuResources InvalidateResourceExtents()
+    {
+        return this with { Rows = Rows.Select(row => row with { Lengths = ImmutableDictionary<int, int>.Empty }).ToImmutableArray() };
     }
 
     public void Validate()
@@ -98,10 +105,16 @@ public static class NativeBattleModelResourceCopies
             firstSection = 0;
             bool special = task.Callback == 0x5079B0;
             endSection = special ? 7 : 5;
-            body = body.Set(12, At(0)).Set(16, At(1)).Set(20, At(2)).Set(48, source.Section(3) == source.Section(4) ? null : At(3)).Set(44, At(4)).Set(8, At(endSection));
+            body = body with { Lengths = ImmutableDictionary<int, int>.Empty };
+            body = Section(body, 12, 0);
+            body = Section(body, 16, 1);
+            body = Section(body, 20, 2);
+            body = Section(body, 48, 3, source.Section(3) == source.Section(4));
+            body = Section(body, 44, 4).Set(8, At(endSection));
             if (special)
             {
-                body = body.Set(24, At(5)).Set(40, At(6));
+                body = Section(body, 24, 5);
+                body = Section(body, 40, 6);
             }
             int animationSection = special ? 9 : 6;
             int start = source.Section(animationSection);
@@ -118,8 +131,12 @@ public static class NativeBattleModelResourceCopies
             origin = tail.Offset;
             firstSection = 0;
             endSection = 5;
-            NativeBattleModelCpuResourceRow linked = rows[row].Set(12, At(0)).Set(16, At(1)).Set(20, At(2));
-            body = body.Set(24, At(3)).Set(40, At(4)) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
+            NativeBattleModelCpuResourceRow linked = rows[row] with { Lengths = ImmutableDictionary<int, int>.Empty };
+            linked = Section(linked, 12, 0);
+            linked = Section(linked, 16, 1);
+            linked = Section(linked, 20, 2);
+            body = Section(body, 24, 3);
+            body = Section(body, 40, 4) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
             rows = rows.SetItem(row, linked).SetItem(bodyRow, body);
             int start = source.Section(7);
             int end = source.Section(8);
@@ -133,7 +150,8 @@ public static class NativeBattleModelResourceCopies
             origin = tail.Offset;
             firstSection = 0;
             endSection = 3;
-            body = body.Set(24, At(1)).Set(40, At(2)) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
+            body = Section(body, 24, 1);
+            body = Section(body, 40, 2) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
             rows = rows.SetItem(bodyRow, body);
         }
         else
@@ -158,11 +176,18 @@ public static class NativeBattleModelResourceCopies
             byte[] relative = new byte[4];
             BinaryPrimitives.WriteInt32LittleEndian(relative, checked(origin - geometry.Offset + 8));
             changed = changed.Write(geometry.Offset + 8, relative);
+            body = body with { Lengths = body.Lengths.SetItem(16, checked(origin + length - geometry.Offset)) };
+            rows = rows.SetItem(bodyRow, body);
         }
         cpu = cpu with { Banks = cpu.Banks.SetItem(bank, changed) };
         return new(cpu, rows, bodyRow, task.Callback == 0x507BF0 ? linkedRow : null, animation, scratch);
 
         NativeBattleModelCpuReference At(int section) => new(bank, checked(origin + source.Section(section) - source.Section(0)));
+        NativeBattleModelCpuResourceRow Section(NativeBattleModelCpuResourceRow row, int field, int section, bool absent = false)
+        {
+            row = row.Set(field, absent ? null : At(section));
+            return row with { Lengths = absent ? row.Lengths.Remove(field) : row.Lengths.SetItem(field, source.Section(section + 1) - source.Section(section)) };
+        }
         int ReadScratch()
         {
             int position = source.Section(2) - 4;

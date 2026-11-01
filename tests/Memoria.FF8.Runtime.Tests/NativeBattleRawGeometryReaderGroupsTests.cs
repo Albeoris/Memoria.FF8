@@ -6,6 +6,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleRawGeometryReaderGroupsTests
 {
     [Fact]
+    public void Masked_objects_do_not_read_their_unavailable_payloads()
+    {
+        byte[] bytes = new byte[28];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 2);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 12);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 4096);
+        List<int> observed = [];
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => bytes.AsSpan(offset, length).ToArray(), 1, (index, _, _, _) => observed.Add(index), objectMask: 1);
+        Assert.Equal(2, meshes.Length);
+        Assert.Equal(new[] { 0 }, observed);
+        Assert.All(meshes, mesh => Assert.Empty(mesh.Polygons));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleRawGeometryReader.Read((offset, length) => bytes.AsSpan(offset, length).ToArray(), 1));
+    }
+
+    [Fact]
     public void Multiple_objects_retain_all_four_group_records_and_exact_source_ends()
     {
         byte[] bytes = new byte[160];
