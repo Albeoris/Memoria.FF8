@@ -7,14 +7,11 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action);
-    private string junctionSearch = "";
-    private bool junctionSearchEditing;
     private string junctionSort = "benefit";
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
     private string junctionCacheSource = "";
     private MenuAction? junctionReviewedAction;
-    internal bool IsJunctionSearchEditing => IsOpen && IsJunctionDashboard && junctionSearchEditing && junctionFocus == "junction-search" && junctionEditor is "magic" or "gf" or "command" or "passive";
     private int JunctionCandidatePageSize => JunctionAccessible ? junctionViewportWidth < 850 ? 2 : 4 : 8;
 
     private JunctionCommandConfiguration JunctionConfiguration(MenuCharacter character) => new(character.Id, character.CommandIds.Cast<string?>().ToArray(), character.AvailableCommands.Select(choice => choice.Id).ToArray(), Data.SmartAttack && character.AttackMode == "SmartMagic");
@@ -28,8 +25,6 @@ public sealed partial class MenuController
             return;
         }
         junctionEditor = editor;
-        junctionSearch = "";
-        junctionSearchEditing = false;
         junctionOrigin = origin;
         junctionCandidate = "";
         junctionCandidatePage = 0;
@@ -135,7 +130,7 @@ public sealed partial class MenuController
             };
             candidates = [candidates[0], .. spells];
         }
-        return junctionSearch.Length == 0 ? candidates : candidates.Where(value => value.Id == "none" || value.Id == "0" && junctionEditor != "magic" || value.Name.Contains(junctionSearch, StringComparison.CurrentCultureIgnoreCase)).ToArray();
+        return candidates;
     }
 
     private int JunctionBenefit(MenuCharacter actor, string id)
@@ -166,28 +161,12 @@ public sealed partial class MenuController
         return benefit;
     }
 
-    internal bool EnterJunctionSearchCharacter(char character)
-    {
-        if (!IsJunctionSearchEditing)
-        {
-            return false;
-        }
-        if (character == '\b' && junctionSearch.Length > 0)
-        {
-            junctionSearch = junctionSearch[..^1];
-        }
-        else if (!char.IsControl(character) && junctionSearch.Length < 80)
-        {
-            junctionSearch += character;
-        }
-        junctionCandidatePage = 0;
-        _view = null;
-        return true;
-    }
-
     private void PreviewJunctionCandidate(string id)
     {
-        junctionSearchEditing = false;
+        if (junctionCandidate == id && junctionPlan is { } existing && Data.JunctionPlanner?.IsCurrent(existing) == true)
+        {
+            return;
+        }
         JunctionCandidate? candidate = JunctionCandidates().FirstOrDefault(value => value.Id == id);
         junctionCandidate = id;
         junctionReview = false;
@@ -227,20 +206,20 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionDock()
     {
-        UiGrid dock = Grid([1], [3.1f, 1.25f], 12);
+        UiGrid dock = Grid([1], [4.2f, 1], 12);
         UiElement content;
         if (junctionExitReview)
         {
             content = BuildJunctionExitReview();
         }
-        else if (junctionReview)
+        else if (junctionReview && !junctionTransferModal)
         {
             content = BuildJunctionImpactList();
         }
         else if (junctionEditor == "optimize")
         {
-            UiGrid priorities = JunctionRows([28, 34, 0], [1], 4);
-            Place(priorities, JunctionLabel(J("optimize", "Optimize stats"), 19), 0);
+            UiGrid priorities = JunctionRows([26, 34, 0], [1], 4);
+            Place(priorities, JunctionLabel(J("optimize", "Optimize stats"), 18), 0);
             UiGrid choices = Grid([1], [1, 1, 1], 6);
             string[] values = ["Attack", "Magic", "Defense"];
             for (int index = 0; index < values.Length; index++)
@@ -260,20 +239,26 @@ public sealed partial class MenuController
         {
             content = BuildJunctionAttackModes();
         }
-        else if (junctionEditor.Length > 0)
+        else if (junctionEditor == "gf")
+        {
+            content = BuildJunctionGuardianCapabilities();
+        }
+        else if (junctionEditor is "magic" or "command" or "passive")
         {
             content = BuildJunctionCandidatePicker();
         }
         else
         {
-            UiGrid help = JunctionRows([26, 0, 30], [1]);
-            Place(help, JunctionLabel(Message.Length > 0 ? Message : JunctionFocusedDescription(), 16), 0);
-            Place(help, JunctionLabel(J("legend", "Elemental protection: 100% nullifies, 150% absorbs 50%. Status attack shows potency; actual success depends on the target."), 13, true), 1);
-            Place(help, JunctionLabel(CurrentBindingText(ControlAction.Card) + "  " + J("actions-help", "Actions: optimize stats, clear junctions, fill commands, pin a stat."), 13, true), 2);
+            UiGrid help = JunctionRows([28, 0], [1], 4);
+            string description = junctionEditor == "gf" && Data.GuardianForces.FirstOrDefault(force => force.Id == junctionCandidate) is { } gf ? gf.Name + " · " + J("learning", "Learning") + ": " + gf.Learning : JunctionFocusedDescription();
+            Place(help, JunctionLabel(Message.Length > 0 ? Message : description, 16), 0);
+            UiLabel impact = JunctionLabel(JunctionImpactDescription(), 13, true);
+            impact.TextFlow = UiTextFlow.Wrap;
+            Place(help, impact, 1);
             content = help;
         }
         Place(dock, content, 0);
-        Place(dock, BuildJunctionOperationSummary(), 0, 1);
+        Place(dock, BuildJunctionBindingHints(), 0, 1);
         return JunctionPanel(dock);
     }
 
@@ -282,35 +267,25 @@ public sealed partial class MenuController
         IReadOnlyList<JunctionCandidate> candidates = JunctionCandidates();
         int pageSize = JunctionCandidatePageSize;
         int start = Math.Clamp(junctionCandidatePage * pageSize, 0, Math.Max(0, candidates.Count - 1));
-        UiGrid picker = JunctionRows([23, 0, 22], [1], 2);
-        UiGrid heading = Grid([1], [3, 2, 1.7f, 0.5f, 0.5f], 4);
-        string destination = junctionEditor switch
-        {
-            "magic" => StatText(_junctionSlot),
-            "command" => J("command", "Command") + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1),
-            "passive" => J("passive", "Passive") + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1),
-            _ => J("gf", "Guardian Force")
-        };
-        Place(heading, JunctionLabel((Character?.Name ?? "") + " · " + destination + " · " + J("preview", "Preview"), 14), 0);
-        Place(heading, JunctionButton("junction-search", (junctionSearchEditing ? "▏" : "⌕ ") + (junctionSearch.Length == 0 ? J("search", "Search") : junctionSearch), () => { junctionSearchEditing = true; junctionFocus = "junction-search"; _view = null; }, size: 12), 0, 1);
-        Place(heading, JunctionButton("junction-sort", J("sort-" + junctionSort, junctionSort), () => { junctionSort = junctionSort == "benefit" ? "name" : junctionSort == "name" ? "stock" : "benefit"; junctionCandidatePage = 0; _view = null; }, junctionEditor == "magic", 12), 0, 2);
-        Place(heading, JunctionButton("candidate-previous", "‹", () => PageJunctionCandidates(-1), junctionCandidatePage > 0, 13), 0, 3);
-        Place(heading, JunctionButton("candidate-next", "›", () => PageJunctionCandidates(1), start + pageSize < candidates.Count, 13), 0, 4);
-        Place(picker, heading, 0);
+        UiGrid picker = JunctionRows([22, 0, 22], [1], 2);
+        string destination = junctionEditor == "magic" ? StatText(_junctionSlot) : J(junctionEditor, junctionEditor) + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1);
+        Place(picker, JunctionLabel((Character?.Name ?? "") + " · " + destination, 14), 0);
         int columns = JunctionAccessible && junctionViewportWidth < 850 ? 1 : 2;
         int rowCount = pageSize / columns;
         UiGrid rows = Grid(Enumerable.Repeat(1f, rowCount).ToArray(), Enumerable.Repeat(1f, columns).ToArray(), 5);
         for (int index = 0; index < Math.Min(pageSize, candidates.Count - start); index++)
         {
             JunctionCandidate candidate = candidates[start + index];
-            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => PreviewJunctionCandidate(candidate.Id));
+            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id));
+            row.DrawBackground = false;
             UiGrid text = Grid([1], [1.1f, 1.8f], 5);
             Place(text, JunctionLabel((candidate.Id == junctionCandidate ? "◆ " : "") + candidate.Name, 16), 0);
             Place(text, JunctionLabel(candidate.Detail, 12, true), 0, 1);
             row.Children.Add(text);
+            row.Hover = () => PreviewJunctionCandidate(candidate.Id);
             row.FocusChanged = focused =>
             {
-                if (focused)
+                if (focused && !junctionRestoringFocus)
                 {
                     junctionFocus = row.Id!;
                     if (junctionCandidate != candidate.Id)
@@ -322,72 +297,77 @@ public sealed partial class MenuController
             Place(rows, row, index % rowCount, index / rowCount);
         }
         Place(picker, rows, 1);
-        string range = $"{(candidates.Count == 0 ? 0 : start + 1)}–{Math.Min(start + pageSize, candidates.Count)} / {candidates.Count}";
-        UiGrid footer = Grid([1], [4, 1], 5);
-        Place(footer, JunctionLabel(J("candidates", "Candidates") + " · " + range + (junctionEditor == "magic" ? " · " + J("stock-owner", "Selected character's stock and current ownership") : ""), 12, true), 0);
-        if (junctionEditor == "gf" && junctionCandidate.StartsWith("gf-", StringComparison.Ordinal))
-        {
-            Place(footer, JunctionButton("gf-learning", J("learning", "Learning"), () => { _gfId = junctionCandidate; Push("gf-learn"); }, size: 12), 0, 1);
-        }
-        Place(picker, footer, 2);
+        UiGrid paging = Grid([1], [5, 1, 1], 5);
+        Place(paging, JunctionLabel($"{(candidates.Count == 0 ? 0 : start + 1)}–{Math.Min(start + pageSize, candidates.Count)} / {candidates.Count}", 12, true), 0);
+        Place(paging, JunctionButton("candidate-previous", "‹", () => PageJunctionCandidates(-1), start > 0, 13), 0, 1);
+        Place(paging, JunctionButton("candidate-next", "›", () => PageJunctionCandidates(1), start + pageSize < candidates.Count, 13), 0, 2);
+        Place(picker, paging, 2);
         return picker;
     }
 
     private UiElement BuildJunctionImpactList()
     {
         UiGrid content = JunctionRows([24, 0, 22], [1]);
+        content.Id = "junction-review";
+        content.Focusable = true;
         Place(content, JunctionLabel(junctionEditor == "optimize" ? J("optimize", "Optimize stats") + " · " + J("priority-" + junctionPriority.ToLowerInvariant(), junctionPriority) : J("review", "Review consequences"), 18), 0);
-        var changes = junctionPlan?.Changes ?? [];
+        IReadOnlyList<MenuJunctionChange> changes = junctionPlan?.Changes ?? [];
+        if (junctionTransferModal && Data.GuardianForces.FirstOrDefault(force => force.Id == junctionCandidate)?.Owner is { } donor)
+        {
+            changes = changes.OrderBy(change => change.CharacterId == donor.Id ? change.Category is "Stat" or "HP" ? 0 : 1 : 2).ToArray();
+        }
         int start = Math.Min(junctionImpactPage * 5, Math.Max(0, changes.Count - 1));
         UiGrid rows = Grid([1, 1, 1, 1, 1], [1]);
         for (int index = 0; index < Math.Min(5, changes.Count - start); index++)
         {
             MenuJunctionChange change = changes[start + index];
-            Place(rows, JunctionLabel($"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}", 14), index);
+            UiLabel line = JunctionLabel(JunctionImpactLine(change), 14);
+            if (change.Category is "Stat" or "HP" && int.TryParse(change.Before, NumberStyles.Integer, CultureInfo.InvariantCulture, out int before) && int.TryParse(change.After, NumberStyles.Integer, CultureInfo.InvariantCulture, out int after) && before != after)
+            {
+                line.Color = after > before ? new UiColor(100, 220, 130) : new UiColor(245, 90, 90);
+            }
+            Place(rows, line, index);
         }
         Place(content, rows, 1);
         UiGrid paging = Grid([1], [4, 1, 1], 4);
         Place(paging, JunctionLabel(J("changes", "Changes") + $" {Math.Min(changes.Count, start + 1)}–{Math.Min(changes.Count, start + 5)} / {changes.Count}", 12, true), 0);
-        Place(paging, JunctionButton("impact-previous", "‹", () => { junctionImpactPage = Math.Max(0, junctionImpactPage - 1); _view = null; }, start > 0, 13), 0, 1);
-        Place(paging, JunctionButton("impact-next", "›", () => { junctionImpactPage++; _view = null; }, start + 5 < changes.Count, 13), 0, 2);
+        Place(paging, JunctionButton("impact-previous", "‹", () =>
+        {
+            junctionImpactPage = Math.Max(0, junctionImpactPage - 1);
+            _view = null;
+        }, start > 0, 13), 0, 1);
+        Place(paging, JunctionButton("impact-next", "›", () =>
+        {
+            junctionImpactPage++;
+            _view = null;
+        }, start + 5 < changes.Count, 13), 0, 2);
         Place(content, paging, 2);
         return content;
     }
 
-    private UiElement BuildJunctionOperationSummary()
+    private string JunctionImpactLine(MenuJunctionChange change)
     {
-        UiGrid summary = JunctionRows([25, 0, 32], [1], 3);
-        JunctionCandidate? candidate = JunctionCandidates().FirstOrDefault(value => value.Id == junctionCandidate);
-        string title = junctionExitReview ? J("command-attention", "Command attention") : candidate?.Name ?? (junctionEditor == "optimize" ? J("stats-only", "Stats only") : J("preview", "Preview"));
-        Place(summary, JunctionLabel(title, 19), 0);
-        string text = junctionPlan?.UnavailableReason ?? Message;
-        if (junctionPlan is { HasChanges: true } plan)
+        if (change.Category == "Capability" && junctionPlan is { } plan)
         {
-            // Keep critical losses visible even when the complete list is on another page.
-            text = string.Join("\n", plan.Changes.Where(change => change.Category is "HP" or "Command" or "Capacity" || change.Category == "Stat" && change.Slot == "HP").Select(change => $"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}"));
-            if (!junctionReview)
-            {
-                text = string.Join("\n", plan.Changes.Select(change => $"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}"));
-            }
-            if (text.Length == 0)
-            {
-                text = J("review-changes", "Review all proposed changes before applying.");
-            }
+            bool before = plan.Before.Characters.FirstOrDefault(actor => actor.Id == change.CharacterId)?.AvailableJunctionSlots.Contains(change.Slot) == true;
+            bool after = plan.After.Characters.FirstOrDefault(actor => actor.Id == change.CharacterId)?.AvailableJunctionSlots.Contains(change.Slot) == true;
+            string Availability(bool available) => available ? J("available", "Available") : J("unavailable", "Unavailable");
+            return $"{change.CharacterName} · {change.Slot}: {Availability(before)} → {Availability(after)}";
         }
-        if (junctionEditor == "magic" && _junctionSlot == "Elem-Atk")
+        return $"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}";
+    }
+
+    private string JunctionImpactDescription()
+    {
+        if (junctionPlan is not { } plan)
         {
-            text = J("element-warning", "Attacks using this element can heal enemies that absorb it.") + "\n" + text;
+            return Message;
         }
-        UiLabel explanation = JunctionLabel(text, 12, true);
-        explanation.TextFlow = UiTextFlow.Wrap;
-        Place(summary, explanation, 1);
-        bool narrow = JunctionAccessible && junctionViewportWidth < 850;
-        UiGrid buttons = Grid([1], narrow ? [1, 1] : [1, 1.7f], 7);
-        Place(buttons, JunctionButton("cancel-junction-preview", J("cancel", "Cancel"), CancelJunctionEditor), 0);
-        string applyText = narrow ? junctionReview ? J("apply-short", "Apply") : J("assign", "Assign") : JunctionOperationLabel();
-        Place(buttons, JunctionButton("apply-junction-preview", applyText, ConfirmJunctionPlan, junctionPlan?.HasChanges == true, 13), 0, 1);
-        Place(summary, buttons, 2);
-        return summary;
+        if (plan.UnavailableReason is { } unavailable)
+        {
+            return unavailable;
+        }
+        return string.Join("\n", plan.Changes.Where(change => change.Category is "HP" or "Command" or "Capacity" || change.Category == "Stat" && change.Slot == "HP").Select(change => $"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}"));
     }
 
     private string JunctionOperationLabel()
@@ -430,7 +410,7 @@ public sealed partial class MenuController
         Place(rows, JunctionButton("fill-commands", J("fill-commands", "Fill empty commands"), PlanJunctionCommands), 1);
         bool stat = junctionOrigin.StartsWith("slot-", StringComparison.Ordinal) && IsJunctionStat(junctionOrigin[5..]);
         Place(rows, JunctionButton("pin-stat", stat && junctionDashboard.IsPinned(Character?.Id ?? "", junctionOrigin[5..]) ? J("unpin", "Unpin stat") : J("pin-stat", "Pin stat"), ToggleJunctionPin, stat), 2);
-        Place(rows, JunctionButton("actions-cancel", J("cancel", "Cancel"), CancelJunctionEditor), 3);
+        Place(rows, JunctionButton("junction-undo", J("undo", "Undo") + (junctionUndoLabel.Length == 0 ? "" : ": " + junctionUndoLabel), UndoJunction, junctionUndo is { HasChanges: true } || junctionAttackUndo is not null, 13), 3);
         Place(rows, JunctionButton("clear-magic", J("clear-magic", "Clear this character's magic junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "Magic"))), 0, 1);
         Place(rows, JunctionButton("remove-junctions", J("remove-junctions", "Remove this character's junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "All"))), 1, 1);
         Place(rows, JunctionButton("clear-party-magic", J("clear-party-magic", "Clear all characters' magic junctions"), () => ReviewJunctionAction(new("junction-magic-off-all"))), 2, 1);
@@ -451,19 +431,17 @@ public sealed partial class MenuController
         }
         junctionPlan = null;
         junctionEditor = "actions";
-        junctionSearchEditing = false;
         junctionFocus = "optimize";
         _view = null;
     }
 
     private void ReviewJunctionAction(MenuAction action)
     {
-        junctionSearchEditing = false;
         junctionReviewedAction = action;
         junctionPlan = Data.JunctionPlanner?.Plan(action);
         junctionReview = true;
         junctionImpactPage = 0;
-        junctionFocus = "cancel-junction-preview";
+        junctionFocus = "junction-review";
         Message = junctionPlan?.UnavailableReason ?? "";
         _view = null;
     }
@@ -489,7 +467,7 @@ public sealed partial class MenuController
         junctionPlan = Character is { } actor ? Data.JunctionPlanner?.Optimize(actor.Id, priority, junctionDashboard.GetPinnedSlots(actor.Id)) : null;
         junctionReview = junctionPlan?.HasChanges == true;
         junctionImpactPage = 0;
-        junctionFocus = junctionReview ? "cancel-junction-preview" : "priority-" + priority;
+        junctionFocus = junctionReview ? "junction-review" : "priority-" + priority;
         Message = junctionPlan?.UnavailableReason ?? (junctionReview ? J("scope", "Stat magic only. GFs, commands, passives, elemental and status junctions stay as configured.") : J("no-stat-changes", "No stat changes suggested"));
         _view = null;
     }
@@ -499,14 +477,13 @@ public sealed partial class MenuController
         junctionEditor = "fill";
         junctionPlan = Character is { } actor ? Data.JunctionPlanner?.FillEmptyCommands(actor.Id) : null;
         junctionReview = true;
-        junctionFocus = "cancel-junction-preview";
+        junctionFocus = "junction-review";
         Message = junctionPlan?.UnavailableReason ?? (junctionPlan?.HasChanges == true ? "" : J("no-commands", "No additional learned commands are available to fill these positions."));
         _view = null;
     }
 
     private void ConfirmJunctionPlan()
     {
-        junctionSearchEditing = false;
         if (junctionPlan is not { HasChanges: true } plan || Data.JunctionPlanner is not { } planner)
         {
             return;
@@ -515,13 +492,6 @@ public sealed partial class MenuController
         {
             junctionPlan = null;
             Message = J("stale", "The source changed. Select the proposal again to review its current effects.");
-            _view = null;
-            return;
-        }
-        if (!junctionReview && (plan.RequiresReview || plan.Changes.Count > 5))
-        {
-            junctionReview = true;
-            junctionFocus = "cancel-junction-preview";
             _view = null;
             return;
         }
@@ -555,6 +525,7 @@ public sealed partial class MenuController
                 junctionAudit.MarkAffected(id);
             }
             junctionPlan = null;
+            junctionTransferModal = false;
             junctionReview = false;
             junctionEditor = "";
             junctionFocus = junctionOrigin;
@@ -613,7 +584,7 @@ public sealed partial class MenuController
     private void CancelJunctionEditor()
     {
         junctionPlan = null;
-        junctionSearchEditing = false;
+        junctionTransferModal = false;
         junctionReview = false;
         junctionExitReview = false;
         junctionEditor = "";
@@ -750,6 +721,12 @@ public sealed partial class MenuController
         {
             return false;
         }
+        if (junctionEditor == "gf" && !junctionTransferModal)
+        {
+            junctionEditor = "";
+            junctionCandidate = "";
+            junctionPlan = null;
+        }
         if (junctionEditor.Length > 0 || junctionPlan is not null || junctionExitReview)
         {
             CancelJunctionEditor();
@@ -771,29 +748,28 @@ public sealed partial class MenuController
         {
             return false;
         }
-        if (IsJunctionSearchEditing)
-        {
-            if (input == MenuInput.Cancel && junctionSearch.Length > 0)
-            {
-                junctionSearch = "";
-                junctionCandidatePage = 0;
-            }
-            else if (input is MenuInput.Cancel or MenuInput.Confirm or MenuInput.Tab)
-            {
-                junctionSearchEditing = false;
-                junctionFocus = "junction-search";
-            }
-            _view = null;
-            return true;
-        }
         if (input == MenuInput.Cancel)
         {
             Back();
             return true;
         }
+        if (junctionEditor == "gf" && BuildView().FocusedElement is UiList capability && input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
+        {
+            capability.Key(input switch
+            {
+                MenuInput.Up => UiKey.Up,
+                MenuInput.Down => UiKey.Down,
+                MenuInput.PageUp => UiKey.PageUp,
+                _ => UiKey.PageDown
+            });
+            return true;
+        }
         if (input is MenuInput.PageLeft or MenuInput.PageRight)
         {
-            SwitchJunctionCharacter(input == MenuInput.PageLeft ? -1 : 1);
+            if (!JunctionHasActiveScope)
+            {
+                SwitchJunctionCharacter(input == MenuInput.PageLeft ? -1 : 1);
+            }
             return true;
         }
         if (input is MenuInput.PageUp or MenuInput.PageDown)
@@ -804,7 +780,7 @@ public sealed partial class MenuController
                 junctionImpactPage = Math.Clamp(junctionImpactPage + (input == MenuInput.PageUp ? -1 : 1), 0, maximum);
                 _view = null;
             }
-            else
+            else if (junctionEditor is "magic" or "command" or "passive")
             {
                 PageJunctionCandidates(input == MenuInput.PageUp ? -1 : 1);
             }
@@ -812,13 +788,16 @@ public sealed partial class MenuController
         }
         if (input is MenuInput.Actions or MenuInput.Alternate)
         {
-            OpenJunctionActions();
+            if (!JunctionHasActiveScope)
+            {
+                OpenJunctionActions();
+            }
             return true;
         }
         UiView view = BuildView();
         if (input == MenuInput.Confirm)
         {
-            if (view.FocusedElement?.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true && junctionPlan is not null)
+            if (junctionReview && !junctionTransferModal && !junctionExitReview)
             {
                 ConfirmJunctionPlan();
             }
@@ -830,47 +809,59 @@ public sealed partial class MenuController
         }
         if (input is MenuInput.Tab or MenuInput.ReverseTab or MenuInput.FocusLeft or MenuInput.FocusRight)
         {
-            string[] groups = [JunctionGfFocusId, "slot-HP", "slot-Elem-Atk", "slot-ST-Atk", "elemental-attack", "status-attack", "command-0", "passive-0", "candidate-" + (JunctionCandidates().FirstOrDefault()?.Id ?? "0"), "junction-undo", "optimize", "junction-back"];
-            UiElement[] controls = FocusableDescendants(view.Root).Where(element => groups.Contains(element.Id)).ToArray();
+            UiElement[] controls = FocusableDescendants(view.Root).Where(JunctionControlIsActive).Where(element => element.Enabled && element.Visible).ToArray();
             int index = Array.FindIndex(controls, element => element.Id == junctionFocus);
             int delta = input is MenuInput.ReverseTab or MenuInput.FocusLeft ? -1 : 1;
             if (controls.Length > 0)
             {
-                view.Focus(controls[(index + delta + controls.Length) % controls.Length]);
+                view.Focus(controls[Math.Clamp(index + delta, 0, controls.Length - 1)]);
             }
             return true;
         }
         if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right)
         {
             MoveJunctionSpatialFocus(view, input);
-            return true;
         }
         return true;
     }
 
-    private static void MoveJunctionSpatialFocus(UiView view, MenuInput input)
+    private void MoveJunctionSpatialFocus(UiView view, MenuInput input)
     {
         if (view.FocusedElement is not { } focused)
         {
             return;
         }
-        float x = focused.Bounds.X + focused.Bounds.Width / 2;
-        float y = focused.Bounds.Y + focused.Bounds.Height / 2;
+        UiRect origin = focused.Bounds;
         bool horizontal = input is MenuInput.Left or MenuInput.Right;
         bool positive = input is MenuInput.Right or MenuInput.Down;
         UiElement? best = null;
         float distance = float.PositiveInfinity;
-        foreach (UiElement target in FocusableDescendants(view.Root).Where(element => element.Enabled && element.Visible && !element.Bounds.IsEmpty && element != focused))
+        foreach (UiElement target in FocusableDescendants(view.Root).Where(JunctionControlIsActive).Where(element => element.Enabled && element.Visible && !element.Bounds.IsEmpty && element != focused))
         {
-            float dx = target.Bounds.X + target.Bounds.Width / 2 - x;
-            float dy = target.Bounds.Y + target.Bounds.Height / 2 - y;
-            float primary = horizontal ? dx : dy;
-            float cross = Math.Abs(horizontal ? dy : dx);
-            if (positive ? primary <= 1 : primary >= -1)
+            UiRect bounds = target.Bounds;
+            float primaryGap = input switch
+            {
+                MenuInput.Left => origin.X - bounds.Right,
+                MenuInput.Right => bounds.X - origin.Right,
+                MenuInput.Up => origin.Y - bounds.Bottom,
+                _ => bounds.Y - origin.Bottom
+            };
+            if (primaryGap < -1)
             {
                 continue;
             }
-            float score = Math.Abs(primary) + cross * 3;
+            float primaryCenter = horizontal ? bounds.X + bounds.Width / 2 - origin.X - origin.Width / 2 : bounds.Y + bounds.Height / 2 - origin.Y - origin.Height / 2;
+            if (positive ? primaryCenter <= 1 : primaryCenter >= -1)
+            {
+                continue;
+            }
+            float firstStart = horizontal ? origin.Y : origin.X;
+            float firstEnd = horizontal ? origin.Bottom : origin.Right;
+            float secondStart = horizontal ? bounds.Y : bounds.X;
+            float secondEnd = horizontal ? bounds.Bottom : bounds.Right;
+            float perpendicularGap = Math.Max(0, Math.Max(secondStart - firstEnd, firstStart - secondEnd));
+            float perpendicularCenter = Math.Abs((firstStart + firstEnd - secondStart - secondEnd) / 2);
+            float score = Math.Max(0, primaryGap) + perpendicularGap * 5 + perpendicularCenter * 0.01f;
             if (score < distance)
             {
                 distance = score;

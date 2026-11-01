@@ -92,7 +92,7 @@ public sealed class NativeJunctionPreviewTests
         Assert.Equal(9, menu.Character!.Stats.Count);
         Assert.NotNull(menu.Character.NextLevelExperience);
         menu.Execute(new("junction-ui", "slot-Str"));
-        menu.Execute(new("junction-ui", "candidate-magic-0-1"));
+        menu.SelectEntry("junction-dashboard", "candidate-magic-0-1");
         Assert.Equal("junction-dashboard", menu.ScreenId);
         IReadOnlyDictionary<string, int> projected = menu.Character.JunctionPreview!("Str", "magic-0-1");
         Assert.True(projected["HP"] < menu.Character.MaximumHp);
@@ -103,7 +103,7 @@ public sealed class NativeJunctionPreviewTests
         UiLabel strength = Descendants(Descendants(view.Root).Single(element => element.Id == "slot-Str")).OfType<UiLabel>().Last();
         Assert.Contains("→", hp.Text);
         Assert.Contains("→", strength.Text);
-        Assert.Equal(new UiColor(242, 176, 120), hp.Color);
+        Assert.Equal(new UiColor(245, 90, 90), hp.Color);
         Assert.Equal(new UiColor(158, 211, 235), strength.Color);
         Assert.True(hp.Bounds.Y <= strength.Bounds.Y);
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
@@ -115,12 +115,8 @@ public sealed class NativeJunctionPreviewTests
         Assert.Equal(before, JsonSerializer.Serialize(vitals));
         Assert.Equal(0, applied);
         menu.Execute(new("junction-ui", "slot-Str"));
-        menu.Execute(new("junction-ui", "candidate-magic-0-1"));
-        menu.Execute(new("junction-ui", "apply-junction-preview"));
-        if (applied == 0)
-        {
-            menu.Execute(new("junction-ui", "apply-junction-preview"));
-        }
+        menu.SelectEntry("junction-dashboard", "candidate-magic-0-1");
+        menu.Navigate(MenuInput.Confirm);
         Assert.Equal(1, applied);
         Assert.Equal("junction-dashboard", menu.ScreenId);
         Assert.Equal(projected["HP"], menu.Character!.MaximumHp);

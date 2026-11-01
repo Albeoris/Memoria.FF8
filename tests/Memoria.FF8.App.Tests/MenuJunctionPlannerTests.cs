@@ -159,6 +159,111 @@ public sealed class MenuJunctionPlannerTests
         Assert.Equal(source.Records[0].Junction, Apply(result, undo).Records[0].Junction);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Junction_projection_reuses_unchanged_rows_and_reads_each_needed_rule_once(bool shared)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = FullBank(assets, shared);
+        GameState state = new() { Scene = SceneKind.Field, CharacterVitals = source };
+        Dictionary<int, int> reads = [];
+        BattleNativePlayerStatRules Read(NativeCharacterVitals vitals, int row)
+        {
+            reads[row] = reads.GetValueOrDefault(row) + 1;
+            return catalog.ReadStatRules(vitals, row);
+        }
+        MenuData before = LiveMenuData.BuildJunctionSnapshot(state, null, catalog, null, readRules: row => Read(source, row));
+        Assert.Equal(8, reads.Count);
+        Assert.All(reads.Values, count => Assert.Equal(1, count));
+        NativeCharacterVitals intended = source.SetJunctionMagic(0, 1, 1);
+        NativeCharacterVitals result = NativeJunctionEdits.Apply(source, NativeJunctionEdits.Create(source, intended));
+        reads.Clear();
+        MenuData after = LiveMenuData.BuildJunctionSnapshot(state with { CharacterVitals = result }, null, catalog, null, before, new HashSet<int> { 0 }, row => Read(result, row));
+        Assert.All(reads.Values, count => Assert.Equal(1, count));
+        Assert.Equal(shared ? 3 : 1, reads.Count);
+        Assert.All(reads.Keys, row => Assert.Contains(row, shared ? new[] { 0, 1, 4 } : new[] { 0 }));
+        foreach (MenuCharacter character in before.Characters.Where(character => character.Id != "character-0"))
+        {
+            Assert.Same(character, after.Characters.Single(projected => projected.Id == character.Id));
+        }
+        Assert.Same(Assert.Single(before.GuardianForces), Assert.Single(after.GuardianForces));
+        if (!shared)
+        {
+            Assert.Same(before.Magic.First(magic => magic.CharacterId == "character-1"), after.Magic.First(magic => magic.CharacterId == "character-1"));
+        }
+        Assert.Empty(after.Items);
+        Assert.All(after.Magic, magic => Assert.Empty(magic.RecoveryTargetScores));
+    }
+
+    [Fact]
+    public void Distinct_full_bank_previews_keep_authoritative_effects_and_shared_casting_impacts()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = FullBank(assets, true);
+        MenuJunctionPlanner planner = Planner(source, catalog);
+        string original = JsonSerializer.Serialize(source);
+        List<double> distinct = [];
+        List<double> repeated = [];
+        MenuJunctionPlan[] plans = new MenuJunctionPlan[56];
+        for (int spell = 1; spell <= 56; spell++)
+        {
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+            MenuJunctionPlan plan = planner.Plan(new("junction-magic", $"magic-0-{spell}", "character-0", "Mag"));
+            distinct.Add(watch.Elapsed.TotalMilliseconds);
+            Assert.Null(plan.UnavailableReason);
+            plans[spell - 1] = plan;
+            MenuCharacter projected = plan.After.Characters.Single(character => character.Id == "character-0");
+            BattleNativePlayerStatRules rules = catalog.ReadStatRules(plan.Result, 0);
+            Assert.Equal(LiveMenuData.Statistics(rules, plan.Result.Records[0], plan.Result.GetMagicInventory(0)), projected.Stats);
+            MenuJunctionEffects effects = LiveMenuData.JunctionEffects(rules, plan.Result.Records[0], plan.Result.GetMagicInventory(0));
+            Assert.Equal(effects.Elements, projected.JunctionEffects!.Elements);
+            Assert.Equal(effects.Statuses, projected.JunctionEffects.Statuses);
+        }
+        for (int spell = 1; spell <= 56; spell++)
+        {
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+            MenuJunctionPlan repeatedPlan = planner.Plan(new("junction-magic", $"magic-0-{spell}", "character-0", "Mag"));
+            repeated.Add(watch.Elapsed.TotalMilliseconds);
+            Assert.Same(plans[spell - 1], repeatedPlan);
+        }
+        MenuJunctionPlan last = plans[^1];
+        for (int spell = 1; spell <= 56; spell++)
+        {
+            int? caster = last.Result.ResolveFieldMagicCaster(0, spell, row => catalog.ReadStatRules(last.Result, row));
+            int? owner = MagicJunctionPolicy.GetOwner(last.Result, spell);
+            foreach (MenuMagic magic in last.After.Magic.Where(magic => magic.SpellId == spell))
+            {
+                Assert.Equal(owner is int ownerRow ? $"character-{ownerRow}" : null, magic.OwnerCharacterId);
+                if (caster is int casterRow)
+                {
+                    Assert.Contains(last.After.Characters.Single(character => character.Id == $"character-{casterRow}").Name, magic.Caster);
+                }
+                else
+                {
+                    Assert.Empty(magic.Caster);
+                }
+            }
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        distinct.Sort();
+        repeated.Sort();
+        Console.WriteLine($"56 distinct spell previews: median {distinct[28]:F2} ms, p95 {distinct[53]:F2} ms, maximum {distinct[55]:F2} ms; repeated median {repeated[28]:F3} ms.");
+    }
+
+    private static NativeCharacterVitals FullBank(GameAssets assets, bool shared)
+    {
+        NativeCharacterVitals source = Setup(assets, shared);
+        source = source with { CombatParty = [0, 1, 4], MagicSystem = source.MagicSystem with { RecordZeroExtension = Enumerable.Range(33, 24).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() } };
+        foreach (int row in new[] { 0, 1, 4 })
+        {
+            source.Records[row] = source.Records[row] with { MemberFlags = (ushort)(source.Records[row].MemberFlags | 1) };
+        }
+        return source;
+    }
+
     private static MenuJunctionPlanner Planner(NativeCharacterVitals source, LiveMenuCatalog? catalog) => new(new GameState { Scene = SceneKind.Field, CharacterVitals = source }, catalog: catalog);
 
     private static NativeCharacterVitals Apply(NativeCharacterVitals source, MenuJunctionPlan plan) => NativeJunctionMenuInput.Apply(source, NativeJunctionMenuProjection.PlayerAction(plan.Action));

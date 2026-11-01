@@ -40,7 +40,7 @@ public sealed class NativeLiveAutoJunctionTests
         controller.Navigate(MenuInput.Alternate);
         controller.Execute(new("junction-ui", "clear-party-magic"));
         Assert.Empty(actions);
-        controller.Execute(new("junction-ui", "apply-junction-preview"));
+        controller.Navigate(MenuInput.Confirm);
         PlayerAction applied = Assert.Single(actions);
         Assert.Equal(PlayerActionKind.ApplyJunctionEdit, applied.Kind);
         NativeJunctionEditPlan edit = JsonSerializer.Deserialize<NativeJunctionEditPlan>(applied.Text!)!;

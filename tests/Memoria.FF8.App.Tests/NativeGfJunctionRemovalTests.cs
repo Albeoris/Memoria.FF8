@@ -50,7 +50,7 @@ public sealed class NativeGfJunctionRemovalTests
         controller.Execute(new("junction-ui", all ? "remove-junctions" : "clear-magic"));
         Assert.Empty(actions);
         Assert.Equal(original, JsonSerializer.Serialize(vitals));
-        controller.Execute(new("junction-ui", "apply-junction-preview"));
+        controller.Navigate(MenuInput.Confirm);
         PlayerAction applied = Assert.Single(actions);
         Assert.Equal(PlayerActionKind.ApplyJunctionEdit, applied.Kind);
         NativeJunctionEditPlan edit = JsonSerializer.Deserialize<NativeJunctionEditPlan>(applied.Text!)!;

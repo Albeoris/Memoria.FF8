@@ -236,7 +236,18 @@ internal sealed partial class NativeTutorialPlayer
         }
         foreach (string control in step.DashboardPreparation ?? [])
         {
-            Menu.Execute(new MenuAction("junction-ui", control));
+            if (control.StartsWith("gf-portrait-", StringComparison.Ordinal))
+            {
+                Menu.SelectEntry("junction-dashboard", control);
+            }
+            else if (control == "junction-actions")
+            {
+                Menu.Navigate(MenuInput.Alternate);
+            }
+            else
+            {
+                Menu.Execute(new MenuAction("junction-ui", control));
+            }
         }
         if (step.ScreenId == "junction-stock" && step.EntryId is string magic)
         {
@@ -264,17 +275,11 @@ internal sealed partial class NativeTutorialPlayer
                 Menu.Push("gf-abilities");
                 break;
             case NativeTutorialPress.ApplyDashboard:
-                if (step.EntryId is string control && !control.StartsWith("candidate-", StringComparison.Ordinal))
+                if (step.EntryId is string control && !control.StartsWith("candidate-", StringComparison.Ordinal) && !control.StartsWith("gf-portrait-", StringComparison.Ordinal))
                 {
                     Menu.Execute(new MenuAction("junction-ui", control));
                 }
-                for (int confirmation = 0; confirmation < 2; confirmation++)
-                {
-                    if (Menu.Entries.Any(entry => entry.Id == "apply-junction-preview" && entry.Enabled))
-                    {
-                        Menu.Execute(new MenuAction("junction-ui", "apply-junction-preview"));
-                    }
-                }
+                Menu.Navigate(MenuInput.Confirm);
                 break;
         }
         if (step.Destination is string destination)
@@ -322,9 +327,9 @@ internal sealed partial class NativeTutorialPlayer
         {
             0 when pc < 136 => ("gfs", "All junction assignments stay on this dashboard. Select an acquired GF portrait to inspect that GF and preview attaching it."),
             0 when pc < 303 => ("commands", "Attaching a GF unlocks learned capabilities. Commands are separate assignments: choose each command position and inspect its choices."),
-            0 when pc < 379 => ("command-preview", "A highlighted choice is a preview. Apply equips it; Cancel keeps the current command. The fixed basic action is separate from the three configurable commands."),
-            0 => ("passives", "Passive abilities occupy their own stable positions. Choose a learned passive, inspect its consequences and Apply it."),
-            1 when pc < 115 => ("stats", "Select a stat to open its magic picker. Highlight a spell to preview the complete change. Current assignments and values stay visible until Apply."),
+            0 when pc < 379 => ("command-preview", "A highlighted choice is a preview. Confirm equips it; Cancel keeps the current command. The fixed basic action is separate from the three configurable commands."),
+            0 => ("passives", "Passive abilities occupy their own stable positions. Choose a learned passive, inspect its consequences and confirm it."),
+            1 when pc < 115 => ("stats", "Select a stat to open its magic picker. Highlight a spell to preview the complete change. Current assignments and values stay visible until Confirm."),
             1 when pc < 169 => ("stat-assigned", "Apply commits the selected magic. Every stat and effect assignment remains visible; Cancel closes the picker without changing the character."),
             1 when pc < 181 => ("clear", "The Actions menu can clear this character's magic junctions. Review the complete removal before applying it."),
             1 => ("optimize", "Actions → Optimize stats offers Attack, Magic or Defense priority. Review and Apply the proposal. Only unpinned stat magic changes; GFs, commands, passives and effect junctions stay configured."),
@@ -451,17 +456,19 @@ internal sealed partial class NativeTutorialPlayer
 
     private MenuNavigationState AdaptGuardianPortraitNavigation(MenuNavigationState saved)
     {
-        if (saved.JunctionDashboard is not { } dashboard || dashboard.Origin != "manage-gfs" && dashboard.Focus != "manage-gfs")
+        if (saved.JunctionDashboard is not { } dashboard)
         {
             return saved;
         }
         int firstGuardianForce = Array.FindIndex(party.GuardianForces, force => (force.Flags & 1) != 0);
         if (firstGuardianForce < 0)
         {
-            throw new InvalidDataException("This earlier tutorial's GF control has no acquired portrait to restore.");
+            return saved;
         }
-        string portrait = $"gf-portrait-gf-{firstGuardianForce}";
-        return saved with { JunctionDashboard = dashboard with { Origin = dashboard.Origin == "manage-gfs" ? portrait : dashboard.Origin, Focus = dashboard.Focus == "manage-gfs" ? portrait : dashboard.Focus } };
+        string portrait = dashboard.Candidate.StartsWith("gf-", StringComparison.Ordinal) ? "gf-portrait-" + dashboard.Candidate : $"gf-portrait-gf-{firstGuardianForce}";
+        string origin = dashboard.Origin == "manage-gfs" ? portrait : dashboard.Origin;
+        string focus = dashboard.Focus == "manage-gfs" || dashboard.Editor == "gf" && dashboard.Focus.StartsWith("candidate-gf-", StringComparison.Ordinal) ? portrait : dashboard.Focus;
+        return saved with { JunctionDashboard = dashboard with { Origin = origin, Focus = focus } };
     }
 
     private void RestoreLegacyJunctionNavigation(MenuNavigationState saved)

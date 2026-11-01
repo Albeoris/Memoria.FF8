@@ -36,6 +36,10 @@ public sealed partial class MenuController
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : PresentationProvider.Compose(this));
+        if (IsJunctionDashboard && BuildJunctionTransferModal() is { } junctionModal)
+        {
+            anchored.Children.Add(junctionModal);
+        }
         AddTutorialMessage(anchored);
         _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor || ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
@@ -49,6 +53,7 @@ public sealed partial class MenuController
                 junctionScroll.Offset = junctionScrollOffset;
             }
             UiView dashboardView = _view;
+            ApplyJunctionInteractionScope(dashboardView);
             FocusJunctionDashboard(dashboardView);
             return dashboardView;
         }

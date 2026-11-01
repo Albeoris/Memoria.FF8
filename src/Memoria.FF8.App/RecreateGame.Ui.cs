@@ -575,7 +575,7 @@ internal sealed partial class RecreateGame
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
         previousUiMousePressed = mousePressed;
-        bool searchOwnedInput = gameMenus.IsGuardianSearchEditing || (gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing);
+        bool searchOwnedInput = gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing;
         bool searchOwnershipChanged = false;
         void DispatchMenuInput(MenuInput command)
         {
@@ -590,14 +590,14 @@ internal sealed partial class RecreateGame
                 searchOwnershipChanged = true;
                 keyboard.SuppressHeldUiInput();
             }
-            if (searchOwnedInput != (gameMenus.IsGuardianSearchEditing || (gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing)))
+            if (searchOwnedInput != (gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing))
             {
                 searchOwnershipChanged = true;
                 keyboard.SuppressHeldUiInput();
             }
         }
         bool openMenu = keyboard.GameMenuRequested;
-        if (openMenu && !saveMenu.IsOpen && ((gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing) || gameMenus.ScreenId is "mods-actions" or "mods-diagnostics" or "gf-mod-review"))
+        if (openMenu && !saveMenu.IsOpen && (gameMenus.IsModSearchEditing || gameMenus.ScreenId is "mods-actions" or "mods-diagnostics" or "gf-mod-review"))
         {
             DispatchMenuInput(MenuInput.Cancel);
             return true;
@@ -675,7 +675,7 @@ internal sealed partial class RecreateGame
             suppressNativeNameInput = false;
             return true;
         }
-        bool wasTypingName = gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing || (gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing);
+        bool wasTypingName = gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing;
         if (keyboard.UiSwitchColumnRequested && gameMenus.IsGuardianAbilityEditor)
         {
             DispatchMenuInput(MenuInput.SwitchColumn);
@@ -747,7 +747,7 @@ internal sealed partial class RecreateGame
             if (!searchOwnershipChanged)
             {
                 view.Pointer(mouse.X, mouse.Y, mousePressEdge);
-                if (searchOwnedInput != (gameMenus.IsGuardianSearchEditing || (gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing)))
+                if (searchOwnedInput != (gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing))
                 {
                     searchOwnershipChanged = true;
                     keyboard.SuppressHeldUiInput();
@@ -766,7 +766,7 @@ internal sealed partial class RecreateGame
                 gameMenus.HandleJunctionWheel(mouse.X, mouse.Y, wheelDelta);
             }
         }
-        if (wasTypingName != (gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing || (gameMenus.IsModSearchEditing || gameMenus.IsJunctionSearchEditing)))
+        if (wasTypingName != (gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing))
         {
             keyboard.SuppressHeldNameInput();
         }

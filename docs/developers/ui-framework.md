@@ -92,7 +92,7 @@ The Vector design uses these procedural elements:
 | Typography | Georgia by default, pale foreground and blue secondary labels. Each skin remembers its own UI font override, including an explicit Arial choice in Vector. The UI font setting reports the effective current-skin font. `UiFontCanvas` measures and draws with matching fonts. |
 | Header | Small spaced MENU label, large title, subtitle, geometric crest and vertical separator. |
 | Main menu | Three active-party cards, reserve grid, full-height right command column with play time/rank/currency, location and input hints below. Reserve space expands for additional characters. |
-| Junction | Character face and bounded portrait navigation, with one acquired-GF portrait row and contextual owner faces; four persistent columns for stats, effect bindings, complete effect percentages and commands/passives; candidate/review dock beneath. Card/detail opens secondary Actions. Stable semantic controls share previews and validated atomic edits across both themes; tutorials use the same dashboard. |
+| Junction | Character face and bounded portrait navigation, with one acquired-GF portrait row and persistent owner faces; four persistent columns for commands/passives, stats, effect bindings and complete effect percentages; plain candidate rows and binding hints beneath. GF hover previews capabilities; foreign transfers use a centered confirmation. Picker scopes constrain spatial focus and pointer input. Card/detail opens secondary Actions. Stable semantic controls share previews and validated atomic edits across both themes; tutorials use the same dashboard. |
 | Ornament | Low-opacity geometric feather strokes on tall panels. |
 | Input hints | Current keyboard/controller bindings and fixed F7 shortcut. |
 

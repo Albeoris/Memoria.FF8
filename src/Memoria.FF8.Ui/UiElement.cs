@@ -253,8 +253,10 @@ public sealed class UiButton : UiElement
 
     public string Text { get; set; } = string.Empty;
     public Action? Click { get; set; }
+    public Action? Hover { get; set; }
     public bool DrawBackground { get; set; } = true;
     public bool HighlightSelection { get; set; } = true;
+    public bool SuppressSelection { get; set; }
     public float TextInset { get; set; } = 24;
     public float FontSize { get; set; }
     public float PointerSize { get; set; } = 10;
@@ -270,7 +272,7 @@ public sealed class UiButton : UiElement
         {
             theme.Panel(canvas, Bounds);
         }
-        if (IsFocused && Enabled && (HighlightSelection || theme.AlwaysHighlightSelection))
+        if (IsFocused && Enabled && !SuppressSelection && (HighlightSelection || theme.AlwaysHighlightSelection))
         {
             theme.Selection(canvas, Bounds.Inset(3));
         }
@@ -304,6 +306,14 @@ public sealed class UiButton : UiElement
         if (Enabled && Bounds.Contains(x, y))
         {
             Click?.Invoke();
+        }
+    }
+
+    public override void PointerHover(float x, float y)
+    {
+        if (Enabled && Bounds.Contains(x, y))
+        {
+            Hover?.Invoke();
         }
     }
 }

@@ -238,7 +238,7 @@ internal sealed partial class RecreateGame : Game
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing || DuelOwnsInput);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true || gameMenus?.IsModSearchEditing == true || gameMenus?.IsJunctionSearchEditing == true;
+        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true || gameMenus?.IsModSearchEditing == true;
         keyboard.GuardianEditorEnabled = gameMenus?.IsGuardianAbilityEditor == true;
         keyboard.ModsManagerEnabled = gameMenus?.IsModManager == true;
         bool namingNavigation = gameMenus?.IsEditingName == true;
@@ -664,7 +664,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (IsActive && keyboard.AllowsNameText(args.Key))
         {
-            if (gameMenus?.EnterGameplayNumberCharacter(args.Character) != true && gameMenus?.EnterLocalizationCharacter(args.Character) != true && gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true && gameMenus?.EnterJunctionSearchCharacter(args.Character) != true)
+            if (gameMenus?.EnterGameplayNumberCharacter(args.Character) != true && gameMenus?.EnterLocalizationCharacter(args.Character) != true && gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
             {
                 gameMenus?.EnterNameCharacter(args.Character);
             }

@@ -92,7 +92,7 @@ public sealed class JunctionDashboardRenderTests
     [InlineData(1024, 768, 100, MenuPresentation.Vector)]
     [InlineData(1280, 720, 150, MenuPresentation.Classic)]
     [InlineData(1280, 720, 150, MenuPresentation.Vector)]
-    public void AccessibleDashboardScrollsToEveryAssignmentWhilePickerAndFooterStayAvailable(int width, int height, int textScale, MenuPresentation presentation)
+    public void AccessibleDashboardScrollsToEveryAssignmentWhileHeaderAndPickerStayAvailable(int width, int height, int textScale, MenuPresentation presentation)
     {
         MenuData data = MaximumFixture();
         data.Settings["Text scale"] = textScale + "%";
@@ -105,21 +105,24 @@ public sealed class JunctionDashboardRenderTests
         Assert.True(scroll.MaximumOffset > 0);
         Assert.Equal(19, Descendants(scroll).Count(element => element.Id?.StartsWith("slot-", StringComparison.Ordinal) == true));
         Assert.Equal(21, Descendants(scroll).Count(element => element.Id?.Contains("-readout-", StringComparison.Ordinal) == true));
-        UiElement back = Descendants(view.Root).Single(element => element.Id == "junction-back");
-        UiRect footerBounds = back.Bounds;
+        UiElement portrait = Descendants(view.Root).Single(element => element.Id == "junction-character-portrait");
+        UiRect headerBounds = portrait.Bounds;
         Capture("top");
+        UiElement lowerAssignment = Descendants(scroll).Single(element => element.Id == "slot-ST-Def 4");
+        Assert.True(view.Focus(lowerAssignment));
+        Assert.True(scroll.Offset > 0);
+        AssertContained(lowerAssignment.Bounds, scroll.Bounds);
+        Assert.Equal(headerBounds, portrait.Bounds);
+        Capture("scrolled");
         UiButton last = Assert.IsType<UiButton>(Descendants(scroll).Single(element => element.Id == "passive-3"));
         Assert.True(view.Focus(last));
-        Assert.True(scroll.Offset > 0);
         AssertContained(last.Bounds, scroll.Bounds);
-        Assert.Equal(footerBounds, back.Bounds);
-        Capture("scrolled");
         last.Click!();
         view = menu.BuildView();
         view.Resize(width, height);
         Assert.Contains(Descendants(view.Root), element => element.Id == "candidate-63");
         Assert.Equal("candidate-63", view.FocusedElement?.Id);
-        Assert.Contains(Descendants(view.Root), element => element.Id == "junction-back" && !element.Bounds.IsEmpty);
+        Assert.DoesNotContain(Descendants(view.Root).OfType<UiButton>(), button => button.Id is "junction-back" or "junction-actions" or "junction-undo" or "junction-search" or "apply-junction-preview" or "cancel-junction-preview");
         Capture("picker");
 
         void Capture(string suffix)
@@ -129,7 +132,6 @@ public sealed class JunctionDashboardRenderTests
             renderer.BeginFrame(TimeSpan.Zero);
             RecordingCanvas canvas = new(renderer);
             view.Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
-            Assert.Contains(canvas.Texts, text => text.Value == "Back");
             string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
             if (!string.IsNullOrEmpty(directory))
             {

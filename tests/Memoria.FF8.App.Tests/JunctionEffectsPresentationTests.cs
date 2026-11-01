@@ -13,7 +13,7 @@ public sealed class JunctionEffectsPresentationTests
     [InlineData(MenuPresentation.Vector, false)]
     [InlineData(MenuPresentation.Classic, true)]
     [InlineData(MenuPresentation.Classic, false)]
-    public void CompleteTablesKeepBothDirectionsInspectableDuringAnAuthoritativeMovePreview(MenuPresentation presentation, bool elemental)
+    public void CompleteTablesKeepAuthoritativeMovePreviewAndRestoreCurrentEffectsOnCancel(MenuPresentation presentation, bool elemental)
     {
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Original effect rules must be configured.");
         using GameAssets assets = new(TestResources.GameDirectory);
@@ -45,16 +45,14 @@ public sealed class JunctionEffectsPresentationTests
         string prefix = elemental ? "elemental" : "status";
         string other = elemental ? "status" : "elemental";
         menu.Execute(new("junction-ui", "slot-" + (elemental ? "Elem-Atk" : "ST-Atk")));
-        menu.Execute(new("junction-ui", $"candidate-magic-0-{selectedSpell}"));
+        menu.SelectEntry("junction-dashboard", $"candidate-magic-0-{selectedSpell}");
         AssertTables();
-        menu.Execute(new("junction-ui", prefix + "-defense"));
-        UiElement[] inspected = Descendants(menu.BuildView().Root).ToArray();
-        Assert.Contains(inspected.OfType<UiButton>(), button => button.Id == prefix + "-defense" && button.Text.StartsWith("●", StringComparison.Ordinal));
-        Assert.Contains(inspected.Where(element => element.Id?.StartsWith(prefix + "-readout-", StringComparison.Ordinal) == true).SelectMany(Descendants).OfType<UiLabel>(), label => label.Text.Contains('→'));
-        Assert.Contains(inspected.OfType<UiButton>(), button => button.Id == other + "-defense" && button.Text.StartsWith("●", StringComparison.Ordinal));
+        Assert.Throws<InvalidOperationException>(() => menu.Execute(new("junction-ui", prefix + "-defense")));
         Assert.Equal(original, JsonSerializer.Serialize(source));
         menu.Navigate(MenuInput.Cancel);
         Assert.Equal("junction-dashboard", menu.ScreenId);
+        menu.Execute(new("junction-ui", prefix + "-defense"));
+        Assert.Contains(Descendants(menu.BuildView().Root).OfType<UiButton>(), button => button.Id == prefix + "-defense" && button.Text.StartsWith("●", StringComparison.Ordinal));
         Assert.Equal(original, JsonSerializer.Serialize(source));
         Assert.DoesNotContain(Descendants(menu.BuildView().Root).Where(element => element.Id?.Contains("-readout-", StringComparison.Ordinal) == true).SelectMany(Descendants).OfType<UiLabel>(), label => label.Text.Contains('→'));
 

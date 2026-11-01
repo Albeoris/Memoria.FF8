@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -38,6 +39,10 @@ public sealed class MenuJunctionPlanner
     private readonly int? placeId;
     private MenuData? before;
     private readonly string rulesFingerprint;
+    private readonly string nativeFingerprint;
+    private readonly Dictionary<int, BattleNativePlayerStatRules> sourceRules = [];
+    private readonly Dictionary<int, IReadOnlyList<NativeMagicStock>> sourceInventories = [];
+    private readonly Dictionary<MenuAction, MenuJunctionPlan> planCache = [];
 
     public string SourceFingerprint { get; }
     public MenuData Snapshot => before ??= View(source);
@@ -51,18 +56,23 @@ public sealed class MenuJunctionPlanner
         this.catalog = catalog;
         this.placeId = placeId;
         rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable") + ":" + state.GameplayPreferences.SmartAttack;
-        SourceFingerprint = NativeJunctionEdits.Fingerprint(source) + ":" + rulesFingerprint;
+        nativeFingerprint = NativeJunctionEdits.Fingerprint(source);
+        SourceFingerprint = nativeFingerprint + ":" + rulesFingerprint;
     }
 
     public bool IsCurrent(MenuJunctionPlan plan) => plan.SourceFingerprint == SourceFingerprint;
 
     public MenuJunctionPlan Plan(MenuAction action)
     {
+        if (planCache.TryGetValue(action, out MenuJunctionPlan? cached))
+        {
+            return cached;
+        }
         try
         {
             if (UnavailableReason is string unavailable)
             {
-                return Unavailable(action.Kind, unavailable);
+                return Cache(action, Unavailable(action.Kind, unavailable));
             }
             NativeCharacterVitals intended = NativeJunctionMenuInput.Apply(source.DeepCopy(), NativeJunctionMenuProjection.PlayerAction(action));
             NativeJunctionEditOperation operation = action.Kind switch
@@ -72,12 +82,22 @@ public sealed class MenuJunctionPlanner
                 "junction-magic-off-all" => NativeJunctionEditOperation.ClearPartyMagic,
                 _ => NativeJunctionEditOperation.Assignments
             };
-            return Complete(action.Kind, intended, action.TargetId, action.Kind is "junction-off" or "junction-magic-off-all", operation);
+            return Cache(action, Complete(action.Kind, intended, action.TargetId, action.Kind is "junction-off" or "junction-magic-off-all", operation));
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException or InvalidDataException)
         {
-            return Unavailable(action.Kind, exception.Message);
+            return Cache(action, Unavailable(action.Kind, exception.Message));
         }
+    }
+
+    private MenuJunctionPlan Cache(MenuAction action, MenuJunctionPlan plan)
+    {
+        if (planCache.Count >= 128)
+        {
+            planCache.Clear();
+        }
+        planCache.Add(action, plan);
+        return plan;
     }
 
     public MenuJunctionPlan FillEmptyCommands(string characterId)
@@ -188,7 +208,7 @@ public sealed class MenuJunctionPlanner
 
     public MenuJunctionPlan Reverse(MenuJunctionPlan applied)
     {
-        if (NativeJunctionEdits.Fingerprint(applied.Result) != NativeJunctionEdits.Fingerprint(source) || applied.RulesFingerprint != rulesFingerprint)
+        if (NativeJunctionEdits.Fingerprint(applied.Result) != nativeFingerprint || applied.RulesFingerprint != rulesFingerprint)
         {
             return Unavailable("Undo", "Undo is unavailable because the character, inventory or rule state changed.");
         }
@@ -207,9 +227,35 @@ public sealed class MenuJunctionPlanner
         }
     }
 
-    private Dictionary<string, int> ProjectStats(NativeCharacterVitals vitals, int row) => LiveMenuData.Statistics(catalog!.ReadStatRules(vitals, row), vitals.Records[row], vitals.GetMagicInventory(row));
+    private BattleNativePlayerStatRules Rules(NativeCharacterVitals vitals, int row)
+    {
+        if (!sourceRules.TryGetValue(row, out BattleNativePlayerStatRules? original))
+        {
+            original = catalog!.ReadStatRules(source, row);
+            sourceRules.Add(row, original);
+        }
+        NativeCharacterJunction junction = vitals.Records[row].Junction;
+        if (junction.Abilities != source.Records[row].Junction.Abilities)
+        {
+            return catalog!.ReadStatRules(vitals, row);
+        }
+        return junction.MagicJunctions.AsSpan().SequenceEqual(source.Records[row].Junction.MagicJunctions) ? original : original with { MagicJunctions = junction.MagicJunctions.ToImmutableArray() };
+    }
 
-    private MenuData View(NativeCharacterVitals vitals) => LiveMenuData.Build(state with { CharacterVitals = vitals }, names, catalog, Enumerable.Range(0, vitals.Records.Length).ToHashSet(), placeId, includeJunctionPlanner: false);
+    private IReadOnlyList<NativeMagicStock> Inventory(int row)
+    {
+        int bank = source.MagicSystem.SharedMagicStock ? 0 : row;
+        if (!sourceInventories.TryGetValue(bank, out IReadOnlyList<NativeMagicStock>? inventory))
+        {
+            inventory = source.GetMagicInventory(row);
+            sourceInventories.Add(bank, inventory);
+        }
+        return inventory;
+    }
+
+    private Dictionary<string, int> ProjectStats(NativeCharacterVitals vitals, int row) => LiveMenuData.Statistics(Rules(vitals, row), vitals.Records[row], Inventory(row));
+
+    private MenuData View(NativeCharacterVitals vitals, MenuData? baseline = null, IReadOnlySet<int>? changedRows = null) => LiveMenuData.BuildJunctionSnapshot(state with { CharacterVitals = vitals }, names, catalog, placeId, baseline, changedRows, catalog is null ? null : row => Rules(vitals, row));
 
     private MenuJunctionPlan Complete(string label, NativeCharacterVitals intended, string targetId, bool review, NativeJunctionEditOperation operation = NativeJunctionEditOperation.Assignments, bool isUndo = false)
     {
@@ -229,7 +275,7 @@ public sealed class MenuJunctionPlanner
         NativeJunctionEditPlan edit = NativeJunctionEdits.Create(source, intended, operation, isUndo);
         NativeCharacterVitals result = edit.Rows.Length == 0 ? source.DeepCopy() : NativeJunctionEdits.Apply(source, edit);
         MenuData current = Snapshot;
-        MenuData after = View(result);
+        MenuData after = edit.Rows.Length == 0 ? current : View(result, current, edit.Rows.Select(row => row.Record).ToHashSet());
         List<MenuJunctionChange> changes = Diff(current, after);
         for (int row = 0; row < source.Records.Length; row++)
         {
@@ -263,8 +309,8 @@ public sealed class MenuJunctionPlanner
             RequiresReview = review || foreign || gfConsequences,
             Operation = operation,
             IsUndo = isUndo,
-            Original = source.DeepCopy(),
-            Result = result.DeepCopy(),
+            Original = source,
+            Result = result,
             RulesFingerprint = rulesFingerprint
         };
     }
@@ -272,7 +318,7 @@ public sealed class MenuJunctionPlanner
     private MenuJunctionPlan Unavailable(string label, string reason)
     {
         MenuData current = Snapshot;
-        return new MenuJunctionPlan { SourceFingerprint = SourceFingerprint, AfterSourceFingerprint = SourceFingerprint, Label = label, Before = current, After = current, Changes = [], Action = new MenuAction("junction-edit"), UnavailableReason = reason, Original = source.DeepCopy(), Result = source.DeepCopy(), RulesFingerprint = rulesFingerprint };
+        return new MenuJunctionPlan { SourceFingerprint = SourceFingerprint, AfterSourceFingerprint = SourceFingerprint, Label = label, Before = current, After = current, Changes = [], Action = new MenuAction("junction-edit"), UnavailableReason = reason, Original = source, Result = source, RulesFingerprint = rulesFingerprint };
     }
 
     private static int CharacterRow(string id)
@@ -287,6 +333,9 @@ public sealed class MenuJunctionPlanner
     private List<MenuJunctionChange> Diff(MenuData before, MenuData after)
     {
         List<MenuJunctionChange> changes = [];
+        Dictionary<string, MenuMagic> beforeMagic = before.Magic.ToDictionary(magic => magic.Id, StringComparer.Ordinal);
+        Dictionary<string, MenuMagic> afterMagic = after.Magic.ToDictionary(magic => magic.Id, StringComparer.Ordinal);
+        Dictionary<string, MenuCharacter> afterCharacters = after.Characters.ToDictionary(character => character.Id, StringComparer.Ordinal);
         string Text(string key, string fallback) => catalog?.SystemText(key, fallback) ?? fallback;
         string None() => Text("ui.junctiondashboard.none", "None");
         string Empty() => Text("ui.junctiondashboard.empty", "Empty");
@@ -301,7 +350,7 @@ public sealed class MenuJunctionPlanner
         }
         foreach (MenuCharacter current in before.Characters)
         {
-            MenuCharacter next = after.Characters.Single(character => character.Id == current.Id);
+            MenuCharacter next = afterCharacters[current.Id];
             void Add(string category, string slot, string oldValue, string newValue)
             {
                 if (oldValue != newValue)
@@ -309,7 +358,30 @@ public sealed class MenuJunctionPlanner
                     changes.Add(new(current.Id, current.Name, category, slot, oldValue, newValue));
                 }
             }
-            string Magic(MenuData data, string id) => id == "0" ? None() : data.Magic.FirstOrDefault(magic => magic.Id == id)?.Name ?? id;
+            void AccessChanges()
+            {
+                foreach (MenuMagic magic in before.Magic.Where(magic => magic.CharacterId == current.Id))
+                {
+                    if (!afterMagic.TryGetValue(magic.Id, out MenuMagic? projected))
+                    {
+                        continue;
+                    }
+                    if (before.SharedMagicStock && magic.OwnerCharacterId != projected.OwnerCharacterId && (magic.OwnerCharacterId == current.Id || projected.OwnerCharacterId == current.Id))
+                    {
+                        Add("Ownership", magic.Name, Owner(before, magic), Owner(after, projected));
+                    }
+                    if (magic.Caster != projected.Caster || magic.Availability != projected.Availability)
+                    {
+                        Add("Access", magic.Name, Access(magic), Access(projected));
+                    }
+                }
+            }
+            if (ReferenceEquals(current, next))
+            {
+                AccessChanges();
+                continue;
+            }
+            string Magic(Dictionary<string, MenuMagic> values, string id) => id == "0" ? None() : values.GetValueOrDefault(id)?.Name ?? id;
             string Ability(MenuCharacter character, string id, bool command) => id == "0" ? Empty() : (command ? character.AvailableCommands : character.AvailableAbilities).FirstOrDefault(choice => choice.Id == id)?.Name ?? id;
             foreach (string slot in current.JunctionIds.Keys)
             {
@@ -317,9 +389,14 @@ public sealed class MenuJunctionPlanner
                 string newId = next.JunctionIds[slot];
                 if (oldId != newId)
                 {
-                    changes.Add(new(current.Id, current.Name, "Magic", slot, Magic(before, oldId), Magic(after, newId)));
+                    changes.Add(new(current.Id, current.Name, "Magic", slot, Magic(beforeMagic, oldId), Magic(afterMagic, newId)));
                 }
-                Add("Capability", slot, current.AvailableJunctionSlots.Contains(slot) ? Available() : Locked(), next.AvailableJunctionSlots.Contains(slot) ? Available() : Locked());
+                bool available = current.AvailableJunctionSlots.Contains(slot);
+                bool nextAvailable = next.AvailableJunctionSlots.Contains(slot);
+                if (available != nextAvailable)
+                {
+                    Add("Capability", slot, available ? Available() : Locked(), nextAvailable ? Available() : Locked());
+                }
             }
             for (int slot = 0; slot < 3; slot++)
             {
@@ -344,19 +421,6 @@ public sealed class MenuJunctionPlanner
             {
                 Add("GF", before.GuardianForces.FirstOrDefault(force => force.Id == gf)?.Name ?? gf, current.GuardianForceIds.Contains(gf) ? Text("ui.junctiondashboard.assigned", "Assigned") : Text("ui.junctiondashboard.unassigned", "Unassigned"), next.GuardianForceIds.Contains(gf) ? Text("ui.junctiondashboard.assigned", "Assigned") : Text("ui.junctiondashboard.unassigned", "Unassigned"));
             }
-            foreach (MenuMagic magic in before.Magic.Where(magic => magic.CharacterId == current.Id))
-            {
-                MenuMagic? projected = after.Magic.FirstOrDefault(candidate => candidate.Id == magic.Id);
-                if (projected is null)
-                {
-                    continue;
-                }
-                if (before.SharedMagicStock && magic.OwnerCharacterId != projected.OwnerCharacterId && (magic.OwnerCharacterId == current.Id || projected.OwnerCharacterId == current.Id))
-                {
-                    Add("Ownership", magic.Name, Owner(before, magic), Owner(after, projected));
-                }
-                Add("Access", magic.Name, Access(magic), Access(projected));
-            }
             foreach (string stat in current.Stats.Keys)
             {
                 Add("Stat", stat, current.Stats[stat].ToString(CultureInfo.InvariantCulture), next.Stats[stat].ToString(CultureInfo.InvariantCulture));
@@ -375,6 +439,7 @@ public sealed class MenuJunctionPlanner
                 Effects("Element", effects.Elements, nextEffects.Elements);
                 Effects("Status", effects.Statuses, nextEffects.Statuses);
             }
+            AccessChanges();
         }
         return changes;
     }

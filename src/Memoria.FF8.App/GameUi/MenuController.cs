@@ -206,7 +206,6 @@ public sealed partial class MenuController
 
     public void Close()
     {
-        junctionSearchEditing = false;
         junctionEditor = "";
         junctionPlan = null;
         junctionReview = false;

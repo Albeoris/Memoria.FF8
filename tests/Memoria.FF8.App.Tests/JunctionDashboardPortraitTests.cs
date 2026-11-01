@@ -93,7 +93,7 @@ public sealed class JunctionDashboardPortraitTests
     }
 
     [Fact]
-    public void ForeignOwnerPortraitAppearsOnlyAboveTheFocusedGuardianForce()
+    public void AssignedOwnerPortraitsStayVisibleAboveTheirGuardianForces()
     {
         MenuData data = Fixture(2, 3);
         data.GuardianForces[0].Owner = new(data.Characters[0].Id, data.Characters[0].NativeId, data.Characters[0].Name);
@@ -101,10 +101,12 @@ public sealed class JunctionDashboardPortraitTests
         data.GuardianForces[1].Owner = new(data.Characters[1].Id, 7, "Same display name");
         MenuController menu = Open(data);
         UiView view = menu.BuildView();
-        Assert.DoesNotContain(VisibleDescendants(view.Root), element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true);
+        Assert.Equal(2, VisibleDescendants(view.Root).Count(element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true));
+        UiImage selectedOwner = Assert.IsType<UiImage>(VisibleDescendants(view.Root).Single(element => element.Id == "gf-owner-" + data.GuardianForces[0].Id));
+        Assert.Equal(new UiImageSource(UiImageKind.CharacterPortrait, data.Characters[0].NativeId!.Value), selectedOwner.Source);
         Assert.True(view.Focus(Descendants(view.Root).Single(element => element.Id == "gf-portrait-" + data.GuardianForces[0].Id)));
         view = menu.BuildView();
-        Assert.DoesNotContain(VisibleDescendants(view.Root), element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true);
+        Assert.Equal(2, VisibleDescendants(view.Root).Count(element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true));
         UiElement foreign = Descendants(view.Root).Single(element => element.Id == "gf-portrait-" + data.GuardianForces[1].Id);
         Assert.True(view.Focus(foreign));
         view = menu.BuildView();
@@ -117,7 +119,7 @@ public sealed class JunctionDashboardPortraitTests
         UiElement unassigned = Descendants(view.Root).Single(element => element.Id == "gf-portrait-" + data.GuardianForces[2].Id);
         Assert.True(view.Focus(unassigned));
         view = menu.BuildView();
-        Assert.DoesNotContain(VisibleDescendants(view.Root), element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true);
+        Assert.Equal(2, VisibleDescendants(view.Root).Count(element => element.Id?.StartsWith("gf-owner-", StringComparison.Ordinal) == true));
     }
 
     [Fact]

@@ -237,8 +237,8 @@ public sealed class NativeTutorialBindingsTests
         IReadOnlyDictionary<int, NativeTutorialMenuStep> steps = NativeTutorialJunctionPlan.Create(0, catalog.Get(0), party);
         Assert.DoesNotContain(steps.Values, step => step.EntryId == "manage-gfs" || step.DashboardPreparation?.Contains("manage-gfs") == true);
         Assert.Equal("gf-portrait-gf-0", steps[58].EntryId);
-        Assert.Equal("candidate-gf-1", steps[122].EntryId);
-        Assert.Equal(new[] { "gf-portrait-gf-1" }, steps[122].DashboardPreparation);
+        Assert.Equal("gf-portrait-gf-1", steps[122].EntryId);
+        Assert.Empty(steps[122].DashboardPreparation!);
         Assert.Equal(NativeTutorialPress.ApplyDashboard, steps[136].Press);
     }
 
@@ -258,8 +258,7 @@ public sealed class NativeTutorialBindingsTests
         JsonElement source = JsonSerializer.SerializeToElement(earlier);
         string original = source.GetRawText();
         NativeTutorialPlayer restored = new(catalog, menus, 0, source);
-        int firstGuardianForce = Array.FindIndex(current.Party.GuardianForces, force => (force.Flags & 1) != 0);
-        string portrait = $"gf-portrait-gf-{firstGuardianForce}";
+        string portrait = "gf-portrait-" + dashboard.Candidate;
         Assert.Equal(original, source.GetRawText());
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current.Party), JsonSerializer.SerializeToElement(restored.Party)));
         Assert.Equal("gf-1", restored.Menu.CaptureJunctionDashboard().Candidate);

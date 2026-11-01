@@ -2,13 +2,13 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed record JunctionDashboardNavigationState(string Editor, string Origin, string Candidate, bool Review, string Priority, string Focus, int CandidatePage, int ImpactPage, string Query, string Sort, JunctionEffectDirection ElementalDirection, JunctionEffectDirection StatusDirection, MenuAction? ReviewedAction = null);
+internal sealed record JunctionDashboardNavigationState(string Editor, string Origin, string Candidate, bool Review, string Priority, string Focus, int CandidatePage, int ImpactPage, string Query, string Sort, JunctionEffectDirection ElementalDirection, JunctionEffectDirection StatusDirection, MenuAction? ReviewedAction = null, bool TransferModal = false);
 
 public sealed partial class MenuController
 {
     private IReadOnlyList<MenuEntry> JunctionDashboardEntries() => FocusableDescendants(BuildView().Root).OfType<UiButton>().Select(button => new MenuEntry(button.Id ?? "", JunctionControlLabel(button), J("select-preview", "Select · Preview"), Action: new MenuAction("junction-ui", button.Id ?? ""), Enabled: button.Enabled)).ToArray();
 
-    internal JunctionDashboardNavigationState CaptureJunctionDashboard() => new(junctionEditor, junctionOrigin, junctionCandidate, junctionReview, junctionPriority, junctionFocus, junctionCandidatePage, junctionImpactPage, junctionSearch, junctionSort, junctionDashboard.ElementalDirection, junctionDashboard.StatusDirection, junctionReviewedAction);
+    internal JunctionDashboardNavigationState CaptureJunctionDashboard() => new(junctionEditor, junctionOrigin, junctionCandidate, junctionReview, junctionPriority, junctionFocus, junctionCandidatePage, junctionImpactPage, "", junctionSort, junctionDashboard.ElementalDirection, junctionDashboard.StatusDirection, junctionReviewedAction, junctionTransferModal);
 
     internal void RestoreJunctionDashboard(JunctionDashboardNavigationState saved)
     {
@@ -20,16 +20,11 @@ public sealed partial class MenuController
         junctionOrigin = saved.Origin;
         junctionCandidate = saved.Candidate;
         junctionPriority = saved.Priority;
-        junctionSearch = saved.Query;
         junctionSort = saved.Sort;
         junctionCandidatePage = saved.CandidatePage;
         junctionImpactPage = saved.ImpactPage;
         junctionReviewedAction = saved.ReviewedAction;
         junctionPlan = null;
-        if (saved.Origin.StartsWith("slot-", StringComparison.Ordinal))
-        {
-            _junctionSlot = saved.Origin[5..];
-        }
         if (saved.Candidate.Length > 0 && saved.Editor is "magic" or "gf" or "command" or "passive")
         {
             PreviewJunctionCandidate(saved.Candidate);
@@ -47,6 +42,7 @@ public sealed partial class MenuController
             ReviewJunctionAction(action);
         }
         junctionReview = saved.Review && junctionPlan is not null;
+        junctionTransferModal = saved.TransferModal && junctionPlan is not null;
         junctionFocus = saved.Focus;
         junctionDashboard.SetDirection(JunctionEffectFamily.Elemental, saved.ElementalDirection);
         junctionDashboard.SetDirection(JunctionEffectFamily.Status, saved.StatusDirection);
@@ -60,7 +56,7 @@ public sealed partial class MenuController
             return false;
         }
         SelectJunctionControl(action.SubjectId, false);
-        UiButton? button = FocusableDescendants(BuildView().Root).OfType<UiButton>().FirstOrDefault(element => element.Id == action.SubjectId);
+        UiButton? button = FocusableDescendants(BuildView().Root).Where(JunctionControlIsActive).OfType<UiButton>().FirstOrDefault(element => element.Id == action.SubjectId);
         if (button?.Enabled == true)
         {
             button.Click?.Invoke();
@@ -84,12 +80,16 @@ public sealed partial class MenuController
                 control = FocusableDescendants(view.Root).FirstOrDefault(element => element.Id == id);
             }
         }
-        if (control is null || !allowDisabled && !control.Enabled)
+        if (control is null || !JunctionControlIsActive(control) || !allowDisabled && !control.Enabled)
         {
             throw new InvalidOperationException($"Junction dashboard has no enabled control '{id}'.");
         }
         junctionFocus = id;
         view.Focus(control);
+        if (id.StartsWith("gf-portrait-", StringComparison.Ordinal))
+        {
+            PreviewGuardian(id[12..]);
+        }
     }
 
     private UiElement BuildJunctionAttackModes()

@@ -17,18 +17,18 @@ public sealed class JunctionTypographyTests
         menu.ConnectPreferences(() => preferences, _ => { });
         menu.Open("junction");
         menu.Data.Settings["Text scale"] = textScale + "%";
-        float originalSize = RenderOptimizeAction(menu);
+        float originalSize = RenderActionsBinding(menu);
         foreach (string destination in new[] { "junction-options", "junction-off", "junction-auto", "junction-magic", "junction-stock" })
         {
             menu.Open(destination);
             menu.Data.Settings["Text scale"] = textScale + "%";
-            Assert.Equal(originalSize, RenderOptimizeAction(menu));
+            Assert.Equal(originalSize, RenderActionsBinding(menu));
             Assert.Equal(textScale + "%", menu.Data.Settings["Text scale"]);
             Assert.Equal(preferences.UiFontSize, fontSize);
         }
     }
 
-    private static float RenderOptimizeAction(MenuController menu)
+    private static float RenderActionsBinding(MenuController menu)
     {
         menu.Navigate(MenuInput.Alternate);
         RecordingCanvas canvas = new();
@@ -36,7 +36,7 @@ public sealed class JunctionTypographyTests
         view.Resize(1920, 1080);
         view.Draw(canvas, menu.CreateTheme());
         Assert.Equal("junction-dashboard", menu.ScreenId);
-        float size = Assert.Single(canvas.Texts, text => text.Text == "Optimize stats").Size;
+        float size = Assert.Single(canvas.Texts, text => text.Text.EndsWith("  Actions", StringComparison.Ordinal)).Size;
         return size;
     }
 

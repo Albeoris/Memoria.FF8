@@ -9,19 +9,16 @@ namespace Memoria.FF8.App.Tests;
 public sealed class JunctionDashboardInteractionTests
 {
     [Fact]
-    public void SelectingACandidateAndApplyingReleasesSearchOwnership()
+    public void ClickingACandidateCommitsImmediatelyWithoutSearchOrConfirmationButtons()
     {
         using Fixture fixture = new();
         fixture.Hit("slot-Str");
-        fixture.Hit("junction-search");
-        Assert.True(fixture.Menu.IsJunctionSearchEditing);
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-search" or "junction-sort" or "apply-junction-preview" or "cancel-junction-preview");
         fixture.Hit("candidate-magic-0-2");
-        Assert.False(fixture.Menu.IsJunctionSearchEditing);
-        fixture.Apply();
-        Assert.False(fixture.Menu.IsJunctionSearchEditing);
-        Assert.False(fixture.Menu.EnterJunctionSearchCharacter('x'));
+        Assert.Equal(1, fixture.Actions);
+        Assert.Equal(2, fixture.Vitals.Records[0].Junction.MagicJunctions[1]);
         fixture.Menu.Navigate(MenuInput.Alternate);
-        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "optimize");
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "optimize" && entry.Enabled);
     }
 
     [Theory]
@@ -36,28 +33,27 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Menu.Navigate(MenuInput.Alternate);
         fixture.Hit(control);
         MenuNavigationState saved = fixture.Menu.CaptureNavigation();
-        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "apply-junction-preview" && entry.Enabled);
+        Assert.Equal("junction-review", fixture.Menu.BuildView().FocusedElement?.Id);
         fixture.Menu.Navigate(MenuInput.Cancel);
         fixture.Menu.RestoreNavigation(saved);
-        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "apply-junction-preview" && entry.Enabled);
+        Assert.Equal("junction-review", fixture.Menu.BuildView().FocusedElement?.Id);
         Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
         Assert.Equal(0, fixture.Actions);
         fixture.Apply();
     }
 
     [Fact]
-    public void ForcedCloseReleasesSearchAndClosedControlsCannotDispatch()
+    public void ForcedCloseDiscardsCandidatePreviewAndClosedControlsCannotDispatch()
     {
         using Fixture fixture = new();
+        string before = JsonSerializer.Serialize(fixture.Vitals);
         fixture.Hit("slot-Str");
-        fixture.Hit("junction-search");
-        Assert.True(fixture.Menu.IsJunctionSearchEditing);
+        fixture.Preview("candidate-magic-0-2");
         fixture.Menu.Close();
-        Assert.False(fixture.Menu.IsJunctionSearchEditing);
-        Assert.False(fixture.Menu.EnterJunctionSearchCharacter('x'));
         Assert.Throws<InvalidOperationException>(() => fixture.Menu.SelectEntry("junction-dashboard", "slot-Str"));
-        fixture.Hit("apply-junction-preview");
+        fixture.Hit("candidate-magic-0-2");
         Assert.Equal(0, fixture.Actions);
+        Assert.Equal(before, JsonSerializer.Serialize(fixture.Vitals));
     }
 
     [Fact]
@@ -68,6 +64,7 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Hit("basic-action");
         fixture.Hit("smart-mode");
         Assert.Equal(MagicAttackMode.SmartMagic, fixture.Vitals.MagicSystem.AttackModes[0]);
+        fixture.Menu.Navigate(MenuInput.Alternate);
         Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "junction-undo" && entry.Enabled);
         fixture.Hit("junction-undo");
         Assert.Equal(MagicAttackMode.PhysicalOnly, fixture.Vitals.MagicSystem.AttackModes[0]);
@@ -75,7 +72,7 @@ public sealed class JunctionDashboardInteractionTests
     }
 
     [Fact]
-    public void CandidateSearchSortAndWarmPreviewsKeepSourceAndCastingHistoryUnchanged()
+    public void CandidatePagingAndWarmPreviewsKeepSourceAndCastingHistoryUnchangedWithoutSearch()
     {
         using Fixture fixture = new(shared: true);
         fixture.Vitals = fixture.Vitals with { MagicSystem = fixture.Vitals.MagicSystem with { RecordZeroExtension = Enumerable.Range(33, 24).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() } };
@@ -87,16 +84,8 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Menu.SelectEntry("junction-dashboard", "candidate-magic-0-1");
         fixture.Menu.SelectEntry("junction-dashboard", "candidate-magic-0-56");
         double warm = fixture.Menu.JunctionPreviewMilliseconds;
-        fixture.Hit("junction-sort");
-        fixture.Hit("candidate-magic-0-56");
-        fixture.Hit("junction-search");
-        foreach (char character in fixture.Data.Magic.Single(magic => magic.Id == "magic-0-56").Name)
-        {
-            Assert.True(fixture.Menu.EnterJunctionSearchCharacter(character));
-        }
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-search" or "junction-sort");
         Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "candidate-magic-0-56");
-        fixture.Menu.Navigate(MenuInput.Cancel);
-        fixture.Menu.Navigate(MenuInput.Cancel);
         fixture.Menu.Navigate(MenuInput.Cancel);
         Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
         Assert.Equal(0, fixture.Actions);
@@ -113,19 +102,20 @@ public sealed class JunctionDashboardInteractionTests
         using Fixture fixture = new();
         NativeCharacterVitals before = fixture.Vitals.DeepCopy();
         fixture.Hit("slot-Str");
-        fixture.Hit("candidate-magic-0-1");
+        fixture.Preview("candidate-magic-0-1");
         Assert.Equal(before.Records[0].Junction, fixture.Vitals.Records[0].Junction);
         fixture.Apply();
         Assert.Equal(0, fixture.Vitals.Records[0].Junction.MagicJunctions[0]);
         Assert.Equal(1, fixture.Vitals.Records[0].Junction.MagicJunctions[1]);
         NativeHpWord clamped = fixture.Vitals.Records[0].HitPoints;
         Assert.True(clamped.Maximum < before.Records[0].HitPoints.Maximum);
-        fixture.Hit("junction-undo");
+        fixture.Undo();
         Assert.Equal(2, fixture.Actions);
         Assert.Equal(before.Records[0].Junction, fixture.Vitals.Records[0].Junction);
         Assert.Equal(clamped, fixture.Vitals.Records[0].HitPoints);
         Assert.Equal(JsonSerializer.Serialize(before.MagicSystem), JsonSerializer.Serialize(fixture.Vitals.MagicSystem));
         Assert.Equal(before.Records[0].MagicInventory, fixture.Vitals.Records[0].MagicInventory);
+        fixture.Menu.Navigate(MenuInput.Alternate);
         Assert.False(fixture.Menu.Entries.Single(entry => entry.Id == "junction-undo").Enabled);
     }
 
@@ -135,8 +125,8 @@ public sealed class JunctionDashboardInteractionTests
         using Fixture fixture = new();
         string original = JsonSerializer.Serialize(fixture.Vitals);
         fixture.Hit("slot-Str");
-        fixture.Hit("candidate-magic-0-1");
-        fixture.Hit("candidate-magic-0-2");
+        fixture.Preview("candidate-magic-0-1");
+        fixture.Preview("candidate-magic-0-2");
         fixture.Menu.Navigate(MenuInput.Cancel);
         Assert.Equal("junction-dashboard", fixture.Menu.ScreenId);
         Assert.Equal(0, fixture.Actions);
@@ -170,7 +160,7 @@ public sealed class JunctionDashboardInteractionTests
         Assert.False(fixture.Menu.IsOpen);
         fixture.Menu.Open("junction");
         fixture.Hit("slot-Str");
-        fixture.Hit("candidate-magic-0-2");
+        fixture.Preview("candidate-magic-0-2");
         fixture.Apply();
         fixture.Menu.Navigate(MenuInput.Cancel);
         Assert.False(fixture.Menu.IsOpen);
@@ -186,13 +176,94 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal(0, fixture.Data.Magic.Single(magic => magic.Id == "magic-0-1").RemainingUses);
         string history = JsonSerializer.Serialize(fixture.Vitals.MagicSystem);
         fixture.Hit("slot-Str");
-        fixture.Hit("candidate-magic-0-1");
+        fixture.Preview("candidate-magic-0-1");
         fixture.Apply();
-        fixture.Hit("junction-undo");
+        fixture.Undo();
         Assert.Equal(2, fixture.Actions);
         Assert.Equal(history, JsonSerializer.Serialize(fixture.Vitals.MagicSystem));
         Assert.Equal(0, fixture.Data.Magic.Single(magic => magic.Id == "magic-0-1").RemainingUses);
         Assert.Equal(100, fixture.Vitals.GetMagicCount(0, 1));
+    }
+
+    [Fact]
+    public void ActionsSnapshotPreservesTheLastMagicDestinationIndependentlyOfItsOrigin()
+    {
+        using Fixture fixture = new();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Hit("slot-Str");
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        fixture.Menu.Open("junction");
+        fixture.Menu.Navigate(MenuInput.Alternate);
+        MenuNavigationState saved = fixture.Menu.CaptureNavigation();
+        Assert.Equal("Str", saved.JunctionSlot);
+        Assert.Equal("slot-HP", saved.JunctionDashboard!.Origin);
+        fixture.Menu.RestoreNavigation(saved);
+        Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(fixture.Menu.CaptureNavigation()));
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+    }
+
+    [Fact]
+    public void CancelFromGuardianHoverRunsTheExitAuditWithoutAnEndlessPreviewLoop()
+    {
+        using Fixture fixture = new();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Menu.SelectEntry("junction-dashboard", "gf-portrait-gf-0");
+        Assert.Equal("gf", fixture.Menu.CaptureJunctionDashboard().Editor);
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "leave-configured" && entry.Enabled);
+        fixture.Hit("leave-configured");
+        Assert.False(fixture.Menu.IsOpen);
+        Assert.Equal(0, fixture.Actions);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+    }
+
+    [Fact]
+    public void OwnGuardianRemovalCommitsImmediatelyDespiteCapabilityAndHpLoss()
+    {
+        using Fixture fixture = new();
+        string inventory = JsonSerializer.Serialize(fixture.Vitals.Records.Select(record => record.MagicInventory));
+        fixture.Hit("gf-portrait-gf-0");
+        Assert.Equal(1, fixture.Actions);
+        Assert.DoesNotContain(0, fixture.Vitals.Records[0].Junction.GuardianForceAssignments);
+        Assert.Equal(0, fixture.Vitals.Records[0].Junction.MagicJunctions[0]);
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-transfer-yes" or "junction-transfer-no");
+        Assert.Equal(inventory, JsonSerializer.Serialize(fixture.Vitals.Records.Select(record => record.MagicInventory)));
+    }
+
+    [Fact]
+    public void ForeignGuardianTransferHasOneModalAndCancelPreservesEveryOwner()
+    {
+        using Fixture fixture = new();
+        fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(7, 0).SetJunctionMagic(7, 0, 1);
+        fixture.Refresh();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        string selected = fixture.Menu.Character!.Id;
+        fixture.Hit("gf-portrait-gf-0");
+        Assert.Equal("junction-transfer-no", fixture.Menu.BuildView().FocusedElement?.Id);
+        Assert.Equal(0, fixture.Actions);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "junction-transfer-yes" && entry.Enabled);
+        Assert.All(fixture.Menu.Entries.Where(entry => entry.Enabled), entry => Assert.True(entry.Id is "junction-transfer-yes" or "junction-transfer-no" or "impact-previous" or "impact-next", entry.Id));
+        fixture.Menu.Navigate(MenuInput.PageRight);
+        Assert.Equal(selected, fixture.Menu.Character!.Id);
+        fixture.Hit("junction-transfer-no");
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-transfer-yes" or "junction-transfer-no");
+    }
+
+    [Fact]
+    public void CommandFocusPreviewsAndConfirmCommitsExactlyOnce()
+    {
+        using Fixture fixture = new();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Hit("command-0");
+        fixture.Preview("candidate-20");
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        fixture.Menu.Navigate(MenuInput.Confirm);
+        Assert.Equal(1, fixture.Actions);
+        Assert.Equal(20, (byte)fixture.Vitals.Records[0].Junction.Commands);
+        Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -204,15 +275,15 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Refresh();
         Assert.DoesNotContain(fixture.Data.Characters, actor => actor.Id == "character-7");
         fixture.Hit("gf-portrait-gf-0");
-        Assert.Equal("candidate-gf-0", fixture.Menu.BuildView().FocusedElement?.Id);
+        Assert.Equal("junction-transfer-no", fixture.Menu.BuildView().FocusedElement?.Id);
         Assert.Equal(0, fixture.Actions);
-        fixture.Apply();
+        fixture.Hit("junction-transfer-yes");
         Assert.Contains(0, fixture.Vitals.Records[0].Junction.GuardianForceAssignments);
         Assert.DoesNotContain(0, fixture.Vitals.Records[7].Junction.GuardianForceAssignments);
         Assert.Equal(0u, fixture.Vitals.Records[7].Junction.Commands);
         Assert.Equal(0, fixture.Vitals.Records[7].Junction.MagicJunctions[0]);
         fixture.Menu.Navigate(MenuInput.Cancel);
-        fixture.Hit("junction-undo");
+        fixture.Undo();
         Assert.Contains(0, fixture.Vitals.Records[7].Junction.GuardianForceAssignments);
         Assert.Equal(21u, fixture.Vitals.Records[7].Junction.Commands);
         Assert.Equal(1, fixture.Vitals.Records[7].Junction.MagicJunctions[0]);
@@ -294,14 +365,18 @@ public sealed class JunctionDashboardInteractionTests
 
         public void Hit(string control) => Menu.Execute(new MenuAction("junction-ui", control));
 
+        public void Preview(string control) => Menu.SelectEntry("junction-dashboard", control);
+
+        public void Undo()
+        {
+            Menu.Navigate(MenuInput.Alternate);
+            Hit("junction-undo");
+        }
+
         public void Apply()
         {
             int before = Actions;
-            Hit("apply-junction-preview");
-            if (Actions == before)
-            {
-                Hit("apply-junction-preview");
-            }
+            Menu.Navigate(MenuInput.Confirm);
             Assert.Equal(before + 1, Actions);
         }
 

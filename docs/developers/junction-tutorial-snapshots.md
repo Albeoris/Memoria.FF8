@@ -2,7 +2,7 @@
 
 Junction lessons use the same dashboard, candidate previews, consequences review and assignment transaction as ordinary play. The original lesson WORD program still supplies its input identities, callback delays and continuation boundaries. Its input targets are adapted to semantic dashboard controls. The stat lesson demonstrates **Optimize stats** with the current stat-only constraints; the original Auto algorithm remains a separate engine contract.
 
-Tutorial playback snapshot version **2** records the dashboard destination, candidate, review, priority, focus, paging, search, sort and both effect-table directions. Restoring a pending preview reconstructs its proposal from the saved isolated party and current authenticated rules. The committed assignment and statistics remain visible until Apply.
+Tutorial playback snapshot version **2** records the dashboard destination, candidate, review, priority, focus, paging and both effect-table directions. Its retained search field is empty and earlier search values are ignored because Junction has no search. Restoring a pending preview reconstructs its proposal from the saved isolated party and current authenticated rules. Assignments remain committed until Confirm; preparing a GF step only focuses its portrait and never clicks it. Card/detail opens secondary actions without a footer button.
 
 The GF steps target acquired GF portraits directly. Earlier version 1 or 2 dashboard snapshots that reference the removed GF-management button have their recognized focus/origin mapped to the first acquired GF portrait. The selected candidate and isolated party remain unchanged; this is a navigation adaptation without rewriting external snapshot files.
 

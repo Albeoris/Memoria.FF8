@@ -164,6 +164,8 @@ public sealed record MenuMaterial(string Name, UiImageSource? Icon, int Owned, i
 
 public sealed class MenuMagic
 {
+    internal string JunctionBaseDescription { get; set; } = "";
+    internal MenuMagic CopyForJunction() => (MenuMagic)MemberwiseClone();
     public int? SpellId { get; set; }
     public string? OwnerCharacterId { get; set; }
     public string? BoundSlot { get; set; }

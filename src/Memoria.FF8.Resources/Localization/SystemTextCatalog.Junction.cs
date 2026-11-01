@@ -92,6 +92,10 @@ public static partial class SystemTextCatalog
         defaults.Add("junction.dashboard.legend", "Elemental protection: 100% nullifies, 150% absorbs 50%. Status attack shows potency; actual success depends on the target.");
         defaults.Add("junction.dashboard.fill-commands", "Fill empty commands");
         defaults.Add("junction.dashboard.actions", "Actions");
+        defaults.Add("junction.dashboard.available-commands", "Available command abilities");
+        defaults.Add("junction.dashboard.available-passives", "Available passive abilities");
+        defaults.Add("junction.dashboard.confirm-transfer", "Confirm transfer");
+        defaults.Add("junction.dashboard.transfer-question", "Remove {0} from {1} and junction to {2}?");
         defaults.Add("junction.dashboard.pin", "Pin / Unpin stat");
         defaults.Add("junction.dashboard.select-preview", "Select · Preview");
         defaults.Add("junction.dashboard.candidates", "Candidates");

@@ -85,8 +85,16 @@ public sealed partial class MenuController
 
     private void FocusJunctionDashboard(UiView view)
     {
-        var elements = FocusableDescendants(view.Root).ToArray();
-        view.Focus(elements.FirstOrDefault(element => element.Id == junctionFocus) ?? elements.FirstOrDefault());
+        var elements = FocusableDescendants(view.Root).Where(JunctionControlIsActive).Where(element => element.Enabled).ToArray();
+        junctionRestoringFocus = true;
+        try
+        {
+            view.Focus(elements.FirstOrDefault(element => element.Id == junctionFocus) ?? elements.FirstOrDefault());
+        }
+        finally
+        {
+            junctionRestoringFocus = false;
+        }
     }
 
     private void EnsureJunctionSession()
@@ -112,14 +120,12 @@ public sealed partial class MenuController
             PointerSize = 7,
             Enabled = enabled,
             Click = click,
+            Hover = () => LeaveGuardianPreview(id),
             FocusChanged = focused =>
             {
                 if (focused)
                 {
-                    if (id != "junction-search")
-                    {
-                        junctionSearchEditing = false;
-                    }
+                    LeaveGuardianPreview(id);
                     bool changed = junctionFocus != id;
                     junctionFocus = id;
                     if (changed && junctionEditor.Length == 0)
@@ -171,6 +177,10 @@ public sealed partial class MenuController
         {
             junctionFocus = JunctionGfFocusId;
         }
+        if (junctionEditor.Length == 0 && junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal))
+        {
+            PreviewGuardian(junctionFocus[12..]);
+        }
         if (junctionFocus.StartsWith("slot-", StringComparison.Ordinal))
         {
             junctionDashboard.SetDestination(junctionFocus[5..]);
@@ -189,24 +199,24 @@ public sealed partial class MenuController
         }
         bool accessible = JunctionAccessible;
         float dockHeight = accessible ? Math.Min(junctionViewportHeight * 0.35f, 160 * TextScale) : 160;
-        UiGrid page = JunctionRows(accessible ? [44 * TextScale, 0, dockHeight, 32 * TextScale] : [44, 76, 0, 160, 32], [1], 8);
+        UiGrid page = JunctionRows(accessible ? [44 * TextScale, 0, dockHeight] : [44, 76, 0, 160], [1], 8);
         page.Id = "junction-dashboard";
         Place(page, BuildJunctionHeader(), 0);
         if (!accessible)
         {
             Place(page, BuildJunctionGfs(), 1);
         }
-        UiGrid dashboard = accessible ? Grid(junctionViewportWidth < 850 ? [1, 1, 1, 1] : [1, 1], junctionViewportWidth < 850 ? [1] : [1, 1], 12) : Grid([1], [300, 294, 366, 252], 12);
-        Place(dashboard, BuildJunctionStats(), 0);
+        UiGrid dashboard = accessible ? Grid(junctionViewportWidth < 850 ? [1, 1, 1, 1] : [1, 1], junctionViewportWidth < 850 ? [1] : [1, 1], 12) : Grid([1], [252, 300, 294, 366], 12);
+        Place(dashboard, BuildJunctionAbilities(), 0);
+        Place(dashboard, BuildJunctionStats(), accessible && junctionViewportWidth < 850 ? 1 : 0, accessible && junctionViewportWidth < 850 ? 0 : 1);
         UiGrid assignments = Grid([1, 1], [1], 8);
         Place(assignments, BuildJunctionBindings(true), 0);
         Place(assignments, BuildJunctionBindings(false), 1);
-        Place(dashboard, assignments, accessible && junctionViewportWidth < 850 ? 1 : 0, accessible && junctionViewportWidth < 850 ? 0 : 1);
+        Place(dashboard, assignments, accessible ? junctionViewportWidth < 850 ? 2 : 1 : 0, accessible ? 0 : 2);
         UiGrid effects = Grid([1, 1], [1], 8);
         Place(effects, BuildJunctionPercentageTable(true), 0);
         Place(effects, BuildJunctionPercentageTable(false), 1);
-        Place(dashboard, effects, accessible ? junctionViewportWidth < 850 ? 2 : 1 : 0, accessible ? 0 : 2);
-        Place(dashboard, BuildJunctionAbilities(), accessible ? junctionViewportWidth < 850 ? 3 : 1 : 0, accessible ? junctionViewportWidth < 850 ? 0 : 1 : 3);
+        Place(dashboard, effects, accessible ? junctionViewportWidth < 850 ? 3 : 1 : 0, accessible ? junctionViewportWidth < 850 ? 0 : 1 : 3);
         if (accessible)
         {
             junctionScroll = new UiScrollPanel
@@ -227,14 +237,6 @@ public sealed partial class MenuController
             Place(page, dashboard, 2);
         }
         Place(page, BuildJunctionDock(), accessible ? 2 : 3);
-        UiGrid footer = Grid([1], [3, 1, 1.5f, 1], 8);
-        string hints = CurrentBindingText(ControlAction.CameraLeft) + " / " + CurrentBindingText(ControlAction.CameraRight);
-        Place(footer, JunctionLabel(hints + "  " + J("character", "Character") + "   " + CurrentBindingText(ControlAction.Confirm) + " " + J("select", "Select") + "   " + CurrentBindingText(ControlAction.Cancel) + " " + J("back", "Back"), 12), 0);
-        bool undoAvailable = junctionUndo is not null || junctionAttackUndo is not null;
-        Place(footer, JunctionButton("junction-undo", J("undo", "Undo") + (undoAvailable ? ": " + junctionUndoLabel : ""), UndoJunction, undoAvailable && junctionPlan is null, 12), 0, 1);
-        Place(footer, JunctionButton("junction-actions", CurrentBindingText(ControlAction.Card) + "  " + J("actions", "Actions"), OpenJunctionActions), 0, 2);
-        Place(footer, JunctionButton("junction-back", J("back", "Back"), Back), 0, 3);
-        Place(page, footer, accessible ? 3 : 4);
         return page;
     }
 
@@ -245,7 +247,7 @@ public sealed partial class MenuController
         header.ColumnDefinitions.Add(UiGridLength.Pixel(44));
         header.ColumnDefinitions.Add(UiGridLength.Star(250));
         header.ColumnDefinitions.Add(UiGridLength.Star(380));
-        header.ColumnDefinitions.Add(UiGridLength.Pixel(JunctionAccessible && junctionViewportWidth < 850 ? 96 : 250));
+        header.ColumnDefinitions.Add(UiGridLength.Pixel(JunctionAccessible && junctionViewportWidth < 850 ? 164 : 250));
         UiImage face = Portrait(Character);
         face.Id = "junction-character-portrait";
         Place(header, face, 0);
@@ -257,7 +259,7 @@ public sealed partial class MenuController
         Place(hp, JunctionLabel("HP  " + (Character is null ? "—" : Hp(Character)), 22), 0);
         Place(hp, new UiProgressBar { Min = 0, Max = Math.Max(1, Character?.MaximumHp ?? 1), Value = Character?.CurrentHp ?? 0 }, 1);
         Place(header, hp, 0, 2);
-        UiGrid navigation = new() { Gap = 8 };
+        UiGrid navigation = new() { Gap = JunctionAccessible && junctionViewportWidth < 850 ? 4 : 8 };
         navigation.RowDefinitions.Add(UiGridLength.Star());
         navigation.ColumnDefinitions.Add(UiGridLength.Star());
         int column = 1;
@@ -268,6 +270,11 @@ public sealed partial class MenuController
                 continue;
             }
             string id = direction < 0 ? "previous-character" : "next-character";
+            if (direction < 0)
+            {
+                navigation.ColumnDefinitions.Add(UiGridLength.Pixel(30));
+                Place(navigation, JunctionLabel("⟵", 19), 0, column++);
+            }
             navigation.ColumnDefinitions.Add(UiGridLength.Pixel(44));
             UiButton button = JunctionButton(id, "", () => SwitchJunctionCharacter(direction), !junctionReview);
             button.DrawBackground = false;
@@ -275,6 +282,11 @@ public sealed partial class MenuController
             portrait.Id = id + "-portrait";
             button.Children.Add(portrait);
             Place(navigation, button, 0, column++);
+            if (direction > 0)
+            {
+                navigation.ColumnDefinitions.Add(UiGridLength.Pixel(30));
+                Place(navigation, JunctionLabel("⟶", 19), 0, column++);
+            }
         }
         Place(header, navigation, 0, 3);
         return header;
@@ -287,14 +299,12 @@ public sealed partial class MenuController
         {
             string id = force.Id;
             bool assigned = Character?.GuardianForceIds.Contains(id) == true;
-            bool foreign = force.Owner is { } owner && owner.Id != Character?.Id;
-            bool selected = junctionFocus == "gf-portrait-" + id || junctionEditor == "gf" && junctionCandidate == id && !junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal);
             UiGrid content = JunctionRows([20, 0], [1]);
             UiImage ownerPortrait = new()
             {
                 Id = "gf-owner-" + id,
-                Source = foreign && force.Owner?.NativeId is int ownerId ? new UiImageSource(UiImageKind.CharacterPortrait, ownerId) : null,
-                Visible = foreign && selected
+                Source = force.Owner?.NativeId is int ownerId ? new UiImageSource(UiImageKind.CharacterPortrait, ownerId) : null,
+                Visible = force.Owner is not null
             };
             Place(content, ownerPortrait, 0);
             Place(content, new UiImage
@@ -302,21 +312,16 @@ public sealed partial class MenuController
                 Id = "gf-image-" + id,
                 Source = force.NativeId is int nativeId ? new UiImageSource(UiImageKind.GuardianForcePortrait, nativeId, Opacity: assigned ? (byte)255 : (byte)128) : null
             }, 1);
-            UiButton button = JunctionButton("gf-portrait-" + id, "", () => OpenJunctionEditor("gf", "gf-portrait-" + id, id));
+            UiButton button = JunctionButton("gf-portrait-" + id, "", () => ActivateGuardian(id));
             button.DrawBackground = false;
+            button.SuppressSelection = true;
+            button.Hover = () => PreviewGuardian(id);
             button.Children.Add(content);
             button.FocusChanged = focused =>
             {
-                ownerPortrait.Visible = foreign && (focused || junctionEditor == "gf" && junctionCandidate == id && !junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal));
-                if (focused)
+                if (focused && !junctionRestoringFocus)
                 {
-                    bool changed = junctionFocus != button.Id;
-                    junctionFocus = button.Id!;
-                    junctionSearchEditing = false;
-                    if (changed)
-                    {
-                        _view = null;
-                    }
+                    PreviewGuardian(id);
                 }
             };
             portraits.Children.Add(button);
@@ -347,15 +352,19 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionBindings(bool elemental)
     {
-        UiGrid body = JunctionRows([24, 0], [1]);
+        UiGrid body = JunctionRows([24, 20, 0], [1]);
         Place(body, JunctionLabel(elemental ? J("elemental-junctions", "Elemental junctions") : J("status-junctions", "Status junctions"), 14, true), 0);
+        UiGrid legend = Grid([1], [55, 178, 45], 0);
+        Place(legend, JunctionLabel(J("magic", "Magic"), 11, true), 0, 1);
+        Place(legend, JunctionLabel(J("stock", "Stock"), 11, true), 0, 2);
+        Place(body, legend, 1);
         UiGrid rows = Grid([1, 1, 1, 1, 1], [1], 0);
         int[] slots = elemental ? [9, 11, 12, 13, 14] : [10, 15, 16, 17, 18];
         for (int index = 0; index < slots.Length; index++)
         {
             Place(rows, BuildJunctionBindingRow(LiveMenuData.JunctionSlotName(slots[index]), false), index);
         }
-        Place(body, rows, 1);
+        Place(body, rows, 2);
         return JunctionPanel(body);
     }
 
@@ -365,7 +374,7 @@ public sealed partial class MenuController
         string currentId = Character?.JunctionIds.GetValueOrDefault(slot) ?? "0";
         string actorId = Character?.Id ?? "";
         MenuMagic? magic = Character?.Junctions.ContainsKey(slot) == true ? JunctionMagicInventory.FirstOrDefault(spell => spell.CharacterId == actorId && spell.Id == currentId) : null;
-        string assigned = Character?.Junctions.GetValueOrDefault(slot) ?? (available ? J("none", "None") : J("locked", "Locked"));
+        string assigned = Character?.Junctions.GetValueOrDefault(slot) ?? "---";
         string name = StatText(slot);
         if (slot.StartsWith("Elem-", StringComparison.Ordinal))
         {
@@ -379,7 +388,7 @@ public sealed partial class MenuController
         UiGrid content = Grid([1], stat ? [42, 112, 45, 87] : [55, 178, 45], 0);
         content.Margin = new UiThickness(8, 0, 0, 0);
         Place(content, JunctionLabel((pinned ? "◆ " : "") + name, 12, true), 0);
-        Place(content, JunctionLabel(assigned, 16, !available), 0, 1);
+        Place(content, available ? JunctionLabel(assigned, 16) : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
         Place(content, JunctionLabel(magic?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "—", 14, true), 0, 2);
         if (stat)
         {
@@ -397,7 +406,7 @@ public sealed partial class MenuController
             UiLabel readout = JunctionLabel(value, 16);
             if (next is not null && next != current)
             {
-                readout.Color = next > current ? new UiColor(158, 211, 235) : new UiColor(242, 176, 120);
+                readout.Color = next > current ? JunctionIncreaseColor : JunctionDecreaseColor;
             }
             Place(content, readout, 0, 3);
         }
@@ -413,6 +422,7 @@ public sealed partial class MenuController
         {
             if (focused)
             {
+                LeaveGuardianPreview(id);
                 bool changed = junctionFocus != id;
                 junctionFocus = id;
                 if (junctionDashboard.SetDestination(slot) || changed && junctionEditor.Length == 0)
@@ -482,7 +492,7 @@ public sealed partial class MenuController
             UiLabel number = JunctionLabel(percentage, elemental ? 16 : 15, value is null);
             if (value is not null && preview is not null && (attack ? value.Attack != preview.Attack : value.Defense != preview.Defense))
             {
-                number.Color = (attack ? preview.Attack > value.Attack : preview.Defense > value.Defense) ? new UiColor(158, 211, 235) : new UiColor(242, 176, 120);
+                number.Color = (attack ? preview.Attack > value.Attack : preview.Defense > value.Defense) ? JunctionIncreaseColor : JunctionDecreaseColor;
             }
             Place(readout, number, 0, 1);
             Place(rows, readout, index % rowCount, index / rowCount);
@@ -509,7 +519,7 @@ public sealed partial class MenuController
             bool empty = Character?.CommandIds.ElementAtOrDefault(index) is null or "0";
             string name = Character?.Commands.ElementAtOrDefault(index + 1) ?? "—";
             bool actionable = empty && Character is { } actor && actor.AvailableCommands.Any(choice => !actor.CommandIds.Contains(choice.Id));
-            UiButton command = JunctionButton("command-" + index, actionable ? "" : $"{index + 1}  " + (empty ? J("empty", "Empty") : name), () => OpenJunctionEditor("command", "command-" + slot));
+            UiButton command = JunctionButton("command-" + index, actionable ? "" : $"{index + 1}  " + (empty ? "---" : name), () => OpenJunctionEditor("command", "command-" + slot));
             if (actionable)
             {
                 command.Children.Add(new JunctionAttentionRow());
@@ -526,8 +536,25 @@ public sealed partial class MenuController
         for (int index = 0; index < 4; index++)
         {
             int slot = index;
-            string name = index >= (Character?.AbilitySlots ?? 0) ? J("locked", "Locked") : Character?.Abilities.ElementAtOrDefault(index) is not (null or "--") and var assigned ? assigned : J("empty", "Empty");
-            Place(passives, JunctionButton("passive-" + index, $"{index + 1}  {name}", () => OpenJunctionEditor("passive", "passive-" + slot)), index);
+            bool locked = index >= (Character?.AbilitySlots ?? 0);
+            bool empty = Character?.AbilityIds.ElementAtOrDefault(index) is null or "0";
+            bool actionable = !locked && empty && Character is { } actor && actor.AvailableAbilities.Any(choice => choice.Id != "0" && !actor.AbilityIds.Contains(choice.Id));
+            string name = Character?.Abilities.ElementAtOrDefault(index) ?? "---";
+            UiButton passive = JunctionButton("passive-" + index, locked ? "" : $"{index + 1}  " + (empty ? actionable ? "! " + J("empty", "Empty") : "---" : name), () => OpenJunctionEditor("passive", "passive-" + slot));
+            if (locked)
+            {
+                passive.Children.Add(new JunctionLockIcon { Id = "junction-lock-passive-" + index, Margin = new UiThickness(28, 0, 0, 0) });
+            }
+            else if (actionable)
+            {
+                passive.Text = "";
+                UiLabel attention = JunctionLabel($"{index + 1}  ! " + J("empty", "Empty"), 16);
+                attention.Color = new UiColor(232, 184, 99);
+                attention.Margin = new UiThickness(10, 0, 0, 0);
+                passive.Children.Add(new JunctionAttentionRow());
+                passive.Children.Add(attention);
+            }
+            Place(passives, passive, index);
         }
         Place(body, passives, 3);
         return JunctionPanel(body);
