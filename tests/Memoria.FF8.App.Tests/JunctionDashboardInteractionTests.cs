@@ -3,6 +3,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -241,6 +242,12 @@ public sealed class JunctionDashboardInteractionTests
         string selected = fixture.Menu.Character!.Id;
         fixture.Hit("gf-portrait-gf-0");
         Assert.Equal("junction-transfer-no", fixture.Menu.BuildView().FocusedElement?.Id);
+        UiView view = fixture.Menu.BuildView();
+        view.Resize(1280, 720);
+        UiElement overlay = Descendants(view.Root).Single(element => element.Id == "junction-transfer-modal");
+        UiElement panel = Assert.Single(overlay.Children);
+        Assert.Equal(overlay.Bounds.X + overlay.Bounds.Width / 2, panel.Bounds.X + panel.Bounds.Width / 2, 3);
+        Assert.Equal(overlay.Bounds.Y + overlay.Bounds.Height / 2, panel.Bounds.Y + panel.Bounds.Height / 2, 3);
         Assert.Equal(0, fixture.Actions);
         Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "junction-transfer-yes" && entry.Enabled);
         Assert.All(fixture.Menu.Entries.Where(entry => entry.Enabled), entry => Assert.True(entry.Id is "junction-transfer-yes" or "junction-transfer-no" or "impact-previous" or "impact-next", entry.Id));
@@ -305,6 +312,18 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Vitals = fixture.Vitals.SetJunctionAbility(0, 0, 0, false);
         fixture.Refresh();
         Assert.Equal(fixture.Catalog.CommandName(1), fixture.Data.Characters.Single(actor => actor.Id == "character-0").Commands[0]);
+    }
+
+    private static IEnumerable<UiElement> Descendants(UiElement root)
+    {
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private sealed class Fixture : IDisposable

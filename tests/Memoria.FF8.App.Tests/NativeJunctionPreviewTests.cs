@@ -104,7 +104,7 @@ public sealed class NativeJunctionPreviewTests
         Assert.Contains("→", hp.Text);
         Assert.Contains("→", strength.Text);
         Assert.Equal(new UiColor(245, 90, 90), hp.Color);
-        Assert.Equal(new UiColor(158, 211, 235), strength.Color);
+        Assert.Equal(new UiColor(110, 220, 135), strength.Color);
         Assert.True(hp.Bounds.Y <= strength.Bounds.Y);
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
         float offsetX = view.ViewportMode == UiViewportMode.Fit ? (width - view.DesignWidth * scale) / 2 : 0;

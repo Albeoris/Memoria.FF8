@@ -324,7 +324,7 @@ public sealed partial class MenuController
             UiLabel line = JunctionLabel(JunctionImpactLine(change), 14);
             if (change.Category is "Stat" or "HP" && int.TryParse(change.Before, NumberStyles.Integer, CultureInfo.InvariantCulture, out int before) && int.TryParse(change.After, NumberStyles.Integer, CultureInfo.InvariantCulture, out int after) && before != after)
             {
-                line.Color = after > before ? new UiColor(100, 220, 130) : new UiColor(245, 90, 90);
+                line.Color = after > before ? JunctionIncreaseColor : JunctionDecreaseColor;
             }
             Place(rows, line, index);
         }
