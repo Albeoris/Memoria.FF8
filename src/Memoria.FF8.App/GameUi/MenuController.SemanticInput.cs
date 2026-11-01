@@ -65,6 +65,10 @@ public sealed partial class MenuController
     {
         if (IsJunctionDashboard && screenId is "junction-dashboard" or "junction")
         {
+            if (!IsOpen || IsSelectingCharacter)
+            {
+                throw new InvalidOperationException("An active Junction dashboard is required to select a control.");
+            }
             SelectJunctionControl(entryId, allowDisabled);
             return;
         }

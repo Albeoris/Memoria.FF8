@@ -11,7 +11,10 @@ public sealed partial class MenuController
     private bool junctionSearchEditing;
     private string junctionSort = "benefit";
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
-    internal bool IsJunctionSearchEditing => IsJunctionDashboard && junctionSearchEditing;
+    private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
+    private string junctionCacheSource = "";
+    private MenuAction? junctionReviewedAction;
+    internal bool IsJunctionSearchEditing => IsOpen && IsJunctionDashboard && junctionSearchEditing && junctionFocus == "junction-search" && junctionEditor is "magic" or "gf" or "command" or "passive";
     private int JunctionCandidatePageSize => JunctionAccessible ? junctionViewportWidth < 850 ? 2 : 4 : 8;
 
     private JunctionCommandConfiguration JunctionConfiguration(MenuCharacter character) => new(character.Id, character.CommandIds.Cast<string?>().ToArray(), character.AvailableCommands.Select(choice => choice.Id).ToArray(), Data.SmartAttack && character.AttackMode == "SmartMagic");
@@ -52,7 +55,7 @@ public sealed partial class MenuController
         {
             candidate = editor switch
             {
-                "magic" => selected.JunctionIds.GetValueOrDefault(_junctionSlot) ?? "0",
+                "magic" => selected.JunctionIds.GetValueOrDefault(_junctionSlot) is { } spell && (spell != "0" || selected.Junctions.ContainsKey(_junctionSlot) && JunctionMagicInventory.Any(value => value.CharacterId == selected.Id && value.Id == spell)) ? spell : "none",
                 "command" => selected.CommandIds.ElementAtOrDefault(int.Parse(origin.AsSpan(8), CultureInfo.InvariantCulture)) ?? "0",
                 "passive" => selected.AbilityIds.ElementAtOrDefault(int.Parse(origin.AsSpan(8), CultureInfo.InvariantCulture)) ?? "0",
                 _ => JunctionCandidates().FirstOrDefault()?.Id ?? ""
@@ -61,6 +64,8 @@ public sealed partial class MenuController
         if (candidate.Length > 0 && junctionEditor.Length > 0)
         {
             PreviewJunctionCandidate(candidate);
+            int index = JunctionCandidates().ToList().FindIndex(value => value.Id == candidate);
+            junctionCandidatePage = Math.Max(0, index) / JunctionCandidatePageSize;
         }
         junctionFocus = "candidate-" + (candidate.Length > 0 ? candidate : JunctionCandidates().FirstOrDefault()?.Id);
         _view = null;
@@ -75,8 +80,8 @@ public sealed partial class MenuController
         List<JunctionCandidate> candidates = [];
         if (junctionEditor == "magic")
         {
-            candidates.Add(new("0", J("none", "None"), _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
-            foreach (MenuMagic spell in Data.Magic.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
+            candidates.Add(new("none", J("none", "None"), _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
+            foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
             {
                 string detail = J("stock", "Stock") + $" ×{spell.Quantity}";
                 if (spell.RemainingUses is not null || spell.UnlimitedUses)
@@ -85,11 +90,11 @@ public sealed partial class MenuController
                 }
                 if (spell.OwnerCharacterId is string owner && owner.Length > 0 && owner != actor.Id)
                 {
-                    detail += " · " + (Data.Characters.FirstOrDefault(character => character.Id == owner)?.Name ?? owner);
+                    detail += " · " + ((Data.JunctionPlanner?.Snapshot ?? Data).Characters.FirstOrDefault(character => character.Id == owner)?.Name ?? owner);
                 }
                 if (spell.BoundSlot is string bound && bound.Length > 0)
                 {
-                    detail += " · " + bound;
+                    detail += " · " + J("used-by", "Used by") + " " + bound;
                 }
                 candidates.Add(new(spell.Id, spell.Name, detail, new(spell.JunctionAvailable ? "junction-magic" : "junction-magic-reassign", spell.Id, actor.Id, _junctionSlot)));
             }
@@ -125,12 +130,12 @@ public sealed partial class MenuController
             spells = junctionSort switch
             {
                 "name" => spells.OrderBy(value => value.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(value => value.Id, StringComparer.Ordinal),
-                "stock" => spells.OrderByDescending(value => Data.Magic.FirstOrDefault(spell => spell.Id == value.Id)?.Quantity ?? 0).ThenBy(value => value.Id, StringComparer.Ordinal),
-                _ => spells.OrderBy(value => value.Id == current ? 0 : Data.Magic.FirstOrDefault(spell => spell.Id == value.Id)?.BoundSlot is not (null or "") ? 2 : 1).ThenByDescending(value => JunctionBenefit(actor, value.Id)).ThenBy(value => value.Id, StringComparer.Ordinal)
+                "stock" => spells.OrderByDescending(value => JunctionMagicInventory.FirstOrDefault(spell => spell.Id == value.Id)?.Quantity ?? 0).ThenBy(value => value.Id, StringComparer.Ordinal),
+                _ => spells.OrderBy(value => value.Id == current ? 0 : JunctionMagicInventory.FirstOrDefault(spell => spell.Id == value.Id)?.BoundSlot is not (null or "") ? 2 : 1).ThenByDescending(value => JunctionBenefit(actor, value.Id)).ThenBy(value => value.Id, StringComparer.Ordinal)
             };
             candidates = [candidates[0], .. spells];
         }
-        return junctionSearch.Length == 0 ? candidates : candidates.Where(value => value.Id == "0" || value.Name.Contains(junctionSearch, StringComparison.CurrentCultureIgnoreCase)).ToArray();
+        return junctionSearch.Length == 0 ? candidates : candidates.Where(value => value.Id == "none" || value.Id == "0" && junctionEditor != "magic" || value.Name.Contains(junctionSearch, StringComparison.CurrentCultureIgnoreCase)).ToArray();
     }
 
     private int JunctionBenefit(MenuCharacter actor, string id)
@@ -182,6 +187,7 @@ public sealed partial class MenuController
 
     private void PreviewJunctionCandidate(string id)
     {
+        junctionSearchEditing = false;
         JunctionCandidate? candidate = JunctionCandidates().FirstOrDefault(value => value.Id == id);
         junctionCandidate = id;
         junctionReview = false;
@@ -189,7 +195,23 @@ public sealed partial class MenuController
         if (candidate is not null && Data.JunctionPlanner is { } planner)
         {
             long start = Stopwatch.GetTimestamp();
-            junctionPlan = planner.Plan(candidate.Action);
+            if (junctionCacheSource != planner.SourceFingerprint)
+            {
+                junctionCacheSource = planner.SourceFingerprint;
+                junctionPreviewCache.Clear();
+                junctionBenefits.Clear();
+            }
+            string key = candidate.Action.Kind + ":" + candidate.Action.TargetId + ":" + candidate.Action.Value + ":" + candidate.Id;
+            if (!junctionPreviewCache.TryGetValue(key, out MenuJunctionPlan? cached))
+            {
+                cached = planner.Plan(candidate.Action);
+                if (junctionPreviewCache.Count >= 16)
+                {
+                    junctionPreviewCache.Clear();
+                }
+                junctionPreviewCache.Add(key, cached);
+            }
+            junctionPlan = cached;
             JunctionPreviewMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
             Message = junctionPlan.UnavailableReason ?? "";
         }
@@ -245,7 +267,7 @@ public sealed partial class MenuController
         else
         {
             UiGrid help = JunctionRows([26, 0, 30], [1]);
-            Place(help, JunctionLabel(Message.Length > 0 ? Message : J("select-slot", "Select an assignment to inspect or edit it."), 16), 0);
+            Place(help, JunctionLabel(Message.Length > 0 ? Message : JunctionFocusedDescription(), 16), 0);
             Place(help, JunctionLabel(J("legend", "Elemental protection: 100% nullifies, 150% absorbs 50%. Status attack shows potency; actual success depends on the target."), 13, true), 1);
             Place(help, JunctionLabel(CurrentBindingText(ControlAction.Card) + "  " + J("actions-help", "Actions: optimize stats, clear junctions, fill commands, pin a stat."), 13, true), 2);
             content = help;
@@ -262,7 +284,14 @@ public sealed partial class MenuController
         int start = Math.Clamp(junctionCandidatePage * pageSize, 0, Math.Max(0, candidates.Count - 1));
         UiGrid picker = JunctionRows([23, 0, 22], [1], 2);
         UiGrid heading = Grid([1], [3, 2, 1.7f, 0.5f, 0.5f], 4);
-        Place(heading, JunctionLabel((Character?.Name ?? "") + " · " + (junctionEditor == "magic" ? _junctionSlot : J(junctionEditor, junctionEditor)) + " · " + J("preview", "Preview"), 14), 0);
+        string destination = junctionEditor switch
+        {
+            "magic" => StatText(_junctionSlot),
+            "command" => J("command", "Command") + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1),
+            "passive" => J("passive", "Passive") + " " + (int.Parse(junctionOrigin.AsSpan(8), CultureInfo.InvariantCulture) + 1),
+            _ => J("gf", "Guardian Force")
+        };
+        Place(heading, JunctionLabel((Character?.Name ?? "") + " · " + destination + " · " + J("preview", "Preview"), 14), 0);
         Place(heading, JunctionButton("junction-search", (junctionSearchEditing ? "▏" : "⌕ ") + (junctionSearch.Length == 0 ? J("search", "Search") : junctionSearch), () => { junctionSearchEditing = true; junctionFocus = "junction-search"; _view = null; }, size: 12), 0, 1);
         Place(heading, JunctionButton("junction-sort", J("sort-" + junctionSort, junctionSort), () => { junctionSort = junctionSort == "benefit" ? "name" : junctionSort == "name" ? "stock" : "benefit"; junctionCandidatePage = 0; _view = null; }, junctionEditor == "magic", 12), 0, 2);
         Place(heading, JunctionButton("candidate-previous", "‹", () => PageJunctionCandidates(-1), junctionCandidatePage > 0, 13), 0, 3);
@@ -294,7 +323,13 @@ public sealed partial class MenuController
         }
         Place(picker, rows, 1);
         string range = $"{(candidates.Count == 0 ? 0 : start + 1)}–{Math.Min(start + pageSize, candidates.Count)} / {candidates.Count}";
-        Place(picker, JunctionLabel(J("candidates", "Candidates") + " · " + range + (junctionEditor == "magic" ? " · " + J("stock-owner", "Selected character's stock and current ownership") : ""), 12, true), 2);
+        UiGrid footer = Grid([1], [4, 1], 5);
+        Place(footer, JunctionLabel(J("candidates", "Candidates") + " · " + range + (junctionEditor == "magic" ? " · " + J("stock-owner", "Selected character's stock and current ownership") : ""), 12, true), 0);
+        if (junctionEditor == "gf" && junctionCandidate.StartsWith("gf-", StringComparison.Ordinal))
+        {
+            Place(footer, JunctionButton("gf-learning", J("learning", "Learning"), () => { _gfId = junctionCandidate; Push("gf-learn"); }, size: 12), 0, 1);
+        }
+        Place(picker, footer, 2);
         return picker;
     }
 
@@ -346,9 +381,11 @@ public sealed partial class MenuController
         UiLabel explanation = JunctionLabel(text, 12, true);
         explanation.TextFlow = UiTextFlow.Wrap;
         Place(summary, explanation, 1);
-        UiGrid buttons = Grid([1], [1, 1.7f], 7);
+        bool narrow = JunctionAccessible && junctionViewportWidth < 850;
+        UiGrid buttons = Grid([1], narrow ? [1, 1] : [1, 1.7f], 7);
         Place(buttons, JunctionButton("cancel-junction-preview", J("cancel", "Cancel"), CancelJunctionEditor), 0);
-        Place(buttons, JunctionButton("apply-junction-preview", JunctionOperationLabel(), ConfirmJunctionPlan, junctionPlan?.HasChanges == true, 13), 0, 1);
+        string applyText = narrow ? junctionReview ? J("apply-short", "Apply") : J("assign", "Assign") : JunctionOperationLabel();
+        Place(buttons, JunctionButton("apply-junction-preview", applyText, ConfirmJunctionPlan, junctionPlan?.HasChanges == true, 13), 0, 1);
         Place(summary, buttons, 2);
         return summary;
     }
@@ -364,14 +401,22 @@ public sealed partial class MenuController
         {
             return J("fill-commands", "Fill empty commands");
         }
+        if (junctionEditor == "actions" && junctionPlan is { } actionPlan)
+        {
+            return actionPlan.Label == "junction-magic-off-all" ? J("clear-party-magic", "Clear all characters' magic junctions") : J("clear-reviewed", "Apply reviewed removal");
+        }
         if (junctionEditor == "gf" && candidate is not null)
         {
             MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(value => value.Id == candidate.Id);
             string verb = force?.Owner?.Id == Character?.Id ? J("remove", "Remove") : force?.Owner is null ? J("attach", "Attach") : J("transfer", "Transfer");
-            return verb + " " + candidate.Name;
+            return verb + " " + candidate.Name + (force?.Owner?.Id == Character?.Id ? "" : " → " + Character?.Name);
         }
         if (candidate is not null)
         {
+            if (candidate.Id == "none" || candidate.Id == "0" && junctionEditor != "magic")
+            {
+                return J("clear-slot", "Clear this slot");
+            }
             MenuMagic? spell = Data.Magic.FirstOrDefault(value => value.Id == candidate.Id);
             return (spell?.BoundSlot is not (null or "") && spell.BoundSlot != _junctionSlot ? J("move", "Move") : J("assign", "Assign")) + " " + candidate.Name;
         }
@@ -383,7 +428,8 @@ public sealed partial class MenuController
         UiGrid rows = Grid([1, 1, 1, 1], [1, 1], 5);
         Place(rows, JunctionButton("optimize", J("optimize", "Optimize stats"), OpenJunctionOptimizer), 0);
         Place(rows, JunctionButton("fill-commands", J("fill-commands", "Fill empty commands"), PlanJunctionCommands), 1);
-        Place(rows, JunctionButton("pin-stat", J("pin", "Pin / Unpin stat"), ToggleJunctionPin, junctionOrigin.StartsWith("slot-", StringComparison.Ordinal) && IsJunctionStat(junctionOrigin[5..])), 2);
+        bool stat = junctionOrigin.StartsWith("slot-", StringComparison.Ordinal) && IsJunctionStat(junctionOrigin[5..]);
+        Place(rows, JunctionButton("pin-stat", stat && junctionDashboard.IsPinned(Character?.Id ?? "", junctionOrigin[5..]) ? J("unpin", "Unpin stat") : J("pin-stat", "Pin stat"), ToggleJunctionPin, stat), 2);
         Place(rows, JunctionButton("actions-cancel", J("cancel", "Cancel"), CancelJunctionEditor), 3);
         Place(rows, JunctionButton("clear-magic", J("clear-magic", "Clear this character's magic junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "Magic"))), 0, 1);
         Place(rows, JunctionButton("remove-junctions", J("remove-junctions", "Remove this character's junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "All"))), 1, 1);
@@ -412,6 +458,8 @@ public sealed partial class MenuController
 
     private void ReviewJunctionAction(MenuAction action)
     {
+        junctionSearchEditing = false;
+        junctionReviewedAction = action;
         junctionPlan = Data.JunctionPlanner?.Plan(action);
         junctionReview = true;
         junctionImpactPage = 0;
@@ -458,6 +506,7 @@ public sealed partial class MenuController
 
     private void ConfirmJunctionPlan()
     {
+        junctionSearchEditing = false;
         if (junctionPlan is not { HasChanges: true } plan || Data.JunctionPlanner is not { } planner)
         {
             return;
@@ -477,6 +526,7 @@ public sealed partial class MenuController
             return;
         }
         bool firstCommands = Character is { } before && before.CommandIds.All(id => id == "0") && before.AvailableCommands.Count == 0;
+        string operationLabel = JunctionOperationLabel();
         if (_liveAction is null || !Data.SupportedActions.Contains(plan.Action.Kind))
         {
             Message = J("mutation-unavailable", "The current host does not support applying this junction proposal.");
@@ -497,6 +547,8 @@ public sealed partial class MenuController
                 return;
             }
             junctionUndo = refreshed.Reverse(plan);
+            junctionAttackUndo = null;
+            junctionUndoLabel = operationLabel;
             foreach (string id in plan.Changes.Select(change => change.CharacterId).Distinct())
             {
                 junctionVisited.Add(id);
@@ -505,7 +557,7 @@ public sealed partial class MenuController
             junctionPlan = null;
             junctionReview = false;
             junctionEditor = "";
-            junctionFocus = junctionOrigin;
+            junctionFocus = junctionOrigin.StartsWith("assigned-", StringComparison.Ordinal) && Character?.GuardianForceIds.Contains(junctionOrigin[9..]) != true ? "manage-gfs" : junctionOrigin;
             Message = J("applied", "Junction changes applied.");
             if (firstCommands && Character is { AvailableCommands.Count: > 0 } after && after.CommandIds.All(id => id == "0"))
             {
@@ -525,6 +577,22 @@ public sealed partial class MenuController
 
     private void UndoJunction()
     {
+        if (junctionPlan is null && junctionAttackUndo is { } attack)
+        {
+            if (Data.JunctionPlanner?.SourceFingerprint == attack.Fingerprint && _liveAction is not null && Data.SupportedActions.Contains("attack-mode"))
+            {
+                _liveAction(new MenuAction("attack-mode", TargetId: attack.CharacterId, Value: attack.Mode));
+                _liveData = null;
+                junctionAudit.MarkAffected(attack.CharacterId);
+            }
+            else
+            {
+                Message = J("undo-stale", "Undo is unavailable because the relevant game state changed.");
+            }
+            junctionAttackUndo = null;
+            _view = null;
+            return;
+        }
         if (junctionPlan is not null || junctionUndo is not { HasChanges: true } undo)
         {
             return;
@@ -577,6 +645,12 @@ public sealed partial class MenuController
 
     private void OpenJunctionAttackMode()
     {
+        if (junctionReview)
+        {
+            Message = J("resolve-review", "Apply or cancel the current review before editing another assignment.");
+            _view = null;
+            return;
+        }
         junctionOrigin = "basic-action";
         if (!Data.SmartAttack)
         {
@@ -597,9 +671,38 @@ public sealed partial class MenuController
             _view = null;
             return;
         }
+        string focus = junctionEditor.Length > 0 ? junctionOrigin : junctionFocus;
         CancelJunctionEditor();
+        junctionFocus = focus;
         ChangePageSubject(delta);
         _view = null;
+    }
+
+    private string JunctionFocusedDescription()
+    {
+        if (Character is not { } actor)
+        {
+            return J("no-character", "Character data is unavailable.");
+        }
+        if (junctionFocus.StartsWith("slot-", StringComparison.Ordinal))
+        {
+            string slot = junctionFocus[5..];
+            string assigned = actor.Junctions.GetValueOrDefault(slot) ?? J("none", "None");
+            return actor.Name + " · " + StatText(slot) + " · " + assigned + (junctionDashboard.IsPinned(actor.Id, slot) ? " · " + J("pinned", "Pinned") : "");
+        }
+        if (junctionFocus.StartsWith("assigned-", StringComparison.Ordinal) && Data.GuardianForces.FirstOrDefault(force => "assigned-" + force.Id == junctionFocus) is { } gf)
+        {
+            return gf.Name + " · " + J("learning", "Learning") + ": " + gf.Learning;
+        }
+        if (junctionFocus.StartsWith("command-", StringComparison.Ordinal) && int.TryParse(junctionFocus.AsSpan(8), out int command))
+        {
+            return actor.Name + " · " + J("command", "Command") + " " + (command + 1) + " · " + actor.Commands.ElementAtOrDefault(command + 1);
+        }
+        if (junctionFocus.StartsWith("passive-", StringComparison.Ordinal) && int.TryParse(junctionFocus.AsSpan(8), out int passive))
+        {
+            return actor.Name + " · " + J("passive", "Passive") + " " + (passive + 1) + " · " + actor.Abilities.ElementAtOrDefault(passive);
+        }
+        return J("select-slot", "Select an assignment to inspect or edit it.");
     }
 
     private UiElement BuildJunctionExitReview()
@@ -633,7 +736,7 @@ public sealed partial class MenuController
         return rows;
     }
 
-    private List<MenuCharacter> JunctionAttentionCharacters() => Data.Characters.Where(actor => actor.Id == Character?.Id || junctionVisited.Contains(actor.Id)).Where(actor => actor.CommandIds.Count == 3 && junctionAudit.RequiresReview(JunctionConfiguration(actor))).ToList();
+    private List<MenuCharacter> JunctionAttentionCharacters() => (Data.JunctionPlanner?.Snapshot ?? Data).Characters.Where(actor => actor.Id == Character?.Id || junctionVisited.Contains(actor.Id)).Where(actor => actor.CommandIds.Count == 3 && junctionAudit.RequiresReview(JunctionConfiguration(actor))).ToList();
 
     private bool BackFromJunctionDashboard()
     {

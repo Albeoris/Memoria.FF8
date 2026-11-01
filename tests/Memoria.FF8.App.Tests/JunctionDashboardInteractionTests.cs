@@ -9,6 +9,105 @@ namespace Memoria.FF8.App.Tests;
 public sealed class JunctionDashboardInteractionTests
 {
     [Fact]
+    public void SelectingACandidateAndApplyingReleasesSearchOwnership()
+    {
+        using Fixture fixture = new();
+        fixture.Hit("slot-Str");
+        fixture.Hit("junction-search");
+        Assert.True(fixture.Menu.IsJunctionSearchEditing);
+        fixture.Hit("candidate-magic-0-2");
+        Assert.False(fixture.Menu.IsJunctionSearchEditing);
+        fixture.Apply();
+        Assert.False(fixture.Menu.IsJunctionSearchEditing);
+        Assert.False(fixture.Menu.EnterJunctionSearchCharacter('x'));
+        fixture.Menu.Navigate(MenuInput.Alternate);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "optimize");
+    }
+
+    [Theory]
+    [InlineData("fill-commands")]
+    [InlineData("clear-magic")]
+    [InlineData("remove-junctions")]
+    [InlineData("clear-party-magic")]
+    public void CompoundReviewRestoresItsExactOperationWithoutApplyingIt(string control)
+    {
+        using Fixture fixture = new();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Menu.Navigate(MenuInput.Alternate);
+        fixture.Hit(control);
+        MenuNavigationState saved = fixture.Menu.CaptureNavigation();
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "apply-junction-preview" && entry.Enabled);
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        fixture.Menu.RestoreNavigation(saved);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "apply-junction-preview" && entry.Enabled);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        fixture.Apply();
+    }
+
+    [Fact]
+    public void ForcedCloseReleasesSearchAndClosedControlsCannotDispatch()
+    {
+        using Fixture fixture = new();
+        fixture.Hit("slot-Str");
+        fixture.Hit("junction-search");
+        Assert.True(fixture.Menu.IsJunctionSearchEditing);
+        fixture.Menu.Close();
+        Assert.False(fixture.Menu.IsJunctionSearchEditing);
+        Assert.False(fixture.Menu.EnterJunctionSearchCharacter('x'));
+        Assert.Throws<InvalidOperationException>(() => fixture.Menu.SelectEntry("junction-dashboard", "slot-Str"));
+        fixture.Hit("apply-junction-preview");
+        Assert.Equal(0, fixture.Actions);
+    }
+
+    [Fact]
+    public void BasicActionModeIsEditableAndUndoPreservesCastingHistory()
+    {
+        using Fixture fixture = new(smart: true);
+        string history = JsonSerializer.Serialize(fixture.Vitals.MagicSystem.PersonalFieldMasks);
+        fixture.Hit("basic-action");
+        fixture.Hit("smart-mode");
+        Assert.Equal(MagicAttackMode.SmartMagic, fixture.Vitals.MagicSystem.AttackModes[0]);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "junction-undo" && entry.Enabled);
+        fixture.Hit("junction-undo");
+        Assert.Equal(MagicAttackMode.PhysicalOnly, fixture.Vitals.MagicSystem.AttackModes[0]);
+        Assert.Equal(history, JsonSerializer.Serialize(fixture.Vitals.MagicSystem.PersonalFieldMasks));
+    }
+
+    [Fact]
+    public void CandidateSearchSortAndWarmPreviewsKeepSourceAndCastingHistoryUnchanged()
+    {
+        using Fixture fixture = new(shared: true);
+        fixture.Vitals = fixture.Vitals with { MagicSystem = fixture.Vitals.MagicSystem with { RecordZeroExtension = Enumerable.Range(33, 24).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() } };
+        fixture.Refresh();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Hit("slot-Str");
+        fixture.Menu.SelectEntry("junction-dashboard", "candidate-magic-0-56");
+        double cold = fixture.Menu.JunctionPreviewMilliseconds;
+        fixture.Menu.SelectEntry("junction-dashboard", "candidate-magic-0-1");
+        fixture.Menu.SelectEntry("junction-dashboard", "candidate-magic-0-56");
+        double warm = fixture.Menu.JunctionPreviewMilliseconds;
+        fixture.Hit("junction-sort");
+        fixture.Hit("candidate-magic-0-56");
+        fixture.Hit("junction-search");
+        foreach (char character in fixture.Data.Magic.Single(magic => magic.Id == "magic-0-56").Name)
+        {
+            Assert.True(fixture.Menu.EnterJunctionSearchCharacter(character));
+        }
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "candidate-magic-0-56");
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        fixture.Menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_LATENCY_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            File.WriteAllText(output, $"Candidate 56 preview: first {cold:F3} ms; cached {warm:F3} ms. Original resources, shared 56-spell synthetic bank. Timings include planning, not render presentation.\n");
+        }
+    }
+
+    [Fact]
     public void ManualMoveCommitsOnceAndUndoRestoresAssignmentsWithoutHealing()
     {
         using Fixture fixture = new();
@@ -68,13 +167,13 @@ public sealed class JunctionDashboardInteractionTests
         fixture.Menu.Navigate(MenuInput.Cancel);
         Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "leave-configured");
         fixture.Hit("leave-configured");
-        Assert.NotEqual("junction-dashboard", fixture.Menu.ScreenId);
+        Assert.False(fixture.Menu.IsOpen);
         fixture.Menu.Open("junction");
         fixture.Hit("slot-Str");
         fixture.Hit("candidate-magic-0-2");
         fixture.Apply();
         fixture.Menu.Navigate(MenuInput.Cancel);
-        Assert.NotEqual("junction-dashboard", fixture.Menu.ScreenId);
+        Assert.False(fixture.Menu.IsOpen);
         Assert.Equal(1, fixture.Actions);
     }
 
@@ -140,13 +239,14 @@ public sealed class JunctionDashboardInteractionTests
     private sealed class Fixture : IDisposable
     {
         private readonly GameAssets assets;
+        private readonly GameplayPreferences preferences;
         public LiveMenuCatalog Catalog { get; }
         public NativeCharacterVitals Vitals { get; set; }
         public MenuData Data { get; private set; }
         public MenuController Menu { get; }
         public int Actions { get; private set; }
 
-        public Fixture(bool shared = false)
+        public Fixture(bool shared = false, bool smart = false)
         {
             Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Original menu/kernel resources must be explicitly configured.");
             assets = new GameAssets(TestResources.GameDirectory);
@@ -161,12 +261,22 @@ public sealed class JunctionDashboardInteractionTests
             {
                 Vitals.Records[row] = Vitals.Records[row] with { MagicInventory = Enumerable.Range(1, 32).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() };
             }
-            Vitals = MagicModeCoordinator.Preview(Vitals, new GameplayPreferences { SharedMagicStock = shared, InfiniteMagic = true }).Vitals.SetJunctionMagic(0, 0, 1);
+            preferences = new GameplayPreferences { SharedMagicStock = shared, InfiniteMagic = true, SmartAttack = smart };
+            Vitals = MagicModeCoordinator.Preview(Vitals, preferences).Vitals.SetJunctionMagic(0, 0, 1);
             Vitals = Vitals.WithSavedHitPoints(0, Vitals.GetMagicMaximumHitPoints(0));
             Data = Build();
             Menu = new MenuController(() => Data, action =>
             {
-                Vitals = NativeJunctionMenuInput.Apply(Vitals, NativeJunctionMenuProjection.PlayerAction(action));
+                if (action.Kind == "attack-mode")
+                {
+                    GameSession session = new(new GameState { Scene = SceneKind.Field, CharacterVitals = Vitals, GameplayPreferences = preferences });
+                    session.SetAttackMode(int.Parse(action.TargetId.AsSpan(10)), Enum.Parse<MagicAttackMode>(action.Value));
+                    Vitals = session.State.CharacterVitals!;
+                }
+                else
+                {
+                    Vitals = NativeJunctionMenuInput.Apply(Vitals, NativeJunctionMenuProjection.PlayerAction(action));
+                }
                 Actions++;
                 Data = Build();
             });
@@ -174,7 +284,7 @@ public sealed class JunctionDashboardInteractionTests
             Assert.Equal("junction-dashboard", Menu.ScreenId);
         }
 
-        private MenuData Build() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = Vitals }, catalog: Catalog);
+        private MenuData Build() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = Vitals, GameplayPreferences = preferences }, catalog: Catalog);
 
         public void Refresh()
         {

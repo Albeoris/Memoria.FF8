@@ -334,6 +334,10 @@ public sealed class UiView
     {
         if (ReferenceEquals(_focusedElement, element))
         {
+            if (element != null)
+            {
+                RevealScrollAncestors(Root, element);
+            }
             return;
         }
 

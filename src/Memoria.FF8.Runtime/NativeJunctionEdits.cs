@@ -90,7 +90,7 @@ public static class NativeJunctionEdits
             ValidateAbilities(junction.Commands, 3, true, learned);
             ValidateAbilities(junction.Abilities, next.JunctionAbilitySlots(row), false, learned);
         }
-        return next.NormalizeJunctionEditRows(plan.Rows.Select(row => row.Record));
+        return next.NormalizeJunctionEditRows(plan.Rows.Select(row => row.Record), normalizeStatus: plan.Operation == NativeJunctionEditOperation.Assignments);
     }
 
     private static void ValidateOperationScope(NativeCharacterVitals source, NativeJunctionEditPlan plan)
@@ -165,14 +165,14 @@ public static class NativeJunctionEdits
 
 public sealed partial record NativeCharacterVitals
 {
-    internal NativeCharacterVitals NormalizeJunctionEditRows(IEnumerable<int> rows)
+    internal NativeCharacterVitals NormalizeJunctionEditRows(IEnumerable<int> rows, bool normalizeStatus)
     {
         foreach (int row in rows)
         {
             NativeCharacterVital record = Records[row];
             ushort maximum = GetMagicMaximumHitPoints(row);
             NativeHpWord hp = ClampHitPoints(record.HitPoints, maximum);
-            Records[row] = record with { HitPoints = hp, Status = MenuRowStatus(record.Status, hp, maximum) };
+            Records[row] = record with { HitPoints = hp, Status = normalizeStatus ? MenuRowStatus(record.Status, hp, maximum) : record.Status };
         }
         return this;
     }

@@ -17,7 +17,9 @@ public sealed class NativeGfJunctionRemovalTests
     {
         using GameAssets assets = InstalledAssets();
         int owner = reserve ? 3 : 0;
-        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(owner, 0);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).TeachGuardianForceAbility(0, 1).TeachGuardianForceAbility(0, 21).TeachGuardianForceAbility(0, 39).ToggleGuardianForceJunction(owner, 0);
+        vitals = vitals.ChangeMagicStock(owner, 1, 100, MagicOperationReason.ScriptReward, out _);
         NativeCharacterVital[] records = vitals.Records.ToArray();
         byte[] magic = new byte[20];
         magic[0] = 1;
@@ -26,7 +28,7 @@ public sealed class NativeGfJunctionRemovalTests
         string original = JsonSerializer.Serialize(vitals);
         NativeCharacterVitals source = vitals;
         List<PlayerAction> actions = [];
-        MenuController controller = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }), action =>
+        MenuController controller = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }, catalog: catalog), action =>
         {
             PlayerAction input = NativeJunctionMenuProjection.PlayerAction(action);
             actions.Add(input);
@@ -42,20 +44,18 @@ public sealed class NativeGfJunctionRemovalTests
         }
         controller.BuildView();
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("junction-dashboard", controller.ScreenId);
         Assert.Equal(!reserve, controller.Character!.InParty);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-off", controller.ScreenId);
-        if (all)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
-        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Alternate);
+        controller.Execute(new("junction-ui", all ? "remove-junctions" : "clear-magic"));
+        Assert.Empty(actions);
+        Assert.Equal(original, JsonSerializer.Serialize(vitals));
+        controller.Execute(new("junction-ui", "apply-junction-preview"));
         PlayerAction applied = Assert.Single(actions);
-        Assert.Equal(PlayerActionKind.RemoveJunctions, applied.Kind);
-        Assert.Equal(owner, applied.Value);
-        Assert.Equal(all ? "1" : "0", applied.Text);
+        Assert.Equal(PlayerActionKind.ApplyJunctionEdit, applied.Kind);
+        NativeJunctionEditPlan edit = JsonSerializer.Deserialize<NativeJunctionEditPlan>(applied.Text!)!;
+        Assert.Equal(all ? NativeJunctionEditOperation.RemoveCharacterJunctions : NativeJunctionEditOperation.ClearCharacterMagic, edit.Operation);
+        Assert.Equal(owner, Assert.Single(edit.Rows).Record);
         Assert.All(vitals.Records[owner].Junction.MagicJunctions, spell => Assert.Equal(0, spell));
         Assert.Equal(all ? (ushort)0 : (ushort)1, vitals.Records[owner].Junction.GuardianForces);
         Assert.Equal(all ? 0u : 21u, vitals.Records[owner].Junction.Commands);

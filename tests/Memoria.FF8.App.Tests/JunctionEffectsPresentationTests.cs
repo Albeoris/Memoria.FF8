@@ -1,6 +1,5 @@
-using Bitmap = SkiaSharp.SKBitmap;
-using Color = SkiaSharp.SKColor;
-
+using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -10,82 +9,79 @@ namespace Memoria.FF8.App.Tests;
 public sealed class JunctionEffectsPresentationTests
 {
     [Theory]
-    [InlineData(MenuPresentation.Vector, "junction-element", "Elem", 8)]
-    [InlineData(MenuPresentation.Vector, "junction-status", "ST", 13)]
-    [InlineData(MenuPresentation.Classic, "junction-element", "Elem", 8)]
-    [InlineData(MenuPresentation.Classic, "junction-status", "ST", 13)]
-    public void EffectsRemainVisibleWhileStockSelectionPreviewsBothAttackAndDefense(MenuPresentation presentation, string screen, string prefix, int count)
+    [InlineData(MenuPresentation.Vector, true)]
+    [InlineData(MenuPresentation.Vector, false)]
+    [InlineData(MenuPresentation.Classic, true)]
+    [InlineData(MenuPresentation.Classic, false)]
+    public void CompleteTablesKeepBothDirectionsInspectableDuringAnAuthoritativeMovePreview(MenuPresentation presentation, bool elemental)
     {
-        MenuController menu = new() { Presentation = presentation };
-        menu.Open(screen, demo: true);
-        MenuCharacter character = menu.Character!;
-        MenuJunctionPercentage[] elements = new[] { "Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy" }.Select(name => new MenuJunctionPercentage(name, 0, 100)).ToArray();
-        MenuJunctionPercentage[] statuses = new[] { "Death", "Poison", "Petrify", "Darkness", "Silence", "Berserk", "Zombie", "Sleep", "Slow", "Stop", "Curse", "Confuse", "Drain" }.Select(name => new MenuJunctionPercentage(name, 0, 100)).ToArray();
-        character.JunctionEffects = new(elements, statuses);
-        int requests = 0;
-        character.JunctionEffectsPreview = (slot, spell) =>
+        Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Original effect rules must be configured.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
+        foreach (int ability in Enumerable.Range(1, 19))
         {
-            requests++;
-            Assert.Equal(prefix + "-Atk", slot);
-            return new(elements.Select(value => value with { Attack = 50, Defense = 0 }).ToArray(), statuses.Select(value => value with { Attack = 50, Defense = 0 }).ToArray());
-        };
-        AssertValues(preview: false);
-        Assert.Equal(0, requests);
-        menu.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-stock", menu.ScreenId);
-        AssertValues(preview: true);
-        Assert.True(requests > 0);
-        menu.Navigate(MenuInput.Down);
-        int before = requests;
-        AssertValues(preview: true);
-        Assert.True(requests > before);
-        Assert.Equal(0, character.JunctionEffects.Elements[0].Attack);
+            source = source.TeachGuardianForceAbility(0, ability);
+        }
+        source = source.ToggleGuardianForceJunction(0, 0);
+        int defenseSlot = elemental ? 11 : 15;
+        int selectedSpell = 0;
+        for (int spell = 1; spell <= 56; spell++)
+        {
+            source.Records[0] = source.Records[0] with { MagicInventory = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray(), Junction = source.Records[0].Junction with { MagicJunctions = new byte[20] } };
+            source.Records[0].MagicInventory[0] = new NativeMagicStock((byte)spell, 100);
+            source = source.SetJunctionMagic(0, defenseSlot, spell);
+            MenuJunctionEffects effects = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = source }, catalog: catalog, includeJunctionPlanner: false).Characters.First(actor => actor.Id == "character-0").JunctionEffects!;
+            if ((elemental ? effects.Elements : effects.Statuses).Any(value => value.Defense > 0))
+            {
+                selectedSpell = spell;
+                break;
+            }
+        }
+        Assert.NotEqual(0, selectedSpell);
+        string original = JsonSerializer.Serialize(source);
+        MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = source }, catalog: catalog)) { Presentation = presentation };
+        menu.Open(elemental ? "junction-element" : "junction-status");
+        string prefix = elemental ? "elemental" : "status";
+        string other = elemental ? "status" : "elemental";
+        menu.Execute(new("junction-ui", "slot-" + (elemental ? "Elem-Atk" : "ST-Atk")));
+        menu.Execute(new("junction-ui", $"candidate-magic-0-{selectedSpell}"));
+        AssertTables();
+        menu.Execute(new("junction-ui", prefix + "-defense"));
+        UiElement[] inspected = Descendants(menu.BuildView().Root).ToArray();
+        Assert.Contains(inspected.OfType<UiButton>(), button => button.Id == prefix + "-defense" && button.Text.StartsWith("●", StringComparison.Ordinal));
+        Assert.Contains(inspected.Where(element => element.Id?.StartsWith(prefix + "-readout-", StringComparison.Ordinal) == true).SelectMany(Descendants).OfType<UiLabel>(), label => label.Text.Contains('→'));
+        Assert.Contains(inspected.OfType<UiButton>(), button => button.Id == other + "-defense" && button.Text.StartsWith("●", StringComparison.Ordinal));
+        Assert.Equal(original, JsonSerializer.Serialize(source));
         menu.Navigate(MenuInput.Cancel);
-        Assert.Equal(screen, menu.ScreenId);
-        AssertValues(preview: false);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.DoesNotContain(Descendants(menu.BuildView().Root).Where(element => element.Id?.Contains("-readout-", StringComparison.Ordinal) == true).SelectMany(Descendants).OfType<UiLabel>(), label => label.Text.Contains('→'));
 
-        void AssertValues(bool preview)
+        void AssertTables()
         {
-            foreach ((int width, int height) in new[] { (640, 448), (1280, 720), (2560, 1080) })
+            foreach ((int width, int height) in new[] { (1280, 720), (1920, 1080), (2560, 1080) })
             {
                 UiView view = menu.BuildView();
                 view.Resize(width, height);
                 UiElement[] all = Descendants(view.Root).ToArray();
-                UiLabel[] values = all.OfType<UiLabel>().Where(label => label.Id?.StartsWith("junction-" + prefix + "-", StringComparison.Ordinal) == true).ToArray();
-                Assert.Equal(count * 2, values.Length);
-                Assert.All(values, label =>
-                {
-                    Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
-                    Assert.Equal(preview, label.Text.Contains('→'));
-                    if (preview)
-                    {
-                        Assert.Equal(label.Id!.Contains("-attack-", StringComparison.Ordinal) ? new UiColor(120, 190, 255) : new UiColor(255, 120, 120), label.Color);
-                    }
-                });
-                Assert.DoesNotContain(all.OfType<UiLabel>(), label => label.Id == "junction-value-Str");
-                UiList stock = Assert.Single(all.OfType<UiList>(), list => preview ? list.Id == "commands" : list.Id?.StartsWith("magic-preview-", StringComparison.Ordinal) == true);
-                Assert.True(stock.Bounds.Bottom <= values.Min(label => label.Bounds.Y));
-                string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MENU_UI_OUTPUT");
-                if (!string.IsNullOrEmpty(output) && !string.IsNullOrEmpty(LaunchOptions.ConfiguredGameDirectory))
-                {
-                    Directory.CreateDirectory(output);
-                    using Bitmap bitmap = new(width, height);
-                    using BattlePreviewCanvas canvas = new(bitmap);
-                    view.Draw(canvas, menu.CreateTheme());
-                    bitmap.SavePng(Path.Combine(output, $"{presentation}-{prefix}-{preview}-{width}.png"));
-                }
+                Assert.Equal(8, all.Count(element => element.Id?.StartsWith("elemental-readout-", StringComparison.Ordinal) == true));
+                Assert.Equal(13, all.Count(element => element.Id?.StartsWith("status-readout-", StringComparison.Ordinal) == true));
+                Assert.Equal(19, all.Count(element => element.Id?.StartsWith("slot-", StringComparison.Ordinal) == true));
+                Assert.Contains(all, element => element.Id == $"candidate-magic-0-{selectedSpell}");
+                Assert.All(all.Where(element => element.Id?.Contains("-readout-", StringComparison.Ordinal) == true), element => Assert.True(element.Bounds.Width > 0 && element.Bounds.Height > 0));
             }
         }
     }
 
-    private static IEnumerable<UiElement> Descendants(UiElement element)
+    private static IEnumerable<UiElement> Descendants(UiElement root)
     {
-        yield return element;
-        foreach (UiElement child in element.Children)
+        yield return root;
+        foreach (UiElement child in root.Children)
         {
-            foreach (UiElement descendant in Descendants(child))
+            foreach (UiElement nested in Descendants(child))
             {
-                yield return descendant;
+                yield return nested;
             }
         }
     }

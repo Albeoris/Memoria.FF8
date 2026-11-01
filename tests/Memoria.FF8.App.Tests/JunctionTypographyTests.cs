@@ -9,34 +9,34 @@ public sealed class JunctionTypographyTests
     [InlineData(24, 100)]
     [InlineData(20, 125)]
     [InlineData(32, 150)]
-    public void Entering_a_junction_section_preserves_the_rendered_tab_size(int fontSize, int textScale)
+    public void EveryOrdinaryJunctionEntryPreservesDashboardTypographyAndTextScale(int fontSize, int textScale)
     {
         UiPreferences preferences = new() { UiFontSize = fontSize, TextScale = textScale };
-        MenuController menu = new();
+        MenuData data = MenuDemoData.Create();
+        MenuController menu = new(() => data);
         menu.ConnectPreferences(() => preferences, _ => { });
-        menu.Open("junction", demo: true);
+        menu.Open("junction");
         menu.Data.Settings["Text scale"] = textScale + "%";
-        float originalSize = RenderOffTab(menu);
+        float originalSize = RenderOptimizeAction(menu);
         foreach (string destination in new[] { "junction-options", "junction-off", "junction-auto", "junction-magic", "junction-stock" })
         {
-            menu.Open(destination, demo: true);
+            menu.Open(destination);
             menu.Data.Settings["Text scale"] = textScale + "%";
-            Assert.Equal(originalSize, RenderOffTab(menu));
+            Assert.Equal(originalSize, RenderOptimizeAction(menu));
+            Assert.Equal(textScale + "%", menu.Data.Settings["Text scale"]);
+            Assert.Equal(preferences.UiFontSize, fontSize);
         }
     }
 
-    private static float RenderOffTab(MenuController menu)
+    private static float RenderOptimizeAction(MenuController menu)
     {
+        menu.Navigate(MenuInput.Alternate);
         RecordingCanvas canvas = new();
         UiView view = menu.BuildView();
         view.Resize(1920, 1080);
         view.Draw(canvas, menu.CreateTheme());
-        float size = Assert.Single(canvas.Texts, text => text.Text == "Off").Size;
-        if (menu.TextScale <= 1.1f)
-        {
-            var junction = Assert.Single(canvas.Texts, text => text.Text == "Junction" && text.Size == size);
-            Assert.True(canvas.MeasureText(junction.Text, junction.Size, float.PositiveInfinity).Width <= junction.Bounds.Width);
-        }
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        float size = Assert.Single(canvas.Texts, text => text.Text == "Optimize stats").Size;
         return size;
     }
 

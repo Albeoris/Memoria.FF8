@@ -2,13 +2,13 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed record JunctionDashboardNavigationState(string Editor, string Origin, string Candidate, bool Review, string Priority, string Focus, int CandidatePage, int ImpactPage, string Query, string Sort, JunctionEffectDirection ElementalDirection, JunctionEffectDirection StatusDirection);
+internal sealed record JunctionDashboardNavigationState(string Editor, string Origin, string Candidate, bool Review, string Priority, string Focus, int CandidatePage, int ImpactPage, string Query, string Sort, JunctionEffectDirection ElementalDirection, JunctionEffectDirection StatusDirection, MenuAction? ReviewedAction = null);
 
 public sealed partial class MenuController
 {
     private IReadOnlyList<MenuEntry> JunctionDashboardEntries() => FocusableDescendants(BuildView().Root).OfType<UiButton>().Select(button => new MenuEntry(button.Id ?? "", button.Text, J("select-preview", "Select · Preview"), Action: new MenuAction("junction-ui", button.Id ?? ""), Enabled: button.Enabled)).ToArray();
 
-    internal JunctionDashboardNavigationState CaptureJunctionDashboard() => new(junctionEditor, junctionOrigin, junctionCandidate, junctionReview, junctionPriority, junctionFocus, junctionCandidatePage, junctionImpactPage, junctionSearch, junctionSort, junctionDashboard.ElementalDirection, junctionDashboard.StatusDirection);
+    internal JunctionDashboardNavigationState CaptureJunctionDashboard() => new(junctionEditor, junctionOrigin, junctionCandidate, junctionReview, junctionPriority, junctionFocus, junctionCandidatePage, junctionImpactPage, junctionSearch, junctionSort, junctionDashboard.ElementalDirection, junctionDashboard.StatusDirection, junctionReviewedAction);
 
     internal void RestoreJunctionDashboard(JunctionDashboardNavigationState saved)
     {
@@ -18,11 +18,13 @@ public sealed partial class MenuController
         }
         junctionEditor = saved.Editor;
         junctionOrigin = saved.Origin;
+        junctionCandidate = saved.Candidate;
         junctionPriority = saved.Priority;
         junctionSearch = saved.Query;
         junctionSort = saved.Sort;
         junctionCandidatePage = saved.CandidatePage;
         junctionImpactPage = saved.ImpactPage;
+        junctionReviewedAction = saved.ReviewedAction;
         junctionPlan = null;
         if (saved.Origin.StartsWith("slot-", StringComparison.Ordinal))
         {
@@ -36,7 +38,15 @@ public sealed partial class MenuController
         {
             PlanJunctionOptimization(saved.Priority);
         }
-        junctionReview = saved.Review;
+        else if (saved.Review && saved.Editor == "fill")
+        {
+            PlanJunctionCommands();
+        }
+        else if (saved.Review && saved.Editor == "actions" && saved.ReviewedAction is { } action)
+        {
+            ReviewJunctionAction(action);
+        }
+        junctionReview = saved.Review && junctionPlan is not null;
         junctionFocus = saved.Focus;
         junctionDashboard.SetDirection(JunctionEffectFamily.Elemental, saved.ElementalDirection);
         junctionDashboard.SetDirection(JunctionEffectFamily.Status, saved.StatusDirection);
@@ -45,7 +55,7 @@ public sealed partial class MenuController
 
     private bool TryExecuteJunctionDashboard(MenuAction action)
     {
-        if (!IsJunctionDashboard || action.Kind != "junction-ui")
+        if (!IsOpen || !IsJunctionDashboard || action.Kind != "junction-ui")
         {
             return false;
         }
@@ -97,7 +107,19 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (actor.AttackMode == mode)
+        {
+            CancelJunctionEditor();
+            return;
+        }
+        string previousMode = actor.AttackMode;
         Execute(new MenuAction("attack-mode", TargetId: actor.Id, Value: mode));
+        if (Character?.AttackMode != mode || Data.JunctionPlanner is not { } planner)
+        {
+            return;
+        }
+        junctionAttackUndo = (actor.Id, previousMode, planner.SourceFingerprint);
+        junctionUndoLabel = J("attack-mode", "Attack mode");
         junctionVisited.Add(actor.Id);
         junctionAudit.MarkAffected(actor.Id);
         junctionUndo = null;

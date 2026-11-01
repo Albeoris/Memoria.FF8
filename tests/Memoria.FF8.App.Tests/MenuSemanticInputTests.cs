@@ -9,17 +9,18 @@ public sealed class MenuSemanticInputTests
     public void Selection_tracks_identity_after_entries_are_reordered_and_renders_before_confirmation()
     {
         MenuController menu = new();
-        menu.Open("junction-options", demo: true);
+        menu.Open("main", demo: true);
         MenuScreenDefinition definition = menu.CurrentScreen;
         MenuEntry[] reordered = definition.Entries(menu).Reverse().ToArray();
         menu.Register(new MenuScreenDefinition { Id = definition.Id, Title = definition.Title, Help = definition.Help, Layout = definition.Layout, Entries = _ => reordered });
-        menu.SelectEntry("junction-options", "junction-gf");
-        Assert.Equal("junction-options", menu.ScreenId);
-        Assert.Equal("junction-gf", menu.SelectedEntry?.Id);
+        menu.SelectEntry("main", "junction");
+        Assert.Equal("main", menu.ScreenId);
+        Assert.Equal("junction", menu.SelectedEntry?.Id);
         UiList commands = Descendants(menu.BuildView().Root).OfType<UiList>().First(list => list.Id == "commands");
         Assert.Equal(menu.SelectedIndex, commands.SelectedIndex);
         menu.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-gf", menu.ScreenId);
+        Assert.True(menu.IsSelectingCharacter);
+        Assert.Equal("main", menu.ScreenId);
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public sealed class MenuSemanticInputTests
         menu.Open("junction", demo: true);
         Assert.Throws<InvalidOperationException>(() => menu.SelectEntry("main", "junction"));
         Assert.Throws<InvalidOperationException>(() => menu.SelectEntry("junction", "unknown-command"));
-        Assert.Equal("junction", menu.ScreenId);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

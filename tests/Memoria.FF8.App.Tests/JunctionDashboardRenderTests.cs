@@ -110,7 +110,8 @@ public sealed class JunctionDashboardRenderTests
         last.Click!();
         view = menu.BuildView();
         view.Resize(width, height);
-        Assert.Contains(Descendants(view.Root), element => element.Id == "candidate-0");
+        Assert.Contains(Descendants(view.Root), element => element.Id == "candidate-63");
+        Assert.Equal("candidate-63", view.FocusedElement?.Id);
         Assert.Contains(Descendants(view.Root), element => element.Id == "junction-back" && !element.Bounds.IsEmpty);
         Capture("picker");
 
@@ -139,15 +140,73 @@ public sealed class JunctionDashboardRenderTests
         Assert.True(inner.X >= outer.X - tolerance && inner.Y >= outer.Y - tolerance && inner.Right <= outer.Right + tolerance && inner.Bottom <= outer.Bottom + tolerance, $"Rectangle {inner} is outside {outer}.");
     }
 
+    [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void RestingFocusDisclosesTheCompleteLongAssignmentName(MenuPresentation presentation)
+    {
+        const string longName = "Superposition protectrice extrêmement prolongée";
+        MenuData data = MaximumFixture();
+        data.Characters[0].Junctions["Str"] = longName;
+        data.Magic.Single(spell => spell.Id == data.Characters[0].JunctionIds["Str"]).Name = longName;
+        MenuController menu = new(() => data) { Presentation = presentation };
+        menu.Open("junction-dashboard");
+        menu.PrepareViewport(1280, 720);
+        UiView view = menu.BuildView();
+        UiElement strength = Descendants(view.Root).Single(element => element.Id == "slot-Str");
+        Assert.True(view.Focus(strength));
+        view = menu.BuildView();
+        Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.Contains("Squall", StringComparison.Ordinal) && label.Text.Contains(longName, StringComparison.Ordinal));
+        Assert.Equal(longName, data.Characters[0].Junctions["Str"]);
+    }
+
+    [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void PercentagePairsFitTheirActualRetainedReadoutColumns(MenuPresentation presentation)
+    {
+        MenuData data = MaximumFixture();
+        MenuController menu = new(() => data) { Presentation = presentation };
+        menu.Open("junction-dashboard");
+        menu.PrepareViewport(1280, 720);
+        UiView view = menu.BuildView();
+        // These presentation samples exercise the same labels and font metrics as a projected diff.
+        UiElement elemental = Descendants(view.Root).Single(element => element.Id == "elemental-readout-0");
+        UiElement status = Descendants(view.Root).Single(element => element.Id == "status-readout-0");
+        Assert.IsType<UiLabel>(elemental.Children[1]).Text = "100→200%";
+        Assert.IsType<UiLabel>(status.Children[1]).Text = "0→100%";
+        using SKBitmap bitmap = new(1280, 720);
+        using BattlePreviewCanvas renderer = new(bitmap, Path.Combine(Path.GetTempPath(), "unconfigured-game-resources"));
+        renderer.BeginFrame(TimeSpan.Zero);
+        RecordingCanvas canvas = new(renderer);
+        view.Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
+        foreach (string pair in new[] { "100→200%", "0→100%" })
+        {
+            var text = Assert.Single(canvas.Texts, text => text.Value == pair);
+            Assert.True(text.Measured.Width <= text.Bounds.Width + 1, $"{pair}: needs {text.Measured.Width}, has {text.Bounds.Width}");
+            Assert.True(text.Measured.Height <= text.Bounds.Height + 1, $"{pair}: needs {text.Measured.Height}, has {text.Bounds.Height}");
+        }
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+            bitmap.SavePng(Path.Combine(directory, $"junction-percentage-pairs-{presentation}-1280x720.png"));
+        }
+    }
+
     private static MenuData MaximumFixture()
     {
         MenuData data = new();
         MenuCharacter character = new() { Id = "character-0", Name = "Squall", Level = 100, CurrentHp = 9999, MaximumHp = 9999, AbilitySlots = 4 };
         character.Commands.AddRange(["Mug", "Magic", "Draw", "--"]);
-        character.CommandIds.AddRange(["21", "23", "0"]);
-        character.AvailableCommands.AddRange([new("21", "Magic", true), new("22", "GF", true), new("23", "Draw", true), new("24", "Item", true)]);
+        character.CommandIds.AddRange(["20", "22", "0"]);
+        character.AvailableCommands.AddRange([new("20", "Magic", true), new("21", "GF", true), new("22", "Draw", true), new("23", "Item", true)]);
         character.Abilities.AddRange(["Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect"]);
         character.AbilityIds.AddRange(["60", "61", "62", "63"]);
+        for (int index = 0; index < character.Abilities.Count; index++)
+        {
+            character.AvailableAbilities.Add(new(character.AbilityIds[index], character.Abilities[index], true));
+        }
         string[] stats = ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"];
         string[] slots = [.. stats, "Elem-Atk", "ST-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4", "ST-Def 1", "ST-Def 2", "ST-Def 3", "ST-Def 4"];
         for (int index = 0; index < slots.Length; index++)

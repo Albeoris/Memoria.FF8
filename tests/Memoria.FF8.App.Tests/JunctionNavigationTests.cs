@@ -5,51 +5,37 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionNavigationTests
 {
-    [Fact]
-    public void SlotPagesMoveInNativeOrderAndRetainTheirSelections()
+    [Theory]
+    [InlineData("junction-magic", "slot-HP")]
+    [InlineData("junction-element", "slot-Elem-Atk")]
+    [InlineData("junction-status", "slot-ST-Atk")]
+    [InlineData("junction-command", "command-0")]
+    [InlineData("junction-ability", "passive-0")]
+    [InlineData("junction-gf", "manage-gfs")]
+    public void OrdinaryLegacyEntriesSelectTheCorrespondingPersistentDashboardGroup(string screen, string focus)
     {
-        MenuController menus = new();
-        menus.Open("junction-magic", demo: true);
-        menus.Navigate(MenuInput.Down);
-        menus.Navigate(MenuInput.Left);
-        Assert.Equal("junction-element", menus.ScreenId);
-        menus.Navigate(MenuInput.Down);
-        menus.Navigate(MenuInput.Down);
-        menus.Navigate(MenuInput.Left);
-        Assert.Equal("junction-status", menus.ScreenId);
-        menus.Navigate(MenuInput.Down);
-        menus.Navigate(MenuInput.Left);
-        Assert.Equal("junction-status", menus.ScreenId);
-        Assert.Equal(1, menus.SelectedIndex);
-        menus.Navigate(MenuInput.Right);
-        Assert.Equal("junction-element", menus.ScreenId);
-        Assert.Equal(2, menus.SelectedIndex);
-        menus.Navigate(MenuInput.Right);
-        Assert.Equal("junction-magic", menus.ScreenId);
-        Assert.Equal(1, menus.SelectedIndex);
-        menus.Navigate(MenuInput.Right);
-        Assert.Equal("junction-magic", menus.ScreenId);
-        Assert.Equal(1, menus.SelectedIndex);
+        MenuController menu = new();
+        menu.Open(screen, demo: true);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        Assert.Equal(focus, menu.BuildView().FocusedElement?.Id);
+        Assert.Contains(menu.Entries, entry => entry.Id == "slot-HP");
+        Assert.Contains(menu.Entries, entry => entry.Id == "slot-Elem-Atk");
+        Assert.Contains(menu.Entries, entry => entry.Id == "slot-ST-Atk");
+        Assert.Contains(menu.Entries, entry => entry.Id == "command-0");
+        Assert.Contains(menu.Entries, entry => entry.Id == "passive-0");
     }
 
-    [Theory]
-    [InlineData("junction-magic", MenuInput.Left)]
-    [InlineData("junction-element", MenuInput.Left)]
-    [InlineData("junction-status", MenuInput.Right)]
-    public void SwitchingPagesPreservesCancelParentWithoutAddingHistory(string screen, MenuInput direction)
+    [Fact]
+    public void ClosingAnOrdinaryPickerReturnsToTheSameDashboardDestination()
     {
-        MenuController menus = new();
-        menus.Open("junction-options", demo: true);
-        menus.Push(screen);
-        menus.Navigate(direction);
-        menus.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-stock", menus.ScreenId);
-        menus.Navigate(MenuInput.Cancel);
-        Assert.NotEqual(screen, menus.ScreenId);
-        menus.Navigate(MenuInput.Cancel);
-        Assert.Equal("junction-options", menus.ScreenId);
-        menus.Navigate(MenuInput.Cancel);
-        Assert.False(menus.IsOpen);
+        MenuController menu = new();
+        menu.Open("junction-magic", demo: true);
+        menu.Execute(new("junction-ui", "slot-Str"));
+        Assert.Contains(menu.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        Assert.Equal("slot-Str", menu.BuildView().FocusedElement?.Id);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -57,44 +43,45 @@ public sealed class JunctionNavigationTests
     [InlineData("junction-element")]
     [InlineData("junction-status")]
     [InlineData("junction-stock")]
-    public void ShoulderInputsStillSwitchCharacterOnEveryMagicJunctionPage(string screen)
+    public void ShoulderInputsSwitchCharactersWithinTheDashboard(string screen)
     {
-        MenuController menus = new();
-        menus.Open(screen, demo: true);
-        string character = menus.Character!.Id;
-        menus.Navigate(MenuInput.PageRight);
-        Assert.Equal(screen, menus.ScreenId);
-        Assert.NotEqual(character, menus.Character!.Id);
-        menus.Navigate(MenuInput.PageLeft);
-        Assert.Equal(character, menus.Character!.Id);
+        MenuController menu = new();
+        menu.Open(screen, demo: true);
+        string character = menu.Character!.Id;
+        string? focus = menu.BuildView().FocusedElement?.Id;
+        menu.Navigate(MenuInput.PageRight);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        Assert.NotEqual(character, menu.Character!.Id);
+        Assert.Equal(focus, menu.BuildView().FocusedElement?.Id);
+        menu.Navigate(MenuInput.PageLeft);
+        Assert.Equal(character, menu.Character!.Id);
     }
 
     [Fact]
-    public void StockArrowsKeepPagingMagicInsteadOfSwitchingSlotScreens()
+    public void StockPaginationKeepsTheSelectedCharacterAndEveryDashboardGroup()
     {
-        MenuController menus = new();
-        menus.Open("junction-magic", demo: true);
-        string character = menus.Character!.Id;
-        menus.Data.Magic.Clear();
-        for (int index = 0; index < 32; index++)
+        MenuController menu = new();
+        menu.Open("junction-magic", demo: true);
+        string character = menu.Character!.Id;
+        menu.Data.Magic.Clear();
+        for (int index = 1; index <= 32; index++)
         {
-            menus.Data.Magic.Add(new MenuMagic { Id = index.ToString(), Name = $"Magic {index}", CharacterId = character, Quantity = 100 });
+            menu.Data.Magic.Add(new MenuMagic { Id = "spell-" + index, Name = $"Magic {index}", CharacterId = character, Quantity = 100 });
         }
-        menus.Navigate(MenuInput.Confirm);
-        UiView view = menus.BuildView();
-        view.Resize(960, 672);
-        UiList stock = Assert.IsType<UiList>(view.FocusedElement);
-        int pageSize = stock.EffectivePageSize;
-        menus.Navigate(MenuInput.Right);
-        Assert.Equal("junction-stock", menus.ScreenId);
-        Assert.Equal(pageSize, menus.SelectedIndex);
-        view = menus.BuildView();
-        view.Resize(960, 672);
-        stock = Assert.IsType<UiList>(view.FocusedElement);
-        Assert.Equal(1, stock.CurrentPage);
-        menus.Navigate(MenuInput.Left);
-        Assert.Equal("junction-stock", menus.ScreenId);
-        Assert.Equal(0, menus.SelectedIndex);
-        Assert.Equal(character, menus.Character!.Id);
+        menu.Execute(new("junction-ui", "slot-HP"));
+        string[] firstPage = CandidateIds();
+        menu.Navigate(MenuInput.PageDown);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        Assert.Equal(character, menu.Character!.Id);
+        string[] secondPage = CandidateIds();
+        Assert.Equal(8, firstPage.Length);
+        Assert.Equal(8, secondPage.Length);
+        Assert.Empty(firstPage.Intersect(secondPage));
+        Assert.Contains(menu.Entries, entry => entry.Id == "slot-ST-Atk");
+        menu.Navigate(MenuInput.PageUp);
+        Assert.Equal(firstPage, CandidateIds());
+        Assert.Equal(character, menu.Character!.Id);
+
+        string[] CandidateIds() => menu.Entries.Where(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal) && entry.Id is not ("candidate-previous" or "candidate-next")).Select(entry => entry.Id).ToArray();
     }
 }

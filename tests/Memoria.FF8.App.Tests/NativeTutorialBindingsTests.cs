@@ -89,7 +89,10 @@ public sealed class NativeTutorialBindingsTests
         Assert.True(JsonElement.DeepEquals(original, JsonSerializer.SerializeToElement(player.Party)));
         AdvanceUntilOperation(player, 115);
         Assert.Equal(fire, player.Party.Records[0].Junction.MagicJunctions[1]);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.SetJunctionMagic(0, 1, fire)), JsonSerializer.SerializeToElement(player.Party)));
+        MenuJunctionPlan expected = new MenuJunctionPlanner(new GameState { Scene = SceneKind.Field, CharacterVitals = before }, catalog: LiveMenuCatalog.ReadInstalled(assets)).Plan(new("junction-magic", $"magic-0-{fire}", "character-0", "Str"));
+        Assert.Null(expected.UnavailableReason);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected.Result), JsonSerializer.SerializeToElement(player.Party)));
+        Assert.Equal(before.Records.Skip(1), player.Party.Records.Skip(1));
     }
 
     [Fact]
@@ -171,6 +174,58 @@ public sealed class NativeTutorialBindingsTests
         Assert.Equal(before.Records[0].Junction.Commands, player.Party.Records[0].Junction.Commands);
         Assert.Equal(before.Records[0].Junction.Abilities, player.Party.Records[0].Junction.Abilities);
         Assert.Equal(before.Records[0].Junction.GuardianForces, player.Party.Records[0].Junction.GuardianForces);
+    }
+
+    [Fact]
+    public void EarlierJunctionSnapshotAdaptsOnlyItsIsolatedCommandsAndNavigation()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        LiveMenuCatalog menus = LiveMenuCatalog.ReadInstalled(assets);
+        NativeTutorialPlayer player = new(catalog, menus, 1);
+        AdvanceUntilOperation(player, 101);
+        NativeTutorialSnapshot current = player.Capture().Deserialize<NativeTutorialSnapshot>()!;
+        NativeCharacterVitals legacyParty = current.Party.DeepCopy();
+        uint rawCommands = catalog.CreateIsolatedParty(1).Records[0].Junction.Commands;
+        Assert.Equal(0x00040603u, rawCommands);
+        legacyParty.Records[0] = legacyParty.Records[0] with { Junction = legacyParty.Records[0].Junction with { Commands = rawCommands } };
+        MenuNavigationState navigation = current.Navigation with { ScreenId = "junction-stock", History = ["junction", "junction-options", "junction-magic"], JunctionSlot = "Str", MagicId = "magic-0-7", JunctionDashboard = null };
+        NativeTutorialSnapshot legacy = current with { Version = 1, Party = legacyParty, Navigation = navigation };
+        JsonElement original = JsonSerializer.SerializeToElement(legacy);
+        string unchanged = original.GetRawText();
+        GameSession live = new(new GameState { CharacterVitals = assets.ReadNewGameCharacterVitals() });
+        JsonElement liveBefore = JsonSerializer.SerializeToElement(live.State);
+        NativeTutorialPlayer adapted = new(catalog, menus, 1, original);
+        Assert.Equal(unchanged, original.GetRawText());
+        Assert.Equal(rawCommands, legacyParty.Records[0].Junction.Commands);
+        Assert.True(JsonElement.DeepEquals(liveBefore, JsonSerializer.SerializeToElement(live.State)));
+        Assert.Equal(2, adapted.Capture().GetProperty("Version").GetInt32());
+        Assert.Equal(current.Party.Records[0].Junction.Commands, adapted.Party.Records[0].Junction.Commands);
+        Assert.Equal(current.Party.Records[0].Junction.MagicJunctions, adapted.Party.Records[0].Junction.MagicJunctions);
+        Assert.Equal("junction-dashboard", adapted.Menu.ScreenId);
+        Assert.Equal("slot-Str", adapted.Menu.CaptureJunctionDashboard().Origin);
+        Assert.Equal("magic-0-7", adapted.Menu.CaptureJunctionDashboard().Candidate);
+        Assert.Equal(catalog.ReadStatistics(adapted.Party, 0).Strength, adapted.Menu.Character!.Stats["Str"]);
+        NativeTutorialPlayer roundtrip = new(catalog, menus, 1, adapted.Capture());
+        Assert.True(JsonElement.DeepEquals(adapted.Capture(), roundtrip.Capture()));
+        AdvanceUntilOperation(adapted, 115);
+        Assert.Equal(1, adapted.Party.Records[0].Junction.MagicJunctions[1]);
+    }
+
+    [Fact]
+    public void EarlierJunctionSnapshotRejectsUnknownNavigationAndUnmappedCommands()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        LiveMenuCatalog menus = LiveMenuCatalog.ReadInstalled(assets);
+        NativeTutorialPlayer player = new(catalog, menus, 1);
+        NativeTutorialSnapshot current = player.Capture().Deserialize<NativeTutorialSnapshot>()!;
+        NativeTutorialSnapshot unsupportedNavigation = current with { Version = 1, Navigation = current.Navigation with { ScreenId = "battle", JunctionDashboard = null } };
+        Assert.Throws<InvalidDataException>(() => new NativeTutorialPlayer(catalog, menus, 1, JsonSerializer.SerializeToElement(unsupportedNavigation)));
+        NativeCharacterVitals unmapped = current.Party.DeepCopy();
+        unmapped.Records[0] = unmapped.Records[0] with { Junction = unmapped.Records[0].Junction with { Commands = (unmapped.Records[0].Junction.Commands & 0xFFFFFF00) | 5 } };
+        NativeTutorialSnapshot unsupportedCommand = current with { Version = 1, Party = unmapped, Navigation = current.Navigation with { ScreenId = "junction", JunctionDashboard = null } };
+        Assert.Throws<NotSupportedException>(() => new NativeTutorialPlayer(catalog, menus, 1, JsonSerializer.SerializeToElement(unsupportedCommand)));
     }
 
     private static void AdvanceUntilOperation(NativeTutorialPlayer player, int operation)

@@ -12,10 +12,9 @@ public sealed class MenuPresentationTests
         MenuController menu = new();
         Assert.Equal(MenuPresentation.Vector, menu.Presentation);
         Assert.IsType<VectorUiTheme>(menu.CreateTheme());
-        menu.Open("junction-options", demo: true);
-        menu.SelectEntry("junction-options", "junction-gf");
-        menu.Navigate(MenuInput.Confirm);
-        menu.Navigate(MenuInput.Down);
+        menu.Open("main", demo: true);
+        menu.Push("junction-options");
+        menu.Execute(new("junction-ui", "manage-gfs"));
         MenuNavigationState navigation = menu.CaptureNavigation();
         Assert.NotEmpty(navigation.History);
         string saved = JsonSerializer.Serialize(navigation);
@@ -43,14 +42,15 @@ public sealed class MenuPresentationTests
         MenuController menu = new();
         menu.Open(screen, demo: true);
         UiView vector = menu.BuildView();
-        Assert.Contains(Descendants(vector.Root), element => element.Id == vectorId);
-        Assert.Equal(960f, vector.DesignWidth);
-        Assert.Equal(540f, vector.DesignHeight);
+        bool dashboard = menu.ScreenId == "junction-dashboard";
+        Assert.Contains(Descendants(vector.Root), element => element.Id == (dashboard ? "junction-dashboard" : vectorId));
+        Assert.Equal(dashboard ? 1280f : 960f, vector.DesignWidth);
+        Assert.Equal(dashboard ? 720f : 540f, vector.DesignHeight);
         menu.Presentation = MenuPresentation.Classic;
         UiView classic = menu.BuildView();
         Assert.DoesNotContain(Descendants(classic.Root), element => element.Id == vectorId);
-        Assert.Equal(960f, classic.DesignWidth);
-        Assert.Equal(672f, classic.DesignHeight);
+        Assert.Equal(dashboard ? 1280f : 960f, classic.DesignWidth);
+        Assert.Equal(dashboard ? 720f : 672f, classic.DesignHeight);
         Assert.IsType<UiTheme>(menu.CreateTheme());
     }
 
@@ -76,16 +76,17 @@ public sealed class MenuPresentationTests
 
         Assert.Equal(UiViewportMode.Expand, view.ViewportMode);
         UiPanel root = Assert.IsType<UiPanel>(view.Root);
-        Assert.Equal(new UiThickness(26), root.Padding);
+        float padding = menu.ScreenId == "junction-dashboard" ? 16 : 26;
+        Assert.Equal(new UiThickness(padding), root.Padding);
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
         Assert.Equal(width, root.Bounds.Width * scale, 3);
         Assert.Equal(height, root.Bounds.Height * scale, 3);
         UiAnchorPanel anchored = Assert.IsType<UiAnchorPanel>(Assert.Single(root.Children));
         UiElement content = anchored.Children[0];
-        Assert.Equal(26 * scale, content.Bounds.X * scale, 3);
-        Assert.Equal(26 * scale, content.Bounds.Y * scale, 3);
-        Assert.Equal(width - 26 * scale, content.Bounds.Right * scale, 3);
-        Assert.Equal(height - 26 * scale, content.Bounds.Bottom * scale, 3);
+        Assert.Equal(padding * scale, content.Bounds.X * scale, 3);
+        Assert.Equal(padding * scale, content.Bounds.Y * scale, 3);
+        Assert.Equal(width - padding * scale, content.Bounds.Right * scale, 3);
+        Assert.Equal(height - padding * scale, content.Bounds.Bottom * scale, 3);
 
         menu.Presentation = MenuPresentation.Classic;
         UiView classic = menu.BuildView();
@@ -94,7 +95,7 @@ public sealed class MenuPresentationTests
         Assert.Equal(classic.DesignWidth, classic.Root.Bounds.Width);
         Assert.Equal(classic.DesignHeight, classic.Root.Bounds.Height);
         float classicScale = Math.Min(width / classic.DesignWidth, height / classic.DesignHeight);
-        Assert.True(classic.Root.Bounds.Width * classicScale < width);
+        Assert.True(classic.Root.Bounds.Width * classicScale <= width);
     }
 
     [Fact]
@@ -122,10 +123,10 @@ public sealed class MenuPresentationTests
                 Assert.Equal(presentation == MenuPresentation.Vector ? UiViewportMode.Expand : UiViewportMode.Fit, view.ViewportMode);
                 if (presentation == MenuPresentation.Vector)
                 {
-                    Assert.Equal(new UiThickness(screen == "magazine" ? 0 : 26), Assert.IsType<UiPanel>(view.Root).Padding);
+                    Assert.Equal(new UiThickness(menu.ScreenId == "junction-dashboard" ? 16 : screen == "magazine" ? 0 : 26), Assert.IsType<UiPanel>(view.Root).Padding);
                 }
-                Assert.Equal(960f, view.DesignWidth);
-                Assert.Equal(screen == "magazine" ? 720f : presentation == MenuPresentation.Vector && (screen == "main" || screen.StartsWith("junction", StringComparison.Ordinal) && screen is not ("junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice")) ? 540f : 672f, view.DesignHeight);
+                Assert.Equal(menu.ScreenId == "junction-dashboard" ? 1280f : 960f, view.DesignWidth);
+                Assert.Equal(menu.ScreenId == "junction-dashboard" ? 720f : screen == "magazine" ? 720f : presentation == MenuPresentation.Vector && (screen == "main" || screen.StartsWith("junction", StringComparison.Ordinal) && screen is not ("junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice")) ? 540f : 672f, view.DesignHeight);
             }
         }
     }
@@ -170,48 +171,34 @@ public sealed class MenuPresentationTests
             Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
         }
         menu.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction", menu.ScreenId);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
         Assert.Equal(selected, menu.Character?.Id);
     }
 
     [Fact]
-    public void Stock_selection_refreshes_projected_stats_without_committing_a_junction()
+    public void StockPickerAndSemanticFocusSurvivePresentationChangesWithoutMutatingAssignments()
     {
         MenuController menu = new();
         menu.Open("junction-magic", demo: true);
-        menu.SelectEntry("junction-magic", "Str");
-        menu.Navigate(MenuInput.Confirm);
-        Assert.Equal("junction-stock", menu.ScreenId);
-        MenuCharacter character = menu.Character!;
-        Dictionary<string, int> stats = new(character.Stats);
-        Dictionary<string, string> junctions = new(character.Junctions);
-        List<(string Slot, string Spell)> requests = [];
-        character.JunctionPreview = (slot, spell) =>
+        menu.Execute(new("junction-ui", "slot-Str"));
+        string candidate = menu.Entries.First(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal) && entry.Id is not ("candidate-previous" or "candidate-next")).Id;
+        menu.SelectEntry("junction-dashboard", candidate);
+        Dictionary<string, int> stats = new(menu.Character!.Stats);
+        Dictionary<string, string> junctions = new(menu.Character.Junctions);
+        string navigation = JsonSerializer.Serialize(menu.CaptureNavigation());
+        foreach (MenuPresentation presentation in new[] { MenuPresentation.Classic, MenuPresentation.Vector })
         {
-            requests.Add((slot, spell));
-            return new Dictionary<string, int> { ["Str"] = 99 + requests.Count };
-        };
-        string first = menu.SelectedEntry!.Action!.SubjectId;
-        menu.BuildView();
-        Assert.Equal(("Str", first), requests[^1]);
-        menu.Navigate(MenuInput.Down);
-        string second = menu.SelectedEntry!.Action!.SubjectId;
-        Assert.NotEqual(first, second);
-        int count = requests.Count;
-        menu.BuildView();
-        Assert.True(requests.Count > count);
-        Assert.Equal(("Str", second), requests[^1]);
-        menu.Presentation = MenuPresentation.Classic;
-        menu.BuildView();
-        Assert.Equal(("Str", second), requests[^1]);
-        menu.Presentation = MenuPresentation.Vector;
-        menu.BuildView();
-        Assert.Equal(("Str", second), requests[^1]);
-        Assert.Equal(stats, character.Stats);
-        Assert.Equal(junctions, character.Junctions);
-        Assert.Equal("junction-stock", menu.ScreenId);
+            menu.Presentation = presentation;
+            UiView view = menu.BuildView();
+            Assert.Equal("junction-dashboard", menu.ScreenId);
+            Assert.Equal(candidate, view.FocusedElement?.Id);
+            Assert.Contains(menu.Entries, entry => entry.Id == candidate);
+            Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
+            Assert.Equal(stats, menu.Character.Stats);
+            Assert.Equal(junctions, menu.Character.Junctions);
+            Assert.Equal(19, Descendants(view.Root).Count(element => element.Id?.StartsWith("slot-", StringComparison.Ordinal) == true));
+        }
     }
-
     private sealed class TestPresentation : IMenuPresentation
     {
         public UiElement Content { get; } = new UiPanel { Id = "custom-presentation" };

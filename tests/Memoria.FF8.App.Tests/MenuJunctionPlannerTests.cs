@@ -21,8 +21,9 @@ public sealed class MenuJunctionPlannerTests
         {
             source = source.SetJunctionMagic(0, slot, slot + 11);
         }
-        source.Records[0].Junction.MagicJunctions[19] = 30;
         source = source.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 1).ToggleGuardianForceJunction(1, 1).SetJunctionMagic(1, 0, 31);
+        source.Records[0].Junction.MagicJunctions[19] = 30;
+        Assert.Equal(30, source.Records[0].Junction.MagicJunctions[19]);
         string original = JsonSerializer.Serialize(source);
         MenuJunctionPlan plan = Planner(source, catalog).Optimize("character-0", "Attack", new HashSet<string> { "HP", "Luck" });
         Assert.Null(plan.UnavailableReason);
@@ -110,11 +111,11 @@ public sealed class MenuJunctionPlannerTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
-        NativeCharacterVitals source = Setup(assets, false).SetJunctionAbility(0, 1, 22, true);
+        NativeCharacterVitals source = Setup(assets, false).SetJunctionAbility(0, 1, 21, true);
         MenuJunctionPlanner planner = Planner(source, catalog);
         MenuJunctionPlan plan = planner.FillEmptyCommands("character-0");
         Assert.Null(plan.UnavailableReason);
-        Assert.Equal(new[] { "21", "22", "23" }, plan.After.Characters.Single(character => character.Id == "character-0").CommandIds);
+        Assert.Equal(new[] { "20", "21", "22" }, plan.After.Characters.Single(character => character.Id == "character-0").CommandIds);
         NativeCharacterVitals result = Apply(source, plan);
         MenuJunctionPlan reverse = Planner(result, catalog).Reverse(plan);
         Assert.Null(reverse.UnavailableReason);
@@ -133,6 +134,29 @@ public sealed class MenuJunctionPlannerTests
         MenuJunctionPlan plan = Planner(source, null).Optimize("character-0", "Attack", new HashSet<string>());
         Assert.False(plan.HasChanges);
         Assert.NotNull(plan.UnavailableReason);
+    }
+
+    [Fact]
+    public void Explicit_removal_reviews_and_reverses_saved_bindings_outside_the_editable_rows()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = Setup(assets, false);
+        source.Records[0].Junction.MagicJunctions[19] = 1;
+        source.Records[0] = source.Records[0] with { Junction = source.Records[0].Junction with { Commands = 24u << 24 } };
+        MenuJunctionPlan plan = Planner(source, catalog).Plan(new("junction-off", TargetId: "character-0", Value: "All"));
+        Assert.Null(plan.UnavailableReason);
+        Assert.True(plan.HasChanges);
+        Assert.Equal(NativeJunctionEditOperation.RemoveCharacterJunctions, plan.Operation);
+        Assert.Contains(plan.Changes, change => change.Category == "Magic" && change.Slot == "Additional saved magic binding");
+        Assert.Contains(plan.Changes, change => change.Category == "Command" && change.Slot == "Additional saved command binding");
+        NativeCharacterVitals result = Apply(source, plan);
+        Assert.Equal(0, result.Records[0].Junction.MagicJunctions[19]);
+        Assert.Equal(0u, result.Records[0].Junction.Commands);
+        MenuJunctionPlan undo = Planner(result, catalog).Reverse(plan);
+        Assert.Null(undo.UnavailableReason);
+        Assert.True(undo.IsUndo);
+        Assert.Equal(source.Records[0].Junction, Apply(result, undo).Records[0].Junction);
     }
 
     private static MenuJunctionPlanner Planner(NativeCharacterVitals source, LiveMenuCatalog? catalog) => new(new GameState { Scene = SceneKind.Field, CharacterVitals = source }, catalog: catalog);

@@ -41,6 +41,10 @@ internal sealed partial class NativeTutorialPlayer
         this.names = names is null ? [] : new Dictionary<int, string>(names);
         definition = catalog.Get(tutorialId);
         party = catalog.CreateIsolatedParty(tutorialId);
+        if (tutorialId <= 3)
+        {
+            party = AdaptDashboardCommands(party);
+        }
         visibleRows = party.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, party.Records.Length).Where(row => (party.Records[row].MemberFlags & 1) != 0)).ToHashSet();
         steps = tutorialId <= 3 ? NativeTutorialJunctionPlan.Create(tutorialId, definition, party) : NativeTutorialOtherPlan.Create(tutorialId, definition, party);
         ValidatePlan();
@@ -56,6 +60,31 @@ internal sealed partial class NativeTutorialPlayer
     }
 
     public MenuController Menu { get; }
+
+    private static NativeCharacterVitals AdaptDashboardCommands(NativeCharacterVitals original)
+    {
+        NativeCharacterVitals result = original.DeepCopy();
+        for (int row = 0; row < result.Records.Length; row++)
+        {
+            NativeCharacterVital character = result.Records[row];
+            uint commands = character.Junction.Commands;
+            for (int slot = 0; slot < 3; slot++)
+            {
+                int command = (byte)(commands >> (8 * slot));
+                if (command is > 0 and < 20)
+                {
+                    int[] matches = Enumerable.Range(0, original.MenuDefinitions.CommandAbilityCommands.Length).Where(index => original.MenuDefinitions.CommandAbilityCommands[index] == command).ToArray();
+                    if (matches.Length != 1)
+                    {
+                        throw new NotSupportedException("The tutorial's battle command requires one unambiguous authenticated command ability mapping.");
+                    }
+                    commands = (commands & ~(255u << (8 * slot))) | ((uint)(matches[0] + 20) << (8 * slot));
+                }
+            }
+            result.Records[row] = character with { Junction = character.Junction with { Commands = commands } };
+        }
+        return result;
+    }
     public bool IsComplete => complete;
     public bool WaitingForInput => !complete && delay == 0 && definition.Inputs[pc] >> 12 == 8;
     public object Status => new { TutorialId = definition.Id, Frame = frame, ProgramCounter = pc, Delay = delay, TextId = textId, MessageVisible = messageVisible, WaitingForInput, IsComplete, Menu.ScreenId, Menu.SelectedIndex, SelectedEntry = Menu.SelectedEntry?.Id };
@@ -360,13 +389,13 @@ internal sealed partial class NativeTutorialPlayer
         party.Validate();
     }
 
-    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(1, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), new(settings, StringComparer.Ordinal), new(names)));
+    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(2, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), new(settings, StringComparer.Ordinal), new(names)));
 
     private void Restore(JsonElement element)
     {
         NativeTutorialSnapshot saved = element.Deserialize<NativeTutorialSnapshot>() ?? throw new InvalidDataException("Missing native tutorial playback.");
         int terminal = definition.Inputs.IndexOf((ushort)0xF000);
-        if (saved.Version != 1 || saved.ResourceHash != catalog.ResourceHash || saved.TutorialId != definition.Id || saved.ProgramCounter < 0 || saved.ProgramCounter > terminal || saved.Frame < 0 || saved.Delay < 0 || saved.Delay > 4095 || saved.TextId < 0 || saved.TextId >= definition.Texts.Length || saved.CenterX is < 0 or > 4095 || saved.CenterY is < 0 or > 4095 || saved.Delay > 0 && (definition.Inputs[saved.ProgramCounter] >> 12 != 9 || saved.Delay > (definition.Inputs[saved.ProgramCounter] & 4095)) || saved.InputPrepared && definition.Inputs[saved.ProgramCounter] >> 12 != 1 || saved.Complete && definition.Inputs[saved.ProgramCounter] >> 12 is not (8 or 15) || saved.Party is null || saved.Navigation is null || saved.Settings is null || saved.Party.InitOutSha256 != party.InitOutSha256 || saved.Party.KernelSha256 != party.KernelSha256)
+        if (saved.Version is not (1 or 2) || saved.ResourceHash != catalog.ResourceHash || saved.TutorialId != definition.Id || saved.ProgramCounter < 0 || saved.ProgramCounter > terminal || saved.Frame < 0 || saved.Delay < 0 || saved.Delay > 4095 || saved.TextId < 0 || saved.TextId >= definition.Texts.Length || saved.CenterX is < 0 or > 4095 || saved.CenterY is < 0 or > 4095 || saved.Delay > 0 && (definition.Inputs[saved.ProgramCounter] >> 12 != 9 || saved.Delay > (definition.Inputs[saved.ProgramCounter] & 4095)) || saved.InputPrepared && definition.Inputs[saved.ProgramCounter] >> 12 != 1 || saved.Complete && definition.Inputs[saved.ProgramCounter] >> 12 is not (8 or 15) || saved.Party is null || saved.Navigation is null || saved.Settings is null || saved.Party.InitOutSha256 != party.InitOutSha256 || saved.Party.KernelSha256 != party.KernelSha256)
         {
             throw new InvalidDataException("Native tutorial playback changed its resource, program boundary or isolated initialization provenance.");
         }
@@ -384,7 +413,7 @@ internal sealed partial class NativeTutorialPlayer
         {
             throw new InvalidDataException("Saved tutorial changed its immutable original kernel definitions.");
         }
-        party = saved.Party.DeepCopy();
+        party = saved.Version == 1 && definition.Id <= 3 ? AdaptDashboardCommands(saved.Party) : saved.Party.DeepCopy();
         pc = saved.ProgramCounter;
         frame = saved.Frame;
         delay = saved.Delay;
@@ -405,12 +434,53 @@ internal sealed partial class NativeTutorialPlayer
             names.Add(key, value);
         }
         Menu.InvalidateLiveData();
-        Menu.RestoreNavigation(saved.Navigation);
+        if (saved.Version == 1 && definition.Id <= 3 && saved.Navigation.JunctionDashboard is null)
+        {
+            RestoreLegacyJunctionNavigation(saved.Navigation);
+        }
+        else
+        {
+            Menu.RestoreNavigation(saved.Navigation);
+        }
         if (Menu.Entries.Count > 0 && Menu.SelectedIndex >= Menu.Entries.Count || Menu.IsSelectingCharacter && Menu.CharacterSelectionIndex >= Menu.CharacterChoices.Count)
         {
             throw new InvalidDataException("Saved tutorial cursor is outside its current command or character choices.");
         }
         UpdateMessage();
+    }
+
+    private void RestoreLegacyJunctionNavigation(MenuNavigationState saved)
+    {
+        string[] screens = ["junction", "junction-options", "junction-gf", "gf-abilities", "junction-command", "junction-command-choice", "junction-ability", "junction-ability-choice", "junction-magic", "junction-element", "junction-status", "junction-stock", "junction-off", "junction-auto"];
+        string expectedCharacter = $"character-{definition.Descriptor.CharacterId}";
+        if (!screens.Contains(saved.ScreenId, StringComparer.Ordinal) || saved.History is null || saved.History.Any(screen => !screens.Contains(screen, StringComparer.Ordinal)) || saved.CharacterId != expectedCharacter || saved.CharacterSelectionDestination is null || saved.CharacterSelectionDestination.Length != 0)
+        {
+            throw new InvalidDataException("This earlier Junction tutorial snapshot has no supported dashboard navigation migration.");
+        }
+        NativeTutorialMenuStep? step = inputPrepared ? steps.GetValueOrDefault(pc) : steps.Where(pair => pair.Key < pc).OrderBy(pair => pair.Key).LastOrDefault().Value;
+        if (saved.ScreenId == "junction-stock" && (step is null || step.EntryId is not string candidate || !candidate.StartsWith("candidate-magic-", StringComparison.Ordinal) || saved.MagicId != candidate[10..] || step.DashboardPreparation?.Contains("slot-" + saved.JunctionSlot, StringComparer.Ordinal) != true))
+        {
+            throw new InvalidDataException("The earlier tutorial magic picker cannot be mapped to one explicit dashboard candidate and destination.");
+        }
+        if (step is null)
+        {
+            Menu.Open("junction");
+            Menu.Execute(new MenuAction("select-character", expectedCharacter));
+            return;
+        }
+        if (!inputPrepared && step.Press == NativeTutorialPress.ApplyDashboard)
+        {
+            Menu.Open("junction");
+            Menu.Execute(new MenuAction("select-character", expectedCharacter));
+            string origin = step.DashboardPreparation?.LastOrDefault(control => control.StartsWith("slot-", StringComparison.Ordinal) || control.StartsWith("command-", StringComparison.Ordinal) || control.StartsWith("passive-", StringComparison.Ordinal) || control == "manage-gfs") ?? "slot-HP";
+            Menu.SelectEntry("junction-dashboard", origin, allowDisabled: true);
+            return;
+        }
+        PrepareMenuInput(step);
+        if (!inputPrepared && step.Press == NativeTutorialPress.Confirm)
+        {
+            PressMenuInput(step);
+        }
     }
 
     private void ValidatePlan()

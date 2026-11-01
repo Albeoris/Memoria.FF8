@@ -7,7 +7,7 @@ Choose these four independent options before **Begin** on the New Game screen, o
 | Draw once per spell | Successful Draw Stock or Cast exhausts that spell on that enemy for the whole party during the encounter. |
 | Shared magic stock | One accessible party bank, with exclusive Junction ownership for each spell. |
 | Infinite magic | Ordinary casts preserve stock and spend a separate, limited allowance. |
-| Smart Attack | Unlocks a personal choice of physical attacks or automatic magic in Junction Abilities. |
+| Smart Attack | Unlocks a personal choice of physical attacks or automatic magic on Junction's basic-action row. |
 
 Any combination works. With Shared off, characters retain personal inventories and cannot borrow another character's stock or allowance. With Infinite off, ordinary spells consume stock normally. Smart Attack follows whichever storage and casting rules the save uses.
 
@@ -23,7 +23,7 @@ Enabling Shared merges stock into the first physical character record, including
 
 Each spell can have one Junction owner across all saved characters, including reserves. A bound spell may be cast only by its owner. An unbound spell is available to otherwise eligible characters. Field magic resolves the actual caster separately: the available owner casts a bound spell; an unbound shared spell uses the eligible active-party member with the highest Magic, breaking ties by party order. The menu names that caster.
 
-Conservative **Auto Junction** preserves other characters' owners. **Junction → Off → Entire party magic** removes every magic binding from all characters, including reserve and unavailable characters, while retaining GF, commands, abilities and spell stock. Party removal and manual reassignment offer a preview of removed bindings and affected maximum HP before applying a change. Losing an HP Junction clamps current HP when necessary. Manual magic transfers are disabled while Shared is active.
+**Junction → Card / detail → Optimize stats** changes only unpinned stat junctions and preserves other characters' owners and all elemental/status assignments. **Actions → Clear all characters' magic junctions** removes every magic binding, including reserve and unavailable characters, while retaining GFs, commands, abilities and spell stock. Party removal and manual reassignment preview removed bindings and affected maximum/current HP before applying a change. Losing an HP Junction clamps current HP when necessary. Manual inventory transfers are disabled while Shared is active; reviewed Junction reassignment remains available. See [Junction](junction.md) for the dashboard, previews and Undo.
 
 Changing Shared mode displays quantities moved, overflow retained, removed Junctions and affected maximum HP. **Apply** commits the whole change; **Cancel** or Escape changes nothing. Disabling Shared leaves quantities in their current banks and removes bindings without local stock. It does not redistribute stock or restore earlier bindings. Extra spell types already stored in the first record remain usable after Shared is disabled.
 

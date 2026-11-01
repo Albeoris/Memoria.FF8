@@ -64,32 +64,48 @@ public sealed class MenuColumnTests
     [MemberData(nameof(MagicCases))]
     public void FieldMagicRowsKeepStockAndUsesAlongsideNamesAndOwners(bool shared, bool finite, int stock, int uses, bool bound)
     {
-        foreach (string screen in new[] { "magic", "magic-use", "magic-stock", "magic-exchange", "junction-stock" })
+        foreach (string screen in new[] { "magic", "magic-use", "magic-stock", "magic-exchange" })
         {
             MenuData data = MagicData(shared, finite, stock, uses, bound);
             MenuController menus = new(() => data);
             menus.Open(screen);
             UiView view = menus.BuildView();
             UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => screen is "magic" ? element.Id == "magic-preview-character-0" : element.Id == "commands");
-            int offset = screen == "junction-stock" ? 1 : 0;
-            Assert.Equal(new[] { "Fire", "Very long spell name" }, list.Items.Skip(offset));
-            string[] counts = finite && screen != "junction-stock" ? [$"{uses}/4  {stock}", $"{5 - uses}/4  {106 - stock}"] : [stock.ToString(), (106 - stock).ToString()];
-            Assert.Equal(counts, list.SecondaryItems.Skip(offset));
+            Assert.Equal(new[] { "Fire", "Very long spell name" }, list.Items);
+            string[] counts = finite ? [$"{uses}/4  {stock}", $"{5 - uses}/4  {106 - stock}"] : [stock.ToString(), (106 - stock).ToString()];
+            Assert.Equal(counts, list.SecondaryItems);
             Assert.Empty(list.Images);
-            Assert.Equal(shared && bound ? data.Magic[0].OwnerIcon : null, list.TrailingImages[offset]);
-            Assert.Null(list.TrailingImages[offset + 1]);
+            Assert.Equal(shared && bound ? data.Magic[0].OwnerIcon : null, list.TrailingImages[0]);
+            Assert.Null(list.TrailingImages[1]);
             Assert.True(list.TrailingImagesBeforeSecondary);
             Assert.True(list.AutoSecondaryWidth);
             Assert.Equal(UiAlignment.End, list.SecondaryAlignment);
-            if (offset != 0)
-            {
-                Assert.Equal("Empty", list.Items[0]);
-                Assert.Equal("", list.SecondaryItems[0]);
-                Assert.Null(list.TrailingImages[0]);
-            }
         }
     }
 
+    [Theory]
+    [MemberData(nameof(MagicCases))]
+    public void JunctionDockKeepsStockAndFiniteCastRatiosBesideEveryCandidate(bool shared, bool finite, int stock, int uses, bool bound)
+    {
+        MenuData data = MagicData(shared, finite, stock, uses, bound);
+        MenuController menu = new(() => data);
+        menu.Open("junction-stock");
+        menu.Execute(new("junction-ui", "slot-HP"));
+        foreach (MenuMagic spell in data.Magic)
+        {
+            UiElement candidate = Descendants(menu.BuildView().Root).Single(element => element.Id == "candidate-" + spell.Id);
+            string[] labels = Descendants(candidate).OfType<UiLabel>().Select(label => label.Text).ToArray();
+            Assert.Contains(labels, label => label.Contains(spell.Name, StringComparison.Ordinal));
+            Assert.Contains(labels, label => label.Contains("×" + spell.Quantity, StringComparison.Ordinal));
+            if (finite)
+            {
+                Assert.Contains(labels, label => label.Contains($"{spell.RemainingUses}/{spell.Capacity}", StringComparison.Ordinal));
+            }
+        }
+        Assert.Contains(menu.Entries, entry => entry.Id == "candidate-none");
+        Assert.Contains(menu.Entries, entry => entry.Id == "slot-HP");
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+    }
     [Theory]
     [InlineData(960, 672, "100%", false)]
     [InlineData(960, 672, "100%", true)]

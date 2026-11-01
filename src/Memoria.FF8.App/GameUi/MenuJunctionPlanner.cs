@@ -40,6 +40,7 @@ public sealed class MenuJunctionPlanner
     private readonly string rulesFingerprint;
 
     public string SourceFingerprint { get; }
+    public MenuData Snapshot => before ??= View(source);
     public string? UnavailableReason => catalog is null ? "Original stat rules are unavailable; derived effects and stat optimization cannot be projected." : null;
 
     public MenuJunctionPlanner(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, int? placeId = null)
@@ -91,13 +92,14 @@ public sealed class MenuJunctionPlanner
             NativeCharacterVitals intended = source.DeepCopy();
             IReadOnlySet<int> learned = source.JunctionLearnedAbilities(row);
             HashSet<int> equipped = Enumerable.Range(0, 3).Select(slot => (int)(byte)(source.Records[row].Junction.Commands >> (8 * slot))).Where(id => id != 0).ToHashSet();
+            int[] preferred = new byte[] { 2, 6, 4, 3 }.Select(command => source.MenuDefinitions.CommandAbilityCommands.IndexOf(command)).Where(index => index >= 0).Select(index => index + 20).ToArray();
             foreach (int slot in Enumerable.Range(0, 3))
             {
                 if ((byte)(intended.Records[row].Junction.Commands >> (8 * slot)) != 0)
                 {
                     continue;
                 }
-                int ability = new[] { 21, 23, 24, 22 }.FirstOrDefault(id => learned.Contains(id) && !equipped.Contains(id));
+                int ability = preferred.FirstOrDefault(id => learned.Contains(id) && !equipped.Contains(id));
                 if (ability == 0)
                 {
                     break;
@@ -226,16 +228,23 @@ public sealed class MenuJunctionPlanner
         }
         NativeJunctionEditPlan edit = NativeJunctionEdits.Create(source, intended, operation, isUndo);
         NativeCharacterVitals result = edit.Rows.Length == 0 ? source.DeepCopy() : NativeJunctionEdits.Apply(source, edit);
-        MenuData current = before ??= View(source);
+        MenuData current = Snapshot;
         MenuData after = View(result);
         List<MenuJunctionChange> changes = Diff(current, after);
         for (int row = 0; row < source.Records.Length; row++)
         {
+            MenuCharacter character = current.Characters.Single(character => character.Id == $"character-{row}");
+            int previousCommand = (byte)(source.Records[row].Junction.Commands >> 24);
+            int nextCommand = (byte)(result.Records[row].Junction.Commands >> 24);
+            if (previousCommand != nextCommand)
+            {
+                string Command(int id) => id == 0 ? catalog?.SystemText("ui.junctiondashboard.empty", "Empty") ?? "Empty" : catalog?.AbilityName(id) ?? id.ToString(CultureInfo.InvariantCulture);
+                changes.Add(new(character.Id, character.Name, "Command", catalog?.SystemText("ui.junctiondashboard.savedcommand", "Additional saved command binding") ?? "Additional saved command binding", Command(previousCommand), Command(nextCommand)));
+            }
             int previous = source.Records[row].Junction.MagicJunctions[19];
             int next = result.Records[row].Junction.MagicJunctions[19];
             if (previous != next)
             {
-                MenuCharacter character = current.Characters.Single(character => character.Id == $"character-{row}");
                 string Spell(int id) => id == 0 ? catalog?.SystemText("ui.junctiondashboard.none", "None") ?? "None" : catalog?.MagicName(id) ?? id.ToString(CultureInfo.InvariantCulture);
                 changes.Add(new(character.Id, character.Name, "Magic", catalog?.SystemText("ui.junctiondashboard.savedbinding", "Additional saved magic binding") ?? "Additional saved magic binding", Spell(previous), Spell(next)));
             }
@@ -262,7 +271,7 @@ public sealed class MenuJunctionPlanner
 
     private MenuJunctionPlan Unavailable(string label, string reason)
     {
-        MenuData current = before ??= View(source);
+        MenuData current = Snapshot;
         return new MenuJunctionPlan { SourceFingerprint = SourceFingerprint, AfterSourceFingerprint = SourceFingerprint, Label = label, Before = current, After = current, Changes = [], Action = new MenuAction("junction-edit"), UnavailableReason = reason, Original = source.DeepCopy(), Result = source.DeepCopy(), RulesFingerprint = rulesFingerprint };
     }
 

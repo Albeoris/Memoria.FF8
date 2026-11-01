@@ -124,6 +124,9 @@ public static partial class SystemTextCatalog
         defaults.Add("junction.dashboard.priority-attack", "Attack");
         defaults.Add("junction.dashboard.priority-magic", "Magic");
         defaults.Add("junction.dashboard.priority-defense", "Defense");
+        defaults.Add("junction.dashboard.sort-benefit", "Benefit");
+        defaults.Add("junction.dashboard.sort-name", "Name");
+        defaults.Add("junction.dashboard.sort-stock", "Stock");
         defaults.Add("junction.dashboard.last-edit", "last edit");
         defaults.Add("junction.dashboard.actions-help", "Actions: optimize stats, clear junctions, fill commands, pin a stat.");
         defaults.Add("junction.dashboard.search", "Search");
@@ -135,7 +138,19 @@ public static partial class SystemTextCatalog
         defaults.Add("junction.dashboard.smart-dependency", "Requires usable Magic or Draw; otherwise falls back to physical.");
         defaults.Add("junction.dashboard.command", "Command");
         defaults.Add("junction.dashboard.passive", "Passive");
-        defaults.Add("junction.dashboard.gf", "GF");
+        defaults.Add("junction.dashboard.gf", "Guardian Force");
+        defaults.Add("junction.dashboard.clear-reviewed", "Apply reviewed removal");
+        defaults.Add("junction.dashboard.learning", "Learning");
+        defaults.Add("junction.dashboard.no-character", "Character data is unavailable.");
+        defaults.Add("junction.dashboard.pin-stat", "Pin stat");
+        defaults.Add("junction.dashboard.pinned", "Pinned");
+        defaults.Add("junction.dashboard.select", "Select");
+        defaults.Add("junction.dashboard.unpin", "Unpin stat");
+        defaults.Add("junction.dashboard.used-by", "Used by");
+        defaults.Add("junction.dashboard.apply-short", "Apply");
+        defaults.Add("junction.dashboard.current-preview", "Current → Preview");
+        defaults.Add("junction.dashboard.attack-short", "Atk");
+        defaults.Add("junction.dashboard.defense-short", "Def");
         string[] elements = ["Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy"];
         string[] statuses = ["Death", "Poison", "Petrify", "Darkness", "Silence", "Berserk", "Zombie", "Sleep", "Slow", "Stop", "Curse", "Confuse", "Drain"];
         for (int index = 0; index < elements.Length; index++)

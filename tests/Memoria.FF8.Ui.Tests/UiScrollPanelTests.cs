@@ -81,6 +81,9 @@ public sealed class UiScrollPanelTests
         Assert.True(visibleOnNotification);
         Assert.Equal(200, scroll.Offset);
         Assert.Same(last, view.FocusedElement);
+        scroll.Offset = 0;
+        Assert.True(view.Focus(last));
+        Assert.Equal(200, scroll.Offset);
         Assert.True(view.Focus(first));
         Assert.Equal(0, scroll.Offset);
         view.Key(UiKey.Down);

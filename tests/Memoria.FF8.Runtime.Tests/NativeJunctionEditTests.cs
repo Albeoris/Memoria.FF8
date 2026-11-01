@@ -122,14 +122,16 @@ public sealed class NativeJunctionEditTests
         Assert.Contains(0, next.Records[3].Junction.GuardianForceAssignments);
         Assert.Equal(source.GuardianForces, next.GuardianForces);
         Assert.Equal(source.Records[4], next.Records[4]);
-    }    [Theory]
+    }
+
+    [Theory]
     [InlineData(NativeJunctionEditOperation.ClearCharacterMagic)]
     [InlineData(NativeJunctionEditOperation.RemoveCharacterJunctions)]
     [InlineData(NativeJunctionEditOperation.ClearPartyMagic)]
     public void ExplicitOffKeepsNativeReservedByteClearingAndItsScopedUndo(NativeJunctionEditOperation operation)
     {
         NativeCharacterVitals source = Source();
-        source.Records[0] = source.Records[0] with { Junction = source.Records[0].Junction with { Commands = 0xAA000000 } };
+        source.Records[0] = source.Records[0] with { HitPoints = new NativeHpWord(1, 1), Status = 4, Junction = source.Records[0].Junction with { Commands = 0xAA000000 } };
         source.Records[7].Junction.MagicJunctions[19] = 42;
         NativeCharacterVitals intended = operation switch
         {
@@ -140,6 +142,7 @@ public sealed class NativeJunctionEditTests
         NativeJunctionEditPlan plan = NativeJunctionEdits.Create(source, intended, operation);
         NativeCharacterVitals applied = NativeJunctionEdits.Apply(source, plan);
         Assert.All(applied.Records[0].Junction.MagicJunctions, spell => Assert.Equal(0, spell));
+        Assert.Equal((ushort)4, applied.Records[0].Status);
         Assert.Equal(operation == NativeJunctionEditOperation.RemoveCharacterJunctions ? 0u : source.Records[0].Junction.Commands, applied.Records[0].Junction.Commands);
         Assert.Equal(operation == NativeJunctionEditOperation.ClearPartyMagic ? (byte)0 : (byte)42, applied.Records[7].Junction.MagicJunctions[19]);
         NativeJunctionEditPlan undo = NativeJunctionEdits.CreateUndo(source, applied, operation);

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Memoria.FF8.GameUi;
 
 /// <param name="Commands">Three configurable command ability IDs in slot order; empty is 0 or null.</param>
-public sealed record JunctionCommandConfiguration(string RecordId, IReadOnlyList<string?> Commands, IReadOnlyCollection<string> AvailableCommands, bool SmartMagic = false, string MagicCommandId = "21", string DrawCommandId = "23");
+public sealed record JunctionCommandConfiguration(string RecordId, IReadOnlyList<string?> Commands, IReadOnlyCollection<string> AvailableCommands, bool SmartMagic = false, string MagicCommandId = "20", string DrawCommandId = "22");
 
 public sealed record JunctionCommandAttention(string RecordId, int EquippedCount, IReadOnlyList<int> ActionableEmptySlots, bool MissingSmartMagicDependency)
 {
@@ -62,7 +62,7 @@ public sealed class JunctionCommandAudit
         string?[] result = configuration.Commands.ToArray();
         HashSet<string> equipped = result.Where(id => !IsEmpty(id)).Select(id => id!).ToHashSet(StringComparer.Ordinal);
         HashSet<string> available = configuration.AvailableCommands.ToHashSet(StringComparer.Ordinal);
-        Queue<string> additions = new(new[] { "21", "23", "24", "22" }.Where(id => available.Contains(id) && !equipped.Contains(id)));
+        Queue<string> additions = new(new[] { "20", "22", "23", "21" }.Where(id => available.Contains(id) && !equipped.Contains(id)));
         for (int slot = 0; slot < result.Length && additions.Count > 0; slot++)
         {
             if (IsEmpty(result[slot]))

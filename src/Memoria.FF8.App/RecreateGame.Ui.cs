@@ -611,7 +611,7 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityWorkspace)
+                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard)
                 {
                     DispatchMenuInput(MenuInput.Cancel);
                 }
@@ -629,7 +629,7 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityWorkspace)
+                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard)
                 {
                     DispatchMenuInput(MenuInput.Cancel);
                 }

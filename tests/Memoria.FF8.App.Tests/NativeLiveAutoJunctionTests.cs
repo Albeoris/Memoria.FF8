@@ -11,7 +11,7 @@ public sealed class NativeLiveAutoJunctionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Party_magic_off_is_one_action_and_auto_only_has_conservative_priorities(bool shared)
+    public void PartyMagicOffIsOneReviewedTransactionAndStatsOnlyOptimizationHasThreePriorities(bool shared)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals source = assets.ReadNewGameCharacterVitals();
@@ -21,24 +21,31 @@ public sealed class NativeLiveAutoJunctionTests
             source.Records[row] = source.Records[row] with { Junction = source.Records[row].Junction with { MagicJunctions = Enumerable.Repeat((byte)1, 20).ToArray() } };
         }
         string original = JsonSerializer.Serialize(source);
+        LiveMenuCatalog names = LiveMenuCatalog.ReadInstalled(assets);
         NativeCharacterVitals party = source;
         List<PlayerAction> actions = [];
-        MenuController controller = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = party }), action =>
+        MenuController controller = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = party }, catalog: names), action =>
         {
             PlayerAction input = NativeJunctionMenuProjection.PlayerAction(action);
             actions.Add(input);
             PlayerAction restored = JsonSerializer.Deserialize<PlayerAction>(JsonSerializer.Serialize(input))!;
             party = NativeJunctionMenuInput.Apply(party, restored);
         });
-        controller.Open("junction-auto");
-        Assert.Equal(new[] { "Attack", "Magic", "Defense" }, controller.Entries.Select(entry => entry.Label));
-        controller.Open("junction-off");
-        Assert.Equal(new[] { "Magic", "All", "Entire party magic" }, controller.Entries.Select(entry => entry.Label));
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Confirm);
-
-        Assert.Equal(new PlayerAction(PlayerActionKind.RemoveAllMagicJunctions), Assert.Single(actions));
+        controller.Open("junction");
+        Assert.Equal("junction-dashboard", controller.ScreenId);
+        controller.Navigate(MenuInput.Alternate);
+        controller.Execute(new("junction-ui", "optimize"));
+        Assert.Equal(new[] { "Attack", "Magic", "Defense" }, controller.Entries.Where(entry => entry.Id.StartsWith("priority-", StringComparison.Ordinal)).Select(entry => entry.Label));
+        controller.Navigate(MenuInput.Cancel);
+        controller.Navigate(MenuInput.Alternate);
+        controller.Execute(new("junction-ui", "clear-party-magic"));
+        Assert.Empty(actions);
+        controller.Execute(new("junction-ui", "apply-junction-preview"));
+        PlayerAction applied = Assert.Single(actions);
+        Assert.Equal(PlayerActionKind.ApplyJunctionEdit, applied.Kind);
+        NativeJunctionEditPlan edit = JsonSerializer.Deserialize<NativeJunctionEditPlan>(applied.Text!)!;
+        Assert.Equal(NativeJunctionEditOperation.ClearPartyMagic, edit.Operation);
+        Assert.Equal(8, edit.Rows.Length);
         Assert.Equal(JsonSerializer.Serialize(source.RemoveAllMagicJunctions()), JsonSerializer.Serialize(party));
         Assert.Equal(original, JsonSerializer.Serialize(source));
     }
@@ -90,13 +97,8 @@ public sealed class NativeLiveAutoJunctionTests
                 return catalog.AutoJunction(vitals, row, selectedPriority);
             });
         });
-        controller.Open("junction-auto");
-        for (int index = 0; index < priority; index++)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
-        controller.Navigate(MenuInput.Confirm);
-
+        controller.Open("junction");
+        controller.Execute(new("junction-auto", TargetId: "character-0", Value: new[] { "Attack", "Magic", "Defense" }[priority]));
         PlayerAction applied = Assert.Single(actions);
         Assert.Equal(PlayerActionKind.AutoJunction, applied.Kind);
         Assert.Equal(0, applied.Value);

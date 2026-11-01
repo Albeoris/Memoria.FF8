@@ -97,7 +97,7 @@ public sealed partial class MenuController
     public int SelectedIndex => IsJunctionDashboard ? Math.Max(0, Entries.ToList().FindIndex(entry => entry.Id == junctionFocus)) : _selections.GetValueOrDefault(ScreenId);
     public IReadOnlyList<MenuEntry> Entries => LocalizeSystemEntries(CurrentScreen.Entries(this));
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
-    public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
+    public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) ?? (IsJunctionDashboard && junctionVisited.Contains(_characterId) ? Data.JunctionPlanner?.Snapshot.Characters.FirstOrDefault(c => c.Id == _characterId) : null) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
     public string ExchangeId => _exchangeId;
     public bool IsSelectingCharacter => _characterSelectionDestination.Length > 0;
     public string CharacterSelectionDestination => _characterSelectionDestination;
@@ -206,6 +206,11 @@ public sealed partial class MenuController
 
     public void Close()
     {
+        junctionSearchEditing = false;
+        junctionEditor = "";
+        junctionPlan = null;
+        junctionReview = false;
+        junctionExitReview = false;
         ClearBattleLearningReview();
         exitGame = null;
         if (ScreenId == "mode-review")

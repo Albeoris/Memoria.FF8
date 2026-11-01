@@ -24,7 +24,12 @@ public static class MenuDemoData
         {
             var character = new MenuCharacter { Id = i.ToString(), NativeId = characterIdentities[i], Name = names[i], InParty = i < 3, Level = 18 + i, CurrentHp = 720 + i * 93, MaximumHp = 1300 + i * 111, Experience = 18000 + i * 500, NextLevelExperience = 500, Weapon = weapons[i], LimitBreak = limits[i] };
             character.Commands.AddRange(["Attack", "Magic", "GF", "Draw"]);
+            character.CommandIds.AddRange(["Magic", "GF", "Draw"]);
             character.Abilities.AddRange(["Str+20%", "HP+20%", "Mug"]);
+            character.AbilityIds.AddRange(["Str+20%", "HP+20%", "Mug", "0"]);
+            character.AbilitySlots = 3;
+            // Synthetic fixture capacities are explicit, rather than inferred from displayed ability names.
+            character.AvailableJunctionSlots.UnionWith(Enumerable.Range(0, 19).Select(LiveMenuData.JunctionSlotName));
             foreach (string command in new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" })
             {
                 character.AvailableCommands.Add(new MenuAbilityChoice(command, command) { Icon = NativeAbilityMenuMetadata.Icon(20), Description = "Choose a fixture command." });
@@ -43,6 +48,8 @@ public static class MenuDemoData
             character.AtbProgress = i < 3 ? 0.3f + i * 0.3f : null;
             character.Junctions["HP"] = "Cure";
             character.Junctions["Str"] = "Fire";
+            character.JunctionIds["HP"] = "3";
+            character.JunctionIds["Str"] = "0";
             character.GuardianForceIds.Add(i.ToString());
             if (i == 2)
             {

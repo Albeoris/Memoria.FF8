@@ -68,12 +68,18 @@ public sealed class MagicSystemInterfaceTests
         MenuAction? requested = null;
         MenuController menu = new(() => data, action => requested = action);
         menu.Open("junction-command");
-        Assert.Equal(new[] { "attack", "1", "2", "3" }, menu.Entries.Select(entry => entry.Id));
-        Assert.True(menu.Entries[0].Enabled);
-        menu.Execute(menu.Entries[0].Action!);
+        Assert.Equal("junction-dashboard", menu.ScreenId);
+        foreach (string control in new[] { "basic-action", "command-0", "command-1", "command-2" })
+        {
+            Assert.Contains(menu.Entries, entry => entry.Id == control && entry.Enabled);
+        }
+        menu.Execute(new MenuAction("junction-ui", "basic-action"));
+        menu.Execute(new MenuAction("junction-ui", "physical-mode"));
         Assert.Equal(new MenuAction("attack-mode", TargetId: "character-0", Value: "PhysicalOnly"), requested);
         data.SmartAttack = false;
-        Assert.Equal(new[] { "1", "2", "3" }, menu.Entries.Select(entry => entry.Id));
+        menu.InvalidateLiveData();
+        menu.Execute(new MenuAction("junction-ui", "basic-action"));
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "physical-mode" or "smart-mode");
         Assert.Equal("SmartMagic", data.Characters[0].AttackMode);
     }
 

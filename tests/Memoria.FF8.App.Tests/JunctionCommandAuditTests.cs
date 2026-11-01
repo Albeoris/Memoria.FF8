@@ -7,9 +7,9 @@ public sealed class JunctionCommandAuditTests
     [Fact]
     public void EmptyCommandsOnlyNeedAttentionWhenDistinctAdditionsAreAvailable()
     {
-        JunctionCommandConfiguration configuration = new("character-0", ["21", "0", "0"], ["21"]);
+        JunctionCommandConfiguration configuration = new("character-0", ["20", "0", "0"], ["20"]);
         Assert.False(JunctionCommandAudit.Inspect(configuration).NeedsAttention);
-        JunctionCommandAttention attention = JunctionCommandAudit.Inspect(configuration with { AvailableCommands = ["21", "23"] });
+        JunctionCommandAttention attention = JunctionCommandAudit.Inspect(configuration with { AvailableCommands = ["20", "22"] });
         Assert.Equal(1, attention.EquippedCount);
         Assert.Equal(new[] { 1, 2 }, attention.ActionableEmptySlots);
     }
@@ -17,23 +17,23 @@ public sealed class JunctionCommandAuditTests
     [Fact]
     public void FillPreservesAllExistingCommandsAndUsesDeterministicDistinctLearnedChoices()
     {
-        JunctionCommandConfiguration configuration = new("character-0", ["0", "24", "0"], ["22", "24", "23", "21", "21"]);
-        Assert.Equal(new[] { "21", "24", "23" }, JunctionCommandAudit.ProposeFill(configuration));
-        Assert.Equal(new[] { "0", "24", "0" }, configuration.Commands);
-        Assert.Equal(new[] { "22", "24", "0" }, JunctionCommandAudit.ProposeFill(configuration with { AvailableCommands = ["24", "22"] }));
+        JunctionCommandConfiguration configuration = new("character-0", ["0", "23", "0"], ["21", "23", "22", "20", "20"]);
+        Assert.Equal(new[] { "20", "23", "22" }, JunctionCommandAudit.ProposeFill(configuration));
+        Assert.Equal(new[] { "0", "23", "0" }, configuration.Commands);
+        Assert.Equal(new[] { "21", "23", "0" }, JunctionCommandAudit.ProposeFill(configuration with { AvailableCommands = ["23", "21"] }));
     }
 
     [Fact]
     public void AcknowledgmentUsesOnlyCommandCapabilitiesAndRelevantAttackMode()
     {
         JunctionCommandAudit audit = new();
-        JunctionCommandConfiguration configuration = new("character-0", ["21", "0", "0"], ["21", "23"]);
+        JunctionCommandConfiguration configuration = new("character-0", ["20", "0", "0"], ["20", "22"]);
         Assert.True(audit.RequiresReview(configuration));
         audit.Acknowledge(configuration);
         audit.BeginVisit();
-        Assert.False(audit.RequiresReview(configuration with { AvailableCommands = ["23", "21", "21"] }));
-        Assert.True(audit.RequiresReview(configuration with { Commands = ["23", "0", "0"] }));
-        Assert.True(audit.RequiresReview(configuration with { AvailableCommands = ["21", "23", "24"] }));
+        Assert.False(audit.RequiresReview(configuration with { AvailableCommands = ["22", "20", "20"] }));
+        Assert.True(audit.RequiresReview(configuration with { Commands = ["22", "0", "0"] }));
+        Assert.True(audit.RequiresReview(configuration with { AvailableCommands = ["20", "22", "23"] }));
         Assert.True(audit.RequiresReview(configuration with { SmartMagic = true }));
         audit.ResetSession();
         Assert.True(audit.RequiresReview(configuration));
@@ -43,7 +43,7 @@ public sealed class JunctionCommandAuditTests
     public void ExitReviewIncludesSelectedAndAffectedRecordsOnly()
     {
         JunctionCommandAudit audit = new();
-        JunctionCommandConfiguration selected = new("character-0", ["0", "0", "0"], ["21"]);
+        JunctionCommandConfiguration selected = new("character-0", ["0", "0", "0"], ["20"]);
         JunctionCommandConfiguration donor = selected with { RecordId = "character-1" };
         JunctionCommandConfiguration untouched = selected with { RecordId = "character-2" };
         audit.MarkAffected(donor.RecordId);
@@ -57,18 +57,19 @@ public sealed class JunctionCommandAuditTests
     [Fact]
     public void SmartMagicChecksEquippedDependenciesWithoutRequiringSpecificBuild()
     {
-        JunctionCommandConfiguration configuration = new("character-0", ["24", "22", "25"], ["21", "22", "23", "24", "25"], true);
+        JunctionCommandConfiguration configuration = new("character-0", ["23", "21", "25"], ["20", "21", "22", "23", "25"], true);
         Assert.True(JunctionCommandAudit.Inspect(configuration).MissingSmartMagicDependency);
         Assert.False(JunctionCommandAudit.Inspect(configuration with { SmartMagic = false }).NeedsAttention);
-        Assert.False(JunctionCommandAudit.Inspect(configuration with { Commands = ["23", "22", "25"] }).NeedsAttention);
-        Assert.Throws<ArgumentException>(() => JunctionCommandAudit.Inspect(configuration with { Commands = ["21"] }));
+        Assert.False(JunctionCommandAudit.Inspect(configuration with { Commands = ["22", "21", "25"] }).NeedsAttention);
+        Assert.False(JunctionCommandAudit.Inspect(configuration with { Commands = ["20", "21", "25"] }).NeedsAttention);
+        Assert.Throws<ArgumentException>(() => JunctionCommandAudit.Inspect(configuration with { Commands = ["20"] }));
     }
 
     [Fact]
     public void SessionIdentityKeepsAcknowledgmentsAcrossReopeningAndClearsOnLoad()
     {
         JunctionCommandAudit audit = new();
-        JunctionCommandConfiguration configuration = new("character-0", ["0", "0", "0"], ["21"]);
+        JunctionCommandConfiguration configuration = new("character-0", ["0", "0", "0"], ["20"]);
         audit.SetSession("session-one");
         audit.Acknowledge(configuration);
         audit.SetSession("session-one");
