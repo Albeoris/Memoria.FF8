@@ -100,6 +100,7 @@ internal sealed partial class RecreateGame
             if (effectPreviewSubmitted)
             {
                 active.AdvanceNativeGraphicsPresentation(elapsed);
+                presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
                 battleScene!.AdvancePresentation(elapsed);
                 SynchronizeBattleAudio();
             }
