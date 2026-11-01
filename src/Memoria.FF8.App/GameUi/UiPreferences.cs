@@ -19,6 +19,7 @@ internal sealed record UiPreferences
     public bool BorderlessWindow { get; init; }
     public bool VSync { get; init; } = true;
     public bool ShowFps { get; init; }
+    public bool ShowAchievementProgress { get; init; }
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;

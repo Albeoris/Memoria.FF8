@@ -95,6 +95,16 @@ The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/
 }
 ```
 
+## Achievement notifications
+
+Achievement unlock notifications appear automatically. Progress notifications are disabled by default; achievement tracking continues while they are hidden.
+
+To show progress notifications, close the game and set the top-level `ShowAchievementProgress` property to `true` in `%LOCALAPPDATA%/Memoria/FF8/ui-settings.json`. Set it to `false` to hide them again. This preference applies across saves; existing configuration files without the property keep progress notifications disabled.
+
+```json
+"ShowAchievementProgress": true
+```
+
 ## Movies and naming
 
 Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding.

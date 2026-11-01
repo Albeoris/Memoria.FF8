@@ -127,7 +127,7 @@ internal sealed partial class RecreateGame
         {
             ShowSaveNotice("Achievement unlocked: " + change.Current.Name, 6);
         }
-        else if (!change.Current.Unlocked && change.Current.ProgressKnown)
+        else if (uiPreferences.ShowAchievementProgress && !change.Current.Unlocked && change.Current.ProgressKnown)
         {
             ShowSaveNotice($"{change.Current.Name}: {change.Current.DisplayProgress}/{change.Current.Target}", 3);
         }
