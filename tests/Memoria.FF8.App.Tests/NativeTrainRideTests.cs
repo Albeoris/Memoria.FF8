@@ -104,6 +104,45 @@ public sealed class NativeTrainRideTests
     }
 
     [Theory]
+    [InlineData(74)]
+    [InlineData(85)]
+    public void ParkedCarIsAppendedFromItsSavedPoseAndSurvivesTrainRestore(byte shape)
+    {
+        using GameAssets initialization = new(GameDirectory);
+        GameSession session = CreateComponent(initialization);
+        WorldTransition packet = new(64, 16, -1);
+        NativeSavedWorldPose pose;
+        using (PreparedWorldEntry empty = WorldEntryPreflight.Prepare(session.State, GameDirectory, packet))
+        {
+            NativeWorldPathPosition body = empty.InitialState.NativeTrainRuntime!.BodyPosition;
+            pose = new(body.X + 256, -body.Z, checked((short)body.Y), 1024);
+        }
+        GameState departure = session.State;
+        WorldState precedingFoot = departure.DepartingWorldState! with { NativeCarRuntime = null, NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()) };
+        NativeSavedWorldFootReturn footReturn = NativeSavedWorldFootReturn.RecordFootDeparture(precedingFoot, 262, 290, 1);
+        NativeSavedWorldState parkedSaved = (departure.SavedWorld! with { CarReturn = null, Slot4 = new(shape, pose) }).WithFootReturn(footReturn);
+        session.Restore(departure with { DepartingWorldState = precedingFoot, SavedWorld = parkedSaved });
+        using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(session.State, GameDirectory, packet);
+        NativeTrainWorldLoadReceipt load = prepared.InitialState.NativeTrainRuntime!.Load;
+        NativeTrainWorldObject parked = Assert.Single(load.SavedVehicleObjects);
+        Assert.Equal(shape, parked.ShapeId);
+        Assert.Equal(pose, parked.Pose);
+        Assert.Equal(new NativeWorldPathPosition(pose.X, pose.Height, -pose.RawZ), parked.Position);
+        Assert.Equal(pose.Yaw, parked.PackedOrientation);
+        Assert.Equal(load.Allocation.Objects.Length + 1, load.AllocatedObjects.Length);
+        session.CommitPreparedWorldEntry(packet, prepared.InitialState, session.WorldControls!, prepared.ValidateAdoption, prepared.InitialSavedWorld);
+        using WorldMapScene scene = prepared.Adopt(session);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        byte[] pixels = scene.Render(320, 224);
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        Assert.Equal(pixels, replay.Render(320, 224));
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait, Frames: 30)), replay.Apply(new(PlayerActionKind.Wait, Frames: 30)));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+        Assert.Equal(shape, Assert.Single(scene.State.NativeTrainRuntime!.Load.SavedVehicleObjects).ShapeId);
+    }
+
+    [Theory]
     [InlineData(0, 1)]
     [InlineData(1, 0)]
     public void LoaderCopiesFieldByte265ToWorldHeader103ForTrackMaskAndCannotBorrowModeTwoEndpointSemantics(byte field265, byte field103)

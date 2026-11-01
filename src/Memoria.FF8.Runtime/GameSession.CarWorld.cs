@@ -2,6 +2,23 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    private static bool HasNativeCarArrivalAuthority(GameState state, WorldState world, NativeCarWorldRuntimeState car)
+    {
+        if (state.WorldArrival is not { } arrival)
+        {
+            return false;
+        }
+        if (car.Boarding is { } boarding && (boarding.OriginalPacket != arrival || boarding.SourceWorldFrame > world.Frame))
+        {
+            return false;
+        }
+        if (unchecked((byte)arrival.Mode) == car.EntityType)
+        {
+            return true;
+        }
+        return car.Boarding is not null;
+    }
+
     public void SetSavedWorldState(NativeSavedWorldState saved)
     {
         saved.Validate();
@@ -16,7 +33,7 @@ public sealed partial class GameSession
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentNullException.ThrowIfNull(validatePrepared);
         GameState departure = State;
-        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || live.NativeCarRuntime is not { } car || departure.WorldArrival is not WorldTransition arrival || unchecked((byte)arrival.Mode) != car.EntityType || departure.SavedWorld?.Slot4.ShapeId != car.ShapeId || departure.WorldControls is null)
+        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || live.NativeCarRuntime is not { } car || !HasNativeCarArrivalAuthority(departure, live, car) || departure.SavedWorld?.Slot4.ShapeId != car.ShapeId || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native car-to-field entry requires its unchanged active original vehicle departure.");
         }

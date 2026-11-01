@@ -23,6 +23,11 @@ public sealed record NativeGardenCameraDefaults([property: JsonRequired] string 
 public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] string ProgramHash, [property: JsonRequired] string CoordinateHash, [property: JsonRequired] string ClauseHash, [property: JsonRequired] int ClauseIndex, [property: JsonRequired] ushort MinimumStory, [property: JsonRequired] ushort MaximumStory, [property: JsonRequired] ushort Story, [property: JsonRequired] byte Flags265, [property: JsonRequired] byte ChocoboFlags1536, [property: JsonRequired] ImmutableArray<ushort> ClauseWords, [property: JsonRequired] ImmutableArray<NativeGardenWorldObject> Objects, [property: JsonRequired] int FootObjectIndex, [property: JsonRequired] int Garden64Index, [property: JsonRequired] int Garden65Index, [property: JsonRequired] WorldTransition Packet, [property: JsonRequired] NativeSavedWorldPose LoadPose, [property: JsonRequired] NativeSavedWorldPose GardenPose, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] byte AnimationVariant, [property: JsonRequired] byte MapDisplayMode)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldVehicleSlot? SavedCarSlot { get; init; }
+    [JsonIgnore]
+    public int SavedCarIndex => Objects.Select((item, index) => (item, index)).Where(pair => NativeCarWorldRuntimeState.IsSupportedEntity(pair.item.EntityType)).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldFootReturn? BattleReload { get; init; }
     [JsonIgnore]
     public byte ControlledEntityType => BattleReload?.EntityType105 ?? unchecked((byte)Packet.Mode);
@@ -69,6 +74,14 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         {
             expected.Add(88);
         }
+        if (SavedCarSlot is { } car)
+        {
+            if (!NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(car.ShapeId)) || car.Pose is null || car.Pose.X is < -131072 or >= 131072 || car.Pose.RawZ is < -98304 or >= 98304 || car.Pose.Yaw >= 4096)
+            {
+                throw new InvalidDataException("Garden allocation lost its appended saved car shape and pose authority.");
+            }
+            expected.Add(car.ShapeId);
+        }
         if ((GuardianForce13Flags & 1) == 0)
         {
             expected.Add(94);
@@ -88,6 +101,10 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         if (CactuarIndex >= 0 && Objects[CactuarIndex].Position != CactuarLoadPosition)
         {
             throw new InvalidDataException("Garden allocation lost its authenticated C76630 Cactuar load pose.");
+        }
+        if (SavedCarSlot is { } savedCar && Objects[SavedCarIndex] != new NativeGardenWorldObject(savedCar.ShapeId, 0, new(savedCar.Pose.X, savedCar.Pose.Height, -savedCar.Pose.RawZ), 0, unchecked((short)savedCar.Pose.Yaw), 0))
+        {
+            throw new InvalidDataException("Garden appended car differs from its retained original saved pose4.");
         }
     }
 }
@@ -194,6 +211,10 @@ public sealed record NativeGardenWorldRuntimeState
             throw new InvalidDataException("Native Garden runtime lost its current motor, allocation, camera or ground-query owner.");
         }
         Allocation.Validate();
+        if (Allocation.SavedCarIndex >= 0 && Objects[Allocation.SavedCarIndex] != Allocation.Objects[Allocation.SavedCarIndex])
+        {
+            throw new InvalidDataException("Garden callbacks cannot move or replace the separately parked saved car.");
+        }
         AuxiliaryEntry?.RequireGardenPublication(Allocation.Packet, Allocation.LoadPose);
         if ((Allocation.CactuarIndex >= 0) != (Cactuar is not null))
         {

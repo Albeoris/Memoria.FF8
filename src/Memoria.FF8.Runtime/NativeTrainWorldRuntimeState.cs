@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
@@ -5,11 +6,42 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeTrainWorldLoadReceipt([property: JsonRequired] long SourceWorldFrame, [property: JsonRequired] ushort RetainedBodyYaw, [property: JsonRequired] byte MapDisplayMode, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot4, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot5, [property: JsonRequired] NativeTrainWorldAllocation Allocation, [property: JsonRequired] int RetainedCameraVelocity)
 {
+    [JsonIgnore]
+    public ImmutableArray<NativeTrainWorldObject> SavedVehicleObjects
+    {
+        get
+        {
+            int entity = NativeTrainWorldObject.ClassifyShape(Slot4.ShapeId);
+            if (!NativeCarWorldRuntimeState.IsSupportedEntity(entity))
+            {
+                if (Slot4.ShapeId is not (0 or 255))
+                {
+                    throw new NotSupportedException("Native riding-train saved vehicle requires its original ordinary car shape.");
+                }
+                return [];
+            }
+            NativeSavedWorldPose pose = Slot4.Pose;
+            byte[] coordinate = new byte[16];
+            BinaryPrimitives.WriteInt32LittleEndian(coordinate, pose.X);
+            BinaryPrimitives.WriteInt32LittleEndian(coordinate.AsSpan(4), pose.Height);
+            BinaryPrimitives.WriteInt32LittleEndian(coordinate.AsSpan(8), -pose.RawZ);
+            BinaryPrimitives.WriteInt32LittleEndian(coordinate.AsSpan(12), pose.Yaw);
+            NativeTrainWorldObject car = new(Slot4.ShapeId, 0, pose, Slot4.ShapeId, ImmutableArray.CreateRange(coordinate));
+            car.Validate();
+            return [car];
+        }
+    }
+
+    [JsonIgnore]
+    public ImmutableArray<NativeTrainWorldObject> AllocatedObjects => Allocation.Objects.AddRange(SavedVehicleObjects);
+
     public static NativeTrainWorldLoadReceipt Create(NativeSavedWorldState saved, WorldState previous, NativeTrainWorldAllocation allocation)
     {
         allocation.Validate();
         (long frame, ushort yaw, byte mapDisplay) = NativeScriptedWorldLoadReceipt.ResolveRetained(saved, previous);
-        return new NativeTrainWorldLoadReceipt(frame, yaw, mapDisplay, saved.Slot4, saved.Slot5, allocation, previous.CameraVelocity);
+        NativeTrainWorldLoadReceipt result = new(frame, yaw, mapDisplay, saved.Slot4, saved.Slot5, allocation, previous.CameraVelocity);
+        result.Validate();
+        return result;
     }
 
     public void Validate()
@@ -19,6 +51,7 @@ public sealed record NativeTrainWorldLoadReceipt([property: JsonRequired] long S
         {
             throw new InvalidDataException("Native riding-train allocation lost its preceding physical body or saved vehicle records.");
         }
+        _ = SavedVehicleObjects;
     }
 }
 

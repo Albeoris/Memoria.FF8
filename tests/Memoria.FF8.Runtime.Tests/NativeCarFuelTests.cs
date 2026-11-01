@@ -6,7 +6,13 @@ public sealed class NativeCarFuelTests
 {
     [Theory]
     [InlineData(32)]
+    [InlineData(34)]
     [InlineData(35)]
+    [InlineData(36)]
+    [InlineData(37)]
+    [InlineData(38)]
+    [InlineData(39)]
+    [InlineData(40)]
     public void ThresholdConsumesOnlyFirstPositivePhysicalFuelSlot(int entityType)
     {
         GameState source = Departure(0x20000, 0, 3, 7);

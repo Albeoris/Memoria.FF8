@@ -7,8 +7,17 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeCarTransferTests
 {
-    [Fact]
-    public void CarDisembarkRetainsItsParkedBodyAcrossIndependentRestoreAndReboarding()
+    [Theory]
+    [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(34)]
+    [InlineData(35)]
+    [InlineData(36)]
+    [InlineData(37)]
+    [InlineData(38)]
+    [InlineData(39)]
+    [InlineData(40)]
+    public void CarDisembarkRetainsItsParkedBodyAcrossIndependentRestoreAndReboarding(byte entityType)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original car/world resources are required.");
@@ -19,10 +28,10 @@ public sealed class NativeCarTransferTests
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(256, 2, 300).WriteBytes(264, 1, 8).WriteBytes(265, 1, 1));
+        session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(256, 2, entityType == 33 ? 100 : 300).WriteBytes(264, 1, 8).WriteBytes(265, 1, 1));
         // Declare the native car tutorial as already shown, keeping ordinary control active.
         session.SetSavedWorldState(session.State.SavedWorld! with { WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame().WithOperand(256) });
-        WorldTransition packet = new(3, 35, -1);
+        WorldTransition packet = new(3, entityType, -1);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, directory, packet);
         session.CommitPreparedWorldEntry(packet, ticket.InitialState, session.WorldControls!, ticket.ValidateAdoption, ticket.InitialSavedWorld);
         using WorldMapScene scene = ticket.Adopt(session);
@@ -36,8 +45,8 @@ public sealed class NativeCarTransferTests
         WorldGroundSelection ground = worldAssets.LookupNativeGround(x, z, WorldTerrainSelection.Replacements(spawn.ReplacementMask), [])!;
         Assert.NotNull(ground);
         uint flags = ground.Ground.Triangle.GroundType | ((uint)ground.Ground.Triangle.TextureFlags << 8) | ((uint)ground.Ground.Triangle.VertexFlags << 16);
-        Assert.True(NativeWorldTerrain.CanDisembark(flags, 35));
-        int height = NativeWorldTerrain.ResolveHeight(35, -(int)ground.Ground.Height, ground.Ground.Triangle.GroundType, spawn.NativeHeight).Height;
+        Assert.True(NativeWorldTerrain.CanDisembark(flags, entityType));
+        int height = NativeWorldTerrain.ResolveHeight(entityType, -(int)ground.Ground.Height, ground.Ground.Triangle.GroundType, spawn.NativeHeight).Height;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity) with { Alternatives = [new(0, [], ground.Identity, ground.Identity) { FailedSelections = 0 }] };
         session.SetWorldState(spawn with { X = x, Z = z, NativeHeight = height, BodyYaw = 3008, CameraYaw = 3046, CameraTargetX = x, CameraTargetZ = z, CameraTargetNativeHeight = height - 256, GroundType = ground.Ground.Triangle.GroundType, NativeCarRuntime = spawn.NativeCarRuntime! with { GroundCache = cache, GroundYaw = 0 } });
         WorldState vehicle = scene.State;
@@ -52,7 +61,7 @@ public sealed class NativeCarTransferTests
         Assert.Null(scene.State.NativeCarRuntime);
         NativeWorldParkedCar parked = Assert.IsType<NativeWorldParkedCar>(scene.State.NativeFootRuntime!.ParkedCar);
         Assert.Equal(new NativeWorldPathPosition(vehicle.X, vehicle.NativeHeight, -vehicle.Z), parked.Position);
-        Assert.Equal((byte)35, parked.Car.EntityType);
+        Assert.Equal(entityType, parked.Car.EntityType);
         Assert.NotEqual((vehicle.X, vehicle.Z), (scene.State.X, scene.State.Z));
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         using WorldMapScene replay = new(restored, directory);
@@ -69,7 +78,7 @@ public sealed class NativeCarTransferTests
         foreach (PlayerAction action in new PlayerAction[] { new(PlayerActionKind.WorldButtons, 0), new(PlayerActionKind.WorldButtons, 0x40) })
         {
             WorldState before = scene.State;
-            retained = retained.AdvanceCar(before.GroundType!.Value, 35, new(before.X, before.NativeHeight, -before.Z), 0, checked((short)before.BodyYaw), 0, session.State.VibrationProcess!.GraphicsSpeed20409F0, worldAssets.ForestTables.Random, worldAssets.ForestTables.AllEffects);
+            retained = retained.AdvanceCar(before.GroundType!.Value, entityType, new(before.X, before.NativeHeight, -before.Z), 0, checked((short)before.BodyYaw), 0, session.State.VibrationProcess!.GraphicsSpeed20409F0, worldAssets.ForestTables.Random, worldAssets.ForestTables.AllEffects);
             Assert.Equal(scene.Apply(action), replay.Apply(action));
         }
         Assert.NotNull(scene.State.NativeFootRuntime);

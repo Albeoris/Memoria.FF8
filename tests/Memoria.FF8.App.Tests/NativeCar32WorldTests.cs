@@ -10,6 +10,12 @@ public sealed class NativeCar32WorldTests
     [Theory]
     [InlineData(32, 74, 10, 61, 455)]
     [InlineData(35, 82, 18, 3, 300)]
+    [InlineData(34, 81, 17, 3, 350)]
+    [InlineData(36, 83, 19, 3, 350)]
+    [InlineData(37, 84, 20, 3, 350)]
+    [InlineData(38, 85, 21, 3, 350)]
+    [InlineData(39, 86, 22, 3, 350)]
+    [InlineData(40, 87, 23, 3, 350)]
     public void OrdinaryCarsUseTheirOwnModelFuelAndPersistentProcessOwners(byte entityType, byte shape, int modelIndex, short entry, ushort story)
     {
         string directory = TestResources.GameDirectory;
@@ -36,7 +42,7 @@ public sealed class NativeCar32WorldTests
             WorldState spawn = ticket.InitialState;
             Assert.Equal((-15639, -39437, -172, 2256, 3296), (spawn.X, spawn.Z, spawn.NativeHeight, spawn.CameraYaw, spawn.BodyYaw));
         }
-        else
+        else if (entityType == 32)
         {
             Assert.Equal(9, ticket.InitialState.NativeCarRuntime.Allocation.Objects.Length);
         }
@@ -50,8 +56,14 @@ public sealed class NativeCar32WorldTests
         Assert.Equal(shape, ordinary.ShapeId);
         Assert.Equal(modelIndex, ordinary.ModelIndex);
         NativeWorldContactShape dimensions = worldAssets.ReadNativeContactShape(shape);
-        Assert.Equal(entityType == 35 ? new NativeWorldContactShape(417, 176, 200, 1) : new NativeWorldContactShape(453, 202, 120, 1), dimensions);
-        Assert.Equal(entityType == 35 ? 208 : 226, dimensions.Length >> 1);
+        if (entityType is 32 or 35)
+        {
+            Assert.Equal(entityType == 35 ? new NativeWorldContactShape(417, 176, 200, 1) : new NativeWorldContactShape(453, 202, 120, 1), dimensions);
+            Assert.Equal(entityType == 35 ? 208 : 226, dimensions.Length >> 1);
+        }
+        Assert.True(dimensions.Length > 0);
+        Assert.True(dimensions.Width > 0);
+        Assert.True(dimensions.Height > 0);
         Assert.Equal((byte)73, exam.ShapeId);
         Assert.Equal(9, exam.ModelIndex);
         Assert.Equal(84, exam.NativeVertices.Count);

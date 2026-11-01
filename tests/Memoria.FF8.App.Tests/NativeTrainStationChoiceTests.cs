@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -125,6 +126,99 @@ public sealed class NativeTrainStationChoiceTests
         Assert.Equal(train.Callback + 1, session.State.World.NativeTrainRuntime!.Callback);
         Assert.Null(world.CurrentDialogue);
         AssertSameState(session, restoredSession);
+    }
+
+    [Fact]
+    public void StationFootCanReboardItsSavedCarWhileRetainingTheCurrentRailProcess()
+    {
+        string directory = GameDirectory();
+        using WorldAssets assets = new(directory);
+        GameState source = Clone(LoadStationPrompt());
+        NativeTrainWorldRuntimeState train = source.World!.NativeTrainRuntime!;
+        IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(source.World.ReplacementMask);
+        // Declared roadside component inputs exercise the transfer after an actual
+        //548AF0 dismount; no travel route or gameplay checkpoint is fabricated.
+        const int carX = -21894;
+        const int carZ = -41257;
+        WorldGroundSelection carGround = assets.LookupNativeGround(carX, carZ, replacements, [])!;
+        short carHeight = checked((short)NativeWorldTerrain.ResolveHeight(38, -(int)carGround.Ground.Height, carGround.Ground.Triangle.GroundType, 0).Height);
+        NativeSavedWorldVehicleSlot slot = new(85, new(carX, carZ, carHeight, 3008));
+        train = train with { Load = train.Load with { Slot4 = slot } };
+        source = source with { World = source.World with { NativeTrainRuntime = train }, SavedWorld = source.SavedWorld! with { CarReturn = null, Slot4 = slot } };
+        GameSession session = new(source);
+        using WorldMapScene scene = new(session, directory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Choose, Value: 1)).Accepted);
+        Assert.NotNull(scene.State.NativeFootRuntime!.StationTrains);
+        const int footX = carX + 256;
+        WorldGroundSelection ground = assets.LookupNativeGround(footX, carZ, replacements, [])!;
+        int height = NativeWorldTerrain.ResolveHeight(0, -(int)ground.Ground.Height, ground.Ground.Triangle.GroundType, 0).Height;
+        NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity) with { Alternatives = [new(0, [], ground.Identity, ground.Identity) { FailedSelections = 0 }] };
+        WorldState dismounted = scene.State;
+        session.SetWorldState(dismounted with
+        {
+            X = footX,
+            Z = carZ,
+            NativeHeight = height,
+            CameraYaw = 3046,
+            CameraTargetX = footX,
+            CameraTargetZ = carZ,
+            CameraTargetNativeHeight = height - 256,
+            GroundType = ground.Ground.Triangle.GroundType,
+            NativeFootRuntime = dismounted.NativeFootRuntime! with { GroundCache = cache, GroundYaw = 0, CameraTransition = new(0, 1024) }
+        });
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        GameSession restored = new(Clone(session.State));
+        using WorldMapScene replay = new(restored, directory);
+        long callback = scene.State.NativeFootRuntime!.StationTrainProcess!.Callback;
+        Assert.Equal(scene.Apply(new(PlayerActionKind.WorldButtons, 0x40)), replay.Apply(new(PlayerActionKind.WorldButtons, 0x40)));
+        NativeCarWorldRuntimeState boarded = Assert.IsType<NativeCarWorldRuntimeState>(scene.State.NativeCarRuntime);
+        Assert.Null(scene.State.NativeFootRuntime);
+        Assert.Equal((byte)38, boarded.EntityType);
+        Assert.Equal(callback + 1, boarded.ObjectProcess!.Callback);
+        Assert.NotNull(boarded.ObjectProcess.RidingTrainSource);
+        Assert.NotNull(boarded.Forest);
+        Assert.Equal((carX, carZ), (scene.State.X, scene.State.Z));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+        GameSession carRestore = new(Clone(session.State));
+        using WorldMapScene carReplay = new(carRestore, directory);
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), carReplay.Apply(new(PlayerActionKind.Wait)));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(carRestore.State)));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1, 1)]
+    [InlineData(1, 0, -1, 0)]
+    [InlineData(2, 1, 1, 1)]
+    public void DismountContractRetainsProcessOwnersForEachOriginalStation(int stationIndex, int trackIndex, sbyte direction, byte stopCounter)
+    {
+        using WorldAssets assets = new(GameDirectory());
+        GameState boundary = Clone(LoadStationPrompt());
+        NativeTrainWorldRuntimeState source = boundary.World!.NativeTrainRuntime!;
+        NativeTrainRailBank primary = trackIndex == 0 ? source.Primary : source.Alternate!;
+        NativeTrainRailBank? alternate = trackIndex == 0 ? source.Alternate : source.Primary;
+        // Declared548BF0 status-word component inputs test548AF0's station selection;
+        // this does not claim these banks were reached through a complete train journey.
+        NativeTrainWorldRuntimeState train = source with
+        {
+            Packet = new(trackIndex == 0 ? 64 : 66, source.EntityType, -1),
+            CameraListIndex = trackIndex,
+            Primary = primary with { Status = 1, Direction = direction, StopCounter = stopCounter, Pause = -1 },
+            Alternate = alternate
+        };
+        NativeWorldTrainStation station = assets.ReadTrainStation(stationIndex);
+        NativeFootWorldRuntimeState foot = NativeFootWorldRuntimeState.CreateTrainDismount(train, station, train.CameraGeometry.Pitch, boundary.SavedWorld!);
+        foot.RequireNativeGroundState();
+        Assert.Equal(stationIndex, foot.TrainDismount!.Station.Index);
+        Assert.Equal(train.ControlledObjectEntityType, foot.EntityType);
+        Assert.Same(train.GroundCache, foot.GroundCache);
+        Assert.Equal(train.GroundYaw, foot.GroundYaw);
+        Assert.Equal(train.Forest.RandomCursor, foot.Forest!.RandomCursor);
+        Assert.Equal(train.Callback, foot.StationTrainProcess!.Callback);
+        Assert.Equal((short)0, foot.StationTrainProcess.Primary.Pause);
+        Assert.True(train.Primary.Nodes.SequenceEqual(foot.StationTrainProcess.Primary.Nodes));
+        NativeFootWorldRuntimeState restored = JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(foot))!;
+        restored.RequireNativeGroundState();
+        Assert.Equal(stationIndex, restored.TrainDismount!.Station.Index);
     }
 
     private static void AssertStationPrompt(GameWorld world)

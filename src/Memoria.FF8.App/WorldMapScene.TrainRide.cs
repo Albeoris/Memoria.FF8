@@ -17,10 +17,6 @@ internal sealed partial class WorldMapScene
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native mode3 camera selection needs the current main-loop counter.");
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         NativeTrainWorldLoadReceipt load = NativeTrainWorldLoadReceipt.Create(saved, previous, allocation);
-        if (saved.Slot4.ShapeId is not (0 or 255))
-        {
-            throw new NotSupportedException("Native mode3 still needs its saved-vehicle append allocation for this active slot4 shape.");
-        }
         byte entry = unchecked((byte)packet.EntryIndex);
         int track = entry <= 65 ? 0 : 1;
         int list = track + (entry % 2 == 0 ? 0 : 14);
@@ -152,9 +148,10 @@ internal sealed partial class WorldMapScene
                 }
             }
         }
-        for (int index = 0; index < train.Load.Allocation.Objects.Length; index++)
+        ImmutableArray<NativeTrainWorldObject> allocatedObjects = train.Load.AllocatedObjects;
+        for (int index = 0; index < allocatedObjects.Length; index++)
         {
-            NativeTrainWorldObject item = train.Load.Allocation.Objects[index];
+            NativeTrainWorldObject item = allocatedObjects[index];
             if (item.EntityType is 0 or 1)
             {
                 continue;

@@ -36,8 +36,8 @@ internal sealed partial class WorldMapScene
         {
             return null;
         }
-        NativeCarWorldRuntimeState car = parked.Car with { AnimationVariant = 0, Speed = 0, Forest = foot.Forest, CameraTransition = new(183, foot.CameraTransition?.ProjectionDistance ?? 1024), PriorTerrainOcclusion = foot.PriorTerrainOcclusion, MapDisplayMode = foot.MapDisplayMode, GroundCache = foot.GroundCache with { Alternatives = foot.GroundCache.Alternatives.Select(item => item with { Entries = [] }).ToArray() }, GroundYaw = foot.GroundYaw, CameraFollowSpeed = session.State.WorldProcess!.CarCameraFollowSpeed, MovementMagnitude20409F4 = foot.MovementMagnitude20409F4, PrimaryContact = null, BroadContact = null };
-        car = car with { ProjectionCamera = new NativeWorldFootCameraState(state.X, state.Z, state.NativeHeight, state.CameraTargetX, state.CameraTargetZ, state.CameraTargetNativeHeight, state.CameraYaw, foot.Forest!.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ) { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? 1024 } };
+        NativeCarWorldRuntimeState car = parked.Car with { Boarding = NativeWorldCarBoardingReceipt.Create(state, session.State.WorldArrival!), AnimationVariant = 0, Speed = 0, Forest = foot.Forest, CameraTransition = new(183, foot.CameraTransition?.ProjectionDistance ?? 1024), PriorTerrainOcclusion = foot.PriorTerrainOcclusion, MapDisplayMode = foot.MapDisplayMode, GroundCache = foot.GroundCache with { Alternatives = foot.GroundCache.Alternatives.Select(item => item with { Entries = [] }).ToArray() }, GroundYaw = foot.GroundYaw, CameraFollowSpeed = session.State.WorldProcess!.CarCameraFollowSpeed, MovementMagnitude20409F4 = foot.MovementMagnitude20409F4, PrimaryContact = null, BroadContact = null };
+        car = car with { ProjectionCamera = car.ObjectProcess?.Camera ?? new NativeWorldFootCameraState(state.X, state.Z, state.NativeHeight, state.CameraTargetX, state.CameraTargetZ, state.CameraTargetNativeHeight, state.CameraYaw, foot.Forest!.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ) { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? 1024 } };
         return state with { X = parked.Position.X, Z = -parked.Position.Z, NativeHeight = parked.Position.Y, BodyYaw = parked.BodyYaw, NativeFootRuntime = null, NativeCarRuntime = car, AnimationId = 0, AnimationCounter = 0 };
     }
 
@@ -49,18 +49,11 @@ internal sealed partial class WorldMapScene
 
     private int CarTransferContact(WorldState state, NativeCarWorldRuntimeState car, IReadOnlyList<WorldNativeGardenProbe> probes, int entity, int padding, NativeWorldParkedCar? parked = null, bool forceCircle = false)
     {
-        NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(state.NativeFootRuntime is not null ? NativeWorldFootCameraState.Create(state) : car.ProjectionCamera ?? new(state.X, state.Z, state.NativeHeight, state.CameraTargetX, state.CameraTargetZ, state.CameraTargetNativeHeight, state.CameraYaw, -112, -341, -7168));
+        NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(car.ObjectProcess?.Camera ?? (state.NativeFootRuntime is not null ? NativeWorldFootCameraState.Create(state) : car.ProjectionCamera ?? new(state.X, state.Z, state.NativeHeight, state.CameraTargetX, state.CameraTargetZ, state.CameraTargetNativeHeight, state.CameraYaw, -112, -341, -7168)));
         WorldNativeGardenProbe center = probes[0];
         NativeWorldPathWords player = context.RelativeWords(new(center.X, center.Y, -center.Z));
         NativeWorldContactShape selected = assets.ReadNativeContactShape(WorldAssets.NativeGardenEntityShape(entity));
-        int hit = WorldStationContactCertificate.Evaluate(assets, CarTransferAllocation(car), [], player, center.Y, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(entity), selected.Height, forceCircle: forceCircle, selectedShape: selected).ContactIndex;
-        if (hit >= 0 || parked is null || !context.IsNear(parked.Position))
-        {
-            return hit;
-        }
-        NativeWorldContactShape shape = assets.ReadNativeContactShape(car.ShapeId);
-        NativeWorldPathWords anchor = (context.ProjectNode(parked.Position) ?? throw new NotSupportedException(context.UnsupportedReason)).Words;
-        return player.Y - selected.Height <= anchor.Y + padding && player.Y >= anchor.Y - shape.Height - padding && WorldStationContactCertificate.EvaluatePolygon(shape, unchecked((short)(parked.BodyYaw - 1024)), player, anchor, padding, NativeWorldTerrain.ProbeRadius(entity)) ? CarTransferAllocation(car).Objects.Length : -1;
+        return WorldStationContactCertificate.Evaluate(assets, CarTransferAllocation(car), CarRailBanks(car), player, center.Y, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(entity), selected.Height, forceCircle: forceCircle, selectedShape: selected, appendedObjects: CarContactAppendedObjects(state, car, parked), ignoredObjectIndex: entity == car.EntityType || state.NativeCarRuntime is not null ? CarSelectedAllocationIndex(car) : null).ContactIndex;
     }
 
     private WorldState? PrepareCarDisembark(WorldState state, NativeWorldSalaryState salary)
@@ -132,10 +125,10 @@ internal sealed partial class WorldMapScene
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(NativeWorldFootCameraState.Create(state));
         List<NativeWorldStaticModelDraw> result = [];
         NativeTrainWorldAllocation allocation = CarTransferAllocation(parked.Car);
-        for (int index = 0; index < allocation.Objects.Length; index++)
+        for (int index = 0; index < parked.Car.AllocatedObjects.Length; index++)
         {
-            NativeTrainWorldObject item = allocation.Objects[index];
-            if (index == allocation.ControlledObjectIndex || item.ShapeId == 94 || !context.IsNear(item.Position))
+            NativeTrainWorldObject item = parked.Car.AllocatedObjects[index];
+            if (index == allocation.ControlledObjectIndex || index == CarSelectedAllocationIndex(parked.Car) || item.ShapeId == 94 || !context.IsNear(item.Position))
             {
                 continue;
             }
@@ -145,10 +138,11 @@ internal sealed partial class WorldMapScene
                 result.Add(new(assets.ReadScriptedStaticModel(item.ShapeId), new(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AllocationAngles(item))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
+        result.AddRange(ReadCarRailModels(parked.Car));
         NativeWorldPathNodeProjection carProjection = context.ProjectNode(parked.Position) ?? throw new NotSupportedException(context.UnsupportedReason);
         if (carProjection.Visible)
         {
-            result.Add(new(assets.GetCarModel(parked.Car.EntityType), new(context.CanonicalModelAnchor(carProjection), new(checked((short)parked.Car.ModelTilt), unchecked((short)(parked.BodyYaw - 1024)), 0))) { ObjectId = new(WorldRenderObjectKind.Allocation, allocation.Objects.Length) });
+            result.Add(new(assets.GetCarModel(parked.Car.EntityType), new(context.CanonicalModelAnchor(carProjection), new(checked((short)parked.Car.ModelTilt), unchecked((short)(parked.BodyYaw - 1024)), 0))) { ObjectId = new(WorldRenderObjectKind.Allocation, CarSelectedAllocationIndex(parked.Car)) });
         }
         return result;
     }

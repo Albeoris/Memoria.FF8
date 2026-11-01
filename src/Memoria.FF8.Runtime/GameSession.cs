@@ -937,7 +937,7 @@ public sealed partial class GameSession : IEventServices
             {
                 ragnarokDismount.Validate(world.NativeRagnarokRuntime ?? throw new InvalidDataException("Ragnarok foot lost its actual parked allocation."), state.WorldProcess);
             }
-            if (world.NativeCarRuntime is { } car && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != car.EntityType || state.SavedWorld?.Slot4.ShapeId != car.ShapeId))
+            if (world.NativeCarRuntime is { } car && (state.Scene != SceneKind.WorldMap || !HasNativeCarArrivalAuthority(state, world, car) || state.SavedWorld?.Slot4.ShapeId != car.ShapeId))
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }

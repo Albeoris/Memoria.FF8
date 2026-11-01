@@ -143,10 +143,6 @@ public sealed partial record NativeFootWorldRuntimeState
     public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch, NativeSavedWorldState entrySavedWorld)
     {
         NativeWorldTrainDismountReceipt receipt = NativeWorldTrainDismountReceipt.Create(train, station);
-        if (station.Index != 0 || train.Primary.TrackIndex != 0)
-        {
-            throw new NotSupportedException("Native train dismount currently represents the reached track0/station0 continuation.");
-        }
         //548AF0 changes entity/control/position and clears body orientation. It does not
         //run53E200/53F310/557250, so ground selection, random process and camera survive.
         var state = new NativeFootWorldRuntimeState
@@ -240,9 +236,23 @@ public sealed partial record NativeFootWorldRuntimeState
     public void Validate()
     {
         ParkedCar?.Validate();
-        if ((Rule == CarDismountRule) != (ParkedCar is not null))
+        if (Rule == CarDismountRule && ParkedCar is null || ParkedCar is not null && Rule is not (CarDismountRule or FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule))
         {
             throw new InvalidDataException("Car foot state requires its actual parked vehicle receipt.");
+        }
+        if (ParkedCar is not null && Rule is not (CarDismountRule or TrainDismountRule) && (NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || GroundCache is null || Forest is null || EntityType != (ParkedCar.Car.Allocation is { } parkedAllocation ? parkedAllocation.Objects[parkedAllocation.ControlledObjectIndex].EntityType : 1)))
+        {
+            throw new InvalidDataException("Reloaded parked car differs from its selected foot allocation and fresh loader owners.");
+        }
+        if (ParkedCar is { } stationCar && Rule == TrainDismountRule)
+        {
+            NativeTrainWorldRuntimeState train = StationTrains ?? throw new InvalidDataException("Station car boarding requires its retained train allocation.");
+            NativeSavedWorldVehicleSlot slot = train.Load.Slot4;
+            NativeTrainWorldAllocation? allocation = stationCar.Car.Allocation;
+            if (!stationCar.LoadedFromSavedSlot || stationCar.DismountFrame != 0 || slot.ShapeId != stationCar.Car.ShapeId || slot.Pose != new NativeSavedWorldPose(stationCar.Position.X, -stationCar.Position.Z, checked((short)stationCar.Position.Y), checked((ushort)stationCar.BodyYaw)) || allocation is null || allocation.ProgramHash != train.Load.Allocation.ProgramHash || allocation.CoordinateHash != train.Load.Allocation.CoordinateHash || allocation.Story != train.Load.Allocation.Story || allocation.EventFlags103 != train.Load.Allocation.EventFlags103 || !allocation.ClauseWords.SequenceEqual(train.Load.Allocation.ClauseWords))
+            {
+                throw new InvalidDataException("Station car boarding differs from its retained saved vehicle or current train allocation.");
+            }
         }
         Forest?.Validate();
         GroundCache?.Validate();

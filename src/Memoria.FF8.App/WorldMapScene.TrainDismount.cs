@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -105,9 +106,10 @@ internal sealed partial class WorldMapScene
                 models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index, ReferenceEquals(bank, process.Alternate) ? 1 : 0) });
             }
         }
-        for (int index = 0; index < source.Load.Allocation.Objects.Length; index++)
+        ImmutableArray<NativeTrainWorldObject> allocatedObjects = source.Load.AllocatedObjects;
+        for (int index = 0; index < allocatedObjects.Length; index++)
         {
-            NativeTrainWorldObject item = source.Load.Allocation.Objects[index];
+            NativeTrainWorldObject item = allocatedObjects[index];
             if (item.EntityType is 0 or 1)
             {
                 continue;
@@ -130,6 +132,6 @@ internal sealed partial class WorldMapScene
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(x, nativeHeight, -rawZ));
         NativeTrainRailBank[] banks = new[] { process.Primary, process.Alternate }.OfType<NativeTrainRailBank>().ToArray();
-        return WorldStationContactCertificate.Evaluate(assets, foot.StationTrains!.Load.Allocation, banks, player, nativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear).Hit;
+        return WorldStationContactCertificate.Evaluate(assets, foot.StationTrains!.Load.Allocation, banks, player, nativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, appendedObjects: foot.StationTrains.Load.SavedVehicleObjects).Hit;
     }
 }

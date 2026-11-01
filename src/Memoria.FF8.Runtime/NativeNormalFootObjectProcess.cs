@@ -6,6 +6,11 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeNormalFootObjectProcess([property: JsonRequired] int Version, [property: JsonRequired] NativeTrainWorldAllocation Allocation, [property: JsonRequired] long Callback, [property: JsonRequired] NativeTrainRailBank? Primary, [property: JsonRequired] NativeTrainRailBank? Alternate, [property: JsonRequired] NativeWorldFootCameraState Camera, [property: JsonRequired] uint? PrimaryDistanceSquared, [property: JsonRequired] uint? AlternateDistanceSquared)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeTrainWorldRuntimeState? RidingTrainSource { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldPathPosition? CarDistancePosition { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ForcedAnimationC76628 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? GuardianForce13Flags { get; init; }
@@ -38,6 +43,36 @@ public sealed record NativeNormalFootObjectProcess([property: JsonRequired] int 
         {
             throw new InvalidDataException("Native ordinary foot object process lost its selected original clause allocation, track selection or previous proximity words.");
         }
+        ValidateRailState();
+    }
+
+    /// <summary>The same544860/545330 ordinary object process with a selected car body.</summary>
+    public void ValidateCar()
+    {
+        Allocation.Validate();
+        Camera.Validate();
+        bool railsAbsent = (Allocation.EventFlags103 & 1) != 0;
+        bool hasTrack0 = !railsAbsent;
+        bool hasTrack1 = !railsAbsent;
+        if (RidingTrainSource is { } riding)
+        {
+            riding.Validate();
+            if (riding.Callback > Callback || riding.Load.Allocation.ProgramHash != Allocation.ProgramHash || riding.Load.Allocation.CoordinateHash != Allocation.CoordinateHash || riding.Load.Allocation.Story != Allocation.Story || riding.Load.Allocation.EventFlags103 != Allocation.EventFlags103 || !riding.Load.Allocation.ClauseWords.SequenceEqual(Allocation.ClauseWords))
+            {
+                throw new InvalidDataException("Native car retained train process differs from its executed riding allocation.");
+            }
+            hasTrack0 = riding.Primary.TrackIndex == 0 || riding.Alternate?.TrackIndex == 0;
+            hasTrack1 = riding.Primary.TrackIndex == 1 || riding.Alternate?.TrackIndex == 1;
+        }
+        if (Version != 1 || Callback < 0 || (Primary is not null) != hasTrack0 || (Alternate is not null) != hasTrack1 || Primary is not null && Primary.TrackIndex != 0 || Alternate is not null && Alternate.TrackIndex != 1 || Primary is null != (PrimaryDistanceSquared is null) || Alternate is null != (AlternateDistanceSquared is null) || ForcedAnimationC76628 is not null || GuardianForce13Flags is not null || CactuarLoadPosition is not null || CactuarBody is not null || Cactuar is not null)
+        {
+            throw new InvalidDataException("Native car object process lost its original rail selection or prior proximity words.");
+        }
+        ValidateRailState();
+    }
+
+    private void ValidateRailState()
+    {
         if (Callback == 0 && (PrimaryDistanceSquared is not null and not uint.MaxValue || AlternateDistanceSquared is not null and not uint.MaxValue || Primary is not null && (Primary.Pause != 30 || Primary.Speed != 0 || Primary.Status is not null || Primary.StopCounter != 0 || Primary.Direction != 1) || Alternate is not null && (Alternate.Pause != 30 || Alternate.Speed != 0 || Alternate.Status is not null || Alternate.StopCounter != 0 || Alternate.Direction != 1)))
         {
             throw new InvalidDataException("Native ordinary foot loader differs from545330's actual initial rail and distance words.");

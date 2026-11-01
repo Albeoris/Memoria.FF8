@@ -33,6 +33,18 @@ public static class NativeGardenTransform
         return (unchecked((short)RoundedProduct(sine, radius)), unchecked((short)RoundedProduct(zz, radius)));
     }
 
+    /// <summary>548CD0 rail-circle reverse containment retains the vertical delta in its pitch.</summary>
+    public static (short X, short Z) RailCircleBoundary(short dx, short dy, short dz, short radius)
+    {
+        int horizontal = checked((int)Math.Sqrt((double)dx * dx + (double)dz * dz));
+        short pitch = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(-dy, horizontal) * UnitsPerRadian));
+        short yaw = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(dx, dz) * UnitsPerRadian));
+        int sine = Trig(yaw, false);
+        int cosine = Trig(yaw, true);
+        short zz = unchecked((short)RoundedProduct(Trig(pitch, true), cosine));
+        return (unchecked((short)RoundedProduct(sine, radius)), unchecked((short)RoundedProduct(zz, radius)));
+    }
+
     private static int Trig(short angle, bool cosine) => NativePrecision53.RoundInteger((cosine ? Math.Cos(angle * RadiansPerUnit) : Math.Sin(angle * RadiansPerUnit)) * 4096);
 
     private static int RoundedProduct(int first, int second) => checked((int)Math.Round((long)first * second / 4096d, MidpointRounding.ToEven));

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -37,6 +38,18 @@ public sealed record NativeCarWorldRuntimeState
     public NativeTrainWorldAllocation? Allocation { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeNormalFootObjectProcess? ObjectProcess { get; init; }
+    public ImmutableArray<NativeTrainWorldObject> AppendedObjects { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? AllocationReplacementFlags264 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? AllocationGuardianForce13Flags { get; init; }
+    [JsonIgnore]
+    public ImmutableArray<NativeTrainWorldObject> AllocatedObjects => Allocation is null ? AppendedObjects : Allocation.Objects.AddRange(AppendedObjects);
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldCarBoardingReceipt? Boarding { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldForestState? Forest { get; init; }
@@ -58,20 +71,32 @@ public sealed record NativeCarWorldRuntimeState
         return result;
     }
 
+    public static bool IsSupportedEntity(int entityType)
+    {
+        return entityType is >= 32 and <= 40;
+    }
+
     public static byte ShapeForEntity(byte entityType)
     {
         return entityType switch
         {
             32 => 74,
             33 => 73,
+            34 => 81,
             35 => 82,
+            36 => 83,
+            37 => 84,
+            38 => 85,
+            39 => 86,
+            40 => 87,
             _ => throw new NotSupportedException("Native ordinary car requires its actual supported entity type.")
         };
     }
 
     public void Validate()
     {
-        if (ManualCameraVelocity is < -128 or > 128 || AnimationVariant > 1 || Version != 4 || Rule != LoadRule || EntityType is not (32 or 33 or 35) || ShapeId != ShapeForEntity(EntityType) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
+        Boarding?.Validate(this);
+        if (ManualCameraVelocity is < -128 or > 128 || AnimationVariant > 1 || Version != 4 || Rule != LoadRule || !IsSupportedEntity(EntityType) || ShapeId != ShapeForEntity(EntityType) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
         {
             throw new InvalidDataException("Unsupported native ordinary car runtime state.");
         }
@@ -82,13 +107,47 @@ public sealed record NativeCarWorldRuntimeState
         }
         GroundCache.Validate();
         Forest?.Validate();
-        if (EntityType is 32 or 35 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null && CameraTransition is null))
+        if (EntityType != 33 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && ObjectProcess is null && (Allocation is not null || ProjectionCamera is not null && CameraTransition is null))
         {
             throw new InvalidDataException("Native car object allocation differs from its executed loader contract.");
         }
-        if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact >= (Allocation?.Objects.Length ?? 0) || BroadContact >= (Allocation?.Objects.Length ?? 0) || PrimaryContact >= 0 && BroadContact != PrimaryContact)
+        int maximumContact = (Allocation?.Objects.Length ?? 0) + (AppendedObjects.IsDefault ? 0 : AppendedObjects.Length) - 1 + (ObjectProcess?.Primary is not null || ObjectProcess?.Alternate is not null ? 1 : 0);
+        if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact > maximumContact || BroadContact > maximumContact || PrimaryContact >= 0 && BroadContact != PrimaryContact)
         {
             throw new InvalidDataException("Native car contacts differ from their executed allocation and hard/broad query order.");
+        }
+        if (AppendedObjects.IsDefault || (AllocationReplacementFlags264 is null) != (AllocationGuardianForce13Flags is null) || AllocationReplacementFlags264 is null && !AppendedObjects.IsEmpty)
+        {
+            throw new InvalidDataException("Native car appended allocation lost its original input owners.");
+        }
+        if (AllocationReplacementFlags264 is { } appendFlags && AllocationGuardianForce13Flags is { } guardianFlags)
+        {
+            List<byte> shapes = [ShapeId];
+            if ((guardianFlags & 1) == 0)
+            {
+                shapes.Add(94);
+            }
+            for (int group = 0; group < 3; group++)
+            {
+                if ((appendFlags & (1 << group)) != 0)
+                {
+                    shapes.Add(79);
+                    shapes.Add(80);
+                }
+            }
+            if (Allocation is null || !AppendedObjects.Select(item => item.ShapeId).SequenceEqual(shapes) || Allocation.Objects.Length + AppendedObjects.Length > 64)
+            {
+                throw new InvalidDataException("Native car appended allocation differs from544860's original object order.");
+            }
+        }
+        foreach (NativeTrainWorldObject item in AppendedObjects)
+        {
+            item.Validate();
+        }
+        ObjectProcess?.ValidateCar();
+        if (ObjectProcess is not null && (Allocation is null || ProjectionCamera is null || ObjectProcess.Allocation.ProgramHash != Allocation.ProgramHash || ObjectProcess.Allocation.CoordinateHash != Allocation.CoordinateHash || ObjectProcess.Allocation.Story != Allocation.Story || ObjectProcess.Allocation.EventFlags103 != Allocation.EventFlags103 || !ObjectProcess.Allocation.ClauseWords.SequenceEqual(Allocation.ClauseWords) || ObjectProcess.Allocation.Objects.Length != Allocation.Objects.Length || ObjectProcess.Allocation.Objects.Where((item, index) => item.RawOperand != Allocation.Objects[index].RawOperand || !item.CoordinateBytes.SequenceEqual(Allocation.Objects[index].CoordinateBytes)).Any()))
+        {
+            throw new InvalidDataException("Native car object process differs from its retained dense allocation or projection owner.");
         }
         Allocation?.Validate();
         ProjectionCamera?.Validate();
@@ -143,7 +202,7 @@ public sealed record NativeSavedWorldCarReturn
 
     public void Validate()
     {
-        if (Version != 2 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33 or 35) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || !NativeCarWorldRuntimeState.IsSupportedEntity(EntityType105) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }

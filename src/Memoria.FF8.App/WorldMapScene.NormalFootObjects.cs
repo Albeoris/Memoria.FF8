@@ -8,6 +8,10 @@ internal sealed partial class WorldMapScene
 {
     private WorldState InitializeNormalFootObjects(WorldState world, WorldEntryVariables inputs)
     {
+        if (HasSavedParkedCar(session.State.SavedWorld))
+        {
+            return InitializeSavedParkedCar(world, inputs);
+        }
         bool type2 = world.NativeFootRuntime!.EntityType == 2;
         if (!type2 && inputs.StoryWord is < 290 or >= 392)
         {

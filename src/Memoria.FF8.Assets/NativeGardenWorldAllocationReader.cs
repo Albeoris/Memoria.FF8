@@ -13,9 +13,10 @@ public static class NativeGardenWorldAllocationReader
         entry.Validate();
         saved.Validate();
         memory.Validate();
-        if (controlledType is not (0 or 48) || controlledType == 0 && parkedGardenPose is null || controlledType == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        bool savedCar = NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId));
+        if (controlledType is not (0 or 48) || controlledType == 0 && parkedGardenPose is null || controlledType == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || !savedCar && saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
-            throw new NotSupportedException("Garden allocation requires its ordinary packet and the actual unoccupied saved car slots.");
+            throw new NotSupportedException("Garden allocation requires its ordinary packet and represented active saved vehicle slot.");
         }
         if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
         {
@@ -114,6 +115,11 @@ public static class NativeGardenWorldAllocationReader
                 int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw[12..]);
                 objects.Add(new NativeGardenWorldObject(88, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
             }
+            if (savedCar)
+            {
+                NativeSavedWorldPose car = saved.Slot4.Pose;
+                objects.Add(new NativeGardenWorldObject(saved.Slot4.ShapeId, 0, new(car.X, car.Height, -car.RawZ), 0, unchecked((short)car.Yaw), 0));
+            }
             if ((guardianForce13Flags & 1) == 0)
             {
                 objects.Add(new NativeGardenWorldObject(94, 0, cactuarLoadPosition, 0, 0, 0));
@@ -136,7 +142,7 @@ public static class NativeGardenWorldAllocationReader
                 objects.Add(new NativeGardenWorldObject(79, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
                 objects.Add(new NativeGardenWorldObject(80, 4, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
             }
-            var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(clause), index, minimum, maximum, story, flags265, chocoboFlags, expected.ToImmutableArray(), objects.ToImmutable(), 0, garden64, garden64 + 1, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition, BattleReload = battleReload };
+            var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(clause), index, minimum, maximum, story, flags265, chocoboFlags, expected.ToImmutableArray(), objects.ToImmutable(), 0, garden64, garden64 + 1, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition, BattleReload = battleReload, SavedCarSlot = savedCar ? saved.Slot4 : null };
             allocation.Validate();
             return allocation;
         }

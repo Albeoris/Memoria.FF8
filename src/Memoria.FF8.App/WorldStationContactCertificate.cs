@@ -15,22 +15,30 @@ public static class WorldStationContactCertificate
     private readonly record struct Interval(long Low, long High);
     private readonly record struct Point(Interval X, Interval Z);
 
-    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, int selectedHeight = 180, bool forceCircle = false, NativeWorldContactShape? selectedShape = null)
+    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, int selectedHeight = 180, bool forceCircle = false, NativeWorldContactShape? selectedShape = null, IReadOnlyList<NativeTrainWorldObject>? appendedObjects = null, int? ignoredObjectIndex = null)
     {
         allocation.Validate();
+        IReadOnlyList<NativeTrainWorldObject> objects = appendedObjects is null ? allocation.Objects : [.. allocation.Objects, .. appendedObjects];
+        if (appendedObjects is not null)
+        {
+            foreach (NativeTrainWorldObject item in appendedObjects)
+            {
+                item.Validate();
+            }
+        }
         RequirePadding(padding);
-        if (forceCircle && (selectedShape is null || banks.Count != 0))
+        if (forceCircle && selectedShape is null)
         {
-            throw new NotSupportedException("Forced native contact requires the selected original shape and an excluded rail bank.");
+            throw new NotSupportedException("Forced native contact requires the selected original shape.");
         }
-        if (probeRadius is <= 0 or > 256 || selectedHeight is <= 0 or > short.MaxValue || banks.Count > 0 && (probeRadius != 32 || selectedHeight != 180))
+        if (probeRadius is <= 0 or > 256 || selectedHeight is <= 0 or > short.MaxValue)
         {
-            throw new NotSupportedException("Native static contact requires represented selected-body dimensions; car/train overlap is unsupported.");
+            throw new NotSupportedException("Native contact requires represented selected-body dimensions.");
         }
-        for (int index = 0; index < allocation.Objects.Length; index++)
+        for (int index = 0; index < objects.Count; index++)
         {
-            NativeTrainWorldObject item = allocation.Objects[index];
-            if (index == allocation.ControlledObjectIndex || item.ShapeId == 94 || !proximity(item.Position))
+            NativeTrainWorldObject item = objects[index];
+            if (index == allocation.ControlledObjectIndex || index == ignoredObjectIndex || item.ShapeId == 94 || !proximity(item.Position))
             {
                 continue;
             }
@@ -58,10 +66,10 @@ public static class WorldStationContactCertificate
         for (int bankIndex = 0; bankIndex < banks.Count; bankIndex++)
         {
             NativeTrainRailBank bank = banks[bankIndex];
-            int node = EvaluateTrain(assets, bank, assets.ReadScriptedPath(bank.TrackIndex), player, playerHeight, proximity, padding);
+            int node = EvaluateTrain(assets, bank, assets.ReadScriptedPath(bank.TrackIndex), player, playerHeight, proximity, padding, probeRadius, forceCircle, selectedShape);
             if (node >= 0)
             {
-                return new WorldStationContactResult(allocation.Objects.Length, bankIndex, node);
+                return new WorldStationContactResult(objects.Count, bankIndex, node);
             }
         }
         return new WorldStationContactResult(-1, null, null);
@@ -75,7 +83,7 @@ public static class WorldStationContactCertificate
         return WorldGardenContactCertificate.EvaluateObject(target, 0, 0, selected, 0, points, anchor, padding, true);
     }
 
-    public static int EvaluateTrain(WorldAssets assets, NativeTrainRailBank bank, NativeWorldScriptedPathDefinition definition, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, bool> proximity, int padding = 0)
+    public static int EvaluateTrain(WorldAssets assets, NativeTrainRailBank bank, NativeWorldScriptedPathDefinition definition, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, bool forceCircle = false, NativeWorldContactShape? selectedShape = null)
     {
         bank.Validate(definition);
         RequirePadding(padding);
@@ -104,12 +112,59 @@ public static class WorldStationContactCertificate
                 continue;
             }
             short yaw = pose.Angles?.Yaw ?? throw new NotSupportedException("Native train contact requires its retained executed yaw WORD.");
-            if (EvaluatePolygon(shape, yaw, player, current.Words, padding))
+            if (forceCircle ? EvaluateTrainForcedCircle(shape, yaw, selectedShape ?? throw new InvalidDataException("Native forced rail contact requires its selected shape."), player, current.Words, padding) : EvaluatePolygon(shape, yaw, player, current.Words, padding, probeRadius))
             {
                 return index;
             }
         }
         return -1;
+    }
+
+    /// <summary>548CD0 forced rail branch: rotated target vertices followed by the selected circle boundary.</summary>
+    public static bool EvaluateTrainForcedCircle(NativeWorldContactShape target, short yaw, NativeWorldContactShape selected, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0)
+    {
+        RequirePadding(padding);
+        if (OutsideBroadPhase(player, anchor))
+        {
+            return false;
+        }
+        int x = padding + (target.Length >> 1);
+        int z = padding + (target.Width >> 1);
+        (int X, int Z)[] corners = target.Kind switch
+        {
+            1 or 4 => [(-x, z), (x, z), (x, -z), (-x, -z)],
+            2 => [(-padding - target.Length, z), (-padding, z), (-padding, -z), (-padding - target.Length, -z)],
+            3 => [(-padding - (target.Length >> 2), -z), (-x, z), (x, z), (padding + (target.Length >> 2), -z)],
+            _ => throw new NotSupportedException("Native forced rail contact reached an unsupported target shape.")
+        };
+        short radius = checked((short)(ContactRadius(selected) + padding));
+        List<Point> polygon = [];
+        foreach ((int localX, int localZ) in corners)
+        {
+            (int rotatedX, int rotatedZ) = NativeGardenTransform.Rotate(checked((short)localX), checked((short)localZ), yaw);
+            short dx = unchecked((short)(anchor.X + rotatedX - player.X));
+            short dz = unchecked((short)(anchor.Z + rotatedZ - player.Z));
+            if ((long)dx * dx + (long)dz * dz <= (long)radius * radius)
+            {
+                return true;
+            }
+            polygon.Add(At(dx, dz));
+        }
+        short centerX = unchecked((short)(anchor.X - player.X));
+        short centerY = unchecked((short)(anchor.Y - player.Y));
+        short centerZ = unchecked((short)(anchor.Z - player.Z));
+        (short boundaryX, short boundaryZ) = NativeGardenTransform.RailCircleBoundary(centerX, centerY, centerZ, radius);
+        return Contains(polygon, At(boundaryX, boundaryZ)) == true;
+    }
+
+    public static ushort ContactRadius(NativeWorldContactShape shape)
+    {
+        return checked((ushort)(shape.Kind switch
+        {
+            1 or 3 or 4 => Math.Max(shape.Length >> 1, shape.Width >> 1),
+            2 => Math.Max(shape.Length, shape.Width >> 1),
+            _ => throw new NotSupportedException("Native contact requires original54BA30 shape dimensions.")
+        }));
     }
 
     /// <summary>54BB10/549770/5498E0/549DD0, including native five-point and reverse containment order.</summary>
