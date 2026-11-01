@@ -75,7 +75,7 @@ public sealed partial class MenuController
         List<JunctionCandidate> candidates = [];
         if (junctionEditor == "magic")
         {
-            candidates.Add(new("none", J("none", "None"), _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
+            candidates.Add(new("none", "---", _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
             foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
             {
                 string detail = J("stock", "Stock") + $" ×{spell.Quantity}";
@@ -353,6 +353,13 @@ public sealed partial class MenuController
             bool after = plan.After.Characters.FirstOrDefault(actor => actor.Id == change.CharacterId)?.AvailableJunctionSlots.Contains(change.Slot) == true;
             string Availability(bool available) => available ? J("available", "Available") : J("unavailable", "Unavailable");
             return $"{change.CharacterName} · {change.Slot}: {Availability(before)} → {Availability(after)}";
+        }
+        if (change.Category == "Magic")
+        {
+            string none = SystemText("ui.junctiondashboard.none", "None");
+            string before = change.Before == none ? "---" : change.Before;
+            string after = change.After == none ? "---" : change.After;
+            return $"{change.CharacterName} · {change.Slot}: {before} → {after}";
         }
         return $"{change.CharacterName} · {change.Slot}: {change.Before} → {change.After}";
     }
@@ -664,7 +671,7 @@ public sealed partial class MenuController
         if (junctionFocus.StartsWith("slot-", StringComparison.Ordinal))
         {
             string slot = junctionFocus[5..];
-            string assigned = actor.Junctions.GetValueOrDefault(slot) ?? J("none", "None");
+            string assigned = actor.Junctions.GetValueOrDefault(slot) ?? "---";
             return actor.Name + " · " + StatText(slot) + " · " + assigned + (junctionDashboard.IsPinned(actor.Id, slot) ? " · " + J("pinned", "Pinned") : "");
         }
         if (junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal) && Data.GuardianForces.FirstOrDefault(force => "gf-portrait-" + force.Id == junctionFocus) is { } gf)
