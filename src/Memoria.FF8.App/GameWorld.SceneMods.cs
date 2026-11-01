@@ -52,7 +52,7 @@ internal sealed partial class GameWorld
             foreach (FieldBackgroundPatch background in patch.Backgrounds)
             {
                 FieldBackgroundKey key = new(background.Layer, background.ModuleId, background.State);
-                BackgroundTile[] selected = Field.Background.Where(tile => Key(tile) == key && (background.Region is null || background.Region.Contains(tile.X, tile.Y))).ToArray();
+                BackgroundTile[] selected = Field.Background.Where(tile => Key(tile) == key && (background.Depth is null || tile.Z == background.Depth) && (background.Region is null || background.Region.Contains(tile.X, tile.Y))).ToArray();
                 if (selected.Length == 0)
                 {
                     throw new InvalidDataException($"{owned.PackageId}: {Field.Name} has no background {key}.");

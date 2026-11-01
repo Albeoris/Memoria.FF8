@@ -9,10 +9,12 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class DelingDepixelationModTests
 {
-    [Fact]
-    public void Uniformed_characters_replace_background_pixels_without_changing_event_continuation()
+    [Theory]
+    [InlineData("1", false)]
+    [InlineData("2", true)]
+    public void Uniformed_characters_and_soldiers_replace_background_pixels_without_changing_event_continuation(string scenario, bool soldiersPresent)
     {
-        string source = TestResources.FixturePath("App.Tests.DelingDepixelation.1");
+        string source = TestResources.FixturePath("App.Tests.DelingDepixelation." + scenario);
         byte[] sourceHash = SHA256.HashData(File.ReadAllBytes(source));
         string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Depixelation", "fields", "gltown1.json");
         ModFile file = new("Memoria/Depixelation", ModFormat.Memoria, "fields/gltown1.json", 1, () => File.ReadAllBytes(path));
@@ -32,15 +34,29 @@ public sealed class DelingDepixelationModTests
         Assert.False(original.SequenceEqual(replaced));
         Assert.True(JsonElement.DeepEquals(baseline.Events.Capture(), world.Events.Capture()));
         FieldScenePatch patch = Assert.Single(mods.Patches).Patch;
-        Assert.Equal(2, patch.Actors.Count);
+        Assert.Equal(5, patch.Actors.Count);
+        Assert.Equal(soldiersPresent ? 0 : -1, world.Events.BackgroundStates[5]);
         foreach (FieldActorPatch binding in patch.Actors)
         {
             ActorState actor = Assert.Single(world.Events.Actors, actor => actor.ObjectId == binding.ObjectId);
             ActorVisual visual = world.CreateVisual(actor);
+            if (binding.When is { } condition && world.Events.BackgroundStates[condition.ModuleId] != condition.State)
+            {
+                Assert.Equal(actor.Active && actor.Visible, visual.Visible);
+                Assert.Equal(actor.RenderModelId, visual.ModelId);
+                continue;
+            }
             Assert.True(visual.Visible);
             Assert.Equal((actor.X, actor.Y, actor.Z), (visual.X, visual.Y, visual.Z));
             Assert.Equal(binding.Direction, visual.Direction);
-            Assert.True(visual.ModelId >= world.Field.Models.Count);
+            if (binding.Model.FieldId == world.Field.Id)
+            {
+                Assert.Equal(binding.Model.ModelId, visual.ModelId);
+            }
+            else
+            {
+                Assert.True(visual.ModelId >= world.Field.Models.Count);
+            }
         }
         Capture("original.png", original);
         Capture("depixelated.png", replaced);
@@ -64,7 +80,7 @@ public sealed class DelingDepixelationModTests
         Assert.Equal(world.Apply(new(PlayerActionKind.Wait)), restored.Apply(new(PlayerActionKind.Wait)));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
-        if (OutputDirectory() is { } output)
+        if (OutputDirectory(scenario) is { } output)
         {
             session.SetEventState(world.Events.Capture());
             session.Save(Path.Combine(output, "continued.json"));
@@ -73,7 +89,7 @@ public sealed class DelingDepixelationModTests
 
         void Capture(string name, byte[] pixels)
         {
-            if (OutputDirectory() is { } output)
+            if (OutputDirectory(scenario) is { } output)
             {
                 Directory.CreateDirectory(output);
                 using var image = GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 1280, 960);
@@ -82,5 +98,5 @@ public sealed class DelingDepixelationModTests
         }
     }
 
-    private static string? OutputDirectory() => Environment.GetEnvironmentVariable("MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY");
+    private static string? OutputDirectory(string scenario) => Environment.GetEnvironmentVariable("MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY") is { } root ? Path.Combine(root, scenario) : null;
 }

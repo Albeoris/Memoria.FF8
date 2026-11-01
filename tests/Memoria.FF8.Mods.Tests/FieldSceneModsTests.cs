@@ -174,6 +174,42 @@ public sealed class FieldSceneModsTests
         Assert.False(selection.Contains(-64, 112));
     }
 
+    [Fact]
+    public void BackgroundAddressesCanSelectDistinctDepthsOrAllDepths()
+    {
+        const string json = """
+            {"schemaVersion":1,"fieldId":175,"fieldName":"bghall_6","backgrounds":[
+              {"layer":0,"moduleId":5,"state":0,"visible":false},
+              {"layer":0,"moduleId":5,"state":0,"depth":0,"visible":false},
+              {"layer":0,"moduleId":5,"state":0,"depth":516,"visible":false},
+              {"layer":0,"moduleId":5,"state":0,"depth":65535,"visible":false}
+            ]}
+            """;
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(diagnostics);
+        Assert.Equal(new int?[] { null, 0, 516, 65535 }, Assert.Single(result.Patches).Patch.Backgrounds.Select(background => background.Depth));
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("65536")]
+    [InlineData("1.5")]
+    public void InvalidBackgroundDepthRejectsPublication(string depth)
+    {
+        string json = Valid.Replace("\"visible\":false", "\"visible\":false,\"depth\":" + depth, StringComparison.Ordinal);
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out _, out var diagnostics));
+        Assert.Equal("Memoria.InvalidFieldPatch", Assert.Single(diagnostics).Code);
+    }
+
+    [Fact]
+    public void DuplicateBackgroundDepthAddressIsRejected()
+    {
+        const string background = """{"layer":0,"moduleId":5,"state":0,"depth":516,"visible":false}""";
+        string json = $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"backgrounds\":[{background},{background}]}}";
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out _, out var diagnostics));
+        Assert.Equal("Memoria.InvalidFieldPatch", Assert.Single(diagnostics).Code);
+    }
+
     private static ModFile File(string package, string json) => new(package, ModFormat.Memoria, "fields/bghall_6.json", 1, () => Encoding.UTF8.GetBytes(json));
 
     private static ModCatalogSnapshot Catalog(params ModFile[] files) => new(1, [], files);

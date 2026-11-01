@@ -31,7 +31,8 @@ public sealed class FieldSceneModPublicationTests
                 valid.Replace("\"moduleId\":5", "\"moduleId\":254", StringComparison.Ordinal),
                 valid.Replace("\"fieldId\":175", "\"fieldId\":174", StringComparison.Ordinal),
                 valid.Replace("\"schemaVersion\":1", "\"schemaVersion\":999", StringComparison.Ordinal),
-                valid.Replace("\"visible\":false", "\"visible\":false,\"region\":{\"x\":30000,\"y\":30000,\"width\":1,\"height\":1}", StringComparison.Ordinal)
+                valid.Replace("\"visible\":false", "\"visible\":false,\"region\":{\"x\":30000,\"y\":30000,\"width\":1,\"height\":1}", StringComparison.Ordinal),
+                valid.Replace("\"visible\":false", "\"visible\":false,\"depth\":65535", StringComparison.Ordinal)
             })
             {
                 File.WriteAllText(path, invalid);
