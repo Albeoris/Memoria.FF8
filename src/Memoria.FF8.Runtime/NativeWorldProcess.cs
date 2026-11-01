@@ -9,6 +9,9 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
 {
     public int VehicleManualCameraVelocity { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldTextureAnimationState? TextureAnimation { get; init; }
+
     public const string CurrentRule = "ff8-en-4022b0-557a90-process-v1";
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -33,12 +36,12 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     public int FuelMessageMovementCallbacks2045C78 { get; init; }
 
     [JsonIgnore]
-    public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0 && VehicleManualCameraVelocity == 0;
+    public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0 && VehicleManualCameraVelocity == 0 && TextureAnimation is { TextureClock: 0, PaletteClock: 0 };
 
     public static NativeWorldProcess FromColdProcess()
     {
         // Both DWORDs are in the preserved executable's zero-filled PE.data virtual tail.
-        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0) { VerticalBias204DADC = NativeWorldVerticalBiasState.Exact(0), ForcedAnimationC76628 = -1, GroundSelection = NativeWorldGroundSelectionState.CreateColdProcess(), InputHistory = NativeWorldInputHistory.FromColdProcess(), PreviousContactC76784 = -1, WaterStepEdges2045C7C = 0 };
+        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0) { TextureAnimation = NativeWorldTextureAnimationState.FromColdProcess(), VerticalBias204DADC = NativeWorldVerticalBiasState.Exact(0), ForcedAnimationC76628 = -1, GroundSelection = NativeWorldGroundSelectionState.CreateColdProcess(), InputHistory = NativeWorldInputHistory.FromColdProcess(), PreviousContactC76784 = -1, WaterStepEdges2045C7C = 0 };
     }
 
     public void Validate()
@@ -46,6 +49,7 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
         VerticalBias204DADC?.Validate();
         InputHistory?.Validate();
         GroundSelection?.Validate();
+        TextureAnimation?.Validate();
         if (FuelMessageMovementCallbacks2045C78 is < 0 or > 30)
         {
             throw new InvalidDataException("Native fuel message movement counter is outside its callback range.");

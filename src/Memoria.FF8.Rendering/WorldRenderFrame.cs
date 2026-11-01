@@ -16,6 +16,7 @@ public readonly record struct WorldRenderObjectId(WorldRenderObjectKind Kind, in
 /// <summary>A captured logical world sample and its independent presentation values.</summary>
 public sealed record WorldRenderFrame(Vector3 Position, float Heading, int AnimationId, float AnimationFrame, WorldCamera Camera, WorldSky Sky, bool AvatarVisible = true, FieldModel? AvatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? StaticModels = null, NativeWorldForestState? Forest = null, IReadOnlyList<NativeWorldAnimatedModelDraw>? AnimatedModels = null)
 {
+    public NativeWorldTextureAnimationState? TextureAnimation { get; init; }
     public IReadOnlyList<NativeWorldStaticModelDraw>? StaticModels { get; init; } = StaticModels is null ? null : Array.AsReadOnly(StaticModels.ToArray());
     public NativeWorldForestState? Forest { get; init; } = Forest is null ? null : Forest with { Particles = Forest.Particles.ToArray() };
     public IReadOnlyList<NativeWorldAnimatedModelDraw>? AnimatedModels { get; init; } = AnimatedModels is null ? null : Array.AsReadOnly(AnimatedModels.ToArray());

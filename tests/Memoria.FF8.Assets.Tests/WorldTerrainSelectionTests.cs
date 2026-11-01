@@ -57,6 +57,15 @@ public sealed class WorldTerrainSelectionTests
     }
 
     [Fact]
+    public void StarsBelongOnlyToTheSelectedFourthSkyRegion()
+    {
+        WorldSky[] skies = [Sky(0, 0, 0, 0), Sky(1000, 0, 320, 10), Sky(5000, 0, 320, 20), Sky(10000, 0, 320, 30)];
+        Assert.True(WorldTerrainSelection.SelectSky(skies, 10000, 0, 0).NativeStarsEnabled);
+        Assert.False(WorldTerrainSelection.SelectSky(skies, 5000, 0, 0).NativeStarsEnabled);
+        Assert.False(WorldTerrainSelection.SelectSky(skies, 0, 0, 0).NativeStarsEnabled);
+    }
+
+    [Fact]
     public void SelectedOriginalSkyRegionAndGardenReplacementRetainInstalledMetadata()
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

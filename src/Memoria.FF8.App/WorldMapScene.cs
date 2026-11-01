@@ -396,6 +396,9 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 previousCallback = candidate;
                 salary = salary.BeginWorldEventCallback();
+                int animationEntityType = candidate.NativeFootRuntime?.EntityType ?? (candidate.NativeRagnarokRuntime is not null ? 50 : 0);
+                byte animationScriptMode = candidate.EventUi?.ScriptMode ?? throw new NotSupportedException("World texture animation requires the preceding native script mode.");
+                salary = salary.AdvanceTextureAnimation(animationEntityType, animationScriptMode);
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
                 if (advanceUi && candidate.NativeCarRuntime is NativeCarWorldRuntimeState car)
                 {
@@ -628,7 +631,9 @@ internal sealed partial class WorldMapScene : IDisposable
         renderer.TriangleRenderer = triangleRenderer;
         WorldRenderFrame frame = presentation.Sample(State, interpolation, PrepareRenderFrame);
         uint mainLoopCounter = session.State.WorldProcess?.MainLoopCounter ?? throw new NotSupportedException("World presentation requires the executed native main-loop counter.");
-        frame = frame with { TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204, Shadows = CaptureShadows(State, frame) };
+        NativeWorldTextureAnimationState animation = session.State.WorldProcess?.TextureAnimation ?? throw new NotSupportedException("World presentation requires its retained texture animation clocks; migrate this save explicitly.");
+        // Resource loading uploads base images before the first world animation callback.
+        frame = frame with { TextureAnimation = State.Frame == 0 ? null : animation, TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204, Shadows = CaptureShadows(State, frame) };
         return renderer.Render(frame, replacements);
     }
 

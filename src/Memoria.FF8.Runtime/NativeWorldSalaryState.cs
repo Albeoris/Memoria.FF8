@@ -18,6 +18,7 @@ public sealed partial record NativeWorldSalaryState
         SavedWorldEvents = departure.SavedWorld;
         EventUi = departure.World?.EventUi;
         InputHistory = departure.WorldProcess?.InputHistory;
+        TextureAnimation = departure.WorldProcess?.TextureAnimation;
         WaterStepEdges2045C7C = departure.WorldProcess?.WaterStepEdges2045C7C;
         PreviousContactC76784 = departure.WorldProcess?.PreviousContactC76784;
         FuelMessageMovementCallbacks = departure.WorldProcess?.FuelMessageMovementCallbacks2045C78 ?? 0;
@@ -40,6 +41,7 @@ public sealed partial record NativeWorldSalaryState
     public NativeWorldEventUi? EventUi { get; private init; }
     public int? CarCameraCooldown { get; private init; }
     public NativeWorldInputHistory? InputHistory { get; private init; }
+    public NativeWorldTextureAnimationState? TextureAnimation { get; private init; }
     public byte? WaterStepEdges2045C7C { get; private init; }
     public int? PreviousContactC76784 { get; private init; }
     public int FuelMessageMovementCallbacks { get; private init; }
@@ -71,6 +73,12 @@ public sealed partial record NativeWorldSalaryState
     public NativeWorldSalaryState BeginWorldEventCallback()
     {
         return this with { EventUi = EventUi?.BeginCallback() };
+    }
+
+    public NativeWorldSalaryState AdvanceTextureAnimation(int entityType, byte scriptMode)
+    {
+        NativeWorldTextureAnimationState animation = TextureAnimation ?? throw new NotSupportedException("Native world texture animation requires its retained process clocks; migrate this save explicitly.");
+        return this with { TextureAnimation = animation.AdvanceWorldCallback(entityType, scriptMode) };
     }
 
     public NativeWorldSalaryState WithWorldInputSample(uint buttons)
@@ -134,7 +142,7 @@ public sealed partial record NativeWorldSalaryState
         NativeWorldProcess? process = candidate.WorldProcess;
         if (process is not null)
         {
-            process = process with { WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
+            process = process with { TextureAnimation = TextureAnimation, WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
         }
         if (InputHistory is not null)
         {

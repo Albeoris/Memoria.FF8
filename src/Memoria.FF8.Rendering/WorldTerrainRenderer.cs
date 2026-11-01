@@ -101,6 +101,7 @@ public sealed partial class WorldTerrainRenderer
     private Rgba32 fog;
     private bool nativeTerrain;
     private uint? nativeMainLoopCounter;
+    private NativeWorldTextureAnimationState? textureAnimation;
     private byte? worldDiscNumber;
     private ushort terrainReplacementMask;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
@@ -155,6 +156,7 @@ public sealed partial class WorldTerrainRenderer
             TriangleRenderer.Begin(Width, Height, new Vector4(0, 0, 0, 1), 0);
         }
         nativeMainLoopCounter = presentation?.NativeMainLoopCounter;
+        textureAnimation = presentation?.TextureAnimation;
         worldDiscNumber = presentation?.WorldDiscNumber;
         rasterTriangles.Clear();
         DrawnTriangles = 0;
@@ -380,7 +382,7 @@ public sealed partial class WorldTerrainRenderer
             }
             return point;
         }
-        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask), transparent);
+        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent);
     }
 
     private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend)

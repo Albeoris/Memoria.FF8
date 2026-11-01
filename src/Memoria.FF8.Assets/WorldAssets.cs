@@ -9,7 +9,10 @@ namespace Memoria.FF8.Assets;
 
 public readonly record struct WorldSpawn(int X, int Z, short NativeHeight, ushort Unknown);
 public readonly record struct WorldGround(float Height, WorldTriangle Triangle, int Segment);
-public readonly record struct WorldSky(Vector3 Position, Rgba32 Top, Rgba32 Center, Rgba32 Bottom, int Radius = 0);
+public readonly record struct WorldSky(Vector3 Position, Rgba32 Top, Rgba32 Center, Rgba32 Bottom, int Radius = 0)
+{
+    public bool NativeStarsEnabled { get; init; }
+}
 public sealed record WorldTriangle(Vector3 A, Vector3 B, Vector3 C, Vector2 UvA, Vector2 UvB, Vector2 UvC, byte TexturePage, byte Palette, byte GroundType, byte TextureFlags, byte VertexFlags)
 {
     public int NativeBlockIndex { get; init; }
@@ -44,12 +47,9 @@ public sealed partial class WorldAssets : IDisposable
     private readonly AssetTextureScope textureScope;
     private readonly IModelOverrideSource? modelOverrides;
     private AssetHandle<TextureValue>? roadHandle;
-    private AssetHandle<TextureValue>? waterHandle;
     private bool roadsPrepared;
-    private bool waterPrepared;
     private byte[]? texl;
     private PixelImage? roads;
-    private PixelImage? water;
     private readonly Dictionary<byte, FieldModel> footModels = [];
     private WorldFieldEntryReader? fieldEntries;
     private WorldFieldEntryReader? worldEvents;
@@ -210,7 +210,7 @@ public sealed partial class WorldAssets : IDisposable
         return selected;
     }
 
-    public PixelImage GetTexture(WorldTriangle triangle, ushort replacementMask = 0)
+    public PixelImage GetTexture(WorldTriangle triangle, ushort replacementMask = 0, NativeWorldTextureAnimationState? animation = null)
     {
         if (triangle.Road)
         {
@@ -223,12 +223,7 @@ public sealed partial class WorldAssets : IDisposable
         }
         if (triangle.Water)
         {
-            if (!waterPrepared)
-            {
-                water = CreateWaterAtlas();
-                waterPrepared = true;
-            }
-            return waterHandle?.Value.Image ?? water!;
+            return ReadWaterTexture((triangle.TexturePage << 4) | triangle.Palette, animation);
         }
         int sourcePage = SelectTerrainTexturePage(triangle.TexturePage, replacementMask);
         if (!textures.TryGetValue((sourcePage, triangle.Palette), out PixelImage? image))
@@ -249,11 +244,6 @@ public sealed partial class WorldAssets : IDisposable
     private PixelImage? CreateRoadAtlas()
     {
         return CreateSourceAtlas(38, null, "roads", "classic-world-road-region", 256, 256, out roadHandle);
-    }
-
-    private PixelImage? CreateWaterAtlas()
-    {
-        return CreateSourceAtlas(37, [23, 16, 21, 22, 17, 18, 19, 20], "water", "classic-world-water-region", 256, 128, out waterHandle);
     }
 
     private PixelImage? CreateSourceAtlas(int section, int[]? selected, string name, string layout, int width, int height, out AssetHandle<TextureValue>? handle)

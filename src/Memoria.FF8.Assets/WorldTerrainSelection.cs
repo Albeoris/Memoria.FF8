@@ -95,6 +95,7 @@ public static class WorldTerrainSelection
             int blend = distance * (4096 / radius);
             return fallback with
             {
+                NativeStarsEnabled = index == 3,
                 Top = Blend(region.Top, fallback.Top, blend),
                 Center = Blend(region.Center, fallback.Center, blend),
                 Bottom = Blend(region.Bottom, fallback.Bottom, blend)

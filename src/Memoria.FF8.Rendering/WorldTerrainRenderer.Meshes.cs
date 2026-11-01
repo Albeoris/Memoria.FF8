@@ -65,7 +65,7 @@ public sealed partial class WorldTerrainRenderer
             }
             if (first.Water || second.Water)
             {
-                return first.Water && second.Water;
+                return first.Water && second.Water && first.TexturePage == second.TexturePage && first.Palette == second.Palette;
             }
             return first.TexturePage == second.TexturePage && first.Palette == second.Palette;
         }
@@ -86,7 +86,7 @@ public sealed partial class WorldTerrainRenderer
                 continue;
             }
             // Resolve current resource handles each frame; geometry survives texture replacement.
-            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource, terrainReplacementMask), false);
+            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource, terrainReplacementMask, textureAnimation), false);
             hardware.DrawTerrain(geometry.Mesh, camera, material, run.Start, run.Count);
             DrawnTriangles += run.Count / 3;
         }

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -81,9 +82,12 @@ public sealed class WorldRoadUvScaleTests
         // Populate only the external texture boundary; terrain decoding and GPU devices are unnecessary here.
         WorldAssets assets = (WorldAssets)RuntimeHelpers.GetUninitializedObject(typeof(WorldAssets));
         Set(assets, "roadsPrepared", true);
-        Set(assets, "waterPrepared", true);
         Set(assets, "roads", Atlas(256));
-        Set(assets, "water", Atlas(128));
+        InMemoryResourceSource source = new(new("test", GameDataEdition.Classic, []));
+        ResourceService resources = new(source);
+        AssetHandle<TextureValue> water = resources.GetTexture(new(new(new ResourceKey("world/water"), "atlas"), source.Descriptor, 1, "rgba", 256, 128, () => Atlas(128)));
+        Set(assets, "waterAnimationPrepared", true);
+        Set(assets, "currentWaterAtlases", new Dictionary<int, AssetHandle<TextureValue>> { [0] = water });
         WorldTerrainRenderer renderer = new(assets, Size, Size);
         Set(renderer, "view", Matrix4x4.Identity);
         Set(renderer, "focal", 64f);
