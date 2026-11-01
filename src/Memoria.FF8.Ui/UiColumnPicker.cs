@@ -3,24 +3,31 @@ namespace Memoria.FF8.Ui;
 /// <summary>A column-major list with measured name/quantity pairs and whole-column scrolling.</summary>
 public sealed class UiColumnPicker : UiElement
 {
-    private sealed record Item(UiButton Button, UiLabel Name, UiLabel Quantity);
+    private sealed record Item(UiButton Button, UiLabel Name, UiLabel Quantity, UiImage? Image);
     private readonly List<Item> items = [];
     private float[] nameWidths = [];
     private float[] quantityWidths = [];
+    private float[] imageWidths = [];
     private bool initialRevealed;
 
     public float RowHeight { get; set; } = 26;
     public float NameQuantityGap { get; set; } = 8;
     public float ColumnGap { get; set; } = 16;
     public float HorizontalPadding { get; set; } = 8;
+    public float ImageSize { get; set; } = 18;
+    public float ImageNameGap { get; set; } = 8;
     public int FirstVisibleColumn { get; set; }
     public int InitialIndex { get; set; }
     public int RowCount { get; private set; } = 1;
     public Action<int>? FirstColumnChanged { get; set; }
 
-    public void Add(UiButton button, UiLabel name, UiLabel quantity)
+    public void Add(UiButton button, UiLabel name, UiLabel quantity, UiImage? image = null)
     {
-        items.Add(new Item(button, name, quantity));
+        items.Add(new Item(button, name, quantity, image));
+        if (image is not null)
+        {
+            button.Children.Add(image);
+        }
         button.Children.Add(name);
         button.Children.Add(quantity);
         Children.Add(button);
@@ -33,11 +40,16 @@ public sealed class UiColumnPicker : UiElement
         int columns = (items.Count + RowCount - 1) / RowCount;
         nameWidths = new float[columns];
         quantityWidths = new float[columns];
+        imageWidths = new float[columns];
         for (int index = 0; index < items.Count; index++)
         {
             int column = index / RowCount;
             nameWidths[column] = Math.Max(nameWidths[column], items[index].Name.Measure(new UiSize(float.PositiveInfinity, RowHeight)).Width);
             quantityWidths[column] = Math.Max(quantityWidths[column], items[index].Quantity.Measure(new UiSize(float.PositiveInfinity, RowHeight)).Width);
+            if (items[index].Image is not null)
+            {
+                imageWidths[column] = ImageSize + ImageNameGap;
+            }
         }
         FirstVisibleColumn = Math.Clamp(FirstVisibleColumn, 0, Math.Max(0, columns - 1));
         if (!initialRevealed && items.Count > 0)
@@ -53,7 +65,7 @@ public sealed class UiColumnPicker : UiElement
         ArrangeItems();
     }
 
-    private float ColumnWidth(int column) => HorizontalPadding * 2 + nameWidths[column] + NameQuantityGap + quantityWidths[column];
+    private float ColumnWidth(int column) => HorizontalPadding * 2 + imageWidths[column] + nameWidths[column] + NameQuantityGap + quantityWidths[column];
 
     private int LastVisibleColumn()
     {
@@ -99,6 +111,17 @@ public sealed class UiColumnPicker : UiElement
         }
     }
 
+    public void ScrollColumns(int delta)
+    {
+        int first = Math.Clamp(FirstVisibleColumn + delta, 0, Math.Max(0, nameWidths.Length - 1));
+        if (first != FirstVisibleColumn)
+        {
+            FirstVisibleColumn = first;
+            FirstColumnChanged?.Invoke(first);
+            ArrangeItems();
+        }
+    }
+
     private void ArrangeItems()
     {
         int last = LastVisibleColumn();
@@ -116,8 +139,10 @@ public sealed class UiColumnPicker : UiElement
                 }
                 UiRect cell = new(x, Bounds.Y + row * RowHeight, ColumnWidth(column), RowHeight);
                 item.Button.Arrange(cell);
-                item.Name.Arrange(new UiRect(x + HorizontalPadding, cell.Y, nameWidths[column], RowHeight));
-                item.Quantity.Arrange(new UiRect(x + HorizontalPadding + nameWidths[column] + NameQuantityGap, cell.Y, quantityWidths[column], RowHeight));
+                item.Image?.Arrange(new UiRect(x + HorizontalPadding, cell.Y + (RowHeight - ImageSize) / 2, ImageSize, ImageSize));
+                float textX = x + HorizontalPadding + imageWidths[column];
+                item.Name.Arrange(new UiRect(textX, cell.Y, nameWidths[column], RowHeight));
+                item.Quantity.Arrange(new UiRect(textX + nameWidths[column] + NameQuantityGap, cell.Y, quantityWidths[column], RowHeight));
             }
             if (visible)
             {

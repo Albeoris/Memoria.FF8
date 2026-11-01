@@ -10,6 +10,11 @@ public sealed partial class MenuController
         }
         var view = BuildView();
         var point = view.ToDesignPoint(x, y);
+        if (junctionEditor == "gf" && junctionGuardianColumns?.Bounds.Contains(point.X, point.Y) == true)
+        {
+            junctionGuardianColumns.ScrollColumns(-Math.Sign(delta));
+            return;
+        }
         if (junctionScroll?.Bounds.Contains(point.X, point.Y) == true)
         {
             junctionScroll.ScrollBy(-Math.Sign(delta) * 64 * TextScale);

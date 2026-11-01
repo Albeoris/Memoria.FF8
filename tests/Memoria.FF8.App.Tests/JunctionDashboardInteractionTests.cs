@@ -4,11 +4,79 @@ using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using SkiaSharp;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionDashboardInteractionTests
 {
+    [Theory]
+    [InlineData(false, 1280, 720, 100)]
+    [InlineData(true, 1280, 720, 100)]
+    [InlineData(false, 640, 448, 100)]
+    [InlineData(true, 640, 448, 100)]
+    [InlineData(false, 1280, 720, 150)]
+    [InlineData(true, 1280, 720, 150)]
+    public void GuardianCapabilitiesUseOneMeasuredColumnFlowWithChangedAbilitiesFirst(bool removing, int width, int height, int textScale)
+    {
+        using Fixture fixture = new();
+        fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1);
+        foreach (int ability in Enumerable.Range(39, 19))
+        {
+            fixture.Vitals = fixture.Vitals.TeachGuardianForceAbility(1, ability);
+        }
+        if (removing)
+        {
+            fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 1);
+        }
+        fixture.Refresh();
+        fixture.Data.Settings["Text scale"] = textScale + "%";
+        fixture.Menu.PrepareViewport(width, height);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Menu.SelectEntry("junction-dashboard", "gf-portrait-gf-1");
+        UiView view = fixture.Menu.BuildView();
+        UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+        Assert.Equal("gf-capability-columns", columns.Id);
+        Assert.Empty(Descendants(columns).OfType<UiList>());
+        Assert.True(columns.Children.Count > columns.RowCount);
+        UiButton[] rows = columns.Children.Cast<UiButton>().ToArray();
+        string prefix = removing ? "− " : "+ ";
+        int changed = rows.TakeWhile(row => row.Children.OfType<UiLabel>().First().Text.StartsWith(prefix, StringComparison.Ordinal)).Count();
+        Assert.Equal(19, changed);
+        Assert.All(rows.Skip(changed), row => Assert.False(row.Children.OfType<UiLabel>().First().Text.StartsWith(prefix, StringComparison.Ordinal)));
+        foreach (UiButton row in rows)
+        {
+            UiImage icon = Assert.Single(row.Children.OfType<UiImage>());
+            Assert.Equal(NativeAbilityMenuMetadata.Icon(row.Id!.StartsWith("gf-capability-command-", StringComparison.Ordinal) ? 20 : 39), icon.Source);
+        }
+        UiButton[] visible = rows.Where(row => row.Visible).ToArray();
+        Assert.All(visible, row => Assert.True(row.Bounds.Right <= columns.Bounds.Right));
+        Assert.Equal(16 * textScale / 100f, rows[columns.RowCount].Bounds.X - rows[0].Bounds.Right, 3);
+        Assert.True(view.Focus(rows[0]));
+        Assert.True(view.Key(UiKey.Right));
+        Assert.Same(rows[columns.RowCount], view.FocusedElement);
+        UiRect dock = columns.Bounds;
+        fixture.Menu.HandleJunctionWheel((int)(dock.X + dock.Width / 2), (int)(dock.Y + dock.Height / 2), -1);
+        Assert.True(columns.FirstVisibleColumn > 0);
+        fixture.Menu.HandleJunctionWheel((int)(dock.X + dock.Width / 2), (int)(dock.Y + dock.Height / 2), 1);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            foreach (MenuPresentation presentation in new[] { MenuPresentation.Classic, MenuPresentation.Vector })
+            {
+                fixture.Menu.Presentation = presentation;
+                using SKBitmap bitmap = new(width, height);
+                using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
+                canvas.BeginFrame(TimeSpan.Zero);
+                fixture.Menu.BuildView().Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
+                bitmap.SavePng(Path.Combine(directory, $"guardian-capabilities-{(removing ? "remove" : "add")}-{presentation}-{width}x{height}-text{textScale}.png"));
+            }
+        }
+    }
+
     [Theory]
     [InlineData("Elem-Atk", 9)]
     [InlineData("ST-Atk", 10)]
@@ -251,6 +319,75 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal(0, fixture.Vitals.Records[0].Junction.MagicJunctions[0]);
         Assert.DoesNotContain(fixture.Menu.Entries, entry => entry.Id is "junction-transfer-yes" or "junction-transfer-no");
         Assert.Equal(inventory, JsonSerializer.Serialize(fixture.Vitals.Records.Select(record => record.MagicInventory)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GuardianHoverShowsEveryGainedOrLostJunctionSlotWithoutApplyingTheProposal(bool attached)
+    {
+        using Fixture fixture = new();
+        if (!attached)
+        {
+            fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0);
+            fixture.Refresh();
+        }
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        UiView view = fixture.Menu.BuildView();
+        UiButton portrait = Assert.IsType<UiButton>(Descendants(view.Root).Single(element => element.Id == "gf-portrait-gf-0"));
+        portrait.Hover!();
+        view = fixture.Menu.BuildView();
+        for (int index = 0; index < 19; index++)
+        {
+            string slot = LiveMenuData.JunctionSlotName(index);
+            Assert.Equal(attached, fixture.Vitals.JunctionMagicSlotAvailable(0, index));
+            UiElement row = Descendants(view.Root).Single(element => element.Id == "slot-" + slot);
+            UiLabel availability = Assert.IsType<UiLabel>(Descendants(row).Single(element => element.Id == "junction-slot-availability-" + slot));
+            Assert.Equal(attached ? "− Locked" : "+ Available", availability.Text);
+            Assert.Equal(attached ? new UiColor(245, 90, 90) : new UiColor(110, 220, 135), availability.Color);
+            Assert.Equal(attached, Descendants(row).Any(element => element.Id == "junction-lock-" + slot));
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            using SKBitmap bitmap = new(1280, 720);
+            using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
+            canvas.BeginFrame(TimeSpan.Zero);
+            view.Draw(canvas, new VectorUiTheme());
+            bitmap.SavePng(Path.Combine(directory, $"guardian-slots-{(attached ? "remove" : "add")}.png"));
+        }
+
+        UiElement statRow = Descendants(view.Root).Single(element => element.Id == "slot-Str");
+        Assert.True(view.Focus(statRow));
+        Assert.DoesNotContain(Descendants(fixture.Menu.BuildView().Root), element => element.Id?.StartsWith("junction-slot-availability-", StringComparison.Ordinal) == true);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+
+        fixture.Hit("gf-portrait-gf-0");
+        Assert.Equal(1, fixture.Actions);
+        for (int index = 0; index < 19; index++)
+        {
+            Assert.Equal(!attached, fixture.Vitals.JunctionMagicSlotAvailable(0, index));
+        }
+    }
+
+    [Fact]
+    public void GuardianRemovalPreviewKeepsSlotsProvidedByAnotherAttachedGuardianAvailable()
+    {
+        using Fixture fixture = new();
+        fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 1).ToggleGuardianForceJunction(0, 1);
+        fixture.Refresh();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        fixture.Preview("gf-portrait-gf-0");
+        UiElement[] elements = Descendants(fixture.Menu.BuildView().Root).ToArray();
+        Assert.DoesNotContain(elements, element => element.Id is "junction-slot-availability-HP" or "junction-lock-HP");
+        Assert.Contains(elements, element => element.Id == "junction-slot-availability-Str");
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
     }
 
     [Fact]

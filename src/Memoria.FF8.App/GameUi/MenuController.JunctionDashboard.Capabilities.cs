@@ -4,53 +4,65 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
+    private UiColumnPicker? junctionGuardianColumns;
+
     private UiElement BuildJunctionGuardianCapabilities()
     {
-        UiGrid groups = Grid([1], [1, 1], 12);
-        Place(groups, Group(true), 0);
-        Place(groups, Group(false), 0, 1);
-        return groups;
+        junctionGuardianColumns = null;
+        UiGrid body = JunctionRows([22 * TextScale, 0], [1], 2);
+        Place(body, JunctionLabel(J("available-abilities", "Available abilities"), 14, true), 0);
+        MenuCharacter? preview = JunctionPreviewCharacter;
+        var changes = Capabilities(true).Concat(Capabilities(false)).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
+        if (changes.Length == 0)
+        {
+            Place(body, JunctionLabel("---", 16, true), 1);
+            return body;
+        }
+        UiColumnPicker columns = new()
+        {
+            Id = "gf-capability-columns",
+            RowHeight = 23 * TextScale,
+            HorizontalPadding = 8 * TextScale,
+            ColumnGap = 16 * TextScale,
+            NameQuantityGap = 0,
+            ImageSize = 18 * TextScale,
+            ImageNameGap = 6 * TextScale,
+            InitialIndex = Math.Max(0, Array.FindIndex(changes, change => change.Id == junctionFocus))
+        };
+        junctionGuardianColumns = columns;
+        foreach (var change in changes)
+        {
+            UiButton row = new()
+            {
+                Id = change.Id,
+                DrawBackground = false,
+                PointerSize = 0,
+                FocusChanged = focused =>
+                {
+                    if (focused)
+                    {
+                        junctionFocus = change.Id;
+                    }
+                }
+            };
+            UiLabel name = JunctionLabel((change.Delta > 0 ? "+ " : change.Delta < 0 ? "− " : "") + change.Choice.Name, 15);
+            name.Color = change.Delta > 0 ? JunctionIncreaseColor : change.Delta < 0 ? JunctionDecreaseColor : null;
+            UiImage? icon = change.Choice.Icon is { } image ? new() { Source = image } : null;
+            columns.Add(row, name, JunctionLabel("", 15), icon);
+        }
+        Place(body, columns, 1);
+        return body;
 
-        UiElement Group(bool commands)
+        IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capabilities(bool commands)
         {
             IReadOnlyList<MenuAbilityChoice> current = commands ? Character?.AvailableCommands ?? [] : Character?.AvailableAbilities ?? [];
-            MenuCharacter? preview = JunctionPreviewCharacter;
             IReadOnlyList<MenuAbilityChoice> next = preview is null ? current : commands ? preview.AvailableCommands : preview.AvailableAbilities;
             HashSet<string> before = current.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
             HashSet<string> after = next.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
-            MenuAbilityChoice[] choices = next.Concat(current).DistinctBy(choice => choice.Id).ToArray();
-            string id = commands ? "gf-available-commands" : "gf-available-passives";
-            UiGrid group = JunctionRows([24, 0], [1]);
-            Place(group, JunctionLabel(commands ? J("available-commands", "Available command abilities") : J("available-passives", "Available passive abilities"), 15, true), 0);
-            if (choices.Length == 0)
+            foreach (MenuAbilityChoice choice in next.Concat(current).DistinctBy(choice => choice.Id))
             {
-                Place(group, JunctionLabel("---", 16, true), 1);
+                yield return ("gf-capability-" + (commands ? "command-" : "passive-") + choice.Id, choice, !before.Contains(choice.Id) ? 1 : !after.Contains(choice.Id) ? -1 : 0);
             }
-            else
-            {
-                UiList list = new()
-                {
-                    Id = id,
-                    Items = choices.Select(choice => (before.Contains(choice.Id) ? after.Contains(choice.Id) ? "" : "− " : "+ ") + choice.Name).ToList(),
-                    Images = choices.Select(choice => choice.Icon).ToList(),
-                    FontSize = 15 * TextScale,
-                    RowHeight = 23 * TextScale,
-                    AutoRowHeight = false,
-                    TextInset = 30,
-                    Paginated = true,
-                    ShowSelection = true,
-                    ItemTextColor = index => !before.Contains(choices[index].Id) ? JunctionIncreaseColor : !after.Contains(choices[index].Id) ? JunctionDecreaseColor : null,
-                    FocusChanged = focused =>
-                    {
-                        if (focused)
-                        {
-                            junctionFocus = id;
-                        }
-                    }
-                };
-                Place(group, list, 1);
-            }
-            return group;
         }
     }
 }

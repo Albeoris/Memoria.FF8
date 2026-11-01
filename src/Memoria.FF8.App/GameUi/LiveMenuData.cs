@@ -163,6 +163,7 @@ public static class LiveMenuData
                     BattleNativePlayerStatRules? projectedRules = catalog is null ? null : projection.Rules(row);
                     uint passiveFlags = projectedRules?.NativeStatusPassiveFlags ?? 0;
                     int basicCommand = (passiveFlags & 1) != 0 ? 12 : 1;
+                    bool supportsSummon = native.Junction.GuardianForceAssignments.Any(id => NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled)) && vitals.JunctionLearnedAbilities(row).Contains(21);
                     character.Commands.Add(catalog?.CommandName(basicCommand) ?? Text("fallback.command.attack", "Attack"));
                     for (int slot = 0; slot < 4; slot++)
                     {
@@ -171,7 +172,7 @@ public static class LiveMenuData
                         if (slot < 3)
                         {
                             character.CommandIds.Add(command.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                            character.Commands.Add(command == 0 ? "--" : catalog?.AbilityName(command) ?? Format("fallback.command-ability.name", "Command ability {0}", command));
+                            character.Commands.Add(command == 0 ? "--" : NativeAbilityMenuMetadata.CommandName(command, catalog?.AbilityName(command) ?? Format("fallback.command-ability.name", "Command ability {0}", command), supportsSummon, Text));
                         }
                         character.AbilityIds.Add(ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
                         if (slot < vitals.JunctionAbilitySlots(row))
@@ -182,7 +183,7 @@ public static class LiveMenuData
                     character.AbilitySlots = vitals.JunctionAbilitySlots(row);
                     foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                     {
-                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
+                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
                         if (ability is >= 20 and < 39)
                         {
                             character.AvailableCommands.Add(choice);
@@ -305,6 +306,7 @@ public static class LiveMenuData
                     continue;
                 }
                 int ownerRow = Enumerable.Range(0, vitals.Records.Length).FirstOrDefault(row => (vitals.Records[row].Junction.GuardianForces & (1 << id)) != 0, -1);
+                string AbilityName(int ability, string original, string key) => NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format(key, original, ability), NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled), Text);
                 MenuGuardianForce guardianForce = new()
                 {
                     Id = $"gf-{id}",
@@ -316,16 +318,16 @@ public static class LiveMenuData
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.GuardianForces[id]),
-                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? Format("fallback.ability.name", "Ability {0}", native.Learning),
+                    Learning = native.Learning == 0 ? "--" : AbilityName(native.Learning, "Ability {0}", "fallback.ability.name"),
                     LearningAbilityId = native.Learning == 0 ? null : native.Learning.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {
                     if (entry.Learned)
                     {
-                        guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? Format("fallback.learned-ability.name", "Learned ability {0}", entry.Ability));
+                        guardianForce.Abilities.Add(AbilityName(entry.Ability, "Learned ability {0}", "fallback.learned-ability.name"));
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? Format("fallback.ability.name", "Ability {0}", entry.Ability), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), AbilityName(entry.Ability, "Ability {0}", "fallback.ability.name"), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;

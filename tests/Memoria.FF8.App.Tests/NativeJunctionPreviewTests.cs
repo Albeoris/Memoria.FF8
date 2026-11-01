@@ -51,6 +51,7 @@ public sealed class NativeJunctionPreviewTests
 
     private static void AssertSlotPresentation(MenuController menu, params string[] available)
     {
+        menu.SelectEntry("junction-dashboard", "slot-HP");
         Assert.Equal("junction-dashboard", menu.ScreenId);
         UiView view = menu.BuildView();
         view.Resize(1280, 720);
@@ -59,9 +60,8 @@ public sealed class NativeJunctionPreviewTests
         foreach (string stat in new[] { "HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" })
         {
             UiButton row = Assert.IsType<UiButton>(elements.Single(element => element.Id == "slot-" + stat));
-            UiLabel[] labels = Descendants(row).OfType<UiLabel>().ToArray();
             Assert.True(row.Enabled);
-            Assert.Equal(!available.Contains(stat), labels[1].Muted);
+            Assert.Equal(!available.Contains(stat), Descendants(row).Any(element => element.Id == "junction-lock-" + stat));
             Assert.Equal(available.Contains(stat), menu.Character!.AvailableJunctionSlots.Contains(stat));
         }
     }

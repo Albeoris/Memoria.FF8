@@ -6,6 +6,9 @@ public static partial class SystemTextCatalog
     {
         defaults.Add("junction.dashboard.title", "Junction");
         defaults.Add("junction.dashboard.help", "Inspect every assignment. Choose a slot to edit it below.");
+        defaults.Add("junction.dashboard.available-abilities", "Available abilities");
+        defaults.Add("junction.dashboard.slot-available", "Available");
+        defaults.Add("junction.dashboard.slot-unavailable", "Locked");
         defaults.Add("junction.group.stats", "Stats");
         defaults.Add("junction.group.guardian-forces", "Guardian Forces");
         defaults.Add("junction.group.elemental", "Elemental");

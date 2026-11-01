@@ -3,6 +3,28 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiColumnPickerTests
 {
     [Fact]
+    public void IconColumnsMeasureWholeRowsAndKeepReadableGapsWithoutStretchingArtwork()
+    {
+        UiColumnPicker picker = new() { RowHeight = 26, NameQuantityGap = 0 };
+        UiButton[] rows = [new(), new(), new()];
+        UiImage[] icons = [new(), new(), new()];
+        for (int index = 0; index < rows.Length; index++)
+        {
+            picker.Add(rows[index], new UiLabel { Text = "Ability", Width = 80 }, new UiLabel { Width = 0 }, icons[index]);
+        }
+        picker.Arrange(new(10, 20, 300, 52));
+        Assert.Equal(2, picker.RowCount);
+        Assert.Equal(18, icons[0].Bounds.Width);
+        Assert.Equal(18, icons[0].Bounds.Height);
+        UiLabel name = Assert.IsType<UiLabel>(rows[0].Children[1]);
+        Assert.Equal(8, name.Bounds.X - icons[0].Bounds.Right);
+        Assert.Equal(8, icons[0].Bounds.X - rows[0].Bounds.X);
+        Assert.Equal(8, rows[0].Bounds.Right - name.Bounds.Right);
+        Assert.Equal(16, rows[2].Bounds.X - rows[0].Bounds.Right);
+        Assert.Equal(rows[0].Bounds.Y + 4, icons[0].Bounds.Y);
+    }
+
+    [Fact]
     public void ColumnsMeasureNamesAndQuantitiesIndependentlyAndKeepTheRequestedGutters()
     {
         UiColumnPicker picker = new() { RowHeight = 26 };
@@ -91,6 +113,21 @@ public sealed class UiColumnPickerTests
         Assert.Same(buttons[4], view.FocusedElement);
         Assert.True(view.Key(UiKey.Up));
         Assert.Same(buttons[3], view.FocusedElement);
+    }
+
+    [Fact]
+    public void ColumnScrollingRevealsOverflowWithoutChangingTheSelectionOrItemOrder()
+    {
+        (UiColumnPicker picker, UiButton[] buttons, UiView view) = Create();
+        Assert.True(view.Focus(buttons[0]));
+        picker.ScrollColumns(1);
+        Assert.Equal(1, picker.FirstVisibleColumn);
+        Assert.False(buttons[0].Visible);
+        Assert.True(buttons[4].Visible);
+        Assert.Equal(buttons, picker.Children);
+        picker.ScrollColumns(-100);
+        Assert.Equal(0, picker.FirstVisibleColumn);
+        Assert.True(buttons[0].Visible);
     }
 
     private static (UiColumnPicker Picker, UiButton[] Buttons, UiView View) Create(int count = 6, int initial = 0)

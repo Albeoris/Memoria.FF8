@@ -375,6 +375,8 @@ public sealed partial class MenuController
     private UiElement BuildJunctionBindingRow(string slot, bool stat)
     {
         bool available = Character?.AvailableJunctionSlots.Contains(slot) == true;
+        bool projectedAvailable = JunctionPreviewCharacter?.AvailableJunctionSlots.Contains(slot) ?? available;
+        bool availabilityChanged = available != projectedAvailable;
         string currentId = Character?.JunctionIds.GetValueOrDefault(slot) ?? "0";
         string actorId = Character?.Id ?? "";
         MenuMagic? magic = Character?.Junctions.ContainsKey(slot) == true ? JunctionMagicInventory.FirstOrDefault(spell => spell.CharacterId == actorId && spell.Id == currentId) : null;
@@ -391,8 +393,29 @@ public sealed partial class MenuController
         bool pinned = junctionDashboard.IsPinned(Character?.Id ?? "", slot);
         UiGrid content = Grid([1], stat ? [42, 112, 45, 87] : [55, 178, 45], 0);
         content.Margin = new UiThickness(8, 0, 0, 0);
-        Place(content, JunctionLabel((pinned ? "◆ " : "") + name, 12, true), 0);
-        Place(content, available ? JunctionLabel(assigned, 16) : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
+        UiLabel slotLabel = JunctionLabel((pinned ? "◆ " : "") + name, 12, true);
+        if (availabilityChanged)
+        {
+            slotLabel.Color = projectedAvailable ? JunctionIncreaseColor : JunctionDecreaseColor;
+        }
+        Place(content, slotLabel, 0);
+        if (availabilityChanged)
+        {
+            UiGrid availability = Grid([1], projectedAvailable ? [1] : [22, 90], 0);
+            if (!projectedAvailable)
+            {
+                Place(availability, new JunctionLockIcon { Id = "junction-lock-" + slot }, 0);
+            }
+            UiLabel change = JunctionLabel(projectedAvailable ? "+ " + J("slot-available", "Available") : "− " + J("slot-unavailable", "Locked"), 13);
+            change.Id = "junction-slot-availability-" + slot;
+            change.Color = projectedAvailable ? JunctionIncreaseColor : JunctionDecreaseColor;
+            Place(availability, change, 0, projectedAvailable ? 0 : 1);
+            Place(content, availability, 0, 1);
+        }
+        else
+        {
+            Place(content, available ? JunctionLabel(assigned, 16) : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
+        }
         Place(content, JunctionLabel(magic?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "—", 14, true), 0, 2);
         if (stat)
         {
@@ -417,7 +440,11 @@ public sealed partial class MenuController
         string id = "slot-" + slot;
         UiButton row = JunctionButton(id, "", () => OpenJunctionEditor("magic", id));
         row.DrawBackground = false;
-        if (junctionPlan?.Changes.Any(change => change.CharacterId == Character?.Id && change.Category == "Magic" && change.Slot == slot) == true)
+        if (availabilityChanged)
+        {
+            row.Children.Add(new JunctionSlotAvailabilityRow { Gained = projectedAvailable });
+        }
+        else if (junctionPlan?.Changes.Any(change => change.CharacterId == Character?.Id && change.Category == "Magic" && change.Slot == slot) == true)
         {
             row.Children.Add(new JunctionChangedRow());
         }
@@ -562,6 +589,18 @@ public sealed partial class MenuController
         }
         Place(body, passives, 3);
         return JunctionPanel(body);
+    }
+
+    private sealed class JunctionSlotAvailabilityRow : UiElement
+    {
+        public bool Gained { get; init; }
+
+        protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
+        {
+            UiColor color = Gained ? JunctionIncreaseColor : JunctionDecreaseColor;
+            canvas.Fill(Bounds, new UiColor(color.R, color.G, color.B, 35));
+            canvas.Fill(new UiRect(Bounds.X, Bounds.Y, 3, Bounds.Height), color);
+        }
     }
 
     private sealed class JunctionChangedRow : UiElement

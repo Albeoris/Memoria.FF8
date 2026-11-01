@@ -28,6 +28,10 @@ public sealed partial class MenuController
         {
             return JunctionAdjacentCharacter(button.Id == "previous-character" ? -1 : 1)?.Name ?? "";
         }
+        if (button.Id?.StartsWith("gf-capability-", StringComparison.Ordinal) == true)
+        {
+            return button.Children.OfType<UiLabel>().FirstOrDefault()?.Text ?? "";
+        }
         return button.Text;
     }
 
