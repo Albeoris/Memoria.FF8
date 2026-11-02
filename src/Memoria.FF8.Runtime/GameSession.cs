@@ -629,6 +629,13 @@ public sealed partial class GameSession : IEventServices
         State = State with { DebugView = view };
     }
 
+    /// <summary>Reads declared snapshot metadata with storage integrity checks; restoring gameplay still requires Load.</summary>
+    public static T ReadSnapshotProjection<T>(string path) where T : class
+    {
+        using FileStream stream = File.OpenRead(path);
+        return SnapshotStorage.ReadProjection<T>(stream, CompactJsonOptions);
+    }
+
     public static GameState Load(string path)
     {
         using FileStream stream = File.OpenRead(path);

@@ -429,7 +429,11 @@ internal sealed partial class AutoPlayController
 
     private void RestoreInputSearchFrame(AutoPlayInputSearchFrame frame)
     {
-        GameState checkpoint = ValidateInputSearchCheckpoint(frame, runDirectory!);
+        GameState checkpoint;
+        using (idleDeadline.Suspend())
+        {
+            checkpoint = ValidateInputSearchCheckpoint(frame, runDirectory!);
+        }
         restore(checkpoint);
         GameWorld world = getWorld();
         world.EnsureField();
@@ -555,8 +559,7 @@ internal sealed partial class AutoPlayController
         }
         // Import validates immutable bytes and replay metadata; full owner validation
         // still runs through GameSession.Load whenever a retained state is restored.
-        stream.Position = 0;
-        InputSearchSnapshotHeader header = JsonSerializer.Deserialize<InputSearchSnapshotHeader>(stream, JsonOptions) ?? throw new InvalidDataException("Empty local input search checkpoint.");
+        InputSearchSnapshotHeader header = GameSession.ReadSnapshotProjection<InputSearchSnapshotHeader>(Path.Combine(directory, frame.Checkpoint));
         if (header.EventState is null)
         {
             throw new InvalidDataException("A local input search checkpoint requires its native VM header.");

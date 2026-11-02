@@ -78,7 +78,7 @@ internal sealed partial class AutoPlayController
     private readonly Action<GameState> restore;
     private readonly string outputDirectory;
     private readonly TimeProvider time;
-    private readonly TimeProvider deadlineTime;
+    private readonly AutoPlayIdleDeadline idleDeadline;
     private readonly AutoPlayPerformanceProfile performance = new();
     private long lastSave;
     private AutoPlayRunState run = new();
@@ -88,7 +88,6 @@ internal sealed partial class AutoPlayController
     private MemoryStream controllerRollbackBuffer = new();
     private MemoryStream controllerRollbackScratch = new();
     private string? runDirectory;
-    private long lastProgressTimestamp;
     private readonly HashSet<GameWorld> watchedWorlds = [];
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
@@ -96,6 +95,7 @@ internal sealed partial class AutoPlayController
     public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null, Func<GameSession>? createColdProcess = null)
     {
         this.session = session;
+        idleDeadline = new(deadlineTime ?? TimeProvider.System, MaximumIdleTime);
         this.createColdProcess = createColdProcess ?? (() => GameSession.CreateColdProcess());
         this.getWorld = () =>
         {
@@ -119,6 +119,7 @@ internal sealed partial class AutoPlayController
         };
         this.restore = state =>
         {
+            using IDisposable suspended = idleDeadline.Suspend();
             using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Restore");
             GameWorld? current = advancing ? this.getWorld() : null;
             if (advancing && run.SurveyBaseline is not null)
@@ -137,7 +138,6 @@ internal sealed partial class AutoPlayController
         };
         this.outputDirectory = Path.GetFullPath(outputDirectory);
         this.time = time ?? TimeProvider.System;
-        this.deadlineTime = deadlineTime ?? TimeProvider.System;
         ResetIdleDeadline();
     }
 
@@ -160,6 +160,20 @@ internal sealed partial class AutoPlayController
         GameSession cold = createColdProcess();
         cold.StartNewGame();
         restore(cold.State);
+        StartRun(cold.State, "Starting New Game; seed 1.");
+    }
+
+    public void StartFromCurrentState()
+    {
+        if (session.State.Scene == SceneKind.Title)
+        {
+            throw new InvalidOperationException("Automatic exploration from a standalone snapshot requires a live game.");
+        }
+        StartRun(session.State, "Starting from the loaded standalone snapshot; fresh exploration coverage.");
+    }
+
+    private void StartRun(GameState initial, string status)
+    {
         run = new();
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
@@ -169,10 +183,10 @@ internal sealed partial class AutoPlayController
         Error = null;
         ReproductionPath = null;
         lastSave = time.GetTimestamp();
-        Status = "Starting New Game; seed 1.";
+        Status = status;
         ResetIdleDeadline();
         // This initial standalone also reproduces field allocation failures.
-        SaveBundle("start", cold.State);
+        SaveBundle("start", initial);
     }
 
     public void Pause()
@@ -321,7 +335,7 @@ internal sealed partial class AutoPlayController
         {
             directRetryContext.BeforeCheckpoint = ImportCheckpoint(directRetryContext.BeforeCheckpoint);
         }
-        restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
+        restore(ReadCheckpoint(Path.Combine(directory, saved.Snapshot)));
         run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
@@ -362,7 +376,7 @@ internal sealed partial class AutoPlayController
                 Tick();
                 RecoverNativeInputSearchLoss();
                 run.Steps++;
-                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.NavigationVisits.Count + run.Coverage.NavigationRoutes.Count + run.Coverage.NavigationRetirements.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+                int score = ProgressScore(run);
                 if (score != run.LastProgressScore)
                 {
                     run.LastProgressScore = score;
@@ -429,14 +443,19 @@ internal sealed partial class AutoPlayController
         }
     }
 
+    internal static int ProgressScore(AutoPlayRunState state)
+    {
+        return state.ObservedScenes.Count + state.ObservedMessages.Count + state.Coverage.Visits.Count + state.Coverage.NavigationVisits.Count + state.Coverage.NavigationRoutes.Count + state.Coverage.NavigationRetirements.Count + state.Coverage.Choices.Count + state.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count + (item.Conditions?.ConsumedEntries.Count ?? 0))) + state.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+    }
+
     internal void ResetIdleDeadline()
     {
-        lastProgressTimestamp = deadlineTime.GetTimestamp();
+        idleDeadline.Reset();
     }
 
     internal void CheckIdleDeadline()
     {
-        if (deadlineTime.GetElapsedTime(lastProgressTimestamp) >= MaximumIdleTime)
+        if (idleDeadline.Expired)
         {
             throw new TimeoutException("Automatic play made no new scene, dialogue, event or branch progress for 10 seconds. The pre-failure state is preserved.");
         }
@@ -444,6 +463,7 @@ internal sealed partial class AutoPlayController
 
     private GameState CaptureState()
     {
+        using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Capture");
         GameWorld world = getWorld();
         if (world.Field is not null)
@@ -473,7 +493,7 @@ internal sealed partial class AutoPlayController
         {
             SaveBundle($"direct-train-loss-{run.Steps:D10}", CaptureState());
             direct.TrainNativeLosses++;
-            restore(GameSession.Load(Path.Combine(runDirectory!, direct.TrainRetryCheckpoint)));
+            restore(ReadCheckpoint(Path.Combine(runDirectory!, direct.TrainRetryCheckpoint)));
             AutoPlayInputSearchContext context = direct.TrainRetryContext!;
             run.ActiveVisit = context.Visit;
             run.ActiveNavigationKey = context.Navigation;
@@ -1476,7 +1496,7 @@ internal sealed partial class AutoPlayController
             }
             if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is not null && next.Selection is int selection)
             {
-                GameState choiceCheckpoint = GameSession.Load(Path.Combine(runDirectory!, next.Checkpoint));
+                GameState choiceCheckpoint = ReadCheckpoint(Path.Combine(runDirectory!, next.Checkpoint));
                 restore(choiceCheckpoint);
                 run.ActiveSelections = choice.BeforeSelections?.ToList();
                 run.SettleFrames = 0;
@@ -1513,7 +1533,7 @@ internal sealed partial class AutoPlayController
                 return true;
             }
         }
-        restore(GameSession.Load(Path.Combine(runDirectory!, run.PrimaryContinuation)));
+        restore(ReadCheckpoint(Path.Combine(runDirectory!, run.PrimaryContinuation)));
         run.ActiveSelections = run.PrimarySelections?.ToList();
         run.PrimaryContinuation = null;
         run.PrimaryConditionsChanged = false;
@@ -1674,7 +1694,7 @@ internal sealed partial class AutoPlayController
         GameState unavailable = CaptureState();
         string destinationVisit = VisitKey();
         SaveBundle($"unavailable-{run.Steps:D10}", unavailable);
-        GameState before = GameSession.Load(Path.Combine(runDirectory!, beforeCheckpoint));
+        GameState before = ReadCheckpoint(Path.Combine(runDirectory!, beforeCheckpoint));
         try
         {
             restore(before);
@@ -1823,6 +1843,7 @@ internal sealed partial class AutoPlayController
 
     private string SaveBundle(string name, GameState state)
     {
+        using IDisposable suspended = idleDeadline.Suspend();
         string snapshot = name + ".json";
         SaveGame(Path.Combine(runDirectory!, snapshot), state);
         run.Snapshot = snapshot;
@@ -1857,8 +1878,15 @@ internal sealed partial class AutoPlayController
         }
     }
 
+    private GameState ReadCheckpoint(string path)
+    {
+        using IDisposable suspended = idleDeadline.Suspend();
+        return GameSession.Load(path);
+    }
+
     private void SaveGame(string path, GameState state)
     {
+        using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Write");
         string temporary = path + ".tmp";
         new GameSession(state).Save(temporary, compact: true);

@@ -75,17 +75,27 @@ internal static class SnapshotStorage
 
     internal static GameState Read(FileStream stream, JsonSerializerOptions options)
     {
+        return ReadPayload(stream, options, payload => SnapshotDefaults.Deserialize(payload, options));
+    }
+
+    internal static T ReadProjection<T>(FileStream stream, JsonSerializerOptions options) where T : class
+    {
+        return ReadPayload(stream, options, payload => JsonSerializer.Deserialize<T>(payload, options) ?? throw new InvalidDataException("Empty snapshot projection."));
+    }
+
+    private static T ReadPayload<T>(FileStream stream, JsonSerializerOptions options, Func<Stream, T> read)
+    {
         Header? header = ReadHeader(stream, options);
         if (header is null)
         {
-            return SnapshotDefaults.Deserialize(stream, options);
+            return read(stream);
         }
         using SHA256 hash = SHA256.Create();
         using CryptoStream hashed = new(stream, hash, CryptoStreamMode.Read, leaveOpen: true);
-        GameState state;
+        T state;
         using (GZipStream compressed = new(hashed, CompressionMode.Decompress, leaveOpen: true))
         {
-            state = SnapshotDefaults.Deserialize(compressed, options);
+            state = read(compressed);
             compressed.CopyTo(Stream.Null);
         }
         hashed.CopyTo(Stream.Null);

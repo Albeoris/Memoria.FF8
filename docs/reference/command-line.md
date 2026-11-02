@@ -109,7 +109,7 @@ Malformed data or unsupported gameplay continuation fails with exit code 1 and l
 | `--resume FILE` | Resume a controller `run.json`, including its snapshot and coverage. Use the resume path printed by the controller. |
 | `--max-steps COUNT` | Positive total step limit. On resume this is an absolute controller step limit, not an additional step allowance. |
 
-`--state` is rejected; use `--resume` to preserve exploration state. A new run starts from a cold process. Exploration can stop at unsupported contracts; its availability does not imply a complete playthrough. Presentation, screenshot and graphical timing options do not turn this mode into a windowed host. See [automatic exploration](../players/automatic-exploration.md) for the workflow and output layout.
+`--state FILE` starts fresh exploration coverage from a standalone game snapshot, preserving its game state and combat settings. `--resume` preserves existing exploration coverage and cannot be combined with `--state`. With neither option, a new run starts from a cold process. Exploration can stop at unsupported contracts; its availability does not imply a complete playthrough. Presentation, screenshot and graphical timing options do not turn this mode into a windowed host. See [automatic exploration](../players/automatic-exploration.md) for the workflow and output layout.
 
 ## Headless actions and control
 

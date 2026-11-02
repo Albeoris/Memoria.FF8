@@ -42,12 +42,12 @@ internal static class AutoPlayCommand
             }
         }
         LaunchOptions options = LaunchOptions.Parse(launch.ToArray());
-        if (options.StatePath is not null)
+        if (options.StatePath is not null && resume is not null)
         {
-            throw new ArgumentException("Use --resume <run.json> to resume both the standalone game snapshot and exploration coverage.");
+            throw new ArgumentException("Choose --state for fresh exploration coverage or --resume for an existing exploration run.");
         }
         output ??= resume is null ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay") : Directory.GetParent(Path.GetDirectoryName(resume)!)!.FullName;
-        GameSession session = GameWorld.CreateColdProcess(options.GameDirectory);
+        GameSession session = options.StatePath is null ? GameWorld.CreateColdProcess(options.GameDirectory) : new(options.InitialState);
         using GameResourceHost resources = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
         GameWorld? world = null;
         GameWorld GetWorld() => world ??= new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy);
@@ -60,13 +60,17 @@ internal static class AutoPlayCommand
         AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory));
         try
         {
-            if (resume is null)
+            if (resume is not null)
             {
-                controller.Start();
+                controller.ResumeFrom(resume);
+            }
+            else if (options.StatePath is not null)
+            {
+                controller.StartFromCurrentState();
             }
             else
             {
-                controller.ResumeFrom(resume);
+                controller.Start();
             }
             long lastReport = Environment.TickCount64;
             while (controller.Running)

@@ -6,6 +6,53 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayControllerTests
 {
     [Fact]
+    public void RetiringOnePredicateCountsAsProgressWithoutCompletionOrRepeatCredit()
+    {
+        AutoPlayRunState state = new();
+        AutoPlayPlanner planner = new(state.Coverage);
+        AutoPlayVisit visit = new("room", "region");
+        planner.Observe(visit, [new("talk", AutoPlayEventKind.Interaction, ConditionSignature: "first")]);
+        int before = AutoPlayController.ProgressScore(state);
+        planner.BeginEvent("room", "talk");
+        planner.Block("room", "talk", "No native interaction was reached.");
+        int retired = AutoPlayController.ProgressScore(state);
+        Assert.Equal(before + 1, retired);
+        Assert.False(Assert.Single(Assert.Single(state.Coverage.Visits).Events).Completed);
+        planner.Observe(visit, [new("talk", AutoPlayEventKind.Interaction, ConditionSignature: "first")]);
+        Assert.Null(planner.Plan("room"));
+        planner.Block("room", "talk", "The same predicate remains blocked.");
+        Assert.Equal(retired, AutoPlayController.ProgressScore(state));
+        planner.Observe(visit, [new("talk", AutoPlayEventKind.Interaction, ConditionSignature: "second")]);
+        planner.BeginEvent("room", "talk");
+        planner.Block("room", "talk", "A different predicate was attempted.");
+        Assert.Equal(retired + 1, AutoPlayController.ProgressScore(state));
+        Assert.False(Assert.Single(Assert.Single(state.Coverage.Visits).Events).Completed);
+    }
+
+    [Fact]
+    public void StandaloneStartPreservesSessionAndSettingsWithFreshCoverage()
+    {
+        using TestRun run = new();
+        GameState initial = run.Session.State with { Scene = SceneKind.Field, FieldId = 130, X = 17, Y = 29, FullBattlePlaythrough = true };
+        run.Session.Restore(initial);
+        AutoPlayController controller = new(run.Session, () => throw new InvalidOperationException("Starting must not allocate a field."), _ => throw new InvalidOperationException("Starting must not replace the loaded state."), run.Directory, createColdProcess: () => throw new InvalidOperationException("Starting must not create a cold process."));
+        controller.State.Steps = 42;
+        controller.State.ObservedMessages.Add("Old exploration.");
+        controller.StartFromCurrentState();
+        Assert.Same(initial, run.Session.State);
+        Assert.True(controller.Running);
+        Assert.Equal(0, controller.State.Steps);
+        Assert.Empty(controller.State.ObservedMessages);
+        string manifest = Assert.Single(Directory.GetFiles(run.Directory, "start.run.json", SearchOption.AllDirectories));
+        GameState saved = GameSession.Load(Path.Combine(Path.GetDirectoryName(manifest)!, ReadManifest(manifest).Snapshot!));
+        Assert.Equal(130, saved.FieldId);
+        Assert.Equal(17, saved.X);
+        Assert.Equal(29, saved.Y);
+        Assert.True(saved.FullBattlePlaythrough);
+        Assert.Equal(initial.CrtRandom, saved.CrtRandom);
+    }
+
+    [Fact]
     public void RollbackRetainsExactCompactBytesThroughStateMutationAndFailedReplacement()
     {
         using TestRun run = new();

@@ -8,6 +8,30 @@ public sealed class SnapshotStorageTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-format-" + Guid.NewGuid().ToString("N"));
 
+    private sealed record SnapshotProjection([property: System.Text.Json.Serialization.JsonRequired] int FieldId);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Projection_reads_metadata_without_requiring_complete_gameplay_owners(bool compact)
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "projection.json");
+        using (FileStream stream = File.Create(path))
+        {
+            GameState state = new() { FieldId = 159 };
+            if (compact)
+            {
+                SnapshotStorage.Write(stream, state, new JsonSerializerOptions());
+            }
+            else
+            {
+                JsonSerializer.Serialize(stream, new { FieldId = state.FieldId });
+            }
+        }
+        Assert.Equal(159, GameSession.ReadSnapshotProjection<SnapshotProjection>(path).FieldId);
+    }
+
     [Fact]
     public void Compact_save_records_the_local_wall_time_and_original_offset_in_display_metadata()
     {
@@ -58,6 +82,7 @@ public sealed class SnapshotStorageTests : IDisposable
         File.WriteAllBytes(path, bytes);
         Assert.Throws<InvalidDataException>(() => GameSession.ReadSummary(path));
         Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+        Assert.Throws<InvalidDataException>(() => GameSession.ReadSnapshotProjection<SnapshotProjection>(path));
     }
 
     [Fact]
@@ -71,6 +96,7 @@ public sealed class SnapshotStorageTests : IDisposable
         File.WriteAllBytes(path, bytes);
         Assert.NotNull(GameSession.ReadSummary(path));
         Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+        Assert.Throws<InvalidDataException>(() => GameSession.ReadSnapshotProjection<SnapshotProjection>(path));
     }
 
     [Fact]
@@ -81,6 +107,7 @@ public sealed class SnapshotStorageTests : IDisposable
         File.WriteAllBytes(path, bytes[..^1]);
         Assert.Throws<InvalidDataException>(() => GameSession.ReadSummary(path));
         Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+        Assert.Throws<InvalidDataException>(() => GameSession.ReadSnapshotProjection<SnapshotProjection>(path));
     }
 
     [Fact]

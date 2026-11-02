@@ -34,7 +34,7 @@ internal sealed partial class AutoPlayController
         }
         GameState diagnostic = CaptureState();
         SaveBundle($"world-unavailable-{run.Steps:D10}", diagnostic);
-        GameState before = GameSession.Load(Path.Combine(runDirectory!, checkpoint));
+        GameState before = ReadCheckpoint(Path.Combine(runDirectory!, checkpoint));
         try
         {
             restore(before);

@@ -388,10 +388,13 @@ public sealed class AutoPlayInputSearchTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void ImportedCheckpointValidatesOwnersAfterReadingAcrossStreamBuffers(bool changedOwner, bool changedNeutralFrame)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    public void ImportedCheckpointValidatesOwnersAfterReadingAcrossStreamBuffers(bool changedOwner, bool changedNeutralFrame, bool compact)
     {
         string directory = Path.Combine(Path.GetTempPath(), "ff8-input-search-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -411,13 +414,27 @@ public sealed class AutoPlayInputSearchTests
             });
             using (FileStream stream = File.Create(path))
             {
-                JsonSerializer.Serialize(stream, new
+                var header = new
                 {
                     UnusedOwnerData = Enumerable.Repeat("unused owner data", 8192).ToArray(),
                     FieldId = frame.FieldId,
                     FieldButtonInput = new NativeFieldButtonInput(3, 0, 0, 42, changedOwner ? 101 : frame.FieldId, 0, 0, 0, 0),
                     EventState = new { ProgramHash = frame.ProgramHash, Frame = 42 }
-                });
+                };
+                if (compact)
+                {
+                    GameState state = new()
+                    {
+                        FieldId = header.FieldId,
+                        FieldButtonInput = header.FieldButtonInput,
+                        EventState = JsonSerializer.SerializeToElement(new { header.UnusedOwnerData, header.EventState.ProgramHash, header.EventState.Frame })
+                    };
+                    SnapshotStorage.Write(stream, state, AutoPlayController.JsonOptions);
+                }
+                else
+                {
+                    JsonSerializer.Serialize(stream, header);
+                }
             }
             using (FileStream stream = File.OpenRead(path))
             {

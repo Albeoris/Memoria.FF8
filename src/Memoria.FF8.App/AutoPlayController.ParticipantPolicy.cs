@@ -75,7 +75,7 @@ internal sealed partial class AutoPlayController
         SaveBundle($"participant-policy-before-request-{run.Steps:D10}", diagnostic);
         run.ParticipantPolicyDiagnosticOnly = false;
         string checkpoint = choice?.BeforeCheckpoint ?? beforeEvent;
-        restore(GameSession.Load(Path.Combine(runDirectory!, checkpoint)));
+        restore(ReadCheckpoint(Path.Combine(runDirectory!, checkpoint)));
         GameWorld source = getWorld();
         source.EnsureField();
         AutoPlayParticipantPolicyGuard guard;
@@ -86,20 +86,20 @@ internal sealed partial class AutoPlayController
             {
                 throw new NotSupportedException("The actual participant binding changed between the reached request and its authentic pre-choice checkpoint.");
             }
-            restore(GameSession.Load(Path.Combine(runDirectory!, beforeEvent)));
+            restore(ReadCheckpoint(Path.Combine(runDirectory!, beforeEvent)));
             GameWorld entry = getWorld();
             entry.EnsureField();
             if (entry.ReadAutoPlayParticipantPolicyFingerprint(guard) != guard.Fingerprint || entry.ReadAutoPlayConditions(eventId, run.ActiveObjectId).Fingerprint != signature)
             {
                 throw new NotSupportedException("Participant-policy inputs changed before the choice; the source event cannot be suppressed under its entry guards.");
             }
-            restore(GameSession.Load(Path.Combine(runDirectory!, checkpoint)));
+            restore(ReadCheckpoint(Path.Combine(runDirectory!, checkpoint)));
             getWorld().EnsureField();
         }
         catch
         {
             // Diagnostic callbacks are never resumed; retain the authentic pre-event owner on refusal.
-            restore(GameSession.Load(Path.Combine(runDirectory!, beforeEvent)));
+            restore(ReadCheckpoint(Path.Combine(runDirectory!, beforeEvent)));
             throw;
         }
         bool added = planner.DeferParticipantAction(visit, eventId, new(target, signature, guard, selections, request, choice?.Key, choice?.FirstOption ?? 0, choice?.OptionCount ?? 0));
@@ -146,7 +146,7 @@ internal sealed partial class AutoPlayController
             }
             planner.FinishPolicyDeferredChoice(choice.Key);
         }
-        restore(GameSession.Load(Path.Combine(runDirectory!, beforeEvent)));
+        restore(ReadCheckpoint(Path.Combine(runDirectory!, beforeEvent)));
         getWorld().EnsureField();
         ClearParticipantPolicyAttempt();
         RefreshParticipantPolicies(getWorld());
