@@ -1,11 +1,69 @@
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
+using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.Imaging;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeStartupArtworkTests
 {
+    [Theory]
+    [InlineData("main\\startup\\")]
+    [InlineData("main/startup/")]
+    [InlineData("main\\startup/")]
+    public void ArchivePathsUseEitherSeparatorOnEveryPlatform(string prefix)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.StartupTests", Guid.NewGuid().ToString("N"));
+        string archiveDirectory = Path.Combine(directory, "Data", "lang-en");
+        Directory.CreateDirectory(archiveDirectory);
+        try
+        {
+            byte[] raw = new byte[8 + NativeStartupArtwork.Width * NativeStartupArtwork.Height * 2];
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(4), NativeStartupArtwork.Width);
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(6), NativeStartupArtwork.Height);
+            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(8), 0x001F);
+            using MemoryStream compressed = new();
+            compressed.Write(new byte[4]);
+            for (int offset = 0; offset < raw.Length; offset += 8)
+            {
+                compressed.WriteByte(255);
+                compressed.Write(raw, offset, Math.Min(8, raw.Length - offset));
+            }
+            byte[] imageBytes = compressed.ToArray();
+            BinaryPrimitives.WriteUInt32LittleEndian(imageBytes, (uint)(imageBytes.Length - 4));
+            StringBuilder listing = new();
+            using (BinaryWriter metrics = new(File.Create(Path.Combine(archiveDirectory, "main.fi"))))
+            using (FileStream content = File.Create(Path.Combine(archiveDirectory, "main.fs")))
+            {
+                for (int index = 4; index <= 33; index++)
+                {
+                    listing.Append(FlArchive.InternalPathPrefix).Append(prefix).Append(NativeStartupArtwork.ResourceName(index).ToUpperInvariant()).Append("\r\n");
+                    metrics.Write((uint)imageBytes.Length);
+                    metrics.Write((uint)content.Position);
+                    metrics.Write(0);
+                    content.Write(imageBytes);
+                }
+            }
+            File.WriteAllText(Path.Combine(archiveDirectory, "main.fl"), listing.ToString(), Encoding.ASCII);
+
+            NativeStartupArtwork artwork = NativeStartupArtwork.Load(directory);
+            for (int index = 4; index <= 33; index++)
+            {
+                PixelImage image = artwork.Read(index);
+                Assert.Equal(NativeStartupArtwork.Width, image.Width);
+                Assert.Equal(NativeStartupArtwork.Height, image.Height);
+                Assert.Equal(new Rgba32(255, 0, 0, 255), image[0, 0]);
+                Assert.Equal(new Rgba32(0, 0, 0, 255), image[1, 0]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     [Fact]
     public void OriginalStartupDirectoryDecodesEveryPictureIncludingNestedCompressedLogo()
     {

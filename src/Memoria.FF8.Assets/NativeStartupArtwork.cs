@@ -55,7 +55,7 @@ public sealed class NativeStartupArtwork
         for (int index = 4; index <= 33; index++)
         {
             string name = ResourceName(index);
-            using Stream source = archive.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals(name, StringComparison.OrdinalIgnoreCase)).OpenForRead();
+            using Stream source = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(name, StringComparison.OrdinalIgnoreCase)).OpenForRead();
             using MemoryStream compressed = new();
             source.CopyTo(compressed);
             images.Add(index, Decode(compressed.ToArray()));
