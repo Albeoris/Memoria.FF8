@@ -3,12 +3,6 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
-internal enum BattleMotionMode
-{
-    Native,
-    SmoothCompatible
-}
-
 /// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
@@ -23,7 +17,6 @@ internal sealed record UiPreferences
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
-    public BattleMotionMode BattleMotion { get; init; } = BattleMotionMode.Native;
     public int MenuFps { get; init; } = 60;
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
@@ -116,6 +109,11 @@ internal sealed record UiPreferences
                 15 => 30,
                 0 or 90 or 120 or 144 or 240 => 60,
                 _ => preferences.FieldFps
+            },
+            BattleFps = preferences.BattleFps switch
+            {
+                0 or 30 or 90 or 120 or 144 or 240 => 60,
+                _ => preferences.BattleFps
             }
         };
         preferences = NewGameSettings.Normalize(preferences);
@@ -215,23 +213,22 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("V-Sync requires On or Off.")
             };
         }
-        if (key == "Battle motion")
+        if (key == "Battle FPS")
         {
-            return value switch
+            if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int fps) || fps is not (15 or 60))
             {
-                "Native" => this with { BattleMotion = BattleMotionMode.Native },
-                "Smooth compatible" => this with { BattleMotion = BattleMotionMode.SmoothCompatible },
-                _ => throw new ArgumentException("Battle motion requires Native or Smooth compatible.")
-            };
+                throw new ArgumentException("Battle FPS must be 15 or 60.");
+            }
+            return this with { BattleFps = fps };
         }
-        if (key is "Battle FPS" or "Menu FPS")
+        if (key == "Menu FPS")
         {
             int fps = value == "Unlimited" ? 0 : int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
-            if (fps is not (0 or 15 or 30 or 60 or 90 or 120 or 144 or 240))
+            if (!ValidFps(fps))
             {
                 throw new ArgumentException("Unsupported presentation frame limit.");
             }
-            return key == "Battle FPS" ? this with { BattleFps = fps } : this with { MenuFps = fps };
+            return this with { MenuFps = fps };
         }
         if (key is "Field FPS" or "World FPS")
         {
@@ -469,15 +466,11 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Text presentation requires a valid font mode/profile and native fonts for original-compatible layout.");
         }
-        if (!Enum.IsDefined(BattleMotion))
-        {
-            throw new InvalidDataException("Battle motion mode is unsupported.");
-        }
         if (WindowWidth < 1 || WindowHeight < 1)
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || VoiceVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || BattleFps is not (15 or 60) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || VoiceVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

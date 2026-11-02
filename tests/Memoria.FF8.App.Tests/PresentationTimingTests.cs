@@ -461,13 +461,13 @@ public sealed class PresentationTimingTests
     [Theory]
     [InlineData(false, false, false, 60)]
     [InlineData(false, false, true, 30)]
-    [InlineData(false, true, false, 120)]
-    [InlineData(false, true, true, 120)]
+    [InlineData(false, true, false, 15)]
+    [InlineData(false, true, true, 15)]
     [InlineData(true, false, true, 0)]
     [InlineData(true, true, true, 0)]
     public void Scene_limits_keep_world_independent_with_menu_and_battle_precedence(bool menu, bool battle, bool worldMap, int expected)
     {
-        UiPreferences preferences = new() { FieldFps = 60, WorldFps = 30, BattleFps = 120, MenuFps = 0 };
+        UiPreferences preferences = new() { FieldFps = 60, WorldFps = 30, BattleFps = 15, MenuFps = 0 };
         Assert.Equal(expected, PresentationTiming.FrameLimit(preferences, menu, battle, worldMap));
     }
 }

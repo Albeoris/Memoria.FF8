@@ -189,7 +189,7 @@ public sealed class ConfigSettingsTests
     [Fact]
     public void Display_preferences_round_trip_and_reject_invalid_limits()
     {
-        UiPreferences preferences = new UiPreferences().WithSetting("V-Sync", "Off").WithSetting("Battle FPS", "120").WithSetting("Field FPS", "60").WithSetting("World FPS", "30").WithSetting("Menu FPS", "Unlimited");
+        UiPreferences preferences = new UiPreferences().WithSetting("V-Sync", "Off").WithSetting("Battle FPS", "60").WithSetting("Field FPS", "60").WithSetting("World FPS", "30").WithSetting("Menu FPS", "Unlimited");
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try
         {

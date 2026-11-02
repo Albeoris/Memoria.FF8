@@ -593,7 +593,7 @@ internal sealed partial class RecreateGame
         byte[] pixels;
         try
         {
-            battleScene!.SmoothCompatibleMotion = uiPreferences.BattleMotion == BattleMotionMode.SmoothCompatible;
+            battleScene!.SmoothCompatibleMotion = uiPreferences.BattleFps == 60;
             battleScene.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
             pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, presentationTiming.SamplePresentationPhase(active, active.PreparedPresentation, CanAdvanceBattleRenderPhase, battleScene.SmoothCompatibleMotion));
             if (diagnosticTelemetry?.VisualChangesEnabled == true && battleGpu is not null)

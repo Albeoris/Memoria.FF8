@@ -1007,15 +1007,9 @@ public static partial class SystemTextCatalog
         defaults["setting.atb-mode.option.0"] = "Classic";
         defaults["setting.atb-mode.option.1"] = "Turn Based";
         defaults["setting.battle-cap"] = "Battle";
-        defaults["setting.battle-cap.help"] = "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.";
+        defaults["setting.battle-cap.help"] = "Battle presentation at 15 FPS with native motion or 60 FPS with smooth movement and effects. Defaults to 60. Gameplay timing is unchanged. Shared across saves.";
         defaults["setting.battle-cap.option.0"] = "15";
-        defaults["setting.battle-cap.option.1"] = "30";
-        defaults["setting.battle-cap.option.2"] = "60";
-        defaults["setting.battle-cap.option.3"] = "90";
-        defaults["setting.battle-cap.option.4"] = "120";
-        defaults["setting.battle-cap.option.5"] = "144";
-        defaults["setting.battle-cap.option.6"] = "240";
-        defaults["setting.battle-cap.option.7"] = "Unlimited";
+        defaults["setting.battle-cap.option.1"] = "60";
         defaults["setting.card-mod-once"] = "Card Mod once";
         defaults["setting.card-mod-once.help"] = "Refine each card ID once per game without consuming cards. The recipe still requires its normal card quantity. Conversion history is saved even while Off; switching modes or obtaining more copies does not reset it.";
         defaults["setting.card-mod-once.option.0"] = "Off";

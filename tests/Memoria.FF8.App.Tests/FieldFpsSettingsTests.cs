@@ -33,7 +33,7 @@ public sealed class FieldFpsSettingsTests
     [InlineData(240, 60)]
     public void Existing_supported_field_limits_load_as_30_or_60_and_round_trip(int storedLimit, int expectedLimit)
     {
-        UiPreferences stored = new() { FieldFps = storedLimit, BattleFps = 120, MenuFps = 0, MusicVolume = 25 };
+        UiPreferences stored = new() { FieldFps = storedLimit, BattleFps = 60, MenuFps = 0, MusicVolume = 25 };
         string path = Path.GetTempFileName();
         try
         {
