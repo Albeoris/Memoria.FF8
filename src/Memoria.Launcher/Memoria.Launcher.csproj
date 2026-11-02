@@ -26,4 +26,11 @@
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
   <Import Project="../../tools/packaging/MacBundleLauncher.targets" />
+  <!-- Released Linux updaters reject extensionless root companions. The optional
+       .NET crash-dump helper is not part of the launcher's runtime closure. -->
+  <Target Name="ExcludeLinuxLauncherDumpHelper" AfterTargets="ComputeFilesToPublish" Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'createdump'" />
+    </ItemGroup>
+  </Target>
 </Project>

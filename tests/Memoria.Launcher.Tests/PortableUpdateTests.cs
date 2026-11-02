@@ -57,6 +57,16 @@ public sealed class PortableUpdateTests : IDisposable
     }
 
     [Fact]
+    public void RootDumpHelperIsRejectedEvenWhenListedInInventory()
+    {
+        string archive = Archive(ownedExtra: "createdump");
+        string destination = Path.Combine(root, "rejected");
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(archive, destination, "linux-x64"));
+        Assert.Contains("The path is not owned by the distribution: createdump", exception.Message);
+        Assert.False(Directory.Exists(destination));
+    }
+
+    [Fact]
     public void TransactionRejectsDifferentRidBeforeCreatingAJournal()
     {
         string archive = Archive();
@@ -90,7 +100,7 @@ public sealed class PortableUpdateTests : IDisposable
         Assert.False(UpdateInstaller.NeedsRecovery(installation));
     }
 
-    private string Archive((string Name, bool Link)? extra = null)
+    private string Archive((string Name, bool Link)? extra = null, string? ownedExtra = null)
     {
         Directory.CreateDirectory(root);
         Dictionary<string, byte[]> files = new(StringComparer.Ordinal)
@@ -100,6 +110,10 @@ public sealed class PortableUpdateTests : IDisposable
             ["Data/Memoria.FF8"] = Encoding.UTF8.GetBytes("bootstrap"),
             ["Data/audio-host/Memoria.FF8.Music"] = Encoding.UTF8.GetBytes("portable music")
         };
+        if (ownedExtra is not null)
+        {
+            files.Add(ownedExtra, Encoding.UTF8.GetBytes("optional diagnostic helper"));
+        }
         PackageFile[] inventory = files.Select(file => new PackageFile(file.Key, file.Value.Length, Convert.ToHexStringLower(SHA256.HashData(file.Value)), Mode(file.Key))).ToArray();
         PackageManifest manifest = new(2, "source", "test", DateTimeOffset.UtcNow, inventory) { RuntimeIdentifier = "linux-x64" };
         files.Add(PackageManifest.ManifestPath, JsonSerializer.SerializeToUtf8Bytes(manifest));
