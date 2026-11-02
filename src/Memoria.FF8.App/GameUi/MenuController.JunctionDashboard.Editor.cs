@@ -6,7 +6,8 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action, UiImageSource? Icon = null);
+    private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action, UiImageSource? Icon = null, bool Enabled = true);
+    internal bool ShowUnavailableJunctionMagic { get; init; }
     private string junctionSort = "benefit";
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
@@ -71,8 +72,13 @@ public sealed partial class MenuController
         if (junctionEditor == "magic")
         {
             candidates.Add(new("none", "---", _junctionSlot == "Elem-Atk" ? J("no-element", "No added element") : J("clear-slot", "Clear this slot"), new("junction-magic", "0", actor.Id, _junctionSlot)));
-            foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0 && (Data.JunctionPlanner is not { } planner || spell.SpellId is int spellId && planner.IsMagicCandidate(actor.Id, spellId, _junctionSlot))))
+            foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
             {
+                bool enabled = Data.JunctionPlanner is not { } planner || spell.SpellId is int spellId && planner.IsMagicCandidate(actor.Id, spellId, _junctionSlot);
+                if (!enabled && !ShowUnavailableJunctionMagic)
+                {
+                    continue;
+                }
                 string detail = J("stock", "Stock") + $" ×{spell.Quantity}";
                 if (spell.RemainingUses is not null || spell.UnlimitedUses)
                 {
@@ -86,7 +92,7 @@ public sealed partial class MenuController
                 {
                     detail += " · " + J("used-by", "Used by") + " " + bound;
                 }
-                candidates.Add(new(spell.Id, spell.Name, detail, new(spell.JunctionAvailable ? "junction-magic" : "junction-magic-reassign", spell.Id, actor.Id, _junctionSlot)));
+                candidates.Add(new(spell.Id, spell.Name, detail, new(spell.JunctionAvailable ? "junction-magic" : "junction-magic-reassign", spell.Id, actor.Id, _junctionSlot), Enabled: enabled));
             }
         }
         else if (junctionEditor is "command" or "passive")

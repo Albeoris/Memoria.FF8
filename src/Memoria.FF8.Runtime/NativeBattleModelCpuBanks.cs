@@ -1,42 +1,121 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset)
+/// <summary>Authenticated party CPU allocation; saved bounds are derived from the image identity.</summary>
+public sealed record NativeBattlePartyCpuLayout([property: JsonRequired] string ExecutableHash)
 {
-    [System.Text.Json.Serialization.JsonIgnore]
-    public uint PhysicalAddress => Bank < 3 ? checked(0x196B018u + 0x10000u * Bank + (uint)Offset) : SharedAddress;
+    public static NativeBattlePartyCpuLayout Classic { get; } = new(NativeFieldRuntimeProfile.FF8EnExecutableHash);
+    public static NativeBattlePartyCpuLayout Remastered { get; } = new(NativeFieldRuntimeProfile.RemasteredEnImageHash);
+
+    public static NativeBattlePartyCpuLayout ForImage(string executableHash)
+    {
+        NativeBattlePartyCpuLayout layout = new(executableHash);
+        layout.Validate();
+        return layout;
+    }
+
+    public void Validate()
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash))
+        {
+            throw new InvalidDataException("Native party CPU allocation requires an authenticated supported image.");
+        }
+    }
+
+    [JsonIgnore]
+    public uint BaseAddress => ExecutableHash switch
+    {
+        NativeFieldRuntimeProfile.FF8EnExecutableHash => 0x0196B018u,
+        NativeFieldRuntimeProfile.RemasteredEnImageHash => 0x0A100000u,
+        _ => throw new InvalidDataException("Unknown native party CPU allocation.")
+    };
+
+    [JsonIgnore]
+    public int BankLength => ExecutableHash switch
+    {
+        NativeFieldRuntimeProfile.FF8EnExecutableHash => 0x10000,
+        NativeFieldRuntimeProfile.RemasteredEnImageHash => 0x20000,
+        _ => throw new InvalidDataException("Unknown native party CPU allocation.")
+    };
 }
 
-/// <summary>One mutable64KB party bank. Unwritten heap bytes are unknown, unlike the cleared effect arena.</summary>
+public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattlePartyCpuLayout? Layout { get; init; }
+
+    [JsonIgnore]
+    public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
+
+    [JsonIgnore]
+    public uint PhysicalAddress
+    {
+        get
+        {
+            NativeBattlePartyCpuLayout layout = EffectiveLayout;
+            layout.Validate();
+            return Bank < 3 ? checked(layout.BaseAddress + (uint)layout.BankLength * Bank + (uint)Offset) : SharedAddress;
+        }
+    }
+}
+
+/// <summary>One bounded sparse CPU bank. Unwritten heap bytes retain their unknown owner.</summary>
 public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
 {
     public const int Length = 0x10000;
-    public static NativeBattleModelCpuBank Unknown() => new([]);
+    public int Capacity { get; init; } = Length;
+    public static NativeBattleModelCpuBank Unknown(int capacity = Length) => new([]) { Capacity = capacity };
 
     public byte[] Read(int offset, int length)
     {
-        return NativeKnownByteRanges.Read(KnownRanges, offset, length, Length);
+        return NativeKnownByteRanges.Read(KnownRanges, offset, length, Capacity);
     }
 
     public NativeBattleModelCpuBank Write(int offset, ReadOnlySpan<byte> bytes)
     {
-        return new(NativeKnownByteRanges.Write(KnownRanges, offset, bytes, Length));
+        return this with { KnownRanges = NativeKnownByteRanges.Write(KnownRanges, offset, bytes, Capacity) };
     }
 }
 
 public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelCpuBank> Banks)
 {
-    public static NativeBattleModelCpuBanks Unknown() => new([NativeBattleModelCpuBank.Unknown(), NativeBattleModelCpuBank.Unknown(), NativeBattleModelCpuBank.Unknown()]);
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattlePartyCpuLayout? Layout { get; init; }
 
-    public NativeBattleModelCpuBanks Copy64K50B2A0(byte source, byte destination)
+    [JsonIgnore]
+    public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
+
+    public static NativeBattleModelCpuBanks Unknown(NativeBattlePartyCpuLayout? layout = null)
     {
-        if (Banks.IsDefault || Banks.Length != 3 || source >= 3 || destination >= 3)
+        NativeBattlePartyCpuLayout effective = layout ?? NativeBattlePartyCpuLayout.Classic;
+        effective.Validate();
+        return new([NativeBattleModelCpuBank.Unknown(effective.BankLength), NativeBattleModelCpuBank.Unknown(effective.BankLength), NativeBattleModelCpuBank.Unknown(effective.BankLength)]) { Layout = layout };
+    }
+
+    public void Validate()
+    {
+        NativeBattlePartyCpuLayout layout = EffectiveLayout;
+        layout.Validate();
+        if (Banks.IsDefault || Banks.Length != 3 || Banks.Any(bank => bank is null || bank.Capacity != layout.BankLength))
+        {
+            throw new InvalidDataException("Native party CPU banks disagree with their authenticated allocation.");
+        }
+        foreach (NativeBattleModelCpuBank bank in Banks)
+        {
+            _ = bank.Read(0, 0);
+        }
+    }
+
+    public NativeBattleModelCpuBanks CopyBank50B2A0(byte source, byte destination)
+    {
+        Validate();
+        if (source >= 3 || destination >= 3)
         {
             throw new InvalidDataException("Native50B2A0 CPU copy requires its three physical party banks.");
         }
-        //memcpy transports unknown retained bytes as unknown too, erasing any prior destination knowledge there.
-        _ = Banks[source].Read(0, 0);
-        return this with { Banks = Banks.SetItem(destination, new(Banks[source].KnownRanges)) };
+        // memcpy transports unknown retained bytes as unknown too, erasing prior destination knowledge.
+        return this with { Banks = Banks.SetItem(destination, Banks[destination] with { KnownRanges = Banks[source].KnownRanges }) };
     }
 }

@@ -9,7 +9,7 @@ public sealed record NativeBattleFieldReloadCompletion([property: JsonRequired] 
 {
     public void Validate()
     {
-        if (Version != 1 || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || BattleEntryFrame < 1 || (NativeResult is not (2 or 4) && (NativeResult != 1 || DefeatBranch is not { ResumePreviousScene: true })) || NativeResult != 1 && DefeatBranch is not null)
+        if (Version != 1 || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || BattleEntryFrame < 1 || (NativeResult is not (2 or 4) && (NativeResult != 1 || DefeatBranch is not { ResumePreviousScene: true })) || NativeResult != 1 && DefeatBranch is not null)
         {
             throw new InvalidDataException("Native kind3 completion requires its actual original field/program and supported ordinary battle result2/4.");
         }

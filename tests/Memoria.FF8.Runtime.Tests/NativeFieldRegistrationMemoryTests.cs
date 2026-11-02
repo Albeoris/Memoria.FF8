@@ -4,6 +4,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeFieldRegistrationMemoryTests
 {
+    [Theory]
+    [InlineData(NativeFieldRuntimeProfile.FF8EnExecutableHash)]
+    [InlineData(NativeFieldRuntimeProfile.RemasteredEnImageHash)]
+    public void RegistrationReconcilesPartyBankAliasesAtTheirEditionAddresses(string image)
+    {
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess(image);
+        NativeBattlePartyCpuLayout layout = cpu.Cpu.EffectiveLayout;
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, cpu.Cpu.Banks[0].Write(layout.BankLength - 1, [17])) } };
+        uint end = layout.BaseAddress + (uint)(3 * layout.BankLength);
+        using NativeFieldRegistrationMemory memory = new(NativeBattleFileStaging.Unknown(), layout.BaseAddress, end);
+        memory.ObserveCpuBanks(cpu);
+        Assert.Equal((byte)17, memory.Read8(layout.BaseAddress + (uint)layout.BankLength - 1));
+        memory.Write8(end - 1, 23);
+        NativeBattleModelCpuResources reconciled = memory.ReconcileCpuBanks(cpu)!;
+        reconciled.Validate();
+        Assert.Equal(layout, reconciled.Cpu.EffectiveLayout);
+        Assert.Equal(layout.BankLength, reconciled.Cpu.Banks[2].Capacity);
+        Assert.Equal(new byte[] { 23 }, reconciled.Cpu.Banks[2].Read(layout.BankLength - 1, 1));
+        Assert.Throws<NotSupportedException>(() => reconciled.Cpu.Banks[2].Read(layout.BankLength - 2, 1));
+        memory.Finish();
+    }
+
     private const uint Address = 0x1900000;
 
     [Fact]

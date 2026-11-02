@@ -182,7 +182,8 @@ internal static partial class Program
         NativeFieldEyeProcess coldMemory = new NativeFieldEyeProcess(1, assets.ReadColdProcessNativeBattleMemory(), null).CaptureSnapshot();
         foreach (byte result in new byte[] { 2, 4 })
         {
-            GameSession session = CreateNativeMusicSession();
+            GameSession initial = CreateNativeMusicSession();
+            GameSession session = new(initial.State with { NativeBattleMemory = coldMemory.Memory });
             EventEngine Create(GameSession owner)
             {
                 EventEngine engine = new(owner)
@@ -195,7 +196,7 @@ internal static partial class Program
                     ReadNativeFieldRegistrationResources = () => source,
                     ReadNativeEyes = model => field.Models[model].NativeEyes
                 };
-                engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.ForImage(source.ExecutableHash));
                 return engine;
             }
             EventEngine live = Create(session);

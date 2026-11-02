@@ -78,6 +78,11 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Interactive battle requires native495530 sealed-command slot flags and admission; enabled commands cannot substitute for those restrictions.");
         }
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
+        NativeBattleModelCpuResources retainedCpu = session.State.NativeBattleMemory?.ModelCpuResources ?? throw new NotSupportedException("Battle entry requires its retained party CPU allocation.");
+        if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.")))
+        {
+            throw new NotSupportedException("Battle entry requires the edition's retained party CPU allocation; migrate this save explicitly.");
+        }
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
         List<BattleCombatantDefinition> combatants = [.. CreateBattleParty(entryVitals)];

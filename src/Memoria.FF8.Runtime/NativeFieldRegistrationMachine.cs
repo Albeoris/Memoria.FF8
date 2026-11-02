@@ -140,6 +140,10 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native field registration requires retained physical actor order and bounded original models/script ranges.");
         }
         NativeBattleFileStaging staging = retained.FileStaging ?? NativeBattleFileStaging.Unknown();
+        if (retained.ModelCpuResources is { } cpu && cpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(source.ExecutableHash))
+        {
+            throw new NotSupportedException("Field registration requires the edition's retained party CPU allocation; migrate this save explicitly.");
+        }
         using NativeFieldRegistrationMemory memory = new(staging, layout.MemoryStart, layout.MemoryEnd);
         memory.ObserveCpuBanks(retained.ModelCpuResources);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native kind3 requires the retained shared VRAM and texture process."));

@@ -57,7 +57,7 @@ public sealed class NativeBattleModelLoaderTests
     {
         NativeBattleModelCpuBanks cpu = NativeBattleModelCpuBanks.Unknown();
         cpu = cpu with { Banks = cpu.Banks.SetItem(2, cpu.Banks[2].Write(0, new byte[] { 1, 2, 3, 4 })) };
-        NativeBattleModelCpuBanks copiedUnknown = cpu.Copy64K50B2A0(2, 0);
+        NativeBattleModelCpuBanks copiedUnknown = cpu.CopyBank50B2A0(2, 0);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, copiedUnknown.Banks[0].Read(0, 4));
         Assert.Throws<NotSupportedException>(() => copiedUnknown.Banks[0].Read(4, 1));
         Assert.Throws<NotSupportedException>(() => cpu.Banks[2].Read(2, 4));
@@ -67,7 +67,7 @@ public sealed class NativeBattleModelLoaderTests
         complete[0] = 1;
         complete[^1] = 255;
         cpu = cpu with { Banks = cpu.Banks.SetItem(2, bank.Write(0, complete)) };
-        cpu = cpu.Copy64K50B2A0(2, 0);
+        cpu = cpu.CopyBank50B2A0(2, 0);
         NativeBattleModelCpuBanks restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuBanks>(NativeBattleTestSnapshots.Json(cpu))!;
         Assert.Equal(complete, restored.Banks[0].Read(0, complete.Length));
     }
@@ -89,7 +89,7 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(new NativeBattleModelCpuReference(0, 20), second.Rows[4].Require(24));
         Assert.Null(second.ActiveLinkedRow);
         Assert.Null(second.AnimationCopy);
-        Assert.Throws<NotSupportedException>(() => second.Cpu.Copy64K50B2A0(0, 2).Banks[2].Read(0, 65536));
+        Assert.Throws<NotSupportedException>(() => second.Cpu.CopyBank50B2A0(0, 2).Banks[2].Read(0, 65536));
     }
 
     private static NativeBattleModelResourceBind Complete(ushort request, NativeBattleModelDatSource source)

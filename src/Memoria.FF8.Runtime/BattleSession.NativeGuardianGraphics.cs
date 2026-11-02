@@ -197,7 +197,7 @@ public sealed partial class BattleSession
     private void CopyNativeGuardianCpuBank(byte source, byte destination)
     {
         NativeBattleModelCpuResources resources = NativeModelCpuResources ?? throw new NotSupportedException("Native50B2A0 requires its actual retained CPU model-bank bytes.");
-        NativeModelCpuResources = resources with { Cpu = resources.Cpu.Copy64K50B2A0(source, destination) };
+        NativeModelCpuResources = resources with { Cpu = resources.Cpu.CopyBank50B2A0(source, destination) };
     }
 
     private NativeBattleGraphicsState ReapplyNativeGuardianStatus(NativeBattleGraphicsState graphics, byte caster)

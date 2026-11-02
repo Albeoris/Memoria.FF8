@@ -26,7 +26,6 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         internal readonly bool[] Publish = new bool[length];
     }
     private readonly List<(int First, int End)> observedCpuRanges = [];
-    private const uint PartyCpuAddress = 0x196B018;
 
     internal NativeFieldRegistrationMemory(NativeBattleFileStaging source, uint first, uint end)
     {
@@ -59,11 +58,12 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             return;
         }
         cpu.Validate();
+        NativeBattlePartyCpuLayout layout = cpu.Cpu.EffectiveLayout;
         for (int bank = 0; bank < 3; bank++)
         {
-            int first = Index(checked(PartyCpuAddress + (uint)bank * NativeBattleModelCpuBank.Length), NativeBattleModelCpuBank.Length);
-            observedCpuRanges.Add((first, checked(first + NativeBattleModelCpuBank.Length)));
-            SetKnown(first, NativeBattleModelCpuBank.Length, false, true);
+            int first = Index(checked(layout.BaseAddress + (uint)bank * (uint)layout.BankLength), layout.BankLength);
+            observedCpuRanges.Add((first, checked(first + layout.BankLength)));
+            SetKnown(first, layout.BankLength, false, true);
             foreach (NativeBattleEffectMemoryRegion range in cpu.Cpu.Banks[bank].KnownRanges)
             {
                 Store(first + range.Offset, range.Data.AsSpan(), false);
@@ -74,15 +74,17 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     internal NativeBattleModelCpuResources? ReconcileCpuBanks(NativeBattleModelCpuResources? cpu)
     {
         NativeBattleModelCpuResources current = cpu ?? NativeBattleModelCpuResources.Unknown();
+        current.Validate();
+        NativeBattlePartyCpuLayout layout = current.Cpu.EffectiveLayout;
         ImmutableArray<NativeBattleModelCpuBank> banks = current.Cpu.Banks;
         for (int bank = 0; bank < 3; bank++)
         {
-            int first = Index(checked(PartyCpuAddress + (uint)bank * NativeBattleModelCpuBank.Length), NativeBattleModelCpuBank.Length);
-            if (!AnyChanged(first, NativeBattleModelCpuBank.Length))
+            int first = Index(checked(layout.BaseAddress + (uint)bank * (uint)layout.BankLength), layout.BankLength);
+            if (!AnyChanged(first, layout.BankLength))
             {
                 continue;
             }
-            byte[] data = new byte[NativeBattleModelCpuBank.Length];
+            byte[] data = new byte[layout.BankLength];
             bool[] observed = new bool[data.Length];
             foreach (NativeBattleEffectMemoryRegion range in banks[bank].KnownRanges)
             {
@@ -122,7 +124,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
                 }
                 ranges.Add(new(start, data.AsSpan(start, offset - start).ToArray().ToImmutableArray()));
             }
-            banks = banks.SetItem(bank, new(ranges.ToImmutable()));
+            banks = banks.SetItem(bank, banks[bank] with { KnownRanges = ranges.ToImmutable() });
         }
         return banks.Equals(current.Cpu.Banks) ? cpu : current with { Cpu = current.Cpu with { Banks = banks } };
     }

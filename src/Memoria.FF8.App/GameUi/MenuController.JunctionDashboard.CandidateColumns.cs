@@ -31,7 +31,7 @@ public sealed partial class MenuController
         Dictionary<string, int> stock = JunctionMagicInventory.Where(spell => spell.CharacterId == Character?.Id).ToDictionary(spell => spell.Id, spell => spell.Quantity);
         foreach (JunctionCandidate candidate in candidates)
         {
-            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id));
+            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id), candidate.Enabled);
             row.DrawBackground = false;
             row.Hover = () =>
             {

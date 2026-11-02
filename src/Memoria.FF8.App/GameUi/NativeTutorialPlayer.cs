@@ -48,7 +48,7 @@ internal sealed partial class NativeTutorialPlayer
         visibleRows = party.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, party.Records.Length).Where(row => (party.Records[row].MemberFlags & 1) != 0)).ToHashSet();
         steps = tutorialId <= 3 ? NativeTutorialJunctionPlan.Create(tutorialId, definition, party) : NativeTutorialOtherPlan.Create(tutorialId, definition, party);
         ValidatePlan();
-        Menu = new MenuController(BuildData, ApplyMenuAction);
+        Menu = new MenuController(BuildData, ApplyMenuAction) { ShowUnavailableJunctionMagic = true };
         RegisterTutorialScreens();
         Menu.Open(definition.Descriptor.CallbackMode switch { 18 => "junction", 24 => "gf", 28 => "status", 29 => "switch", _ => throw new InvalidDataException("Unsupported native tutorial callback.") });
         Menu.Execute(new MenuAction("select-character", $"character-{definition.Descriptor.CharacterId}"));

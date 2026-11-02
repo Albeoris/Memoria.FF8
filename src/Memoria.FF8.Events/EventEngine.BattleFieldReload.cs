@@ -12,7 +12,7 @@ public sealed record NativeBattleFieldReloadState([property: JsonRequired] int V
 {
     public void Validate()
     {
-        if (Version != 1 || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } program || !program.All(Uri.IsHexDigit) || OneHash is not { Length: 64 } source || !source.All(Uri.IsHexDigit) || BattleEntryFrame < 1 || (NativeResult is not (2 or 4) && (NativeResult != 1 || DefeatBranch is not { ResumePreviousScene: true })) || NativeResult != 1 && DefeatBranch is not null || Stage != NativeBattleFieldReloadStage.ModelCachesReset)
+        if (Version != 1 || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } program || !program.All(Uri.IsHexDigit) || OneHash is not { Length: 64 } source || !source.All(Uri.IsHexDigit) || BattleEntryFrame < 1 || (NativeResult is not (2 or 4) && (NativeResult != 1 || DefeatBranch is not { ResumePreviousScene: true })) || NativeResult != 1 && DefeatBranch is not null || Stage != NativeBattleFieldReloadStage.ModelCachesReset)
         {
             throw new InvalidDataException("Native kind3 pending loader lacks its actual reset stage and field/resource provenance.");
         }

@@ -41,7 +41,7 @@ public sealed record NativeFieldRegistrationLayout([property: JsonRequired] stri
     };
 
     [JsonIgnore]
-    internal uint MemoryStart => Math.Min(ArenaAddress, 0x0196B018u);
+    internal uint MemoryStart => Math.Min(ArenaAddress, NativeBattlePartyCpuLayout.ForImage(ExecutableHash).BaseAddress);
 
     [JsonIgnore]
     internal uint MemoryEnd => Math.Max(ArenaEnd, 0x01DCD6E4u);
