@@ -14,7 +14,7 @@ internal sealed class PresentationTiming
     private object? presentationOwner;
     private object? presentationFrameOwner;
     private bool presentationFrameCanAdvance;
-    private (long Callback, long Generation, ushort? Effect)? presentationSource;
+    private (long Callback, long Generation, ushort? Effect, bool SceneMotion)? presentationSource;
     private long presentationAnchor;
     private bool presentationRunning;
     private double presentationPhase;
@@ -57,7 +57,7 @@ internal sealed class PresentationTiming
             FreezePresentationFrame();
             return;
         }
-        if (source is null || !NativeBattleSmoothPresentation.Supports(source.PilotEffect))
+        if (source is null || !source.CanInterpolateMotion)
         {
             ResetPresentationSource();
             return;
@@ -66,7 +66,7 @@ internal sealed class PresentationTiming
         {
             return;
         }
-        var key = (source.Callback, source.PilotGeneration, source.PilotEffect);
+        var key = (source.Callback, source.PilotGeneration, source.PilotEffect, source.SceneMotion);
         if (!ReferenceEquals(owner, presentationOwner) || presentationSource != key)
         {
             // The completed source becomes available here, after its native producer returns.
@@ -95,7 +95,7 @@ internal sealed class PresentationTiming
 
     public float SamplePresentationPhase(object owner, NativeBattlePreparedPresentation? source, bool advancing, bool smooth = true)
     {
-        if (!smooth || source is null || !ReferenceEquals(owner, presentationOwner) || presentationSource != (source.Callback, source.PilotGeneration, source.PilotEffect))
+        if (!smooth || source is null || !ReferenceEquals(owner, presentationOwner) || presentationSource != (source.Callback, source.PilotGeneration, source.PilotEffect, source.SceneMotion))
         {
             ResetPresentationSource();
             return 0;

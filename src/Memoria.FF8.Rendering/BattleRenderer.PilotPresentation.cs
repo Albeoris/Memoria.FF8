@@ -123,9 +123,9 @@ public sealed partial class BattleRenderer
 
     public byte[] RenderNativePilotPrimitiveFrame(NativeBattlePreparedPresentation earlier, NativeBattlePreparedPresentation later, float alpha, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
     {
-        if (!NativeBattleSmoothPresentation.Supports(earlier.PilotEffect) || earlier.PilotEffect != later.PilotEffect || earlier.PilotGeneration != later.PilotGeneration || later.Callback != earlier.Callback + 1 || !float.IsFinite(alpha))
+        if (!earlier.CanInterpolateMotion || !later.CanInterpolateMotion || earlier.SceneMotion != later.SceneMotion || earlier.PilotEffect != later.PilotEffect || earlier.PilotGeneration != later.PilotGeneration || later.Callback != earlier.Callback + 1 || !float.IsFinite(alpha))
         {
-            throw new ArgumentException("Compatible battle motion requires consecutive endpoints from the same supported spell.");
+            throw new ArgumentException("Compatible battle motion requires consecutive endpoints from the same supported presentation.");
         }
         pilotAlpha = Math.Clamp(alpha, 0, 1);
         if (!CanSampleNativePilotInterval(earlier, later))

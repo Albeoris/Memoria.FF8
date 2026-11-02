@@ -2,7 +2,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-/// <summary>One completed native interval, retained only while a compatible effect is presenting.</summary>
+/// <summary>One completed native interval for compatible scene or effect motion.</summary>
 internal sealed class BattlePilotPresentationTimeline
 {
     private NativeBattlePreparedPresentation? earlier;
@@ -19,17 +19,17 @@ internal sealed class BattlePilotPresentationTimeline
             sampledAlpha = 0;
             presentationOwner = owner;
         }
-        if (!smooth || !NativeBattleSmoothPresentation.Supports(current.PilotEffect))
+        if (!smooth || !current.CanInterpolateMotion)
         {
             earlier = null;
             later = null;
             sampledAlpha = 0;
             return (current, null, 0);
         }
-        if (later is null || current.Callback != later.Callback || current.PilotEffect != later.PilotEffect || current.PilotGeneration != later.PilotGeneration)
+        if (later is null || current.Callback != later.Callback || current.PilotEffect != later.PilotEffect || current.PilotGeneration != later.PilotGeneration || current.SceneMotion != later.SceneMotion)
         {
             sampledAlpha = 0;
-            earlier = later is not null && current.Callback == later.Callback + 1 && current.PilotEffect == later.PilotEffect && current.PilotGeneration == later.PilotGeneration ? later : null;
+            earlier = later is not null && current.Callback == later.Callback + 1 && current.PilotEffect == later.PilotEffect && current.PilotGeneration == later.PilotGeneration && current.SceneMotion == later.SceneMotion ? later : null;
         }
         later = current;
         if (earlier is null || earlier.PilotProjection is null || current.PilotProjection is null || earlier.PilotCamera is null || current.PilotCamera is null)

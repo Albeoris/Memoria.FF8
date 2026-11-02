@@ -165,7 +165,7 @@ public sealed partial class BattleSession
 
     private NativeBattlePilotVisualIdentity? NativePilotSceneIdentity(uint bank, int slot, int primitive = 0)
     {
-        if (!NativeBattleSmoothPresentation.Supports(NativeGraphics?.OriginalEffect?.Binding.Effect))
+        if (NativeGraphics?.OriginalEffect is { } effect && !NativeBattleSmoothPresentation.Supports(effect.Binding.Effect))
         {
             return null;
         }
