@@ -7,6 +7,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplayPreferencesTests
 {
     [Fact]
+    public void Smart_attack_is_intrinsic_and_hardcore_leaves_transformations_optional()
+    {
+        GameplayPreferences hardcore = new GameplayPreferences { Difficulty = BattleDifficulty.Hardcore, GuardianFormsEnabled = false }.NormalizeForDifficulty();
+        hardcore.Validate();
+        Assert.False(hardcore.GuardianFormsEnabled);
+        Assert.DoesNotContain(GameplayPreferences.NewGameOptions, option => option.PropertyName == nameof(GameplayPreferences.SmartAttack));
+        Assert.False(Assert.Single(GameplayPreferences.NewGameOptions, option => option.PropertyName == nameof(GameplayPreferences.GuardianFormsEnabled)).RequiredOnHardcore);
+        Assert.All(GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore), option => Assert.True(option.IsEnabled(hardcore)));
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(MagicSystemFixture.Create());
+        Assert.All(session.State.CharacterVitals!.MagicSystem.AttackModes, mode => Assert.Equal(MagicAttackMode.SmartMagic, mode));
+        session.SetAttackMode(0, MagicAttackMode.PhysicalOnly);
+        Assert.Equal(MagicAttackMode.PhysicalOnly, session.State.CharacterVitals.MagicSystem.AttackModes[0]);
+        session.SetGameplayPreferences(hardcore);
+        session.SetGameplayPreferences(hardcore with { GuardianFormsEnabled = true });
+        session.SetGameplayPreferences(hardcore);
+        Assert.False(session.State.GameplayPreferences.GuardianFormsEnabled);
+    }
+
+    [Fact]
     public void World_checkpoint_with_departed_field_transition_allows_preferences_and_round_trips()
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("gameplay-preferences-world-transition")));
@@ -26,8 +47,8 @@ public sealed class GameplayPreferencesTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.CharacterVitals), JsonSerializer.SerializeToElement(restored.State.CharacterVitals)));
         Assert.True(JsonElement.DeepEquals(before.EventState.Value, restored.State.EventState!.Value));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.World), JsonSerializer.SerializeToElement(restored.State.World)));
-        restored.SetGameplayPreferences(changed with { SmartAttack = !changed.SmartAttack });
-        Assert.Equal(!changed.SmartAttack, restored.State.CharacterVitals!.MagicSystem.SmartAttack);
+        restored.SetAttackMode(0, MagicAttackMode.SmartMagic);
+        Assert.Equal(MagicAttackMode.SmartMagic, restored.State.CharacterVitals!.MagicSystem.AttackModes[0]);
     }
 
     [Theory]
@@ -73,8 +94,7 @@ public sealed class GameplayPreferencesTests
         foreach (GameplayPreferences magicChange in new[]
         {
             before.GameplayPreferences with { SharedMagicStock = !magicEnabled },
-            before.GameplayPreferences with { InfiniteMagic = !magicEnabled },
-            before.GameplayPreferences with { SmartAttack = !magicEnabled }
+            before.GameplayPreferences with { InfiniteMagic = !magicEnabled }
         })
         {
             GameState unchanged = session.State;

@@ -453,7 +453,7 @@ public static partial class SystemTextCatalog
         defaults["localization.newpatch.help"] = "Create an empty contribution linked to an existing translation.";
         defaults["magic.Apply"] = "Apply";
         defaults["magic.AttackChoiceHelp"] = "Choose physical attacks or automatic magic using the normal Magic command and casting rules.";
-        defaults["magic.AttackSlotHelp"] = "The first slot remains Attack. Smart Attack unlocks a personal physical or magic preference.";
+        defaults["magic.AttackSlotHelp"] = "The first slot remains Attack. Choose physical attacks or Smart magic for each character.";
         defaults["magic.Battle"] = "Battle";
         defaults["magic.Cancel"] = "Cancel";
         defaults["magic.Caster"] = "Caster: {0}";
@@ -482,9 +482,7 @@ public static partial class SystemTextCatalog
         defaults["magic.SettingBeginHelp"] = "Start a new game with these gameplay rules. More settings are available in Config.";
         defaults["magic.SharedDescription"] = "Use one party magic bank with exclusive Junction owners. Review quantities, overflow, bindings and HP before changing this save.";
         defaults["magic.SharedLabel"] = "Shared magic stock";
-        defaults["magic.SmartDescription"] = "Unlock personal automatic Attack choices. Uses hidden enemy information and favorable spell selection; ordinary costs and command restrictions apply.";
         defaults["magic.SmartLabel"] = "Smart Attack";
-        defaults["magic.SmartLocked"] = "Enable Smart Attack in Config to change this preference.";
         defaults["magic.SmartMagic"] = "Smart magic";
         defaults["magic.StatusRestricted"] = "Caster status prevents magic";
         defaults["magic.StockHelp"] = "Browse stock, remaining field uses and Junction ownership.";
@@ -824,6 +822,7 @@ public static partial class SystemTextCatalog
         defaults["screen.gf-mod-review.title"] = "Mods \u00B7 GF changes review";
         defaults["screen.gf.help"] = "Choose a Guardian Force.";
         defaults["screen.gf.title"] = "GF";
+        defaults["ui.hardcore.new-game.warning"] = "You can disable Hardcore until Begin. After that it is permanent. These rules will be enabled and locked On:";
         defaults["screen.hardcore-confirm.title"] = "Enable Hardcore?";
         defaults["screen.item-forget.help"] = "Choose the selected GF\u0027s ability to forget.";
         defaults["screen.item-forget.title"] = "Item \u00B7 Forget Ability";
@@ -1047,7 +1046,7 @@ public static partial class SystemTextCatalog
         defaults["setting.dialogue-speed.option.3"] = "4";
         defaults["setting.dialogue-speed.option.4"] = "5";
         defaults["setting.difficulty"] = "Difficulty";
-        defaults["setting.difficulty.help"] = "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard and Hardcore remove both aids; explicit do-not-attack actions remain. Hardcore permanently enables and locks every optional new-game rule; ATB mode and rare card markers remain editable. Saved with this game; Title sets the new-game default.";
+        defaults["setting.difficulty.help"] = "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard and Hardcore remove both aids; explicit do-not-attack actions remain. Hardcore enables and locks its required gameplay rules. You can change difficulty before Begin; afterwards Hardcore cannot be disabled. GF Transformations, ATB mode and rare card markers remain editable. Saved with this game; Title sets the new-game default.";
         defaults["setting.difficulty.option.0"] = "Normal";
         defaults["setting.difficulty.option.1"] = "Hard";
         defaults["setting.difficulty.option.2"] = "Hardcore";
@@ -1191,10 +1190,6 @@ public static partial class SystemTextCatalog
         defaults["setting.shared-magic.help"] = "Use one party magic bank with exclusive Junction owners. Review quantities, overflow, bindings and HP before changing this save.";
         defaults["setting.shared-magic.option.0"] = "Off";
         defaults["setting.shared-magic.option.1"] = "On";
-        defaults["setting.smart-attack"] = "Smart Attack";
-        defaults["setting.smart-attack.help"] = "Unlock personal automatic Attack choices. Uses hidden enemy information and favorable spell selection; ordinary costs and command restrictions apply.";
-        defaults["setting.smart-attack.option.0"] = "Off";
-        defaults["setting.smart-attack.option.1"] = "On";
         defaults["setting.voice-volume"] = "Voice volume";
         defaults["setting.voice-volume.help"] = "Dialogue voice output volume, 0\u2013100%. Shared across saves for this user.";
         defaults["setting.voice-volume.option.0"] = "100%";
@@ -1560,7 +1555,7 @@ public static partial class SystemTextCatalog
         defaults["ui.configentries.unavailablereason.draw.once.per.spell.is.unavailable.until.the"] = "Draw once per spell is unavailable until the active or pending battle ends.";
         defaults["ui.configentries.unavailablereason.gf.transformations.is.unavailable.until.the.active.or"] = "GF Transformations is unavailable until the active or pending battle ends.";
         defaults["ui.configentries.unavailablereason.gf.transformations.is.unavailable.until.the.battle.ends"] = "GF Transformations is unavailable until the battle ends.";
-        defaults["ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay"] = "Hardcore is permanent and requires every optional gameplay rule to stay On.";
+        defaults["ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay"] = "Hardcore requires this gameplay rule to stay On; difficulty becomes permanent after Begin.";
         defaults["ui.configentries.unavailablereason.limit.once.per.turn.is.unavailable.until.the"] = "Limit once per turn is unavailable until the active or pending battle ends.";
         defaults["ui.configentries.unavailablereason.selphie.card.slots.is.unavailable.until.the.active"] = "Selphie card Slots is unavailable until the active or pending battle ends.";
         defaults["ui.connectautoplay.details.save.your.game.first.to.retain.progress"] = "Save your game first to retain progress.";

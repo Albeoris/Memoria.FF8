@@ -14,6 +14,8 @@ public abstract class UiSettingRow : UiElement
 
     public string Text { get; set; } = string.Empty;
     public float FontSize { get; set; }
+    /// <summary>Mutes the label and appends a padlock without changing the value color or input policy.</summary>
+    public bool LabelLocked { get; set; }
     public float PointerSize { get; set; } = 10;
     public float TextInset { get; set; } = 24;
     public float RightInset { get; set; } = 8;
@@ -60,7 +62,32 @@ public abstract class UiSettingRow : UiElement
 
     protected void DrawLabel(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, LabelBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        DrawDecoratedText(canvas, Text, FontSize > 0 ? FontSize : theme.FontSize, LabelBounds, Enabled && !LabelLocked ? theme.Foreground : theme.Muted, LabelLocked);
+    }
+
+    protected static void DrawDecoratedText(IUiCanvas canvas, string text, float fontSize, UiRect bounds, UiColor color, bool locked)
+    {
+        if (!locked || bounds.IsEmpty)
+        {
+            canvas.Text(text, fontSize, bounds, color, UiAlignment.Center, UiTextFlow.SingleLine);
+            return;
+        }
+
+        float scale = Math.Min(fontSize / 20, bounds.Height / 20);
+        float iconWidth = Math.Min(bounds.Width, 16 * scale);
+        float gap = Math.Min(4 * scale, Math.Max(0, bounds.Width - iconWidth));
+        UiRect textBounds = new(bounds.X, bounds.Y, Math.Max(0, bounds.Width - iconWidth - gap), bounds.Height);
+        float textWidth = textBounds.Width;
+        try
+        {
+            textWidth = Math.Min(textWidth, canvas.MeasureText(text, fontSize, float.PositiveInfinity).Width);
+        }
+        catch (NotSupportedException)
+        {
+            // Renderer-neutral canvases may omit measurement; keep the lock in its reserved space.
+        }
+        canvas.Text(text, fontSize, textBounds, color, UiAlignment.Center, UiTextFlow.SingleLine);
+        UiLockGlyph.Draw(canvas, new UiRect(bounds.X + textWidth + gap, bounds.Y, iconWidth, bounds.Height));
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
@@ -109,6 +136,8 @@ public sealed class UiChoiceRow : UiSettingRow
     private bool _showSingleChoice;
 
     public IList<string> Items { get; set; } = new List<string>();
+    /// <summary>Choice indices whose displayed names have a padlock; does not restrict selection.</summary>
+    public ISet<int> LockedItems { get; set; } = new HashSet<int>();
     public float OptionGap { get; set; } = 8;
     public int MaxVisibleItems
     {
@@ -151,9 +180,10 @@ public sealed class UiChoiceRow : UiSettingRow
             try
             {
                 float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
-                foreach (string item in Items)
+                for (int index = 0; index < Items.Count; index++)
                 {
-                    if (canvas.MeasureText(item, fontSize, float.PositiveInfinity).Width > width)
+                    float decorationWidth = LockedItems.Contains(index) ? fontSize : 0;
+                    if (canvas.MeasureText(Items[index], fontSize, float.PositiveInfinity).Width + decorationWidth > width)
                     {
                         _showSingleChoice = true;
                         break;
@@ -169,7 +199,7 @@ public sealed class UiChoiceRow : UiSettingRow
         {
             float inset = Math.Min(20, values.Width / 4);
             UiRect option = new(values.X + inset, values.Y, Math.Max(0, values.Width - inset * 2), values.Height);
-            canvas.Text(Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+            DrawDecoratedText(canvas, Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, theme.Foreground, LockedItems.Contains(SelectedIndex));
             DrawArrow(canvas, values.X + inset / 2, values.Y + values.Height / 2, -1, Enabled && !ReadOnly && SelectedIndex > 0 ? theme.Foreground : theme.Muted);
             DrawArrow(canvas, values.Right - inset / 2, values.Y + values.Height / 2, 1, Enabled && !ReadOnly && SelectedIndex < Items.Count - 1 ? theme.Foreground : theme.Muted);
             return;
@@ -178,7 +208,7 @@ public sealed class UiChoiceRow : UiSettingRow
         for (int index = 0; index < Items.Count; index++)
         {
             UiRect option = new(values.X + index * (width + gap), values.Y, width, values.Height);
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, index == SelectedIndex ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+            DrawDecoratedText(canvas, Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, index == SelectedIndex ? theme.Foreground : theme.Muted, LockedItems.Contains(index));
         }
     }
 
@@ -232,6 +262,8 @@ public sealed class UiChoiceRow : UiSettingRow
 /// <summary>An inline stepped slider with a beveled purple bar and a persistent numeric value.</summary>
 public sealed class UiNumericSlider : UiSlider
 {
+    /// <summary>Keeps focus and the numeric value visible while rejecting value changes.</summary>
+    public bool ReadOnly { get; set; }
     public float ValueWidth { get; set; } = 40;
     public float ValueGap { get; set; } = 8;
     public float TrackHeight { get; set; } = 10;
@@ -274,9 +306,14 @@ public sealed class UiNumericSlider : UiSlider
         theme.PointerBefore(canvas, LabelBounds.X, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
     }
 
+    public override bool Key(UiKey key)
+    {
+        return !ReadOnly && base.Key(key);
+    }
+
     public override void Pointer(float x, float y)
     {
-        if (ValueBounds.Contains(x, y) && x < Track.Right)
+        if (!ReadOnly && ValueBounds.Contains(x, y) && x < Track.Right)
         {
             base.Pointer(x, y);
         }

@@ -121,9 +121,9 @@ internal sealed record UiPreferences
         return preferences;
     }
 
-    public UiPreferences WithSetting(string key, string value)
+    public UiPreferences WithSetting(string key, string value, bool allowDifficultyChange = false)
     {
-        if (NewGameSettings.IsLocked(key, Difficulty))
+        if (NewGameSettings.IsLocked(key, Difficulty) && !(allowDifficultyChange && key == "Difficulty"))
         {
             throw new InvalidOperationException("Hardcore is permanent and its gameplay rules cannot be changed.");
         }
@@ -428,13 +428,13 @@ internal sealed record UiPreferences
         };
     }
 
-    public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
+    public UiPreferences WithInstallationSetting(string key, string value, bool activeGame, bool allowDifficultyChange = false)
     {
         if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }
-        return WithSetting(key, value);
+        return WithSetting(key, value, allowDifficultyChange);
     }
 
     public void Save(string path)

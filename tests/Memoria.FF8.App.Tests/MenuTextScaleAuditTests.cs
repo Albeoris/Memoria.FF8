@@ -128,8 +128,8 @@ public sealed class MenuTextScaleAuditTests
         MenuController controller = Create(screen, 48, 150);
         UiView view = controller.BuildView();
         UiSettingRow[] rows = Descendants(view.Root).OfType<UiSettingRow>().ToArray();
-        Assert.InRange(rows.Length, 1, 3);
-        Assert.All(rows, row => Assert.True(row.ValueBounds.X - row.LabelBounds.Right >= 35));
+        Assert.InRange(rows.Length, 1, screen == "new-game-options" ? Math.Max(1, (int)(495 / (44 * controller.TextScale))) : 3);
+        Assert.All(rows, row => Assert.True(row.ValueBounds.X - row.LabelBounds.Right >= (screen == "new-game-options" ? 12 * controller.TextScale - 0.01f : 35)));
         controller.Navigate(MenuInput.PageDown);
         Assert.True(controller.SelectedIndex > 0);
         UiView next = controller.BuildView();

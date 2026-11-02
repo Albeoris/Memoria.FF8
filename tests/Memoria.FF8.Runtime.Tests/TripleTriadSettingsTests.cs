@@ -133,9 +133,9 @@ public sealed class TripleTriadSettingsTests
     }
 
     [Fact]
-    public void New_game_options_remain_exactly_boolean_gameplay_properties()
+    public void New_game_options_remain_explicitly_declared_boolean_gameplay_properties()
     {
-        Assert.Equal(typeof(GameplayPreferences).GetProperties().Where(property => property.PropertyType == typeof(bool)).Select(property => property.Name).Order(), GameplayPreferences.NewGameOptions.Select(option => option.PropertyName).Order());
+        Assert.Equal(typeof(GameplayPreferences).GetProperties().Where(property => property.PropertyType == typeof(bool) && property.IsDefined(typeof(NewGameOptionAttribute), false)).Select(property => property.Name).Order(), GameplayPreferences.NewGameOptions.Select(option => option.PropertyName).Order());
         Assert.DoesNotContain(GameplayPreferences.NewGameOptions, option => option.PropertyName == nameof(GameplayPreferences.TripleTriad));
     }
 

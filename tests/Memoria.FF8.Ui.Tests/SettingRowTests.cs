@@ -4,6 +4,46 @@ namespace Memoria.FF8.Ui.Tests;
 
 public sealed class SettingRowTests
 {
+    [Fact]
+    public void Locked_labels_and_choices_preserve_bright_values_and_reserve_padlock_space()
+    {
+        UiChoiceRow row = new() { Text = "Rules", LabelLocked = true, FontSize = 20, Items = ["Normal", "Hardcore"], SelectedIndex = 1, LockedItems = new HashSet<int> { 1 } };
+        row.Arrange(new UiRect(0, 0, 800, 40));
+        RecordingCanvas canvas = new() { SupportsMeasurement = true };
+        UiTheme theme = new();
+
+        row.Draw(canvas, theme);
+
+        Assert.Equal(theme.Muted, canvas.Texts[0].Color);
+        Assert.Equal(theme.Foreground, canvas.Texts[2].Color);
+        Assert.Equal(28, canvas.Lines);
+        Assert.Equal(12, canvas.Fills.Count);
+        Assert.All(canvas.Fills.Take(6), fill => Assert.True(fill.Bounds.X >= row.LabelBounds.X + 50));
+        Assert.All(canvas.Fills.Skip(6), fill => Assert.True(fill.Bounds.X >= canvas.Texts[2].Bounds.X + 80));
+        Assert.True(row.Key(UiKey.Left));
+        Assert.Equal(0, row.SelectedIndex);
+    }
+
+    [Fact]
+    public void Read_only_numeric_slider_keeps_focus_and_value_color_while_muting_locked_label()
+    {
+        UiNumericSlider slider = new() { Text = "Multiplier", LabelLocked = true, ReadOnly = true, Max = 100, Value = 50 };
+        UiView view = new(slider);
+        view.Resize(600, 40);
+        view.Focus(slider);
+        RecordingCanvas canvas = new();
+        UiTheme theme = new();
+
+        slider.Draw(canvas, theme);
+        Assert.False(slider.Key(UiKey.Right));
+        slider.Pointer(slider.ValueBounds.X, 20);
+
+        Assert.Equal(50, slider.Value);
+        Assert.Same(slider, view.FocusedElement);
+        Assert.Equal(theme.Muted, canvas.Texts[0].Color);
+        Assert.Equal(theme.Foreground, canvas.Texts[1].Color);
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(5)]

@@ -59,7 +59,7 @@ public sealed partial class MenuController
     private UiElement BuildSecondaryConfig()
     {
         bool newGame = ScreenId == "new-game-options";
-        var page = Grid(ScreenId == "config-text" ? [1.7f * TextScale, 4, 3] : [1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
+        var page = Grid(ScreenId == "config-text" ? [1.7f * TextScale, 4, 3] : [1.4f * TextScale, 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
         string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
         Place(header, Panel(SystemText("ui.buildsecondaryconfig.panel.help", "HELP"), new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
@@ -78,7 +78,14 @@ public sealed partial class MenuController
         {
             Place(rows, BuildConfigRow(Entries[index], index), index - first);
         }
-        Place(content, rows, 0);
+        UiOverflowArrows overflow = new()
+        {
+            ShowUp = first > 0,
+            ShowDown = first + count < Entries.Count,
+            ArrowHeight = 10 * TextScale
+        };
+        overflow.Children.Add(rows);
+        Place(content, overflow, 0);
         int pages = Math.Max(1, (Entries.Count + count - 1) / count);
         Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
         Place(page, Panel(IsFixtureContext && !newGame ? SystemText("ui.buildsecondaryconfig.panel.preview.fixture", "Preview / Fixture") : null, content), 1);
@@ -89,7 +96,7 @@ public sealed partial class MenuController
         if (newGame)
         {
             UiAnchorPanel modal = new();
-            page.Anchors = new UiAnchors(0.08f, 0.12f, 0.92f, 0.88f);
+            page.Anchors = new UiAnchors(0.08f, 0, 0.92f, 1);
             modal.Children.Add(page);
             return modal;
         }

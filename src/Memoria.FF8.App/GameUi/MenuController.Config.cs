@@ -16,7 +16,7 @@ public sealed partial class MenuController
         ("mods", "Mods", "Installed packages, requested enable state and resource status.")
     ];
     private bool IsConfigSettingsScreen => ScreenId == "config" || SettingsPlacement.Pages.ContainsKey(ScreenId) || ScreenId == "new-game-options";
-    private int ConfigRowsPerPage => Math.Max(1, (int)((ScreenId == "new-game-options" ? 315 : ScreenId == "config-text" ? 300 : 495) / (44 * TextScale)));
+    private int ConfigRowsPerPage => Math.Max(1, (int)((ScreenId == "config-text" ? 300 : 495) / (44 * TextScale)));
 
     private string ConfigLabel(string id) => LocalizeSettingLabel(id, id switch
     {
@@ -82,12 +82,12 @@ public sealed partial class MenuController
                 "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => SystemText("ui.configentries.unavailablereason.limit.once.per.turn.is.unavailable.until.the", "Limit once per turn is unavailable until the active or pending battle ends."),
                 "Selphie card Slots" when Data.SelphieCardSlotsPreferenceLocked => SystemText("ui.configentries.unavailablereason.selphie.card.slots.is.unavailable.until.the.active", "Selphie card Slots is unavailable until the active or pending battle ends."),
                 "Draw once per spell" when Data.DrawOncePerSpellPreferenceLocked => SystemText("ui.configentries.unavailablereason.draw.once.per.spell.is.unavailable.until.the", "Draw once per spell is unavailable until the active or pending battle ends."),
-                "Shared magic stock" or "Infinite magic" or "Smart Attack" => Data.MagicPreferencesUnavailableReason,
+                "Shared magic stock" or "Infinite magic" => Data.MagicPreferencesUnavailableReason,
                 _ => null
             };
-            if (NewGameSettings.IsLocked(setting.Id, Enum.Parse<Memoria.FF8.Runtime.BattleDifficulty>(ConfigValue("Difficulty"))))
+            if (NewGameSettings.IsLocked(setting.Id, Enum.Parse<Memoria.FF8.Runtime.BattleDifficulty>(ConfigValue("Difficulty")), newGame))
             {
-                unavailableReason = SystemText("ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay", "Hardcore is permanent and requires every optional gameplay rule to stay On.");
+                unavailableReason = SystemText("ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay", "Hardcore requires this gameplay rule to stay On; difficulty becomes permanent after Begin.");
             }
             bool enabled = unavailableReason is null;
             string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + LocalizeSettingHelp(setting.Id, setting.Description) : LocalizeSettingHelp(setting.Id, setting.Description));
@@ -246,7 +246,21 @@ public sealed partial class MenuController
                 SelectionChanged = selected => Execute(new MenuAction("config", setting.Id, Value: setting.Values[selected]))
             };
         }
-        row.Enabled = row is UiChoiceRow || entry.Enabled;
+        bool hardcore = ConfigValue("Difficulty") == "Hardcore";
+        bool locked = NewGameSettings.IsLocked(setting.Id, Memoria.FF8.Runtime.BattleDifficulty.Hardcore, ScreenId == "new-game-options") && hardcore;
+        if (row is UiSettingRow settingRow)
+        {
+            settingRow.LabelLocked = locked;
+        }
+        if (row is UiChoiceRow choice && setting.Id == "Difficulty" && hardcore)
+        {
+            choice.LockedItems.Add(Array.IndexOf(setting.Values, "Hardcore"));
+        }
+        if (row is UiNumericSlider slider)
+        {
+            slider.ReadOnly = !entry.Enabled;
+        }
+        row.Enabled = row is UiChoiceRow or UiNumericSlider || entry.Enabled;
         row.Id = entry.Id;
         row.FocusChanged = focused => SelectConfigRow(focused, index);
         return row;

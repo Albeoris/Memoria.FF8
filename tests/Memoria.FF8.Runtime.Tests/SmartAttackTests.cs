@@ -208,7 +208,7 @@ public sealed class SmartAttackTests
             vitals = vitals.ChangeMagicStock(0, stock.Id, stock.Count, MagicOperationReason.ScriptReward, out _);
         }
         vitals = MagicSystemFixture.Modes(vitals, shared: true, infinite: infinite);
-        vitals = vitals with { MagicSystem = vitals.MagicSystem with { SmartAttack = true } };
+        vitals = vitals with { MagicSystem = vitals.MagicSystem with { SmartAttack = false } };
         vitals.MagicSystem.AttackModes[1] = MagicAttackMode.SmartMagic;
         BattleNativeAction attack = Spell(0, 1) with { Command = 1, AttackType = 1, Hit = 255, Critical = 0, Name = "Attack" };
         return new(new BattleDefinition

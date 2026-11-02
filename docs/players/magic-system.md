@@ -1,13 +1,12 @@
 # Magic rules and Smart Attack
 
-Choose these four independent options before **Begin** on the New Game screen, or under **Config → Gameplay → Magic and Guardian Forces** during a game. All four default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
+Choose these three independent options before **Begin** on the New Game screen, or under **Config → Gameplay → Magic and Guardian Forces** during a game. All three default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
 
 | Option | Behavior |
 | --- | --- |
 | Draw once per spell | Successful Draw Stock or Cast exhausts that spell on that enemy for the whole party during the encounter. |
 | Shared magic stock | One accessible party bank, with exclusive Junction ownership for each spell. |
 | Infinite magic | Ordinary casts preserve stock and spend a separate, limited allowance. |
-| Smart Attack | Unlocks a personal choice of physical attacks or automatic magic on Junction's basic-action row. |
 
 Any combination works. With Shared off, characters retain personal inventories and cannot borrow another character's stock or allowance. With Infinite off, ordinary spells consume stock normally. Smart Attack follows whichever storage and casting rules the save uses.
 
@@ -54,7 +53,7 @@ For manual Magic, Double and Triple default to the highest affordable cast count
 
 ## Choosing Smart Attack
 
-Enable **Smart Attack**, then open **Junction → Ability** and select the first Attack slot. Choose **Physical only** or **Smart magic** for that character. The initial choice is Physical only. Disabling the global option makes attacks physical while preserving personal choices for later.
+Smart Attack is always available. Open **Junction → Ability** and select the first Attack slot to choose **Physical only** or **Smart magic** for that character. New games start with Smart magic. Existing saves retain their personal choices, which can be changed without a global Config setting.
 
 Smart magic requires an available Magic or Draw command and an eligible caster. It uses actual enemy HP, defenses, elemental behavior and immediate damage forecasts, including otherwise hidden information. It does not perform Scan or reveal those numerical values in the HUD. This hidden-information advantage and favorable automatic selection are deliberate gameplay changes. With Draw available, it also considers revealed spells from every living, targetable enemy; entries displayed as `????` are excluded.
 

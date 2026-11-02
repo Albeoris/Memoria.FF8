@@ -160,12 +160,11 @@ internal sealed partial class RecreateGame
         magicPreferences = (magicPreferences with { Difficulty = ReadCurrentUiPreferences().Difficulty }).NormalizeForDifficulty();
         data.Settings["Shared magic stock"] = magicPreferences.SharedMagicStock ? "On" : "Off";
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
-        data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
         data.MagicPreferencesUnavailableReason = MagicRuleBoundaryUnavailableReason;
         data.Settings["Chocobo World"] = ChocoboWorldSettings.Label(magicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode);
         data.ChocoboWorldUnavailableReason = ChocoboWorldBoundaryUnavailableReason;
         data.SupportedActions.Add("config:Chocobo World");
-        data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
+        data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");
         data.Settings["Selphie card Slots"] = ReadCurrentUiPreferences().SelphieCardSlots ? "On" : "Off";
@@ -454,9 +453,10 @@ internal sealed partial class RecreateGame
                 keyboard.Profile = profile;
                 return;
             }
-            UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
+            bool allowDifficultyChange = gameMenus?.ScreenId == "new-game-options";
+            UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value, allowDifficultyChange);
             ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
-            UiPreferences installationPreferences = uiPreferences.WithInstallationSetting(action.SubjectId, action.Value, session.State.Scene != SceneKind.Title);
+            UiPreferences installationPreferences = uiPreferences.WithInstallationSetting(action.SubjectId, action.Value, session.State.Scene != SceneKind.Title, allowDifficultyChange);
             installationPreferences.Save(UiPreferencesPath);
             uiPreferences = installationPreferences;
             SynchronizeMenuPresentation();
@@ -683,6 +683,10 @@ internal sealed partial class RecreateGame
         if (keyboard.UiPaneFocus != 0 && (gameMenus.IsGuardianAbilityEditor || gameMenus.IsModManager || gameMenus.IsJunctionDashboard))
         {
             DispatchMenuInput(keyboard.UiPaneFocus < 0 ? MenuInput.FocusLeft : MenuInput.FocusRight);
+        }
+        if (keyboard.UiPaneFocus != 0 && gameMenus.ScreenId == "new-game-options")
+        {
+            DispatchMenuInput(keyboard.UiPaneFocus < 0 ? MenuInput.PageLeft : MenuInput.PageRight);
         }
         if (input.MenuVertical < 0)
         {

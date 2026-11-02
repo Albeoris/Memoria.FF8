@@ -26,8 +26,8 @@ public sealed class HardcoreSettingsTests
         Assert.Equal("no", menus.SelectedEntry!.Id);
         Assert.Empty(applied);
         Assert.Equal("Hard", data.Settings["Difficulty"]);
-        Assert.Contains("cannot be disabled", menus.CurrentScreen.Help);
-        Assert.Equal(GameplayPreferences.NewGameOptions.Count + 1, menus.CurrentScreen.Details(menus).Count);
+        Assert.Contains(screen == "new-game-options" ? "until Begin" : "cannot be disabled", menus.CurrentScreen.Help);
+        Assert.Equal(GameplayPreferences.NewGameOptions.Count(option => option.RequiredOnHardcore) + 1, menus.CurrentScreen.Details(menus).Count);
         menus.Navigate(MenuInput.Cancel);
         Assert.Equal(screen, menus.ScreenId);
         Assert.Equal("Difficulty", menus.SelectedEntry!.Id);
@@ -49,14 +49,18 @@ public sealed class HardcoreSettingsTests
     }
 
     [Theory]
-    [InlineData(MenuPresentation.Classic, 24, 100)]
-    [InlineData(MenuPresentation.Vector, 24, 100)]
-    [InlineData(MenuPresentation.Classic, 32, 150)]
-    [InlineData(MenuPresentation.Vector, 32, 150)]
-    public void Confirmation_displays_warning_and_every_rule_without_clipping(MenuPresentation presentation, int fontSize, int textScale)
+    [InlineData(MenuPresentation.Classic, 24, 100, false)]
+    [InlineData(MenuPresentation.Classic, 24, 100, true)]
+    [InlineData(MenuPresentation.Vector, 24, 100, false)]
+    [InlineData(MenuPresentation.Vector, 24, 100, true)]
+    [InlineData(MenuPresentation.Classic, 32, 150, false)]
+    [InlineData(MenuPresentation.Classic, 32, 150, true)]
+    [InlineData(MenuPresentation.Vector, 32, 150, false)]
+    [InlineData(MenuPresentation.Vector, 32, 150, true)]
+    public void Confirmation_displays_warning_and_every_rule_without_clipping(MenuPresentation presentation, int fontSize, int textScale, bool newGame)
     {
         MenuController menus = new();
-        menus.Open("config-combat", demo: true);
+        menus.Open(newGame ? "new-game-options" : "config-combat", demo: true);
         menus.Presentation = presentation;
         menus.Data.Settings["Text scale"] = textScale + "%";
         menus.Execute(new("config", "UI font size", Value: fontSize.ToString()));
@@ -65,10 +69,19 @@ public sealed class HardcoreSettingsTests
         using SkiaSharp.SKBitmap bitmap = new(1280, 896);
         using BattlePreviewCanvas canvas = new(bitmap);
         UiLabel[] labels = Descendants(view.Root).OfType<UiLabel>().ToArray();
-        Assert.Equal(GameplayPreferences.NewGameOptions.Count + 1, labels.Length);
+        Assert.Equal(GameplayPreferences.NewGameOptions.Count(option => option.RequiredOnHardcore) + 1, labels.Length);
+        UiCompactColumns columns = Assert.Single(Descendants(view.Root).OfType<UiCompactColumns>());
+        UiLabel[] rules = columns.Children.OfType<UiLabel>().ToArray();
+        Assert.All(rules, rule => Assert.Equal(UiTextFlow.SingleLine, rule.TextFlow));
+        Assert.Equal(columns.Bounds.X + columns.Bounds.Width / 2, (rules.Min(rule => rule.Bounds.X) + rules.Max(rule => rule.Bounds.Right)) / 2, 2);
         foreach (UiLabel label in labels)
         {
             UiSize measured = canvas.MeasureText(label.Text, label.FontSize, label.Bounds.Width, menus.CreateTheme().FontFamily);
+            if (rules.Contains(label))
+            {
+                UiSize unwrapped = canvas.MeasureText(label.Text, label.FontSize, float.PositiveInfinity, menus.CreateTheme().FontFamily);
+                Assert.True(unwrapped.Width <= label.Bounds.Width + 1, label.Text);
+            }
             Assert.True(measured.Height <= label.Bounds.Height, $"{label.Text}: {measured.Height} > {label.Bounds.Height}");
         }
         UiList commands = Descendants(view.Root).OfType<UiList>().Single();
@@ -117,12 +130,12 @@ public sealed class HardcoreSettingsTests
     }
 
     [Fact]
-    public void Hardcore_is_selectable_and_permanently_forces_all_save_owned_options()
+    public void Hardcore_forces_required_rules_and_allows_difficulty_change_only_before_begin()
     {
         UiPreferences defaults = new();
         UiPreferences hardcore = defaults.WithSetting("Difficulty", "Hardcore");
         Assert.Equal(BattleDifficulty.Hardcore, hardcore.Difficulty);
-        foreach (NewGameOption option in GameplayPreferences.NewGameOptions)
+        foreach (NewGameOption option in GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore))
         {
             var property = typeof(UiPreferences).GetProperty(option.PropertyName);
             if (property is not null)
@@ -133,6 +146,10 @@ public sealed class HardcoreSettingsTests
         }
         Assert.Throws<InvalidOperationException>(() => hardcore.WithSetting("Difficulty", "Normal"));
         Assert.Throws<InvalidOperationException>(() => hardcore.WithSetting("Difficulty", "Hard"));
+        Assert.Equal(BattleDifficulty.Normal, hardcore.WithSetting("Difficulty", "Normal", allowDifficultyChange: true).Difficulty);
+        Assert.Equal(BattleDifficulty.Hard, hardcore.WithInstallationSetting("Difficulty", "Hard", activeGame: false, allowDifficultyChange: true).Difficulty);
+        Assert.False(hardcore.GuardianFormsEnabled);
+        Assert.True(hardcore.WithSetting("GF Transformations", "On").GuardianFormsEnabled);
         Assert.Equal(defaults.AtbMode, hardcore.AtbMode);
         Assert.Equal(defaults.RareCardMarkers, hardcore.RareCardMarkers);
         Assert.Equal(BattleAtbMode.Normal, hardcore.WithSetting("Battle ATB mode", "Classic").AtbMode);
@@ -149,13 +166,13 @@ public sealed class HardcoreSettingsTests
         MenuData data = new();
         data.SupportedActions.Add("config");
         data.Settings["Difficulty"] = "Hardcore";
-        foreach (NewGameOption option in GameplayPreferences.NewGameOptions)
+        foreach (NewGameOption option in GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore))
         {
             data.Settings[option.Label] = "On";
         }
         MenuController menus = new(() => data, _ => { });
         menus.Open(screen);
-        foreach (MenuEntry entry in menus.Entries.Where(entry => NewGameSettings.IsLocked(entry.Id, BattleDifficulty.Hardcore)))
+        foreach (MenuEntry entry in menus.Entries.Where(entry => NewGameSettings.IsLocked(entry.Id, BattleDifficulty.Hardcore, screen == "new-game-options")))
         {
             Assert.False(entry.Enabled);
             Assert.Contains("permanent", entry.Help);

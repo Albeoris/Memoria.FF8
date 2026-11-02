@@ -180,12 +180,6 @@ public sealed partial class MenuController
         {
             junctionDashboard.SetDestination(junctionFocus[5..]);
         }
-        if (junctionEditor == "attack-mode" && !Data.SmartAttack)
-        {
-            junctionEditor = "";
-            junctionFocus = "basic-action";
-            Message = J("physical-attack", "This is the effective basic action. Smart Attack is disabled.");
-        }
         if (junctionPlan is not null && Data.JunctionPlanner?.IsCurrent(junctionPlan) != true)
         {
             junctionPlan = null;
@@ -534,10 +528,7 @@ public sealed partial class MenuController
         Place(body, JunctionLabel(J("commands", "Commands") + $" {count}/3", 15, true), 0);
         UiGrid commands = Grid([1, 1, 1, 1], [1], 0);
         string basic = Character?.Commands.FirstOrDefault() ?? "—";
-        if (Data.SmartAttack)
-        {
-            basic += " · " + MagicText(Character?.AttackMode == "SmartMagic" ? "SmartMagic" : "PhysicalOnly");
-        }
+        basic += " · " + MagicText(Character?.AttackMode == "SmartMagic" ? "SmartMagic" : "PhysicalOnly");
         Place(commands, JunctionButton("basic-action", basic, OpenJunctionAttackMode), 0);
         for (int index = 0; index < 3; index++)
         {

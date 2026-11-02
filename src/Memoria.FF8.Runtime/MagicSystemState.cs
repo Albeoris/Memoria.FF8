@@ -23,7 +23,7 @@ public sealed record MagicSystemState
     [JsonRequired]
     public bool InfiniteMagic { get; init; }
     public bool UnlimitedMagic { get; init; }
-    [JsonRequired]
+    // Historical availability flag; attack mode now determines the action without a global switch.
     public bool SmartAttack { get; init; }
     [JsonRequired]
     public MagicAttackMode[] AttackModes { get; init; } = new MagicAttackMode[8];
@@ -47,7 +47,7 @@ public sealed record MagicSystemState
     [JsonRequired]
     public string[] RecoveredResultIds { get; init; } = [];
     [JsonIgnore]
-    public bool RequiresMemoriaFormat => SharedMagicStock || InfiniteMagic || UnlimitedMagic || SmartAttack || HistoriesInitialized || RecordZeroExtension.Length != 0 || AttackModes.Any(mode => mode != MagicAttackMode.PhysicalOnly);
+    public bool RequiresMemoriaFormat => SharedMagicStock || InfiniteMagic || UnlimitedMagic || HistoriesInitialized || RecordZeroExtension.Length != 0 || AttackModes.Any(mode => mode != MagicAttackMode.PhysicalOnly);
 
     private static byte[][] EmptyMasks() => Enumerable.Range(0, 8).Select(_ => new byte[57]).ToArray();
     public MagicSystemState DeepCopy() => this with

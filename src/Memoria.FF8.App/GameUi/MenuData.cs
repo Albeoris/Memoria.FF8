@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Ui;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -19,7 +19,6 @@ public sealed class MenuData
     public bool? CardCollectionComplete { get; set; }
     public string? ChocoboWorldUnavailableReason { get; set; }
     public bool SharedMagicStock { get; set; }
-    public bool SmartAttack { get; set; }
     public bool LimitOncePerTurnPreferenceLocked { get; set; }
     public bool SelphieCardSlotsPreferenceLocked { get; set; }
     public bool DrawOncePerSpellPreferenceLocked { get; set; }

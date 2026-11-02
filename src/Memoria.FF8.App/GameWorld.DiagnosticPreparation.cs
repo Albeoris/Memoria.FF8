@@ -173,7 +173,7 @@ internal sealed partial class GameWorld
     {
         recipe.Validate();
         source.Validate();
-        if (source.MagicSystem.SharedMagicStock || source.MagicSystem.InfiniteMagic || source.MagicSystem.SmartAttack)
+        if (source.MagicSystem.SharedMagicStock || source.MagicSystem.InfiniteMagic)
         {
             throw new NotSupportedException("Diagnostic stock preparation requires ordinary personal finite magic rules.");
         }

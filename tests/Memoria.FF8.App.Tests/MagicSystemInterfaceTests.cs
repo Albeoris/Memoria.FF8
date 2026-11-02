@@ -8,15 +8,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MagicSystemInterfaceTests
 {
     [Fact]
-    public void NewGameExposesFourIndependentMagicRules()
+    public void NewGameExposesIndependentMagicRulesWithoutSmartAttackSetting()
     {
         MenuController menu = new();
         menu.Open("new-game-options", demo: true);
         Assert.Contains(menu.Entries, entry => entry.Id == "Draw once per spell");
         Assert.Contains(menu.Entries, entry => entry.Id == "Shared magic stock");
         Assert.Contains(menu.Entries, entry => entry.Id == "Infinite magic");
-        Assert.Contains(menu.Entries, entry => entry.Id == "Smart Attack");
-        Assert.All(new[] { "Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack" }, key => Assert.Equal("Off", menu.Data.Settings[key]));
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == "Smart Attack");
+        Assert.All(new[] { "Draw once per spell", "Shared magic stock", "Infinite magic" }, key => Assert.Equal("Off", menu.Data.Settings[key]));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class MagicSystemInterfaceTests
     [Fact]
     public void FirstAttackSlotHasSavedPersonalChoiceAndThreeNativeSlotsRetainTheirIds()
     {
-        MenuData data = new() { SmartAttack = true };
+        MenuData data = new();
         data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Caster", InParty = true, AttackMode = "SmartMagic" });
         data.SupportedActions.Add("attack-mode");
         MenuAction? requested = null;
@@ -76,11 +76,15 @@ public sealed class MagicSystemInterfaceTests
         menu.Execute(new MenuAction("junction-ui", "basic-action"));
         menu.Execute(new MenuAction("junction-ui", "physical-mode"));
         Assert.Equal(new MenuAction("attack-mode", TargetId: "character-0", Value: "PhysicalOnly"), requested);
-        data.SmartAttack = false;
+        data.Characters[0].AttackMode = "PhysicalOnly";
+        menu.Back();
         menu.InvalidateLiveData();
         menu.Execute(new MenuAction("junction-ui", "basic-action"));
-        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "physical-mode" or "smart-mode");
-        Assert.Equal("SmartMagic", data.Characters[0].AttackMode);
+        Assert.Contains(menu.Entries, entry => entry.Id == "physical-mode" && entry.Enabled);
+        Assert.Contains(menu.Entries, entry => entry.Id == "smart-mode" && entry.Enabled);
+        menu.Execute(new MenuAction("junction-ui", "smart-mode"));
+        Assert.Equal(new MenuAction("attack-mode", TargetId: "character-0", Value: "SmartMagic"), requested);
+        Assert.Equal("PhysicalOnly", data.Characters[0].AttackMode);
     }
 
     [Fact]
@@ -215,7 +219,7 @@ public sealed class MagicSystemInterfaceTests
         menu.Open(PlayerSaveMenuMode.Load);
         Assert.True(menu.SelectBank(1));
         Assert.Equal(1, menu.Bank);
-        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { SmartAttack = true } }));
+        Assert.False(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { SmartAttack = true } }));
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { GuardianFormsEnabled = true } }));
         Assert.False(PlayerSaveStore.RequiresMemoriaFormat(new GameState()));
     }

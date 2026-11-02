@@ -6,12 +6,12 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class HardcorePreferencesTests
 {
     [Fact]
-    public void Enabling_hardcore_enables_every_optional_rule_and_preserves_atb()
+    public void Enabling_hardcore_enables_mandatory_rules_and_preserves_atb()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.SetGameplayPreferences(new() { Difficulty = BattleDifficulty.Hardcore, AtbMode = BattleAtbMode.Normal });
-        Assert.All(GameplayPreferences.NewGameOptions, option => Assert.True(option.IsEnabled(session.State.GameplayPreferences), option.Label));
+        Assert.All(GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore), option => Assert.True(option.IsEnabled(session.State.GameplayPreferences), option.Label));
         Assert.Equal(BattleAtbMode.Normal, session.State.GameplayPreferences.AtbMode);
         GameplayPreferences restored = JsonSerializer.Deserialize<GameplayPreferences>(JsonSerializer.Serialize(session.State.GameplayPreferences))!;
         restored.Validate();
@@ -22,13 +22,13 @@ public sealed class HardcorePreferencesTests
     }
 
     [Fact]
-    public void Every_boolean_preference_automatically_participates_and_cannot_be_disabled()
+    public void Explicit_mandatory_options_participate_and_cannot_be_disabled()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.SetGameplayPreferences(new() { Difficulty = BattleDifficulty.Hardcore });
-        var properties = typeof(GameplayPreferences).GetProperties().Where(property => property.PropertyType == typeof(bool)).ToArray();
-        Assert.Equal(properties.Select(property => property.Name).Order(), GameplayPreferences.NewGameOptions.Select(option => option.PropertyName).Order());
+        var properties = typeof(GameplayPreferences).GetProperties().Where(property => property.GetCustomAttributes(typeof(NewGameOptionAttribute), false).Cast<NewGameOptionAttribute>().Any(attribute => attribute.RequiredOnHardcore)).ToArray();
+        Assert.Equal(properties.Select(property => property.Name).Order(), GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore).Select(option => option.PropertyName).Order());
         foreach (var property in properties)
         {
             GameplayPreferences changed = session.State.GameplayPreferences with { };
@@ -37,7 +37,7 @@ public sealed class HardcorePreferencesTests
             Assert.Throws<InvalidOperationException>(() => session.PreviewGameplayPreferences(changed));
             Assert.Throws<InvalidDataException>(changed.Validate);
         }
-        Assert.All(GameplayPreferences.NewGameOptions, option => Assert.True(option.IsEnabled(session.State.GameplayPreferences)));
+        Assert.All(GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore), option => Assert.True(option.IsEnabled(session.State.GameplayPreferences)));
     }
 
     [Fact]
@@ -47,11 +47,16 @@ public sealed class HardcorePreferencesTests
         initial.StartNewGame();
         GameSession session = new(initial.State with { CharacterVitals = MagicSystemFixture.Create() });
         MagicModePreview preview = session.PreviewGameplayPreferences(new() { Difficulty = BattleDifficulty.Hardcore });
-        Assert.All(GameplayPreferences.NewGameOptions, option => Assert.True(option.IsEnabled(preview.Preferences)));
+        Assert.All(GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore), option => Assert.True(option.IsEnabled(preview.Preferences)));
         session.ApplyGameplayPreferences(preview);
         Assert.True(session.State.CharacterVitals!.MagicSystem.SharedMagicStock);
         Assert.True(session.State.CharacterVitals.MagicSystem.InfiniteMagic);
-        Assert.True(session.State.CharacterVitals.MagicSystem.SmartAttack);
+        Assert.False(session.State.CharacterVitals.MagicSystem.SmartAttack);
+        Assert.False(session.State.GameplayPreferences.GuardianFormsEnabled);
+        session.SetGameplayPreferences(session.State.GameplayPreferences with { GuardianFormsEnabled = true });
+        session.SetGameplayPreferences(session.State.GameplayPreferences with { GuardianFormsEnabled = false });
+        session.SetAttackMode(0, MagicAttackMode.SmartMagic);
+        Assert.Equal(MagicAttackMode.SmartMagic, session.State.CharacterVitals.MagicSystem.AttackModes[0]);
         Assert.Throws<InvalidOperationException>(() => session.ApplyGameplayPreferences(preview with { Preferences = new GameplayPreferences() }));
     }
 }

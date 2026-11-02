@@ -124,7 +124,6 @@ public static partial class SystemTextCatalog
         defaults.Add("junction.dashboard.first-gf", "The GF unlocked commands. Choose which commands to equip.");
         defaults.Add("junction.dashboard.undo-stale", "Undo is unavailable because the relevant game state changed.");
         defaults.Add("junction.dashboard.pin-help", "A pinned stat keeps its assignment during optimization. Manual editing remains available.");
-        defaults.Add("junction.dashboard.physical-attack", "This is the effective basic action. Smart Attack is disabled.");
         defaults.Add("junction.dashboard.exit-review", "Some available command positions are empty, or Smart magic lacks Magic / Draw.");
         defaults.Add("junction.dashboard.configure", "Configure commands");
         defaults.Add("junction.dashboard.leave", "Leave as configured");

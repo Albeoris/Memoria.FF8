@@ -122,7 +122,7 @@ public sealed partial class BattleSession
         {
             MagicSystemState before = initial.MagicSystem;
             MagicSystemState current = magicVitals.MagicSystem;
-            if (before.SharedMagicStock != current.SharedMagicStock || before.InfiniteMagic != current.InfiniteMagic || before.UnlimitedMagic != current.UnlimitedMagic || before.SmartAttack != current.SmartAttack || before.HistoriesInitialized != current.HistoriesInitialized || !before.AttackModes.SequenceEqual(current.AttackModes) || !before.SharedFieldMasks.SequenceEqual(current.SharedFieldMasks) || !before.PersonalFieldMasks.Zip(current.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)))
+            if (before.SharedMagicStock != current.SharedMagicStock || before.InfiniteMagic != current.InfiniteMagic || before.UnlimitedMagic != current.UnlimitedMagic || before.HistoriesInitialized != current.HistoriesInitialized || !before.AttackModes.SequenceEqual(current.AttackModes) || !before.SharedFieldMasks.SequenceEqual(current.SharedFieldMasks) || !before.PersonalFieldMasks.Zip(current.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)))
             {
                 throw new InvalidDataException("A battle checkpoint cannot change its saved magic rules or field histories.");
             }

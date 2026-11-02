@@ -8,7 +8,6 @@ public sealed class MagicPreferenceAvailabilityTests
     [Theory]
     [InlineData("Shared magic stock")]
     [InlineData("Infinite magic")]
-    [InlineData("Smart Attack")]
     public void Unavailable_magic_setting_is_greyed_explains_the_boundary_and_rejects_input(string setting)
     {
         const string reason = "Magic rules are unavailable while a tutorial is active.";
@@ -43,10 +42,8 @@ public sealed class MagicPreferenceAvailabilityTests
     [Theory]
     [InlineData("config-magic", "Shared magic stock")]
     [InlineData("config-magic", "Infinite magic")]
-    [InlineData("config-magic", "Smart Attack")]
     [InlineData("new-game-options", "Shared magic stock")]
     [InlineData("new-game-options", "Infinite magic")]
-    [InlineData("new-game-options", "Smart Attack")]
     public void Available_magic_setting_remains_editable_in_config_and_title(string screen, string setting)
     {
         MenuData data = new();

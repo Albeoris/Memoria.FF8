@@ -29,7 +29,6 @@ Player rows have one canonical Config editor; developer rows have one Debug edit
 | Battle ATB mode | Config / Gameplay; Debug / Battle; New Game | Scalar | Player · Gameplay / Combat | Gameplay preferences / Game, Title default |
 | Shared magic stock | Config / Gameplay; New Game | Scalar | Player · Gameplay / Magic and Guardian Forces | Gameplay and magic owners / Game, Title session |
 | Infinite magic | Config / Gameplay; New Game | Scalar | Player · Gameplay / Magic and Guardian Forces | Gameplay preferences / Game, Title session |
-| Smart Attack | Config / Gameplay; New Game | Scalar | Player · Gameplay / Magic and Guardian Forces | Gameplay preferences / Game, Title session |
 | GF Transformations | Config / Gameplay; New Game | Scalar | Player · Gameplay / Magic and Guardian Forces | Gameplay preferences / Game, Title default |
 | Gunblade trigger | Config / Gameplay; Debug / Battle | Scalar | Player · Gameplay / Combat | Gameplay preferences / Game, Title default |
 | Battle policy | Config / Gameplay; Debug / Battle | Scalar | Developer · Battle / Encounter execution | Encounter policy / Game, Title default |
@@ -51,7 +50,7 @@ Player rows have one canonical Config editor; developer rows have one Debug edit
 | Dialogue font | Config / Interface; Debug / UI | Scalar | Player · Interface / Text and fonts | UI preferences / Global |
 | Dialogue font size | Config / Interface; Debug / UI | Scalar | Player · Interface / Text and fonts | UI preferences / Global |
 
-The 28 player settings, one developer setting, six fixture definitions and two excluded placeholders account for the complete registry. New Game retains its supported setup subset; Junction retains the per-character Attack mode, dependent on Smart Attack. Shared-stock review and deferred safe-boundary adoption stay with the existing magic owner. GF changes remain unavailable during active or pending battles.
+The 27 player settings, one developer setting, six fixture definitions and two excluded placeholders account for the complete registry. New Game retains its supported setup subset; Junction always offers the per-character Attack mode, defaulting to Smart magic for new games. Shared-stock review and deferred safe-boundary adoption stay with the existing magic owner. GF changes remain unavailable during active or pending battles.
 
 Defaults and domains remain in their existing owners. Volumes expose every integer 0–100. Numeric adjustments clamp. Valid custom font sizes, volumes and retention limits survive browsing. Field-FPS load migration remains unchanged. Menu design-pixel size compounds with text scale, while dialogue uses field pixels.
 

@@ -52,21 +52,7 @@ public sealed partial class MenuController
         Place(identity, Portrait(Character), 0);
         Place(identity, Label(Character?.Name ?? "--", 28), 0, 1);
         Place(slots, identity, 0);
-        UiElement commands;
-        if (Data.SmartAttack)
-        {
-            commands = AbilitySlots("junction-command", choosing);
-        }
-        else
-        {
-            var nativeCommands = Grid([1, 3], [1], 0);
-            nativeCommands.RowDefinitions[0] = UiGridLength.Pixel(31 * TextScale);
-            UiLabel attack = Label(Character?.Commands.FirstOrDefault() ?? SystemText("ui.buildabilityjunction.label.attack", "Attack"), 25);
-            attack.Margin = new UiThickness(35 * TextScale, 0, 0, 0);
-            Place(nativeCommands, attack, 0);
-            Place(nativeCommands, AbilitySlots("junction-command", choosing), 1);
-            commands = nativeCommands;
-        }
+        UiElement commands = AbilitySlots("junction-command", choosing);
         UiPanel commandPanel = Panel(SystemText("ui.buildabilityjunction.panel.command", "COMMAND"), commands);
         commandPanel.Id = "junction-command-slots";
         Place(slots, commandPanel, 1);

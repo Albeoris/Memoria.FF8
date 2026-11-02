@@ -285,9 +285,14 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
-        if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown)
+        if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown or MenuInput.PageLeft or MenuInput.PageRight)
         {
-            Select(Math.Clamp(SelectedIndex + (input == MenuInput.PageUp ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
+            Select(Math.Clamp(SelectedIndex + (input is MenuInput.PageUp or MenuInput.PageLeft ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
+            return;
+        }
+        if (IsConfigSettingsScreen && input is MenuInput.Up or MenuInput.Down)
+        {
+            Select(SelectedIndex + (input == MenuInput.Up ? -1 : 1), entries.Count);
             return;
         }
         if (IsConfigSettingsScreen && input == MenuInput.Confirm && SelectedEntry?.Action?.Kind == "config" && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(ResolveConfigSetting(numericSetting), out _))

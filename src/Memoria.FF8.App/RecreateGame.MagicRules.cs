@@ -64,7 +64,7 @@ internal sealed partial class RecreateGame
             session.SetAttackMode(row, Enum.Parse<MagicAttackMode>(action.Value));
             return true;
         }
-        if (action.Kind != "config" || action.SubjectId is not ("Shared magic stock" or "Infinite magic" or "Smart Attack"))
+        if (action.Kind != "config" || action.SubjectId is not ("Shared magic stock" or "Infinite magic"))
         {
             return false;
         }
@@ -77,8 +77,7 @@ internal sealed partial class RecreateGame
         GameplayPreferences next = action.SubjectId switch
         {
             "Shared magic stock" => current with { SharedMagicStock = enabled },
-            "Infinite magic" => current with { InfiniteMagic = enabled },
-            _ => current with { SmartAttack = enabled }
+            _ => current with { InfiniteMagic = enabled }
         };
         if (session.State.Scene == SceneKind.Title)
         {

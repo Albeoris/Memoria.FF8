@@ -35,7 +35,6 @@ public static class LiveMenuData
         MenuData result = new()
         {
             SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
-            SmartAttack = state.GameplayPreferences.SmartAttack,
             PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
             Location = catalog?.LocationName(state, placeId) ?? Text("common.unavailable", "Unavailable"),
             SourceDescription = Text("projection.session.source", "Live session: native inventory, party and junction records"),

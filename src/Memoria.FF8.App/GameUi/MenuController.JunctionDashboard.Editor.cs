@@ -591,12 +591,6 @@ public sealed partial class MenuController
             return;
         }
         junctionOrigin = "basic-action";
-        if (!Data.SmartAttack)
-        {
-            Message = J("physical-attack", "This is the effective basic action. Smart Attack is disabled.");
-            _view = null;
-            return;
-        }
         junctionEditor = "attack-mode";
         junctionFocus = "physical-mode";
         _view = null;

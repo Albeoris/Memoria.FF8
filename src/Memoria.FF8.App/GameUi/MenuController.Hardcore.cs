@@ -26,8 +26,9 @@ public sealed partial class MenuController
         {
             return false;
         }
-        string Warning() => SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
-        string[] Rules() => GameplayPreferences.NewGameOptions.Select(option => LocalizeSettingLabel(option.Label, MagicUiText.SettingLabel(option.Label))).ToArray();
+        bool newGame = ScreenId == "new-game-options";
+        string Warning() => newGame ? SystemText("ui.hardcore.new-game.warning", "You can disable Hardcore until Begin. After that it is permanent. These rules will be enabled and locked On:") : SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
+        string[] Rules() => GameplayPreferences.NewGameOptions.Where(option => option.RequiredOnHardcore).Select(option => LocalizeSettingLabel(option.Label, MagicUiText.SettingLabel(option.Label))).ToArray();
         Register(new MenuScreenDefinition
         {
             Id = "hardcore-confirm",
@@ -47,11 +48,10 @@ public sealed partial class MenuController
                 UiLabel prompt = menus.Label(Warning(), 20);
                 prompt.TextFlow = UiTextFlow.Wrap;
                 Place(content, prompt, 0);
-                int rowCount = (Rules().Length + 1) / 2;
-                var options = Grid(Enumerable.Repeat(1f, rowCount).ToArray(), [1, 1], 6);
-                for (int index = 0; index < Rules().Length; index++)
+                var options = new UiCompactColumns { RowHeight = 25 * TextScale, ColumnGap = 28 * TextScale };
+                foreach (string rule in Rules())
                 {
-                    Place(options, menus.Label(Rules()[index], 15, UiTextFlow.Wrap), index % rowCount, index / rowCount);
+                    options.Children.Add(menus.Label(rule, 15, UiTextFlow.SingleLine));
                 }
                 Place(content, options, 1);
                 Place(content, menus.Commands(30, 22), 2);

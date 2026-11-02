@@ -508,7 +508,8 @@ public sealed partial class GameSession : IEventServices
         {
             throw new NotSupportedException("Character initialization requires the untouched authentic New Game before its first engine transaction.");
         }
-        SetCharacterVitals(MagicModeCoordinator.Preview(vitals, State.GameplayPreferences).Vitals);
+        NativeCharacterVitals initialized = MagicModeCoordinator.Preview(vitals, State.GameplayPreferences).Vitals;
+        SetCharacterVitals(initialized with { MagicSystem = initialized.MagicSystem with { AttackModes = Enumerable.Repeat(MagicAttackMode.SmartMagic, 8).ToArray() } });
     }
 
     public void SetCharacterVitals(NativeCharacterVitals vitals)
@@ -814,7 +815,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved pending GF Transformations preference cannot change during a battle.");
         }
         state.CharacterVitals?.ValidateMagicSystemConsistency();
-        if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.SmartAttack != state.GameplayPreferences.SmartAttack || magicVitals.MagicSystem.UnlimitedMagic != state.GameplayPreferences.Tuning.UnlimitedMagic))
+        if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.UnlimitedMagic != state.GameplayPreferences.Tuning.UnlimitedMagic))
         {
             throw new InvalidDataException("Saved gameplay rules disagree with their magic-system owner.");
         }

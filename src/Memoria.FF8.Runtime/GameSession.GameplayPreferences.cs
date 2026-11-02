@@ -93,7 +93,7 @@ public sealed partial class GameSession
 
     public void SetAttackMode(int row, MagicAttackMode mode)
     {
-        if ((uint)row >= 8 || !Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || !vitals.MagicSystem.SmartAttack || !State.GameplayPreferences.SmartAttack || HasActiveBattle)
+        if ((uint)row >= 8 || !Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || HasActiveBattle)
         {
             throw new InvalidOperationException("Attack modes require an available field party record.");
         }
@@ -113,7 +113,7 @@ public sealed partial class GameSession
         ArgumentNullException.ThrowIfNull(preferences);
         if (State.GameplayPreferences.Difficulty == BattleDifficulty.Hardcore || State.PendingGameplayPreferences?.Difficulty == BattleDifficulty.Hardcore)
         {
-            if (preferences.Difficulty != BattleDifficulty.Hardcore || GameplayPreferences.NewGameOptions.Any(option => !option.IsEnabled(preferences)))
+            if (preferences.Difficulty != BattleDifficulty.Hardcore || GameplayPreferences.NewGameOptions.Any(option => option.RequiredOnHardcore && !option.IsEnabled(preferences)))
             {
                 throw new InvalidOperationException("Hardcore cannot be disabled and its gameplay rules must remain enabled.");
             }
@@ -150,7 +150,7 @@ public sealed partial class GameSession
     private bool MagicRulesDiffer(GameplayPreferences preferences)
     {
         GameplayPreferences current = State.GameplayPreferences;
-        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.SmartAttack != current.SmartAttack || preferences.Tuning.UnlimitedMagic != current.Tuning.UnlimitedMagic;
+        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.Tuning.UnlimitedMagic != current.Tuning.UnlimitedMagic;
     }
 
     public string? MagicMutationUnavailableReason => ActiveFieldMutationBoundary switch

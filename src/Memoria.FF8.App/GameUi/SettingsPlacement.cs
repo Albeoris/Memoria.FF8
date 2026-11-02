@@ -39,7 +39,7 @@ internal static class SettingsPlacement
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
             ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
-            ["Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations"]),
+            ["Draw once per spell", "Shared magic stock", "Infinite magic", "GF Transformations"]),
         ["config-triple-triad"] = new("Triple Triad", "Rules apply to this game; Title sets new-game defaults. Rare-card markers are shared across saves.",
             [.. UiPreferences.TripleTriadSettingKeys, "Rare card markers"]),
         ["config-exploration"] = new("Exploration and saving", "Exploration item rules and rotating quick-save retention.",
@@ -78,7 +78,6 @@ internal static class SettingsPlacement
             ["Battle ATB mode"] = "atb-mode",
             ["Shared magic stock"] = "shared-magic",
             ["Infinite magic"] = "infinite-magic",
-            ["Smart Attack"] = "smart-attack",
             ["GF Transformations"] = "guardian-forms",
             ["Gunblade trigger"] = "gunblade",
             ["Battle policy"] = "encounter-execution",
@@ -134,7 +133,7 @@ internal static class SettingsPlacement
             string scope = setting.Id switch
             {
                 _ when UiPreferences.TripleTriadSettingKeys.Contains(setting.Id) => "Game / Title default",
-                "Shared magic stock" or "Infinite magic" or "Smart Attack" => "Game / Title session",
+                "Shared magic stock" or "Infinite magic" => "Game / Title session",
                 "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
@@ -163,7 +162,6 @@ internal static class SettingsPlacement
                 "Battle ATB mode" => "GameplayPreferences.AtbMode",
                 "Shared magic stock" => "GameplayPreferences.SharedMagicStock",
                 "Infinite magic" => "GameplayPreferences.InfiniteMagic",
-                "Smart Attack" => "GameplayPreferences.SmartAttack",
                 "GF Transformations" => "GameplayPreferences.GuardianFormsEnabled",
                 "Gunblade trigger" => "GameplayPreferences.GunbladeMode",
                 "Battle policy" => "BattlePolicy.FullBattlePlaythrough",

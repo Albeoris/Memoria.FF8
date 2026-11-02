@@ -65,7 +65,6 @@ public static partial class SystemTextCatalog
             ["setting.atb-mode"] = "ATB mode",
             ["setting.shared-magic"] = "Shared magic stock",
             ["setting.infinite-magic"] = "Limited magic",
-            ["setting.smart-attack"] = "Smart Attack",
             ["setting.guardian-forms"] = "GF Transformations",
             ["setting.gunblade"] = "Gunblade trigger",
             ["setting.encounter-execution"] = "Battle policy",

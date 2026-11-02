@@ -55,7 +55,7 @@ public sealed class MenuJunctionPlanner
         this.names = names is null ? null : new Dictionary<int, string>(names);
         this.catalog = catalog;
         this.placeId = placeId;
-        rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable") + ":" + state.GameplayPreferences.SmartAttack;
+        rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable");
         nativeFingerprint = NativeJunctionEdits.Fingerprint(source);
         SourceFingerprint = nativeFingerprint + ":" + rulesFingerprint;
     }
