@@ -7,6 +7,33 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class FieldNativeNormalBackgroundWrapTests
 {
+    [Theory]
+    [InlineData(130)]
+    [InlineData(135)]
+    public void InstalledCavernWrappingMatchesNativePlacementAndRejectsUnknownImages(int fieldId)
+    {
+        using GameAssets assets = InstalledAssets();
+        FieldAssets field = assets.LoadField(fieldId);
+        Assert.NotEqual(0, field.Information!.BackgroundWrapMask);
+        Assert.True(FieldNativeNormalBackgroundWrap.SupportsMetadata(field, 0));
+        Assert.False(FieldNativeNormalBackgroundWrap.SupportsMetadata(field with { NativeExecutableHash = null }, 0));
+        Assert.False(FieldNativeNormalBackgroundWrap.SupportsMetadata(field with { NativeExecutableHash = new string('0', 64) }, 0));
+        FieldBounds bounds = field.Information.CameraBounds[0];
+        foreach (int x in new[] { bounds.Left + 160, bounds.Right - 160 })
+        {
+            foreach (int y in new[] { bounds.Top + 112, bounds.Bottom - 112 })
+            {
+                FieldNativeBackgroundWrapFrame? frame = FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter(x, y));
+                Assert.NotNull(frame);
+                foreach (BackgroundTile tile in field.Background.Where(tile => (field.Information.BackgroundWrapMask & (1 << tile.Layer)) != 0))
+                {
+                    FieldNativeBackgroundWrapLayer layer = frame.Layers.Single(layer => layer.Layer == tile.Layer);
+                    Assert.Equal(NativePlacement(tile, x, y, field.Information), FieldNativeBackgroundTileProbe.Relocate((short)tile.X, (short)tile.Y, layer, frame));
+                }
+            }
+        }
+    }
+
     [Fact]
     public void OpposingLinearCurrentsRelocateBeforeSharedCameraOffsetAndDisabledWrappingOnlyAdds()
     {

@@ -10,7 +10,7 @@ public static class FieldNativeNormalBackgroundWrap
 {
     public static bool SupportsMetadata(FieldAssets field, int cameraIndex)
     {
-        if (field.Id < 72 || field.NativeExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || cameraIndex is < 0 or > 1 || cameraIndex >= field.Cameras.Count || field.GetCamera(cameraIndex).Pan != Vector2.Zero || field.Information is not FieldInformation information || information.CameraBounds.Count != 8 || information.ScreenBounds.Count == 0 || information.ScreenBounds[0] != new FieldBounds(0, 224, 320, 0) || field.Background.Count == 0 || field.Background.Any(tile => tile.Layer is < 0 or > 7 || tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue))
+        if (field.Id < 72 || !NativeFieldRuntimeProfile.IsSupportedImage(field.NativeExecutableHash) || cameraIndex is < 0 or > 1 || cameraIndex >= field.Cameras.Count || field.GetCamera(cameraIndex).Pan != Vector2.Zero || field.Information is not FieldInformation information || information.CameraBounds.Count != 8 || information.ScreenBounds.Count == 0 || information.ScreenBounds[0] != new FieldBounds(0, 224, 320, 0) || field.Background.Count == 0 || field.Background.Any(tile => tile.Layer is < 0 or > 7 || tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue))
         {
             return false;
         }
