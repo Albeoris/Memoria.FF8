@@ -49,7 +49,7 @@ public sealed class NativeTutorialExamCatalog
         {
             throw new ArgumentException("The original SeeD test requires ten YES/NO answer indices.", nameof(answers));
         }
-        if (review ? level > progress.PassedTests : level != progress.PassedTests + 1 || level > progress.CharacterLevel || progress.SeeDRank < 0)
+        if (review ? level > progress.PassedTests : level != progress.PassedTests + 1 || (progress.SeeDRank != 31 && level > progress.CharacterLevel) || progress.SeeDRank < 0)
         {
             throw new InvalidOperationException("The selected original SeeD test is not available at the current isolated progress.");
         }

@@ -28,14 +28,7 @@ internal sealed partial class RecreateGame
             world ??= CreateWorld();
             world.BeginMenuTutorial(id);
         });
-        gameMenus.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () =>
-        {
-            NativeCharacterVitals? party = session.State.CharacterVitals?.DeepCopy();
-            int level = party is null ? 1 : NativeStatDefinitions.Level(party.Records[0].Experience, party.Definitions.Characters[0]);
-            int rank = session.State.SeeD is { SalaryUiEnabled: true } seeD ? seeD.RankPoints / 100 : -1;
-            // Practice owns the original fresh test counter and copies display inputs; its result never writes saved rank or learning state.
-            return new NativeTutorialExamProgress(0, rank, level, party);
-        });
+        gameMenus.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), session);
     }
 
     private bool UpdateNativeTutorialUi(TimeSpan elapsed, InputFrame input)

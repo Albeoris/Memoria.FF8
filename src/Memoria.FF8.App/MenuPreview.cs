@@ -209,7 +209,7 @@ internal static class MenuPreview
                 using GameAssets assets = new(gameDirectory);
                 IReadOnlySet<int> previewUnlocks = previewState is null ? Enumerable.Range(62, 9).ToHashSet() : previewState.EventState is JsonElement eventState && eventState.TryGetProperty("Scene", out JsonElement scene) && scene.TryGetProperty("UnlockedTutorials", out JsonElement unlocked) ? unlocked.EnumerateArray().Select(value => value.GetInt32()).ToHashSet() : new HashSet<int>();
                 menus.ConnectNativeTutorials(assets.ReadNativeTutorialCatalog(), assets.ReadNativeTutorialBrowserCatalog(), () => previewUnlocks, _ => throw new NotSupportedException("Start a native tutorial through its saved request for playback preview."));
-                menus.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () => new(0, previewState is null ? 0 : previewState.SeeD is { SalaryUiEnabled: true } seeD ? seeD.RankPoints / 100 : -1, liveData?.Characters.FirstOrDefault()?.Level ?? 1, previewState?.CharacterVitals?.DeepCopy()));
+                menus.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () => new(previewState?.SeeD?.TestLevel ?? 0, previewState is null ? 0 : previewState.SeeD is { SalaryUiEnabled: true } seeD ? seeD.RankPoints / 100 : -1, liveData?.Characters.FirstOrDefault()?.Level ?? 1, previewState?.CharacterVitals?.DeepCopy()));
                 if (screen is "tutorial-native-information" or "tutorial-native-test" or "tutorial-native-review")
                 {
                     menus.Execute(new MenuAction("native-exam-open", "information"));

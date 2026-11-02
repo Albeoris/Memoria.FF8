@@ -10,6 +10,7 @@ public sealed partial class MenuController
     private bool _nativeTutorialExamConnected;
     private NativeTutorialExamCatalog? _nativeExamCatalog;
     private Func<NativeTutorialExamProgress>? _nativeExamContext;
+    private Action<NativeTutorialExamProgress, NativeTutorialExamProgress>? _commitNativeExamProgress;
     private NativeTutorialExamProgress? _nativeExamProgress;
     private (int Passed, int Rank, int Level)? _nativeExamBaseline;
     private int _nativeExamLevel;
@@ -37,8 +38,16 @@ public sealed partial class MenuController
 
     public void ConnectNativeTutorialExam(NativeTutorialExamCatalog catalog, Func<NativeTutorialExamProgress> context)
     {
+        ConnectNativeTutorialExam(catalog, context, null);
+    }
+
+    private void ConnectNativeTutorialExam(NativeTutorialExamCatalog catalog, Func<NativeTutorialExamProgress> context, Action<NativeTutorialExamProgress, NativeTutorialExamProgress>? commitProgress)
+    {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(context);
+        _commitNativeExamProgress = commitProgress;
+        _nativeExamProgress = null;
+        _nativeExamBaseline = null;
         _nativeExamCatalog = catalog;
         _nativeExamContext = context;
         _nativeTutorialExamConnected = true;
@@ -89,7 +98,7 @@ public sealed partial class MenuController
         if (action.Kind is "native-exam-begin" or "native-exam-review")
         {
             _nativeExamReview = action.Kind == "native-exam-review";
-            if (value is < 1 or > 30 || (_nativeExamReview ? value > _nativeExamProgress.PassedTests : value != _nativeExamProgress.PassedTests + 1 || value > _nativeExamProgress.CharacterLevel || _nativeExamProgress.SeeDRank < 0))
+            if (value is < 1 or > 30 || (_nativeExamReview ? value > _nativeExamProgress.PassedTests : value != _nativeExamProgress.PassedTests + 1 || (_nativeExamProgress.SeeDRank != 31 && value > _nativeExamProgress.CharacterLevel) || _nativeExamProgress.SeeDRank < 0))
             {
                 throw new InvalidOperationException("Original SeeD test is unavailable at the current isolated progress.");
             }
@@ -108,6 +117,14 @@ public sealed partial class MenuController
             if (_nativeExamAnswers.Count == 10)
             {
                 _nativeExamResult = _nativeExamCatalog.Evaluate(_nativeExamProgress, _nativeExamLevel, _nativeExamAnswers, _nativeExamReview);
+                if (_nativeExamResult.Passed && !_nativeExamReview)
+                {
+                    _commitNativeExamProgress?.Invoke(_nativeExamProgress, _nativeExamResult.Progress);
+                    if (_commitNativeExamProgress is not null)
+                    {
+                        _nativeExamBaseline = (_nativeExamResult.Progress.PassedTests, _nativeExamResult.Progress.SeeDRank, _nativeExamResult.Progress.CharacterLevel);
+                    }
+                }
                 _nativeExamProgress = _nativeExamResult.Progress;
                 ScreenId = "tutorial-native-exam-result";
                 _view = null;
@@ -213,7 +230,7 @@ public sealed partial class MenuController
 
     private IReadOnlyList<MenuEntry> NativeExamStartEntries()
     {
-        if (_nativeExamProgress is null || _nativeExamProgress.PassedTests >= 30 || _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel || _nativeExamProgress.SeeDRank < 0)
+        if (_nativeExamProgress is null || _nativeExamProgress.PassedTests >= 30 || (_nativeExamProgress.SeeDRank != 31 && _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel) || _nativeExamProgress.SeeDRank < 0)
         {
             return [new MenuEntry("back", "GO BACK", "GO BACK", "tutorial")];
         }
@@ -226,7 +243,7 @@ public sealed partial class MenuController
         {
             return "";
         }
-        int prompt = _nativeExamProgress.PassedTests >= 30 ? 5 : _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel ? 10 : _nativeExamProgress.SeeDRank == 31 ? 6 : _nativeExamProgress.PassedTests == 0 ? 0 : 1;
+        int prompt = _nativeExamProgress.PassedTests >= 30 ? 5 : _nativeExamProgress.SeeDRank == 31 ? 6 : _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel ? 10 : _nativeExamProgress.PassedTests == 0 ? 0 : 1;
         return NativeExamText(NativeRecordText(95, prompt, _nativeExamCatalog.Prompts[prompt]), prompt == 10 ? _nativeExamProgress.CharacterLevel : _nativeExamProgress.PassedTests, _nativeExamProgress.PassedTests + 1, _nativeExamProgress.SeeDRank);
     }
 
