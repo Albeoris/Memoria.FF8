@@ -69,6 +69,21 @@ public sealed class NativeStartupArtworkTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "lang-en", "main.fs")), "Installed original startup resources are required.");
+        AssertInstalledStartupArtwork(directory);
+    }
+
+    [Fact]
+    public void RemasteredStartupDirectoryDecodesEveryPictureIncludingNestedCompressedLogo()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_REMASTERED_DIR to run the optional installed startup artwork check.");
+        Assert.True(File.Exists(Path.Combine(directory!, "main.zzz")), "The selected Remastered installation must contain main.zzz.");
+        Assert.True(File.Exists(Path.Combine(directory!, "other.zzz")), "The selected Remastered installation must contain other.zzz.");
+        AssertInstalledStartupArtwork(directory!);
+    }
+
+    private static void AssertInstalledStartupArtwork(string directory)
+    {
         NativeStartupArtwork artwork = NativeStartupArtwork.Load(directory);
         HashSet<string> hashes = [];
         for (int index = 4; index <= 33; index++)
