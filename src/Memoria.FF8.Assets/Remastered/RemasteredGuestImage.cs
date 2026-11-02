@@ -59,7 +59,8 @@ public sealed class RemasteredGuestImage
             {
                 throw new InvalidDataException("Remastered DAT serialized section names disagree.");
             }
-            sections.Add(new Section(rva, extent, data));
+            uint characteristics = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(36));
+            sections.Add(new Section(rva, extent, virtualSize, characteristics, data));
         }
         uint libraryCount = ReadCount(reader, 32);
         List<uint> iatAddresses = [];
@@ -235,7 +236,20 @@ public sealed class RemasteredGuestImage
         }
     }
 
-    private sealed record Section(uint Rva, uint Extent, byte[] Data);
+    public bool IsExecutableAddress(uint address)
+    {
+        long rva = address - (long)ImageBase;
+        return sections.Any(section => (section.Characteristics & 0x20000000) != 0 && rva >= section.Rva && rva < (long)section.Rva + section.Data.Length);
+    }
+
+    public bool IsWritableRange(uint address, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        long rva = address - (long)ImageBase;
+        return sections.Any(section => (section.Characteristics & 0x80000000) != 0 && rva >= section.Rva && rva + count <= (long)section.Rva + section.VirtualSize);
+    }
+
+    private sealed record Section(uint Rva, uint Extent, uint VirtualSize, uint Characteristics, byte[] Data);
 
     // Single-byte input prevents inflater read-ahead from concealing a serialized zlib suffix.
     private sealed class ExactCompressedStream(Stream source, long length) : Stream

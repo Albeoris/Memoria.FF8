@@ -6,6 +6,30 @@ namespace Memoria.FF8.Remastered.Tests;
 public sealed class RemasteredGuestImageTests
 {
     [Fact]
+    public void SectionPermissionsDistinguishSerializedCodeFromWritableVirtualStorage()
+    {
+        using SyntheticResources files = new();
+        byte[] bytes = SyntheticResources.Dat(new SerializedSection(".data", 0x1000, [1, 2, 3, 4]));
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(256), 8);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(284), 0x80000000);
+        RemasteredGuestImage writable = new(files.Write(bytes));
+        Assert.True(writable.IsWritableRange(0x401004, 4));
+        Assert.False(writable.IsWritableRange(0x401005, 4));
+        Assert.False(writable.IsWritableRange(0x400FFF, 1));
+        Assert.False(writable.IsWritableRange(uint.MaxValue, 4));
+        Assert.False(writable.IsExecutableAddress(0x401000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => writable.IsWritableRange(0x401000, -1));
+
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(284), 0x20000000);
+        RemasteredGuestImage executable = new(files.Write(bytes));
+        Assert.True(executable.IsExecutableAddress(0x401003));
+        Assert.False(executable.IsExecutableAddress(0x401004));
+        Assert.False(executable.IsExecutableAddress(0x400FFF));
+        Assert.False(executable.IsExecutableAddress(uint.MaxValue));
+        Assert.False(executable.IsWritableRange(0x401000, 4));
+    }
+
+    [Fact]
     public void ReadsOnlyExplicitGuestSectionsAndAdjacentSectionBytes()
     {
         using SyntheticResources files = new();

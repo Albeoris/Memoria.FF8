@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -10,11 +8,15 @@ public static class NativeBattleRenzokukenResourceReader
 {
     public static ImmutableArray<BattleNativeRenzokukenResource> Read(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static ImmutableArray<BattleNativeRenzokukenResource> Read(IGameNativeMemorySource memory)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Renzokuken effect resources require the authenticated English executable.");
+            throw new NotSupportedException("Renzokuken effect resources require an authenticated English runtime image.");
         }
-        using PEReader reader = new(new MemoryStream(executable));
         (ushort Magic, uint Service, uint Resource)[] bindings = [(160, 0x5FF080, 0xEA1BA0), (141, 0x61DE70, 0xEA8AB4), (259, 0x5A6C20, 0xE9264C), (332, 0x58B930, 0xE7E368), (333, 0x589BD0, 0xE7B0C0), (159, 0x600BC0, 0xEA3A28), (161, 0x5FD100, 0xE9B324), (334, 0x587790, 0xE71864), (335, 0x5856B0, 0xE6CC48), (336, 0x583040, 0xE640FC), (337, 0x580990, 0xE5DF7C), (339, 0x57E5D0, 0xE567AC), (340, 0x57BC00, 0xE5110C), (341, 0x579A80, 0xE4F048), (342, 0x5776D0, 0xE47704), (343, 0x575650, 0xE426D0)];
         return bindings.Select(binding => ReadResource(binding.Magic, binding.Service, binding.Resource)).ToImmutableArray();
 
@@ -144,9 +146,7 @@ public static class NativeBattleRenzokukenResourceReader
 
         ReadOnlySpan<byte> Bytes(uint address, int length)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + length <= section.VirtualAddress + section.SizeOfRawData);
-            return executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), length);
+            return memory.Read(address, length);
         }
     }
 }
@@ -159,7 +159,8 @@ public sealed partial class GameAssets
     {
         if (nativeRenzokukenResources.IsDefault)
         {
-            nativeRenzokukenResources = NativeBattleRenzokukenResourceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+            _ = GameDataResources.RequireNativeRuntimeProfile(resources);
+            nativeRenzokukenResources = NativeBattleRenzokukenResourceReader.Read(ReadNativeMemory());
         }
         return nativeRenzokukenResources;
     }

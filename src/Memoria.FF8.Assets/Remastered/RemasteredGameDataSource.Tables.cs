@@ -3,7 +3,7 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Remastered;
 
-public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeMemorySource
+public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeImageSource
 {
     private RemasteredGuestImage? guestImage;
     private bool runtimeCodeVerified;
@@ -19,6 +19,8 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
     }
     public byte[] Read(uint address, int count) => RequireGuestImage().Read(address, count);
     public byte[] ReadLoader(uint address, int count) => RequireGuestImage().ReadLoader(address, count);
+    public bool IsExecutableAddress(uint address) => RequireGuestImage().IsExecutableAddress(address);
+    public bool IsWritableRange(uint address, int count) => RequireGuestImage().IsWritableRange(address, count);
     public Memoria.FF8.Runtime.NativeFieldRuntimeProfile? NativeRuntimeProfile
     {
         get

@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using System.Text;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
@@ -12,11 +10,15 @@ public static class NativeBattleEffectCatalogReader
 {
     public static ImmutableArray<NativeBattleEffectBinding> Read(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static ImmutableArray<NativeBattleEffectBinding> Read(IGameNativeImageSource memory)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Native effect entry bindings require the authenticated English executable.");
+            throw new NotSupportedException("Native effect entry bindings require an authenticated supported image.");
         }
-        using PEReader reader = new(new MemoryStream(executable));
         ImmutableArray<NativeBattleEffectBinding>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectBinding>(400);
         for (ushort effect = 1; effect <= 400; effect++)
         {
@@ -31,23 +33,17 @@ public static class NativeBattleEffectCatalogReader
 
         uint ReadAddress(uint address)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 4 <= section.VirtualAddress + section.SizeOfRawData);
-            return BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), 4));
+            return BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(address, 4));
         }
 
         byte FirstByte(uint address)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData);
-            return executable[checked((int)(rva - section.VirtualAddress + section.PointerToRawData))];
+            return memory.Read(address, 1)[0];
         }
 
         ReadOnlySpan<byte> Bytes(uint address, int count)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + count <= section.VirtualAddress + section.SizeOfRawData);
-            return executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), count);
+            return memory.Read(address, count);
         }
 
         ImmutableArray<NativeBattleEffectInitializerResource> ReadInitializer(uint address)
@@ -106,8 +102,7 @@ public static class NativeBattleEffectCatalogReader
 
         NativeBattleEffectInitializerResource ReadResource(uint nameAddress, uint global)
         {
-            long globalRva = global - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            if (!reader.PEHeaders.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemWrite) != 0 && globalRva >= section.VirtualAddress && globalRva + 4 <= section.VirtualAddress + section.VirtualSize))
+            if (!memory.IsWritableRange(global, 4))
             {
                 throw new InvalidDataException("Native initializer global is outside its writable image storage.");
             }
@@ -125,8 +120,7 @@ public static class NativeBattleEffectCatalogReader
             {
                 return;
             }
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            if (!reader.PEHeaders.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemExecute) != 0 && rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData))
+            if (!memory.IsExecutableAddress(address))
             {
                 throw new InvalidDataException($"Native effect callback{address:X} is outside executable image code.");
             }
@@ -142,8 +136,9 @@ public sealed partial class GameAssets
     {
         if (nativeEffectCatalog.IsDefault)
         {
-            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
-            ImmutableArray<NativeBattleEffectBinding> catalog = NativeBattleEffectCatalogReader.Read(executable);
+            _ = GameDataResources.RequireNativeRuntimeProfile(resources);
+            IGameNativeMemorySource memory = ReadNativeMemory();
+            ImmutableArray<NativeBattleEffectBinding> catalog = NativeBattleEffectCatalogReader.Read(memory as IGameNativeImageSource ?? throw new NotSupportedException("Native effect entry bindings require retained guest image section permissions."));
             NativeBattleEffectBinding fire = catalog[1];
             if (fire.Entry != 0x6298A0 || fire.Initializer != 0x629880)
             {
@@ -155,7 +150,6 @@ public sealed partial class GameAssets
             }
             using IFlArchive magic = OpenArchive("magic");
             //6298A0 passes DED5FC to5099A0; its next static object is the first Fire sprite at DEDC2C.
-            IGameNativeMemorySource memory = ReadNativeMemory();
             NativeBattleEffectProgramResources program = new(new("FF8_EN:DED5FC", NativeBattleEffectStaticResourcesReader.Read(memory, 0xDED5FC, 0x630)), [NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xDEDC2C), NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xDEDDD8), NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xDEDF84)], BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(memory, 0xDEE130, 4).AsSpan()));
             nativeEffectCatalog = catalog.SetItem(1, fire with { InitializerAsset = new("mag001.tim", NativeBattleTelemetry.Immutable(1153, Read(magic, "mag001.tim"))), ProgramResources = program });
         }

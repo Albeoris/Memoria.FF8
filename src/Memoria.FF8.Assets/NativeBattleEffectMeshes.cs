@@ -11,8 +11,9 @@ public sealed partial class GameAssets
     {
         if (nativeEffectMeshes.IsDefault)
         {
-            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
-            nativeEffectMeshes = [NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 1), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 2), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 3), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 4), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 5), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 7)];
+            _ = GameDataResources.RequireNativeRuntimeProfile(resources);
+            IGameNativeMemorySource memory = ReadNativeMemory();
+            nativeEffectMeshes = [NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 1), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 2), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 3), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 4), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 5), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 7)];
         }
         return nativeEffectMeshes;
     }

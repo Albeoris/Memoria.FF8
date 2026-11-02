@@ -13,7 +13,14 @@ public interface IGameNativeMemorySource
     byte[] ReadLoader(uint address, int count);
 }
 
-public sealed class NativeExecutableMemory : IGameNativeMemorySource
+/// <summary>Native guest image storage with the section permissions retained by its source container.</summary>
+public interface IGameNativeImageSource : IGameNativeMemorySource
+{
+    bool IsExecutableAddress(uint address);
+    bool IsWritableRange(uint address, int count);
+}
+
+public sealed class NativeExecutableMemory : IGameNativeImageSource
 {
     private readonly byte[] executable;
     private readonly PEHeaders headers;
@@ -34,6 +41,19 @@ public sealed class NativeExecutableMemory : IGameNativeMemorySource
     public byte[] Read(uint address, int count) => ReadCore(address, count, false);
     public byte[] ReadLoader(uint address, int count) => ReadCore(address, count, true);
 
+    public bool IsExecutableAddress(uint address)
+    {
+        long rva = address - (long)headers.PEHeader!.ImageBase;
+        return headers.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemExecute) != 0 && rva >= section.VirtualAddress && rva < (long)section.VirtualAddress + section.SizeOfRawData);
+    }
+
+    public bool IsWritableRange(uint address, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        long rva = address - (long)headers.PEHeader!.ImageBase;
+        return headers.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemWrite) != 0 && rva >= section.VirtualAddress && rva + count <= (long)section.VirtualAddress + section.VirtualSize);
+    }
+
     private byte[] ReadCore(uint address, int count, bool loader)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
@@ -50,12 +70,14 @@ public sealed class NativeExecutableMemory : IGameNativeMemorySource
     }
 }
 
-public sealed partial class ClassicGameDataSource : IGameNativeMemorySource
+public sealed partial class ClassicGameDataSource : IGameNativeImageSource
 {
     private NativeExecutableMemory? nativeMemory;
     public string SourceHash => Memory.SourceHash;
     public byte[] Read(uint address, int count) => Memory.Read(address, count);
     public byte[] ReadLoader(uint address, int count) => Memory.ReadLoader(address, count);
+    public bool IsExecutableAddress(uint address) => Memory.IsExecutableAddress(address);
+    public bool IsWritableRange(uint address, int count) => Memory.IsWritableRange(address, count);
     private NativeExecutableMemory Memory
     {
         get

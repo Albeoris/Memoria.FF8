@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -10,11 +8,16 @@ public static class NativeBattleModuleResourceReader
 {
     public static ImmutableArray<NativeBattleModuleResource> Read(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static ImmutableArray<NativeBattleModuleResource> Read(IGameNativeMemorySource memory)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Native module resources require the authenticated English executable.");
+            throw new NotSupportedException("Native module resources require an authenticated English runtime image.");
         }
-        using PEReader reader = new(new MemoryStream(executable));
         ImmutableArray<NativeBattleModuleResource>.Builder resources = ImmutableArray.CreateBuilder<NativeBattleModuleResource>(42);
         //C7E554 has42 original mapped resource pointers; the following DWORD is data FF000000, not another pointer.
         for (byte id = 0; id < 42; id++)
@@ -41,9 +44,7 @@ public static class NativeBattleModuleResourceReader
 
         ReadOnlySpan<byte> Bytes(uint address, int count)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + count <= section.VirtualAddress + section.SizeOfRawData);
-            return executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), count);
+            return memory.Read(address, count);
         }
 
         uint U32(uint address)
@@ -66,7 +67,8 @@ public sealed partial class GameAssets
     {
         if (nativeBattleModuleResources.IsDefault)
         {
-            nativeBattleModuleResources = NativeBattleModuleResourceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+            _ = GameDataResources.RequireNativeRuntimeProfile(resources);
+            nativeBattleModuleResources = NativeBattleModuleResourceReader.Read(ReadNativeMemory());
         }
         return nativeBattleModuleResources;
     }
