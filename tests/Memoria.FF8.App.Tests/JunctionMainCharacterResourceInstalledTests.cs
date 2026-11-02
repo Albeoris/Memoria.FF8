@@ -83,7 +83,7 @@ public sealed class JunctionMainCharacterResourceInstalledTests
         FieldAssets selectedScene = assets.LoadField(selected.FieldId!.Value);
         NativeFieldRegistrationResources native = selectedScene.NativeRegistration!;
         ushort group = BinaryPrimitives.ReadUInt16LittleEndian(selectedScene.Jsm.AsSpan(8, 2));
-        NativeFieldRegistrationStep staged = NativeFieldRegistrationMachine.ReloadKind3(native, [new(0, selected.ModelIndex, group >> 7, (group >> 7) + (group & 127) + 1)], NativeBattleRetainedMemory.FromColdProcess());
+        NativeFieldRegistrationStep staged = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, native, [new(0, selected.ModelIndex, group >> 7, (group >> 7) + (group & 127) + 1)], NativeBattleRetainedMemory.FromColdProcess(native.ExecutableHash));
         staged.State.Validate(staged.Memory);
         NativeFieldRegisteredResource resource = Assert.Single(staged.State.Resources);
         Assert.Equal(selectedScene.Models[selected.ModelIndex].NativeParts!.SourceHash, resource.SourceHash);

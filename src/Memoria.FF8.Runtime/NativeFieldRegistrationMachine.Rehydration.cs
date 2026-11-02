@@ -7,6 +7,7 @@ public static partial class NativeFieldRegistrationMachine
     {
         source.Validate();
         previous.Validate(retained);
+        previous.RequireRuntimeProfile(source.ExecutableHash);
         if (previous.FieldId != source.FieldId || previous.ProgramHash != source.ProgramHash || !previous.Instances.Select(instance => (instance.ObjectId, instance.ModelId)).SequenceEqual(actors.Select(actor => (actor.ObjectId, actor.ModelId))) || !actors.Select(actor => actor.ObjectId).SequenceEqual(presentation.Select(actor => actor.ObjectId)))
         {
             throw new InvalidDataException("Model cache rehydration requires the same field program and retained actor/model bindings.");
@@ -32,7 +33,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Model cache reconstruction cannot replace resources while native VRAM operations are pending.");
         }
-        NativeFieldRegistrationStep rebuilt = ReloadKind3(source, actors, retained);
+        NativeFieldRegistrationStep rebuilt = Register(previous.MemoryLayout.Entry, source, actors, retained);
         // Snapshot rehydration retains the sampled phase even when the actor owns automatic animation.
         NativeFieldRetainedPresentation[] sampled = presentation.Select(actor => actor with { Animation = actor.AutoAnimation ? actor.BaseAnimation : actor.Animation, AutoAnimation = false }).ToArray();
         NativeBattleFieldResourceReloadResult restored = RestoreRetainedPresentation(rebuilt.State, rebuilt.Memory, sampled);

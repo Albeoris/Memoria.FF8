@@ -56,9 +56,9 @@ public sealed class NativeFieldPalettePolicyTests
         NativeFieldRegistrationResources source = Fixture(null);
         NativeFieldRetainedActor[] actors = [new(0, 0, 0, 1)];
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        NativeFieldRegistrationStep absent = NativeFieldRegistrationMachine.ReloadKind3(source, actors, cold);
+        NativeFieldRegistrationStep absent = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, cold);
         byte[] palette = Palette();
-        Assert.Equal(NativeFieldRegistrationMachine.FieldArena + 56, absent.State.PreModelAddress);
+        Assert.Equal(NativeFieldRegistrationLayout.ForImage(NativeFieldRuntimeProfile.FF8EnExecutableHash, NativeFieldRegistrationEntry.BattleReturn).ArenaAddress + 56, absent.State.PreModelAddress);
         Assert.Equal(2, absent.Uploads.Length);
         Assert.Equal(palette, absent.Uploads[1].Bytes.ToArray());
         byte[] actualPalette = new byte[512];
@@ -66,13 +66,13 @@ public sealed class NativeFieldPalettePolicyTests
         Assert.Equal(palette, actualPalette);
         NativeFieldRegisteredResource resource = Assert.Single(absent.State.Resources);
         Assert.Equal(palette, absent.Memory.FileStaging!.Read(resource.GeometryAddress + 76 + 20, 512));
-        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.ReloadKind3(JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, cold);
+        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, cold);
         NativeFieldRegistrationStep absentSnapshot = absent with { Memory = new NativeFieldEyeProcess(1, absent.Memory, null).CaptureSnapshot().Memory };
         NativeFieldRegistrationStep restoredSnapshot = restored with { Memory = new NativeFieldEyeProcess(1, restored.Memory, null).CaptureSnapshot().Memory };
         Assert.Equal(JsonSerializer.Serialize(absentSnapshot), JsonSerializer.Serialize(restoredSnapshot));
 
         NativeFieldModelSource neutral = Source("sample.pcb", [0, 0, 0, 0, 0, 128, 128, 128]);
-        NativeFieldRegistrationStep present = NativeFieldRegistrationMachine.ReloadKind3(Fixture(neutral), actors, cold);
+        NativeFieldRegistrationStep present = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, Fixture(neutral), actors, cold);
         Assert.Equal(absent.State.PreModelAddress + 8, present.State.PreModelAddress);
         Assert.Equal(NativeFieldRegistrationMachine.ProjectPalette532A40(palette, "unit"u8, neutral), present.Uploads[1].Bytes.ToArray());
         Assert.Equal(palette, source.One.Data.AsSpan().Slice(4 + 76 + 20, 512).ToArray());
@@ -83,7 +83,7 @@ public sealed class NativeFieldPalettePolicyTests
     {
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
         string original = JsonSerializer.Serialize(cold);
-        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.ReloadKind3(Fixture(null), [new(0, 0, 0, 1)], cold);
+        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, Fixture(null), [new(0, 0, 0, 1)], cold);
         Assert.False(registered.Memory.FileStaging!.IsSnapshot);
         Assert.False(((INativeBattleStorageNode)registered.Memory.EffectMemory!.Textures!).IsSnapshot);
         Assert.True(cold.FileStaging!.IsSnapshot);

@@ -50,7 +50,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Native kind3 pending reset disagrees with the retained battle/source.");
         }
-        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.ReloadKind3(resources, actorsToBind, retained);
+        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, resources, actorsToBind, retained);
         NativeBattleFieldResourceReloadResult result = NativeFieldRegistrationMachine.RestoreRetainedPresentation(step.State, step.Memory, presentation, crtRandom);
         step.State.Validate(result.Memory);
         Dictionary<int, NativeModelPartResourceState> parts = [];

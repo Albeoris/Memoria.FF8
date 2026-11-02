@@ -19,11 +19,30 @@ public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint 
 public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, uint Address, ushort? EmptyTerminal);
 public sealed record NativeFieldRegistrationState(int Version, int FieldId, string ProgramHash, string OneHash, uint PreModelAddress, uint RelocatedSourceAddress, int RelocatedSourceLength, uint EndAddress, ImmutableArray<NativeFieldRegisteredResource> Resources, ImmutableArray<NativeFieldRegisteredInstance> Instances)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldRegistrationLayout? Layout { get; init; }
+
+    // An omitted layout describes the allocation actually used by the original snapshot schema.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeFieldRegistrationLayout MemoryLayout => Layout ?? NativeFieldRegistrationLayout.ForImage(NativeFieldRuntimeProfile.FF8EnExecutableHash, NativeFieldRegistrationEntry.BattleReturn);
+
+    public void RequireRuntimeProfile(string executableHash)
+    {
+        NativeFieldRegistrationLayout layout = MemoryLayout;
+        layout.Validate();
+        if (layout.ExecutableHash != executableHash)
+        {
+            throw new NotSupportedException("Saved field registration uses another runtime allocation profile and requires explicit migration.");
+        }
+    }
+
     public void Validate(NativeBattleRetainedMemory retained)
     {
+        NativeFieldRegistrationLayout layout = MemoryLayout;
+        layout.Validate();
         retained.Validate();
         NativeBattleFileStaging memory = retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its physical shared memory.");
-        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < NativeFieldRegistrationMachine.FieldArena || EndAddress < PreModelAddress || EndAddress > NativeFieldRegistrationMachine.Kind3Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > NativeFieldRegistrationMachine.Kind3Limit || Resources.IsDefault || Instances.IsDefault || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
+        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < layout.ArenaAddress || EndAddress < PreModelAddress || EndAddress > layout.Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > layout.Limit || Resources.IsDefault || Instances.IsDefault || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
         {
             throw new InvalidDataException("Native field registration has invalid source identities, allocation layout or retained bindings.");
         }
@@ -58,8 +77,6 @@ public sealed record NativeFieldRegistrationStep(NativeFieldRegistrationState St
 /// <summary>Retained52BC00 instruction binding followed by532A40's actual field model registration.</summary>
 public static partial class NativeFieldRegistrationMachine
 {
-    public const uint FieldArena = 0x18DD018;
-    public const uint Kind3Limit = 0x19EF018;
     private const uint ProgramSource = 0x19AB018;
     private const uint CacheRows = 0x1DCA328;
     private const uint ResourcePointers = 0x1DCB0F0;
@@ -104,9 +121,10 @@ public static partial class NativeFieldRegistrationMachine
         }
     }
 
-    public static NativeFieldRegistrationStep ReloadKind3(NativeFieldRegistrationResources source, IReadOnlyList<NativeFieldRetainedActor> actors, NativeBattleRetainedMemory retained)
+    public static NativeFieldRegistrationStep Register(NativeFieldRegistrationEntry registrationEntry, NativeFieldRegistrationResources source, IReadOnlyList<NativeFieldRetainedActor> actors, NativeBattleRetainedMemory retained)
     {
         source.Validate();
+        NativeFieldRegistrationLayout layout = NativeFieldRegistrationLayout.ForImage(source.ExecutableHash, registrationEntry);
         retained = NativeFieldEyeProcess.EnsureOwnedMemory(retained);
         retained.Validate();
         if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
@@ -122,7 +140,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native field registration requires retained physical actor order and bounded original models/script ranges.");
         }
         NativeBattleFileStaging staging = retained.FileStaging ?? NativeBattleFileStaging.Unknown();
-        using NativeFieldRegistrationMemory memory = new(staging, FieldArena, 0x1DCD6E4);
+        using NativeFieldRegistrationMemory memory = new(staging, layout.MemoryStart, layout.MemoryEnd);
         memory.ObserveCpuBanks(retained.ModelCpuResources);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native kind3 requires the retained shared VRAM and texture process."));
         memory.Fill(CacheRows, 0xC00, 0);
@@ -130,7 +148,7 @@ public static partial class NativeFieldRegistrationMachine
         memory.Fill(InstancePointers, 0x80, 0);
         memory.Fill(0x1DC308C, 64, 0);
         memory.Fill(ModelMap, 64, 255);
-        uint cursor = RebindProgram(memory, loader, actors);
+        uint cursor = RebindProgram(memory, loader, actors, layout.ArenaAddress);
         if (loader.Colors is { } colors)
         {
             memory.Write(cursor, colors.Data.AsSpan());
@@ -205,23 +223,23 @@ public static partial class NativeFieldRegistrationMachine
             inputEnd = checked(inputEnd + (uint)main.Data.Length);
         }
         int sourceLength = checked((int)(inputEnd - temporary));
-        if (inputEnd > Kind3Limit)
+        NativeFieldSourceRelocation relocation = NativeFieldSourceRelocation.ToLimit(inputEnd, layout.Limit);
+        uint relocated = relocation.Apply(temporary);
+        if (relocated < preModel)
         {
-            throw new NotSupportedException("Native kind3 source staging exceeds its original19EF018 limit.");
+            throw new NotSupportedException("Field model source relocation would overwrite the retained program allocation.");
         }
-        uint shift = (Kind3Limit - inputEnd) & ~3u;
-        uint relocated = checked(temporary + shift);
         memory.Copy(temporary, relocated, sourceLength);
         foreach (SelectedModel item in selected)
         {
-            item.Geometry = checked(item.Geometry + shift);
-            item.Animation = checked(item.Animation + shift);
+            item.Geometry = relocation.Apply(item.Geometry);
+            item.Animation = relocation.Apply(item.Animation);
             memory.Write32(item.Geometry + 56, item.Animation);
             for (int texture = 0; texture < item.Textures.Count; texture++)
             {
                 if ((item.Textures[texture] >> 28) != 0xA)
                 {
-                    item.Textures[texture] = checked(item.Textures[texture] + shift);
+                    item.Textures[texture] = relocation.Apply(item.Textures[texture]);
                 }
             }
         }
@@ -294,11 +312,11 @@ public static partial class NativeFieldRegistrationMachine
             instances.Add(new(actor.ObjectId, actor.ModelId, address, actor.ModelId < 0 ? memory.ReadOptional16(address + 12) : null));
         }
         //532A40 constructs into the same arena after relocating its input. Consumed source bytes can be reused.
-        if (cursor > Kind3Limit)
+        if (cursor > layout.Limit)
         {
-            throw new NotSupportedException("Native field constructed resources exceed their original kind3 arena.");
+            throw new NotSupportedException("Constructed field resources exceed the selected native allocation.");
         }
-        NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
+        NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray()) { Layout = layout };
         NativeBattleRetainedMemory result = retained with { FileStaging = memory.Prepare(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
         if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
         {
@@ -310,7 +328,7 @@ public static partial class NativeFieldRegistrationMachine
         return new(state, result, uploads);
     }
 
-    private static uint RebindProgram(NativeFieldRegistrationMemory memory, NativeFieldRegistrationLoaderInputs loader, IReadOnlyList<NativeFieldRetainedActor> actors)
+    private static uint RebindProgram(NativeFieldRegistrationMemory memory, NativeFieldRegistrationLoaderInputs loader, IReadOnlyList<NativeFieldRetainedActor> actors, uint arenaAddress)
     {
         ReadOnlySpan<byte> program = loader.Program.Data.AsSpan();
         if (program.Length < 8)
@@ -324,7 +342,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new NotSupportedException("Native retained JSM pointer table is outside its original signed offset domain.");
         }
         memory.Write(ProgramSource, program);
-        uint tableAddress = checked(FieldArena + (uint)loader.AllocationPrefixBytes);
+        uint tableAddress = checked(arenaAddress + (uint)loader.AllocationPrefixBytes);
         int pointers = (code - table) / 2;
         uint operations = checked((tableAddress + (uint)pointers * 2 + 3) & ~3u);
         int copied = 0;

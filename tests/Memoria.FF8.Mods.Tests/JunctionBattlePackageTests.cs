@@ -414,7 +414,7 @@ public sealed class JunctionBattlePackageTests
         int groups = field.Jsm[0] + field.Jsm[1] + field.Jsm[2] + field.Jsm[3];
         ushort[] scripts = Enumerable.Range(0, groups).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + index * 2))).OrderBy(group => group >> 7).ToArray();
         NativeFieldRetainedActor[] actors = models.Select((model, index) => new NativeFieldRetainedActor(index, model, scripts[index] >> 7, (scripts[index] >> 7) + (scripts[index] & 127) + 1)).ToArray();
-        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
+        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
         NativeBattleRetainedMemory memory = registered.Memory;
         HashSet<string> resolved = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string> rendered = new(StringComparer.OrdinalIgnoreCase);

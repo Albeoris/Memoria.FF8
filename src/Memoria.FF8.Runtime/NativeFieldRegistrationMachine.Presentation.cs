@@ -4,11 +4,12 @@ public static partial class NativeFieldRegistrationMachine
 {
     public static NativeBattleFieldResourceReloadResult RestoreRetainedPresentation(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, IReadOnlyList<NativeFieldRetainedPresentation> actors, NativeCrtRandomState? crtRandom = null)
     {
+        state.Validate(retained);
         if (!state.Instances.Select(instance => instance.ObjectId).SequenceEqual(actors.Select(actor => actor.ObjectId)))
         {
             throw new InvalidDataException("Native52B840 must restore the same retained physical actor order.");
         }
-        using NativeFieldRegistrationMemory memory = new(retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its shared memory."), FieldArena, 0x1DCD6E4);
+        using NativeFieldRegistrationMemory memory = new(retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its shared memory."), state.MemoryLayout.MemoryStart, state.MemoryLayout.MemoryEnd);
         Context context = new(memory, retained.EffectMemory ?? throw new InvalidDataException("Native field registration lost its shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         for (int index = 0; index < actors.Count; index++)

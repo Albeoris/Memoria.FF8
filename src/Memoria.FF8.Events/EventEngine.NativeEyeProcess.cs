@@ -19,7 +19,7 @@ public sealed partial class EventEngine
         }
         NativeBattleRetainedMemory retained = session.ActivateNativeFieldMemory();
         NativeFieldRetainedActor[] retainedActors = Scene.NativeActorObjectIds.Select(id => new NativeFieldRetainedActor(id, actors[id].NativeAnimationHeader?.BoundModelId ?? throw new NotSupportedException("Native initial registration requires each actual completed model binding."), program!.Objects[id].Label, program.Objects[id].Label + program.Objects[id].Scripts.Count)).ToArray();
-        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.ReloadKind3(resources, retainedActors, retained);
+        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.FieldEntry, resources, retainedActors, retained);
         Scene.NativeFieldRegistration = step.State;
         PublishNativeFieldEyeProcess(new(1, step.Memory, session.State.CrtRandom));
     }

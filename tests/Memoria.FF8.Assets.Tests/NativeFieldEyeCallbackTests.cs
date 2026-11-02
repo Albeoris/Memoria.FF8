@@ -17,7 +17,7 @@ public sealed class NativeFieldEyeCallbackTests
         int count = field.Jsm[0] + field.Jsm[1] + field.Jsm[2] + field.Jsm[3];
         ushort group = Enumerable.Range(0, count).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + 2 * index))).OrderBy(value => value >> 7).ElementAt(3);
         NativeFieldRetainedActor[] actors = [new(3, 3, group >> 7, (group >> 7) + (group & 127) + 1)];
-        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
+        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
         NativeCrtRandomState before = NativeCrtRandomState.FromColdProcess();
         NativeCrtRandomState expected = before.Draw(out ushort first).Draw(out ushort second);
         NativeBattleFieldResourceReloadResult started = NativeFieldRegistrationMachine.SetEyes532340(registered.State, registered.Memory, 3, 0x80000, 4, before);

@@ -18,9 +18,9 @@ public sealed class NativeFieldRegistrationOverlapTests
         int groupCount = field.Jsm[0] + field.Jsm[1] + field.Jsm[2] + field.Jsm[3];
         ushort[] groups = Enumerable.Range(0, groupCount).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + index * 2, 2))).OrderBy(group => group >> 7).ToArray();
         NativeFieldRetainedActor[] actors = world.Events.Scene.NativeActorObjectIds.Select(objectId => new NativeFieldRetainedActor(objectId, world.Events.Actors[objectId].ModelId is -1 or ushort.MaxValue ? -1 : world.Events.Actors[objectId].ModelId, groups[objectId] >> 7, (groups[objectId] >> 7) + (groups[objectId] & 127) + 1)).ToArray();
-        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.ReloadKind3(source, actors, NativeBattleRetainedMemory.FromColdProcess());
+        NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, NativeBattleRetainedMemory.FromColdProcess());
         Assert.True(step.State.EndAddress > step.State.RelocatedSourceAddress, "This external fixture must exercise native consumed-source arena reuse.");
-        Assert.True(step.State.EndAddress < NativeFieldRegistrationMachine.Kind3Limit);
+        Assert.True(step.State.EndAddress < step.State.MemoryLayout.Limit);
         NativeBattleFileStaging memory = step.Memory.FileStaging!;
         foreach (NativeFieldRegisteredResource resource in step.State.Resources)
         {
@@ -53,6 +53,6 @@ public sealed class NativeFieldRegistrationOverlapTests
             }
         }
         step.State.Validate(step.Memory);
-        Assert.Throws<InvalidDataException>(() => (step.State with { EndAddress = NativeFieldRegistrationMachine.Kind3Limit + 4 }).Validate(step.Memory));
+        Assert.Throws<InvalidDataException>(() => (step.State with { EndAddress = step.State.MemoryLayout.Limit + 4 }).Validate(step.Memory));
     }
 }

@@ -418,8 +418,8 @@ public sealed class CrossEditionModelResourceAcceptanceTests
         int count = field.Jsm[0] + field.Jsm[1] + field.Jsm[2] + field.Jsm[3];
         ushort group = Enumerable.Range(0, count).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + index * 2))).OrderBy(value => value >> 7).ElementAt(3);
         NativeFieldRetainedActor[] actors = [new(3, 3, group >> 7, (group >> 7) + (group & 127) + 1)];
-        NativeFieldRegistrationStep selected = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
-        NativeFieldRegistrationStep native = NativeFieldRegistrationMachine.ReloadKind3(primary.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess());
+        NativeFieldRegistrationStep selected = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess(field.NativeRegistration!.ExecutableHash));
+        NativeFieldRegistrationStep native = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, primary.NativeRegistration!, actors, NativeBattleRetainedMemory.FromColdProcess(primary.NativeRegistration!.ExecutableHash));
         Assert.Equal(JsonSerializer.Serialize(native.State), JsonSerializer.Serialize(selected.State));
         Assert.Equal(DetachedJson(native.Memory), DetachedJson(selected.Memory));
         NativeFieldTextureBinding open = Bind(selected.Memory);

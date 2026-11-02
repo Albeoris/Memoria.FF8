@@ -16,7 +16,16 @@ public sealed partial record NativeBattleFileStaging
         }
     }
 
-    public static NativeBattleFileStaging FromColdProcess() => new([]) { BaseAddress = 0x188C000, LoaderZeroRanges = [new(0x188C000, 0xF13000)] };
+    public static NativeBattleFileStaging FromColdProcess(string executableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash)
+    {
+        NativeFieldRegistrationLayout layout = NativeFieldRegistrationLayout.ForImage(executableHash, NativeFieldRegistrationEntry.FieldEntry);
+        ImmutableArray<NativeBattleLoaderZeroRegion> zeros = [new(0x188C000, 0xF13000)];
+        if (executableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
+        {
+            zeros = zeros.Add(new(layout.ArenaAddress, checked((int)(layout.ArenaEnd - layout.ArenaAddress))));
+        }
+        return new([]) { BaseAddress = 0x188C000, LoaderZeroRanges = zeros };
+    }
 
     private bool IntersectsLoaderZero(uint address, int length)
     {

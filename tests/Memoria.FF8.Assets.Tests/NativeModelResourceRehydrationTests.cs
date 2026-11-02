@@ -126,7 +126,7 @@ public sealed class NativeModelResourceRehydrationTests
             ushort group = BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8, 2));
             Actors = [new(0, 0, group >> 7, (group >> 7) + (group & 127) + 1)];
             Presentation = [new(0, 0, 16, autoAnimation, 0, true, 17, -12, 91, 123, 147, false, false, 0)];
-            Initial = NativeFieldRegistrationMachine.ReloadKind3(Source, Actors, NativeBattleRetainedMemory.FromColdProcess());
+            Initial = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, Source, Actors, NativeBattleRetainedMemory.FromColdProcess(Source.ExecutableHash));
             Initial = Initial with { Memory = NativeFieldRegistrationMachine.RestoreRetainedPresentation(Initial.State, Initial.Memory, Presentation).Memory };
             Assert.Equal(0, Initial.Memory.EffectMemory!.Textures!.Count);
             Assert.All(Initial.Memory.FieldTextureAnimations!.Textures, texture => Assert.Empty(texture.Frames));

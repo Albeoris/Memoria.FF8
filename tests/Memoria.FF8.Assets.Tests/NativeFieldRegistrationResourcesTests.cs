@@ -17,8 +17,8 @@ public sealed class NativeFieldRegistrationResourcesTests
         NativeFieldRetainedActor[] actors = bindings.Select(binding => new NativeFieldRetainedActor(binding.Object, binding.Model, groups[binding.Object] >> 7, (groups[binding.Object] >> 7) + (groups[binding.Object] & 127) + 1)).ToArray();
         // Declared cold resource component: these retained bindings do not migrate or reconstruct a historical field save.
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.ReloadKind3(source, actors, cold);
-        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.ReloadKind3(NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(cold))!);
+        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, cold);
+        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(cold))!);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(new[] { 0, 5, 9 }, first.State.Resources.Select(resource => resource.ModelId));
         Assert.Equal(bindings.Select(binding => binding.Object), first.State.Instances.Select(instance => instance.ObjectId));
@@ -83,8 +83,8 @@ public sealed class NativeFieldRegistrationResourcesTests
         NativeFieldRetainedActor[] actors = [new(0, 0, group >> 7, (group >> 7) + (group & 127) + 1)];
         NativeBattleRetainedMemory original = NativeBattleStorageSnapshots.Capture(NativeBattleRetainedMemory.FromColdProcess());
         string before = NativeBattleSnapshotJson.Serialize(original);
-        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.ReloadKind3(source, actors, original);
-        NativeFieldRegistrationStep second = NativeFieldRegistrationMachine.ReloadKind3(NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(before)!);
+        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, original);
+        NativeFieldRegistrationStep second = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(before)!);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
         Assert.Equal(before, NativeBattleSnapshotJson.Serialize(original));
         first.State.Validate(first.Memory);

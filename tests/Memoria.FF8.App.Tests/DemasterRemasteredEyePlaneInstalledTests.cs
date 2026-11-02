@@ -42,7 +42,7 @@ public sealed class DemasterRemasteredEyePlaneInstalledTests
             ushort group = Enumerable.Range(0, count).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + index * 2))).OrderBy(value => value >> 7).ElementAt(3);
             // Explicit component initialization uses the original model and its original JSM group.
             NativeFieldRetainedActor[] actors = [new(3, 3, group >> 7, (group >> 7) + (group & 127) + 1)];
-            NativeFieldRegistrationStep registration = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, NativeBattleRetainedMemory.FromColdProcess());
+            NativeFieldRegistrationStep registration = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, NativeBattleRetainedMemory.FromColdProcess(field.NativeRegistration.ExecutableHash));
             NativeBattleRetainedMemory original = registration.Memory;
             Assert.All(original.FieldTextureAnimations!.Planes!.Slots, slot => Assert.False(slot.Closed));
             NativeFieldRegisteredResource resource = Assert.Single(registration.State.Resources);

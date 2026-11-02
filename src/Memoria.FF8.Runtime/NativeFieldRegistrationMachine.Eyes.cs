@@ -10,7 +10,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             return new(retained, crtRandom, crtRandom);
         }
-        using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, FieldArena, 0x1DCD6E4);
+        using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, state.MemoryLayout.MemoryStart, state.MemoryLayout.MemoryEnd);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eyes require their current shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         RestoreEyes(context, instance.Address, mode, blinkParameter, ref random);
@@ -24,7 +24,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             return new(retained, crtRandom, crtRandom);
         }
-        using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, FieldArena, 0x1DCD6E4);
+        using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, state.MemoryLayout.MemoryStart, state.MemoryLayout.MemoryEnd);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eye callbacks require their current shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         foreach (NativeFieldRegisteredInstance instance in state.Instances)

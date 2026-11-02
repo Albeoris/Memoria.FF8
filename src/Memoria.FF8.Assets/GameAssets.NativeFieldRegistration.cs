@@ -91,6 +91,7 @@ public sealed partial class GameAssets
         {
             throw new InvalidDataException("Native registered textures do not belong to this original field source.");
         }
+        registration.RequireRuntimeProfile(source.ExecutableHash);
         if (animations is not null && animations.OneHash != registration.OneHash)
         {
             throw new InvalidDataException("Field texture copy history belongs to another registration source.");

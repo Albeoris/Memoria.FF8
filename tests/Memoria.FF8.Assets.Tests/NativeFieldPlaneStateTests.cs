@@ -101,12 +101,12 @@ public sealed class NativeFieldPlaneStateTests
         int count = field.Jsm[0] + field.Jsm[1] + field.Jsm[2] + field.Jsm[3];
         ushort group = Enumerable.Range(0, count).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + 2 * index))).OrderBy(value => value >> 7).ElementAt(3);
         NativeFieldRetainedActor[] actors = [new(3, 3, group >> 7, (group >> 7) + (group & 127) + 1), new(4, 3, group >> 7, (group >> 7) + (group & 127) + 1)];
-        NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, cold with { FieldTexturePlaneCacheFresh = null }));
-        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, cold with { FieldTexturePlaneCacheFresh = false }));
-        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, cold);
+        NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess(field.NativeRegistration.ExecutableHash);
+        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, cold with { FieldTexturePlaneCacheFresh = null }));
+        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, cold with { FieldTexturePlaneCacheFresh = false }));
+        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, cold);
         Assert.False(registered.Memory.FieldTexturePlaneCacheFresh);
-        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, registered.Memory with { FieldTextureAnimations = null }));
+        Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, registered.Memory with { FieldTextureAnimations = null }));
         uint instance = registered.State.Instances[0].Address;
         uint bank = BinaryPrimitives.ReadUInt32LittleEndian(registered.Memory.FileStaging!.Read(registered.State.Resources[0].Address + 20, 4));
         short x = BinaryPrimitives.ReadInt16LittleEndian(registered.Memory.FileStaging.Read(bank + 6, 2));
@@ -117,8 +117,9 @@ public sealed class NativeFieldPlaneStateTests
         Assert.Equal(2, closed.Memory.FieldTextureAnimations!.Planes!.Get(x, y).Pending);
         closed = closed with { Memory = Bind(closed.Memory) };
         Assert.True(closed.Memory.FieldTextureAnimations!.Planes!.IsClosed(x, y));
-        NativeFieldRegistrationStep reloaded = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, closed.Memory);
-        Assert.Same(closed.Memory.FieldTextureAnimations.Planes, reloaded.Memory.FieldTextureAnimations!.Planes);
+        NativeBattleRetainedMemory reloadMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(closed.Memory));
+        NativeFieldRegistrationStep reloaded = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, field.NativeRegistration, actors, reloadMemory);
+        Assert.Same(reloadMemory.FieldTextureAnimations!.Planes, reloaded.Memory.FieldTextureAnimations!.Planes);
         Assert.False(reloaded.Memory.FieldTexturePlaneCacheFresh);
         NativeBattleFieldResourceReloadResult openedAlias = NativeFieldRegistrationMachine.SetEyes532340(registered.State, closed.Memory, 4, 0x100000, null, null);
         openedAlias = openedAlias with { Memory = Bind(openedAlias.Memory) };
@@ -136,10 +137,10 @@ public sealed class NativeFieldPlaneStateTests
         {
             byte countdown = live.FileStaging!.Read(instance + 102, 1)[0];
             bool before = live.FieldTextureAnimations!.Planes!.IsClosed(x, y);
-            NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(live))!;
+            NativeBattleRetainedMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(live)))!);
             NativeBattleFieldResourceReloadResult step = NativeFieldRegistrationMachine.AdvanceEyes530810(registered.State, live, random);
             NativeBattleFieldResourceReloadResult independent = NativeFieldRegistrationMachine.AdvanceEyes530810(registered.State, restored, random);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(independent));
+            Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(independent)));
             live = Bind(step.Memory);
             random = step.CrtRandomAfter;
             if (countdown == 1)

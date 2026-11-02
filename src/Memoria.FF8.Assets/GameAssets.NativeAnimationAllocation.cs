@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -62,7 +63,9 @@ public sealed partial class GameAssets
         // The original loader reads into its scratch slab, relocates that slab
         // to the arena top, then constructs resources and renderer instances.
         int preModel = ReadNativePreModelCursor(fieldId);
-        int relocatedStart = checked((0x11C800 - preModel - input) & ~3);
+        NativeFieldRegistrationLayout allocation = NativeFieldRegistrationLayout.ForImage(NativeRuntimeProfile.ExecutableHash, NativeFieldRegistrationEntry.FieldEntry);
+        int arenaLength = checked((int)(allocation.Limit - allocation.ArenaAddress));
+        int relocatedStart = checked((arenaLength - preModel - input) & ~3);
         int output = unique.Sum(model => models[model].ResourceBytes);
         for (int index = 0; index < boundModelIds.Count; index++)
         {
