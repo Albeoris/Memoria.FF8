@@ -155,6 +155,7 @@ public static partial class SystemTextCatalog
         defaults.Add("junction.dashboard.unpin", "Unpin stat");
         defaults.Add("junction.dashboard.used-by", "Used by");
         defaults.Add("junction.dashboard.apply-short", "Apply");
+        defaults.Add("junction.dashboard.apply-question", "Apply changes?");
         defaults.Add("junction.dashboard.current-preview", "Current → Preview");
         defaults.Add("junction.dashboard.attack-short", "Atk");
         defaults.Add("junction.dashboard.defense-short", "Def");

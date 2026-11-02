@@ -90,6 +90,21 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionBindingHints()
     {
+        if (junctionReview && junctionEditor == "optimize")
+        {
+            UiGrid hints = new() { Gap = 16 * TextScale };
+            hints.RowDefinitions.Add(UiGridLength.Star());
+            hints.ColumnDefinitions.Add(UiGridLength.Auto);
+            hints.ColumnDefinitions.Add(UiGridLength.Auto);
+            hints.ColumnDefinitions.Add(UiGridLength.Star());
+            UiButton apply = JunctionButton("junction-apply", CurrentBindingText(ControlAction.Confirm) + "  " + J("apply-short", "Apply"), ConfirmJunctionPlan, size: 13);
+            UiButton cancel = JunctionButton("junction-cancel", CurrentBindingText(ControlAction.Cancel) + "  " + J("cancel", "Cancel"), CancelJunctionEditor, size: 13);
+            apply.DrawBackground = false;
+            cancel.DrawBackground = false;
+            Place(hints, apply, 0);
+            Place(hints, cancel, 0, 1);
+            return hints;
+        }
         UiLabel hint = JunctionLabel(CurrentBindingText(ControlAction.Card) + "  " + J("actions", "Actions"), 13, JunctionHasActiveScope);
         hint.HorizontalAlignment = UiAlignment.End;
         hint.VerticalAlignment = UiAlignment.End;
@@ -105,6 +120,10 @@ public sealed partial class MenuController
         }
         if (junctionReview)
         {
+            if (junctionEditor == "optimize")
+            {
+                return id is "junction-review" or "junction-apply" or "junction-cancel";
+            }
             return id is "junction-review" or "impact-previous" or "impact-next";
         }
         if (junctionEditor is "magic" or "command" or "passive")
@@ -113,7 +132,7 @@ public sealed partial class MenuController
         }
         if (junctionEditor == "actions")
         {
-            return id is "optimize" or "fill-commands" or "pin-stat" or "junction-undo" or "clear-magic" or "remove-junctions" or "clear-party-magic";
+            return id is "optimize" or "clear-magic" or "clear-party-magic";
         }
         if (junctionEditor == "optimize")
         {

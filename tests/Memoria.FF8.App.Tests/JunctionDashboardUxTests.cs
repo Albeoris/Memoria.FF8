@@ -5,6 +5,40 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionDashboardUxTests
 {
+    [Theory]
+    [InlineData(MenuPresentation.Classic, 1280, 720, 100)]
+    [InlineData(MenuPresentation.Vector, 640, 448, 100)]
+    [InlineData(MenuPresentation.Vector, 1280, 720, 150)]
+    public void ActionsAndPrioritiesUseCompactBackgroundlessColumnRows(MenuPresentation presentation, int width, int height, int textScale)
+    {
+        MenuData data = Fixture();
+        data.Settings["Text scale"] = textScale + "%";
+        MenuController menu = Open(data, presentation);
+        menu.PrepareViewport(width, height);
+        menu.Navigate(MenuInput.Alternate);
+        AssertRows(["optimize", "clear-magic", "clear-party-magic"]);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "fill-commands" or "pin-stat" or "remove-junctions");
+        menu.Navigate(MenuInput.Confirm);
+        AssertRows(["priority-Attack", "priority-Magic", "priority-Defense"]);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Empty(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+
+        void AssertRows(string[] expected)
+        {
+            UiView view = menu.BuildView();
+            UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+            Assert.Equal(expected, columns.Children.Select(row => row.Id));
+            Assert.All(columns.Children, row => Assert.False(Assert.IsType<UiButton>(row).DrawBackground));
+            Assert.All(columns.Children, row => Assert.Single(row.Children.OfType<UiLabel>(), label => label.Text.Length > 0));
+            Assert.Equal(26 * textScale / 100f, columns.Children[1].Bounds.Y - columns.Children[0].Bounds.Y, 3);
+            Assert.Equal(expected[0], view.FocusedElement?.Id);
+            menu.Navigate(MenuInput.Down);
+            Assert.Equal(expected[1], menu.BuildView().FocusedElement?.Id);
+            menu.Navigate(MenuInput.Up);
+            Assert.Equal(expected[0], menu.BuildView().FocusedElement?.Id);
+        }
+    }
+
     [Fact]
     public void MagicColumnScrollingKeepsFocusAcrossPreviewRebuildsAndReturnsToTheStart()
     {

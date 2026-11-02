@@ -205,22 +205,15 @@ public sealed partial class MenuController
         UiElement content;
         if (junctionReview && !junctionTransferModal)
         {
-            content = BuildJunctionImpactList();
+            content = junctionEditor == "optimize" ? BuildJunctionOptimizationConfirmation() : BuildJunctionImpactList();
         }
         else if (junctionEditor == "optimize")
         {
-            UiGrid priorities = JunctionRows([26, 34, 0], [1], 4);
-            Place(priorities, JunctionLabel(J("optimize", "Optimize stats"), 18), 0);
-            UiGrid choices = Grid([1], [1, 1, 1], 6);
-            string[] values = ["Attack", "Magic", "Defense"];
-            for (int index = 0; index < values.Length; index++)
-            {
-                string priority = values[index];
-                Place(choices, JunctionButton("priority-" + priority, J("priority-" + priority.ToLowerInvariant(), priority), () => PlanJunctionOptimization(priority)), 0, index);
-            }
-            Place(priorities, choices, 1);
-            Place(priorities, JunctionLabel(J("scope", "Stat magic only. GFs, commands, passives, elemental and status junctions stay as configured."), 13, true), 2);
-            content = priorities;
+            content = BuildJunctionActionColumns("junction-priority-columns", [
+                ("priority-Attack", J("priority-attack", "Attack"), () => PlanJunctionOptimization("Attack")),
+                ("priority-Magic", J("priority-magic", "Magic"), () => PlanJunctionOptimization("Magic")),
+                ("priority-Defense", J("priority-defense", "Defense"), () => PlanJunctionOptimization("Defense"))
+            ]);
         }
         else if (junctionEditor == "actions")
         {
@@ -256,6 +249,15 @@ public sealed partial class MenuController
     private UiElement BuildJunctionCandidatePicker()
     {
         return BuildJunctionCandidateColumns(JunctionCandidates());
+    }
+
+    private UiElement BuildJunctionOptimizationConfirmation()
+    {
+        UiLabel prompt = JunctionLabel(J("apply-question", "Apply changes?"), 18);
+        prompt.Id = "junction-review";
+        prompt.Focusable = true;
+        prompt.VerticalTextAlignment = UiAlignment.Start;
+        return prompt;
     }
 
     private UiElement BuildJunctionImpactList()
@@ -361,16 +363,32 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionActions()
     {
-        UiGrid rows = Grid([1, 1, 1, 1], [1, 1], 5);
-        Place(rows, JunctionButton("optimize", J("optimize", "Optimize stats"), OpenJunctionOptimizer), 0);
-        Place(rows, JunctionButton("fill-commands", J("fill-commands", "Fill empty commands"), PlanJunctionCommands), 1);
-        bool stat = junctionOrigin.StartsWith("slot-", StringComparison.Ordinal) && IsJunctionStat(junctionOrigin[5..]);
-        Place(rows, JunctionButton("pin-stat", stat && junctionDashboard.IsPinned(Character?.Id ?? "", junctionOrigin[5..]) ? J("unpin", "Unpin stat") : J("pin-stat", "Pin stat"), ToggleJunctionPin, stat), 2);
-        Place(rows, JunctionButton("junction-undo", J("undo", "Undo") + (junctionUndoLabel.Length == 0 ? "" : ": " + junctionUndoLabel), UndoJunction, junctionUndo is { HasChanges: true } || junctionAttackUndo is not null, 13), 3);
-        Place(rows, JunctionButton("clear-magic", J("clear-magic", "Clear this character's magic junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "Magic"))), 0, 1);
-        Place(rows, JunctionButton("remove-junctions", J("remove-junctions", "Remove this character's junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "All"))), 1, 1);
-        Place(rows, JunctionButton("clear-party-magic", J("clear-party-magic", "Clear all characters' magic junctions"), () => ReviewJunctionAction(new("junction-magic-off-all"))), 2, 1);
-        return rows;
+        return BuildJunctionActionColumns("junction-action-columns", [
+            ("optimize", J("optimize", "Optimize stats"), OpenJunctionOptimizer),
+            ("clear-magic", J("clear-magic", "Clear this character's magic junctions"), () => ReviewJunctionAction(new("junction-off", TargetId: Character?.Id ?? "", Value: "Magic"))),
+            ("clear-party-magic", J("clear-party-magic", "Clear all characters' magic junctions"), () => ReviewJunctionAction(new("junction-magic-off-all")))
+        ]);
+    }
+
+    private UiElement BuildJunctionActionColumns(string id, IReadOnlyList<(string Id, string Label, Action Activate)> actions)
+    {
+        UiColumnPicker columns = new()
+        {
+            Id = id,
+            RowHeight = 26 * TextScale,
+            NameQuantityGap = 0,
+            ColumnGap = 16 * TextScale,
+            HorizontalPadding = 8 * TextScale,
+            InitialIndex = Math.Max(0, actions.ToList().FindIndex(action => action.Id == junctionFocus))
+        };
+        junctionCandidateColumns = columns;
+        foreach (var action in actions)
+        {
+            UiButton row = JunctionButton(action.Id, "", action.Activate);
+            row.DrawBackground = false;
+            columns.Add(row, JunctionLabel(action.Label, 16), JunctionLabel("", 16));
+        }
+        return columns;
     }
 
     private void OpenJunctionActions()
@@ -682,13 +700,13 @@ public sealed partial class MenuController
             {
                 junctionTransferColumns?.ScrollColumns(input == MenuInput.PageUp ? -1 : 1);
             }
-            else if (junctionReview)
+            else if (junctionReview && junctionEditor != "optimize")
             {
                 int maximum = Math.Max(0, ((junctionPlan?.Changes.Count ?? 0) - 1) / 5);
                 junctionImpactPage = Math.Clamp(junctionImpactPage + (input == MenuInput.PageUp ? -1 : 1), 0, maximum);
                 _view = null;
             }
-            else if (junctionEditor is "magic" or "command" or "passive")
+            else if (!junctionReview && junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize")
             {
                 PageJunctionCandidates(input == MenuInput.PageUp ? -1 : 1);
             }
@@ -707,7 +725,14 @@ public sealed partial class MenuController
         {
             if (junctionReview && !junctionTransferModal)
             {
-                ConfirmJunctionPlan();
+                if (view.FocusedElement?.Id == "junction-cancel")
+                {
+                    CancelJunctionEditor();
+                }
+                else
+                {
+                    ConfirmJunctionPlan();
+                }
             }
             else
             {

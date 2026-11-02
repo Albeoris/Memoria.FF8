@@ -72,7 +72,7 @@ public sealed partial class MenuController
         {
             throw new InvalidOperationException($"Junction dashboard has no enabled control '{id}'.");
         }
-        if (junctionEditor is "magic" or "command" or "passive")
+        if (!junctionReview && junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize")
         {
             junctionCandidateColumns?.EnsureVisible(control);
         }

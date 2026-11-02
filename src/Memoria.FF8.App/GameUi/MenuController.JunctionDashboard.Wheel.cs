@@ -23,7 +23,7 @@ public sealed partial class MenuController
             junctionGuardianColumns.ScrollColumns(-Math.Sign(delta));
             return;
         }
-        if (junctionEditor is "magic" or "command" or "passive" && junctionCandidateColumns?.Bounds.Contains(point.X, point.Y) == true)
+        if (!junctionReview && junctionEditor is "magic" or "command" or "passive" or "actions" or "optimize" && junctionCandidateColumns?.Bounds.Contains(point.X, point.Y) == true)
         {
             junctionCandidateColumns.ScrollColumns(-Math.Sign(delta));
             return;
