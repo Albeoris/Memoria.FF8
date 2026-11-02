@@ -274,6 +274,49 @@ public sealed class NativePlayerDrawTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void ThreeReadyCastersDrawingLifeFromTwoEnemiesRetainQueuedSelectionAfterDepletion(bool oncePerSpell)
+    {
+        BattleDefinition definition = CreateWithSecondCaster().Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        actors[2] = actors[2] with { CurrentHp = 100, NativeStatus0 = 0, Magic = 100, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw] };
+        actors[4] = actors[4] with { NativeDrawSlots = [new(3, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition with { Combatants = actors, DrawOncePerSpell = oncePerSpell }, BattleAtbMode.TurnBased);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 3);
+        battle.QueueAction("ally", "source", BattleAbility.Draw, 3);
+        battle.QueueAction("fallen", "source2", BattleAbility.Draw, 3);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(!oncePerSpell, battle.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots.Any(slot => slot.Id == 3));
+        Assert.Equal(3, battle.QueuedActions.Single(command => command.ActorId == "ally").ActionId);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        foreach (BattleSession current in new[] { battle, restored })
+        {
+            Dictionary<string, BattleNativeDrawContext> results = new();
+            for (int frame = 0; frame < 120; frame++)
+            {
+                if (current.ActiveAction is { NativeDraw: { } result } action)
+                {
+                    results[action.ActorId] = result;
+                }
+                if (current.ActiveAction is null && current.QueuedActions.Count == 0)
+                {
+                    break;
+                }
+                current.Tick();
+            }
+            Assert.Equal(3, results.Count);
+            Assert.False(results["party"].Failed);
+            Assert.Equal(oncePerSpell, results["ally"].Failed);
+            Assert.False(results["fallen"].Failed);
+            Assert.Equal(oncePerSpell ? 2 : 3, current.Combatants.Where(actor => actor.IsPlayer).Count(actor => actor.MagicStocks.Any(stock => stock.Id == 3 && stock.Count > 0)));
+            Assert.Equal(3, current.Events.Count(entry => entry.Kind == "Draw"));
+        }
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void SerializedDepletionSurvivesActiveAndCompletedNativeTableRefresh(bool active)
     {
         BattleDefinition definition = CreateWithSecondCaster().Capture().Definition;

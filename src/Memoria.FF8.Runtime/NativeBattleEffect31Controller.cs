@@ -52,10 +52,6 @@ public static partial class NativeBattleEffect31Controller
         {
             return frame;
         }
-        if (!frame.State.ColdSourceOrigin)
-        {
-            throw new NotSupportedException("Effect31 requires its explicit original source publication before unknown process history can continue.");
-        }
         NativeBattleFileStaging staging = RequireStaging(frame);
         foreach ((uint address, ImmutableArray<byte> data) in resources.StaticFronts)
         {
@@ -63,6 +59,10 @@ public static partial class NativeBattleEffect31Controller
             if (known.All(value => value))
             {
                 continue;
+            }
+            if (!frame.State.ColdSourceOrigin)
+            {
+                throw new NotSupportedException("Effect31 requires its explicit original source publication before unknown process history can continue.");
             }
             if (known.Any(value => value))
             {

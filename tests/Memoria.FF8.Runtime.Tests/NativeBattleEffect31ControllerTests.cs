@@ -132,6 +132,46 @@ public sealed class NativeBattleEffect31ControllerTests
     }
 
     [Fact]
+    public void Observed_warm_sources_bind_without_resetting_unknown_process_storage()
+    {
+        Fixture fixture = new();
+        NativeBattleEffect31State state = NativeBattleEffect31State.FromUnknown();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        foreach ((uint address, ImmutableArray<byte> bytes) in fixture.Resources.StaticFronts)
+        {
+            staging = staging.Write(address, bytes.AsSpan());
+        }
+        staging = staging.Write(0x15F8DC8, [0xA5]);
+        NativeBattleEffect31Frame frame = fixture.Frame with { State = state, Staging = staging };
+
+        NativeBattleEffect31Frame bound = BindOriginalSources(frame, fixture.Resources);
+
+        Assert.True(bound.State.StaticSourcesBound);
+        Assert.False(bound.State.ColdSourceOrigin);
+        Assert.Same(staging, bound.Staging);
+        Assert.Same(state.Storage, bound.State.Storage);
+        Assert.Same(state.FixedBanks, bound.State.FixedBanks);
+        Assert.Same(state.FixedQueues, bound.State.FixedQueues);
+        Assert.Same(state.CallbackStack, bound.State.CallbackStack);
+        Assert.Equal((byte)0xA5, bound.Staging!.Read(0x15F8DC8, 1)[0]);
+        Assert.Throws<NotSupportedException>(() => bound.State.ReadDword(MorphScratch));
+    }
+
+    [Fact]
+    public void Incomplete_warm_publication_fails_without_marking_sources_bound()
+    {
+        Fixture fixture = new();
+        NativeBattleEffect31State state = NativeBattleEffect31State.FromUnknown();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x15F8DC8, [0xA5]);
+        NativeBattleEffect31Frame frame = fixture.Frame with { State = state, Staging = staging };
+
+        Assert.Throws<NotSupportedException>(() => BindOriginalSources(frame, fixture.Resources));
+        Assert.False(state.StaticSourcesBound);
+        Assert.Equal((byte)0xA5, staging.Read(0x15F8DC8, 1)[0]);
+        Assert.False(staging.ReadSnapshot(0x15F8DC9, 1).Known[0]);
+    }
+
+    [Fact]
     public void Custom_context_republishes_its_current_owner_even_on_terminal_inner_state()
     {
         Fixture fixture = new();
