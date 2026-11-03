@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
 
@@ -313,6 +313,15 @@ public sealed class SceneEventState
     public List<GlobalSoundRequest> GlobalSoundRequests { get; } = [];
     public List<NativeFieldSoundRequest> NativeFieldSoundRequests { get; } = [];
     /// <summary>Only executed ON/OFF/SET bytes are known, including SET's dense-instance attachment. Missing slots do not imply disabled emitters or an absent-PMD reset.</summary>
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldParticlesState? NativeFieldParticles { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeFieldParticleRandomPhase { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldParticleSprite[]? NativeFieldParticleSprites { get; internal set; }
     public Dictionary<int, byte> NativeParticleSlots { get; } = [];
     public List<NativeParticleRequest> NativeParticleRequests { get; } = [];
     [JsonInclude]

@@ -34,6 +34,7 @@ public sealed partial class EventEngine
         Scene.NativeLayerZeroScrollCurrent = new NativeLayerZeroScrollCurrent(1, 0, 0);
         Scene.NativeBackgroundScrollCurrents = Enumerable.Range(1, 7).ToDictionary(layer => layer, _ => new NativeBackgroundScrollCurrent(1, 0, 0));
         Scene.NativeDrawPointDisplayMask = 0;
+        Scene.NativeFieldParticleRandomPhase = 0;
         Scene.DrawPointIndex = block[NativePcSaveData.EventBankOffset + 242];
         if (DrawPointParticleTables is not null)
         {

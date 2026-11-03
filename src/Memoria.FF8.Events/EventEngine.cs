@@ -205,6 +205,7 @@ public sealed partial class EventEngine
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         Scene.AllSoundVolume = previousScene.AllSoundVolume;
         CopyNativeMediaHistory(previousScene);
+        InitializeNativeFieldParticles(previousScene, coldNativeCamera);
         CopyNativeMusicLoad(previousScene, nativeRuntimeProfile, restoringCheckpoint);
         InitializePreviousField(previousFieldId);
         InitializeFieldLoadReason(fieldLoadReason);
@@ -359,6 +360,7 @@ public sealed partial class EventEngine
         }
         RefreshPassivePointReveal();
         ValidateNativeDrawPointCallback();
+        ValidateNativeFieldParticleCallback();
         if (!defaultsStarted)
         {
             //Diagnostic load transaction1 has no native callback: all entities
@@ -509,6 +511,7 @@ public sealed partial class EventEngine
             StepNativeDrawPointParticles();
             AdvanceNativeEyeProcess();
         }
+        StepNativeFieldParticles();
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
         StepNativeDialogueWindows(movieUi ? 4 : 2);

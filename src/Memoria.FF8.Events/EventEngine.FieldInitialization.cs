@@ -90,6 +90,7 @@ public sealed partial class EventEngine
         }
         InitializeNativeDoorDriverAfterInitialization();
         InitializeNativeModelParts();
+        WarmUpNativeFieldParticles();
         if (DrawPointParticleTables is not null && Scene.NativeDrawPointParticles is NativeDrawPointParticles particles)
         {
             Scene.NativeDrawPointParticles = particles.InitializeCurves(DrawPointParticlePhase(), DrawPointParticleTables);

@@ -142,6 +142,8 @@ internal sealed partial class GameWorld : IDisposable
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
             Events.DrawPointParticleTables = assets.ReadNativeDrawPointParticleTables();
+            Events.ReadNativeFieldParticleDefinition = id => ReadFieldParticleResources(id)?.Definition;
+            Events.NativeFieldParticleRandomTable = Enumerable.Range(0, 256).Select(Events.DrawPointParticleTables.Random).ToArray();
             Events.ResolveNativeDrawPointDirection = FieldNativeScriptDirectionProbe.ResolveFacing;
         }
         if (initializedNativeParty)
@@ -445,7 +447,7 @@ internal sealed partial class GameWorld : IDisposable
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
         bool revealHiddenDrawPoint = Events.Scene.DrawPointEnabled != 0 && (Events.Scene.DrawPointDisplayParameter & 1) == 0 && session.CharacterVitals?.HasActivePassiveAbility(79) == true;
-        byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint);
+        byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint, fieldParticles: Events.FieldParticleSprites, fieldParticleTexture: Events.FieldParticleSprites.Count > 0 ? ReadFieldParticleTexture() : null);
         if (triangleRenderer is null)
         {
             FieldColorComposite.Apply(pixels, fade.Draw, renderWidth, renderer.ContentBounds);

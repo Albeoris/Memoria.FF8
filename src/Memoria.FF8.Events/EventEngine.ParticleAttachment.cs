@@ -20,7 +20,7 @@ public sealed partial class EventEngine
         return instance;
     }
 
-    /// <summary>Resolves the current actor-attached emitter origin consumed by473C50; this does not advance or render the PMD pool.</summary>
+    /// <summary>Resolves the current actor-attached emitter origin consumed by473C50.</summary>
     public NativeParticleAttachmentAnchor? ReadNativeParticleAttachment(int slot)
     {
         if ((uint)slot >= 16)
@@ -52,7 +52,6 @@ public sealed partial class EventEngine
         ActorState actor = actors[objectId];
         FieldFixedPosition raw = ReadNativeScriptPosition(actor) ?? throw new NotSupportedException("The particle attachment requires the current raw native body coordinates.");
         //473C50 resolves the body each emission and divides toward zero before signed-WORD stores.
-        // TODO(TD-008): This anchor does not claim PMD pool/RNG evolution or particle pixels.
         return new NativeParticleAttachmentAnchor(slot, value, instance, objectId, unchecked((short)(raw.X / 4096)), unchecked((short)(raw.Y / 4096)), unchecked((short)(raw.Z / 4096)));
     }
 }

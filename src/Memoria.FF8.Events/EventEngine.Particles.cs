@@ -42,10 +42,10 @@ public sealed partial class EventEngine
         EnsureNativeMediaHistoryBoundary();
         Scene.NativeParticleSlots[slot] = value;
         Scene.NativeParticleRequests.Add(new NativeParticleRequest(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, operands[0], slot, value, instance));
-        // TODO(TD-008): Native473DE0 emission,
-        // its PMD instance pool and RNG phase are not rendered by this prototype.
-        // These writes do not reset counters. OFF does not kill live particles;
-        // SET changes the live dense-body attachment, not a snapshot of its origin.
+        if (Scene.NativeFieldParticles is { } particles)
+        {
+            Scene.NativeFieldParticles = particles.WithEmitter(slot, value);
+        }
         return operands;
     }
 
@@ -54,6 +54,24 @@ public sealed partial class EventEngine
         if (saved.Scene.NativeParticleSlots.Any(pair => (uint)pair.Key >= 16 || pair.Value is > 1 and < 0x80))
         {
             throw new InvalidDataException("Saved known particle slots have invalid indices or unimplemented emitter values.");
+        }
+        saved.Scene.NativeFieldParticles?.Validate();
+        if (saved.Scene.NativeFieldParticles is { } particleState)
+        {
+            byte[] definition = ReadNativeFieldParticleDefinition?.Invoke(saved.FieldId) ?? throw new InvalidDataException("Saved field particles require the current original PMD definition.");
+            particleState.ValidateDefinition(definition);
+            if (saved.Scene.NativeFieldParticleRandomPhase != particleState.RandomPhase || saved.Scene.NativeFieldParticleSprites is null)
+            {
+                throw new InvalidDataException("Saved field particle presentation omits its current random phase or drawn frame.");
+            }
+            particleState.ValidateDrawings(saved.Scene.NativeFieldParticleSprites);
+            foreach ((int slot, byte value) in saved.Scene.NativeParticleSlots)
+            {
+                if (particleState.Emitters[slot] != value)
+                {
+                    throw new InvalidDataException("Saved field particle emitter differs from its current command byte.");
+                }
+            }
         }
         foreach ((NativeParticleRequest request, int index) in saved.Scene.NativeParticleRequests.Select((request, index) => (request, index)))
         {
