@@ -4,6 +4,34 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class MagicMenuSortingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OpeningJunctionMagicAfterSortingKeepsStockEnumerationStable(bool demo)
+    {
+        MenuData data = CreateData();
+        data.Characters[0].AvailableJunctionSlots.Add("HP");
+        MenuController menu = new(() => data);
+        menu.Open("magic-stock", demo);
+        menu.Execute(new MenuAction("magic-sort"));
+        menu.Open("junction", demo);
+        string actor = menu.Character!.Id;
+        string[] expected = menu.Data.Magic.Where(spell => spell.CharacterId == actor && spell.Quantity > 0).Select(spell => "candidate-" + spell.Id).Append("candidate-none").Order().ToArray();
+
+        using List<MenuMagic>.Enumerator stock = menu.Data.Magic.GetEnumerator();
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            menu.SelectEntry("junction-dashboard", "slot-HP");
+            menu.Navigate(MenuInput.Confirm);
+            Assert.Equal(expected, menu.Entries.Where(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal)).Select(entry => entry.Id).Order().ToArray());
+            _ = menu.BuildView();
+            menu.Navigate(MenuInput.Down);
+            menu.Navigate(MenuInput.Cancel);
+        }
+
+        Assert.True(stock.MoveNext());
+    }
+
     [Fact]
     public void SortedMagicNavigationDoesNotMutateTheCachedStockList()
     {
