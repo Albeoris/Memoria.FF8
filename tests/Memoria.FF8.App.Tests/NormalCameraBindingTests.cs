@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -6,6 +7,24 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NormalCameraBindingTests
 {
+    [Fact]
+    public void ConstantSelectedClampDoesNotRequirePartyOrDrawableActors()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
+        string source = TestResources.FixturePath("App.Tests.NormalCameraBindingTests.2");
+        using var world = new GameWorld(new GameSession(GameSession.Load(source)), directory);
+        world.EnsureField();
+        var field = world.Field! with { Information = world.Field!.Information! with { CameraBounds = Enumerable.Repeat(new FieldBounds(-112, 112, 160, -160), 8).ToArray() } };
+        BackgroundScrollFrame expected = NormalCameraCertificate.Prepare(field, world.Events.Scene, world.Events.Actors)!;
+        SceneEventState scene = world.Events.Scene;
+        scene.FieldPartyNativeActorIds.Clear();
+        scene.FieldPartyNativeActorIds.AddRange([255, 255, 255]);
+        BackgroundScrollFrame actual = NormalCameraCertificate.Prepare(field, scene, [])!;
+        Assert.Equal(expected.ActorOffset, actual.ActorOffset);
+        Assert.Equal(expected.LayerOffsets.OrderBy(pair => pair.Key), actual.LayerOffsets.OrderBy(pair => pair.Key));
+    }
+
     [Fact]
     public void ActualLibraryCameraUsesCompactPartyLeaderRatherThanDenseActorZero()
     {

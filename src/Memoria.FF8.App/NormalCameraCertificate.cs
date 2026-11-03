@@ -32,15 +32,19 @@ public static class NormalCameraCertificate
         {
             throw new NotSupportedException("Normal camera tracking requires the current native loader, supported camera metadata and supported scroll state.");
         }
-        ActorState? leader = NativeFieldPartyBinding.ResolveActor(scene, actors, 0);
-        if (leader is null || (uint)leader.RenderModelId >= field.Models.Count)
+        if (!FieldNativeCameraProbe.TryResolveFixedCenter(information!, scene.CameraIndex, out FieldNativeCameraCenter center))
         {
-            throw new NotSupportedException("Normal camera tracking cannot substitute an unproved actor for the compact party leader.");
-        }
-        FieldNativeCameraResult result = ProjectActorCenter(field, scene, leader);
-        if (!result.Supported || result.Center is not FieldNativeCameraCenter center)
-        {
-            throw new NotSupportedException(result.UnsupportedReason ?? "Normal camera projection has no certified center.");
+            ActorState? leader = NativeFieldPartyBinding.ResolveActor(scene, actors, 0);
+            if (leader is null || (uint)leader.RenderModelId >= field.Models.Count)
+            {
+                throw new NotSupportedException("Normal camera tracking cannot substitute an unproved actor for the compact party leader.");
+            }
+            FieldNativeCameraResult result = ProjectActorCenter(field, scene, leader);
+            if (!result.Supported || result.Center is not FieldNativeCameraCenter projectedCenter)
+            {
+                throw new NotSupportedException(result.UnsupportedReason ?? "Normal camera projection has no certified center.");
+            }
+            center = projectedCenter;
         }
         if (!BackgroundParallaxPlacement.SupportsDrawingOrigin(center.X, center.Y, camera.Pan))
         {

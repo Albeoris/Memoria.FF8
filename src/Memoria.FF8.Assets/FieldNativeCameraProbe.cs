@@ -14,6 +14,38 @@ public sealed record FieldNativeCameraResult(FieldNativeCameraCenter? Center, Fi
 /// <summary>Native selected CA normal-follow projection and INF clamp. Scene eligibility, draw offsets and mutation belong to the caller.</summary>
 public static class FieldNativeCameraProbe
 {
+    public static bool TryResolveFixedCenter(FieldInformation information, int selectedCameraIndex, out FieldNativeCameraCenter center)
+    {
+        center = default;
+        if (information is null || selectedCameraIndex is < 0 or > 1 || information.CameraBounds is null || information.CameraBounds.Count <= selectedCameraIndex || information.ScreenBounds is null || information.ScreenBounds.Count == 0)
+        {
+            return false;
+        }
+        FieldBounds screen = information.ScreenBounds[0];
+        if (screen.Right < screen.Left || screen.Bottom < screen.Top)
+        {
+            return false;
+        }
+        FieldBounds bounds = information.CameraBounds[selectedCameraIndex];
+        int halfWidth = (screen.Right - screen.Left) / 2;
+        int halfHeight = (screen.Bottom - screen.Top) / 2;
+        if (bounds.Right - halfWidth is < short.MinValue or > short.MaxValue || bounds.Left + halfWidth is < short.MinValue or > short.MaxValue || bounds.Bottom - halfHeight is < short.MinValue or > short.MaxValue || bounds.Top + halfHeight is < short.MinValue or > short.MaxValue)
+        {
+            return false;
+        }
+        // Signed WORD projection divided by8 covers this interval. With no WORD
+        // assignment overflow, native cap-then-floor is monotone, including
+        // overlapping bounds; equal endpoint images therefore prove constancy.
+        FieldNativeCameraCenter minimum = Clamp(new FieldNativeCameraCenter(short.MinValue / 8, short.MinValue / 8), information, selectedCameraIndex);
+        FieldNativeCameraCenter maximum = Clamp(new FieldNativeCameraCenter(short.MaxValue / 8, short.MaxValue / 8), information, selectedCameraIndex);
+        if (minimum != maximum)
+        {
+            return false;
+        }
+        center = minimum;
+        return true;
+    }
+
     public static FieldNativeCameraResult Resolve(FieldCamera camera, FieldInformation information, int fixedX, int fixedY, int fixedZ, int selectedCameraIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(camera);
