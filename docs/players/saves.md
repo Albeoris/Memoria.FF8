@@ -83,6 +83,8 @@ Schema 4 extends this migration to the other supported legacy effect-source plac
 
 Schema 6 initializes missing world texture and palette animation clocks in older saves. Only the visual animation phase restarts from zero; field, story, travel and other process state are preserved. Recorded clocks are retained, and partially recorded clocks remain invalid. Loading upgrades the state in memory without changing the source file; the next save writes the current schema.
 
+Schema 7 restarts entirely absent historical field particle presentation from the field's original resources. It retains saved emitter settings and applies the original warmup from visual random phase zero. Existing particle state is preserved. This resets transient particle appearance without advancing gameplay.
+
 When a migration is necessary:
 
 1. Preserve the source file.

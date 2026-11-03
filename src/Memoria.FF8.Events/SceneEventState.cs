@@ -322,6 +322,9 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldParticleSprite[]? NativeFieldParticleSprites { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PendingNativeFieldParticleMigrationVersion { get; internal set; }
     public Dictionary<int, byte> NativeParticleSlots { get; } = [];
     public List<NativeParticleRequest> NativeParticleRequests { get; } = [];
     [JsonInclude]

@@ -63,6 +63,30 @@ public sealed partial class EventEngine
         Scene.NativeFieldParticleRandomPhase = frame.State.RandomPhase;
     }
 
+    /// <summary>Completes a versioned historical presentation restart using the installed field resource.</summary>
+    public void CompleteNativeFieldParticleMigration()
+    {
+        if (Scene.PendingNativeFieldParticleMigrationVersion is null)
+        {
+            return;
+        }
+        if (Scene.PendingNativeFieldParticleMigrationVersion != 1 || Scene.NativeFieldParticles is not null || Scene.NativeFieldParticleRandomPhase is not null || Scene.NativeFieldParticleSprites is not null)
+        {
+            throw new InvalidDataException("Pending field particle migration requires version1 and wholly absent historical presentation owners.");
+        }
+        Func<int, byte[]?> readDefinition = ReadNativeFieldParticleDefinition ?? throw new NotSupportedException("Field particle migration requires the current field resource provider.");
+        if (readDefinition(FieldId) is not null)
+        {
+            RestartNativeFieldParticlesForMigration(0);
+        }
+        else
+        {
+            Scene.NativeFieldParticleRandomPhase = 0;
+            Scene.NativeFieldParticleSprites = [];
+        }
+        Scene.PendingNativeFieldParticleMigrationVersion = null;
+    }
+
     /// <summary>Explicit transient presentation restart; preserves story and command history, and supplies a declared random phase.</summary>
     public void RestartNativeFieldParticlesForMigration(byte randomPhase)
     {

@@ -46,6 +46,9 @@ internal static class SnapshotMigrations
                 case 5:
                     SnapshotWorldTextureAnimationMigration.Apply(saved, options);
                     break;
+                case 6:
+                    SnapshotFieldParticleMigration.Apply(saved);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }
@@ -56,6 +59,10 @@ internal static class SnapshotMigrations
 
     internal static void CompleteInitialOwners(JsonObject saved, JsonSerializerOptions options, int originalVersion)
     {
+        if (originalVersion < 7)
+        {
+            SnapshotFieldParticleMigration.Apply(saved);
+        }
         if (originalVersion < 6)
         {
             SnapshotWorldTextureAnimationMigration.Apply(saved, options);
