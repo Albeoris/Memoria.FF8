@@ -359,7 +359,7 @@ public static class NativeBattleHoly175Controller
                 for (int index = 0; index < 2; index++)
                 {
                     born = Append(0x5D3B80);
-                    child = Add(Anchor(children.Slots[born], RawAnchor(task)), 0x12, 600).WriteWord(0x1C, 4096).WriteWord(0x20, index == 0 ? (ushort)12 : (ushort)4).WriteWord(0x22, index == 0 ? (ushort)0 : (ushort)8);
+                    child = Add(Anchor(children.Slots[born], RawAnchor(task)), 0x12, 600).WriteWord(0x1C, index == 0 ? (ushort)4096 : (ushort)3840).WriteWord(0x20, index == 0 ? (ushort)12 : (ushort)4).WriteWord(0x22, index == 0 ? (ushort)0 : (ushort)8);
                     children = Put(children, born, child);
                 }
             }

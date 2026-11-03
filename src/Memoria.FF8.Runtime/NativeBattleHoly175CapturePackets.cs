@@ -67,21 +67,23 @@ public static class NativeBattleHoly175CapturePackets
 
         int blackOffset = buffer * 24;
         byte[] black = retained.BlackPackets.AsSpan().Slice(blackOffset, 24).ToArray();
-        using NativeBattleLogicalOrdering.Builder blackLinks = new(ordering);
-        NativeBattlePrimitiveReference blackReference = new(NativeBattleHoly175CaptureMemory.PacketBank, buffer, blackOffset);
-        blackLinks.InvalidatePacketRange(blackReference, 24);
-        bool blackLinked = blackLinks.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-        ImmutableArray<uint> blackWords = Words(black);
-        System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
-        NativeBattlePilotVisualGeometry blackGeometry = new(new(0, 0, 0, buffer, 0x28), Point(blackWords[2]), Point(blackWords[3]), Point(blackWords[4]), Point(blackWords[5]), 4, false) { ScreenSpace = true, ScreenScale = 8 };
-        blackLinks.Prepend(4385, blackReference, blackWords, 1, [0, 0, 0, 0], pilotGeometry: blackGeometry);
-        if (blackLinked)
+        using (NativeBattleLogicalOrdering.Builder blackLinks = new(ordering))
         {
-            byte[] updated = retained.BlackPackets.ToArray();
-            NativeBattleLogicalOrdering.LinkBytes(blackLinks.LastHeaderLink).CopyTo(updated, blackOffset);
-            retained = retained with { BlackPackets = updated.ToImmutableArray() };
+            NativeBattlePrimitiveReference blackReference = new(NativeBattleHoly175CaptureMemory.PacketBank, buffer, blackOffset);
+            blackLinks.InvalidatePacketRange(blackReference, 24);
+            bool blackLinked = blackLinks.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            ImmutableArray<uint> blackWords = Words(black);
+            System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+            NativeBattlePilotVisualGeometry blackGeometry = new(new(0, 0, 0, buffer, 0x28), Point(blackWords[2]), Point(blackWords[3]), Point(blackWords[4]), Point(blackWords[5]), 4, false) { ScreenSpace = true, ScreenScale = 8 };
+            blackLinks.Prepend(4385, blackReference, blackWords, 1, [0, 0, 0, 0], pilotGeometry: blackGeometry);
+            if (blackLinked)
+            {
+                byte[] updated = retained.BlackPackets.ToArray();
+                NativeBattleLogicalOrdering.LinkBytes(blackLinks.LastHeaderLink).CopyTo(updated, blackOffset);
+                retained = retained with { BlackPackets = updated.ToImmutableArray() };
+            }
+            ordering = blackLinks.ToImmutable();
         }
-        ordering = blackLinks.ToImmutable();
 
         AppendProduced(NativeBattleDrawEnvironmentPackets.Area45C940(new byte[12].ToImmutableArray(), 576, 256, 320, 232), 12, 4385, 12);
         retained = retained with { OffsetX = 576, OffsetY = 256 };

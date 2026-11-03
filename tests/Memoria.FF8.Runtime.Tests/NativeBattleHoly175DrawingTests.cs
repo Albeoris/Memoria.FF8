@@ -70,8 +70,10 @@ public sealed class NativeBattleHoly175DrawingTests
         NativeBattleHoly175MeshDraw loaded = NativeBattleHoly175Drawing.DescribeStandardMesh(flare, state, Resources(), View, Projection);
         Assert.Equal(new short[] { 512, 0, 0, 0, 4096, 0, 0, 0, 512 }, loaded.Matrix.Rotation.ToArray());
         Assert.Equal(loaded.Matrix.Rotation.ToArray(), NativeBattleHoly175State.LoadMatrix(loaded.State.StaticMatrix, 0).Rotation.ToArray());
+        Assert.True(NativeBattleHoly175Drawing.DrawTask(flare, state, Resources(), View, Projection, 0, default, Colors).Common);
         NativeBattleModulePoolTask billboard = Task(0x5D42B0).WriteWord(0x18, 1024);
         NativeBattleHoly175MeshDraw oriented = NativeBattleHoly175Drawing.DescribeStandardMesh(billboard, state, Resources(), View, Projection);
+        Assert.False(NativeBattleHoly175Drawing.DrawTask(billboard, state, Resources(), View, Projection, 0, default, Colors).Common);
         Assert.Equal((byte)13, oriented.Context.DepthShift);
         Assert.Equal(0xD52DD8u, oriented.Resource.Address);
         Assert.Equal((10, -20, 10030), (oriented.Matrix.X, oriented.Matrix.Y, oriented.Matrix.Z));
@@ -133,7 +135,7 @@ public sealed class NativeBattleHoly175DrawingTests
         {
             BinaryPrimitives.WriteInt16LittleEndian(rows.AsSpan(index * 8 + 2), (short)(128 + 16 * index));
         }
-        return new(new("animation", []), new("tim", []), [Sprite(0xD522CC), Sprite(0xD523E8)], addresses.Select(address => new NativeBattleStaticMeshResource(0, address, [])).ToImmutableArray(), new("sound", [0, 0, 0, 0])) { RayRows = new("rows", rows.ToImmutableArray()) };
+        return new(new("animation", []), new("tim", []), [Sprite(0xD522CC), Sprite(0xD523E8)], addresses.Select(address => new NativeBattleStaticMeshResource(0, address, new byte[32].ToImmutableArray())).ToImmutableArray(), new("sound", [0, 0, 0, 0])) { RayRows = new("rows", rows.ToImmutableArray()) };
     }
     private static NativeBattleHoly175SpriteResource Sprite(uint address)
     {

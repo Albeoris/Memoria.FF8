@@ -7,6 +7,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHoly175ControllerTests
 {
     [Fact]
+    public void Window_layers_keep_their_distinct_native_scales_and_scroll_rates()
+    {
+        Harness harness = new();
+        NativeBattleHoly175Frame frame = harness.Initialize();
+        for (int callback = 0; callback < 32; callback++)
+        {
+            frame = NativeBattleHoly175Controller.Advance5D44C0(frame, harness.Inputs(), harness.Resources);
+        }
+        NativeBattleModulePoolTask[] windows = frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x5D3B80).ToArray();
+        Assert.Equal(2, windows.Length);
+        Assert.Contains(windows, task => task.ReadWord(0x1C) == 4096 && task.ReadWord(0x20) == 12);
+        Assert.Contains(windows, task => task.ReadWord(0x1C) == 3840 && task.ReadWord(0x20) == 4);
+    }
+
+    [Fact]
     public void WholePhysicalLifecycleKeepsLateFlareContactAndActualCompletionIndependent()
     {
         Harness harness = new();

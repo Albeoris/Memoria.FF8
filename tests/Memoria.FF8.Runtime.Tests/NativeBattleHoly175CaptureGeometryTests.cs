@@ -10,6 +10,26 @@ public sealed class NativeBattleHoly175CaptureGeometryTests
     private static ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> Directory => [new(1, 0), new(2, 1), new(3, 2), new(4, 3)];
 
     [Fact]
+    public void Capture_keeps_area_and_offset_packets_after_black_packet_builder_is_disposed()
+    {
+        byte[] black = new byte[48];
+        for (int offset = 0; offset < black.Length; offset += 24)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(offset), 0x05000000);
+            BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(offset + 4), 0x28000000);
+        }
+        NativeBattleHoly175Resources resources = new(new("animation", []), new("tim", []), [], [], new("sound", []))
+        {
+            CaptureDirectory = new("capture-directory", new byte[32].ToImmutableArray())
+        };
+        NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        NativeBattleHoly175CaptureWrite capture = NativeBattleHoly175CapturePackets.Write5D29E0(process, NativeBattleLogicalOrdering.Clear(), Stage(), [], View, new(View, 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, resources, new(black.ToImmutableArray(), null, null));
+        Assert.Contains(capture.Ordering.Packets, packet => packet.Words.Length == 3 && packet.Words[1] == 0xE3040240u && packet.Words[2] == 0xE4079F7Fu);
+        Assert.Contains(capture.Ordering.Packets, packet => packet.Words.Length == 2 && packet.Words[1] == 0xE5080240u);
+        Assert.Equal(88, capture.Process.ByteCursor);
+    }
+
+    [Fact]
     public void CaptureSamplesAllCurrentPosesWithoutAdvancingEvenInvisibleGroupThreeOrApplyingStageYaw()
     {
         NativeBattleStageState stage = Stage() with { Rotation = 0x1234, RotationSpeed = 57 };

@@ -65,7 +65,7 @@ public static partial class NativeBattleHoly175Drawing
                 }).ToImmutableArray()
             };
         }
-        return new(mesh.State, packets, null, false, null);
+        return new(mesh.State, packets, null, task.Callback == 0x5D43B0, null);
     }
 
     internal static NativeBattleHoly175MeshDraw DescribeStandardMesh(NativeBattleModulePoolTask task, NativeBattleHoly175State state, NativeBattleHoly175Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
