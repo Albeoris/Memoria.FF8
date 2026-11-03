@@ -5,7 +5,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Assets.Remastered;
 
 /// <summary>Owns release-specific storage, localization and replacement selection.</summary>
-public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArchiveSource, IGameFileSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver
+public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArchiveSource, IGameFileSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver, INativeWorldStaticTextureSource
 {
     private readonly string gameDirectory;
     private readonly string language;

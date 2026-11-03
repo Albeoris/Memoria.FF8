@@ -30,8 +30,8 @@ public sealed partial class WorldAssets
         if (!scriptedStaticModels.TryGetValue(shape, out WorldStaticModel? model))
         {
             int index = shape - 64;
-            int modelRelative = SectionPointer(15, index);
-            int textureRelative = SectionPointer(41, index);
+            int modelRelative = SectionPointer(15, index, wmset.Length);
+            int textureRelative = SectionPointer(41, index, sections[42]);
             int modelStart = sections[15] + modelRelative;
             int textureStart = sections[41] + textureRelative;
             var texture = WorldAssetReader.ReadTim(wmset, textureStart);
@@ -39,14 +39,17 @@ public sealed partial class WorldAssets
             {
                 throw new InvalidDataException("Scripted static texture leaves its original WMSET section.");
             }
-            model = WorldStaticModelReader.Read(shape, wmset.AsSpan(modelStart, sections[16] - modelStart), texture.Image);
-            model = model with { Textures = textureScope.RegisterList(worldSettingsKey, model.Textures, "classic-model", $"static/{shape}/palette") };
+            // The model table supplies a relative base; geometry may be appended elsewhere in WMSET.
+            ushort page = BinaryPrimitives.ReadUInt16LittleEndian(wmset.AsSpan(modelStart + 4));
+            NativeWorldStaticTextureSheet? sheet = resources.GetSource<INativeWorldStaticTextureSource>()?.ReadWorldStaticTextureSheet(nativeSourceFieldName, texture.Image, page);
+            model = WorldStaticModelReader.Read(shape, wmset.AsSpan(modelStart), texture.Image, sheet);
+            model = model with { Textures = textureScope.RegisterList(worldSettingsKey, model.Textures, "classic-model", $"static/{shape}/palette", logicalWidth: sheet?.Width, logicalHeight: sheet?.Height) };
             scriptedStaticModels.Add(shape, model);
         }
         return modelOverrides?.Apply($"world/static/{shape}", model) ?? model;
     }
 
-    private int SectionPointer(int section, int index)
+    private int SectionPointer(int section, int index, int payloadEnd)
     {
         int count = WorldAssetReader.InnerPointers(wmset, sections[section]).Length;
         if (index >= count)
@@ -54,9 +57,9 @@ public sealed partial class WorldAssets
             throw new InvalidDataException("Scripted static shape has no original resource table entry.");
         }
         int relative = BinaryPrimitives.ReadInt32LittleEndian(wmset.AsSpan(sections[section] + index * 4));
-        if (relative <= 0 || relative > sections[section + 1] - sections[section] - 8)
+        if (relative <= 0 || relative > payloadEnd - sections[section] - 8)
         {
-            throw new InvalidDataException("Scripted static resource pointer leaves its original WMSET section.");
+            throw new InvalidDataException("Scripted static resource pointer leaves its WMSET resource bounds.");
         }
         return relative;
     }

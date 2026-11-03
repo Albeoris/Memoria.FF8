@@ -46,6 +46,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly ResourceKey worldSettingsKey;
     private readonly AssetTextureScope textureScope;
     private readonly IModelOverrideSource? modelOverrides;
+    private readonly string? nativeSourceFieldName;
     private AssetHandle<TextureValue>? roadHandle;
     private bool roadsPrepared;
     private byte[]? texl;
@@ -54,7 +55,7 @@ public sealed partial class WorldAssets : IDisposable
     private WorldFieldEntryReader? fieldEntries;
     private WorldFieldEntryReader? worldEvents;
 
-    public WorldAssets(string gameDirectory, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null)
+    public WorldAssets(string gameDirectory, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, string? nativeSourceFieldName = null)
     {
         if (resources is null)
         {
@@ -65,6 +66,7 @@ public sealed partial class WorldAssets : IDisposable
         this.resources = resources;
         worldSettingsKey = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
         this.modelOverrides = modelOverrides;
+        this.nativeSourceFieldName = nativeSourceFieldName;
         textureScope = new AssetTextureScope(resources);
         try
         {

@@ -7,11 +7,19 @@ namespace Memoria.FF8.Assets;
 /// <summary>Structural static indexed world model layout shared by original shape records; no field or model geometry substitution.</summary>
 public static class WorldStaticModelReader
 {
-    public static WorldStaticModel Read(byte shape, ReadOnlySpan<byte> model, TimImage tim)
+    public static WorldStaticModel Read(byte shape, ReadOnlySpan<byte> model, TimImage tim, NativeWorldStaticTextureSheet? sheet = null)
     {
         if (shape < 64 || model.Length < 8)
         {
             throw new InvalidDataException("Static world model requires its original shape-table entry and complete model header.");
+        }
+        if (sheet is not null)
+        {
+            if (sheet.Width <= 0 || sheet.Height <= 0 || sheet.Width > 256 || sheet.Height > 256)
+            {
+                throw new InvalidDataException("Native world static texture sheet requires its bounded logical canvas.");
+            }
+            _ = NativeArtworkTexture.Scale(sheet.Image, sheet.Width, sheet.Height);
         }
         int colorsPerPalette = tim.PixelMode switch
         {
@@ -57,12 +65,12 @@ public static class WorldStaticModelReader
             }
             Vector2[] uv = new Vector2[vertexCount];
             int pixelsPerWord = tim.PixelMode == TimPixelMode.Indexed8 ? 2 : 4;
-            int originU = (tim.X - (page & 15) * 64) * pixelsPerWord;
-            int originV = tim.Y - ((page & 16) == 0 ? 0 : 256);
+            int originU = sheet?.OriginU ?? (tim.X - (page & 15) * 64) * pixelsPerWord;
+            int originV = sheet?.OriginV ?? tim.Y - ((page & 16) == 0 ? 0 : 256);
             for (int vertex = 0; vertex < vertexCount; vertex++)
             {
                 uv[vertex] = new Vector2(raw[4 + 2 * vertex] - originU, raw[5 + 2 * vertex] - originV);
-                if (uv[vertex].X < 0 || uv[vertex].X >= tim.PixelWidth || uv[vertex].Y < 0 || uv[vertex].Y >= tim.Height)
+                if (uv[vertex].X < 0 || uv[vertex].X >= (sheet?.Width ?? tim.PixelWidth) || uv[vertex].Y < 0 || uv[vertex].Y >= (sheet?.Height ?? tim.Height))
                 {
                     throw new InvalidDataException("Static world texture coordinates leave the original TIM rectangle.");
                 }
@@ -71,6 +79,6 @@ public static class WorldStaticModelReader
             faces.Add(new WorldStaticFace(indices, uv, palette, transparent));
             position += quad ? 16 : 12;
         }
-        return new WorldStaticModel(shape, shape - 64, page, vertices, faces, Enumerable.Range(0, tim.Palettes.Count).Select(palette => tim.Decode(palette)).ToArray());
+        return new WorldStaticModel(shape, shape - 64, page, vertices, faces, Enumerable.Range(0, tim.Palettes.Count).Select(palette => sheet?.Image ?? tim.Decode(palette)).ToArray());
     }
 }

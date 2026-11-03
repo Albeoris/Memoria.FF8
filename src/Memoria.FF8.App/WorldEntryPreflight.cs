@@ -62,7 +62,7 @@ public sealed class PreparedWorldEntry : IDisposable
 /// <summary>Validates the selected original resources and contact state before a field VM can issue its world packet.</summary>
 public static class WorldEntryPreflight
 {
-    public static PreparedWorldEntry Prepare(GameState departure, string gameDirectory, WorldTransition transition, bool validatePresentation = true)
+    public static PreparedWorldEntry Prepare(GameState departure, string gameDirectory, WorldTransition transition, bool validatePresentation = true, string? nativeSourceFieldName = null)
     {
         ArgumentNullException.ThrowIfNull(departure);
         ArgumentNullException.ThrowIfNull(transition);
@@ -83,7 +83,7 @@ public static class WorldEntryPreflight
         WorldMapScene.RequireUnaliasedFootAuxiliary(departure);
         GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, EventMemory = departure.EventMemory };
         var temporarySession = new GameSession(candidate);
-        var scene = new WorldMapScene(temporarySession, gameDirectory);
+        var scene = new WorldMapScene(temporarySession, gameDirectory, nativeSourceFieldName: nativeSourceFieldName);
         try
         {
             if (validatePresentation && !scene.IsPresentationDeferred)

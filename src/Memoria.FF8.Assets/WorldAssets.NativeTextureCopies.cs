@@ -30,7 +30,7 @@ public sealed partial class WorldAssets
         }
         if (!nativeStaticCopyTargets.TryGetValue(model.ModelIndex, out TimImage? target))
         {
-            int start = sections[41] + SectionPointer(41, model.ModelIndex);
+            int start = sections[41] + SectionPointer(41, model.ModelIndex, sections[42]);
             target = WorldAssetReader.ReadTim(wmset, start).Image;
             nativeStaticCopyTargets.Add(model.ModelIndex, target);
         }

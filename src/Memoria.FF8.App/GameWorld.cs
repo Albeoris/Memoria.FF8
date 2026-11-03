@@ -246,7 +246,7 @@ internal sealed partial class GameWorld : IDisposable
             {
                 throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
-            worldScene = new WorldMapScene(session, assets.GameDirectory, resources, modelOverrides: modelOverrides);
+            worldScene = new WorldMapScene(session, assets.GameDirectory, resources, modelOverrides: modelOverrides, nativeSourceFieldName: Field?.Name);
             ConfigureWorldScene(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
             {
