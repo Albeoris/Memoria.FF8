@@ -464,6 +464,125 @@ public sealed class JunctionDashboardInteractionTests
     }
 
     [Fact]
+    public void ConfiguredStandaloneStateShowsEveryOwnedGuardianPassiveCapacityLoss()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_STATE");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(source) && File.Exists(source), "An optional standalone state must be explicitly configured.");
+        using Fixture fixture = new();
+        byte[] originalFile = File.ReadAllBytes(source!);
+        GameState state = GameSession.Load(source!);
+        NativeCharacterVitals vitals = Assert.IsType<NativeCharacterVitals>(state.CharacterVitals);
+        string original = JsonSerializer.Serialize(vitals);
+        MenuData data = LiveMenuData.Build(state, catalog: fixture.Catalog);
+        int checkedPreviews = 0;
+        foreach (MenuCharacter character in data.Characters)
+        {
+            int nativeRow = int.Parse(character.Id.AsSpan("character-".Length));
+            foreach (string guardianId in character.GuardianForceIds)
+            {
+                MenuGuardianForce guardian = data.GuardianForces.Single(force => force.Id == guardianId);
+                int nextCapacity = vitals.ToggleGuardianForceJunction(nativeRow, guardian.NativeId!.Value).JunctionAbilitySlots(nativeRow);
+                if (nextCapacity >= character.AbilitySlots)
+                {
+                    continue;
+                }
+                MenuController menu = new(() => data);
+                menu.Open("junction-dashboard");
+                menu.Execute(new("select-character", character.Id));
+                menu.SelectEntry("junction-dashboard", "gf-portrait-" + guardianId);
+                UiElement[] elements = Descendants(menu.BuildView().Root).ToArray();
+                UiButton capacityRow = Assert.IsType<UiButton>(elements.Single(element => element.Id == "gf-capability-capacity"));
+                Assert.Equal($"− Passive abilities · {character.AbilitySlots} → {nextCapacity}", capacityRow.Children.OfType<UiLabel>().First().Text);
+                for (int index = nextCapacity; index < character.AbilitySlots; index++)
+                {
+                    UiElement row = elements.Single(element => element.Id == "passive-" + index);
+                    UiElement highlight = Assert.Single(row.Children, child => child.GetType().Name == "JunctionSlotAvailabilityRow");
+                    Assert.False(Assert.IsType<bool>(highlight.GetType().GetProperty("Gained")!.GetValue(highlight)));
+                }
+                checkedPreviews++;
+            }
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(vitals));
+        Assert.Equal(originalFile, File.ReadAllBytes(source!));
+        Assert.SkipUnless(checkedPreviews > 0, "The configured state has no owned guardian whose removal reduces passive capacity.");
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void ForeignGuardianTransferShowsLostPassiveCapacityEvenWhenSlotsAreEmpty(int capacity)
+    {
+        using Fixture fixture = new();
+        if (capacity == 3)
+        {
+            fixture.Vitals = fixture.Vitals.ForgetGuardianForceAbility(0, 19);
+        }
+        fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(7, 0);
+        fixture.Refresh();
+        Assert.Equal(capacity, fixture.Vitals.JunctionAbilitySlots(7));
+        Assert.Equal(2, fixture.Vitals.ToggleGuardianForceJunction(7, 0).JunctionAbilitySlots(7));
+        Assert.Equal(0u, fixture.Vitals.Records[7].Junction.Abilities);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+
+        fixture.Hit("gf-portrait-gf-0");
+
+        UiElement modal = Descendants(fixture.Menu.BuildView().Root).Single(element => element.Id == "junction-transfer-modal");
+        UiButton row = Assert.IsType<UiButton>(Descendants(modal).Single(element => element.Id == "transfer-loss-gf-capability-capacity"));
+        UiLabel label = row.Children.OfType<UiLabel>().First();
+        Assert.Equal($"− Passive abilities · {capacity} → 2", label.Text);
+        Assert.Equal(new UiColor(245, 90, 90), label.Color);
+        Assert.Contains(fixture.Menu.Entries, entry => entry.Id == row.Id && entry.Enabled);
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+    }
+
+    [Theory]
+    [InlineData(3, false)]
+    [InlineData(4, false)]
+    [InlineData(3, true)]
+    [InlineData(4, true)]
+    public void GuardianPreviewHighlightsEveryChangedEmptyPassiveSlot(int capacity, bool gaining)
+    {
+        using Fixture fixture = new();
+        if (capacity == 3)
+        {
+            fixture.Vitals = fixture.Vitals.ForgetGuardianForceAbility(0, 19);
+        }
+        if (gaining)
+        {
+            fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(0, 0);
+        }
+        fixture.Refresh();
+        Assert.Equal(gaining ? 2 : capacity, fixture.Menu.Character!.AbilitySlots);
+        Assert.Equal(0u, fixture.Vitals.Records[0].Junction.Abilities);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+
+        fixture.Preview("gf-portrait-gf-0");
+
+        UiElement[] elements = Descendants(fixture.Menu.BuildView().Root).ToArray();
+        UiButton capacityRow = Assert.IsType<UiButton>(elements.Single(element => element.Id == "gf-capability-capacity"));
+        UiLabel capacityLabel = capacityRow.Children.OfType<UiLabel>().First();
+        Assert.StartsWith(gaining ? "+ " : "− ", capacityLabel.Text);
+        Assert.Equal(gaining ? new UiColor(110, 220, 135) : new UiColor(245, 90, 90), capacityLabel.Color);
+        for (int index = 0; index < 4; index++)
+        {
+            UiElement row = elements.Single(element => element.Id == "passive-" + index);
+            UiElement[] highlights = row.Children.Where(child => child.GetType().Name == "JunctionSlotAvailabilityRow").ToArray();
+            if (index >= 2 && index < capacity)
+            {
+                UiElement highlight = Assert.Single(highlights);
+                Assert.Equal(gaining, Assert.IsType<bool>(highlight.GetType().GetProperty("Gained")!.GetValue(highlight)));
+            }
+            else
+            {
+                Assert.Empty(highlights);
+            }
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+    }
+
+    [Fact]
     public void GuardianRemovalPreviewKeepsSlotsProvidedByAnotherAttachedGuardianAvailable()
     {
         using Fixture fixture = new();
@@ -539,7 +658,14 @@ public sealed class JunctionDashboardInteractionTests
             UiLabel label = row.Children.OfType<UiLabel>().First();
             Assert.StartsWith("− ", label.Text);
             Assert.Equal(new UiColor(245, 90, 90), label.Color);
-            Assert.Single(row.Children.OfType<UiImage>());
+            if (row.Id == "transfer-loss-gf-capability-capacity")
+            {
+                Assert.Equal("− Passive abilities · 4 → 2", label.Text);
+            }
+            else
+            {
+                Assert.Single(row.Children.OfType<UiImage>());
+            }
         });
         Assert.True(columns.Children.Count > columns.RowCount);
         Assert.Equal(23 * textScale / 100f, columns.Children[1].Bounds.Y - columns.Children[0].Bounds.Y, 3);

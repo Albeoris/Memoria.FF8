@@ -557,6 +557,11 @@ public sealed partial class MenuController
             bool actionable = !locked && empty && Character is { } actor && actor.AvailableAbilities.Any(choice => choice.Id != "0" && !actor.AbilityIds.Contains(choice.Id));
             string name = Character?.Abilities.ElementAtOrDefault(index) ?? "---";
             UiButton passive = JunctionButton("passive-" + index, locked ? "" : $"{index + 1}  " + (empty ? actionable ? "! " + J("empty", "Empty") : "---" : name), () => OpenJunctionEditor("passive", "passive-" + slot));
+            bool projectedLocked = index >= (JunctionPreviewCharacter?.AbilitySlots ?? Character?.AbilitySlots ?? 0);
+            if (locked != projectedLocked)
+            {
+                passive.Children.Add(new JunctionSlotAvailabilityRow { Gained = !projectedLocked });
+            }
             if (locked)
             {
                 passive.Children.Add(new JunctionLockIcon { Id = "junction-lock-passive-" + index, Margin = new UiThickness(28, 0, 0, 0) });
@@ -567,7 +572,10 @@ public sealed partial class MenuController
                 UiLabel attention = JunctionLabel($"{index + 1}  ! " + J("empty", "Empty"), 16);
                 attention.Color = new UiColor(232, 184, 99);
                 attention.Margin = new UiThickness(10, 0, 0, 0);
-                passive.Children.Add(new JunctionAttentionRow());
+                if (locked == projectedLocked)
+                {
+                    passive.Children.Add(new JunctionAttentionRow());
+                }
                 passive.Children.Add(attention);
             }
             Place(passives, passive, index);

@@ -16,7 +16,7 @@ public sealed partial class MenuController
         Place(body, JunctionLabel(J("available-abilities", "Available abilities"), 14, true), 0);
         MenuCharacter? currentCharacter = donor ?? Character;
         MenuCharacter? preview = donor is null ? JunctionPreviewCharacter : junctionPlan?.After.Characters.FirstOrDefault(actor => actor.Id == donor.Id);
-        var changes = Capabilities(true).Concat(Capabilities(false)).Where(change => donor is null || change.Delta < 0).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
+        var changes = Capabilities(true).Concat(Capabilities(false)).Concat(Capacity()).Where(change => donor is null || change.Delta < 0).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
         if (changes.Length == 0)
         {
             Place(body, JunctionLabel("---", 16, true), 1);
@@ -63,6 +63,15 @@ public sealed partial class MenuController
         }
         Place(body, columns, 1);
         return body;
+
+        IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capacity()
+        {
+            if (currentCharacter is not null && preview is not null && currentCharacter.AbilitySlots != preview.AbilitySlots)
+            {
+                string name = J("passives", "Passive abilities") + $" · {currentCharacter.AbilitySlots} → {preview.AbilitySlots}";
+                yield return ("gf-capability-capacity", new MenuAbilityChoice("capacity", name), Math.Sign(preview.AbilitySlots - currentCharacter.AbilitySlots));
+            }
+        }
 
         IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capabilities(bool commands)
         {
