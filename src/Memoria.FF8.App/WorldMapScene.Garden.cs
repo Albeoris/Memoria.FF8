@@ -146,6 +146,7 @@ internal sealed partial class WorldMapScene
             NativeOffsetY = garden.CameraDefaults.OffsetY,
             NativeOffsetZ = garden.CameraDefaults.OffsetZ
         };
+        camera = camera with { ParticleProjection = projection };
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool footVisible = state.NativeFootRuntime is not null && state.GroundType is null or > 5;

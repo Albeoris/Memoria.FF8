@@ -43,4 +43,5 @@ public readonly record struct WorldForestParticleFrame(NativeWorldForestParticle
 {
     public ushort PreviousScale { get; init; }
     public float Blend { get; init; }
+    public NativeWorldForestParticle? PreviousParticle { get; init; }
 }

@@ -20,7 +20,7 @@ public sealed class NativeCarParticleRenderTests
         Assert.Equal((byte)0, effect.Height);
         WorldTerrainRenderer renderer = new(assets, 320, 224);
         Vector3 position = new(18381, 4000, -68272);
-        WorldCamera camera = WorldCamera.Foot(0, 4096);
+        WorldCamera camera = WorldCamera.Foot(0, 4096) with { ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(new NativeWorldFootCameraState(18381, -68272, -4000, 18381, -68272, -4256, 0, -112, -341, -7168)) };
         byte[] clear = renderer.Render(position, 0, 0, 0, camera, avatarVisible: false).ToArray();
         NativeWorldForestParticle particle = new(0, type, 18381, -4300, 68272, 0, 0, 4096, 1, lifetime, true) { Motion = new(0, 0, 0, 0) };
         NativeWorldForestState forest = NativeWorldForestState.Create(0, 0) with { Particles = [particle] };

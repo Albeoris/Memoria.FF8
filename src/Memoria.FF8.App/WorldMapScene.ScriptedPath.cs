@@ -95,7 +95,7 @@ internal sealed partial class WorldMapScene
                 models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(path.NodeShape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index) });
             }
         }
-        WorldCamera camera = WorldCamera.ScriptedPath(path.Camera, 2048);
+        WorldCamera camera = WorldCamera.ScriptedPath(path.Camera, 2048) with { ParticleProjection = NativeWorldPathProjectionCertificate.Create(path.Camera, path.EntityPosition, path.EntityType) };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, AvatarVisible: false, StaticModels: models, Forest: state.NativeScriptedRuntime.Forest);
     }

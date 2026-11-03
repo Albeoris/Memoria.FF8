@@ -13,6 +13,9 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
     public int? NativeOffsetZ { get; init; }
     public int? NativeOffsetY { get; init; }
     public short? NativePitch { get; init; }
+    public NativeWorldPathProjectionCertificate? ParticleProjection { get; init; }
+    public NativeWorldPathProjectionCertificate? PreviousParticleProjection { get; init; }
+    public float ParticleProjectionBlend { get; init; } = 1;
     public bool NativeProjection => NativeFoot || ScriptedFrame.HasValue;
 
     public static WorldCamera ScriptedPath(NativeWorldPathCamera camera, float farDistance, int skyIndex = 0)
@@ -105,8 +108,8 @@ public sealed partial class WorldTerrainRenderer
     private byte? worldDiscNumber;
     private ushort terrainReplacementMask;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
-    private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null);
-    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null);
+    private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null, float? NativeOrderingReciprocal = null);
+    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null, bool? NativeParticlePass = null);
     private readonly List<RasterTriangle> rasterTriangles = [];
 
     public WorldTerrainRenderer(WorldAssets assets, int width, int height)
@@ -238,7 +241,7 @@ public sealed partial class WorldTerrainRenderer
         }
         if (forest is not null)
         {
-            DrawForest(forest, position, forestParticles);
+            DrawForest(forest, position, forestParticles, camera);
         }
         if (TriangleRenderer is not null)
         {
@@ -253,86 +256,12 @@ public sealed partial class WorldTerrainRenderer
             int bottom = (worker + 1) * Height / workers - 1;
             foreach (RasterTriangle triangle in rasterTriangles)
             {
-                Raster(triangle.A, triangle.B, triangle.C, triangle.Texture, triangle.Transparent, top, bottom, triangle.Blend);
+                Raster(triangle.A, triangle.B, triangle.C, triangle.Texture, triangle.Transparent, top, bottom, triangle.Blend, triangle.NativeParticlePass);
             }
         });
         DrawnTriangles += rasterTriangles.Count;
         DrawWorldMapOverlay(presentation);
         return pixels;
-    }
-
-    private void DrawForest(NativeWorldForestState forest, Vector3 position, IReadOnlyList<WorldForestParticleFrame>? presentation)
-    {
-        forest.Validate();
-        if (!Matrix4x4.Invert(view, out Matrix4x4 inverseView))
-        {
-            throw new InvalidDataException("World particle camera has no inverse projection orientation.");
-        }
-        Vector3 cameraRight = Vector3.TransformNormal(Vector3.UnitX, inverseView);
-        Vector3 cameraUp = Vector3.TransformNormal(Vector3.UnitY, inverseView);
-        IEnumerable<WorldForestParticleFrame> particles = presentation ?? forest.Particles.Where(particle => particle.Visible).Select(particle => new WorldForestParticleFrame(particle, new Vector3(particle.X, particle.NativeY, -particle.GraphicsZ), Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f) * Matrix4x4.CreateRotationX(particle.RotationX * 0.0015339808305725455f), particle.Scale, false)).ToArray();
-        foreach (WorldForestParticleFrame visual in particles)
-        {
-            NativeWorldForestParticle particle = visual.Particle;
-            NativeWorldForestEffect effect = assets.ForestTables.GetEffect(particle.Type);
-            if (effect.DrawMode == 1)
-            {
-                DrawForestTile(visual, effect, position);
-                continue;
-            }
-            int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
-            PixelImage texture = assets.GetForestTexture(particle.Type, frame);
-            float halfSize = particle.Scale * effect.HalfSize >> 13;
-            if (visual.Interpolated)
-            {
-                float previousHalfSize = visual.PreviousScale * effect.HalfSize >> 13;
-                halfSize = previousHalfSize + (halfSize - previousHalfSize) * visual.Blend;
-            }
-            Matrix4x4 rotation = visual.Rotation;
-            //555B80 ->5470E0 selects the nearest periodic image around the current world entity.
-            float nearX = position.X + WorldAssets.Wrap(visual.Position.X - position.X, 262144);
-            float nearZ = position.Z + WorldAssets.Wrap(visual.Position.Z - position.Z, 196608);
-            Vector3 anchor = new(nearX, visual.Position.Y, -nearZ);
-            Vector3 Point(float x, float z)
-            {
-                if (effect.DrawMode == 2)
-                {
-                    return (new Vector3(anchor.X, -anchor.Y, -anchor.Z) + cameraRight * x + cameraUp * z) / 16;
-                }
-                if (effect.DrawMode == 3)
-                {
-                    Vector3 plane = Vector3.Transform(new Vector3(x, 0, 2 * z), rotation) + anchor;
-                    return new Vector3(plane.X, -plane.Y, -plane.Z) / 16;
-                }
-                if (effect.DrawMode == 4)
-                {
-                    Vector3 vertical = Vector3.Transform(new Vector3(x, -z, 0), rotation) + anchor;
-                    return new Vector3(vertical.X, -vertical.Y, -vertical.Z) / 16;
-                }
-                if (effect.DrawMode != 0)
-                {
-                    throw new NotSupportedException("This native particle plane mode has no represented current producer.");
-                }
-                Vector3 native = Vector3.Transform(new Vector3(x, 0, z), rotation) + anchor;
-                return new Vector3(native.X, -native.Y, -native.Z) / 16;
-            }
-            Vertex a = new(Point(-halfSize, halfSize), Vector2.Zero);
-            Vertex b = new(Point(halfSize, halfSize), Vector2.UnitX);
-            Vertex c = new(Point(-halfSize, -halfSize), Vector2.UnitY);
-            Vertex d = new(Point(halfSize, -halfSize), Vector2.One);
-            //TODO(TD-008): The shared CPU rasterizer
-            //does not reproduce the original GPU ordering-table depth bias or fixed GTE rounding.
-            TriangleBlend blend = effect.BlendMode switch
-            {
-                0 => TriangleBlend.HalfAdd,
-                1 => TriangleBlend.Add,
-                2 => TriangleBlend.Subtract,
-                3 => TriangleBlend.QuarterAdd,
-                _ => throw new InvalidDataException("Native world particle has an invalid blend mode.")
-            };
-            Draw(a, b, c, texture, true, blend);
-            Draw(c, b, d, texture, true, blend);
-        }
     }
 
     private void DrawSky(WorldSky sky, WorldSkyGradient? nativeGradient)
@@ -490,7 +419,7 @@ public sealed partial class WorldTerrainRenderer
         return new ScreenVertex(Width / 2f + vertex.Position.X * reciprocal * focal, Height / 2f - vertex.Position.Y * reciprocal * focal, reciprocal, vertex.Uv * reciprocal, vertex.Color * reciprocal);
     }
 
-    private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom, TriangleBlend? blend = null)
+    private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom, TriangleBlend? blend = null, bool? nativeParticlePass = null)
     {
         float area = Edge(a.X, a.Y, b.X, b.Y, c.X, c.Y);
         if (MathF.Abs(area) < 0.001f)
@@ -531,7 +460,8 @@ public sealed partial class WorldTerrainRenderer
                     continue;
                 }
                 int index = y * Width + x;
-                if ((blend == TriangleBlend.Subtract ? reciprocal < depth[index] : reciprocal <= depth[index]) || reciprocal < 1 / far)
+                float comparisonDepth = a.NativeOrderingReciprocal ?? reciprocal;
+                if ((nativeParticlePass is not null || blend == TriangleBlend.Subtract ? comparisonDepth < depth[index] : comparisonDepth <= depth[index]) || comparisonDepth < 1 / far)
                 {
                     continue;
                 }
@@ -544,14 +474,14 @@ public sealed partial class WorldTerrainRenderer
                     Vector4 tint = first / a.ReciprocalZ * wa + second / b.ReciprocalZ * wb + third / c.ReciprocalZ * wc;
                     color = new Rgba32((byte)Math.Clamp(color.R * tint.X, 0, 255), (byte)Math.Clamp(color.G * tint.Y, 0, 255), (byte)Math.Clamp(color.B * tint.Z, 0, 255), (byte)Math.Clamp(color.A * tint.W, 0, 255));
                 }
-                if (color.A == 0)
+                if (color.A == 0 || nativeParticlePass is bool stpPass && stpPass != (color.A == 128))
                 {
                     continue;
                 }
                 float haze = blend is not null ? 0 : Math.Clamp((distance - far * 0.6f) / (far * 0.4f), 0, 1);
                 float alpha = transparent ? color.A / 255f * 0.5f : 1;
                 int pixel = index * 4;
-                if (blend is { } nativeBlend)
+                if (nativeParticlePass != false && blend is { } nativeBlend)
                 {
                     byte NativeChannel(byte background, byte foreground)
                     {
@@ -583,7 +513,7 @@ public sealed partial class WorldTerrainRenderer
                 }
                 if (!transparent)
                 {
-                    depth[index] = reciprocal;
+                    depth[index] = comparisonDepth;
                 }
             }
         }

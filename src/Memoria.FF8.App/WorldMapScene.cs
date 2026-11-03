@@ -7,7 +7,7 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
-/// <summary>Original normal-foot world component with bounded native field reentry and complete saved-foot entry62 reload. Object collision, encounters and idle gestures remain unsupported.</summary>
+/// <summary>Runs the current native world callbacks and presents their retained scene state.</summary>
 internal sealed partial class WorldMapScene : IDisposable
 {
     public const double SimulationFps = ModelExchange.WorldFramesPerSecond;
@@ -681,7 +681,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             //558D70 runs after drawing. Retain the actual projection for this
             //presented callback while the live words prepare the next one.
-            camera = WorldCamera.Foot(drawnCamera.Yaw, 2048, projectionDistance: drawnCamera.ProjectionDistance) with { TargetPosition = new Vector3(drawnCamera.TargetX, -drawnCamera.TargetNativeHeight, drawnCamera.TargetRawZ), NativePitch = drawnCamera.Pitch, NativeOffsetY = drawnCamera.OffsetY, NativeOffsetZ = drawnCamera.OffsetZ };
+            camera = WorldCamera.Foot(drawnCamera.Yaw, 2048, projectionDistance: drawnCamera.ProjectionDistance) with { TargetPosition = new Vector3(drawnCamera.TargetX, -drawnCamera.TargetNativeHeight, drawnCamera.TargetRawZ), NativePitch = drawnCamera.Pitch, NativeOffsetY = drawnCamera.OffsetY, NativeOffsetZ = drawnCamera.OffsetZ, ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(drawnCamera) };
         }
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
@@ -826,20 +826,17 @@ internal sealed partial class WorldMapScene : IDisposable
             mapFoot = CompleteFootBackgroundRails(StepFootBackgroundRails(mapFoot));
             return CompleteMapFootMotor(mapFoot, mapButtons);
         }
-        NativeWorldFootType2AnimationResult? type2Animation = null;
-        if (foot.EntityType == 2)
-        {
-            foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
-            type2Animation = StepFootType2Draw(before, foot, bodyYaw, cameraYaw, targetX, targetZ, targetHeight, moving);
-            forest = type2Animation.Forest;
-        }
-        int animation = type2Animation?.Animation ?? (moving ? 1 : 0);
-        int animationCounter = type2Animation?.Counter ?? (animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0);
+        foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
+        NativeWorldFootAnimationResult animationStep = StepFootAnimationDraw(before, foot, bodyYaw, cameraYaw, targetX, targetZ, targetHeight, moving, salary.ForcedAnimationC76628);
+        forest = animationStep.Forest;
+        int animation = animationStep.Animation;
+        int animationCounter = animationStep.Counter;
         short particlePitch = before.NativeRagnarokRuntime?.Objects[0].Pitch ?? 0;
         short particleRoll = before.NativeRagnarokRuntime?.Objects[0].Roll ?? 0;
         NativeWorldWaterStepResult waterStep = forest.EmitFootWaterStep(currentGroundType, animation, animationCounter, salary.WaterStepEdges2045C7C, new(before.X, before.NativeHeight, -before.Z), particlePitch, checked((short)bodyYaw), particleRoll, assets.ForestTables.Effects);
         forest = waterStep.Forest;
         salary = salary.WithWaterStepEdges(waterStep.Edges);
+        forest = forest.EmitWaterSplash(currentGroundType, animation, animationCounter, 8, new(before.X, before.NativeHeight, -before.Z), assets.ForestTables.Random, assets.ForestTables.AllEffects);
         NativeWorldContactSpark? contactSpark = CaptureFootContactSpark(before, ref salary);
         forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.AllEffects, contactSpark) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };
@@ -847,6 +844,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             //53FAC0 calls54A7F0 after5472C0/550070 and before the ground query.
             foot = foot with { NormalObjects = foot.NormalObjects! with { ForcedAnimationC76628 = -1 } };
+        }
+        if (NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) == 0)
+        {
+            salary = salary.WithForcedAnimation(-1);
         }
         WorldState? gardenCameraState = null;
         WorldState? ragnarokCameraState = null;
@@ -999,7 +1000,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private static WorldCamera FootCamera(WorldState state)
     {
-        return WorldCamera.Foot(state.CameraYaw, 2048, projectionDistance: state.NativeFootRuntime?.CameraTransition?.ProjectionDistance ?? 1024) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch, NativeOffsetY = state.NativeFootRuntime?.CameraOffsetY, NativeOffsetZ = state.NativeFootRuntime?.CameraOffsetZ };
+        return WorldCamera.Foot(state.CameraYaw, 2048, projectionDistance: state.NativeFootRuntime?.CameraTransition?.ProjectionDistance ?? 1024) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch, NativeOffsetY = state.NativeFootRuntime?.CameraOffsetY, NativeOffsetZ = state.NativeFootRuntime?.CameraOffsetZ, ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(state.NativeCarRuntime?.ProjectionCamera ?? NativeWorldFootCameraState.Create(state)) };
     }
 
     private static int FollowCamera(int velocity, int delta, bool damping)

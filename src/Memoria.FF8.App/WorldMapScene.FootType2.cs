@@ -68,7 +68,7 @@ internal sealed partial class WorldMapScene
         return state with { NativeFootRuntime = foot with { Forest = forest, NormalObjects = objects with { Cactuar = cactuar, CactuarBody = body } } };
     }
 
-    private NativeWorldFootType2AnimationResult StepFootType2Draw(WorldState before, NativeFootWorldRuntimeState foot, int bodyYaw, int cameraYaw, int targetX, int targetZ, int targetHeight, bool moving)
+    private NativeWorldFootAnimationResult StepFootAnimationDraw(WorldState before, NativeFootWorldRuntimeState foot, int bodyYaw, int cameraYaw, int targetX, int targetZ, int targetHeight, bool moving, int? forcedAnimation)
     {
         NativeWorldForestState forest = foot.Forest!;
         if (before.GroundType <= 5)
@@ -82,7 +82,7 @@ internal sealed partial class WorldMapScene
         {
             return new(before.AnimationId, checked((ushort)before.AnimationCounter), before.AnimationCounter, forest);
         }
-        int loadedLength = assets.GetFootModel(2).Animations[before.AnimationId].Frames.Count * 16;
-        return NativeWorldFootType2Animation.Step(before.AnimationId, checked((ushort)before.AnimationCounter), loadedLength, moving, foot.NormalObjects!.ForcedAnimationC76628, forest, assets.ForestTables.Random);
+        int loadedLength = assets.GetFootModel(foot.EntityType).Animations[before.AnimationId].Frames.Count * 16;
+        return NativeWorldFootAnimation.Step(foot.EntityType, before.AnimationId, checked((ushort)before.AnimationCounter), loadedLength, moving, foot.EntityType == 2 ? foot.NormalObjects!.ForcedAnimationC76628 : forcedAnimation, forest, assets.ForestTables.Random);
     }
 }

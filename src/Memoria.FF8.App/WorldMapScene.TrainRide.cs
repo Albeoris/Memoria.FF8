@@ -164,6 +164,6 @@ internal sealed partial class WorldMapScene
             }
         }
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, WorldCamera.ScriptedPath(train.Camera, 2048), sky, AvatarVisible: false, StaticModels: models);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, WorldCamera.ScriptedPath(train.Camera, 2048) with { ParticleProjection = context }, sky, AvatarVisible: false, StaticModels: models);
     }
 }

@@ -58,17 +58,56 @@ public sealed class NativeFieldParticleRenderingTests
         FieldRenderer renderer = new(Field(), 320, 224, nativeMovieViewport: true) { TriangleRenderer = recorder };
         renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, fieldParticles: [Sprite with { BlendMode = 2 }], fieldParticleTexture: Texture(new Rgba32(40, 40, 40, 128)));
         Assert.Equal(4, recorder.Materials.Count);
-        Assert.All(recorder.Vertices, vertex => { Assert.Equal(1, vertex.ReciprocalW); Assert.Equal(400, vertex.Depth); });
-        Assert.All(recorder.Materials.Take(2), material => { Assert.True(material.DepthWrite); Assert.Equal(TriangleBlend.Replace, material.Blend); Assert.Equal(0.75f, material.MinimumAlpha); });
-        Assert.All(recorder.Materials.Skip(2), material => { Assert.False(material.DepthWrite); Assert.Equal(TriangleBlend.Subtract, material.Blend); Assert.Equal(0.75f, material.MaximumAlpha); });
+        Assert.All(recorder.Vertices, vertex =>
+        {
+            Assert.Equal(1, vertex.ReciprocalW);
+            Assert.Equal(400, vertex.Depth);
+        });
+        Assert.All(recorder.Materials.Take(2), material =>
+        {
+            Assert.True(material.DepthWrite);
+            Assert.Equal(TriangleBlend.Replace, material.Blend);
+            Assert.Equal(0.75f, material.MinimumAlpha);
+        });
+        Assert.All(recorder.Materials.Skip(2), material =>
+        {
+            Assert.False(material.DepthWrite);
+            Assert.Equal(TriangleBlend.Subtract, material.Blend);
+            Assert.Equal(0.75f, material.MaximumAlpha);
+        });
     }
 
+    [Fact]
+    public void RotatedQuadMatchesNativePacketGolden()
+    {
+        Recorder recorder = new();
+        FieldRenderer renderer = new(Field(), 320, 224, nativeMovieViewport: true) { TriangleRenderer = recorder };
+        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, fieldParticles: [Sprite with { Angle = 512 }], fieldParticleTexture: Texture(new Rgba32(40, 40, 40)));
+        Assert.Equal(new Vector2(160 - 11 / 8f, 112 - 34 / 8f), recorder.Vertices[0].Position);
+        Assert.Equal(new Vector2(160 + 34 / 8f, 112 + 11 / 8f), recorder.Vertices[1].Position);
+        Assert.Equal(new Vector2(160 - 34 / 8f, 112 - 11 / 8f), recorder.Vertices[2].Position);
+        Assert.Equal(new Vector2(160 + 11 / 8f, 112 + 34 / 8f), recorder.Vertices[4].Position);
+    }
+    [Fact]
+    public void EqualDepthParticlePoolUsesNativeHeadInsertionOrder()
+    {
+        FieldRenderer renderer = new(Field(), 320, 224, nativeMovieViewport: true);
+        NativeFieldParticleSprite first = Sprite with { PoolIndex = 0, Red = 128, Green = 0, Blue = 0 };
+        NativeFieldParticleSprite second = Sprite with { PoolIndex = 1, Red = 0, Green = 128, Blue = 0 };
+        byte[] pixels = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, fieldParticles: [first, second], fieldParticleTexture: Texture(new Rgba32(40, 40, 40)));
+        int offset = (111 * 320 + 159) * 4;
+        Assert.Equal((40, 0, 0), ((int)pixels[offset], (int)pixels[offset + 1], (int)pixels[offset + 2]));
+    }
     private sealed class Recorder : ITriangleRenderer
     {
         public List<TriangleMaterial> Materials { get; } = [];
         public List<TriangleVertex> Vertices { get; } = [];
-        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1) { }
-        public void End() { }
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+        }
+        public void End()
+        {
+        }
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Materials.Add(material);

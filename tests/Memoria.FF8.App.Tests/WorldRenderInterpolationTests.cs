@@ -202,12 +202,13 @@ public sealed class WorldRenderInterpolationTests
         using WorldAssets assets = new(TestResources.GameDirectory);
         WorldTerrainRenderer renderer = new(assets, 80, 56);
         Vector3 position = new(18381, 4000, -68272);
-        WorldCamera camera = WorldCamera.Foot(0, 1024);
+        NativeWorldFootCameraState nativeCamera = new(18381, -68272, -4000, 18381, -68272, -4256, 0, -112, -341, -7168);
+        WorldCamera camera = WorldCamera.Foot(0, 1024) with { ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(nativeCamera) };
         NativeWorldForestParticle particle = new(0, 5, 18381, -4000, 68272, 0, 0, 4096, 1, 8, true);
         NativeWorldForestState forest = NativeWorldForestState.Create(0, 0) with { Particles = [particle] };
         NativeWorldStaticModelDraw staticModel = new(assets.ExamCar, new NativeWorldStaticModelPose(position + new Vector3(100, 0, 0), new NativeWorldPathAngles(0, 0, 0))) { ObjectId = new(WorldRenderObjectKind.Controlled, 0) };
         WorldRenderFrame previous = new(position, 0, 0, 0, camera, assets.Skies[0], StaticModels: [staticModel], Forest: forest);
-        WorldRenderFrame current = new(position + new Vector3(16, 0, 0), 0.02f, 0, 0, camera with { Heading = 0.02f }, assets.Skies[0], StaticModels: [staticModel with { Pose = staticModel.Pose with { Anchor = staticModel.Pose.Anchor + new Vector3(16, 0, 0), Angles = new NativeWorldPathAngles(0, 16, 0) } }], Forest: forest with { Particles = [particle with { X = particle.X + 16, Scale = 3500, Age = 2 }] });
+        WorldRenderFrame current = new(position + new Vector3(16, 0, 0), 0.02f, 0, 0, camera with { Heading = 0.02f, ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(nativeCamera with { X = nativeCamera.X + 16, TargetX = nativeCamera.TargetX + 16, Yaw = 13 }) }, assets.Skies[0], StaticModels: [staticModel with { Pose = staticModel.Pose with { Anchor = staticModel.Pose.Anchor + new Vector3(16, 0, 0), Angles = new NativeWorldPathAngles(0, 16, 0) } }], Forest: forest with { Particles = [particle with { X = particle.X + 16, Scale = 3500, Age = 2 }] });
         byte[] first = renderer.Render(previous.Position, previous.Heading, previous.AnimationId, previous.AnimationFrame, previous.Camera, skyOverride: previous.Sky, staticModels: previous.StaticModels, forest: previous.Forest).ToArray();
         byte[] second = renderer.Render(current.Position, current.Heading, current.AnimationId, current.AnimationFrame, current.Camera, skyOverride: current.Sky, staticModels: current.StaticModels, forest: current.Forest).ToArray();
         Assert.Equal(first, renderer.Render(previous));

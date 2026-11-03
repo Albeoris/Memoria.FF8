@@ -18,7 +18,7 @@ public sealed partial class FieldRenderer
         {
             throw new NotSupportedException("Field particle drawing requires its complete 256x256 texture page and CLUT.");
         }
-        foreach (NativeFieldParticleSprite particle in particles)
+        foreach (NativeFieldParticleSprite particle in particles.OrderByDescending(particle => particle.PoolIndex))
         {
             ProjectedPoint centre = ProjectFieldParticle(particle);
             int orderingIndex = (int)MathF.Truncate(centre.Depth / 4) + particle.DepthOffset;
@@ -93,7 +93,9 @@ public sealed partial class FieldRenderer
 
     private ProjectedPoint ParticleCorner(ProjectedPoint centre, Vector2 offset, float orderingDepth)
     {
-        return ToViewport(new ProjectedPoint(centre.X + offset.X / 8, centre.Y + offset.Y / 8, orderingDepth));
+        short x = unchecked((short)(int)((centre.X - 160 - camera.Pan.X) * 8 + offset.X));
+        short y = unchecked((short)(int)((centre.Y - 120 - camera.Pan.Y) * 8 + offset.Y));
+        return ToViewport(new ProjectedPoint(160 + camera.Pan.X + x / 8f, 120 + camera.Pan.Y + y / 8f, orderingDepth));
     }
 
     private void DrawFieldParticleTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 color, MapBlendMode blend, bool transparentPass)

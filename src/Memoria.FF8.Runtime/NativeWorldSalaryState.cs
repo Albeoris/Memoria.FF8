@@ -19,6 +19,7 @@ public sealed partial record NativeWorldSalaryState
         EventUi = departure.World?.EventUi;
         InputHistory = departure.WorldProcess?.InputHistory;
         TextureAnimation = departure.WorldProcess?.TextureAnimation;
+        ForcedAnimationC76628 = departure.WorldProcess?.ForcedAnimationC76628;
         WaterStepEdges2045C7C = departure.WorldProcess?.WaterStepEdges2045C7C;
         PreviousContactC76784 = departure.WorldProcess?.PreviousContactC76784;
         FuelMessageMovementCallbacks = departure.WorldProcess?.FuelMessageMovementCallbacks2045C78 ?? 0;
@@ -42,6 +43,7 @@ public sealed partial record NativeWorldSalaryState
     public int? CarCameraCooldown { get; private init; }
     public NativeWorldInputHistory? InputHistory { get; private init; }
     public NativeWorldTextureAnimationState? TextureAnimation { get; private init; }
+    public int? ForcedAnimationC76628 { get; private init; }
     public byte? WaterStepEdges2045C7C { get; private init; }
     public int? PreviousContactC76784 { get; private init; }
     public int FuelMessageMovementCallbacks { get; private init; }
@@ -53,6 +55,15 @@ public sealed partial record NativeWorldSalaryState
             throw new InvalidDataException("Native previous contact has an invalid dense object index.");
         }
         return this with { PreviousContactC76784 = contact };
+    }
+
+    public NativeWorldSalaryState WithForcedAnimation(int value)
+    {
+        if (value is not (-1 or 0 or 4))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+        return this with { ForcedAnimationC76628 = value };
     }
 
     public NativeWorldSalaryState WithWaterStepEdges(byte? edges)
@@ -142,7 +153,7 @@ public sealed partial record NativeWorldSalaryState
         NativeWorldProcess? process = candidate.WorldProcess;
         if (process is not null)
         {
-            process = process with { TextureAnimation = TextureAnimation, WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
+            process = process with { ForcedAnimationC76628 = ForcedAnimationC76628, TextureAnimation = TextureAnimation, WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
         }
         if (InputHistory is not null)
         {

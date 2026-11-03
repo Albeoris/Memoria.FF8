@@ -6,7 +6,16 @@ public sealed partial record NativeWorldForestState
 {
     public NativeWorldWaterStepResult EmitFootWaterStep(byte groundType, int animation, int animationCounter, byte? previousEdges, NativeWorldPathPosition position, short pitch, short yaw, short roll, IReadOnlyList<NativeWorldForestEffect> effects)
     {
+        return EmitWaterStep(16, groundType, animation, animationCounter, previousEdges, position, pitch, yaw, roll, effects);
+    }
+
+    public NativeWorldWaterStepResult EmitWaterStep(byte particleType, byte groundType, int animation, int animationCounter, byte? previousEdges, NativeWorldPathPosition position, short pitch, short yaw, short roll, IReadOnlyList<NativeWorldForestEffect> effects)
+    {
         Validate();
+        if (particleType is not (16 or 17 or 18))
+        {
+            throw new ArgumentOutOfRangeException(nameof(particleType));
+        }
         if (animationCounter is < 0 or > ushort.MaxValue || previousEdges > 3)
         {
             throw new InvalidDataException("Native water footsteps require the executed model phase and two edge flags.");
@@ -38,7 +47,7 @@ public sealed partial record NativeWorldForestState
         {
             return new(this, edges);
         }
-        NativeWorldForestEffect effect = effects.Single(item => item.Type == 16);
+        NativeWorldForestEffect effect = effects.Single(item => item.Type == particleType);
         if (effect.Lifetime != 32 || effect.DrawMode != 3 || effect.VelocityX != 0 || effect.VelocityY != 0 || effect.VelocityZ != 0)
         {
             throw new InvalidDataException("Native water footsteps require their original stationary plane record.");

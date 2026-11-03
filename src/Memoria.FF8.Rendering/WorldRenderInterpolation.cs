@@ -72,6 +72,8 @@ public static class WorldRenderInterpolation
         WorldCamera result = after with
         {
             Heading = Angle(before.Heading, after.Heading, alpha),
+            PreviousParticleProjection = before.ParticleProjection,
+            ParticleProjectionBlend = alpha,
             Distance = Lerp(before.Distance, after.Distance, alpha),
             Height = Lerp(before.Height, after.Height, alpha),
             TargetHeight = Lerp(before.TargetHeight, after.TargetHeight, alpha),
@@ -193,7 +195,7 @@ public static class WorldRenderInterpolation
                     selected = before;
                 }
             }
-            particles.Add(new WorldForestParticleFrame(selected, Near(anchor, position), rotation, scale, before is not null && alpha > 0) { PreviousScale = before?.Scale ?? particle.Scale, Blend = alpha });
+            particles.Add(new WorldForestParticleFrame(selected, Near(anchor, position), rotation, scale, before is not null && alpha > 0) { PreviousScale = before?.Scale ?? particle.Scale, Blend = alpha, PreviousParticle = before });
         }
         return particles.AsReadOnly();
     }

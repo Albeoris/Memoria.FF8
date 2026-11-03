@@ -81,7 +81,7 @@ public sealed partial record NativeWorldForestState
 
     public void Validate()
     {
-        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (0 or 2 or 3 or >= 4 and <= 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) || particle.Lifetime < MinimumLifetime(particle.Type) || particle.Lifetime > MaximumLifetime(particle.Type) || particle.Age > particle.Lifetime || (particle.Type is 0 or 2 or 3 or 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) != (particle.Motion is not null)))
+        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (0 or 2 or 3 or >= 4 and <= 10 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21) || particle.Lifetime < MinimumLifetime(particle.Type) || particle.Lifetime > MaximumLifetime(particle.Type) || particle.Age > particle.Lifetime || (particle.Type is 0 or 2 or 3 or 10 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21) != (particle.Motion is not null)))
         {
             throw new InvalidDataException("Invalid executed native forest presentation state.");
         }
@@ -93,7 +93,7 @@ public sealed partial record NativeWorldForestState
         2 => 6,
         3 => 2,
         12 or 13 or 14 or 15 or 20 => 8,
-        16 => 32,
+        16 or 17 or 18 => 32,
         19 => 14,
         21 => 12,
         _ => 4
@@ -106,7 +106,7 @@ public sealed partial record NativeWorldForestState
         3 => 9,
         12 or 13 => 8,
         14 or 15 or 20 => 15,
-        16 => 32,
+        16 or 17 or 18 => 32,
         19 => 21,
         21 => 12,
         _ => 11

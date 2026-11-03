@@ -50,7 +50,7 @@ public sealed class WorldForestMovementTests
         using WorldAssets assets = new(GameDirectory());
         WorldTerrainRenderer renderer = new(assets, 640, 448);
         Vector3 position = new(18381, 4000, -68272);
-        WorldCamera camera = WorldCamera.Foot(0, 4096);
+        WorldCamera camera = WorldCamera.Foot(0, 4096) with { ParticleProjection = NativeWorldPathProjectionCertificate.CreateFoot(new NativeWorldFootCameraState(18381, -68272, -4000, 18381, -68272, -4256, 0, -112, -341, -7168)) };
         NativeWorldForestParticle particle = new(0, 5, 18381, -4000, 68272, 0, 0, 4096, 1, 8, true);
         NativeWorldForestState forest = NativeWorldForestState.Create(0, 0) with { Particles = [particle] };
         byte[] pixels = renderer.Render(position, 0, 0, 0, camera, avatarVisible: false, forest: forest).ToArray();
