@@ -58,9 +58,9 @@ $publication = @{ source = $Source; channel = $tag; artifacts = @($archives | Fo
 $publication | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'release-artifacts.json') -Encoding utf8NoBOM
 & gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
 if ($LASTEXITCODE -ne 0) {
-    $create = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $Source, '--generate-notes')
+    $create = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes')
     if ($tag -eq 'nightly') {
-        $create += '--prerelease'
+        $create += @('--target', $Source, '--prerelease')
     }
     else {
         $create += '--verify-tag'
