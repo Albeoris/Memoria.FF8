@@ -156,13 +156,8 @@ internal sealed partial class AutoPlayController
         {
             AutoPlayInputSearchTrial trial = parent.Trials[active];
             trial.ChildId = frame.Id;
+            // Polling can recur while an accepted request is still running; it does not authorize rollback.
             trial.Outcome = parent.Key == frame.Key ? AutoPlayInputTrialOutcome.ReturnedToObservedContext : AutoPlayInputTrialOutcome.ReachedNewBoundary;
-            if (parent.Key == frame.Key && NextInputSearchSelection(parent) is not null)
-            {
-                RestoreInputSearchFrame(parent);
-                ExecuteInputSearchTrial(parent);
-                return;
-            }
         }
         search.ActiveFrameId = frame.Id;
         ExecuteInputSearchTrial(frame);
