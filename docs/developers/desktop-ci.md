@@ -1,6 +1,6 @@
 # Desktop validation and publication
 
-The [desktop workflow](workflows/build.yml) has one validation matrix: Windows x64,
+The [desktop workflow](../../.github/workflows/build.yml) has one validation matrix: Windows x64,
 Linux x64, Intel macOS and Apple Silicon macOS. Pull requests run these four jobs. Each job builds and
 checks the complete distribution and runs the selected portable tests. The
 portable tests exclude the battle-effect suite. There is no second launcher or
