@@ -184,7 +184,7 @@ public sealed partial class BattleSession
         }
         SetNativeContactDamage(amount);
         FinalizeNativeContactPresentation();
-        ApplyDamage(actor, recipient, amount, source, bypassDamageLimit: true);
+        ApplyDamage(actor, recipient, amount, source, bypassDamageLimit: true, cause: eject ? EncounterHpCause.ScriptAssignment : EncounterHpCause.Damage);
     }
 
     private static void ValidateNativeDevourGrowth(BattleCombatant actor, BattleNativeDevourEffect effect)

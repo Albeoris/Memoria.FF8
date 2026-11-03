@@ -26,6 +26,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Model browser and Blender](modding/model-mods.md) | F2 catalog, GLB exchange, skeleton warnings and model replacements. |
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
 | [GF ability payload](modding/gf-abilities.md) | Declarative gameplay patches, guards, ordering and producer dependencies. |
+| [Encounter documents](modding/encounters.md) | Atomic semantic encounter patches, stable identities, dependencies and runtime capability boundaries. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |
 | [Translator guide](modding/localization.md) | JSON/XLSX packages, stable keys, source/context metadata, choice contracts and CLI validation. |
 

@@ -1,11 +1,26 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A distinct native allocation of one immutable scene resource, including earlier released allocations.</summary>
-public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int Generation);
+public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int Generation)
+{
+    public BattleCombatantDefinition? ResolvedDefinition { get; init; }
+    public string? EncounterBatchId { get; init; }
+    public string? EncounterRole { get; init; }
+}
 
 public sealed partial class BattleSession
 {
     private readonly List<NativeBattleEnemyAllocation> nativeAllocations = [];
+
+    private NativeBattleEnemyAllocation CloneNativeAllocation(NativeBattleEnemyAllocation allocation)
+    {
+        return allocation.ResolvedDefinition is null ? allocation : allocation with { ResolvedDefinition = CloneDefinition(definition with { Combatants = [allocation.ResolvedDefinition] }).Combatants[0] };
+    }
+
+    private NativeBattleEnemyAllocation[] CaptureNativeAllocations()
+    {
+        return nativeAllocations.Select(CloneNativeAllocation).ToArray();
+    }
 
     public BattleCombatantDefinition GetCombatantDefinition(string id)
     {
@@ -14,6 +29,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
     {
+        RequireNoPendingEncounterAllocation();
         BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
         NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
         int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index), -1) : requestedIndex;
@@ -67,6 +83,11 @@ public sealed partial class BattleSession
 
     private void InitializeNativeAllocatedStatistics(BattleCombatant spawned)
     {
+        if (nativeAllocations.Single(allocation => allocation.Id == spawned.Id).ResolvedDefinition is not null)
+        {
+            InitializeEncounterAllocatedStatistics(spawned);
+            return;
+        }
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
@@ -101,6 +122,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native allocation references a scene without an original allocation template.");
         }
+        if (allocation.ResolvedDefinition is { } resolved)
+        {
+            ValidateEncounterAllocationDefinition(allocation, resolved, prototype);
+            prototype = CloneDefinition(definition with { Combatants = [resolved] }).Combatants[0];
+        }
         BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
         actor.NativeActionMemoryOwner = nativeActionMemory;
         actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
@@ -122,8 +148,9 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native allocation list contains an empty owner.");
             }
-            CreateNativeAllocation(allocation);
-            nativeAllocations.Add(allocation);
+            NativeBattleEnemyAllocation owned = CloneNativeAllocation(allocation);
+            CreateNativeAllocation(owned);
+            nativeAllocations.Add(owned);
         }
     }
 

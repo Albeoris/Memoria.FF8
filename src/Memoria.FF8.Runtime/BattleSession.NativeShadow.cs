@@ -40,6 +40,10 @@ public sealed partial class BattleSession
             int Depth(int corner) => 4 * (vertices[corner].Depth >> 2) - 300;
             batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = callerPilotIdentity.HasValue ? unchecked(identity.Primitive * 397 + index - 1) : index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace || identity.Effect is 274 or 276 } } } : attempt).ToImmutableArray() };
         }
+        if ((uint)model.Index < graphics.ActorIds.Length && graphics.ActorIds[model.Index] is string actorId)
+        {
+            batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PresentationActorId = actorId } } : attempt).ToImmutableArray() };
+        }
         if (privateOrderingAddress is uint table)
         {
             NativeBattleRinoa89Frame capture = new(memory, graphics.OriginalEffect ?? throw new NotSupportedException("Native private shadow capture requires its actual effect owner."), NativeFileStaging ?? throw new NotSupportedException("Native private shadow capture requires its actual staging owner."), nativeCrtRandom ?? throw new NotSupportedException("Native private capture requires its actual CRT owner."));

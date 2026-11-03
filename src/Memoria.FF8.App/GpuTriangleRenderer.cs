@@ -379,6 +379,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         };
         float multiplier = material.Blend == TriangleBlend.HalfAdd ? -1f : material.Blend == TriangleBlend.QuarterAdd ? 0.25f : 1;
         effect.Parameters["MaterialParameters"].SetValue(new Vector4(material.Texture is null ? 0 : 1, material.TextureSelectsAlpha ? 1 : 0, material.AlphaMultiplier, material.DepthMapping == TriangleDepthMapping.Positive ? 1 : 0));
+        effect.Parameters["ActorOpacityParameters"].SetValue(new Vector2(material.ActorOpacity, material.ActorOpacityReplacesAlpha ? 1 : 0));
         effect.Parameters["AlphaParameters"].SetValue(new Vector4(material.MinimumAlpha, material.MaximumAlpha, material.MinimumReciprocalW, multiplier));
         effect.Parameters["FogParameters"].SetValue(new Vector4(material.FogStart, material.FogEnd, material.PerspectiveDepth ? 1 : 0, material.Sampler == TriangleSampler.CutoutLinearClamp ? 1 : 0));
         effect.Parameters["DepthScale"].SetValue(material.DepthScale);

@@ -90,7 +90,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         uint statuses = NativeBattleStatusBits(actor);
         int count = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
-        uint flags = count > 1 ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
+        uint flags = count > 1 && actor.IsPlayer ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
         bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count == 2 && (flags & 0x20) != 0 || count == 3 && (flags & 0x40) != 0);
         int completed = 0;
         for (int index = 0; index < count; index++)
@@ -126,14 +126,14 @@ public sealed partial class BattleSession
                 CompleteGuardianForceAffinity(actor, cast);
                 continue;
             }
-            if (!singleCost && !(actor.IsPlayer && UnlimitedMagic) && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
+            if (actor.IsPlayer && !singleCost && !UnlimitedMagic && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
             {
                 break;
             }
             CompleteGuardianForceAffinity(actor, cast);
         }
         ReleaseMagicReservation(command.MagicReservationId);
-        if (command.MagicReservationId is null && singleCost && completed != 0 && !(actor.IsPlayer && UnlimitedMagic))
+        if (actor.IsPlayer && command.MagicReservationId is null && singleCost && completed != 0 && !UnlimitedMagic)
         {
             actor.TryConsumeMagic(command.ActionId);
         }

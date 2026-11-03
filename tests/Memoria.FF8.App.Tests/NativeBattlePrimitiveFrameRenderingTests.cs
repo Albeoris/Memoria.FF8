@@ -11,6 +11,58 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Theory]
+    [InlineData(0f, 0)]
+    [InlineData(0.5f, 50)]
+    [InlineData(1f, 100)]
+    public void Actor_opacity_composites_native_pixels_without_dimming_the_original(float opacity, byte expectedRed)
+    {
+        NativeBattleLogicalResolvedCommand original = Quad(0x28, 0x006400, 200, 1);
+        NativeBattleLogicalResolvedCommand copy = Quad(0x28, 0x000064, 100, 1);
+        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([original, copy])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", opacity) };
+        BattleRenderer renderer = new(320, 216);
+        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, null);
+        Assert.Equal(new byte[] { expectedRed, (byte)(100 - expectedRed), 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+    }
+
+    [Fact]
+    public void Invisible_actor_does_not_occlude_later_packets_or_submit_gpu_geometry()
+    {
+        NativeBattleLogicalResolvedCommand copy = Quad(0x28, 0x000064, 100, 1);
+        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        NativeBattleLogicalResolvedCommand original = Quad(0x28, 0x006400, 200, 1);
+        NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([copy, original])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", 0) };
+        BattleRenderer renderer = new(320, 216);
+        Assert.Equal(new byte[] { 0, 100, 0, 255 }, renderer.RenderNativePrimitiveFrame(frame, null).AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+        TextureCapture capture = new();
+        renderer.TriangleRenderer = capture;
+        renderer.RenderNativePrimitiveFrame(frame, null);
+        Assert.Equal(2, capture.Materials.Count);
+        Assert.All(capture.Materials, material => Assert.Equal(1, material.ActorOpacity));
+    }
+
+    [Theory]
+    [InlineData(0x28, 1, TriangleBlend.Alpha, true)]
+    [InlineData(0x2A, 2, TriangleBlend.Alpha, false)]
+    public void Gpu_actor_opacity_preserves_native_alpha_test_and_separates_coverage_from_fade(byte opcode, byte pass, TriangleBlend blend, bool replacesAlpha)
+    {
+        NativeBattleLogicalResolvedCommand copy = Quad(opcode, 0x646464, 100, pass);
+        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([copy])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", 0.5f) };
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        renderer.RenderNativePrimitiveFrame(frame, null);
+        Assert.Equal(2, capture.Materials.Count);
+        Assert.All(capture.Materials, material =>
+        {
+            Assert.Equal(blend, material.Blend);
+            Assert.Equal(0.5f, material.ActorOpacity);
+            Assert.Equal(replacesAlpha, material.ActorOpacityReplacesAlpha);
+            Assert.False(material.DepthWrite);
+        });
+    }
+
     [Fact]
     public void Primitive_sample_variants_separate_final_materials_but_share_native_pixels_across_current_and_previous_frames()
     {
@@ -878,16 +930,19 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         public Albeoris.Games.FF8.Imaging.PixelImage? Texture { get; private set; }
         public System.Numerics.Vector2 Uv { get; private set; }
         public List<PixelImage> Textures { get; } = [];
+        public List<TriangleMaterial> Materials { get; } = [];
 
         public void Begin(int width, int height, System.Numerics.Vector4 clearColor, float clearDepth = 1)
         {
             Texture = null;
             Textures.Clear();
+            Materials.Clear();
         }
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Texture = material.Texture;
+            Materials.Add(material);
             if (material.Texture is { } texture)
             {
                 Textures.Add(texture);

@@ -99,6 +99,7 @@ public sealed record BattleCombatantDefinition
     public int ModelId { get; init; }
     public int Costume { get; init; }
     public int MaximumHp { get; init; } = 100;
+    public double MaximumHpMultiplier { get; init; } = 1;
     public int CurrentHp { get; init; } = 100;
     public int Speed { get; init; } = 100;
     public int Attack { get; init; } = 20;
@@ -146,6 +147,7 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public EncounterCompiledDefinition? EncounterMod { get; init; }
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
     public bool SelphieCardSlots { get; init; }
@@ -329,6 +331,11 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public BattleScanKnowledge ScanKnowledge { get; init; } = new();
+    public BattleEncounterAllocationState? EncounterAllocation { get; init; }
+    public BattleEncounterPolicyState? EncounterPolicies { get; init; }
+    public ImmutableArray<EncounterArrivalState> EncounterArrivals { get; init; } = [];
+    public ImmutableDictionary<string, ulong> EncounterNativeEvents { get; init; } = ImmutableDictionary<string, ulong>.Empty;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStorageGraph? StorageGraph { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -563,7 +570,7 @@ public sealed partial class BattleCombatant
             throw new InvalidDataException("Native reserve level exceeds its installed projection catalog.");
         }
         NativeBattleEnemyLevel projection = template.Levels[level];
-        definition = definition with { Level = level, MaximumHp = projection.MaximumHp, Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), Evasion = projection.Evasion, ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
+        definition = definition with { Level = level, MaximumHp = EncounterActorProperties.ScaleMaximumHp(projection.MaximumHp, definition.MaximumHpMultiplier), Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), Evasion = projection.Evasion, ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
         ResolvedNativeLevel = level;
     }
     internal NativeBattleEnemyTemplate? NativeTemplate => definition.NativeTemplate;

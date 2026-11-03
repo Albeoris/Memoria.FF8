@@ -10,6 +10,7 @@
 
 float2 ViewportSize;
 float4 MaterialParameters; // texture present, selects alpha, alpha multiplier, positive depth mapping
+float2 ActorOpacityParameters; // opacity, replace native alpha after coverage test
 float4 AlphaParameters; // minimum, maximum, minimum reciprocal W, source RGB multiplier
 float4 FogParameters; // start, end, unused, unused
 float3 FogColor;
@@ -131,6 +132,7 @@ PSOutput PixelMain(VSOutput input)
         clip(AlphaParameters.y - color.a);
     }
     color.a *= MaterialParameters.z;
+    color.a = ActorOpacityParameters.y > 0 ? ActorOpacityParameters.x : color.a * ActorOpacityParameters.x;
     if (FogParameters.y > FogParameters.x)
     {
         color.rgb = lerp(color.rgb, FogColor, saturate((1 / input.Uv.z - FogParameters.x) / (FogParameters.y - FogParameters.x)));

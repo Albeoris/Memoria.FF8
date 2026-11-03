@@ -28,8 +28,12 @@ public sealed partial class BattleSession
         return action is { Command: 0, ActionId: 5 };
     }
 
-    private static void ValidateNativeAiCommandStage(BattleCombatant actor, BattleAbility ability, byte? stage)
+    private void ValidateNativeAiCommandStage(BattleCombatant actor, BattleAbility ability, byte? stage)
     {
+        if (stage == 1 && ability == BattleAbility.Magic && HasEncounterPolicy(actor))
+        {
+            return;
+        }
         if (stage is not null && (stage > 4 || actor.NativeAi is null || ability != BattleAbility.EnemyAbility))
         {
             throw new InvalidDataException("Native AI command completion requires its actual originating callback0..4 and installed actor program.");

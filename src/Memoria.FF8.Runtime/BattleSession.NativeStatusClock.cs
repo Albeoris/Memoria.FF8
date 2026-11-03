@@ -94,7 +94,7 @@ public sealed partial class BattleSession
         {
             if (damage)
             {
-                ApplyDamage(null, actor, amount, source);
+                ApplyDamage(null, actor, amount, source, cause: bit == 10 ? EncounterHpCause.DeathStatus : EncounterHpCause.Damage);
             }
             else
             {

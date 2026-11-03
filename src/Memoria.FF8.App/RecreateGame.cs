@@ -110,6 +110,7 @@ internal sealed partial class RecreateGame : Game
     {
         graphicsReadiness = GraphicsHostReadiness.Initialize(() => new GraphicsHostReadiness(GraphicsDevice));
         resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        resourceHost.ConnectEncounterMods();
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();
         controllerFeedback = new ControllerFeedback(controller.SetVibration);
@@ -439,7 +440,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;
@@ -875,7 +876,7 @@ internal sealed partial class RecreateGame : Game
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
             using var candidateClock = new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
             candidate.EnsureField();
         }
     }

@@ -91,6 +91,7 @@ public sealed partial class BattleSession
         try
         {
             graphics = AdvanceNativeGraphicsRequests(graphics);
+            graphics = AdvanceEncounterPolicySpawn(graphics);
             flags = graphics.Flags;
             graphics = AdvanceNativeAuxiliary(graphics);
             graphics = AdvanceNativeModuleEffects(graphics);
@@ -192,6 +193,7 @@ public sealed partial class BattleSession
                         actor.NativeStatus0 |= 1;
                     }
                 }
+                bool encounterArrivalActive = ApplyEncounterArrivalBeforeDraw(graphics with { Models = models.SetItem(index, model) }, ref model);
                 if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
                 {
                     NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
@@ -203,7 +205,7 @@ public sealed partial class BattleSession
                     models = graphics.Models;
                     model = models[index];
                 }
-                if ((model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
+                if (!encounterArrivalActive && (model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
                 {
                     NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                     NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);

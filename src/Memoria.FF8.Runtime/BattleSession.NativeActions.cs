@@ -552,14 +552,15 @@ public sealed partial class BattleSession
         damage = Math.Clamp(damage, -maximum, NativePrimaryDamageLimit(native.AttackFlags));
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
-        if ((NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0)
+        bool deathStatus = (NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0;
+        if (deathStatus)
         {
             damage = recipient.CurrentHp;
         }
         RecordNativeActionMemory(actor, recipient, command);
         if (damage >= 0)
         {
-            ApplyDamage(actor, recipient, damage, action.Name, bypassDamageLimit: true);
+            ApplyDamage(actor, recipient, damage, action.Name, bypassDamageLimit: true, cause: deathStatus ? EncounterHpCause.DeathStatus : EncounterHpCause.Damage);
         }
         else
         {

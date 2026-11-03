@@ -45,8 +45,8 @@ public sealed partial class BattleRenderer
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
-            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass);
-            QueueNativePrimitive(b, At(3), c, texture, blend, resolved.Pass);
+            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, actorOpacity: frame.ActorOpacity(command.PresentationActorId));
+            QueueNativePrimitive(b, At(3), c, texture, blend, resolved.Pass, actorOpacity: frame.ActorOpacity(command.PresentationActorId));
 
             PrimitiveVertex At(int index)
             {

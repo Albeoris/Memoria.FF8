@@ -44,6 +44,11 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native allocation globals disagree with the current physical scene resource.");
         }
         InitializeNativeAllocatedStatistics(actor);
+        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
+        {
+            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), 0x100);
+            return QueueNativeDescriptor(graphics, 10, 0x4876B0);
+        }
         return QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
     }
 
@@ -58,6 +63,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeAllocationDescriptor(NativeBattleGraphicsState graphics)
     {
+        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
+        {
+            return CompleteEncounterAllocationLoad(graphics);
+        }
         CompleteNativeAllocationGate();
         return graphics;
     }

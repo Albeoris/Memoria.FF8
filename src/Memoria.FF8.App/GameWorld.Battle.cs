@@ -165,6 +165,12 @@ internal sealed partial class GameWorld
         {
             definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
         }
+        if (effectPreviewRequest is null && applyEncounterMods is not null)
+        {
+            NativeBattleCompletion? request = Events.PendingInteractiveBattle;
+            EncounterBindingContext context = request is not null && request.Encounter == encounterId ? new("Classic", session.State.FieldId, encounterId, activeFlags) : new("Classic");
+            definition = applyEncounterMods(definition, context);
+        }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }

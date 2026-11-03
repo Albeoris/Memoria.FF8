@@ -6,6 +6,7 @@ public sealed partial class BattleSession
     {
         public BattleCombatant Actor { get; } = actor;
         public BattleCombatant Recipient { get; } = recipient;
+        public BattleNativeAction Action { get; } = action;
         public byte PrimaryIndex { get; } = checked((byte)recipient.NativeIndex);
         public byte Sequence { get; set; } = action.DamagePresentation;
         public byte Flags { get; set; }
@@ -96,26 +97,34 @@ public sealed partial class BattleSession
                 ApplyDamage(actor, recipient, 0, action.Name, publishDamage: false);
             }
             FinalizeNativeContactPresentation();
-            (ushort saved, uint battle) = contact.PrimaryStatusSnapshot ?? NativeContactStatusMirror(recipient);
-            NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryIndex, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle);
-            if (contact.Magnitude > short.MaxValue && (contact.HitFlags & 1) == 0)
+            NativeBattleContactPacket packet = BuildNativeContactPacket(contact);
+            if (!RetainEncounterContact(contact))
             {
-                primary = primary with { ExtendedDamageAmount = contact.Magnitude };
+                ObserveDiagnosticCounterResolvedContact(contact, packet);
             }
-            NativeBattleContactHalf secondary = contact.Secondary ?? new(255, 0, 0, 0, 0, 0, 0);
-            if (contact.Secondary is not null)
-            {
-                (ushort secondarySaved, uint secondaryBattle) = NativeContactStatusMirror(actor);
-                secondary = secondary with { SavedStatuses4 = secondarySaved, BattleStatuses8 = secondaryBattle };
-            }
-            NativeBattleContactPacket packet = new(primary, secondary);
-            ObserveDiagnosticCounterResolvedContact(contact, packet);
             return packet;
         }
         finally
         {
             nativeContactWorking = previous;
         }
+    }
+
+    private static NativeBattleContactPacket BuildNativeContactPacket(NativeContactWorking contact)
+    {
+        (ushort saved, uint battle) = contact.PrimaryStatusSnapshot ?? NativeContactStatusMirror(contact.Recipient);
+        NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryIndex, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle);
+        if (contact.Magnitude > short.MaxValue && (contact.HitFlags & 1) == 0)
+        {
+            primary = primary with { ExtendedDamageAmount = contact.Magnitude };
+        }
+        NativeBattleContactHalf secondary = contact.Secondary ?? new(255, 0, 0, 0, 0, 0, 0);
+        if (contact.Secondary is not null)
+        {
+            (ushort secondarySaved, uint secondaryBattle) = NativeContactStatusMirror(contact.Actor);
+            secondary = secondary with { SavedStatuses4 = secondarySaved, BattleStatuses8 = secondaryBattle };
+        }
+        return new(primary, secondary);
     }
 
     private static (ushort Saved, uint Battle) NativeContactStatusMirror(BattleCombatant actor)

@@ -42,11 +42,12 @@ public sealed partial class BattleRenderer
                 _ => throw new NotSupportedException("Native LINE2 has no supported blend equation.")
             };
             TriangleMaterial material = new(null, equation, TriangleDepthComparison.LessEqual, resolved.Pass == 1, 0, TriangleSampler.PointWrap);
+            material = WithNativeActorOpacity(material, blend, frame.ActorOpacity(command.PresentationActorId));
             lines.DrawLine(Convert(a), Convert(b), material);
             ObserveLine();
             return;
         }
-        nativeTriangles.Add(new(a, b, default, null, blend, resolved.Pass, 0, 0, Width - 1, 0, Height - 1, true));
+        nativeTriangles.Add(new(a, b, default, null, blend, resolved.Pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
         ObserveLine();
 
         PrimitiveVertex Vertex(int corner)
@@ -151,8 +152,8 @@ public sealed partial class BattleRenderer
             }
             Vector3 color = a.Color + (b.Color - a.Color) * t;
             float alpha = (a.Alpha + (b.Alpha - a.Alpha) * t) / 255;
-            BlendNativePcPrimitive(index * 4, color, alpha, line.Blend);
-            if (line.Pass == 1)
+            BlendNativePcPrimitive(index * 4, color, alpha, line.Blend, line.ActorOpacity);
+            if (line.Pass == 1 && line.ActorOpacity == 1)
             {
                 depth[index] = z;
             }

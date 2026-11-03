@@ -16,6 +16,10 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattlePreparedPrimitiveFrame primitives = NativeBattlePreparedPrimitiveFrame.From(frame);
+        if (!encounterArrivals.IsEmpty)
+        {
+            primitives = primitives with { ActorOpacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal) };
+        }
         if (PreparedPresentation?.Primitives == primitives)
         {
             primitives = PreparedPresentation.Primitives;

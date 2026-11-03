@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 1,
+  "documentId": "memoria.edea-mirrors.disc1",
+  "title": "Edea — Mirrors",
+  "encounter": "ff8.disc1.edea",
+  "atomic": true,
+  "operations": [
+    {
+      "id": "define-family",
+      "kind": "EnsureGroup",
+      "group": "edea-family",
+      "members": [
+        "original"
+      ]
+    },
+    {
+      "id": "define-arrival",
+      "kind": "AddPresentation",
+      "presentation": "mirror-arrival",
+      "clip": "002",
+      "frameNumbering": "zeroBased",
+      "startFrame": 8,
+      "endFrame": 28,
+      "opacity": {
+        "from": 0.0,
+        "to": 1.0,
+        "curve": "linear"
+      },
+      "loop": false,
+      "after": "nativeIdle"
+    },
+    {
+      "id": "define-support-mirror",
+      "kind": "AddActorTemplate",
+      "actorTemplate": "support-mirror",
+      "inheritFrom": "original",
+      "inherit": [
+        "model",
+        "resolvedCombatStats",
+        "drawDefinitions"
+      ],
+      "level": {
+        "fromActor": "original",
+        "at": "spawn"
+      },
+      "maximumHp": {
+        "fromActor": "original",
+        "at": "spawn"
+      },
+      "initialHp": "maximum",
+      "initialAtb": 0,
+      "transientState": "fresh",
+      "group": "edea-family",
+      "normalActionPolicy": "support-policy",
+      "nativeLifecycle": "ordinarySummonedActor",
+      "rewardPolicy": "none",
+      "arrival": "mirror-arrival"
+    },
+    {
+      "id": "define-assault-mirror",
+      "kind": "AddActorTemplate",
+      "actorTemplate": "assault-mirror",
+      "inheritFrom": "original",
+      "inherit": [
+        "model",
+        "resolvedCombatStats",
+        "drawDefinitions"
+      ],
+      "level": {
+        "fromActor": "original",
+        "at": "spawn"
+      },
+      "maximumHp": {
+        "fromActor": "original",
+        "at": "spawn"
+      },
+      "initialHp": "maximum",
+      "initialAtb": 0,
+      "transientState": "fresh",
+      "group": "edea-family",
+      "normalActionPolicy": "assault-policy",
+      "nativeLifecycle": "ordinarySummonedActor",
+      "rewardPolicy": "none",
+      "arrival": "mirror-arrival"
+    },
+    {
+      "id": "define-original-policy",
+      "kind": "AddActionPolicy",
+      "policy": "original-policy",
+      "rules": [
+        {
+          "id": "summon",
+          "when": {
+            "ownTurn": 1
+          },
+          "action": {
+            "kind": "SummonGroup",
+            "casterPresentation": "nativeCast",
+            "simultaneous": true,
+            "atomic": true,
+            "actors": [
+              {
+                "template": "support-mirror",
+                "anchor": "leftFlank"
+              },
+              {
+                "template": "assault-mirror",
+                "anchor": "rightFlank"
+              }
+            ]
+          }
+        },
+        {
+          "id": "double",
+          "when": {
+            "ownTurn": 2
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Double",
+            "target": "self",
+            "casts": 1
+          }
+        },
+        {
+          "id": "scan",
+          "when": {
+            "ownTurn": 3
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Scan",
+            "target": "randomOpponent",
+            "casts": "nativeDouble"
+          }
+        },
+        {
+          "id": "haste",
+          "when": {
+            "ownTurn": 4
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Haste",
+            "target": "randomAlly",
+            "casts": "nativeDouble"
+          }
+        },
+        {
+          "id": "offense",
+          "when": {
+            "ownTurnAtLeast": 5
+          },
+          "action": {
+            "kind": "CastFromPool",
+            "spells": [
+              "Drain",
+              "Quake",
+              "Tornado"
+            ],
+            "selection": "uniform",
+            "target": "nativeOpponentTargeting",
+            "casts": "nativeDouble"
+          }
+        }
+      ]
+    },
+    {
+      "id": "assign-original-policy",
+      "kind": "SetNormalActionPolicy",
+      "actor": "original",
+      "expectedOwner": "nativeNormalAction",
+      "policy": "original-policy",
+      "preserveNativeLifecycle": true
+    },
+    {
+      "id": "define-support-policy",
+      "kind": "AddActionPolicy",
+      "policy": "support-policy",
+      "rules": [
+        {
+          "id": "protect",
+          "when": {
+            "ownTurn": 1
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Protect",
+            "target": {
+              "group": "edea-family",
+              "select": "allLiving"
+            }
+          }
+        },
+        {
+          "id": "shell",
+          "when": {
+            "ownTurn": 2
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Shell",
+            "target": {
+              "group": "edea-family",
+              "select": "allLiving"
+            }
+          }
+        },
+        {
+          "id": "regen",
+          "when": {
+            "ownTurn": 3
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Regen",
+            "target": {
+              "group": "edea-family",
+              "select": "allLiving"
+            }
+          }
+        },
+        {
+          "id": "reflect",
+          "when": {
+            "ownTurn": 4
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Reflect",
+            "target": {
+              "group": "edea-family",
+              "select": "allLiving"
+            }
+          }
+        },
+        {
+          "id": "offense",
+          "when": {
+            "ownTurnAtLeast": 5
+          },
+          "action": {
+            "kind": "CastFromPool",
+            "spells": [
+              "Firaga",
+              "Blizzaga",
+              "Thundaga"
+            ],
+            "targetPolicy": "scanKnownWeakestElseRandom"
+          }
+        }
+      ]
+    },
+    {
+      "id": "define-assault-policy",
+      "kind": "AddActionPolicy",
+      "policy": "assault-policy",
+      "rules": [
+        {
+          "id": "darkness",
+          "when": {
+            "ownTurn": 1
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Blind",
+            "target": "allOpponents"
+          }
+        },
+        {
+          "id": "silence",
+          "when": {
+            "ownTurn": 2
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Silence",
+            "target": "allOpponents"
+          }
+        },
+        {
+          "id": "confuse",
+          "when": {
+            "ownTurn": 3
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Confuse",
+            "target": "allOpponents"
+          }
+        },
+        {
+          "id": "slow",
+          "when": {
+            "ownTurn": 4
+          },
+          "action": {
+            "kind": "Cast",
+            "spell": "Slow",
+            "target": "allOpponents"
+          }
+        },
+        {
+          "id": "offense",
+          "when": {
+            "ownTurnAtLeast": 5
+          },
+          "action": {
+            "kind": "CastFromPool",
+            "spells": [
+              "Aero",
+              "Water",
+              "Bio"
+            ],
+            "targetPolicy": "scanKnownWeakestElseRandom",
+            "reflectionPolicy": {
+              "preferUnreflectedOpponents": true,
+              "whenAllOpponentsReflect": "bounceViaReflectedAlly",
+              "alliedTargets": "allAllies",
+              "bounceSpellSelection": "uniform",
+              "withoutReflectedAlly": {
+                "kind": "Cast",
+                "spell": "Dispel",
+                "target": "randomReflectedOpponent"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "link-original-damage",
+      "kind": "AddDamageRoute",
+      "route": "mirror-link",
+      "sourceActor": "original",
+      "recipients": [
+        "support-mirror",
+        "assault-mirror"
+      ],
+      "recipientSelection": "livingActivatedInstances",
+      "mode": "redirectSplitEqually",
+      "damageKinds": "allPositiveHpDamage",
+      "mitigation": "alreadyResolved",
+      "remainder": "discard",
+      "overkill": "discard",
+      "withoutRecipients": "normalDamage"
+    },
+    {
+      "id": "delay-taunts",
+      "kind": "GateNativeEvent",
+      "actor": "original",
+      "event": "nativeTaunts",
+      "ownTurnAtLeast": 5,
+      "preserveOrder": true,
+      "maximumQueuedMessagesPerTurn": 1
+    }
+  ],
+  "sourceProfile": "Classic",
+  "requiredActorCapacity": 3,
+  "placements": [
+    {
+      "y": 0,
+      "z": 0,
+      "x": -1400,
+      "id": "leftFlank"
+    },
+    {
+      "y": 0,
+      "z": 0,
+      "x": 1400,
+      "id": "rightFlank"
+    }
+  ]
+}

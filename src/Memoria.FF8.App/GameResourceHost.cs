@@ -52,6 +52,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
+    public EncounterMods EncounterMods { get; private set; } = EncounterMods.Empty;
+    public Func<EncounterMods, ModCatalogSnapshot, IReadOnlyList<EncodedResource>, ModPreparationResult>? PrepareEncounterPublication { get; set; }
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
     public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
     public StartupPolicy StartupPolicy { get; private set; } = StartupPolicy.Default;
@@ -297,10 +299,20 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return guardianPublication;
         }
+        if (!EncounterMods.TryPrepare(catalog, out EncounterMods encounterMods, out IReadOnlyList<ModDiagnostic> encounterDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: encounterDiagnostics);
+        }
+        ModPreparationResult encounterPublication = PrepareEncounterPublication?.Invoke(encounterMods, catalog, encodedResources) ?? (encounterMods.Layers.IsEmpty ? ModPreparationResult.Accepted : new ModPreparationResult(false, Diagnostics: encounterMods.Layers.Select(layer => new ModDiagnostic("Memoria.UnsupportedEncounterRuntime", "Encounter documents require a supported encounter binding and runtime publication provider; no encounter changes were published.", layer.PackageId, layer.PayloadPath)).ToArray()));
+        if (!encounterPublication.Success)
+        {
+            return encounterPublication;
+        }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
         usable.AddRange(localization!.Layers.Select(layer => layer.PackageId));
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(encounterMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsUnusedFieldMember(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
@@ -320,7 +332,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -354,10 +366,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();
             localization!.InputRevision?.ValidatePublication();
-            prepared.Commit(notify: false, beforePublish: guardianPublication.Commit);
+            prepared.Commit(notify: false, beforePublish: () =>
+            {
+                guardianPublication.Commit?.Invoke();
+                encounterPublication.Commit?.Invoke();
+            });
             CommittedLocalizations?.InputRevision?.Dispose();
             CommittedLocalizations = localization;
             GuardianForceMods = guardianMods;
+            EncounterMods = encounterMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
             StartupPolicy = startupPolicy;

@@ -10,6 +10,56 @@ public sealed class GameResourceHostTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-resource-host-" + Guid.NewGuid().ToString("N"));
     private static readonly Rgba32 BaseColor = new(24, 48, 72);
 
+    [Fact]
+    public void EncounterOnlyPublicationRetainsLastValidGenerationAndDisableClearsIt()
+    {
+        using GameResourceHost host = Host();
+        int committed = 0;
+        host.PrepareEncounterPublication = (mods, catalog, resources) => new(true, Commit: () => committed++);
+        WriteText("Memoria/Encounter/mod.ini", "enabled=1\n");
+        WriteText("Memoria/Encounter/gameplay/encounters/test.json", EncounterDocument);
+        host.Mods.Refresh();
+        Assert.True(host.Pump(true));
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
+        EncounterMods accepted = host.EncounterMods;
+        long generation = host.Mods.Catalog.Generation;
+        Assert.Single(accepted.Layers);
+        Assert.Equal(1, committed);
+        WriteText("Memoria/Encounter/gameplay/encounters/test.json", "{ incomplete");
+        host.Mods.Refresh();
+        Assert.False(host.Pump(true));
+        Assert.Same(accepted, host.EncounterMods);
+        Assert.Equal(generation, host.Mods.Catalog.Generation);
+        Assert.Equal(1, committed);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.InvalidEncounterPatch");
+        Assert.True(host.Mods.SetEnabled("Memoria/Encounter", false).Success);
+        Assert.True(host.Pump(true));
+        Assert.Empty(host.EncounterMods.Layers);
+        Assert.Equal(2, committed);
+    }
+
+    [Fact]
+    public void EncounterPayloadWithoutRuntimeProviderIsAnExplicitFailure()
+    {
+        WriteText("Memoria/Encounter/mod.ini", "enabled=1\n");
+        WriteText("Memoria/Encounter/gameplay/encounters/test.json", EncounterDocument);
+        using GameResourceHost host = Host();
+        Assert.Empty(host.EncounterMods.Layers);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.UnsupportedEncounterRuntime" && diagnostic.PackageId == "Memoria/Encounter");
+    }
+
+    private const string EncounterDocument = """
+        {
+          "schemaVersion": 1,
+          "documentId": "fixture.encounter-edit",
+          "encounter": "fixture.encounter",
+          "atomic": true,
+          "operations": [
+            { "id": "hp", "kind": "SetActorProperty", "actor": "original", "property": "stats.maximumHpMultiplier", "expectedValue": 1.0, "value": 1.25 }
+          ]
+        }
+        """;
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -76,6 +76,29 @@ public sealed class NativeBattleScanTests
         Assert.Throws<InvalidDataException>(() => NativeScannedModels.ValidateReceipt(before, Empty()));
     }
 
+    [Fact]
+    public void Enemy_scan_records_party_affinities_without_player_model_history_and_restores_from_json()
+    {
+        BattleDefinition definition = Create(known: false).ReadDefinition();
+        BattleCombatantDefinition party = definition.Combatants[0] with { ModelId = 0, InitialAtb = 0, ElementDefenses = [700, 800, 850, 900, 1000, 800, 800, 800] };
+        NativeBattleAiDefinition ai = new([[3, 1, 4, 201, 6, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(2, 0, 1), 48).ToArray(), 0, []);
+        BattleSession battle = new(definition with { Combatants = [party, definition.Combatants[1] with { NativeAi = ai, NativeCombatantFlags = 0x11 }] }, BattleAtbMode.Normal);
+        for (int frame = 0; frame < 40 && battle.ScanKnowledge.Observations.IsEmpty; frame++)
+        {
+            battle.Tick();
+        }
+        BattleScanObservation observation = Assert.Single(battle.ScanKnowledge.Observations);
+        Assert.Equal(BattleObserverSide.Enemy, observation.Observer);
+        Assert.Equal("party", observation.TargetId);
+        Assert.Equal(2m, observation.Affinities[0].DamageMultiplier);
+        Assert.True(observation.Affinities[4].Absorbs);
+        Assert.Null(battle.Capture().NativeScannedModels);
+        BattleSnapshot restoredSnapshot = System.Text.Json.JsonSerializer.Deserialize<BattleSnapshot>(System.Text.Json.JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSession restored = BattleSession.Restore(restoredSnapshot);
+        Assert.Equal(observation.Affinities, Assert.Single(restored.ScanKnowledge.Observations).Affinities);
+        restored.Tick();
+    }
+
     private static NativeScannedModels Empty()
     {
         return new(NativeInputConfiguration.OriginalInitHash, ImmutableArray.Create<uint>(0, 0, 0, 0, 0));

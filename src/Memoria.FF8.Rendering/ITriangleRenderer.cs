@@ -50,6 +50,8 @@ public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlen
     public bool TextureSelectsAlpha { get; init; } = true;
     public float MaximumAlpha { get; init; } = 1;
     public float AlphaMultiplier { get; init; } = 1;
+    public float ActorOpacity { get; init; } = 1;
+    public bool ActorOpacityReplacesAlpha { get; init; }
     public bool ColorWrite { get; init; } = true;
     public bool PreserveTargetAlpha { get; init; } = true;
     public bool PerspectiveDepth { get; init; }

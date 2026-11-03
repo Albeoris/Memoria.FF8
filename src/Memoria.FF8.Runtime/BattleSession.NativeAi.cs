@@ -46,6 +46,10 @@ public sealed partial class BattleSession
 
     private void InterpretNativeAi(BattleCombatant actor, int callback)
     {
+        if (TryRunEncounterPolicy(actor, callback))
+        {
+            return;
+        }
         NativeBattleAiDefinition? program = actor.NativeAi;
         if (program is null)
         {
@@ -569,7 +573,18 @@ public sealed partial class BattleSession
         actor.NativeIndex = saved.ActorIndex;
         if (saved.ResolvedLevel is int level)
         {
-            actor.BindNativeLevel(level);
+            if (nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition is { } resolved)
+            {
+                if (level != resolved.Level)
+                {
+                    throw new InvalidDataException("Encounter copy resolved level differs from its captured allocation definition.");
+                }
+                actor.ResolvedNativeLevel = level;
+            }
+            else
+            {
+                actor.BindNativeLevel(level);
+            }
         }
         else if (actor.NativeTemplate is not null && saved.Active)
         {

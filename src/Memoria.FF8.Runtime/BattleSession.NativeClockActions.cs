@@ -159,7 +159,7 @@ public sealed partial class BattleSession
         {
             BeginNativeReactionBatch();
         }
-        bool paused = actor.NativeAi is not null && actor.IsActive && callback is >= 0 and <= 3 && (callback != 2 || (NativeSavedStatusBits(actor) & 1) == 0);
+        bool paused = (actor.NativeAi is not null || HasEncounterPolicy(actor)) && actor.IsActive && callback is >= 0 and <= 3 && (callback != 2 || (NativeSavedStatusBits(actor) & 1) == 0);
         if (paused)
         {
             BeginNativeBattleActionPause();

@@ -334,6 +334,7 @@ public sealed partial class BattleSession
 
     public BattleSnapshot Capture()
     {
+        RequireEncounterDamagePublicationBoundary();
         return NativeBattleStorageSnapshots.Capture(new BattleSnapshot
         {
             DiagnosticTerminalHold = DiagnosticTerminalHold,
@@ -383,12 +384,17 @@ public sealed partial class BattleSession
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
             Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), DrawnMagicIds = actor.DrawnMagicIds.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
-            NativeAllocations = nativeAllocations.ToArray(),
+            NativeAllocations = CaptureNativeAllocations(),
+            EncounterAllocation = CaptureEncounterAllocation(),
+            EncounterPolicies = encounterPolicies,
+            EncounterArrivals = CaptureEncounterArrivals(),
+            EncounterNativeEvents = CaptureEncounterNativeEvents(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
             Events = events.ToArray(),
             NativeItemInventory = nativeItems.ToArray(),
             NativeScannedModels = nativeScannedModels,
+            ScanKnowledge = scanKnowledge,
             NativeKnownMagic = nativeKnownMagic,
             NativeSupport = nativeSupport,
             NativeClock = nativeBattleClock,
@@ -704,6 +710,7 @@ public sealed partial class BattleSession
             ReturnGuardianForm(byId[action.ActorId], (NativeSavedStatusBits(byId[action.ActorId]) & 1) != 0);
         }
         Log("ActionComplete", action.ActorId, action.TargetId, 0, message);
+        CompleteEncounterPolicyPresentation(action);
     }
 
     private void EnqueueAttack(BattleCombatant actor, BattleCombatant target)
@@ -725,7 +732,7 @@ public sealed partial class BattleSession
         Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: Attack queued.");
     }
 
-    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true, bool publishDamage = true, bool bypassDamageLimit = false)
+    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true, bool publishDamage = true, bool bypassDamageLimit = false, EncounterHpCause cause = EncounterHpCause.Damage)
     {
         if (!bypassDamageLimit)
         {
@@ -742,7 +749,10 @@ public sealed partial class BattleSession
         }
         try
         {
-            ApplyDamageCore(actor, target, amount, source, counterEligible, publishDamage);
+            if (!TryApplyEncounterDamage(actor, target, amount, source, counterEligible, publishDamage, cause))
+            {
+                ApplyDamageCore(actor, target, amount, source, counterEligible, publishDamage);
+            }
             if (nativeContactWorking is not null)
             {
                 RefreshNativePresentationStatus(target);
@@ -848,6 +858,10 @@ public sealed partial class BattleSession
 
     private void ApplyHealing(BattleCombatant actor, int amount, string source)
     {
+        if (TryDeferEncounterHealing(actor, amount, source))
+        {
+            return;
+        }
         if (nativeContactWorking?.CommittingSecondary != true)
         {
             actor.LastNativeHealing = 1;
@@ -952,6 +966,7 @@ public sealed partial class BattleSession
 
     private void CompleteBattleIfNeeded()
     {
+        CleanupEncounterPoliciesAtTerminal();
         BattleOutcome outcome = DetermineOutcome();
         if (outcome == BattleOutcome.Active)
         {
@@ -1413,6 +1428,11 @@ public sealed partial class BattleSession
         RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
         ValidateGuardianFormOwners();
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
+        RestoreScanKnowledge(snapshot.ScanKnowledge);
+        RestoreEncounterAllocation(snapshot.EncounterAllocation);
+        RestoreEncounterPolicies(snapshot.EncounterPolicies);
+        RestoreEncounterArrivals(snapshot.EncounterArrivals);
+        RestoreEncounterNativeEvents(snapshot.EncounterNativeEvents);
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
         RestoreNativeGlobalRandom(snapshot);
@@ -1523,6 +1543,7 @@ public sealed partial class BattleSession
         RestoreNativeItems(candidate.nativeItems);
         chocoboRewards = candidate.chocoboRewards;
         nativeScannedModels = candidate.nativeScannedModels;
+        scanKnowledge = candidate.scanKnowledge;
         nativeKnownMagic = candidate.nativeKnownMagic;
         random = candidate.random;
         candidate.nativeAiVariables.CopyTo(nativeAiVariables, 0);
@@ -1534,6 +1555,11 @@ public sealed partial class BattleSession
         enemyDefeats.Clear();
         enemyDefeats.AddRange(candidate.enemyDefeats);
         nativeLastAllocatedIndex = candidate.nativeLastAllocatedIndex;
+        encounterAllocation = candidate.encounterAllocation;
+        encounterAllocationRollback = null;
+        encounterPolicies = candidate.encounterPolicies;
+        encounterArrivals = candidate.encounterArrivals;
+        RestoreEncounterNativeEvents(candidate.CaptureEncounterNativeEvents());
         nativeScriptState = candidate.nativeScriptState.DeepCopy();
         nativeReactionOrder = candidate.nativeReactionOrder;
         nativeActionPackets = candidate.nativeActionPackets;

@@ -136,7 +136,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index, index)).Select(primitive => primitive with { PresentationActorId = index == 1 ? null : graphics.ActorIds[model.Index] }));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index, index)).Select(primitive => primitive with { PresentationActorId = graphics.ActorIds[model.Index] }));
             }
         }
         else if (bodyDraw)
@@ -154,6 +154,7 @@ public sealed partial class BattleSession
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
                 ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x507BF0, model.Index));
+                linkedPrimitives = linkedPrimitives.Select(primitive => primitive with { PresentationActorId = graphics.ActorIds[model.Index] }).ToImmutableArray();
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
             }
         }

@@ -10,6 +10,17 @@ public sealed record NativeBattlePreparedPrimitiveFrame(ImmutableArray<NativeBat
     public NativeBattlePrimitiveColorState? LastColorState { get; init; }
     public ImmutableArray<NativeBattlePcTextureWindowPixels>? LastTextureSnapshots { get; init; }
     public NativeBattlePcRenderTailReceipt? LastPcRenderTail { get; init; }
+    public ImmutableDictionary<string, float> ActorOpacities { get; init; } = ImmutableDictionary<string, float>.Empty;
+
+    public float ActorOpacity(string? actorId)
+    {
+        float opacity = actorId is not null && ActorOpacities.TryGetValue(actorId, out float value) ? value : 1;
+        if (!float.IsFinite(opacity) || opacity < 0 || opacity > 1)
+        {
+            throw new InvalidDataException($"Actor '{actorId}' presentation opacity must be finite and between zero and one.");
+        }
+        return opacity;
+    }
 
     public static NativeBattlePreparedPrimitiveFrame From(NativeBattlePrimitiveFrame frame) => new(frame.LastCommands, frame.LastModuleBlendModes) { LastDescriptorPerspective = frame.LastDescriptorPerspective, LastDepthState = frame.LastDepthState, LastColorState = frame.LastColorState, LastTextureSnapshots = frame.LastTextureSnapshots, LastPcRenderTail = frame.LastPcRenderTail };
 }

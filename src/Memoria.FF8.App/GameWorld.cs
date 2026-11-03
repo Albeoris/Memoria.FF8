@@ -19,6 +19,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly bool ownsAssets;
     private readonly ResourceService? resources;
     private readonly IModelOverrideSource? modelOverrides;
+    private readonly Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods;
     private readonly bool validateWorldPresentation;
     private readonly IDisposable snapshotPreparation;
     private bool diagnosticAllocationFaulted;
@@ -40,13 +41,14 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null)
     {
         this.session = session;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;
         this.resources = resources;
         this.modelOverrides = modelOverrides;
+        this.applyEncounterMods = applyEncounterMods;
         this.validateWorldPresentation = validateWorldPresentation;
         ownsAssets = sharedAssets is null;
         assets = sharedAssets ?? new GameAssets(gameDirectory, resources: resources, modelOverrides: modelOverrides);

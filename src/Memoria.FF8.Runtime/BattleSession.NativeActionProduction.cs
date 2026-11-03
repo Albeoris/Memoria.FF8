@@ -79,43 +79,53 @@ public sealed partial class BattleSession
                 aborted = true;
                 break;
             }
-            foreach (BattleCombatant recipient in targets)
+            BeginEncounterDamageHit();
+            try
             {
-                if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || recipient.NativeIndex >= 3))
+                foreach (BattleCombatant recipient in targets)
                 {
-                    aborted = true;
-                    break;
+                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || recipient.NativeIndex >= 3))
+                    {
+                        aborted = true;
+                        break;
+                    }
+                    if (hit == 0 && (command.NativeQueuedCommand ?? native.Command) == 12)
+                    {
+                        ResolveNativeMug(actor, recipient);
+                    }
+                    if (NativeActionReflects(recipient, native))
+                    {
+                        DecrementNativeRemainingHits(recipient);
+                        firstReflector ??= recipient;
+                        recipient.NativeCombatantFlags |= 0x4000;
+                        recipient.LastNativeHealing = 1;
+                        RecordNativeActionMemory(actor, recipient, command);
+                        DispatchNativeActionCounter(recipient);
+                        contacts.Add(CreateNativeReflectedContact(recipient, native));
+                        Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
+                        continue;
+                    }
+                    BattleActionPresentation resolved = command.NativeAction is null ? command with { NativeAction = native } : command;
+                    BattleActionPresentation? previousAction = resolvingNativeAction;
+                    bool previousSuppression = suppressNativeImmediateCounter;
+                    resolvingNativeAction = resolved;
+                    suppressNativeImmediateCounter |= deferred != NativeBattleDeferredContactKind.None && native.Command != 238 || native.Command is 237 or 241;
+                    try
+                    {
+                        SetEncounterContactPosition(contacts.Count);
+                        contacts.Add(ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, coverSource, deferred != NativeBattleDeferredContactKind.None));
+                    }
+                    finally
+                    {
+                        resolvingNativeAction = previousAction;
+                        suppressNativeImmediateCounter = previousSuppression;
+                    }
                 }
-                if (hit == 0 && (command.NativeQueuedCommand ?? native.Command) == 12)
-                {
-                    ResolveNativeMug(actor, recipient);
-                }
-                if (NativeActionReflects(recipient, native))
-                {
-                    DecrementNativeRemainingHits(recipient);
-                    firstReflector ??= recipient;
-                    recipient.NativeCombatantFlags |= 0x4000;
-                    recipient.LastNativeHealing = 1;
-                    RecordNativeActionMemory(actor, recipient, command);
-                    DispatchNativeActionCounter(recipient);
-                    contacts.Add(CreateNativeReflectedContact(recipient, native));
-                    Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
-                    continue;
-                }
-                BattleActionPresentation resolved = command.NativeAction is null ? command with { NativeAction = native } : command;
-                BattleActionPresentation? previousAction = resolvingNativeAction;
-                bool previousSuppression = suppressNativeImmediateCounter;
-                resolvingNativeAction = resolved;
-                suppressNativeImmediateCounter |= deferred != NativeBattleDeferredContactKind.None && native.Command != 238 || native.Command is 237 or 241;
-                try
-                {
-                    contacts.Add(ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, coverSource, deferred != NativeBattleDeferredContactKind.None));
-                }
-                finally
-                {
-                    resolvingNativeAction = previousAction;
-                    suppressNativeImmediateCounter = previousSuppression;
-                }
+                publishedCount = checked((byte)(publishedCount + CompleteEncounterDamageHit(contacts)));
+            }
+            finally
+            {
+                encounterHitTransaction = null;
             }
         }
         return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.NativeIndex), aborted);
