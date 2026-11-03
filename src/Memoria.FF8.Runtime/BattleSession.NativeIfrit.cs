@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             execution = NativeBattleIfritContinuation.Initialize(execution, CurrentResource(0, profile.File0Publication), CurrentResource(1, profile.File1Publication), memory.MagicTextureBufferAddress1D99A88 ?? throw new NotSupportedException("GF continuation requires its published magic texture buffer."), ModelServices(0), InitializeResourceInstruction);
             NativeEffectMemory = RequireWaterMemory() with { Arena = execution.Arena, ScriptedEffects = execution.Core };
             nativeCrtRandom = execution.Random;
-            NativeCamera = NativeCamera!.PublishProjection(graphics.Flags);
+            NativeCamera = NativeCamera!.PublishProjection(graphics.Flags, EncounterCameraElevation);
             input = input with { ViewMatrix = MatrixBytes(NativeCamera.Projection!.View!) };
             graphics = graphics with { GuardianFormPresentation = continuation with { Phase = 5 } };
             NativeGraphics = graphics;

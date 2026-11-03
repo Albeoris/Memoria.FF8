@@ -109,6 +109,83 @@ public sealed class EncounterPolicySessionTests
         };
         Assert.Contains("free magic", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(invalid)).Message);
     }
+    [Theory]
+    [InlineData("Protect", 0x20u)]
+    [InlineData("Shell", 0x40u)]
+    [InlineData("Regen", 0x10u)]
+    [InlineData("Reflect", 0x80u)]
+    [InlineData("Haste", 2u)]
+    public void NamedFamilyStatusesExcludeUnrelatedFourthActor(string spellName, uint status)
+    {
+        BattleDefinition source = Create(false).ReadDefinition();
+        BattleNativeAction spell = source.NativeActions[0] with { AttackType = 2, StatusAttack = 255, Statuses1 = status, TargetFlags = 16, MagicId = 0 };
+        EncounterCompiledDefinition mod = source.EncounterMod!;
+        EncounterCompiledAction action = new(EncounterCompiledActionKind.Cast, [new(spellName, spell, -1, false, false)], spellName == "Haste" ? EncounterCompiledTargetKind.RandomAlly : EncounterCompiledTargetKind.GroupAllLiving, "family", false, false, null, []);
+        EncounterCompiledPolicy policy = new(mod.NormalActionPolicies["original"], [new("family", 1, ulong.MaxValue, 0, action)]);
+        BattleCombatantDefinition enemy = source.Combatants.Single(actor => actor.Id == "enemy");
+        BattleCombatantDefinition[] actors = source.Combatants.Concat(new[] { "support", "assault", "fourth" }.Select((id, index) => enemy with { Id = id, Name = id, SceneSlot = index + 1, InitialAtb = 0, NativeAi = null, Speed = 1 })).ToArray();
+        byte seed = Enumerable.Range(0, 256).Select(value => (byte)value).First(value =>
+        {
+            NativeBattleRandomState.Initialize(value).Draw(out byte draw);
+            return draw % 4 == 2;
+        });
+        BattleSession battle = new(source with { NativeStatusRules = new(0, Enumerable.Repeat((byte)30, 14).ToImmutableArray()), NativeSeed = seed, Combatants = actors, NativeActions = [spell], ActionDefinitions = [new(BattleAbility.Magic, spell.ActionId, spellName, BattleActionEffect.Native, 0, true) { NativeAction = spell }], EncounterMod = mod with { Policies = mod.Policies.SetItem(policy.Id, policy), Groups = mod.Groups.SetItem("family", ["original", "support", "assault"]) } }, BattleAtbMode.Normal);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
+        if (spellName == "Haste")
+        {
+            Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
+            Assert.NotEqual(0u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeStatus!.Battle & status);
+            return;
+        }
+        Assert.Equal((byte)3, battle.NativeActionPackets.ContactCount);
+        foreach (string id in new[] { "enemy", "support", "assault" })
+        {
+            Assert.NotEqual(0u, battle.Capture().Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & status);
+        }
+        Assert.Equal(0u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeStatus!.Battle & status);
+        Assert.DoesNotContain(battle.Events, entry => entry.TargetId == "fourth" && entry.Kind == "Damage");
+    }
+
+    [Fact]
+    public void AcceptedSummonControlRestoresWindupAndFactualHeaderThenCompletesBoundedly()
+    {
+        BattleDefinition source = Create(false).ReadDefinition();
+        NativeBattleEnemyLevel level = new(1000, 10, 10, 10, 10, 10, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);
+        NativeBattleEnemyTemplate template = new(1, Enumerable.Repeat(level, 101).ToArray()) { NativeStatusAllocation = new(0, 0, Enumerable.Repeat((byte)100, 40).ToImmutableArray()) };
+        EncounterCompiledDefinition mod = source.EncounterMod!;
+        EncounterCompiledAction action = new(EncounterCompiledActionKind.SummonGroup, [], EncounterCompiledTargetKind.Self, null, false, false, null, [new("support", "anchor")]);
+        EncounterCompiledPolicy policy = new(mod.NormalActionPolicies["original"], [new("summon", 1, ulong.MaxValue, 0, action)]);
+        BattleSession battle = new(source with
+        {
+            Combatants = source.Combatants.Select(actor => actor.Id == "enemy" ? actor with { NativeTemplate = template, Level = 1, Speed = 10, Attack = 10, Magic = 10, Defense = 10, Spirit = 10, SceneSlot = 0 } : actor).ToArray(),
+            EncounterMod = mod with { Policies = mod.Policies.SetItem(policy.Id, policy), Templates = mod.Templates.SetItem("support", new("support", "original", "family", policy.Id, "arrival")) }
+        }, BattleAtbMode.Normal);
+        bool sawControl = false;
+        bool sawHeader = false;
+        for (int frame = 0; frame < 100 && battle.EncounterAllocation is null; frame++)
+        {
+            battle.Tick();
+            if (battle.ActiveAction?.NativeAction?.PresentationOnly == true || battle.QueuedActions.Any(command => command.NativeAction?.PresentationOnly == true))
+            {
+                sawControl = true;
+                sawHeader |= battle.ActiveAction?.NativeHeaderIndex is not null || battle.QueuedActions.Any(command => command.NativeHeaderIndex is not null);
+                BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+                battle = BattleSession.Restore(snapshot);
+                Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
+                Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { EncounterPolicies = snapshot.EncounterPolicies! with { PendingSummon = null } }));
+            }
+        }
+        Assert.True(sawControl);
+        Assert.True(sawHeader);
+        Assert.Equal(BattleEncounterAllocationPhase.Ready, battle.EncounterAllocation!.Phase);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage" || entry.Kind == "DamageText");
+        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+    }
+
     private static BattleSession Create(bool doubleActive, bool reflect = false)
     {
         BattleNativeAction scan = new(2, 50, 1, 50)

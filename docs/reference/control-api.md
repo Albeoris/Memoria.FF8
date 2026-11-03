@@ -216,6 +216,7 @@ These commands are windowed. They return `{DiagnosticInitialization, Battle, Deb
 | `SetGunbladeMode` | Sets `GunbladeMode`. |
 | `GunbladeTrigger` | Supplies the current gunblade trigger edge. |
 | `ShotTrigger` | Supplies the active Shot process trigger for explicit `ActorId`. |
+| `ScanInput` | `ScanButton: "Confirm"`: queue one mapped Confirm pulse for the active native Scan viewer. Requires `CanQueueNativeScanInput: true`; `Frames` must remain 1. |
 | `GuardianBoost` | Supplies the current GF boost input. |
 | `GuardianFormActivate` | Requests transformation with `ActorId`, the same `TargetId`, and GF ID in `ActionId`; requires the save's GF Transformations option. |
 | `GuardianFormAction` | Submits the active form's explicit actor/target action: `ActionId` 0 = Attack, 1 = Fire, 2 = Hell Fire. |
@@ -229,7 +230,10 @@ These commands are windowed. They return `{DiagnosticInitialization, Battle, Deb
 {"Id":"050-battle","Command":"battle-status"}
 {"Id":"051-tick","Command":"battle-input","Battle":{"Input":{"Kind":"Tick","Frames":30}}}
 {"Id":"052-attack","Command":"battle-input","Battle":{"Input":{"Kind":"Attack","ActorId":"party-0","TargetId":"enemy-0"}}}
+{"Id":"053-scan-confirm","Command":"battle-input","Battle":{"Input":{"Kind":"ScanInput","ScanButton":"Confirm"}}}
 ```
+
+`ScanInput` uses the captured native button mapping and ordinary Scan input publication. The press lasts one accepted native host callback, including its repeated input polls, and releases on the next callback. Its pending owner is retained in snapshots. It works with neutral physical input in `--control-exclusive` hosts and applies independently of the caster or scanned actor's faction. A ready native result page can consume one Confirm before the viewer itself accepts its closing Confirm; poll `CanQueueNativeScanInput` before each request. Opening/closing consumers and duplicate pending pulses reject the command; only Confirm is currently supported.
 
 A host launched with `--battle-test` retains its explicit diagnostic lifecycle. Without an in-process driver, ordinary `battle-input` requests use normal command admission, while external `Tick`/`AdvanceTurn`, mode changes, debug outcomes and exploration configuration/start/return inputs are refused. Use normal real-time progression and `battle-close` for isolated teardown. `save` cannot persist this lifecycle as a resumable field snapshot.
 

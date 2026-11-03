@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         uint color = model.Color40 ?? throw new NotSupportedException("Native502D40 requires its color DWORD40.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native502D40 requires its object mask DWORD124.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native502D40 requires its actual previously published camera matrix.");
-        NativeBattleVector? actualCameraEye = NativeCamera?.CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : null;
+        NativeBattleVector? actualCameraEye = EncounterPresentationCamera?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : null;
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(model, source, view, actualCameraEye);
         graphics = graphics with { Models = graphics.Models.SetItem(model.Index, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);

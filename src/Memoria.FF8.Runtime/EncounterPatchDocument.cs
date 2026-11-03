@@ -21,7 +21,8 @@ public enum EncounterPatchOperationKind
     RemoveDamageRoute,
     AddPresentation,
     SetPresentationProperty,
-    GateNativeEvent
+    GateNativeEvent,
+    SetCameraProperty
 }
 
 public sealed record EncounterPatchProducer(string DocumentId, string OperationId);
@@ -323,6 +324,7 @@ public sealed record EncounterPatchDocument
             EncounterPatchOperationKind.RemoveRule => "policy rule expectedValue",
             EncounterPatchOperationKind.SetNormalActionPolicy => "actor policy expectedOwner preserveNativeLifecycle",
             EncounterPatchOperationKind.SetActorProperty => "actor property expectedValue value",
+            EncounterPatchOperationKind.SetCameraProperty => "property expectedValue value",
             EncounterPatchOperationKind.AddDamageRoute => "route sourceActor recipients recipientSelection mode damageKinds mitigation remainder overkill withoutRecipients",
             EncounterPatchOperationKind.SetDamageRouteProperty => "route property expectedValue value",
             EncounterPatchOperationKind.RemoveDamageRoute => "route expectedValue",
@@ -392,6 +394,11 @@ public sealed record EncounterPatchDocument
                 Identity(op.Policy, "policy");
                 Identity(op.Rule, "rule");
                 Require(op.Producer is not null && op.ExpectedValue.ValueKind == JsonValueKind.Object, "Removal requires producer and full expectedValue.");
+                break;
+            case EncounterPatchOperationKind.SetCameraProperty:
+                Require(op.Property == "elevationDegrees", "Unsupported camera property.");
+                Guard(op);
+                Require(op.ExpectedValue.ValueKind == JsonValueKind.Number && op.ExpectedValue.TryGetDouble(out double expectedElevation) && double.IsFinite(expectedElevation) && expectedElevation is >= -45 and <= 45 && op.Value.ValueKind == JsonValueKind.Number && op.Value.TryGetDouble(out double elevation) && double.IsFinite(elevation) && elevation is >= -45 and <= 45, "Camera elevationDegrees expectedValue and value must be finite numbers between -45 and 45.");
                 break;
             case EncounterPatchOperationKind.SetActorProperty:
                 Identity(op.Actor, "actor");

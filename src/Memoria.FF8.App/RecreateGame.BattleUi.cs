@@ -449,6 +449,9 @@ internal sealed partial class RecreateGame
             case BattleInputKind.ShotTrigger:
                 debugBattle.TriggerNativeShot(input.ActorId ?? throw new InvalidDataException("Shot trigger requires its process owner."));
                 break;
+            case BattleInputKind.ScanInput:
+                debugBattle.QueueNativeScanInput(input.ScanButton ?? throw new InvalidDataException("Scan input requires ScanButton."));
+                break;
             case BattleInputKind.InstantVictory:
                 debugBattle.InstantVictory();
                 break;
@@ -656,7 +659,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticInvocationOwners() : null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticInvocationOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)

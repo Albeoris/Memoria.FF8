@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         }
         if (graphics.GuardianFormHumanFocalToRestore is short humanFocal && ActiveAction is null && NativeCamera is { CurrentPose: { } humanPose } humanCamera && !humanCamera.Tasks.Any(task => task is not null) && !NativeOriginalEffectBusy(graphics))
         {
-            NativeCamera = humanCamera.WriteEffectGlobals(humanPose with { FocalLength = humanFocal }).PublishProjection(graphics.Flags);
+            NativeCamera = humanCamera.WriteEffectGlobals(humanPose with { FocalLength = humanFocal }).PublishProjection(graphics.Flags, EncounterCameraElevation);
             graphics = graphics with { GuardianFormHumanFocalToRestore = null };
         }
         if (graphics.GuardianFormPresentation is not { Phase: 3, Mode: GuardianFormInvocationMode.EntryOnly } presentation || GetGuardianForm(presentation.ActorId) is not { Phase: BattleGuardianFormPhase.Active })
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         if (presentation.IdleCameraRestorePending)
         {
             NativeBattleCameraPose idle = presentation.Camera.CurrentPose ?? throw new InvalidDataException("GF idle camera restoration requires its saved entry pose.");
-            camera = camera.WriteEffectGlobals(idle with { FocalLength = presentation.HumanFocalLength }).PublishProjection(graphics.Flags);
+            camera = camera.WriteEffectGlobals(idle with { FocalLength = presentation.HumanFocalLength }).PublishProjection(graphics.Flags, EncounterCameraElevation);
             NativeCamera = camera;
             presentation = presentation with { IdleCameraRestorePending = false };
             graphics = graphics with { GuardianFormPresentation = presentation };
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         ushort focal = guardianFormCameraEnvelope.Value.Focal;
         if (focal != pose.FocalLength)
         {
-            NativeCamera = camera.WriteEffectGlobals(pose with { FocalLength = checked((short)focal) }).PublishProjection(graphics.Flags);
+            NativeCamera = camera.WriteEffectGlobals(pose with { FocalLength = checked((short)focal) }).PublishProjection(graphics.Flags, EncounterCameraElevation);
         }
         return graphics;
     }

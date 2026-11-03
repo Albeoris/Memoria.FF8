@@ -108,7 +108,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("An atomic summon batch requires every template to inherit from its acting source allocation.");
             }
-            BattleNativeAction control = NativeReturnDamageAction() with { ActionId = 9, Name = "Summon" };
+            BattleNativeAction control = CreateEncounterSummonControl();
             BattleAttackCommand command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control, NativeTargetMask = checked((ushort)(1 << actor.NativeIndex)) };
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
             EnqueueNativePacket(actor, command, "Summon");
@@ -133,10 +133,6 @@ public sealed partial class BattleSession
             foreach (string id in cast.TargetIds)
             {
                 mask |= checked((ushort)(1 << GetActor(id).NativeIndex));
-            }
-            if (cast.TargetIds.Length > 1 || cast.OverrideNativeTargeting && mod.Policies[cast.PolicyId].Select(cast.OwnTurn).Action.Target is EncounterCompiledTargetKind.AllOpponents or EncounterCompiledTargetKind.GroupAllLiving)
-            {
-                mask |= 0x8000;
             }
             return mask;
         }
@@ -187,6 +183,45 @@ public sealed partial class BattleSession
         BeginEncounterAllocation(summon.PolicyId + "/" + summon.RuleId, action.ActorId, summon.Spawns.Select(spawn => spawn.Template).ToArray());
     }
 
+    private static BattleNativeAction CreateEncounterSummonControl()
+    {
+        return NativeReturnDamageAction() with { ActionId = 9, Name = "Summon", PresentationOnly = true };
+    }
+
+    private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, ushort targetMask)
+    {
+        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.NativeIndex is < 0 or >= 7 || targetMask != 1 << actor.NativeIndex)
+        {
+            throw new InvalidDataException("Saved encounter presentation control requires its declared SummonGroup policy and exact self target.");
+        }
+        return CreateEncounterSummonControl();
+    }
+
+    private void ValidateEncounterSummonState(BattleEncounterPolicyState? state)
+    {
+        void Validate(string actorId, byte? command, byte? sequence, byte? callback)
+        {
+            if (definition.EncounterMod is not { } mod || state?.PendingSummon is not { } pending || EncounterPolicyOf(GetActor(actorId)) != pending.PolicyId || !state.Cursors.TryGetValue(actorId, out EncounterActionCursor? cursor) || cursor.CommittedTurns != pending.OwnTurn || pending.OwnTurn == 0 || command != 0 || sequence != mod.CastingSequence || callback != 1)
+            {
+                throw new InvalidDataException("Saved encounter Summon control lacks its admitted policy cursor and casting command.");
+            }
+            EncounterCompiledRule rule = mod.Policies[pending.PolicyId].Select(pending.OwnTurn);
+            EncounterPolicyDecision expected = new(pending.PolicyId, rule.Id, pending.OwnTurn, EncounterCompiledActionKind.SummonGroup, null, [], false, true, rule.Action.Spawns);
+            if (rule.Action.Kind != EncounterCompiledActionKind.SummonGroup || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(expected), System.Text.Json.JsonSerializer.SerializeToElement(pending)))
+            {
+                throw new InvalidDataException("Saved encounter Summon decision differs from its declared policy rule.");
+            }
+        }
+        foreach (BattleAttackCommand command in QueuedActions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeAction?.PresentationOnly == true))
+        {
+            Validate(command.ActorId, command.NativeQueuedCommand, command.NativeSequence, command.NativeAiCallbackStage);
+        }
+        if (ActiveAction is { NativeAction.PresentationOnly: true } action)
+        {
+            Validate(action.ActorId, action.NativeQueuedCommand, action.NativeSequence, action.NativeAiCallbackStage);
+        }
+    }
+
     private void RestoreEncounterPolicies(BattleEncounterPolicyState? state)
     {
         if (state is not null && (definition.EncounterMod is not { } mod || state.GenerationIdentity != mod.GenerationIdentity || state.Cursors is null || state.Cursors.Any(pair => !byId.ContainsKey(pair.Key) || pair.Value is null)))
@@ -194,6 +229,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Encounter policy snapshot requires its captured definition generation and allocation-owned cursors.");
         }
         encounterPolicies = state;
+        ValidateEncounterSummonState(state);
         ValidateEncounterNativeTerminalWitness(state);
     }
 

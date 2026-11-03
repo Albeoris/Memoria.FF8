@@ -394,6 +394,9 @@ internal sealed partial class GameWorld
             case BattleInputKind.ShotTrigger:
                 active.TriggerNativeShot(input.ActorId ?? throw new InvalidDataException("Shot trigger requires its process owner."));
                 break;
+            case BattleInputKind.ScanInput:
+                active.QueueNativeScanInput(input.ScanButton ?? throw new InvalidDataException("Scan input requires ScanButton."));
+                break;
             case BattleInputKind.InstantDefeat:
                 active.InstantDefeat();
                 break;

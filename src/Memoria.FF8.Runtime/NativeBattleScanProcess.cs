@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBattleScanState? Controller, [property: JsonRequired] NativeBattleScanInputPublicationState Input, [property: JsonRequired] uint PhysicalButtons1CD01FC, [property: JsonRequired] bool InputInitialized, [property: JsonRequired] NativeBattleScanByteOwner InteractiveInput269AAA8)
 {
+    public NativeBattleScanControlPulse? ControlPulse { get; init; }
     [JsonRequired]
     public NativeBattleScanTextProcess Text { get; init; } = NativeBattleScanTextProcess.FromColdProcess();
 
@@ -33,6 +34,7 @@ public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBatt
         Presentation.Validate();
         Mouse1D2B2E0.RequireLength(16);
         Results.Validate();
+        ControlPulse?.Validate();
     }
 
     private static NativeBattleScanByteOwner Known(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());

@@ -334,7 +334,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState CompleteNativeGraphicsModel(NativeBattleGraphicsState graphics, NativeBattleDescriptorPacket packet)
     {
         int index = RequireDescriptorModel(packet.Index);
-        BattleCombatant actor = FindNativeActor(index);
+        BattleCombatant actor = FindNativeModelLoadOwner(graphics, index);
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native103 has no original allocation/resource binding.");
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
@@ -388,6 +388,28 @@ public sealed partial class BattleSession
         NativeBattlePoseSource loadedSkeleton = NativeGraphicsPoseResource(loaded, index).PoseSource ?? throw new NotSupportedException("Native model completion requires its actual loaded body rig bytes.");
         model = NativeBattleBodyBoneMatrices.PublishLoadedSkeletons(model, loadedSkeleton, NativeGraphicsPoseResource(loaded, index).LinkedPoseSource);
         return loaded with { Models = loaded.Models.SetItem(index, model) };
+    }
+
+    private BattleCombatant FindNativeModelLoadOwner(NativeBattleGraphicsState graphics, int index)
+    {
+        if ((uint)index >= 7 || graphics.ActorIds[index] is not string id || !byId.TryGetValue(id, out BattleCombatant? actor) || actor.NativeIndex != index)
+        {
+            throw new InvalidDataException("Native103 model completion lost its current physical allocation identity.");
+        }
+        if (!actor.IsActive)
+        {
+            BattleEncounterAllocationState batch = encounterAllocation ?? throw new InvalidDataException("Native103 inactive model has no pending reinforcement allocation.");
+            NativeBattleEnemyAllocation? allocation = nativeAllocations.SingleOrDefault(candidate => candidate.Id == id);
+            if (batch.Phase != BattleEncounterAllocationPhase.Loading || (uint)batch.LoadingIndex >= batch.ActorIds.Length || batch.ActorIds[batch.LoadingIndex] != id || allocation is null || allocation.EncounterBatchId != batch.BatchId || allocation.EncounterRole != batch.Roles[batch.LoadingIndex] || allocation.Retirement is not null)
+            {
+                throw new InvalidDataException("Native103 inactive model does not own the current reinforcement load generation.");
+            }
+        }
+        if (actor.NativeAllocationPendingStatistics)
+        {
+            throw new InvalidDataException("Native103 model completion precedes its allocation statistics callback.");
+        }
+        return actor;
     }
 
     private static int RequireDescriptorModel(int index)

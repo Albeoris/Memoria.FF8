@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Original kernel inputs for the shared48FE20/4922B0 action consumer, with their exact source record.</summary>
 public sealed record BattleNativeAction(byte Command, ushort ActionId, int KernelSection, int KernelIndex)
 {
+    public bool PresentationOnly { get; init; }
     public byte? DispatchCommand { get; init; }
     public string? Name { get; init; }
     public byte? CrisisLevel { get; init; }

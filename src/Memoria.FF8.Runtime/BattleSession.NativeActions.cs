@@ -98,6 +98,10 @@ public sealed partial class BattleSession
 
     private static void ValidateNativeActionContract(BattleNativeAction action)
     {
+        if (action.PresentationOnly && (action.Command != 0 || action.ActionId != 9 || action.MagicId != 0 || action.AttackType != 0 || action.Power != 0 || action.HitCount != 1 || action.Element != 0 || action.Statuses0 != 0 || action.Statuses1 != 0 || action.AttackFlags != 3 || action.DamagePresentation != 0))
+        {
+            throw new InvalidDataException("A presentation-only action requires the empty native control command without damage, status or effect payloads.");
+        }
         if (action.AttackType is not (0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 27 or 28 or 29 or 30 or 31 or 32 or 33 or 34 or 35 or 36))
         {
             throw new NotSupportedException($"Native action {action.Command}/{action.ActionId} attack type {action.AttackType} requires its original invocation or persistent effect owner.");
@@ -214,6 +218,16 @@ public sealed partial class BattleSession
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
+        if (native.PresentationOnly)
+        {
+            MarkNativeContactFlags(1, 0);
+            SetNativeContactSequence(0);
+            SetNativeContactDamage(0);
+            FinalizeNativeContactPresentation();
+            NoteNativeContactCommit(recipient);
+            RefreshNativePresentationStatus(recipient);
+            return;
+        }
         if (native.Command == 241 && native.ActionId is 65530 or 65532)
         {
             recipient.NativeCombatantFlags &= ~0x4000u;

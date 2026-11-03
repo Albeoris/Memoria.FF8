@@ -40,7 +40,7 @@ This independent compatibility example increases the Disc 1 original's maximum H
 }
 ```
 
-The multiplier is finite and bounded to 0.01–100. The runtime applies it once to the original's level-resolved baseline maximum HP before initializing current HP; copies inherit the final resolved maximum. Composition stores the semantic multiplier rather than flattening an enemy resource. The product rounds down after multiplication and clamps the result to 1–2,147,483,647. The original multiplier is retained so restoring a resolved native level reproduces the same maximum without multiplying twice. Modifiers on actors introduced by templates are rejected until that allocation contract supports them.
+The multiplier is finite and bounded to 0.01–100. The runtime applies it once to the original's level-resolved baseline maximum HP before initializing current HP; copies inherit the final resolved maximum. Composition stores the semantic multiplier rather than flattening an enemy resource. The product rounds down after multiplication and clamps the result to 1–2,147,483,647. The original multiplier is retained so restoring a resolved native level reproduces the same maximum without multiplying twice. A template can use the same guarded property: its factor scales the inherited composed original maximum once at spawn, before initializing the copy at full HP. The default template factor is 1. Copies retain their already resolved maximum in the allocation snapshot, so restoration does not apply either factor again. For a baseline maximum of 1,000, an original factor of 1.25 and template factor of 1.5 produce a copy maximum of 1,875 even if the original is wounded. Each stage uses the rounding and bounds above.
 
 | Operation | Authored responsibility |
 | --- | --- |
@@ -50,6 +50,7 @@ The multiplier is finite and bounded to 0.01–100. The runtime applies it once 
 | `SetRuleProperty` / `RemoveRule` | Change or remove one rule by stable policy/rule IDs. |
 | `SetNormalActionPolicy` | Assign normal-action responsibility with an expected owner and preserved native lifecycle. |
 | `SetActorProperty` | Guard and change `stats.maximumHpMultiplier`. |
+| `SetCameraProperty` | Guard and change battle scene `elevationDegrees` in [-45, 45]. |
 | `AddDamageRoute` / `SetDamageRouteProperty` / `RemoveDamageRoute` | Add typed positive-HP damage routing, edit recipients, or remove an owned route. |
 | `AddPresentation` / `SetPresentationProperty` | Define a finite clip/opacity track or guard an endpoint edit. |
 | `GateNativeEvent` | Gate the bound native taunt channel by own-turn count while preserving native message order. |
@@ -119,3 +120,21 @@ The supplied package lives at `Mods/Memoria/EdeaMirrors/` and ships with `mod.in
 Preparation reads all documents and composes a complete candidate generation. Publication updates resource selection and encounter definitions at the existing commit boundary. A malformed or incompatible refresh retains the previous accepted generation. Disabling a package rebuilds the next encounter from the selected baseline and remaining enabled documents. Saves requiring an unavailable definition identity must fail with a compatibility diagnostic rather than attach new rules to old counters.
 
 Schema validation is performed by the strict parser and semantic composer, including operation-specific fields, canonical identities, producer guards and effective-rule checks. No separate external JSON Schema file is required. Automated authoring and component tests do not certify a complete playthrough: windowed arrival rendering and the real Disc 1 story continuation remain acceptance work until their results are recorded.
+
+## Battle camera elevation
+
+`SetCameraProperty` adjusts the composed encounter's battle scene view without changing installed camera data:
+
+```json
+{
+  "id": "raise-camera",
+  "kind": "SetCameraProperty",
+  "property": "elevationDegrees",
+  "expectedValue": 0,
+  "value": 12
+}
+```
+
+`elevationDegrees` is a finite number between -45 and 45, with an unmodified baseline of 0. Positive values raise the scene view. The setting applies to battle scene views; native effect cameras, including Scan, retain their original camera contract. Omission and an explicit zero preserve the normal view. The shipped Edea package starts at 12 degrees.
+
+The camera is one encounter-wide semantic target. Independent documents writing its elevation conflict unless the later operation references the actual previous writer through `producer` and guards its current value with `expectedValue`. For example, a refinement of the shipped package uses `producer: { "documentId": "memoria.edea-mirrors.disc1", "operationId": "raise-camera" }`, `expectedValue: 12`, and the desired `value`. Camera operations retain package/document/operation provenance and reject the entire candidate on a conflict or failed guard. The compiled setting is captured with the active battle, so changing enabled packages affects the next battle or explicit restart.

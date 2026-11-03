@@ -17,6 +17,7 @@ public sealed class ShippedEncounterPackageTests : IDisposable
         Assert.Equal(3, document.RequiredActorCapacity);
         Assert.Equal(2, result.ActorTemplates.Count);
         Assert.Equal(3, result.Policies.Count);
+        Assert.Equal(12, result.CameraProperties["elevationDegrees"]);
         Assert.Single(result.DamageRoutes);
         EncounterPatchOperation arrival = Assert.Single(result.Presentations).Value;
         Assert.Equal(8, arrival.StartFrame);

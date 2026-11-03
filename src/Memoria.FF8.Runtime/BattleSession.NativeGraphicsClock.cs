@@ -76,6 +76,22 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeGraphicsFrame()
     {
+        try
+        {
+            AdvanceNativeGraphicsFrameCore();
+        }
+        catch
+        {
+            if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading } && encounterAllocationRollback is not null)
+            {
+                AbortEncounterAllocation();
+            }
+            throw;
+        }
+    }
+
+    private void AdvanceNativeGraphicsFrameCore()
+    {
         if (NativeGraphics is not { } graphics)
         {
             return;
@@ -384,12 +400,12 @@ public sealed partial class BattleSession
         common?.Dispose();
         ordering?.Dispose();
         nativePilotSourceProjection = NativeCamera?.Projection;
-        nativePilotSourceCamera = NativeCamera?.CurrentPose;
+        nativePilotSourceCamera = EncounterPresentationCamera;
         NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
         AdvanceNativeCamera(flags);
         if (NativeCamera is not null)
         {
-            NativeCamera = NativeCamera.PublishProjection(flags);
+            NativeCamera = NativeCamera.PublishProjection(flags, EncounterCameraElevation);
         }
         //The original loc_5005A0 tail calls501B60 at50065E regardless of flags4/8, before501230 and505D20.
         DrainNativeMusic501B60();

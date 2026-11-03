@@ -43,6 +43,7 @@ public sealed record EncounterCompiledPresentation(string Id, string Clip, int S
 public sealed record EncounterCompiledDamageRoute(string Id, string SourceActor, ImmutableArray<string> Recipients);
 public sealed record EncounterCompiledEventGate(string Actor, string Event, ulong MinimumOwnTurn);
 public sealed record EncounterCompiledPlacement(string Id, float X, float Y, float Z);
+public sealed record EncounterCompiledCamera(double ElevationDegrees);
 
 /// <summary>Snapshot-safe prepared data captured by a battle. No JSON tokens, mutable source documents or delegates are retained.</summary>
 public sealed record EncounterCompiledDefinition(
@@ -62,6 +63,7 @@ public sealed record EncounterCompiledDefinition(
     ImmutableDictionary<string, double> ActorProperties,
     EncounterNativeEventResources? NativeEvents = null)
 {
+    public EncounterCompiledCamera? Camera { get; init; }
     public ImmutableArray<EncounterPatchOrigin> Origins { get; init; } = [];
     public ImmutableArray<EncounterPatchOutcome> Outcomes { get; init; } = [];
 }
@@ -144,6 +146,7 @@ public static class EncounterPolicyRuntime
             composition.EventGates.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledEventGate(Role(DocumentOf(pair.Key), pair.Value.Actor!), pair.Value.Event!, (ulong)pair.Value.OwnTurnAtLeast!.Value), StringComparer.Ordinal),
             composition.Placements.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledPlacement(pair.Key, pair.Value.X, pair.Value.Y, pair.Value.Z), StringComparer.Ordinal), composition.ActorProperties)
         {
+            Camera = composition.CameraProperties.TryGetValue("elevationDegrees", out double elevation) ? new(elevation) : null,
             Origins = composition.Origins,
             Outcomes = composition.Outcomes
         };

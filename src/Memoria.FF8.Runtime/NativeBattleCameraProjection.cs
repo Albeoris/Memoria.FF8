@@ -42,7 +42,7 @@ public sealed partial record NativeBattleCameraState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public short? ScreenOffsetScratchY { get; init; }
 
-    public NativeBattleCameraState PublishProjection(uint graphicsFlags)
+    public NativeBattleCameraState PublishProjection(uint graphicsFlags, double elevationDegrees = 0)
     {
         NativeBattleCameraViewTranslationScratch scratch = ViewTranslationScratch ?? throw new NotSupportedException("Native5033E0 requires its retained view-translation scratch WORDs; restore does not execute5041E0.");
         (short x, short y, short z) = scratch.Read5033E0();
@@ -50,7 +50,11 @@ public sealed partial record NativeBattleCameraState
         {
             throw new NotSupportedException("Native5033E0 requires the fresh base camera pose before consuming a nonzero view-translation impulse; an old published view cannot be accumulated.");
         }
-        NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(pose with { Roll = Roll }) : Projection?.View;
+        if (elevationDegrees != 0 && CurrentPose is null)
+        {
+            throw new InvalidDataException("An authored camera elevation requires the fresh native scene pose.");
+        }
+        NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(EncounterCameraPresentation.Elevate(pose with { Roll = Roll }, elevationDegrees)) : Projection?.View;
         if (view is not null)
         {
             view = NativeBattleCameraViewTranslationScratch.Apply5033E0(view, x, y, z);

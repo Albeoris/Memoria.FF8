@@ -19,7 +19,13 @@ public enum BattleInputKind
     GuardianBoost,
     GuardianFormActivate,
     GuardianFormAction,
-    GuardianFormSkip
+    GuardianFormSkip,
+    ScanInput
+}
+
+public enum BattleScanButton
+{
+    Confirm
 }
 
 /// <summary>Live combat controls and settings for the current game.</summary>
@@ -29,8 +35,13 @@ public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? A
     public BattleSmartAttackPreview? SmartAttackPreview { get; init; }
     public string? DrawCastTargetId { get; init; }
     public System.Collections.Immutable.ImmutableArray<string> MagicTargets { get; init; } = [];
+    public BattleScanButton? ScanButton { get; init; }
     public void Validate()
     {
+        if (Kind == BattleInputKind.ScanInput ? ScanButton is null || !Enum.IsDefined(ScanButton.Value) || Frames != 1 : ScanButton is not null)
+        {
+            throw new InvalidDataException("Scan input requires one explicit supported ScanButton on a single ScanInput command.");
+        }
         if (DrawCastTargetId is not null && (string.IsNullOrWhiteSpace(DrawCastTargetId) || DrawCastTargetId.Length > 128 || Kind != BattleInputKind.Action || Ability != BattleAbility.Draw || !DrawCast))
         {
             throw new InvalidDataException("Draw Cast recipient belongs only to an explicit Draw Cast input.");

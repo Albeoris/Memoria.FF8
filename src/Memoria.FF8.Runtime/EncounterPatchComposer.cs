@@ -27,7 +27,10 @@ public sealed record EncounterPatchComposition(
     ImmutableDictionary<string, string> NormalActionPolicies,
     ImmutableDictionary<string, EncounterPatchPlacement> Placements,
     ImmutableArray<EncounterPatchOrigin> Origins,
-    ImmutableArray<EncounterPatchOutcome> Outcomes);
+    ImmutableArray<EncounterPatchOutcome> Outcomes)
+{
+    public ImmutableDictionary<string, double> CameraProperties { get; init; } = ImmutableDictionary<string, double>.Empty;
+}
 
 /// <summary>Prepares a complete immutable overlay; any invalid operation rejects the entire candidate.</summary>
 public static class EncounterPatchComposer
@@ -73,6 +76,7 @@ public static class EncounterPatchComposer
         Dictionary<string, string> assignments = new(StringComparer.Ordinal);
         Dictionary<string, EncounterPatchPlacement> placements = new(StringComparer.Ordinal);
         Dictionary<string, double> properties = new(StringComparer.Ordinal);
+        Dictionary<string, double> cameraProperties = new(StringComparer.Ordinal);
         Dictionary<string, EncounterPatchOrigin> owners = new(StringComparer.Ordinal);
         Dictionary<string, EncounterPatchOrigin> writes = new(StringComparer.Ordinal);
         Dictionary<(string Document, string Operation), HashSet<string>> produced = [];
@@ -121,6 +125,7 @@ public static class EncounterPatchComposer
                 EncounterPatchOperationKind.SetDamageRouteProperty or EncounterPatchOperationKind.RemoveDamageRoute => Entity(op.Route!),
                 EncounterPatchOperationKind.AddPresentation => Scope(document, op.Presentation!),
                 EncounterPatchOperationKind.SetPresentationProperty => Entity(op.Presentation!),
+                EncounterPatchOperationKind.SetCameraProperty => "camera",
                 EncounterPatchOperationKind.GateNativeEvent => ScopeLocal(op.Actor!) + "/" + op.Event,
                 _ => throw Failure(layer, op, "Unsupported operation.")
             };
@@ -191,6 +196,17 @@ public static class EncounterPatchComposer
                             }
                         }
                         policies[policyKey] = policy with { Rules = rules.ToImmutableArray() };
+                        break;
+                    case EncounterPatchOperationKind.SetCameraProperty:
+                        if (op.Producer is not null)
+                        {
+                            VerifyProducer(target);
+                        }
+                        string cameraKey = target + "/" + op.Property;
+                        CheckWrite(cameraKey);
+                        GuardValue(JsonSerializer.SerializeToElement(cameraProperties.GetValueOrDefault(op.Property!, 0.0)));
+                        cameraProperties[op.Property!] = op.Value.GetDouble();
+                        writes[cameraKey] = origin;
                         break;
                     case EncounterPatchOperationKind.SetActorProperty:
                         if (op.Producer is not null)
@@ -332,7 +348,7 @@ public static class EncounterPatchComposer
         ValidateEffective();
         string identityInput = JsonSerializer.Serialize(baseline, EncounterPatchDocument.JsonOptions) + "\n" + string.Join("\n", layers.Select(layer => JsonSerializer.Serialize(layer.Document, EncounterPatchDocument.JsonOptions)));
         string identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identityInput)));
-        return new(baseline.Encounter, baseline.SourceProfile, identity, properties.ToImmutableDictionary(), templates.ToImmutableDictionary(), groups.ToImmutableDictionary(), policies.ToImmutableDictionary(), presentations.ToImmutableDictionary(), routes.ToImmutableDictionary(), gates.ToImmutableDictionary(), assignments.ToImmutableDictionary(), placements.ToImmutableDictionary(), origins.ToImmutableArray(), outcomes.ToImmutableArray());
+        return new(baseline.Encounter, baseline.SourceProfile, identity, properties.ToImmutableDictionary(), templates.ToImmutableDictionary(), groups.ToImmutableDictionary(), policies.ToImmutableDictionary(), presentations.ToImmutableDictionary(), routes.ToImmutableDictionary(), gates.ToImmutableDictionary(), assignments.ToImmutableDictionary(), placements.ToImmutableDictionary(), origins.ToImmutableArray(), outcomes.ToImmutableArray()) { CameraProperties = cameraProperties.ToImmutableDictionary() };
 
         void ValidateEffective()
         {

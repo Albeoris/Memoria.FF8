@@ -6,6 +6,13 @@
   "atomic": true,
   "operations": [
     {
+      "id": "raise-camera",
+      "kind": "SetCameraProperty",
+      "property": "elevationDegrees",
+      "expectedValue": 0,
+      "value": 12
+    },
+    {
       "id": "define-family",
       "kind": "EnsureGroup",
       "group": "edea-family",
