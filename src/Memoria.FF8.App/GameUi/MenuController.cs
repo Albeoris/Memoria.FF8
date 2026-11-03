@@ -79,18 +79,30 @@ public sealed partial class MenuController
     {
         get
         {
-            MenuData data = IsFixtureContext || IsDemo ? _demo! : _liveData ??= _liveProvider?.Invoke() ?? new MenuData();
-            if (sortMagicByName)
+            if (IsFixtureContext || IsDemo)
             {
-                data.Magic.Sort((left, right) =>
-                {
-                    int name = string.Compare(left.Name, right.Name, StringComparison.CurrentCultureIgnoreCase);
-                    return name != 0 ? name : string.Compare(left.Id, right.Id, StringComparison.Ordinal);
-                });
+                return _demo!;
             }
-            return data;
+            if (_liveData is null)
+            {
+                _liveData = _liveProvider?.Invoke() ?? new MenuData();
+                if (sortMagicByName)
+                {
+                    SortMagicByName(_liveData);
+                }
+            }
+            return _liveData;
         }
     }
+    private static void SortMagicByName(MenuData data)
+    {
+        data.Magic.Sort((left, right) =>
+        {
+            int name = string.Compare(left.Name, right.Name, StringComparison.CurrentCultureIgnoreCase);
+            return name != 0 ? name : string.Compare(left.Id, right.Id, StringComparison.Ordinal);
+        });
+    }
+
     public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values.Select(LocalizeSystemScreen).ToArray();
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
     public MenuScreenDefinition CurrentScreen => LocalizeSystemScreen(_screens[ScreenId]);
@@ -156,6 +168,10 @@ public sealed partial class MenuController
         if (demo)
         {
             _demo ??= MenuDemoData.Create();
+            if (sortMagicByName)
+            {
+                SortMagicByName(_demo);
+            }
             var family = MenuCatalog.LimitFamilyForScreen(screenId);
             var fixtureCharacter = _demo.Characters.FirstOrDefault(c => c.LimitBreak == family);
             if (fixtureCharacter != null)

@@ -135,7 +135,11 @@ public static class MenuCatalog
     private static MenuEntry Link(MenuController c, string destination, string label, string help) => new(destination, label, help, destination);
     private static MenuEntry Action(MenuController c, string id, string label, string help, string kind, string subject = "", string target = "", string value = "") => new(id, label, help, Action: new MenuAction(kind, subject, target, value));
     private static IReadOnlyList<string> Boundary(MenuController c) => c.ScreenId == "debug-room" ? [c.Data.SourceDescription] : [];
-    private static IEnumerable<MenuMagic> CharacterMagic(MenuController c) => c.Data.Magic.Where(m => m.CharacterId == c.Character?.Id);
+    private static IEnumerable<MenuMagic> CharacterMagic(MenuController c)
+    {
+        string? characterId = c.Character?.Id;
+        return c.Data.Magic.Where(magic => magic.CharacterId == characterId);
+    }
     private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, m.Name, m.Description, destination, new MenuAction("select-magic", m.Id), m.Quantity > 0 && (destination != "magic-target" || c.IsDemo || c.Data.SupportedActions.Contains("magic-use") || c.Data.SupportedActions.Contains($"magic-use:{m.Id}")))).ToArray();
     private static IReadOnlyList<MenuEntry> CommandChoices(MenuController c)
     {

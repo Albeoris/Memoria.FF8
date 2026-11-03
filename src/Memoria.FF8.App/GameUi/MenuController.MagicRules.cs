@@ -53,6 +53,7 @@ public sealed partial class MenuController
         if (action.Kind == "magic-sort")
         {
             string? selected = SelectedEntry?.Id;
+            SortMagicByName(Data);
             sortMagicByName = true;
             int index = Entries.ToList().FindIndex(entry => entry.Id == selected);
             if (index >= 0)
