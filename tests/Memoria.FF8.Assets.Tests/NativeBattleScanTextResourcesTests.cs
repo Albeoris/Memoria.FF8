@@ -1,10 +1,23 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
+using Albeoris.Games.FF8.TextEncoding;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleScanTextResourcesTests
 {
+    [Fact]
+    public void Installed_Edea_description_uses_the_allocated_enemy_model_identity()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        var text = game.ReadNativeScanTextResources();
+        int offset = text.DescriptionOffsets[88 + 16];
+        int length = text.DescriptionBytes.AsSpan()[offset..].IndexOf((byte)0);
+        string description = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(text.DescriptionBytes.AsSpan().Slice(offset, length).ToArray());
+        Assert.Contains("sorceress", description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("officer", description, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Effect_materialization_carries_the_byte_category_camera_sources_and_encoded_text_resources()
     {

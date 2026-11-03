@@ -96,9 +96,8 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                         Assert.Equal(61, target.ModelId);
                         Assert.Equal((byte)77, graphics.Models[targetIndex].ModelId4);
                         NativeBattleScanTextResources textResources = effect.Binding.ScanTextResources!;
-                        uint originalDescription = textResources.DescriptionPointer(checked((byte)target.ModelId));
-                        uint graphicsCategoryDescription = textResources.DescriptionPointer(graphics.Models[targetIndex].ModelId4!.Value);
-                        Assert.NotEqual(originalDescription, graphicsCategoryDescription);
+                        uint originalDescription = textResources.DescriptionPointer(checked((byte)(target.ModelId + 16)));
+                        Assert.Equal(originalDescription, textResources.DescriptionPointer(graphics.Models[targetIndex].ModelId4!.Value));
                         Assert.Equal(originalDescription, frame.Windows.Row(0).ReadDword(8));
                         description = true;
                         Assert.NotEmpty(canvas.Runs);

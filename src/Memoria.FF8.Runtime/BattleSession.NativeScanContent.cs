@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException("Native Scan requires its allocated physical battle participant.");
         NativeBattleScanByteOwner row = new(new byte[208].ToImmutableArray(), new bool[208].ToImmutableArray());
-        row = row.WriteDword(0x18, unchecked((uint)actor.CurrentHp)).WriteDword(0x1C, unchecked((uint)actor.MaximumHp)).WriteDword(0x7C, actor.NativeCombatantFlags).WriteByte(0xBB, checked((byte)actor.ModelId)).WriteByte(0xBC, checked((byte)actor.Level));
+        row = row.WriteDword(0x18, unchecked((uint)actor.CurrentHp)).WriteDword(0x1C, unchecked((uint)actor.MaximumHp)).WriteDword(0x7C, actor.NativeCombatantFlags).WriteByte(0xBB, checked((byte)NativeModelId(actor))).WriteByte(0xBC, checked((byte)actor.Level));
         if (actor.ElementDefenses.Count != 8)
         {
             throw new NotSupportedException("Native Scan requires all eight allocated element-defense WORDs.");
