@@ -406,7 +406,7 @@ public sealed partial class BattleSession
         AdvanceNativeCamera(flags);
         if (NativeCamera is not null)
         {
-            NativeCamera = NativeCamera.PublishProjection(flags, EncounterCameraElevation);
+            NativeCamera = NativeCamera.PublishProjection(flags, presentationPose: PrepareEncounterCamera(NativeCamera));
         }
         //The original loc_5005A0 tail calls501B60 at50065E regardless of flags4/8, before501230 and505D20.
         DrainNativeMusic501B60();

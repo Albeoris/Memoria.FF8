@@ -15,7 +15,7 @@ public sealed record EncounterOffensiveChoice(EncounterOffensiveDelivery Deliver
 /// <summary>Selection reads observations, never concealed combatant defenses. Random draws belong to the battle owner.</summary>
 public static class EncounterActionSelection
 {
-    public static EncounterOffensiveChoice? Select(ImmutableArray<EncounterSpellChoice> spells, IEnumerable<EncounterTargetChoice> opponents, IEnumerable<EncounterTargetChoice> allies, BattleScanKnowledge knowledge, BattleObserverSide observer, bool avoidReflect, Func<int, int> nextIndex)
+    public static EncounterOffensiveChoice? Select(ImmutableArray<EncounterSpellChoice> spells, IEnumerable<EncounterTargetChoice> opponents, IEnumerable<EncounterTargetChoice> allies, BattleScanKnowledge knowledge, BattleObserverSide observer, bool avoidReflect, Func<int, int> nextIndex, ImmutableArray<string> previousTargets = default)
     {
         ArgumentNullException.ThrowIfNull(nextIndex);
         if (spells.IsDefaultOrEmpty || spells.Any(spell => string.IsNullOrWhiteSpace(spell.Spell) || spell.ElementIndex is < 0 or > 7 || spell.Weight is < 1 or > 255) || spells.Sum(spell => spell.Weight) > 256 || spells.Select(spell => spell.Spell).Distinct(StringComparer.Ordinal).Count() != spells.Length)
@@ -40,17 +40,18 @@ public static class EncounterActionSelection
                 EncounterTargetChoice[] reflectors = StableTargets(allies).Where(target => target.Reflect).ToArray();
                 if (reflectors.Length == 0)
                 {
-                    return new(EncounterOffensiveDelivery.Dispel, Choose(targets, nextIndex).AllocationId, "Dispel");
+                    return new(EncounterOffensiveDelivery.Dispel, Choose(PreferFresh(targets), nextIndex).AllocationId, "Dispel");
                 }
                 EncounterSpellChoice[] reflectable = pool.Where(spell => spell.Reflectable).ToArray();
                 if (reflectable.Length == 0)
                 {
                     throw new InvalidDataException("An allied-reflector policy requires a spell verified as reflectable.");
                 }
-                string reflector = Choose(reflectors, nextIndex).AllocationId;
+                string reflector = Choose(PreferFresh(reflectors), nextIndex).AllocationId;
                 return new(EncounterOffensiveDelivery.AlliedReflector, reflector, Choose(reflectable, nextIndex).Spell);
             }
         }
+        targets = PreferFresh(targets);
         List<(string Target, string Spell, decimal Multiplier)> informed = [];
         foreach (EncounterTargetChoice target in targets)
         {
@@ -76,6 +77,16 @@ public static class EncounterActionSelection
         }
         string fallbackTarget = Choose(targets, nextIndex).AllocationId;
         return new(EncounterOffensiveDelivery.Direct, fallbackTarget, pool[ChooseWeightedIndex(pool.Select(spell => spell.Weight).ToImmutableArray(), nextIndex)].Spell);
+
+        EncounterTargetChoice[] PreferFresh(EncounterTargetChoice[] candidates)
+        {
+            if (previousTargets.IsDefaultOrEmpty)
+            {
+                return candidates;
+            }
+            EncounterTargetChoice[] fresh = candidates.Where(target => !previousTargets.Contains(target.AllocationId, StringComparer.Ordinal)).ToArray();
+            return fresh.Length == 0 ? candidates : fresh;
+        }
     }
 
     internal static int ChooseWeightedIndex(ImmutableArray<int> weights, Func<int, int> nextIndex)
@@ -125,10 +136,12 @@ public static class EncounterActionSelection
 /// <summary>Only successful action admission advances a policy; contacts and repeat casts do not.</summary>
 public sealed record EncounterActionCursor(ulong CommittedTurns = 0)
 {
+    public ImmutableArray<string> LastTargetIds { get; init; } = [];
+
     public ulong NextOwnTurn => CommittedTurns == ulong.MaxValue ? ulong.MaxValue : CommittedTurns + 1;
 
-    public EncounterActionCursor Admit()
+    public EncounterActionCursor Admit(ImmutableArray<string> targets = default)
     {
-        return new(NextOwnTurn);
+        return new(NextOwnTurn) { LastTargetIds = targets.IsDefault ? [] : targets };
     }
 }

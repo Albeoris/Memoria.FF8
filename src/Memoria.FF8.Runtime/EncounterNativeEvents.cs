@@ -84,22 +84,62 @@ public sealed partial class BattleSession
             WriteNativeActorVariable(actor, 221, 1, false);
             EncounterNativeEventState pending = encounterNativeEventTurns.GetValueOrDefault(actor.Id) ?? new();
             encounterNativeEventTurns = encounterNativeEventTurns.SetItem(actor.Id, pending with { PartyPending = true });
-            return false;
+            // The native party dialogue branch returns from this callback. Deferring its text
+            // must not replace that non-attacking turn with an authored spell.
+            return true;
         }
         if (!EvaluateNativeAiCondition(actor, 0, 0, 1, 10) || !partyCountAtMostTwo)
         {
             return false;
         }
+        QueueEncounterNativeTerminal(actor);
+        return true;
+    }
+
+    private bool TryRunEncounterNativeDefeatTerminal()
+    {
+        if (DebugOutcome is not null || NativeGraphics is null || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? actor) || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null)
+        {
+            return false;
+        }
+        if (encounterPolicies?.TerminalStarted == true)
+        {
+            return true;
+        }
+        _ = RequireEncounterNativeEventResources(actor);
+        if (EvaluateNativeAiCondition(actor, 221, 200, 0, 0))
+        {
+            WriteNativeActorVariable(actor, 221, 1, false);
+            EncounterNativeEventState pending = encounterNativeEventTurns.GetValueOrDefault(actor.Id) ?? new();
+            encounterNativeEventTurns = encounterNativeEventTurns.SetItem(actor.Id, pending with { PartyPending = true });
+        }
+        // Additional policy actors can exhaust the party before the original's next main callback.
+        // At that boundary this composed encounter retains its genuine low-HP cinematic body.
+        // Party incapacity need not lower Squall's raw HP, so no HP or status owner is rewritten.
+        DispatchNativeCallback(new(checked((byte)actor.NativeIndex), 1), () => QueueEncounterNativeTerminal(actor));
+        return true;
+    }
+
+    private void QueueEncounterNativeTerminal(BattleCombatant actor)
+    {
         byte command = 0;
         ushort action = 0;
         byte sequence = 0;
         PrepareNativeAiAbility(actor, 10, ref command, ref action, ref sequence);
-        QueuePreparedNativeAiCommand(actor, command, action, sequence, ResolveNativeAiTargetMask(actor, 200));
+        byte? previousStage = nativeAiCallbackStage;
+        nativeAiCallbackStage = 1;
+        try
+        {
+            QueuePreparedNativeAiCommand(actor, command, action, sequence, ResolveNativeAiTargetMask(actor, 200));
+        }
+        finally
+        {
+            nativeAiCallbackStage = previousStage;
+        }
         EncounterCompiledDefinition mod = definition.EncounterMod!;
         encounterPolicies ??= new(mod.GenerationIdentity, ImmutableDictionary<string, EncounterActionCursor>.Empty);
         encounterPolicies = encounterPolicies with { TerminalStarted = true };
         CleanupEncounterPoliciesAtTerminal();
-        return true;
     }
 
     /// <summary>Marks first native admission independently of the delayed, one-line-per-turn taunt owner.</summary>

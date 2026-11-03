@@ -36,13 +36,15 @@ public sealed partial record NativeBattleCameraState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ushort? CanonicalViewPadding { get; init; }
     public NativeBattleCameraProjection? Projection { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleCameraPose? PublishedPresentationPose { get; init; }
     public bool ProjectionOffsetsCleared { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public short? ScreenOffsetScratchX { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public short? ScreenOffsetScratchY { get; init; }
 
-    public NativeBattleCameraState PublishProjection(uint graphicsFlags, double elevationDegrees = 0)
+    public NativeBattleCameraState PublishProjection(uint graphicsFlags, double elevationDegrees = 0, NativeBattleCameraPose? presentationPose = null)
     {
         NativeBattleCameraViewTranslationScratch scratch = ViewTranslationScratch ?? throw new NotSupportedException("Native5033E0 requires its retained view-translation scratch WORDs; restore does not execute5041E0.");
         (short x, short y, short z) = scratch.Read5033E0();
@@ -54,7 +56,8 @@ public sealed partial record NativeBattleCameraState
         {
             throw new InvalidDataException("An authored camera elevation requires the fresh native scene pose.");
         }
-        NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(EncounterCameraPresentation.Elevate(pose with { Roll = Roll }, elevationDegrees)) : Projection?.View;
+        NativeBattleCameraPose? effectivePose = presentationPose ?? (CurrentPose is { } pose ? EncounterCameraPresentation.Elevate(pose with { Roll = Roll }, elevationDegrees) : null);
+        NativeBattleActionMatrix? view = effectivePose is not null ? NativeBattlePoseMatrices.CameraView(effectivePose) : Projection?.View;
         if (view is not null)
         {
             view = NativeBattleCameraViewTranslationScratch.Apply5033E0(view, x, y, z);
@@ -63,7 +66,7 @@ public sealed partial record NativeBattleCameraState
         NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ScreenOffsetScratchX is short sx ? unchecked((short)(sx + 160)) : ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ScreenOffsetScratchY is short sy ? unchecked((short)(sy + 108)) : ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
         //500900 writes the screen offsets, then unconditionally clears their
         //two scratch WORDs. Unknown retained first-frame offsets stay unknown.
-        return this with { Projection = projection, CanonicalViewPadding = CurrentPose is not null && Roll != 0 ? null : CanonicalViewPadding, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ScreenOffsetScratchX = published ? (short)0 : ScreenOffsetScratchX, ScreenOffsetScratchY = published ? (short)0 : ScreenOffsetScratchY, ViewTranslationScratch = new(0, 0, 0) };
+        return this with { Projection = projection, PublishedPresentationPose = effectivePose, CanonicalViewPadding = CurrentPose is not null && Roll != 0 ? null : CanonicalViewPadding, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ScreenOffsetScratchX = published ? (short)0 : ScreenOffsetScratchX, ScreenOffsetScratchY = published ? (short)0 : ScreenOffsetScratchY, ViewTranslationScratch = new(0, 0, 0) };
     }
 
     public NativeBattlePackedMatrix32 CapturePackedView1D97778()

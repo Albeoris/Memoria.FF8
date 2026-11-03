@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -59,6 +60,71 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.Equal(50, battle.Combatants.Single(actor => actor.Id == "original").CurrentHp);
         Assert.All(battle.EncounterAllocation!.ActorIds, id => Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == id).CurrentHp));
         Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "Defeated"));
+    }
+
+    [Fact]
+    public void DefeatedCopiesReleaseTheirAllocationsWithoutEndingTheOriginalBattle()
+    {
+        BattleSession battle = Create(100, maximumHp: 50);
+        _ = Hit(battle);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.NativeActionPackets.ActionCount != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        foreach (string id in battle.EncounterAllocation!.ActorIds)
+        {
+            Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive);
+            Assert.Single(battle.Events, entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == id);
+        }
+        Assert.True(battle.Combatants.Single(actor => actor.Id == "original").IsAlive);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Empty(battle.EnemyDefeats);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void TerminalCleanupDoesNotReleasePreviouslyRetiredCopiesAgain()
+    {
+        BattleSession battle = Create(100, maximumHp: 50);
+        _ = Hit(battle);
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.NativeActionPackets.ActionCount != 0); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.All(battle.EncounterAllocation!.ActorIds, id => Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive));
+        int removed = battle.Events.Count(entry => entry.Kind == "NativeModelRemoved");
+        Assert.Equal(2, removed);
+        typeof(BattleSession).GetField("encounterPolicies", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new BattleEncounterPolicyState("fixture-generation", ImmutableDictionary<string, EncounterActionCursor>.Empty, TerminalStarted: true));
+        MethodInfo cleanup = typeof(BattleSession).GetMethod("CleanupEncounterPoliciesAtTerminal", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        cleanup.Invoke(battle, null);
+        cleanup.Invoke(battle, null);
+        Assert.True(battle.EncounterPolicies!.CleanedUp);
+        Assert.Equal(removed, battle.Events.Count(entry => entry.Kind == "NativeModelRemoved"));
+        Assert.Empty(battle.EnemyDefeats);
+    }
+
+    [Fact]
+    public void TerminalCleanupPurgesRetiringCopyCommandsFromTheDetachedCallbackTail()
+    {
+        BattleSession battle = Create(100);
+        string copy = battle.EncounterAllocation!.ActorIds[0];
+        BattleAttackCommand copyCommand = new(copy, "party", BattleAbility.EnemyAbility, 1);
+        BattleAttackCommand originalTerminal = new("original", "original", BattleAbility.EnemyAbility, 207);
+        BattleAttackCommand unrelated = new("party", "original", BattleAbility.Attack, 0);
+        List<BattleAttackCommand> tail = [copyCommand, originalTerminal, unrelated];
+        typeof(BattleSession).GetField("nativeCallbackTail", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, tail);
+        Queue<BattleAttackCommand> actions = (Queue<BattleAttackCommand>)typeof(BattleSession).GetField("actions", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
+        actions.Clear();
+        actions.Enqueue(copyCommand);
+        actions.Enqueue(originalTerminal);
+        typeof(BattleSession).GetField("encounterPolicies", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new BattleEncounterPolicyState("fixture-generation", ImmutableDictionary<string, EncounterActionCursor>.Empty, TerminalStarted: true));
+        typeof(BattleSession).GetMethod("CleanupEncounterPoliciesAtTerminal", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null);
+        Assert.Equal(new[] { originalTerminal, unrelated }, tail);
+        Assert.Same(originalTerminal, Assert.Single(battle.QueuedActions, command => ReferenceEquals(command, originalTerminal)));
+        Assert.DoesNotContain(battle.QueuedActions, command => command.ActorId == copy);
+        Assert.All(battle.EncounterAllocation.ActorIds, id => Assert.False(battle.Combatants.Single(actor => actor.Id == id).IsActive));
     }
 
     [Fact]

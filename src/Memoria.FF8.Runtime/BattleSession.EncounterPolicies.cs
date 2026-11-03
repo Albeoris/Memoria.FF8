@@ -45,7 +45,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<EncounterPolicyActor> EncounterPolicyCandidates()
     {
-        return combatants.Where(actor => actor.NativeIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable)).ToImmutableArray();
+        return combatants.Where(actor => actor.NativeIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
     }
 
     private int NextEncounterRandomIndex(int count)
@@ -117,14 +117,28 @@ public sealed partial class BattleSession
         else
         {
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
-            QueueEncounterSpell(actor, decision, mod);
-            encounterPolicies = encounterPolicies with { Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
+            ImmutableArray<string> targets = QueueEncounterSpell(actor, decision, mod);
+            encounterPolicies = encounterPolicies with { Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit(targets)) };
         }
         Log("EncounterPolicy", actor.Id, decision.TargetIds.FirstOrDefault(), 0, $"{policyId}/{decision.RuleId}: own turn {decision.OwnTurn}.");
         return true;
     }
 
-    private void QueueEncounterSpell(BattleCombatant actor, EncounterPolicyDecision decision, EncounterCompiledDefinition mod)
+    private uint EncounterMulticastStatusBits(BattleCombatant actor)
+    {
+        uint statuses = NativeBattleStatusBits(actor);
+        if (definition.EncounterMod is { } mod && mod.Templates.TryGetValue(EncounterRoleOf(actor.Id), out EncounterCompiledTemplate? template) && ResolveEncounterRole(template.InheritFrom) is string sourceId)
+        {
+            BattleCombatant source = GetActor(sourceId);
+            if (source.IsActive && source.IsAlive)
+            {
+                statuses |= NativeBattleStatusBits(source) & 0x60000;
+            }
+        }
+        return statuses;
+    }
+
+    private ImmutableArray<string> QueueEncounterSpell(BattleCombatant actor, EncounterPolicyDecision decision, EncounterCompiledDefinition mod)
     {
         EncounterCompiledSpell spell = decision.Spell ?? throw new InvalidDataException("An admitted cast lacks its compiled native spell.");
         ushort Mask(EncounterPolicyDecision cast)
@@ -138,14 +152,65 @@ public sealed partial class BattleSession
         }
         ushort firstMask = Mask(decision);
         ImmutableArray<ushort> repeats = [];
-        if (decision.NativeDouble && (NativeBattleStatusBits(actor) & 0x20000) != 0)
+        ImmutableArray<string> targets = decision.TargetIds;
+        uint statuses = EncounterMulticastStatusBits(actor);
+        bool mirror = mod.Templates.ContainsKey(EncounterRoleOf(actor.Id));
+        int castCount = !decision.NativeDouble ? 1 : (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1;
+        if (mirror && decision.TargetIds.Length > 1 && !spell.NativeAllTargets)
+        {
+            List<string> available = decision.TargetIds.ToList();
+            List<ushort> masks = [];
+            List<string> selected = [];
+            for (int cast = 0; cast < castCount && available.Count != 0; cast++)
+            {
+                string[] preferred = available.Where(id => (NativeBattleStatusBits(GetActor(id)) & spell.NativeAction.Statuses1) != spell.NativeAction.Statuses1 || (NativeSavedStatusBits(GetActor(id)) & spell.NativeAction.Statuses0) != spell.NativeAction.Statuses0).ToArray();
+                if (preferred.Length == 0)
+                {
+                    preferred = available.ToArray();
+                }
+                ImmutableArray<string> previousTargets = encounterPolicies?.Cursors.GetValueOrDefault(actor.Id)?.LastTargetIds ?? [];
+                string[] fresh = preferred.Where(id => !previousTargets.Contains(id, StringComparer.Ordinal)).ToArray();
+                if (fresh.Length != 0)
+                {
+                    preferred = fresh;
+                }
+                string id = preferred[NextEncounterRandomIndex(preferred.Length)];
+                available.Remove(id);
+                selected.Add(id);
+                masks.Add(checked((ushort)(1 << GetActor(id).NativeIndex)));
+            }
+            targets = selected.ToImmutableArray();
+            firstMask = masks[0];
+            repeats = masks.Count > 1 ? masks.ToImmutableArray() : [];
+        }
+        else if (castCount > 1)
         {
             EncounterCompiledRule rule = mod.Policies[decision.PolicyId].Select(decision.OwnTurn);
-            EncounterCompiledRule pinned = rule with { Action = rule.Action with { Spells = [spell] } };
-            EncounterPolicyDecision? second = EncounterPolicyRuntime.Resolve(mod, decision.PolicyId, pinned, decision.OwnTurn, actor.Id, EncounterPolicyCandidates(), scanKnowledge, NextEncounterRandomIndex);
-            repeats = second is null ? [firstMask] : [firstMask, Mask(second)];
+            EncounterCompiledAction pinnedAction = rule.Action with { Spells = [spell] };
+            if (decision.Delivery == EncounterOffensiveDelivery.Dispel)
+            {
+                pinnedAction = pinnedAction with { Target = EncounterCompiledTargetKind.RandomReflectedOpponent, AvoidReflect = false };
+            }
+            EncounterCompiledRule pinned = rule with { Action = pinnedAction };
+            ImmutableArray<ushort>.Builder masks = ImmutableArray.CreateBuilder<ushort>(castCount);
+            masks.Add(firstMask);
+            for (int cast = 1; cast < castCount; cast++)
+            {
+                EncounterPolicyDecision? next = EncounterPolicyRuntime.Resolve(mod, decision.PolicyId, pinned, decision.OwnTurn, actor.Id, EncounterPolicyCandidates(), scanKnowledge, NextEncounterRandomIndex, targets, distinctTargets: true);
+                if (next is null)
+                {
+                    break;
+                }
+                if (mirror && !next.TargetIds.Any(id => !targets.Contains(id, StringComparer.Ordinal)))
+                {
+                    break;
+                }
+                masks.Add(Mask(next));
+                targets = targets.Concat(next.TargetIds).Distinct(StringComparer.Ordinal).ToImmutableArray();
+            }
+            repeats = masks.ToImmutable();
         }
-        BattleAttackCommand command = new(actor.Id, decision.TargetIds[0], BattleAbility.Magic, spell.NativeAction.ActionId)
+        BattleAttackCommand command = new(actor.Id, targets[0], BattleAbility.Magic, spell.NativeAction.ActionId)
         {
             NativeAiCallbackStage = 1,
             NativeQueuedCommand = 2,
@@ -172,6 +237,7 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = previous;
         }
+        return targets;
     }
 
     private void CompleteEncounterPolicyPresentation(BattleActionPresentation action)
@@ -224,7 +290,7 @@ public sealed partial class BattleSession
 
     private void RestoreEncounterPolicies(BattleEncounterPolicyState? state)
     {
-        if (state is not null && (definition.EncounterMod is not { } mod || state.GenerationIdentity != mod.GenerationIdentity || state.Cursors is null || state.Cursors.Any(pair => !byId.ContainsKey(pair.Key) || pair.Value is null)))
+        if (state is not null && (definition.EncounterMod is not { } mod || state.GenerationIdentity != mod.GenerationIdentity || state.Cursors is null || state.Cursors.Any(pair => !byId.ContainsKey(pair.Key) || pair.Value is null || pair.Value.LastTargetIds.IsDefault || pair.Value.LastTargetIds.Any(id => string.IsNullOrWhiteSpace(id) || !byId.ContainsKey(id)) || pair.Value.LastTargetIds.Distinct(StringComparer.Ordinal).Count() != pair.Value.LastTargetIds.Length)))
         {
             throw new InvalidDataException("Encounter policy snapshot requires its captured definition generation and allocation-owned cursors.");
         }
@@ -296,7 +362,10 @@ public sealed partial class BattleSession
                 nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.NativeIndex), actor.Id);
             }
             nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
-            ReleaseNativeParticipant(actor);
+            if (actor.IsActive)
+            {
+                ReleaseNativeParticipant(actor);
+            }
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
             actor.Atb = 0;
@@ -306,12 +375,7 @@ public sealed partial class BattleSession
                 NativeGraphics = graphics with { Models = graphics.Models.SetItem(actor.NativeIndex, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
             }
         }
-        BattleAttackCommand[] retained = actions.Where(command => !retiring.Contains(command.ActorId)).ToArray();
-        actions.Clear();
-        foreach (BattleAttackCommand command in retained)
-        {
-            actions.Enqueue(command);
-        }
+        RemoveEncounterQueuedActions(retiring);
         encounterPolicies = state with { CleanedUp = true, PendingSummon = null };
         if (encounterAllocation is not null && NativeScriptAllocationPending && nativeBattleClock is not null)
         {

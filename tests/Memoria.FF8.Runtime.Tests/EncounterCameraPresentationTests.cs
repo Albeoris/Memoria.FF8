@@ -32,6 +32,40 @@ public sealed class EncounterCameraPresentationTests
         Assert.Equal(NativeBattlePoseMatrices.CameraView(EncounterCameraPresentation.Elevate(source, 12)).Rotation, first.Projection!.View!.Rotation);
     }
 
+    [Fact]
+    public void CastFramingIncludesSeparatedRecipientsBehindTheCasterCameraWithoutChangingNativeState()
+    {
+        NativeBattleCameraPose source = new(new(110, -1257, -2452), new(-1, -912, -2703), 512, 0);
+        NativeBattleVector[] points = [new(-1900, -1500, -3200), new(1900, 0, -2200), new(-1700, -1200, 2600), new(1700, 0, 2600)];
+        NativeBattleCameraPose framed = EncounterCameraPresentation.FrameTargets(source, points, 512);
+        Assert.NotEqual(source.Eye, framed.Eye);
+        Assert.Equal(source.Target, framed.Target);
+        Assert.Equal(source.FocalLength, framed.FocalLength);
+        NativeBattleCameraState state = NativeBattleCameraState.FromColdProcess() with { CurrentPose = source, FocalLength = 512, CapturedPose = source };
+        NativeBattleCameraState published = state.PublishProjection(4, presentationPose: framed);
+        Assert.Equal(framed, published.PublishedPresentationPose);
+        Assert.Equal(source, published.CurrentPose);
+        Assert.Equal(source, published.CapturedPose);
+        NativeBattleCameraState restored = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(published))!;
+        Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(restored.PublishProjection(4, presentationPose: EncounterCameraPresentation.FrameTargets(source, points, 512))));
+        NativeBattleActionMatrix view = published.Projection!.View!;
+        foreach (NativeBattleVector point in points)
+        {
+            double Row(int row) => (view.Rotation[row * 3] * (double)point.X + view.Rotation[row * 3 + 1] * (double)point.Y + view.Rotation[row * 3 + 2] * (double)point.Z) / 4096;
+            double z = Row(2) + view.Z;
+            Assert.True(z > 0);
+            Assert.InRange(160 + 512 * (Row(0) + view.X) / z, 1, 319);
+            Assert.InRange(108 + 512 * (Row(1) + view.Y) / z, 1, 215);
+        }
+    }
+
+    [Fact]
+    public void TargetsAlreadyInsideTheNativeFramePreserveTheExactOriginalShot()
+    {
+        NativeBattleCameraPose source = new(new(0, -500, 8000), new(0, -500, 0), 512, 0);
+        Assert.Same(source, EncounterCameraPresentation.FrameTargets(source, [new(-500, -1000, 0), new(500, 0, 0)], 512));
+    }
+
     [Theory]
     [InlineData(-46)]
     [InlineData(46)]

@@ -238,6 +238,41 @@ public sealed class EncounterPolicyRuntimeTests
         Assert.False(decision.OverrideNativeTargeting);
         Assert.True(decision.Spell!.NativeAllTargets);
     }
+    [Fact]
+    public void ScanPrefersUnknownAndNextMainTurnAvoidsPreviousTarget()
+    {
+        EncounterCompiledDefinition compiled = Compile("""
+            {"id":"scan","when":{"ownTurnAtLeast":1},"action":{"kind":"Cast","spell":"Scan","target":"randomOpponent"}}
+            """, [Magic(50)]);
+        BattleScanKnowledge knowledge = new BattleScanKnowledge().Observe(new(BattleObserverSide.Enemy, "a", "enemy", 1, Enumerable.Repeat(BattleKnownAffinity.FromNativeDefense(800), 8).ToImmutableArray()));
+        ImmutableArray<EncounterPolicyActor> actors = [Enemy(), Party("a"), Party("b"), Party("c")];
+        EncounterPolicyDecision first = EncounterPolicyRuntime.Select(compiled, "mod/policy", new(), "enemy", actors, knowledge, _ => 0)!;
+        Assert.Equal("b", first.TargetIds.Single());
+        EncounterActionCursor cursor = new EncounterActionCursor().Admit(first.TargetIds);
+        EncounterActionCursor restored = JsonSerializer.Deserialize<EncounterActionCursor>(JsonSerializer.Serialize(cursor))!;
+        Assert.Equal("c", EncounterPolicyRuntime.Select(compiled, "mod/policy", restored, "enemy", actors, knowledge, _ => 0)!.TargetIds.Single());
+    }
+
+    [Fact]
+    public void StatusBuffPrefersAllyMissingStatusAndRetainsSoleEligibleTarget()
+    {
+        EncounterCompiledDefinition compiled = Compile("""
+            {"id":"haste","when":{"ownTurnAtLeast":1},"action":{"kind":"Cast","spell":"Haste","target":"randomAlly"}}
+            """, [Magic(35) with { Statuses1 = 2 }]);
+        ImmutableArray<EncounterPolicyActor> actors = [Enemy() with { BattleStatuses = 2 }, new("copy", "copy", false, true, true, false)];
+        Assert.Equal("copy", Select(compiled, actors)!.TargetIds.Single());
+        Assert.Equal("enemy", EncounterPolicyRuntime.Select(compiled, "mod/policy", new EncounterActionCursor().Admit(["enemy"]), "enemy", [Enemy()], new(), _ => 0)!.TargetIds.Single());
+    }
+
+    [Fact]
+    public void TripleCompilesAsCanonicalKernelSpell34()
+    {
+        EncounterCompiledDefinition compiled = Compile("""
+            {"id":"triple","when":{"ownTurnAtLeast":1},"action":{"kind":"Cast","spell":"Triple","target":"self"}}
+            """, [Magic(34)]);
+        Assert.Equal(34, Select(compiled, [Enemy()])!.Spell!.NativeAction.ActionId);
+    }
+
     private static EncounterPolicyDecision? Select(EncounterCompiledDefinition compiled, ImmutableArray<EncounterPolicyActor> actors) => EncounterPolicyRuntime.Select(compiled, "mod/policy", new(), "enemy", actors, new(), _ => 0);
     private static EncounterPolicyActor Enemy() => new("enemy", "original", false, true, true, false);
     private static EncounterPolicyActor Party(string id) => new(id, id, true, true, true, false);

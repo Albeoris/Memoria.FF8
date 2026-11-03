@@ -32,6 +32,30 @@ public sealed class EncounterCameraPatchTests
     }
 
     [Fact]
+    public void CompletedEffectRestoresAuthoredCameraWhileRetainingItsLoadedResource()
+    {
+        EncounterPatchComposition composition = Compose(Layer("camera", Edit("raise", "0", "12")));
+        BattleDefinition definition = new() { Name = "Camera completion", Combatants = [new() { Id = "player", Name = "Player", IsPlayer = true, MaximumHp = 100, CurrentHp = 100 }, new() { Id = "original", Name = "Original", MaximumHp = 100, CurrentHp = 100 }] };
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("fixture.encounter", "original", 11, 11, [], true));
+        BattleSession session = new(definition with { EncounterMod = compiled }, BattleAtbMode.TurnBased);
+        NativeBattleCameraPose source = new(new(3000, -1600, 6000), new(0, -500, -2000), 512, 0);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, NativeBattleCameraState.FromColdProcess() with { CurrentPose = source });
+        NativeBattleGraphicsState graphics = new([], [], 0, 0) { OriginalEffect = new(1, 0, new(1, 0x8D6A00, 0), null, null) };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        System.Reflection.PropertyInfo presentation = typeof(BattleSession).GetProperty("EncounterPresentationCamera", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        NativeBattleEffectMemory active = NativeBattleEffectMemory.FromColdProcess() with { Active = 1 };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, active);
+        Assert.Equal(source, presentation.GetValue(session));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, session.NativeCamera! with { CapturedPose = source });
+        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session));
+        NativeBattleEffectMemory completed = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(active with { Active = 0 }));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, completed);
+        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session));
+        Assert.Same(graphics.OriginalEffect, session.NativeGraphics!.OriginalEffect);
+        Assert.Equal(source, session.NativeCamera!.CurrentPose);
+    }
+
+    [Fact]
     public void GuardedCameraRefinementRequiresActualPreviousWriter()
     {
         EncounterPatchLayer first = Layer("first", Edit("raise", "0", "12"));

@@ -69,7 +69,7 @@ public sealed record EncounterCompiledDefinition(
 }
 
 /// <summary>Only observable candidate state is passed to policy selection; concealed defense values are absent.</summary>
-public sealed record EncounterPolicyActor(string AllocationId, string RoleId, bool IsPlayer, bool Living, bool Active, bool Reflect, bool Targetable = true);
+public sealed record EncounterPolicyActor(string AllocationId, string RoleId, bool IsPlayer, bool Living, bool Active, bool Reflect, bool Targetable = true, uint BattleStatuses = 0, ushort SavedStatuses = 0);
 public sealed record EncounterPolicyDecision(string PolicyId, string RuleId, ulong OwnTurn, EncounterCompiledActionKind Kind, EncounterCompiledSpell? Spell, ImmutableArray<string> TargetIds, bool NativeDouble, bool OverrideNativeTargeting, ImmutableArray<EncounterCompiledSpawn> Spawns, EncounterOffensiveDelivery Delivery = EncounterOffensiveDelivery.Direct);
 
 public static class EncounterPolicyRuntime
@@ -100,6 +100,7 @@ public static class EncounterPolicyRuntime
         ["Shell"] = 30,
         ["Reflect"] = 31,
         ["Double"] = 33,
+        ["Triple"] = 34,
         ["Haste"] = 35,
         ["Slow"] = 36,
         ["Stop"] = 37,
@@ -213,11 +214,11 @@ public static class EncounterPolicyRuntime
         {
             throw new InvalidDataException("Missing compiled encounter policy: " + policyId);
         }
-        return Resolve(definition, policyId, policy.Select(cursor.NextOwnTurn), cursor.NextOwnTurn, casterId, actors, knowledge, nextIndex);
+        return Resolve(definition, policyId, policy.Select(cursor.NextOwnTurn), cursor.NextOwnTurn, casterId, actors, knowledge, nextIndex, cursor.LastTargetIds);
     }
 
     /// <summary>Re-resolves targets for an accepted compound cast without advancing its main-action cursor.</summary>
-    public static EncounterPolicyDecision? Resolve(EncounterCompiledDefinition definition, string policyId, EncounterCompiledRule rule, ulong ownTurn, string casterId, ImmutableArray<EncounterPolicyActor> actors, BattleScanKnowledge knowledge, Func<int, int> nextIndex)
+    public static EncounterPolicyDecision? Resolve(EncounterCompiledDefinition definition, string policyId, EncounterCompiledRule rule, ulong ownTurn, string casterId, ImmutableArray<EncounterPolicyActor> actors, BattleScanKnowledge knowledge, Func<int, int> nextIndex, ImmutableArray<string> previousTargets = default, bool distinctTargets = false)
     {
         ArgumentNullException.ThrowIfNull(nextIndex);
         EncounterPatchDocument.Require(!actors.IsDefault && actors.All(actor => actor is not null && !string.IsNullOrWhiteSpace(actor.AllocationId)) && actors.Select(actor => actor.AllocationId).Distinct(StringComparer.Ordinal).Count() == actors.Length, "Policy candidates require distinct allocation identities.");
@@ -239,7 +240,7 @@ public static class EncounterPolicyRuntime
         EncounterOffensiveDelivery delivery = EncounterOffensiveDelivery.Direct;
         if (action.Target == EncounterCompiledTargetKind.ScanKnownWeakestElseRandom)
         {
-            EncounterOffensiveChoice? choice = EncounterActionSelection.Select(action.Spells.Select(candidate => new EncounterSpellChoice(candidate.CanonicalName, candidate.ElementIndex, candidate.Reflectable, candidate.Weight)).ToImmutableArray(), opponents.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), allies.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), knowledge, caster.IsPlayer ? BattleObserverSide.Party : BattleObserverSide.Enemy, action.AvoidReflect, nextIndex);
+            EncounterOffensiveChoice? choice = EncounterActionSelection.Select(action.Spells.Select(candidate => new EncounterSpellChoice(candidate.CanonicalName, candidate.ElementIndex, candidate.Reflectable, candidate.Weight)).ToImmutableArray(), opponents.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), allies.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), knowledge, caster.IsPlayer ? BattleObserverSide.Party : BattleObserverSide.Enemy, action.AvoidReflect, nextIndex, previousTargets);
             if (choice is null)
             {
                 return null;
@@ -284,7 +285,41 @@ public static class EncounterPolicyRuntime
 
         ImmutableArray<string> One(EncounterPolicyActor[] candidates)
         {
+            if (distinctTargets)
+            {
+                candidates = PreferFresh(candidates);
+            }
+            if (spell.CanonicalName == "Scan")
+            {
+                EncounterPolicyActor[] unknown = candidates.Where(candidate => knowledge.Find(caster.IsPlayer ? BattleObserverSide.Party : BattleObserverSide.Enemy, candidate.AllocationId) is null).ToArray();
+                if (unknown.Length != 0)
+                {
+                    candidates = unknown;
+                }
+            }
+            if (spell.NativeAction.Statuses0 != 0 || spell.NativeAction.Statuses1 != 0)
+            {
+                EncounterPolicyActor[] missing = candidates.Where(candidate => (candidate.BattleStatuses & spell.NativeAction.Statuses1) != spell.NativeAction.Statuses1 || (candidate.SavedStatuses & spell.NativeAction.Statuses0) != spell.NativeAction.Statuses0).ToArray();
+                if (missing.Length != 0)
+                {
+                    candidates = missing;
+                }
+            }
+            if (!distinctTargets)
+            {
+                candidates = PreferFresh(candidates);
+            }
             return candidates.Length == 0 ? [] : [Choose(candidates).AllocationId];
+        }
+
+        EncounterPolicyActor[] PreferFresh(EncounterPolicyActor[] candidates)
+        {
+            if (previousTargets.IsDefaultOrEmpty)
+            {
+                return candidates;
+            }
+            EncounterPolicyActor[] fresh = candidates.Where(candidate => !previousTargets.Contains(candidate.AllocationId, StringComparer.Ordinal)).ToArray();
+            return fresh.Length == 0 ? candidates : fresh;
         }
 
         T Choose<T>(IReadOnlyList<T> candidates)

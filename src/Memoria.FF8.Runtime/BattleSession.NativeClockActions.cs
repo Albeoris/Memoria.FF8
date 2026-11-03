@@ -148,7 +148,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RunNativeAi(BattleCombatant actor, int callback)
+    private void RunNativeAi(BattleCombatant actor, int callback, Action? interpret = null)
     {
         byte eventActorIndex = checked((byte)actor.NativeIndex);
         if (callback == 1)
@@ -170,7 +170,14 @@ public sealed partial class BattleSession
         nativeAiCallbackStage = checked((byte)callback);
         try
         {
-            InterpretNativeAi(actor, callback);
+            if (interpret is null)
+            {
+                InterpretNativeAi(actor, callback);
+            }
+            else
+            {
+                interpret();
+            }
         }
         finally
         {

@@ -147,7 +147,7 @@ public sealed partial class BattleSession
         };
     }
 
-    private static bool NativeFirstHitAdmitted(BattleCombatant actor, BattleActionPresentation command, NativeBattleActionProductionContext? context)
+    private bool NativeFirstHitAdmitted(BattleCombatant actor, BattleActionPresentation command, NativeBattleActionProductionContext? context)
     {
         if (context is null || context.MultiCastMode == 0 || context.RepeatMode == 0 || context.DrawFollowUp)
         {
@@ -157,7 +157,7 @@ public sealed partial class BattleSession
         {
             return (NativeSavedStatusBits(actor) & 1) == 0;
         }
-        uint statuses = NativeBattleStatusBits(actor);
+        uint statuses = EncounterMulticastStatusBits(actor);
         if (context.RepeatMode == 1 && (statuses & 0x60000) == 0 || context.RepeatMode == 2 && (statuses & 0x40000) == 0)
         {
             return false;

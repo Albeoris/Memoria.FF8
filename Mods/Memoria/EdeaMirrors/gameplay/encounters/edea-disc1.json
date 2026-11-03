@@ -118,13 +118,13 @@
           }
         },
         {
-          "id": "double",
+          "id": "triple",
           "when": {
             "ownTurn": 2
           },
           "action": {
             "kind": "Cast",
-            "spell": "Double",
+            "spell": "Triple",
             "target": "self",
             "casts": 1
           }
@@ -193,6 +193,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Protect",
+            "casts": "nativeDouble",
             "target": {
               "group": "edea-family",
               "select": "allLiving"
@@ -207,6 +208,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Shell",
+            "casts": "nativeDouble",
             "target": {
               "group": "edea-family",
               "select": "allLiving"
@@ -221,6 +223,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Regen",
+            "casts": "nativeDouble",
             "target": {
               "group": "edea-family",
               "select": "allLiving"
@@ -235,6 +238,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Reflect",
+            "casts": "nativeDouble",
             "target": {
               "group": "edea-family",
               "select": "allLiving"
@@ -253,6 +257,7 @@
               "Blizzaga",
               "Thundaga"
             ],
+            "casts": "nativeDouble",
             "targetPolicy": "scanKnownWeakestElseRandom"
           }
         }
@@ -271,6 +276,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Blind",
+            "casts": "nativeDouble",
             "target": "allOpponents"
           }
         },
@@ -282,6 +288,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Silence",
+            "casts": "nativeDouble",
             "target": "allOpponents"
           }
         },
@@ -293,6 +300,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Confuse",
+            "casts": "nativeDouble",
             "target": "allOpponents"
           }
         },
@@ -304,6 +312,7 @@
           "action": {
             "kind": "Cast",
             "spell": "Slow",
+            "casts": "nativeDouble",
             "target": "allOpponents"
           }
         },
@@ -319,6 +328,7 @@
               "Water",
               "Bio"
             ],
+            "casts": "nativeDouble",
             "targetPolicy": "scanKnownWeakestElseRandom",
             "reflectionPolicy": {
               "preferUnreflectedOpponents": true,

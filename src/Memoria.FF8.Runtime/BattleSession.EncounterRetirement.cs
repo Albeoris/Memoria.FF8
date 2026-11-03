@@ -32,6 +32,42 @@ public sealed partial class BattleSession
         return nativeAllocations.Any(allocation => allocation.Retirement is { ResourcesReleased: false } retirement && retirement.PhysicalIndex == physicalIndex);
     }
 
+    private void CleanupDefeatedEncounterAllocations()
+    {
+        foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Where(allocation => allocation.EncounterBatchId is not null && allocation.Retirement is null).ToArray())
+        {
+            BattleCombatant actor = GetActor(allocation.Id);
+            if (!actor.IsActive || actor.IsAlive || actor.NativeIndex is < 3 or > 6)
+            {
+                continue;
+            }
+            // A copy retains the source's body sequences, but not its scripted boss death callback.
+            // Finish every accepted contact and effect before releasing this summoned allocation through105.
+            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.NativeIndex).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
+            {
+                continue;
+            }
+            RemoveNativeQueuedActorCommands(actor);
+            RemoveEncounterQueuedActions([actor.Id]);
+            nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.NativeIndex), actor.Id).RemoveAllocationCallbacks(actor.Id);
+            ReleaseNativeParticipant(actor);
+            RequestEncounterAllocationRetirement(actor);
+            actor.IsBusy = false;
+            actor.Atb = 0;
+        }
+    }
+
+    private void RemoveEncounterQueuedActions(IReadOnlyCollection<string> actorIds)
+    {
+        BattleAttackCommand[] retained = actions.Where(command => !actorIds.Contains(command.ActorId)).ToArray();
+        nativeCallbackTail?.RemoveAll(command => actorIds.Contains(command.ActorId));
+        actions.Clear();
+        foreach (BattleAttackCommand command in retained)
+        {
+            actions.Enqueue(command);
+        }
+    }
+
     private void RequestEncounterAllocationRetirement(BattleCombatant actor)
     {
         int index = nativeAllocations.FindIndex(allocation => allocation.Id == actor.Id && allocation.EncounterBatchId is not null);

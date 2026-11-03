@@ -952,13 +952,13 @@ public sealed partial class BattleSession
         }
         if (NativeGraphics is not null)
         {
-            if (!combatants.Any(actor => actor.NativeIndex is >= 0 and < 3 && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
-            {
-                return BattleOutcome.Defeat;
-            }
             if (encounterPolicies?.TerminalReached == true)
             {
                 return BattleOutcome.Victory;
+            }
+            if (!combatants.Any(actor => actor.NativeIndex is >= 0 and < 3 && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
+            {
+                return BattleOutcome.Defeat;
             }
             return combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) ? BattleOutcome.Active : BattleOutcome.Victory;
         }
@@ -975,6 +975,7 @@ public sealed partial class BattleSession
 
     private void CompleteBattleIfNeeded()
     {
+        CleanupDefeatedEncounterAllocations();
         CleanupEncounterPoliciesAtTerminal();
         BattleOutcome outcome = DetermineOutcome();
         if (outcome == BattleOutcome.Active)
@@ -1009,6 +1010,10 @@ public sealed partial class BattleSession
             }
             if (NativeGraphics is not null)
             {
+                if (TryRunEncounterNativeDefeatTerminal())
+                {
+                    return;
+                }
                 BeginNativeDefeat486450();
                 return;
             }

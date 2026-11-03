@@ -186,6 +186,86 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
     }
 
+    [Theory]
+    [InlineData(0x20000u, 0u, 2, 3)]
+    [InlineData(0x40000u, 0u, 3, 3)]
+    [InlineData(0u, 0x40000u, 3, 3)]
+    [InlineData(0x40000u, 0x20000u, 3, 3)]
+    [InlineData(0u, 0u, 1, 3)]
+    [InlineData(0x40000u, 0u, 2, 2)]
+    public void MirrorUsesOwnOrOriginalMulticastAndScansDistinctOpponents(uint originalStatus, uint mirrorStatus, int casts, int opponents)
+    {
+        BattleDefinition source = Create(false).ReadDefinition();
+        EncounterCompiledDefinition mod = source.EncounterMod!;
+        BattleCombatantDefinition original = source.Combatants.Single(actor => actor.Id == "enemy");
+        BattleCombatantDefinition party = source.Combatants.Single(actor => actor.Id == "party");
+        BattleDefinition definition = source with
+        {
+            Combatants = [party, party with { Id = "party-b" }, party with { Id = "party-c" }, original with { NativeStatus1 = originalStatus, InitialAtb = 0, NativeAi = null, SceneSlot = 0 }, original with { Id = "mirror", NativeStatus1 = mirrorStatus, SceneSlot = 1 }],
+            EncounterMod = mod with
+            {
+                NormalActionPolicies = mod.NormalActionPolicies.Remove("original"),
+                Templates = mod.Templates.SetItem("mirror", new("mirror", "original", "family", "mod/policy", "arrival"))
+            }
+        };
+        definition = definition with { Combatants = definition.Combatants.Where(actor => opponents == 3 || actor.Id != "party-c").ToArray() };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan" && entry.ActorId == "mirror"));
+        Assert.Equal(casts, battle.ScanKnowledge.Observations.Length);
+        Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(casts, battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal(battle.EncounterPolicies.Cursors["mirror"].LastTargetIds.ToArray(), restored.EncounterPolicies!.Cursors["mirror"].LastTargetIds.ToArray());
+    }
+
+    [Theory]
+    [InlineData(0u, 1)]
+    [InlineData(0x20000u, 2)]
+    [InlineData(0x40000u, 3)]
+    public void MirrorGroupSpellCastsOncePerDistinctRecipientUpToCurrentLimit(uint originalStatus, int casts)
+    {
+        BattleDefinition source = Create(false).ReadDefinition();
+        EncounterCompiledDefinition mod = source.EncounterMod!;
+        BattleCombatantDefinition original = source.Combatants.Single(actor => actor.Id == "enemy");
+        EncounterCompiledPolicy policy = mod.Policies["mod/policy"];
+        EncounterCompiledRule rule = policy.Rules[0];
+        rule = rule with { Action = rule.Action with { Target = EncounterCompiledTargetKind.GroupAllLiving, Group = "family" } };
+        BattleSession battle = new(source with
+        {
+            Combatants = [source.Combatants[0], original with { NativeStatus1 = originalStatus, InitialAtb = 0, NativeAi = null, SceneSlot = 0 }, original with { Id = "mirror", SceneSlot = 1 }, original with { Id = "other", InitialAtb = 0, NativeAi = null, SceneSlot = 2 }],
+            EncounterMod = mod with
+            {
+                NormalActionPolicies = mod.NormalActionPolicies.Remove("original"),
+                Policies = mod.Policies.SetItem(policy.Id, policy with { Rules = [rule] }),
+                Templates = mod.Templates.SetItem("mirror", new("mirror", "original", "family", policy.Id, "arrival")),
+                Groups = mod.Groups.SetItem("family", ["original", "mirror", "other"])
+            }
+        }, BattleAtbMode.Normal);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan"));
+        Assert.Equal(casts, battle.ScanKnowledge.Observations.Length);
+        Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(casts, battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
+    }
+
+    [Fact]
+    public void RestoredTargetHistoryRequiresDistinctAllocatedIdentities()
+    {
+        BattleSnapshot source = Create(false).Capture();
+        foreach (ImmutableArray<string> targets in new ImmutableArray<string>[] { default, ["unknown"], ["party", "party"] })
+        {
+            BattleEncounterPolicyState state = new(source.Definition.EncounterMod!.GenerationIdentity, ImmutableDictionary<string, EncounterActionCursor>.Empty.Add("enemy", new(1) { LastTargetIds = targets }));
+            Assert.Throws<InvalidDataException>(() => BattleSession.Restore(source with { EncounterPolicies = state }));
+        }
+    }
+
     private static BattleSession Create(bool doubleActive, bool reflect = false)
     {
         BattleNativeAction scan = new(2, 50, 1, 50)

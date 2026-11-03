@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void DispatchNativeCallback(BattleNativeCallback callback)
+    private void DispatchNativeCallback(BattleNativeCallback callback, Action? interpret = null)
     {
         callback.Validate();
         if (nativeCallbackTail is not null)
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
         {
             if (callback.Stage is 0 or 1)
             {
-                RunNativeAi(actor, callback.Stage);
+                RunNativeAi(actor, callback.Stage, interpret);
             }
             else if (callback.Stage is 2 or 3)
             {

@@ -8,6 +8,14 @@ public sealed class EncounterActionSelectionTests
     private static readonly ImmutableArray<EncounterSpellChoice> Pool = [new("Firaga", 0, true), new("Blizzaga", 1, true), new("Thundaga", 2, true)];
 
     [Fact]
+    public void DifferentTargetPreferencePreservesUnreflectedOpponentSafety()
+    {
+        EncounterOffensiveChoice selected = EncounterActionSelection.Select(Pool, [new("direct", false), new("reflected", true)], [], new(), BattleObserverSide.Enemy, true, _ => 0, ["direct"])!;
+        Assert.Equal(EncounterOffensiveDelivery.Direct, selected.Delivery);
+        Assert.Equal("direct", selected.TargetId);
+    }
+
+    [Fact]
     public void Only_the_scanned_allocation_and_observer_can_supply_known_affinities()
     {
         BattleScanKnowledge knowledge = Observe(new(), "party-1", BattleObserverSide.Enemy, 800, 700, 850);

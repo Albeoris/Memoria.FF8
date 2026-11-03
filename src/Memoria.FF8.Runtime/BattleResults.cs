@@ -33,6 +33,16 @@ public sealed record BattleEncounterOccurrence([property: JsonRequired] string O
 
 public sealed record BattleMagicChange([property: JsonRequired] byte SpellId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] int Change);
 public sealed record BattleItemConsumption([property: JsonRequired] byte ItemId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] byte Consumed);
+public sealed record BattleEncounterTerminalResult(string Encounter, string GenerationIdentity, string OriginalActorId)
+{
+    public void Validate(BattleResult result)
+    {
+        if (Encounter != EncounterBindingResolver.Disc1Edea || string.IsNullOrWhiteSpace(GenerationIdentity) || string.IsNullOrWhiteSpace(OriginalActorId) || result.Encounter.Formation != EncounterBindingResolver.ResolveEncounterId(Encounter) || result.Encounter.SourceScene != SceneKind.Field || result.Encounter.ScriptedOwner is null || result.Outcome != BattleOutcome.Victory || result.NativeResult != 4 || result.DebugVictory || result.RewardPolicy != BattleRewardPolicy.NativeCombat)
+        {
+            throw new InvalidDataException("Encounter terminal result requires the recognized scripted encounter and its completed native victory.");
+        }
+    }
+}
 public sealed record BattlePartyResult([property: JsonRequired] byte Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ushort HitPointsBefore, [property: JsonRequired] ushort HitPointsAfter, [property: JsonRequired] ushort StatusBefore, [property: JsonRequired] ushort StatusAfter, [property: JsonRequired] BattleMagicChange[] MagicChanges)
 {
     public NativeMagicStock[]? MagicInventoryAfter { get; init; }
@@ -43,6 +53,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
 {
     public GameplayTuning Tuning { get; init; } = new();
     public byte? NativeResult { get; init; }
+    public BattleEncounterTerminalResult? EncounterTerminal { get; init; }
     public BattleNativeGrowthChange[] NativeGrowthChanges { get; init; } = [];
     public BattleNativeCardChange? NativeCardChange { get; init; }
     public ChocoboRewardLedger? ChocoboRewardsBefore { get; init; }
@@ -130,7 +141,8 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         {
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
-        if (Outcome == BattleOutcome.Victory && Party.All(member => (member.StatusAfter & 5) != 0) || Outcome == BattleOutcome.Defeat && Party.Any(member => (member.StatusAfter & 5) == 0))
+        EncounterTerminal?.Validate(this);
+        if (Outcome == BattleOutcome.Victory && EncounterTerminal is null && Party.All(member => (member.StatusAfter & 5) != 0) || Outcome == BattleOutcome.Defeat && Party.Any(member => (member.StatusAfter & 5) == 0))
         {
             throw new InvalidDataException("Battle outcome contradicts its observed party HP or KO effects.");
         }

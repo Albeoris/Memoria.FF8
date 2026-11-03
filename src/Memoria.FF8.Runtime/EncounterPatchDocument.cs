@@ -531,7 +531,7 @@ public sealed record EncounterPatchDocument
 
     private static void Spell(string? name)
     {
-        Require(name is "Fire" or "Fira" or "Firaga" or "Blizzard" or "Blizzara" or "Blizzaga" or "Thunder" or "Thundara" or "Thundaga" or "Cure" or "Cura" or "Curaga" or "Drain" or "Quake" or "Tornado" or "Aero" or "Water" or "Bio" or "Protect" or "Shell" or "Regen" or "Reflect" or "Blind" or "Silence" or "Confuse" or "Slow" or "Haste" or "Stop" or "Double" or "Scan" or "Dispel", "Unknown canonical spell: " + name);
+        Require(name is "Fire" or "Fira" or "Firaga" or "Blizzard" or "Blizzara" or "Blizzaga" or "Thunder" or "Thundara" or "Thundaga" or "Cure" or "Cura" or "Curaga" or "Drain" or "Quake" or "Tornado" or "Aero" or "Water" or "Bio" or "Protect" or "Shell" or "Regen" or "Reflect" or "Blind" or "Silence" or "Confuse" or "Slow" or "Haste" or "Stop" or "Double" or "Triple" or "Scan" or "Dispel", "Unknown canonical spell: " + name);
     }
 
     private static void Guard(EncounterPatchOperation op)

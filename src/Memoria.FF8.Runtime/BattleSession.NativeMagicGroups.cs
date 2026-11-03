@@ -88,8 +88,12 @@ public sealed partial class BattleSession
     private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
-        uint statuses = NativeBattleStatusBits(actor);
+        uint statuses = EncounterMulticastStatusBits(actor);
         int count = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        if (!actor.IsPlayer && HasEncounterPolicy(actor))
+        {
+            count = Math.Min(command.NativeMagicTargets.Length, (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1);
+        }
         uint flags = count > 1 && actor.IsPlayer ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
         bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count == 2 && (flags & 0x20) != 0 || count == 3 && (flags & 0x40) != 0);
         int completed = 0;
@@ -99,7 +103,7 @@ public sealed partial class BattleSession
             {
                 break;
             }
-            statuses = NativeBattleStatusBits(actor);
+            statuses = EncounterMulticastStatusBits(actor);
             if (index > 0 && ((NativeSavedStatusBits(actor) & 0x35) != 0 || (statuses & 0x4009) != 0 || index == 1 && (statuses & 0x60000) == 0 || index == 2 && (statuses & 0x40000) == 0))
             {
                 break;
