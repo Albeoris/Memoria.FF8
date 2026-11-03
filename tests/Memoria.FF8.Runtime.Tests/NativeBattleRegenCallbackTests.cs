@@ -6,6 +6,37 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRegenCallbackTests
 {
+    [Theory]
+    [InlineData(3024)]
+    [InlineData(12000)]
+    public void RegenPreservesPartialAndFullNativeGaugesAcrossProductionCompletionAndStandaloneRestore(int current)
+    {
+        BattleSession battle = Create(false, 500);
+        BattleSnapshot snapshot = battle.Capture();
+        NativeBattleAtbState gauge = new(12000, current);
+        snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeAtb = gauge, Atb = gauge.Display };
+        battle = BattleSession.Restore(snapshot);
+        Method("DispatchNativeStatusTimers").Invoke(battle, null);
+        string saved = JsonSerializer.Serialize(battle.Capture());
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
+        Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
+
+        foreach (BattleSession session in new[] { battle, restored })
+        {
+            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
+            NativeBattleContactHalf primary = Produce(session);
+            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
+            Assert.Equal(gauge.Display, session.Combatants[0].Atb);
+            Assert.Equal(550, session.Combatants[0].CurrentHp);
+            Method("PublishNativePresentedContact").Invoke(session, [primary]);
+            Method("RunNativeDescriptorActionCallback").Invoke(session, [session.NativeGraphics!, 0x47DDA0u]);
+            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
+            Assert.Equal(gauge.Display, session.Combatants[0].Atb);
+            Assert.Equal(0u, session.Capture().NativeClock!.ActionPause);
+            Assert.Empty(session.QueuedActions);
+        }
+    }
+
     [Fact]
     public void RegenTimerQueuesItsActualCallbackWithoutChangingHpOrPublishingAFakeTimerFormula()
     {
@@ -147,7 +178,7 @@ public sealed class NativeBattleRegenCallbackTests
         Assert.Equal(new BattleNativeCallback(0, 6), command.NativeCallback);
         try
         {
-            Method("DispatchNativeCallback").Invoke(battle, [command.NativeCallback!]);
+            Method("DispatchNativeCallback").Invoke(battle, [command.NativeCallback!, null]);
         }
         finally
         {

@@ -107,7 +107,7 @@ public sealed class NativeBattleComponentEventCompletionTests
         };
     }
 
-    private static void DispatchDeath(BattleSession battle) => Method("DispatchNativeCallback").Invoke(battle, [new BattleNativeCallback(3, 3)]);
+    private static void DispatchDeath(BattleSession battle) => Method("DispatchNativeCallback").Invoke(battle, [new BattleNativeCallback(3, 3), null]);
     private static Queue<BattleAttackCommand> Queue(BattleSession battle) => (Queue<BattleAttackCommand>)Field("actions").GetValue(battle)!;
     private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!;

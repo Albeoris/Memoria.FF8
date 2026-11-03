@@ -45,7 +45,11 @@ public sealed partial class BattleSession
     private void PublishNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, NativeBattleCommandBanks? input, ushort? diagnosticSelectedTargetMask = null)
     {
         StopTurnAdvance();
-        actor.Atb = 0;
+        //47DDA0 completes initialization, reaction and periodic events without consuming the actor's gauge.
+        if (nativeProductionContext?.CompletionCallback != 0x47DDA0)
+        {
+            actor.Atb = 0;
+        }
         actor.IsBusy = true;
         if (input is not null)
         {
