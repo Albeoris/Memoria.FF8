@@ -83,7 +83,7 @@ public sealed partial class EventEngine
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString())));
     }
 
-    private bool TryPersistentPredicateOperation(NativePersistentPredicateRead descriptor, out JsmOperation? operation)
+    private bool TryPersistentPredicateOperation(NativePersistentPredicateRead descriptor, out JsmOperation? operation, bool requireRepresentation = true)
     {
         operation = null;
         if (descriptor is null || !Enum.TryParse(descriptor.Opcode, out Jsm.Opcode opcode) || !IsAbsenceMemoryRead(opcode) || descriptor.Width != NativeMemoryWidth(opcode) || descriptor.Address < 0 || descriptor.Address > NativeEventMemory.MaximumAddress || (long)descriptor.Address + descriptor.Width > ushort.MaxValue + 1L || descriptor.Address < 1280 && descriptor.Address + descriptor.Width > 1024)
@@ -92,7 +92,7 @@ public sealed partial class EventEngine
         }
         NativeEventMemoryOwner owner = ResolveMemoryOwner(descriptor.Address, descriptor.Width);
         bool canonical = owner == NativeEventMemoryOwner.WorldEntry || owner == NativeEventMemoryOwner.WorldControls && descriptor.Address == 104 && descriptor.Width == 4 || owner == NativeEventMemoryOwner.SeeD && descriptor.Address == 184 && descriptor.Width == 2;
-        if (!canonical && (owner != NativeEventMemoryOwner.Generic || descriptor.Address < 256 || !EventMemory.HasRepresentedExactBytes(descriptor.Address, descriptor.Width)))
+        if (!canonical && (owner != NativeEventMemoryOwner.Generic || descriptor.Address < 256 || requireRepresentation && !EventMemory.HasRepresentedExactBytes(descriptor.Address, descriptor.Width)))
         {
             return false;
         }
@@ -251,10 +251,13 @@ public sealed partial class EventEngine
         {
             reads.Add(new("PSHSM_W", 184, 2));
         }
+        List<NativePersistentPredicateRead> protectedReads = [.. reads];
+        HashSet<int> nativeActors = program!.NativeObjects.Take(program.NativeActorCount).ToHashSet();
+        HashSet<int> excluded = program.Objects.Where(obj => nativeActors.Contains(obj.Index) && obj.Scripts[0].ReachableOperations.Any(index => program.Operations[index].Opcode == Jsm.Opcode.SETPC) && !InitializationNeedsAvailabilityGuards(obj.Scripts[0])).Select(obj => obj.Index).ToHashSet();
         foreach (EventObject obj in program!.Objects)
         {
             EventScript init = obj.Scripts[0];
-            if (!InitializationNeedsAvailabilityGuards(init))
+            if (!init.ReachableOperations.Any(index => program.Operations[index].Opcode == Jsm.Opcode.SETPC))
             {
                 continue;
             }
@@ -268,9 +271,15 @@ public sealed partial class EventEngine
                         continue;
                     }
                     NativePersistentPredicateRead descriptor = new(operation.Opcode.ToString(), operation.Parameter, NativeMemoryWidth(operation.Opcode));
-                    if (!TryPersistentPredicateOperation(descriptor, out _))
+                    protectedReads.Add(descriptor);
+                    bool omitted = excluded.Contains(obj.Index) && !IsSharedActorRead(descriptor, excluded);
+                    if (!TryPersistentPredicateOperation(descriptor, out _, requireRepresentation: !omitted))
                     {
                         return null;
+                    }
+                    if (omitted)
+                    {
+                        continue;
                     }
                     reads.Add(descriptor);
                 }
@@ -281,14 +290,34 @@ public sealed partial class EventEngine
                         return null;
                     }
                 }
-                else if (operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE))
+                else if (!IsAbsenceBindingInitializationOperation(operation))
                 {
                     return null;
                 }
             }
         }
         ImmutableArray<NativePersistentPredicateRead> result = reads.Distinct().OrderBy(read => read.Address).ThenBy(read => read.Width).ThenBy(read => read.Opcode, StringComparer.Ordinal).ToImmutableArray();
-        return AbsenceInitializationPreservesGuards(result) ? result : null;
+        return AbsenceInitializationPreservesGuards(protectedReads.Distinct().ToImmutableArray()) ? result : null;
+    }
+
+    private bool IsSharedActorRead(NativePersistentPredicateRead read, HashSet<int> excluded)
+    {
+        foreach (EventObject obj in program!.Objects.Where(obj => !excluded.Contains(obj.Index)))
+        {
+            foreach (int index in obj.Scripts.SelectMany(script => script.ReachableOperations).Distinct())
+            {
+                JsmOperation operation = program.Operations[index];
+                if (IsAbsenceMemoryRead(operation.Opcode) || operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L)
+                {
+                    int width = NativeMemoryWidth(operation.Opcode);
+                    if (operation.Parameter < read.Address + read.Width && read.Address < operation.Parameter + width)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private bool InitializationNeedsAvailabilityGuards(EventScript script)
@@ -347,22 +376,38 @@ public sealed partial class EventEngine
             {
                 inactive = true;
             }
-            else if (!IsAbsenceInitializationOperation(operation))
+            else if (!IsAbsenceBindingInitializationOperation(operation))
             {
                 return true;
             }
             visited[key] = 1;
             pending.Push((current.Position, current.Inactive, true));
-            if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
+            bool? partyCondition = operation.Opcode == Jsm.Opcode.JPF ? ReadInitializationPartyCondition(script, current.Position) : null;
+            if (operation.Opcode == Jsm.Opcode.JMP || operation.Opcode == Jsm.Opcode.JPF && partyCondition is not true)
             {
                 pending.Push((JsmProgram.JumpTarget(current.Position, operation.Parameter), inactive, false));
             }
-            if (operation.Opcode != Jsm.Opcode.JMP)
+            if (operation.Opcode != Jsm.Opcode.JMP && (operation.Opcode != Jsm.Opcode.JPF || partyCondition is not false))
             {
                 pending.Push((current.Position + 1, inactive, false));
             }
         }
         return !returned;
+    }
+
+    private bool? ReadInitializationPartyCondition(EventScript script, int index)
+    {
+        int first = index - 5;
+        if (first < 0 || Enumerable.Range(first, 6).Any(position => !script.ContainsOperation(position)) || program!.Operations[first].Opcode != Jsm.Opcode.PSHN_L || program.Operations[first + 1].Opcode != Jsm.Opcode.ISPARTY || program.Operations[first + 2].Opcode != Jsm.Opcode.PSHI_L || program.Operations[first + 2].Parameter != 0 || program.Operations[first + 3].Opcode != Jsm.Opcode.PSHN_L || program.Operations[first + 3].Parameter != 0 || program.Operations[first + 4].Opcode != Jsm.Opcode.CAL || program.Operations[first + 4].Parameter != 8 || script.ReachableOperations.Any(position => program.Operations[position].Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF && JsmProgram.JumpTarget(position, program.Operations[position].Parameter) > first && JsmProgram.JumpTarget(position, program.Operations[position].Parameter) <= index))
+        {
+            return null;
+        }
+        return Scene.Party.IndexOf(unchecked((byte)program.Operations[first].Parameter)) >= 0;
+    }
+
+    private static bool IsAbsenceBindingInitializationOperation(JsmOperation operation)
+    {
+        return IsAbsenceMemoryRead(operation.Opcode) || operation.Opcode is Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE;
     }
 
     private bool AbsenceInitializationPreservesGuards(ImmutableArray<NativePersistentPredicateRead> reads)

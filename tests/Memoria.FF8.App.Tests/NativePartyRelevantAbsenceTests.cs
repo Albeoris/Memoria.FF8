@@ -21,6 +21,7 @@ public sealed class NativePartyRelevantAbsenceTests
         NativePlayerAbsenceReceipt receipt = Assert.IsType<NativePlayerAbsenceReceipt>(world.Events.InspectNativePlayerAbsence());
         Assert.Equal(121, receipt.FieldId);
         Assert.Contains(receipt.Reads, read => read.Address == 720);
+        Assert.Contains(receipt.Reads, read => read.Address == 256 && read.Width == 2);
         Assert.DoesNotContain(receipt.Reads, read => read.Address is 721 or 722 or 723 or 624);
         Assert.Null(world.Events.ReadPersistentPredicateFingerprint([new("PSHM_B", 721, 1)]));
         Assert.Same(state, session.State);
