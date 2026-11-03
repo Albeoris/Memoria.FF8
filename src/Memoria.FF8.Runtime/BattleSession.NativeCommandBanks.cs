@@ -173,6 +173,7 @@ public sealed partial class BattleSession
                     continue;
                 }
                 BattleAttackCommand command = bank.LogicalCommands[index] ?? throw new InvalidDataException("Saved native command packet lacks its immutable action binding.");
+                ValidateNativeEventOwner(command.ActorId, command.NativeHeaderIndex, command.NativeEventOwner, command.NativeAiCallbackStage, command.NativeAction);
                 if (command.NativeCallback is { } callback)
                 {
                     ValidateSavedNativeCallback(command);

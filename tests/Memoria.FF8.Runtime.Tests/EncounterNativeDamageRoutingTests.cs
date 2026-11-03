@@ -127,6 +127,34 @@ public sealed class EncounterNativeDamageRoutingTests
     }
 
     [Fact]
+    public void PeriodicRoutedLethalDamageCanAdmitAnIndependentNativeDeathCounter()
+    {
+        BattleSnapshot snapshot = Create(100, poison: true, fourthCounter: true).Capture();
+        EncounterCompiledDefinition mod = snapshot.Definition.EncounterMod!;
+        snapshot = snapshot with
+        {
+            Definition = snapshot.Definition with
+            {
+                EncounterMod = mod with { DamageRoutes = mod.DamageRoutes.SetItem("share", new("share", "original", ["fourth"])) },
+                Combatants = snapshot.Definition.Combatants.Select(actor => actor.Id == "fourth" ? actor with { NativeCombatantFlags = 0x31 } : actor).ToArray()
+            },
+            Combatants = snapshot.Combatants.Select(actor => actor.Id == "fourth" ? actor with { CurrentHp = 1, NativeParticipant = actor.NativeParticipant! with { NativeCombatantFlags = 0x31 } } : actor).ToArray()
+        };
+        BattleSession battle = BattleSession.Restore(snapshot);
+        battle.Tick();
+        Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
+        Assert.Null(battle.ActiveAction?.NativeEventOwner);
+        Assert.All(battle.QueuedActions, command => Assert.Null(command.NativeEventOwner));
+        for (int frame = 0; frame < 30 && battle.NativeActionPackets.ActionCount == 0; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)4, battle.NativeActionPackets.Headers[0].ReadByte(0));
+        Assert.Equal(990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
+    }
+
+    [Fact]
     public void ExternalOriginalRemovalRetiresCopiesWithoutDuplicateCleanup()
     {
         BattleSession battle = Create(100);
@@ -175,6 +203,13 @@ public sealed class EncounterNativeDamageRoutingTests
         NativeBattleContactPacket countered = Assert.Single(battle.NativeActionPackets.ReadHeaderContacts506BA0(0), packet => packet.Primary.ActorIndex == 4);
         Assert.Equal(enemySource ? (byte)5 : (byte)18, countered.Primary.Sequence);
         BattleSnapshot snapshot = battle.Capture();
+        if (!enemySource)
+        {
+            BattleAttackCommand counter = Assert.Single(snapshot.QueuedActions, command => command.ActorId == "fourth" && command.NativeAiCallbackStage == 4);
+            Assert.Equal(new BattleNativeEventOwner("party", 0), counter.NativeEventOwner);
+            BattleSnapshot invalid = snapshot with { QueuedActions = snapshot.QueuedActions.Select(command => ReferenceEquals(command, counter) ? command with { NativeEventOwner = new("fourth", 0) } : command).ToArray() };
+            Assert.Throws<InvalidDataException>(() => BattleSession.Restore(invalid));
+        }
         Assert.Equal(enemySource ? 0u : 1u, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
         if (!enemySource)
         {

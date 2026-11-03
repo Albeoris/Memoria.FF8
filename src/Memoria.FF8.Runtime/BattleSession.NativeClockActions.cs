@@ -107,7 +107,7 @@ public sealed partial class BattleSession
                 continue;
             }
             eventActor ??= nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native queued completion requires its actual event actor BYTE B0F.");
-            if (GetActor(command.ActorId).NativeIndex != eventActor)
+            if (GetActor(command.NativeEventOwner?.ActorId ?? command.ActorId).NativeIndex != eventActor)
             {
                 continue;
             }
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(action.ActorId);
         ValidateNativeHeaderReference(actor, headerIndex);
         byte eventActor = nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native event presentation completion requires its actual event actor BYTE B0F.");
-        return actor.NativeIndex == eventActor ? action : null;
+        return GetActor(action.NativeEventOwner?.ActorId ?? action.ActorId).NativeIndex == eventActor ? action : null;
     }
 
     private void RunNativePlayerReaction(BattleCombatant actor, int stage)

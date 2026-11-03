@@ -124,7 +124,7 @@ public sealed class EncounterNativeModelAllocationTests
         int originalHp = original.CurrentHp;
         BattleCombatant fourth = Invoke<BattleCombatant>(battle, "AllocateNativeEnemy", original, 1, 6, true);
         TickUntil(battle, () => fourth.IsActive && battle.NativeGraphics!.Models[6].EffectCounter97 == 2 && Drained(battle), "fourth native model allocation");
-        Invoke<object?>(battle, "RunNativeAi", original, 1);
+        Invoke<object?>(battle, "QueueNativeCallback", original, (ushort)1, (byte)0);
         TickUntil(battle, () => battle.EncounterAllocation is { Phase: BattleEncounterAllocationPhase.Complete } && Drained(battle), "source-authored Summon and installed arrival");
         BattleEncounterAllocationState batch = battle.EncounterAllocation!;
         Assert.Equal(2, batch.ActorIds.Length);
@@ -140,8 +140,7 @@ public sealed class EncounterNativeModelAllocationTests
         Assert.NotNull(child.FirstContactIndex);
         Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == fourth.Id).NativeParticipant!.Variables[0]);
         BattleSnapshot accepted = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
-        using GameWorld restoredWorld = new(new GameSession(state with { Battle = accepted }), directory, validateWorldPresentation: false);
-        BattleSession restored = restoredWorld.Battle!;
+        BattleSession restored = (BattleSession)typeof(GameWorld).GetMethod("AttachNativeEffectResources", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(world, [BattleSession.Restore(accepted)])!;
         TickUntil(battle, () => Drained(battle), "native player/counter event, child header and effect completion");
         TickUntil(restored, () => Drained(restored), "restored native player/counter event completion");
         Assert.False(fourth.IsBusy);
@@ -149,7 +148,7 @@ public sealed class EncounterNativeModelAllocationTests
         Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == fourth.Id).NativeParticipant!.Variables[0]);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         int counterEndPartyHp = battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp);
-        Invoke<object?>(battle, "RunNativeAi", fourth, 1);
+        Invoke<object?>(battle, "QueueNativeCallback", fourth, (ushort)1, (byte)0);
         TickUntil(battle, () => Drained(battle), "fourth next ordinary installed ability");
         Assert.False(fourth.IsBusy);
         Assert.True(battle.Combatants.Where(actor => actor.IsPlayer).Sum(actor => actor.CurrentHp) < counterEndPartyHp);
@@ -174,7 +173,7 @@ public sealed class EncounterNativeModelAllocationTests
         Assert.All(copyRows.Append(originalRow), row => Assert.Equal((byte)0, battle.NativeModelTextureCache!.Rows[row].Kind));
         Assert.Equal((byte)3, battle.NativeModelTextureCache!.Rows[battle.NativeGraphics.Models[6].TextureResourceIndex!.Value].Kind);
         int removed = battle.Events.Count(entry => entry.Kind == "NativeModelRemoved");
-        Invoke<object?>(battle, "RunNativeAi", fourth, 1);
+        Invoke<object?>(battle, "QueueNativeCallback", fourth, (ushort)1, (byte)0);
         TickUntil(battle, () => Drained(battle), "fourth ordinary turn after resource compaction");
         Assert.Equal(removed, battle.Events.Count(entry => entry.Kind == "NativeModelRemoved"));
         BattleCombatant reused = Invoke<BattleCombatant>(battle, "AllocateNativeEnemy", fourth, 1, 4, true);
@@ -185,7 +184,7 @@ public sealed class EncounterNativeModelAllocationTests
 
     private static bool Drained(BattleSession battle)
     {
-        return battle.NativeActionPackets.ActionCount == 0 && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && !battle.NativeCommandBanks.BoundCommands.Any() && battle.NativeGraphics is { OriginalEffect: null, ActionActorId: null } && battle.NativeGraphics.Descriptors.Queue.IsEmpty && battle.NativeGraphics.Descriptors.Tasks.All(task => (task.Flags & 1) == 0);
+        return battle.NativeActionPackets.ActionCount == 0 && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && !battle.NativeCommandBanks.BoundCommands.Any() && battle.NativeGraphics is { OriginalEffect: null, ActionActorId: null } && battle.NativeGraphics.Descriptors.Queue.IsEmpty && battle.NativeGraphics.Descriptors.Tasks.All(task => (task.Flags & 1) == 0 || task.Kind == NativeBattleDescriptorTaskKind.Pump500CC0);
     }
 
     private static void TickUntil(BattleSession battle, Func<bool> complete, string boundary)
@@ -194,7 +193,11 @@ public sealed class EncounterNativeModelAllocationTests
         {
             battle.Tick();
         }
-        Assert.True(complete(), "Installed graphical integration did not complete: " + boundary);
+        if (!complete())
+        {
+            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = battle.NativeGraphics!.Models.Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), battle.NativeGraphics.ActionActorId, Effect = battle.NativeGraphics.OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = battle.NativeGraphics.Descriptors.Queue, Tasks = battle.NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
+            Assert.Fail("Installed graphical integration did not complete: " + boundary + "; " + details);
+        }
     }
 
     private static T Invoke<T>(BattleSession battle, string method, params object[] arguments)

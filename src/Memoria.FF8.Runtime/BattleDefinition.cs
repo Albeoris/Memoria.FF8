@@ -234,6 +234,7 @@ public enum BattleActionPhase
     Recovery
 }
 
+public sealed record BattleNativeEventOwner(string ActorId, int SourceHeaderIndex);
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
@@ -260,6 +261,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public int? ReservedNativeItemSlot { get; init; }
     public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
+    public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
 }
@@ -290,6 +292,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public short? GunbladeTriggerTiming { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
+    public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
 }

@@ -103,7 +103,19 @@ public sealed partial class BattleSession
                 nativeAiCallbackStage = pending.Command.NativeAiCallbackStage;
                 try
                 {
-                    EnqueueNativePacket(pending.Actor, pending.Command, pending.Name, pending.PlayerInput, pending.DiagnosticMask);
+                    BattleAttackCommand command = pending.Command;
+                    if (pending.SourceHeader is not null)
+                    {
+                        byte sourceIndex = nativeActionScratch.EventActorB0F ?? throw new InvalidDataException("Deferred counter lacks its native source-event actor.");
+                        BattleCombatant sourceActor = combatants.Single(actor => actor.NativeIndex == sourceIndex);
+                        int sourceHeader = Enumerable.Range(0, nativeActionPackets.ActionCount).FirstOrDefault(index => nativeActionPackets.Headers[index].ReadByte(0) == sourceIndex, -1);
+                        if (sourceHeader < 0)
+                        {
+                            throw new InvalidDataException("Deferred counter lacks its accepted source-event header.");
+                        }
+                        command = command with { NativeEventOwner = new(sourceActor.Id, sourceHeader) };
+                    }
+                    EnqueueNativePacket(pending.Actor, command, pending.Name, pending.PlayerInput, pending.DiagnosticMask);
                 }
                 finally
                 {

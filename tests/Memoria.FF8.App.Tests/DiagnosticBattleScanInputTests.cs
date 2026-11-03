@@ -26,10 +26,10 @@ public sealed class DiagnosticBattleScanInputTests
         Assert.Equal((ushort)0, input.Advance(effect, true, 100));
         NativeBattleEffectTaskPool pool = effect.Pools[0];
         (pool, int slot) = pool.Append(0x84FAF0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, 2).WriteDword(0x18, pool.BankAddress + pool.Stride)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x29, 2).WriteDword(0x18, pool.BankAddress + pool.Stride));
         effect = effect with { Pools = [pool] };
         Assert.Equal((ushort)0, input.Advance(effect, true, 101));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteDword(0x18, pool.BankAddress)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteDword(0x18, pool.BankAddress));
         Assert.Equal((ushort)0x40, input.Advance(effect with { Pools = [pool] }, true, 102));
     }
 
@@ -50,7 +50,9 @@ public sealed class DiagnosticBattleScanInputTests
         Assert.Equal((ushort)0, new DiagnosticBattleScanInput().Advance(effect, false, 100));
         Assert.Equal((ushort)0, new DiagnosticBattleScanInput().Advance(effect with { ReturnedDescriptor = 0 }, true, 100));
         NativeBattleEffectTaskPool pool = effect.Pools[0];
-        effect = effect with { Pools = [pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Flags = 0 }) }] };
+        NativeBattleModulePoolTask viewer = pool.Slots[0];
+        pool = pool.WriteSlot(0, viewer.UpdateHeader(0, viewer.State, viewer.Next, viewer.Callback));
+        effect = effect with { Pools = [pool] };
         Assert.Equal((ushort)0, new DiagnosticBattleScanInput().Advance(effect, true, 100));
     }
 
@@ -58,7 +60,7 @@ public sealed class DiagnosticBattleScanInputTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x269CFC8, 0x269CFD8, 0x78, 20);
         (pool, int slot) = pool.Append(0x84F860);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, phase)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x29, phase));
         return new(40, 39, new(40, 0x84D030, 0x575540), null, 0x269ABA8) { Pools = [pool] };
     }
 }

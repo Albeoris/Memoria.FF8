@@ -16,9 +16,17 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattlePreparedPrimitiveFrame primitives = NativeBattlePreparedPrimitiveFrame.From(frame);
-        if (!encounterArrivals.IsEmpty)
+        if (!encounterArrivals.IsEmpty || encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready })
         {
-            primitives = primitives with { ActorOpacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal) };
+            ImmutableDictionary<string, float> opacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal);
+            if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready } batch)
+            {
+                foreach (string id in batch.ActorIds)
+                {
+                    opacities = opacities.SetItem(id, 0);
+                }
+            }
+            primitives = primitives with { ActorOpacities = opacities };
         }
         if (PreparedPresentation?.Primitives == primitives)
         {

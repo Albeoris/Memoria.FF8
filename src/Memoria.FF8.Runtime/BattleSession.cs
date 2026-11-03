@@ -620,7 +620,7 @@ public sealed partial class BattleSession
                     DispatchNativeSecondaryBankCommand();
                     command = PrepareNativeGraphicsAction(actor, command);
                     BeginNativeBattleActionPause();
-                    ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeaderIndex = command.NativeHeaderIndex, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+                    ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeaderIndex = command.NativeHeaderIndex, NativeEventOwner = command.NativeEventOwner, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
                     BeginComponentGuardianBoost(ActiveAction);
                     Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                     if (command.NativeHeaderIndex is not null && command.NativeQueuedCommand is not (0 or 247) && command.NativeAiCallbackStage is null && command.NativePlayerReaction is null && nativeActionScratch.ComponentCompletion is null)
@@ -1295,6 +1295,7 @@ public sealed partial class BattleSession
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
             ValidateGuardianFormCommand(command);
+            ValidateNativeEventOwner(command.ActorId, command.NativeHeaderIndex, command.NativeEventOwner, command.NativeAiCallbackStage, command.NativeAction);
             if (command.NativeCallback is not null)
             {
                 ValidateSavedNativeCallback(command);
@@ -1315,6 +1316,7 @@ public sealed partial class BattleSession
         if (snapshot.ActiveAction is { } action)
         {
             ValidateGuardianFormPresentation(action);
+            ValidateNativeEventOwner(action.ActorId, action.NativeHeaderIndex, action.NativeEventOwner, action.NativeAiCallbackStage, action.NativeAction);
             ValidateNativeAiCommandStage(GetActor(action.ActorId), action.Ability, action.NativeAiCallbackStage);
             ValidateNativeMagicTargets(action.Ability, action.ActionId, action.NativeMagicTargets);
             ValidateNativeDrawPacket(action.Ability, action.ActionId, action.DrawCast, action.DrawCastTargetId, action.NativeDraw, true, action.NativeAction, action.NativeTargetMask);

@@ -108,6 +108,7 @@ public sealed partial class BattleSession
         {
             graphics = AdvanceNativeGraphicsRequests(graphics);
             graphics = AdvanceEncounterAllocationRetirements(graphics);
+            graphics = AdvanceEncounterAllocationPreparation(graphics);
             graphics = AdvanceEncounterPolicySpawn(graphics);
             flags = graphics.Flags;
             graphics = AdvanceNativeAuxiliary(graphics);

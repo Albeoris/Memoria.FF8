@@ -192,7 +192,24 @@ public sealed partial class BattleSession
         {
             return QueueEncounterAllocationLoad(graphics);
         }
-        encounterAllocation = encounterAllocation with { Phase = BattleEncounterAllocationPhase.Ready };
+        return graphics;
+    }
+
+    private NativeBattleGraphicsState AdvanceEncounterAllocationPreparation(NativeBattleGraphicsState graphics)
+    {
+        if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading } batch || batch.LoadingIndex != batch.ActorIds.Length)
+        {
+            return graphics;
+        }
+        foreach (string id in batch.ActorIds)
+        {
+            NativeBattleGraphicsModel model = graphics.Models[GetActor(id).NativeIndex];
+            if ((model.Flags0 & 2) == 0 || model.EffectCounter97 != 2 || model.Flags2 is not ushort flags || (flags & 0x84) != 0 || model.Kind5 != 0 || model.SequenceState is not { } sequence || model.Sequence != sequence.Default2)
+            {
+                return graphics;
+            }
+        }
+        encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Ready };
         encounterAllocationRollback = null;
         return graphics;
     }

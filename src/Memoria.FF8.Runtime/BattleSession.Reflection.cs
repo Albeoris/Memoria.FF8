@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         byte flags = reflected.TargetFlags.GetValueOrDefault();
         ushort mask = (ushort)((1 << target.NativeIndex) | ((flags & 1) != 0 ? 0x4000 : 0) | ((flags & 2) != 0 ? 0x2000 : 0));
         PendingDiagnosticReflection? diagnostic = PrepareDiagnosticReflection(sourceHeader, actor, reflector, target, source, reflected, mask);
-        BattleAttackCommand packet = new(actor.Id, target.Id, BattleAbility.Magic, reflected.ActionId) { NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask, FreeNativeMagic = true };
+        BattleAttackCommand packet = new(actor.Id, target.Id, BattleAbility.Magic, reflected.ActionId) { NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask, FreeNativeMagic = true, NativeEventOwner = command.NativeEventOwner };
         if (nativeAiDepth == 0 && nativeCallbackTail is null)
         {
             if (diagnostic is not null)
