@@ -13,7 +13,7 @@ public sealed class AudioDecodeProcessTests
         using var fixture = new DecoderFixture();
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         Task<byte[]> running = AudioDecodeProcess.RunAsync(fixture.Start(), null, cancellation.Token, TimeSpan.FromSeconds(cancel ? 30 : 5));
-        await WaitUntil(() => fixture.ParentId is not null && fixture.ChildId is not null);
+        await WaitUntil(() => fixture.ParentId is not null && fixture.ChildId is not null, "decoder and child PID readiness");
         int parent = fixture.ParentId!.Value;
         int child = fixture.ChildId!.Value;
         if (cancel)
@@ -25,16 +25,23 @@ public sealed class AudioDecodeProcessTests
         {
             await Assert.ThrowsAsync<TimeoutException>(() => running);
         }
-        await WaitUntil(() => !IsRunning(parent) && !IsRunning(child));
+        await WaitUntil(() => !IsRunning(parent) && !IsRunning(child), $"decoder and child termination (parent {parent}, child {child})");
     }
 
-    private static async Task WaitUntil(Func<bool> condition)
+    private static async Task WaitUntil(Func<bool> condition, string description)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(10));
-        while (!condition())
+        try
         {
-            await Task.Delay(10, deadline.Token);
+            while (!condition())
+            {
+                await Task.Delay(10, deadline.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!TestContext.Current.CancellationToken.IsCancellationRequested)
+        {
+            Assert.Fail($"Timed out waiting for {description}.");
         }
     }
 
@@ -67,7 +74,18 @@ public sealed class AudioDecodeProcessTests
             {
                 start = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"));
                 foreach (string argument in new[] { "-NoProfile", "-NonInteractive", "-Command", """
-                    $child = Start-Process -FilePath ($env:WINDIR + '\System32\ping.exe') -ArgumentList @('-t', '127.0.0.1') -WindowStyle Hidden -PassThru
+                    $childStart = New-Object System.Diagnostics.ProcessStartInfo
+                    $childStart.FileName = $env:WINDIR + '\System32\ping.exe'
+                    $childStart.Arguments = '-t 127.0.0.1'
+                    $childStart.UseShellExecute = $false
+                    $childStart.CreateNoWindow = $true
+                    $childStart.RedirectStandardOutput = $true
+                    $child = [Diagnostics.Process]::Start($childStart)
+                    # A child PID alone does not establish that its executable has started.
+                    if ($child.StandardOutput.BaseStream.ReadByte() -eq -1)
+                    {
+                        throw 'The decoder child exited before signaling readiness.'
+                    }
                     [IO.File]::WriteAllText($env:MEMORIA_TEST_DECODER_CHILD, [string] $child.Id)
                     [IO.File]::WriteAllText($env:MEMORIA_TEST_DECODER_PARENT, [string] $PID)
                     [Console]::OpenStandardOutput().WriteByte(1)
