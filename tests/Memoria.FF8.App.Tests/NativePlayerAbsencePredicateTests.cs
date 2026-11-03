@@ -10,6 +10,60 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativePlayerAbsencePredicateTests
 {
     [Fact]
+    public void IrrelevantCharacterGuardsRemainUnrepresentedWhilePartyChangesReopenTheirDependencies()
+    {
+        EventEngine engine = GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0));
+        JsonElement before = engine.Capture();
+        NativePersistentPredicateRead[] reads = Assert.IsType<NativePersistentPredicateRead[]>(InitializationGuards(engine));
+        Assert.DoesNotContain(reads, read => read.Address == 721);
+        Assert.False(engine.EventMemory.HasRepresentedExactBytes(721, 1));
+        Assert.True(JsonElement.DeepEquals(before, engine.Capture()));
+        engine.Scene.Party[1] = 1;
+        Assert.Null(InitializationGuards(engine));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(256)]
+    [InlineData(-256)]
+    public void LiteralPartyRelevanceUsesTheNativeByteOperand(int character)
+    {
+        EventEngine engine = GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0));
+        Assert.Null(InitializationGuards(engine));
+    }
+
+    [Fact]
+    public void DynamicOrBypassedLiteralsCannotExcludeAPartyPublisher()
+    {
+        Assert.Null(InitializationGuards(GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.SETPC, 0))));
+        Assert.Null(InitializationGuards(GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.JMP, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0))));
+    }
+
+    [Fact]
+    public void AnIrrelevantBindingTemplateStillCannotOverwriteACollectedGuard()
+    {
+        EventEngine engine = GuardEngine((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.POPM_B, 104), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0));
+        Assert.Null(InitializationGuards(engine));
+    }
+
+    [Fact]
+    public void EveryInitializerBranchMustFinishInactiveBeforeItsGuardsCanBeExcluded()
+    {
+        EventEngine activeBranch = GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.JPF, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0));
+        Assert.Null(InitializationGuards(activeBranch));
+
+        EventEngine unusedBranch = GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.JPF, 4), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.UNUSE, 0));
+        Assert.NotNull(InitializationGuards(unusedBranch));
+    }
+
+    [Fact]
+    public void ReactivationAndUnprovedCyclesCannotExcludeInitializerGuards()
+    {
+        Assert.Null(InitializationGuards(GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.USE, 0))));
+        Assert.Null(InitializationGuards(GuardEngine((Jsm.Opcode.PSHM_B, 721), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.JMP, 0))));
+    }
+
+    [Fact]
     public void PersistentReadsFollowTheActualRestoredImmutableMemoryOwner()
     {
         EventEngine engine = Create(600, 1);
@@ -82,6 +136,31 @@ public sealed class NativePlayerAbsencePredicateTests
         engine.Scene.Party[0] = 0;
         engine.Scene.Party[1] = 255;
         engine.Scene.Party[2] = 255;
+        return engine;
+    }
+
+    private static NativePersistentPredicateRead[]? InitializationGuards(EventEngine engine)
+    {
+        object? result = typeof(EventEngine).GetMethod("ReadAbsenceInitializationGuards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(engine, null);
+        return result is ImmutableArray<NativePersistentPredicateRead> reads ? reads.ToArray() : null;
+    }
+
+    private static EventEngine GuardEngine(params (Jsm.Opcode Opcode, int Parameter)[] body)
+    {
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), .. body, (Jsm.Opcode.RET, 8)];
+        byte[] bytes = new byte[14 + operations.Length * 4];
+        bytes[3] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), 14);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), checked((ushort)operations.Length));
+        for (int index = 0; index < operations.Length; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(14 + index * 4), (int)operations[index].Opcode << 24 | operations[index].Parameter & 0xFFFFFF);
+        }
+        EventEngine engine = new(new GameSession(new GameState()), NativeEventMemory.Empty);
+        engine.LoadField(600, bytes, []);
+        engine.Scene.Party.Clear();
+        engine.Scene.Party.AddRange([0, 255, 255]);
         return engine;
     }
 

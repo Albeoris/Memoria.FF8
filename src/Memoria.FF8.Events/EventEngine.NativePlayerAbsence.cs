@@ -254,7 +254,7 @@ public sealed partial class EventEngine
         foreach (EventObject obj in program!.Objects)
         {
             EventScript init = obj.Scripts[0];
-            if (!init.ReachableOperations.Any(index => program.Operations[index].Opcode == Jsm.Opcode.SETPC))
+            if (!InitializationNeedsAvailabilityGuards(init))
             {
                 continue;
             }
@@ -291,6 +291,80 @@ public sealed partial class EventEngine
         return AbsenceInitializationPreservesGuards(result) ? result : null;
     }
 
+    private bool InitializationNeedsAvailabilityGuards(EventScript script)
+    {
+        if (!script.ReachableOperations.Any(index => program!.Operations[index].Opcode == Jsm.Opcode.SETPC))
+        {
+            return false;
+        }
+        // A bypassed nonparty SETPC can leave an active NPC. Exclude guards only after every path proves inactivity.
+        Stack<(int Position, bool Inactive, bool Leaving)> pending = new();
+        Dictionary<(int Position, bool Inactive), byte> visited = [];
+        pending.Push((script.Start, false, false));
+        bool returned = false;
+        while (pending.TryPop(out var current))
+        {
+            var key = (current.Position, current.Inactive);
+            if (current.Leaving)
+            {
+                visited[key] = 2;
+                continue;
+            }
+            if (visited.TryGetValue(key, out byte status))
+            {
+                if (status == 1)
+                {
+                    return true;
+                }
+                continue;
+            }
+            if (!script.ContainsOperation(current.Position))
+            {
+                return true;
+            }
+            JsmOperation operation = program!.Operations[current.Position];
+            if (operation.Opcode == Jsm.Opcode.RET)
+            {
+                if (!current.Inactive)
+                {
+                    return true;
+                }
+                returned = true;
+                visited[key] = 2;
+                continue;
+            }
+            bool inactive = current.Inactive;
+            if (operation.Opcode == Jsm.Opcode.SETPC)
+            {
+                int index = current.Position;
+                if (!script.ContainsOperation(index - 1) || program.Operations[index - 1].Opcode != Jsm.Opcode.PSHN_L || script.ReachableOperations.Any(position => program.Operations[position].Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF && JsmProgram.JumpTarget(position, program.Operations[position].Parameter) == index) || Scene.Party.Contains(unchecked((byte)program.Operations[index - 1].Parameter)))
+                {
+                    return true;
+                }
+                inactive = true;
+            }
+            else if (operation.Opcode == Jsm.Opcode.UNUSE)
+            {
+                inactive = true;
+            }
+            else if (!IsAbsenceInitializationOperation(operation))
+            {
+                return true;
+            }
+            visited[key] = 1;
+            pending.Push((current.Position, current.Inactive, true));
+            if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
+            {
+                pending.Push((JsmProgram.JumpTarget(current.Position, operation.Parameter), inactive, false));
+            }
+            if (operation.Opcode != Jsm.Opcode.JMP)
+            {
+                pending.Push((current.Position + 1, inactive, false));
+            }
+        }
+        return !returned;
+    }
+
     private bool AbsenceInitializationPreservesGuards(ImmutableArray<NativePersistentPredicateRead> reads)
     {
         foreach (EventObject obj in program!.Objects)
@@ -308,7 +382,7 @@ public sealed partial class EventEngine
                         return false;
                     }
                 }
-                else if (!IsAbsenceMemoryRead(operation.Opcode) && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.RND or Jsm.Opcode.HIDE or Jsm.Opcode.DIR or Jsm.Opcode.SHADELEVEL or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.SESTOP or Jsm.Opcode.SETPLACE or Jsm.Opcode.THROUGHON))
+                else if (!IsAbsenceInitializationOperation(operation))
                 {
                     // Requests, indirect publishers and unknown native effects cannot be omitted from an entry guard proof.
                     return false;
@@ -316,6 +390,11 @@ public sealed partial class EventEngine
             }
         }
         return true;
+    }
+
+    private static bool IsAbsenceInitializationOperation(JsmOperation operation)
+    {
+        return IsAbsenceMemoryRead(operation.Opcode) || operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16 or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.RND or Jsm.Opcode.HIDE or Jsm.Opcode.DIR or Jsm.Opcode.SHADELEVEL or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.SESTOP or Jsm.Opcode.SETPLACE or Jsm.Opcode.THROUGHON;
     }
 
     private bool IsAbsenceLocalCounterUpdate(EventScript script, int index)
