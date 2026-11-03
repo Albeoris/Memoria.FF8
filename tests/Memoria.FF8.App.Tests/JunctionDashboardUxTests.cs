@@ -201,6 +201,121 @@ public sealed class JunctionDashboardUxTests
     }
 
     [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void MagicCandidatesShowBindingOwnerPortraitsAndReserveSpaceForUnboundRows(MenuPresentation presentation)
+    {
+        MenuData data = Fixture();
+        data.Magic.AddRange([
+            new() { Id = "local", CharacterId = "character-0", Name = "Local spell", Quantity = 100, OwnerCharacterId = "character-0", BoundSlot = "Str", OwnerIcon = new(UiImageKind.CharacterPortrait, 0) },
+            new() { Id = "foreign", CharacterId = "character-0", Name = "Foreign spell", Quantity = 100, OwnerCharacterId = "character-7", BoundSlot = "HP", OwnerIcon = new(UiImageKind.CharacterPortrait, 7) },
+            new() { Id = "unbound", CharacterId = "character-0", Name = "Unbound spell", Quantity = 100 }
+        ]);
+        MenuController menu = Open(data, presentation);
+        menu.SelectEntry("junction-dashboard", "slot-HP");
+        menu.Navigate(MenuInput.Confirm);
+        UiColumnPicker columns = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiColumnPicker>());
+        Assert.True(columns.ReserveImageSpace);
+        foreach (MenuMagic spell in data.Magic)
+        {
+            UiElement row = columns.Children.Single(element => element.Id == "candidate-" + spell.Id);
+            if (spell.OwnerIcon is { } source)
+            {
+                Assert.Equal(source, Assert.Single(row.Children.OfType<UiImage>()).Source);
+            }
+            else
+            {
+                Assert.Empty(row.Children.OfType<UiImage>());
+            }
+        }
+        UiElement clear = columns.Children.Single(element => element.Id == "candidate-none");
+        Assert.Empty(clear.Children.OfType<UiImage>());
+        Assert.All(columns.Children, row => Assert.Equal(columns.HorizontalPadding + columns.ImageSize + columns.ImageNameGap, row.Children.OfType<UiLabel>().First().Bounds.X - row.Bounds.X, 3));
+    }
+
+    [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void HoveredMagicHighlightsOnlyItsLocalBindingAndClearsWhenTheCandidateChanges(MenuPresentation presentation)
+    {
+        MenuData data = Fixture();
+        MenuCharacter character = data.Characters[0];
+        character.JunctionIds["Str"] = "local";
+        character.Junctions["Str"] = "Local spell";
+        character.JunctionIds["Vit"] = "foreign";
+        character.Junctions["Vit"] = "Foreign spell";
+        data.Magic.AddRange([
+            new() { Id = "local", CharacterId = character.Id, Name = "Local spell", Quantity = 100, OwnerCharacterId = character.Id, BoundSlot = "Str" },
+            new() { Id = "foreign", CharacterId = character.Id, Name = "Foreign spell", Quantity = 100, OwnerCharacterId = "character-7", BoundSlot = "Vit" },
+            new() { Id = "unbound", CharacterId = character.Id, Name = "Unbound spell", Quantity = 100 }
+        ]);
+        MenuController menu = Open(data, presentation);
+        menu.SelectEntry("junction-dashboard", "slot-HP");
+        menu.Navigate(MenuInput.Confirm);
+        Hover("local");
+        Assert.Equal(new UiColor(110, 220, 135), Assignment("Str").Color);
+        Hover("foreign");
+        Assert.NotEqual(new UiColor(110, 220, 135), Assignment("Str").Color);
+        Assert.NotEqual(new UiColor(110, 220, 135), Assignment("Vit").Color);
+        Hover("local");
+        Hover("unbound");
+        Assert.NotEqual(new UiColor(110, 220, 135), Assignment("Str").Color);
+        Hover("local");
+        Hover("none");
+        Assert.NotEqual(new UiColor(110, 220, 135), Assignment("Str").Color);
+        Hover("local");
+        menu.Navigate(MenuInput.Cancel);
+        Assert.NotEqual(new UiColor(110, 220, 135), Assignment("Str").Color);
+        Assert.Equal("local", character.JunctionIds["Str"]);
+
+        void Hover(string id)
+        {
+            UiButton row = Assert.IsType<UiButton>(Descendants(menu.BuildView().Root).Single(element => element.Id == "candidate-" + id));
+            Assert.NotNull(row.Hover);
+            row.Hover!();
+        }
+
+        UiLabel Assignment(string slot) => Descendants(Descendants(menu.BuildView().Root).Single(element => element.Id == "slot-" + slot)).OfType<UiLabel>().Single(label => label.Text == character.Junctions[slot]);
+    }
+
+    [Theory]
+    [InlineData(MenuPresentation.Classic, 1280, 720, 100, 24)]
+    [InlineData(MenuPresentation.Vector, 1280, 720, 100, 24)]
+    [InlineData(MenuPresentation.Classic, 640, 448, 100, 24)]
+    [InlineData(MenuPresentation.Vector, 640, 448, 100, 24)]
+    [InlineData(MenuPresentation.Classic, 1280, 720, 150, 24)]
+    [InlineData(MenuPresentation.Vector, 1280, 720, 150, 24)]
+    [InlineData(MenuPresentation.Classic, 1280, 720, 100, 18)]
+    [InlineData(MenuPresentation.Vector, 1280, 720, 100, 18)]
+    public void MagicPickerHasFourRowsAndLeavesSpaceBeforeActions(MenuPresentation presentation, int width, int height, int textScale, int fontSize)
+    {
+        MenuData data = Fixture();
+        data.Settings["Text scale"] = textScale + "%";
+        UiPreferences preferences = new() { UiFontSize = fontSize, TextScale = textScale };
+        float scale = textScale / 100f * fontSize / 24f;
+        for (int index = 0; index < 8; index++)
+        {
+            data.Magic.Add(new() { Id = "magic-" + index, CharacterId = "character-0", Name = "Spell " + index, Quantity = 100 });
+        }
+        MenuController menu = new(() => data) { Presentation = presentation };
+        menu.ConnectPreferences(() => preferences, _ => { });
+        menu.Open("junction-dashboard");
+        menu.PrepareViewport(width, height);
+        menu.SelectEntry("junction-dashboard", "slot-HP");
+        menu.Navigate(MenuInput.Confirm);
+        UiView view = menu.BuildView();
+        UiColumnPicker columns = Assert.Single(Descendants(view.Root).OfType<UiColumnPicker>());
+        Assert.Equal(4, columns.RowCount);
+        Assert.Equal(columns.Children[0].Bounds.Y, columns.Children[4].Bounds.Y, 3);
+        Assert.True(columns.Children[4].Bounds.X > columns.Children[0].Bounds.X);
+        Assert.Equal(26 * scale, columns.Children[1].Bounds.Y - columns.Children[0].Bounds.Y, 3);
+        UiLabel actions = Assert.Single(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.EndsWith("  Actions", StringComparison.Ordinal));
+        float gap = actions.Bounds.Y - columns.Bounds.Bottom;
+        Assert.InRange(gap, 8 * scale, (8 * scale) + columns.RowHeight - 0.01f);
+        Assert.True(actions.Bounds.Bottom <= view.Root.Bounds.Bottom);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void PassiveEmptyAttentionRequiresAnUnusedLegalAlternative(bool alternative)

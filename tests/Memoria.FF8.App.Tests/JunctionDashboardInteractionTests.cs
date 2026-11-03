@@ -790,6 +790,129 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal(fixture.Catalog.CommandName(1), fixture.Data.Characters.Single(actor => actor.Id == "character-0").Commands[0]);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BoundMagicDescriptionShowsOwnerSourceSlotAndAuthoritativeStatLossWithoutApplying(bool foreign)
+    {
+        using Fixture fixture = new(shared: foreign);
+        int owner = foreign ? 7 : 0;
+        if (foreign)
+        {
+            fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 1).ToggleGuardianForceJunction(7, 1).SetJunctionMagic(7, 0, 1, reassign: true);
+        }
+        fixture.Refresh();
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        MenuMagic spell = fixture.Data.Magic.Single(magic => magic.Id == "magic-0-1");
+        Assert.Equal("character-" + owner, spell.OwnerCharacterId);
+        Assert.Equal("HP", spell.BoundSlot);
+        MenuJunctionPlan plan = fixture.Data.JunctionPlanner!.Plan(new(foreign ? "junction-magic-reassign" : "junction-magic", spell.Id, "character-0", "Str"));
+        Assert.Null(plan.UnavailableReason);
+        int before = plan.Before.Characters.Single(character => character.Id == spell.OwnerCharacterId).Stats["HP"];
+        int after = plan.After.Characters.Single(character => character.Id == spell.OwnerCharacterId).Stats["HP"];
+        Assert.True(before > after);
+        fixture.Hit("slot-Str");
+        fixture.Preview("candidate-" + spell.Id);
+        UiElement description = Descendants(fixture.Menu.BuildView().Root).Single(element => element.Id == "junction-candidate-description");
+        UiLabel[] labels = Descendants(description).OfType<UiLabel>().ToArray();
+        Assert.Contains(labels, label => label.Text == spell.Name + ":");
+        Assert.Contains(labels, label => label.Text == "HP");
+        UiLabel loss = Assert.Single(labels, label => label.Text == before + " → " + after);
+        Assert.Equal(new UiColor(245, 90, 90), loss.Color);
+        Assert.Contains(Descendants(description).OfType<UiImage>(), image => image.Source == new UiImageSource(UiImageKind.CharacterPortrait, fixture.Vitals.Records[owner].CharacterId));
+        Assert.Contains(Descendants(description).OfType<UiImage>(), image => image.Source == new UiImageSource(UiImageKind.Icon, 192));
+        Assert.All(labels, label => Assert.Equal(labels[0].Bounds.Y, label.Bounds.Y, 3));
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+    }
+
+    [Theory]
+    [InlineData(false, "Elem-Def 1", 11)]
+    [InlineData(false, "ST-Atk", 10)]
+    [InlineData(false, "ST-Def 1", 15)]
+    [InlineData(true, "ST-Def 1", 15)]
+    public void BoundMagicDescriptionShowsEveryChangedElementOrStatusOnOneLineWithoutApplying(bool foreign, string slot, int slotIndex)
+    {
+        bool elemental = slot.StartsWith("Elem-", StringComparison.Ordinal);
+        using Fixture fixture = new(shared: foreign, extraSpellName: elemental ? null : "Pain");
+        int spellId = elemental ? 1 : Enumerable.Range(1, 56).Single(id => fixture.Catalog.MagicName(id) == "Pain");
+        int owner = foreign ? 7 : 0;
+        if (foreign)
+        {
+            fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1);
+            foreach (int ability in Enumerable.Range(1, 24))
+            {
+                fixture.Vitals = fixture.Vitals.TeachGuardianForceAbility(1, ability);
+            }
+            fixture.Vitals = fixture.Vitals.ToggleGuardianForceJunction(7, 1);
+        }
+        fixture.Vitals = fixture.Vitals.SetJunctionMagic(owner, slotIndex, spellId, reassign: foreign);
+        fixture.Refresh();
+        fixture.Menu.PrepareViewport(1280, 720);
+        string original = JsonSerializer.Serialize(fixture.Vitals);
+        MenuMagic spell = fixture.Data.Magic.Single(magic => magic.Id == "magic-0-" + spellId);
+        if (!elemental)
+        {
+            Assert.Equal("Pain", spell.Name);
+        }
+        Assert.Equal("character-" + owner, spell.OwnerCharacterId);
+        Assert.Equal(slot, spell.BoundSlot);
+        MenuJunctionPlan plan = fixture.Data.JunctionPlanner!.Plan(new(foreign ? "junction-magic-reassign" : "junction-magic", spell.Id, "character-0", "Str"));
+        Assert.Null(plan.UnavailableReason);
+        MenuJunctionEffects before = plan.Before.Characters.Single(character => character.Id == spell.OwnerCharacterId).JunctionEffects!;
+        MenuJunctionEffects after = plan.After.Characters.Single(character => character.Id == spell.OwnerCharacterId).JunctionEffects!;
+        bool attack = slot.EndsWith("-Atk", StringComparison.Ordinal);
+        IReadOnlyList<MenuJunctionPercentage> oldValues = elemental ? before.Elements : before.Statuses;
+        IReadOnlyList<MenuJunctionPercentage> newValues = elemental ? after.Elements : after.Statuses;
+        int[] changed = Enumerable.Range(0, oldValues.Count).Where(index => (attack ? oldValues[index].Attack : oldValues[index].Defense) != (attack ? newValues[index].Attack : newValues[index].Defense)).ToArray();
+        if (elemental)
+        {
+            Assert.Single(changed);
+        }
+        else
+        {
+            Assert.True(changed.Length >= 3);
+        }
+        fixture.Hit("slot-Str");
+        fixture.Preview("candidate-" + spell.Id);
+        UiView view = fixture.Menu.BuildView();
+        UiElement description = Descendants(view.Root).Single(element => element.Id == "junction-candidate-description");
+        UiLabel[] labels = Descendants(description).OfType<UiLabel>().ToArray();
+        UiImage[] images = Descendants(description).OfType<UiImage>().ToArray();
+        Assert.Contains(labels, label => label.Text == spell.Name + ":");
+        Assert.Contains(labels, label => label.Text == slot);
+        Assert.Contains(images, image => image.Source == new UiImageSource(UiImageKind.CharacterPortrait, fixture.Vitals.Records[owner].CharacterId));
+        Assert.Contains(images, image => image.Source == new UiImageSource(UiImageKind.Icon, 192));
+        Assert.Equal(changed.Length - 1, labels.Count(label => label.Text == ","));
+        Assert.Equal(changed.Length, labels.Count(label => label.Text.Contains("% → ", StringComparison.Ordinal)));
+        foreach (int index in changed)
+        {
+            Assert.Contains(labels, label => label.Text == oldValues[index].Name);
+            Assert.Contains(images, image => image.Source == new UiImageSource(UiImageKind.Icon, (elemental ? 288 : 272) + index));
+            int oldValue = attack ? oldValues[index].Attack : oldValues[index].Defense;
+            int newValue = attack ? newValues[index].Attack : newValues[index].Defense;
+            Assert.Contains(labels, label => label.Text == oldValue + "% → " + newValue + "%" && label.Color == new UiColor(245, 90, 90));
+        }
+        Assert.All(labels, label => Assert.Equal(labels[0].Bounds.Y, label.Bounds.Y, 3));
+        Assert.All(labels, label => Assert.True(label.Bounds.Right <= description.Bounds.Right));
+        Assert.Equal(original, JsonSerializer.Serialize(fixture.Vitals));
+        Assert.Equal(0, fixture.Actions);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_RENDER_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            foreach (MenuPresentation presentation in new[] { MenuPresentation.Classic, MenuPresentation.Vector })
+            {
+                fixture.Menu.Presentation = presentation;
+                using SKBitmap bitmap = new(1280, 720);
+                using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
+                canvas.BeginFrame(TimeSpan.Zero);
+                fixture.Menu.BuildView().Draw(canvas, presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme());
+                bitmap.SavePng(Path.Combine(directory, $"magic-owner-{spellId}-{(foreign ? "foreign" : "local")}-{presentation}.png"));
+            }
+        }
+    }
+
     private static IEnumerable<UiElement> Descendants(UiElement root)
     {
         yield return root;
@@ -812,11 +935,12 @@ public sealed class JunctionDashboardInteractionTests
         public MenuController Menu { get; }
         public int Actions { get; private set; }
 
-        public Fixture(bool shared = false, bool smart = false)
+        public Fixture(bool shared = false, bool smart = false, string? extraSpellName = null)
         {
             Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Original menu/kernel resources must be explicitly configured.");
             assets = new GameAssets(TestResources.GameDirectory);
             Catalog = LiveMenuCatalog.ReadInstalled(assets);
+            int? extraSpell = extraSpellName is null ? null : Enumerable.Range(1, 56).Single(id => Catalog.MagicName(id) == extraSpellName);
             Vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
             foreach (int ability in Enumerable.Range(1, 24))
             {
@@ -825,7 +949,7 @@ public sealed class JunctionDashboardInteractionTests
             Vitals = Vitals.ToggleGuardianForceJunction(0, 0);
             for (int row = 0; row < 8; row++)
             {
-                Vitals.Records[row] = Vitals.Records[row] with { MagicInventory = Enumerable.Range(1, 32).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() };
+                Vitals.Records[row] = Vitals.Records[row] with { MagicInventory = Enumerable.Range(1, 32).Select(spell => new NativeMagicStock((byte)(spell == 32 ? extraSpell ?? spell : spell), 100)).ToArray() };
             }
             preferences = new GameplayPreferences { SharedMagicStock = shared, InfiniteMagic = true, SmartAttack = smart };
             Vitals = MagicModeCoordinator.Preview(Vitals, preferences).Vitals.SetJunctionMagic(0, 0, 1);

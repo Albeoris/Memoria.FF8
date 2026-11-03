@@ -207,7 +207,7 @@ public sealed partial class MenuController
 
     private UiElement BuildJunctionDock()
     {
-        UiGrid dock = JunctionRows([0, 20], [1]);
+        UiGrid dock = JunctionRows([0, 20 * TextScale], [1], 8 * TextScale);
         UiElement content;
         if (junctionReview && !junctionTransferModal)
         {

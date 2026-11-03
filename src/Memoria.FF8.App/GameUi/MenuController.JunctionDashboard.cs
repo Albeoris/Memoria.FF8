@@ -187,8 +187,8 @@ public sealed partial class MenuController
             Message = J("stale", "The source changed. Select the proposal again to review its current effects.");
         }
         bool accessible = JunctionAccessible;
-        float dockHeight = accessible ? Math.Min(junctionViewportHeight * 0.35f, 160 * TextScale) : 160;
-        UiGrid page = JunctionRows(accessible ? [44 * TextScale, 0, dockHeight] : [44, 76, 0, 160], [1], 8);
+        float dockHeight = 166 * TextScale + 10;
+        UiGrid page = JunctionRows(accessible ? [44 * TextScale, 0, dockHeight] : [44, 76, 0, dockHeight], [1], 8);
         page.Id = "junction-dashboard";
         Place(page, BuildJunctionHeader(), 0);
         if (!accessible)
@@ -402,7 +402,12 @@ public sealed partial class MenuController
         }
         else
         {
-            Place(content, available ? JunctionLabel(assigned, 16) : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
+            UiLabel assignment = JunctionLabel(assigned, 16);
+            if (JunctionCandidateMagic(junctionCandidate) is { } hovered && junctionEditor == "magic" && hovered.OwnerCharacterId == actorId && Character?.Junctions.ContainsKey(slot) == true && currentId == hovered.Id)
+            {
+                assignment.Color = JunctionIncreaseColor;
+            }
+            Place(content, available ? assignment : new JunctionLockIcon { Id = "junction-lock-" + slot }, 0, 1);
         }
         Place(content, JunctionLabel(magic?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "—", stat ? 15 : 14, true), 0, 2);
         if (stat)

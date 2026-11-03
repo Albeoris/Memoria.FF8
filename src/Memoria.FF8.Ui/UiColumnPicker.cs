@@ -16,6 +16,7 @@ public sealed class UiColumnPicker : UiElement
     public float HorizontalPadding { get; set; } = 8;
     public float ImageSize { get; set; } = 18;
     public float ImageNameGap { get; set; } = 8;
+    public bool ReserveImageSpace { get; set; }
     public int FirstVisibleColumn { get; set; }
     public int InitialIndex { get; set; }
     public int RowCount { get; private set; } = 1;
@@ -46,7 +47,7 @@ public sealed class UiColumnPicker : UiElement
             int column = index / RowCount;
             nameWidths[column] = Math.Max(nameWidths[column], items[index].Name.Measure(new UiSize(float.PositiveInfinity, RowHeight)).Width);
             quantityWidths[column] = Math.Max(quantityWidths[column], items[index].Quantity.Measure(new UiSize(float.PositiveInfinity, RowHeight)).Width);
-            if (items[index].Image is not null)
+            if (ReserveImageSpace || items[index].Image is not null)
             {
                 imageWidths[column] = ImageSize + ImageNameGap;
             }

@@ -10,7 +10,7 @@ public sealed partial class MenuController
     {
         bool magic = junctionEditor == "magic";
         UiGrid body = JunctionRows([4 * TextScale, 24 * TextScale, 0], [1], 2 * TextScale);
-        UiLabel description = JunctionLabel(magic ? (Character?.Name ?? "") + " · " + StatText(_junctionSlot) : candidates.FirstOrDefault(candidate => candidate.Id == junctionCandidate)?.Detail ?? "", 14);
+        UiElement description = magic ? BuildJunctionMagicDescription() : JunctionLabel(candidates.FirstOrDefault(candidate => candidate.Id == junctionCandidate)?.Detail ?? "", 14);
         description.Id = "junction-candidate-description";
         description.Margin = new UiThickness(8 * TextScale, 0, 8 * TextScale, 0);
         Place(body, description, 1);
@@ -21,6 +21,7 @@ public sealed partial class MenuController
             NameQuantityGap = magic ? 8 * TextScale : 0,
             ImageSize = 18 * TextScale,
             ImageNameGap = 6 * TextScale,
+            ReserveImageSpace = magic,
             ColumnGap = 16 * TextScale,
             HorizontalPadding = 8 * TextScale,
             FirstVisibleColumn = junctionCandidatePage,
@@ -49,7 +50,8 @@ public sealed partial class MenuController
                     }
                 }
             };
-            UiImage? icon = candidate.Icon is { } image ? new() { Source = image } : null;
+            UiImageSource? source = magic ? JunctionCandidateMagic(candidate.Id)?.OwnerIcon : candidate.Icon;
+            UiImage? icon = source is { } image ? new() { Source = image } : null;
             columns.Add(row, JunctionLabel(candidate.Name, 16), JunctionLabel(magic && stock.TryGetValue(candidate.Id, out int quantity) ? Number(quantity) : "", 16), icon);
         }
         Place(body, columns, 2);
