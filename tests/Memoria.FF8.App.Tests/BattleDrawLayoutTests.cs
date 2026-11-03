@@ -73,11 +73,19 @@ public sealed class BattleDrawLayoutTests
         var arrow = Assert.Single(stock.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
         UiRect panel = stock.Clips.First(rect => rect.X == 30 && rect.Bottom == 648);
         Assert.True(arrow.Bounds.X >= panel.Right);
+        Assert.False(arrow.Source.FlipHorizontal);
         view.Pointer(arrow.Bounds.X + 2, arrow.Bounds.Y + 2, true);
         BattleUiTests.TestCanvas cast = new();
         view.Draw(cast, new UiTheme());
         Assert.True(hud.DrawCast);
         Assert.Contains(cast.TextDraws, draw => draw.Text == "Cast" && draw.Color == new UiColor(255, 255, 0));
+        var backArrow = Assert.Single(cast.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
+        UiRect castPanel = cast.Clips.First(rect => rect.X == 30 && rect.Bottom == 648);
+        Assert.True(backArrow.Source.FlipHorizontal);
+        Assert.True(backArrow.Bounds.Right <= castPanel.X);
+        view.Pointer(backArrow.Bounds.X + 2, backArrow.Bounds.Y + 2, false);
+        view.Pointer(backArrow.Bounds.X + 2, backArrow.Bounds.Y + 2, true);
+        Assert.False(hud.DrawCast);
     }
 
     [Fact]
@@ -93,6 +101,7 @@ public sealed class BattleDrawLayoutTests
         view.Resize(960, 672);
         BattleUiTests.TestCanvas first = new();
         view.Draw(first, new UiTheme());
+        Assert.DoesNotContain(first.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
         var text = Assert.Single(first.TextDraws, draw => draw.Text == "????");
         Assert.Equal(LearnedAbilityHighlight.Color(hud.BattlePresentationSeconds), text.Color);
         Assert.Contains(first.Pointers, pointer => pointer.X < 400 && pointer.Y > 200 && pointer.Y < 300);
@@ -100,6 +109,21 @@ public sealed class BattleDrawLayoutTests
         BattleUiTests.TestCanvas second = new();
         view.Draw(second, new UiTheme());
         Assert.NotEqual(text.Color, Assert.Single(second.TextDraws, draw => draw.Text == "????").Color);
+    }
+
+    [Fact]
+    public void CastOnlyPageHasNoReturnArrow()
+    {
+        BattleDefinition definition = Create(1, []).Session.Capture().Definition;
+        definition.Combatants[0] = definition.Combatants[0] with { MagicStocks = [new(1, 100)] };
+        BattleHudController hud = new(new(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { });
+        hud.Choose(0);
+        Assert.True(hud.DrawCast);
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        BattleUiTests.TestCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.DoesNotContain(canvas.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
     }
 
     private static BattleHudController Create(int count, List<BattleInput> submitted)

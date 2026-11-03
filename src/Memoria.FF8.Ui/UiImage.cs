@@ -23,7 +23,7 @@ public enum UiImageKind
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>
-public readonly record struct UiImageSource(UiImageKind Kind, int Id, int Palette = 0, int RankModifier = 0, byte Opacity = 255);
+public readonly record struct UiImageSource(UiImageKind Kind, int Id, int Palette = 0, int RankModifier = 0, byte Opacity = 255, bool FlipHorizontal = false);
 
 /// <summary>Fits artwork inside the arranged grid or anchor bounds while preserving its native aspect ratio.</summary>
 public sealed class UiImage : UiElement

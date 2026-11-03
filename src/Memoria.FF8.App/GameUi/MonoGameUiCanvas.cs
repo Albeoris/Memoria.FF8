@@ -166,7 +166,8 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
         opacity *= source.Opacity / 255f;
-        source = source with { Opacity = 255 };
+        bool flipHorizontal = source.FlipHorizontal;
+        source = source with { Opacity = 255, FlipHorizontal = false };
         if (bounds.IsEmpty)
         {
             return;
@@ -181,9 +182,9 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scale.Y), top, texture.Height);
         if (right > left && bottom > top)
         {
-            Rectangle sourceBounds = new(left, top, right - left, bottom - top);
+            Rectangle sourceBounds = new(flipHorizontal ? texture.Width - right : left, top, right - left, bottom - top);
             Vector2 position = new(destination.X + left * scale.X, destination.Y + top * scale.Y);
-            batch.Draw(texture, position, sourceBounds, Color.White * opacity, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            batch.Draw(texture, position, sourceBounds, Color.White * opacity, 0, Vector2.Zero, scale, flipHorizontal ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
         }
     }
 

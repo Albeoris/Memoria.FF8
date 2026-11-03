@@ -64,11 +64,11 @@ internal sealed partial class BattleHudElement
             }
         }
         bool canSwitch = controller.DrawCast ? controller.DrawStockAvailable : controller.DrawCastAvailable;
-        drawPageArrow = canSwitch ? Rect(30 + CommandWidth, CommandPanelY + CommandPanelHeight / 2 - 14, 24, 28) : default;
+        drawPageArrow = canSwitch ? Rect(controller.DrawCast ? 6 : 30 + CommandWidth, CommandPanelY + CommandPanelHeight / 2 - 14, 24, 28) : default;
         if (canSwitch)
         {
             int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate);
-            canvas.Image(new UiImageSource(UiImageKind.Icon, 6, (phase & 2) != 0 ? 0 : 5), drawPageArrow);
+            canvas.Image(new UiImageSource(UiImageKind.Icon, 6, (phase & 2) != 0 ? 0 : 5, FlipHorizontal: controller.DrawCast), drawPageArrow);
         }
         if (controller.SelectedTarget is { } source)
         {

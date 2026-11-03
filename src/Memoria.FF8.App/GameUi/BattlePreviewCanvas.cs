@@ -107,7 +107,8 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
         opacity *= source.Opacity / 255f;
-        source = source with { Opacity = 255 };
+        bool flipHorizontal = source.FlipHorizontal;
+        source = source with { Opacity = 255, FlipHorizontal = false };
         if (artworkGeneration != artwork.Generation)
         {
             foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsResourceImage).ToArray())
@@ -132,6 +133,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         try
         {
             graphics.ClipRect(RectFor(bounds), SKClipOperation.Intersect);
+            if (flipHorizontal)
+            {
+                graphics.Translate(destination.X * 2 + destination.Width, 0);
+                graphics.Scale(-1, 1);
+            }
             using SKPaint paint = new() { Color = SKColors.White.WithAlpha((byte)(Math.Clamp(opacity, 0, 1) * 255)), IsAntialias = true };
             graphics.DrawBitmap(bitmap, RectFor(destination), paint);
         }
