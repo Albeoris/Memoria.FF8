@@ -25,15 +25,17 @@ public sealed class JunctionDashboardPortraitTests
         if (before is not null)
         {
             AssertNeighbour(before, data.Characters[selected - 1].NativeId!.Value, view);
-            Assert.IsType<UiButton>(before).Click!();
+            Assert.DoesNotContain(menu.Entries, entry => entry.Id == before.Id);
+            menu.Navigate(MenuInput.PageLeft);
             Assert.Equal(data.Characters[selected - 1].Id, menu.Character?.Id);
         }
         menu.Execute(new("select-character", data.Characters[selected].Id));
         if (after is not null)
         {
-            UiButton fresh = Assert.IsType<UiButton>(Descendants(menu.BuildView().Root).Single(element => element.Id == "next-character"));
+            UiElement fresh = Descendants(menu.BuildView().Root).Single(element => element.Id == "next-character");
             AssertNeighbour(fresh, data.Characters[selected + 1].NativeId!.Value, menu.BuildView());
-            fresh.Click!();
+            Assert.DoesNotContain(menu.Entries, entry => entry.Id == fresh.Id);
+            menu.Navigate(MenuInput.PageRight);
             Assert.Equal(data.Characters[selected + 1].Id, menu.Character?.Id);
         }
     }
@@ -58,6 +60,49 @@ public sealed class JunctionDashboardPortraitTests
         menu.Navigate(input);
         Assert.Equal(data.Characters[selected].Id, menu.Character?.Id);
     }
+
+    [Theory]
+    [InlineData(1280, 720, "slot-HP")]
+    [InlineData(1280, 720, "slot-Elem-Atk")]
+    [InlineData(1280, 720, "elemental-attack")]
+    [InlineData(1280, 720, "elemental-defense")]
+    [InlineData(3440, 1440, "slot-HP")]
+    [InlineData(3440, 1440, "slot-Elem-Atk")]
+    [InlineData(3440, 1440, "elemental-attack")]
+    [InlineData(3440, 1440, "elemental-defense")]
+    public void UpFromDashboardTopSelectsTheHorizontallyNearestGuardianForce(int width, int height, string sourceId)
+    {
+        MenuController menu = Open(Fixture(3, 7), width, height);
+        UiView view = menu.BuildView();
+        UiElement source = Descendants(view.Root).Single(element => element.Id == sourceId);
+        Assert.True(view.Focus(source));
+        view = menu.BuildView();
+        source = Descendants(view.Root).Single(element => element.Id == sourceId);
+        UiButton nearest = Descendants(view.Root).OfType<UiButton>()
+            .Where(button => button.Id?.StartsWith("gf-portrait-", StringComparison.Ordinal) == true)
+            .MinBy(button => Math.Abs(CenterX(button) - CenterX(source)))!;
+        Assert.True(nearest.Bounds.Bottom < source.Bounds.Y);
+
+        menu.Navigate(MenuInput.Up);
+
+        Assert.Equal(nearest.Id, menu.BuildView().FocusedElement?.Id);
+    }
+
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(3440, 1440)]
+    public void UpWithinStatsKeepsMovingToThePreviousStat(int width, int height)
+    {
+        MenuController menu = Open(Fixture(3, 7), width, height);
+        UiView view = menu.BuildView();
+        Assert.True(view.Focus(Descendants(view.Root).Single(element => element.Id == "slot-Str")));
+
+        menu.Navigate(MenuInput.Up);
+
+        Assert.Equal("slot-HP", menu.BuildView().FocusedElement?.Id);
+    }
+
+    private static float CenterX(UiElement element) => element.Bounds.X + element.Bounds.Width / 2;
 
     [Theory]
     [InlineData(1280, 720)]
@@ -133,6 +178,11 @@ public sealed class JunctionDashboardPortraitTests
 
     private static void AssertNeighbour(UiElement button, int nativeId, UiView view)
     {
+        Assert.False(button.Focusable);
+        Assert.IsNotType<UiButton>(button);
+        UiElement? originalFocus = view.FocusedElement;
+        Assert.False(view.Focus(button));
+        Assert.Same(originalFocus, view.FocusedElement);
         UiImage image = Assert.Single(Descendants(button).OfType<UiImage>());
         Assert.Equal(new UiImageSource(UiImageKind.CharacterPortrait, nativeId), image.Source);
         Assert.True(button.Bounds.X >= view.Root.Bounds.Width / 2);

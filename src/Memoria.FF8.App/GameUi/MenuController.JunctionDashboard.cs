@@ -265,12 +265,11 @@ public sealed partial class MenuController
                 Place(navigation, JunctionLabel("⟵", 19), 0, column++);
             }
             navigation.ColumnDefinitions.Add(UiGridLength.Pixel(44));
-            UiButton button = JunctionButton(id, "", () => SwitchJunctionCharacter(direction), !junctionReview);
-            button.DrawBackground = false;
+            UiElement hint = new() { Id = id };
             UiImage portrait = Portrait(neighbor);
             portrait.Id = id + "-portrait";
-            button.Children.Add(portrait);
-            Place(navigation, button, 0, column++);
+            hint.Children.Add(portrait);
+            Place(navigation, hint, 0, column++);
             if (direction > 0)
             {
                 navigation.ColumnDefinitions.Add(UiGridLength.Pixel(30));

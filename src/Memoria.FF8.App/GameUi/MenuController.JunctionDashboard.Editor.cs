@@ -760,6 +760,23 @@ public sealed partial class MenuController
 
     private void MoveJunctionSpatialFocus(UiView view, MenuInput input)
     {
+        if (input == MenuInput.Up && !JunctionHasActiveScope && view.FocusedElement is { } origin)
+        {
+            UiElement[] controls = FocusableDescendants(view.Root).Where(JunctionControlIsActive).Where(element => element.Enabled && element.Visible && !element.Bounds.IsEmpty).ToArray();
+            UiElement[] guardians = controls.Where(element => element.Id?.StartsWith("gf-portrait-", StringComparison.Ordinal) == true).ToArray();
+            if (guardians.Length > 0 && origin.Bounds.Y >= guardians.Max(element => element.Bounds.Bottom))
+            {
+                float guardianBottom = guardians.Max(element => element.Bounds.Bottom);
+                bool hasControlAbove = controls.Any(element => element.Bounds.Y >= guardianBottom && element.Bounds.Bottom <= origin.Bounds.Y + 1 && element.Bounds.X < origin.Bounds.Right && element.Bounds.Right > origin.Bounds.X);
+                if (!hasControlAbove)
+                {
+                    float center = origin.Bounds.X + origin.Bounds.Width / 2;
+                    UiElement nearest = guardians.MinBy(element => Math.Abs(element.Bounds.X + element.Bounds.Width / 2 - center))!;
+                    view.Focus(nearest);
+                    return;
+                }
+            }
+        }
         view.MoveFocus(input switch
         {
             MenuInput.Left => UiKey.Left,

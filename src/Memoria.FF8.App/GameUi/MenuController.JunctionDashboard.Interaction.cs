@@ -32,7 +32,7 @@ public sealed partial class MenuController
             return;
         }
         bool assignment = nextId.StartsWith("slot-", StringComparison.Ordinal) || nextId.StartsWith("command-", StringComparison.Ordinal) || nextId.StartsWith("passive-", StringComparison.Ordinal) || nextId == "basic-action";
-        if (!assignment && nextId is not ("previous-character" or "next-character"))
+        if (!assignment)
         {
             return;
         }

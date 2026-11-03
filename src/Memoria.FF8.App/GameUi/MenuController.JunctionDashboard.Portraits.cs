@@ -24,10 +24,6 @@ public sealed partial class MenuController
         {
             return Data.GuardianForces.FirstOrDefault(force => "gf-portrait-" + force.Id == button.Id)?.Name ?? "";
         }
-        if (button.Id is "previous-character" or "next-character")
-        {
-            return JunctionAdjacentCharacter(button.Id == "previous-character" ? -1 : 1)?.Name ?? "";
-        }
         if (button.Id?.StartsWith("gf-capability-", StringComparison.Ordinal) == true || button.Id?.StartsWith("candidate-", StringComparison.Ordinal) == true)
         {
             return button.Children.OfType<UiLabel>().FirstOrDefault()?.Text ?? "";
