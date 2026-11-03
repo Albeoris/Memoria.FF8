@@ -4,6 +4,29 @@ namespace Memoria.FF8;
 
 internal sealed partial class AutoPlayController
 {
+    private readonly bool? requestedBattlePolicy;
+
+    private void ApplyBattlePolicy(GameWorld world)
+    {
+        if (run.FullBattlePlaythroughOverride is not bool fullCombat)
+        {
+            return;
+        }
+        bool pendingInteractive = world.Events.PendingInteractiveBattle is not null || world.Events.PendingMenuBattle is not null || session.State.RandomEncounters?.Pending is not null;
+        if ((session.State.FullBattlePlaythrough == true) != fullCombat || !fullCombat && (pendingInteractive || world.Battle?.Outcome == BattleOutcome.Active))
+        {
+            world.ApplyBattleInput(new(BattleInputKind.ConfigurePlaythrough, FullCombat: fullCombat));
+            ResetIdleDeadline();
+        }
+        if (!fullCombat && world.Battle?.CanReturnToField == true)
+        {
+            SaveBundle($"battle-outcome-{run.Steps:D10}", CaptureState());
+            world.ApplyBattleInput(new(BattleInputKind.Return));
+            SaveBundle($"battle-return-{run.Steps:D10}", CaptureState());
+            ResetIdleDeadline();
+        }
+    }
+
     private bool TryPlayBattle(GameWorld world)
     {
         if (world.Battle is null && world.Events.PendingInteractiveBattle is null && world.Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending is null)

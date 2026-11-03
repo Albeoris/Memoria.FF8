@@ -9,10 +9,16 @@ internal static class AutoPlayCommand
         string? output = null;
         string? resume = null;
         long? maxSteps = null;
+        bool? battlePolicy = null;
         List<string> launch = [];
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
+            if (argument == "--auto-victory")
+            {
+                battlePolicy = false;
+                continue;
+            }
             if (argument is "--output" or "--resume" or "--max-steps")
             {
                 if (++index >= args.Length)
@@ -57,7 +63,7 @@ internal static class AutoPlayCommand
             world = null;
             session.Restore(state);
         }
-        AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory));
+        AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory), fullBattlePlaythroughOverride: battlePolicy);
         try
         {
             if (resume is not null)

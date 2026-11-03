@@ -12,6 +12,7 @@ internal sealed class AutoPlayRunState
 {
     public int Version { get; set; } = 1;
     public int Seed { get; set; } = 1;
+    public bool? FullBattlePlaythroughOverride { get; set; }
     public long Steps { get; set; }
     public AutoPlayPlannerState Coverage { get; set; } = new();
     public string? ActiveVisit { get; set; }
@@ -92,9 +93,10 @@ internal sealed partial class AutoPlayController
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
 
-    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null, Func<GameSession>? createColdProcess = null)
+    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null, Func<GameSession>? createColdProcess = null, bool? fullBattlePlaythroughOverride = null)
     {
         this.session = session;
+        requestedBattlePolicy = fullBattlePlaythroughOverride;
         idleDeadline = new(deadlineTime ?? TimeProvider.System, MaximumIdleTime);
         this.createColdProcess = createColdProcess ?? (() => GameSession.CreateColdProcess());
         this.getWorld = () =>
@@ -119,6 +121,10 @@ internal sealed partial class AutoPlayController
         };
         this.restore = state =>
         {
+            if ((requestedBattlePolicy ?? run.FullBattlePlaythroughOverride) is bool fullCombat)
+            {
+                state = state with { FullBattlePlaythrough = fullCombat ? true : null };
+            }
             using IDisposable suspended = idleDeadline.Suspend();
             using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Restore");
             GameWorld? current = advancing ? this.getWorld() : null;
@@ -174,7 +180,13 @@ internal sealed partial class AutoPlayController
 
     private void StartRun(GameState initial, string status)
     {
-        run = new();
+        bool? policy = requestedBattlePolicy ?? run.FullBattlePlaythroughOverride;
+        run = new() { FullBattlePlaythroughOverride = policy };
+        if (policy is bool fullCombat)
+        {
+            session.SetFullBattlePlaythrough(fullCombat);
+            initial = initial with { FullBattlePlaythrough = fullCombat ? true : null };
+        }
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
@@ -335,6 +347,8 @@ internal sealed partial class AutoPlayController
         {
             directRetryContext.BeforeCheckpoint = ImportCheckpoint(directRetryContext.BeforeCheckpoint);
         }
+        saved.FullBattlePlaythroughOverride = requestedBattlePolicy ?? saved.FullBattlePlaythroughOverride;
+        run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
         restore(ReadCheckpoint(Path.Combine(directory, saved.Snapshot)));
         run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
@@ -488,6 +502,7 @@ internal sealed partial class AutoPlayController
             ObserveSurveySegmentChanges(world);
         }
         world.EnsureField();
+        ApplyBattlePolicy(world);
         if (TryPlayBattle(world))
         {
             return;
@@ -1813,6 +1828,10 @@ internal sealed partial class AutoPlayController
     private PlayerActionResult Apply(PlayerAction action)
     {
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Action.Apply");
+        if (run.FullBattlePlaythroughOverride is not null)
+        {
+            ApplyBattlePolicy(getWorld());
+        }
         PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : getWorld().Apply(action);
         if (!result.Accepted)
         {

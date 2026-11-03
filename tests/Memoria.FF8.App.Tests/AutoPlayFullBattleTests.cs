@@ -3,6 +3,33 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
+public sealed class AutoPlayBattlePolicyTests
+{
+    [Fact]
+    public void AutomaticVictoryOverridesAnOlderPendingInteractiveBattleWithoutChangingItsSourceSave()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(File.Exists(Path.Combine(directory, "main.zzz")), "Select Remastered resources for this policy check.");
+        string source = TestResources.FixturePath("App.Tests.AutoPlayFullBattleTests.1");
+        GameSession session = new(GameSession.Load(source));
+        int applied = session.State.AppliedBattleResultIds.Length;
+        string output = TestResources.ArtifactFile("automatic-victory");
+        using GameWorld world = new(session, directory, validateWorldPresentation: false);
+        AutoPlayController controller = new(session, () => world, _ => throw new InvalidOperationException("No exploration rollback is needed."), output, fullBattlePlaythroughOverride: false);
+        controller.StartFromCurrentState();
+        controller.Advance(1);
+        Assert.Null(controller.Error);
+        Assert.Null(session.State.FullBattlePlaythrough);
+        Assert.False(controller.State.FullBattlePlaythroughOverride);
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
+        Assert.True(GameSession.Load(source).FullBattlePlaythrough);
+        string returned = Assert.Single(Directory.EnumerateFiles(output, "battle-return-*.run.json", SearchOption.AllDirectories));
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(returned));
+        Assert.False(manifest.RootElement.GetProperty("FullBattlePlaythroughOverride").GetBoolean());
+    }
+}
+
 public sealed class AutoPlayFullBattleTests
 {
     [Fact]
@@ -15,8 +42,9 @@ public sealed class AutoPlayFullBattleTests
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         Assert.Equal(3, occurrence.Formation);
         int applied = session.State.AppliedBattleResultIds.Length;
+        string output = TestResources.ArtifactFile("full-combat");
         using GameWorld world = new(session, directory, validateWorldPresentation: false);
-        AutoPlayController controller = new(session, () => world, _ => throw new InvalidOperationException("This battle does not require an exploration rollback."), TestResources.ArtifactDirectory, deadlineTime: new PausedInspectionClock());
+        AutoPlayController controller = new(session, () => world, _ => throw new InvalidOperationException("This battle does not require an exploration rollback."), output, deadlineTime: new PausedInspectionClock());
         controller.StartFromCurrentState();
         bool restored = false;
         bool victory = false;
@@ -56,9 +84,9 @@ public sealed class AutoPlayFullBattleTests
                 Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
                 Assert.Equal(1, session.State.AppliedBattleResultIds.Count(id => id == occurrence.OccurrenceId));
                 Assert.Equal(SceneKind.Field, session.State.Scene);
-                string outcome = Assert.Single(Directory.EnumerateFiles(TestResources.ArtifactDirectory, "battle-outcome-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
+                string outcome = Assert.Single(Directory.EnumerateFiles(output, "battle-outcome-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
                 Assert.Equal(BattleOutcome.Victory, GameSession.Load(outcome).Battle!.Outcome);
-                string returned = Assert.Single(Directory.EnumerateFiles(TestResources.ArtifactDirectory, "battle-return-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
+                string returned = Assert.Single(Directory.EnumerateFiles(output, "battle-return-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
                 Assert.Null(GameSession.Load(returned).PendingBattleEncounter);
                 Assert.Throws<InvalidOperationException>(() => world.ApplyBattleInput(new(BattleInputKind.Return)));
                 Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
