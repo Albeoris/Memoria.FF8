@@ -73,12 +73,7 @@ public sealed partial class BattleSession
             BattleActionDefinition spell = FindAction(BattleAbility.Magic, command.ActionId);
             if (available)
             {
-                NativeBattleDrawSlot entry = source.NativeDrawSlots.First(slot => slot.Id == command.ActionId);
-                quantity = NativeDrawQuantity(actor, source, spell.DrawResist, entry.Resistance, NextRandomByte());
-                if (quantity > 0)
-                {
-                    quantity = Math.Min(100, quantity + definition.Tuning.DrawBonus);
-                }
+                quantity = PreviewDrawQuantity(actor, source, command.ActionId, NextRandomByte());
                 failed = quantity == 0;
                 if (!command.DrawCast)
                 {
@@ -106,6 +101,14 @@ public sealed partial class BattleSession
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
         RecordOriginalStockDraw(actor, command, result);
         return command with { NativeDraw = result, NativeAction = native, NativeTargetMask = mask };
+    }
+
+    public int PreviewDrawQuantity(BattleCombatant actor, BattleCombatant source, int selection, int random)
+    {
+        BattleActionDefinition spell = FindAction(BattleAbility.Magic, selection);
+        NativeBattleDrawSlot entry = source.NativeDrawSlots.First(slot => slot.Id == selection);
+        int quantity = NativeDrawQuantity(actor, source, spell.DrawResist, entry.Resistance, random);
+        return quantity > 0 ? Math.Min(100, quantity + definition.Tuning.DrawBonus) : 0;
     }
 
     private static int NativeDrawQuantity(BattleCombatant actor, BattleCombatant source, int drawResist, int resistance, int random)

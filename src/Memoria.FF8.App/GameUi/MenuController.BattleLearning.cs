@@ -68,7 +68,6 @@ public sealed partial class MenuController
         {
             return null;
         }
-        double phase = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency * Math.PI;
-        return new UiColor((byte)(208 + 47 * Math.Sin(phase)), (byte)(208 + 47 * Math.Sin(phase + 2 * Math.PI / 3)), (byte)(208 + 47 * Math.Sin(phase + 4 * Math.PI / 3)));
+        return LearnedAbilityHighlight.Color(Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
     }
 }

@@ -182,7 +182,6 @@ public sealed partial class BattleHudController
         {
             SelectingAction = false;
             SelectingTarget = false;
-            SelectingDrawMode = false;
             selectedDrawSourceId = null;
             selectedTargetId = null;
             selectedMagicTargets.Clear();

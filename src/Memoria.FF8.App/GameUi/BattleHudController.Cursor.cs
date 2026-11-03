@@ -6,7 +6,6 @@ public sealed partial class BattleHudController
 {
     private readonly Dictionary<(string Actor, bool Form), BattleAbility> rememberedCommands = [];
     private readonly Dictionary<(string Actor, bool Form, BattleAbility Command), CursorSelection> rememberedActions = [];
-    private readonly Dictionary<(string Actor, int Spell), bool> rememberedDrawModes = [];
     private string? cursorActorId;
     private bool cursorMemory;
 
@@ -27,7 +26,7 @@ public sealed partial class BattleHudController
         }
     }
 
-    private sealed record CursorSelection(string Actor, bool Form, BattleAbility Command, BattleAbility? ActionAbility, int? ActionId, bool Cast, string? Source, string? Target);
+    private sealed record CursorSelection(string Actor, bool Form, BattleAbility Command, BattleAbility? ActionAbility, int? ActionId, string? Target);
 
     private void SynchronizeCursorActor(BattleCombatant? actor)
     {
@@ -68,23 +67,18 @@ public sealed partial class BattleHudController
         actionIndex = memory is null ? 0 : Math.Max(0, ActionChoices.ToList().FindIndex(action => action.Id == memory.ActionId && action.Ability == memory.ActionAbility && action.Available));
     }
 
-    private void RestoreTargetCursor(bool drawSource = false)
+    private void RestoreTargetCursor()
     {
         CursorSelection? memory = RememberedAction();
-        string? target = drawSource ? memory?.Source : memory?.ActionId == SelectedAction?.Id ? memory?.Target : null;
-        selectedTargetId = SmartRecoveryTarget(drawSource) ?? (target is not null && SelectableTargets.Any(candidate => candidate.Id == target) ? target : null);
-    }
-
-    private void RestoreDrawModeCursor()
-    {
-        DrawCast = CursorMemory && SelectedActor is { } actor && SelectedAction is { Id: < 64 } action && rememberedDrawModes.GetValueOrDefault((actor.Id, action.Id));
+        string? target = memory?.ActionId == SelectedAction?.Id ? memory?.Target : null;
+        selectedTargetId = SmartRecoveryTarget() ?? (target is not null && SelectableTargets.Any(candidate => candidate.Id == target) ? target : null);
     }
 
     private CursorSelection CaptureCursorSelection(BattleCombatant actor)
     {
         BattleAbility command = SelectedCommand;
         BattleActionDefinition? action = command == BattleAbility.Attack || HasGuardianFormCommands ? null : SelectedAction;
-        return new(actor.Id, HasGuardianFormCommands, command, action?.Ability, action?.Id, CastSelectedDraw, selectedDrawSourceId, selectedTargetId);
+        return new(actor.Id, HasGuardianFormCommands, command, action?.Ability, action?.Id, selectedTargetId);
     }
 
     private void RememberCursorSelection(CursorSelection selection)
@@ -95,9 +89,5 @@ public sealed partial class BattleHudController
         }
         rememberedCommands[(selection.Actor, selection.Form)] = selection.Command;
         rememberedActions[(selection.Actor, selection.Form, selection.Command)] = selection;
-        if (selection.Command == BattleAbility.Draw && selection.ActionId is int spell && spell < 64)
-        {
-            rememberedDrawModes[(selection.Actor, spell)] = selection.Cast;
-        }
     }
 }

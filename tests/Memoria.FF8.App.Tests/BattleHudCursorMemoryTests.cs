@@ -9,13 +9,16 @@ public sealed class BattleHudCursorMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DrawRemembersSubmittedBlizzardAndItsStockOrCastMode(bool cast)
+    public void DrawRemembersSubmittedBlizzardAndReopensOnStockPage(bool cast)
     {
         List<BattleInput> inputs = [];
         BattleHudController hud = Hud(Create(), inputs.Add);
         OpenDraw(hud);
+        if (cast)
+        {
+            hud.Navigate(MenuInput.Right);
+        }
         hud.Choose(1);
-        hud.Choose(cast ? 1 : 0);
         if (cast)
         {
             hud.SelectTarget("enemy", true);
@@ -27,25 +30,24 @@ public sealed class BattleHudCursorMemoryTests
         OpenDraw(hud);
         Assert.Equal(2, hud.SelectedAction!.Id);
         Assert.Equal(1, hud.ChoiceIndex);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawMode);
-        Assert.Equal(cast ? 1 : 0, hud.ChoiceIndex);
+        Assert.False(hud.DrawCast);
+        Assert.False(hud.SelectingTarget);
     }
 
     [Fact]
-    public void InitialCursorResetsSubmittedCommandSpellAndDrawMode()
+    public void InitialCursorResetsSubmittedCommandSpellAndDrawPage()
     {
         BattleHudController hud = new(Create(), (_, _) => { }, () => { }, () => { }, execute: _ => { });
         Assert.False(hud.CursorMemory);
         OpenDraw(hud);
-        hud.Choose(1);
+        hud.Navigate(MenuInput.Right);
         hud.Choose(1);
         hud.SelectTarget("enemy", true);
         Assert.Equal(BattleAbility.Attack, hud.SelectedCommand);
         OpenDraw(hud);
         Assert.Equal(1, hud.SelectedAction!.Id);
-        hud.Navigate(MenuInput.Confirm);
         Assert.Equal(0, hud.ChoiceIndex);
+        Assert.False(hud.DrawCast);
     }
 
     [Fact]
@@ -117,20 +119,21 @@ public sealed class BattleHudCursorMemoryTests
     }
 
     [Fact]
-    public void DrawModeMemoryBelongsToItsAcceptedSpell()
+    public void CancelledDrawCastDoesNotReplaceAcceptedSpellMemory()
     {
         BattleHudController hud = Hud(Create(), _ => { });
         OpenDraw(hud);
         hud.Choose(1);
-        hud.Choose(1);
-        hud.SelectTarget("enemy", true);
         OpenDraw(hud);
+        hud.Navigate(MenuInput.Right);
         hud.Choose(0);
-        Assert.Equal(0, hud.ChoiceIndex);
-        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingDrawCastRecipient);
+        hud.Navigate(MenuInput.Cancel);
+        hud.Navigate(MenuInput.Cancel);
         OpenDraw(hud);
-        hud.Choose(1);
+        Assert.Equal(2, hud.SelectedAction!.Id);
         Assert.Equal(1, hud.ChoiceIndex);
+        Assert.False(hud.DrawCast);
     }
 
     [Fact]
@@ -172,7 +175,7 @@ public sealed class BattleHudCursorMemoryTests
     }
 
     [Fact]
-    public void DrawRestoresSpellIdentityAcrossSourceOrderAndFallsBackWhenAbsent()
+    public void DrawRestoresAcceptedSpellAcrossDuplicateSourceEntries()
     {
         BattleSession battle = Create(definition => definition with
         {
@@ -183,25 +186,23 @@ public sealed class BattleHudCursorMemoryTests
                 definition.Combatants[2] with { Id = "missing", NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] }
             ]
         });
-        BattleHudController hud = Hud(battle, _ => { });
+        List<BattleInput> inputs = [];
+        BattleHudController hud = Hud(battle, inputs.Add);
         OpenDraw(hud);
+        Assert.Equal(new[] { "Fire", "Blizzard" }, hud.ChoiceLabels);
         hud.Choose(1);
-        hud.Choose(0);
-        OpenDraw(hud, "reordered");
-        Assert.Equal(new[] { "Blizzard", "Fire" }, hud.ChoiceLabels);
+        Assert.Equal(2, Assert.Single(inputs).ActionId);
+        OpenDraw(hud);
         Assert.Equal(2, hud.SelectedAction!.Id);
-        Assert.Equal(0, hud.ChoiceIndex);
-        hud.Navigate(MenuInput.Down);
-        Assert.Equal(1, hud.SelectedAction!.Id);
+        Assert.Equal(1, hud.ChoiceIndex);
         hud.Navigate(MenuInput.Up);
-        hud.Navigate(MenuInput.Confirm);
-        hud.Navigate(MenuInput.Confirm);
-        OpenDraw(hud, "missing");
         Assert.Equal(1, hud.SelectedAction!.Id);
-        Assert.Equal(0, hud.ChoiceIndex);
         hud.Navigate(MenuInput.Down);
-        Assert.Equal(1, hud.SelectedAction!.Id);
-        Assert.Equal(0, hud.ChoiceIndex);
+        Assert.Equal(2, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Cancel);
+        OpenDraw(hud);
+        Assert.Equal(2, hud.SelectedAction!.Id);
+        Assert.Equal(1, hud.ChoiceIndex);
     }
 
     [Fact]
@@ -266,12 +267,12 @@ public sealed class BattleHudCursorMemoryTests
         Assert.True(hud.SelectingAction);
     }
 
-    private static void OpenDraw(BattleHudController hud, string source = "enemy")
+    private static void OpenDraw(BattleHudController hud)
     {
         hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.Draw));
-        Assert.True(hud.SelectingDrawSource);
-        hud.SelectTarget(source, true);
         Assert.True(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
+        Assert.False(hud.DrawCast);
     }
 
     private static void Submit(BattleHudController hud, BattleAbility command, int index)

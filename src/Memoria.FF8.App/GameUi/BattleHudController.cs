@@ -134,8 +134,8 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? [SystemText("battle.ui.choicelabels.stock", "Stock")] : [SystemText("battle.ui.choicelabels.stock", "Stock"), SystemText("battle.ui.choicelabels.cast", "Cast")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
-    public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
+    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
+    public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
     {
@@ -167,10 +167,6 @@ public sealed partial class BattleHudController
             if (HasGuardianFormCommands)
             {
                 return GuardianFormTargets();
-            }
-            if (SelectedCommand == BattleAbility.Draw && SelectingDrawSource)
-            {
-                return session.Combatants.Where(IsDrawSource).ToArray();
             }
             BattleActionDefinition? action = SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
             BattleCombatant? caster = SelectedActor;
@@ -219,7 +215,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            if (!SelectingTarget || SelectingDrawSource)
+            if (!SelectingTarget)
             {
                 return false;
             }
@@ -278,8 +274,6 @@ public sealed partial class BattleHudController
         {
             SelectingTarget = false;
             SelectingAction = false;
-            SelectingDrawMode = false;
-            expandedDrawCastActionId = null;
             selectedDrawSourceId = null;
             session.CloseNativeActionMenu();
             selectedMagicTargets.Clear();
@@ -356,13 +350,8 @@ public sealed partial class BattleHudController
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight)
         {
-            if (SelectingDrawMode)
+            if (NavigateDrawList(input))
             {
-                if (SelectedAction?.Id < 64)
-                {
-                    DrawCast = !DrawCast;
-                    SoundRequested?.Invoke(MenuSound.Move);
-                }
                 return;
             }
             if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.Magic && input is MenuInput.PageLeft or MenuInput.PageRight)
@@ -401,7 +390,6 @@ public sealed partial class BattleHudController
                 {
                     if (SelectingAction)
                     {
-                        expandedDrawCastActionId = null;
                         actionIndex = (actionIndex + direction + count) % count;
                     }
                     else
@@ -411,19 +399,6 @@ public sealed partial class BattleHudController
                     }
                     SoundRequested?.Invoke(MenuSound.Move);
                 }
-            }
-            else if (SelectingAction && SelectedCommand == BattleAbility.Draw)
-            {
-                if (input is MenuInput.Left or MenuInput.Right && SelectedAction is { } drawAction && CanExpandDrawCast(drawAction))
-                {
-                    int? expanded = input == MenuInput.Right ? drawAction.Id : null;
-                    if (expandedDrawCastActionId != expanded)
-                    {
-                        expandedDrawCastActionId = expanded;
-                        SoundRequested?.Invoke(MenuSound.Move);
-                    }
-                }
-                return;
             }
             else if (!SelectingAction && input is MenuInput.Left or MenuInput.Right)
             {
@@ -541,7 +516,7 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        if (!CollectDrawTarget(target) || !CollectMagicTarget(target))
+        if (!CollectMagicTarget(target))
         {
             return;
         }
@@ -611,21 +586,17 @@ public sealed partial class BattleHudController
             Attack();
             return;
         }
-        if (SelectingDrawMode)
-        {
-            DrawCast = index == 1 && SelectedAction?.Id < 64;
-        }
-        else if (SelectingNativeSlots)
+        if (SelectingNativeSlots)
         {
             nativeSlotsChoice = Math.Clamp(index, 0, 1);
         }
         else if (SelectingAction)
         {
-            if (actionIndex != index)
-            {
-                expandedDrawCastActionId = null;
-            }
             actionIndex = index;
+            if (SelectedCommand == BattleAbility.Draw)
+            {
+                selectedDrawActionId = SelectedAction?.Id;
+            }
         }
         else
         {
@@ -638,7 +609,7 @@ public sealed partial class BattleHudController
     {
         string label = localizedActionName?.Invoke(action) ?? action.DisplayName ?? action.Name;
         string formatted = FormatBattleText(label);
-        return IsExpandedDrawCast(action) ? SystemText("battle.ui.choicelabels.cast", "Cast") + ": " + formatted : formatted;
+        return SelectedCommand == BattleAbility.Draw && action.DisplayName == "????" ? "????" : formatted;
     }
 
     public void SelectParty(string actorId)
@@ -655,8 +626,6 @@ public sealed partial class BattleHudController
             magicCastCount = 1;
             magicCastCountSelected = false;
             SelectingAction = false;
-            SelectingDrawMode = false;
-            expandedDrawCastActionId = null;
             selectedDrawSourceId = null;
             selectedTargetId = null;
             session.CloseNativeActionMenu();
@@ -791,38 +760,21 @@ public sealed partial class BattleHudController
         if (SelectingDrawCastRecipient)
         {
             SelectingTarget = false;
-            if (expandedDrawCastActionId == SelectedAction?.Id)
-            {
-                SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.magic.to.draw", "Choose magic to draw."));
-                SoundRequested?.Invoke(MenuSound.Cancel);
-                return;
-            }
-            SelectingDrawMode = true;
-            SetSystemMessage(() => SystemText("battle.ui.canceltarget.stock.or.cast", "Stock or Cast?"));
-            SoundRequested?.Invoke(MenuSound.Cancel);
-            return;
-        }
-        if (SelectingDrawMode)
-        {
-            SelectingDrawMode = false;
+            selectedDrawSourceId = null;
+            selectedTargetId = null;
             SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.magic.to.draw", "Choose magic to draw."));
-            SoundRequested?.Invoke(MenuSound.Cancel);
-            return;
-        }
-        if (SelectedCommand == BattleAbility.Draw && SelectingAction && expandedDrawCastActionId is not null)
-        {
-            expandedDrawCastActionId = null;
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
         if (SelectedCommand == BattleAbility.Draw && SelectingAction)
         {
-            selectedTargetId = selectedDrawSourceId;
             selectedDrawSourceId = null;
+            selectedTargetId = null;
+            selectedDrawActionId = null;
             SelectingAction = false;
-            SelectingTarget = true;
+            SelectingTarget = false;
             session.CloseNativeActionMenu();
-            SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.a.source.to.draw.from", "Choose a source to draw from."));
+            SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.a.command", "Choose a command."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }

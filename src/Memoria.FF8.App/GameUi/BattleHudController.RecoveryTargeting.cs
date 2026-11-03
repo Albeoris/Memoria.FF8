@@ -4,9 +4,9 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class BattleHudController
 {
-    private string? SmartRecoveryTarget(bool drawSource)
+    private string? SmartRecoveryTarget()
     {
-        if (drawSource || HasGuardianFormCommands || SelectedCommand is not (BattleAbility.Magic or BattleAbility.Item) && !SelectingDrawCastRecipient || SelectedActor is not { } actor || SelectedAction is not { } action || SelectingTargetGroup || !action.Allies || action.AllTargets)
+        if (HasGuardianFormCommands || SelectedCommand is not (BattleAbility.Magic or BattleAbility.Item) && !SelectingDrawCastRecipient || SelectedActor is not { } actor || SelectedAction is not { } action || SelectingTargetGroup || !action.Allies || action.AllTargets)
         {
             return null;
         }

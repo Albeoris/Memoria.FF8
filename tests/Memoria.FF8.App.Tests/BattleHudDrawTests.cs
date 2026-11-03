@@ -21,135 +21,49 @@ public sealed class BattleHudDrawTests
     [InlineData(0, true, true)]
     [InlineData(99, true, true)]
     [InlineData(100, true, true)]
-    public void SpellListShowsPoolCountAndRejectsFullStockRegardlessOfMagicMode(int stock, bool infinite, bool shared)
+    public void StockPageHidesFullStockAndFallsBackToCastRegardlessOfMagicMode(int stock, bool infinite, bool shared)
     {
         BattleSession battle = CreateWithMagicPool(stock, infinite, shared);
         List<BattleInput> inputs = [];
-        List<MenuSound> sounds = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        hud.SoundRequested += sounds.Add;
+        BattleHudController hud = CreateHud(battle, inputs);
         hud.Choose(0);
-        hud.Navigate(MenuInput.Confirm);
 
-        Assert.Equal(infinite, battle.InfiniteMagic);
-        Assert.Equal(shared, battle.MagicVitals!.MagicSystem.SharedMagicStock);
-        if (shared)
-        {
-            Assert.Equal(1, hud.SelectedActor!.MagicRecordId);
-            Assert.All(battle.MagicVitals.Records[1].MagicInventory, entry => Assert.Equal(0, entry.Count));
-        }
-        BattleActionDefinition action = Assert.Single(hud.ActionChoices);
-        Assert.Equal(stock.ToString(CultureInfo.InvariantCulture), hud.ChoiceValue(action));
-        Assert.Equal(stock < 100, action.Available);
-        sounds.Clear();
-        hud.Navigate(MenuInput.Confirm);
-
-        Assert.True(hud.SelectingAction);
+        Assert.True(hud.ShowingDrawList);
         Assert.False(hud.SelectingTarget);
-        Assert.Equal(stock < 100, hud.SelectingDrawMode);
-        Assert.Empty(inputs);
-        Assert.Equal(stock < 100 ? MenuSound.Confirm : MenuSound.Error, Assert.Single(sounds));
+        Assert.Equal(stock == 100, hud.DrawCast);
+        Assert.Equal(stock < 100, hud.DrawStockAvailable);
+        Assert.True(hud.DrawCastAvailable);
+        Assert.Equal(stock == 100 ? "" : stock.ToString(CultureInfo.InvariantCulture), hud.ChoiceValue(hud.SelectedAction!));
+        hud.Navigate(MenuInput.Confirm);
         if (stock < 100)
         {
-            hud.Navigate(MenuInput.Confirm);
             BattleInput input = Assert.Single(inputs);
             Assert.Equal(2, input.ActionId);
             Assert.Equal("source", input.TargetId);
             Assert.False(input.DrawCast);
+            Assert.False(hud.SelectingAction);
         }
         else
         {
-            Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
-            Assert.Equal(2, hud.SelectedAction!.Id);
+            Assert.True(hud.SelectingDrawCastRecipient);
+            Assert.Empty(inputs);
+            hud.SelectTarget("ally", true);
+            Assert.True(Assert.Single(inputs).DrawCast);
         }
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void FullStockExpandsToCastAndSubmitsSeparateRecipient(bool infinite, bool shared)
-    {
-        BattleSession battle = CreateWithMagicPool(100, infinite, shared);
-        List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        hud.Choose(0);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.CanExpandDrawCast(hud.SelectedAction!));
-        hud.Navigate(MenuInput.Right);
-        Assert.Equal("Cast: Cure", Assert.Single(hud.ChoiceLabels));
-        Assert.Equal("", hud.ChoiceValue(hud.SelectedAction!));
-        Assert.False(hud.SelectingDrawMode);
-        hud.Navigate(MenuInput.Left);
-        Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
-        hud.Navigate(MenuInput.Right);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
-        hud.Navigate(MenuInput.Right);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawCastRecipient);
-        Assert.Empty(inputs);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.Equal("Cast: Cure", Assert.Single(hud.ChoiceLabels));
-        Assert.False(hud.SelectingDrawMode);
-        hud.Navigate(MenuInput.Confirm);
-        hud.SelectTarget("ally", true);
-        BattleInput input = Assert.Single(inputs);
-        Assert.True(input.DrawCast);
-        Assert.Equal("source", input.TargetId);
-        Assert.Equal("ally", input.DrawCastTargetId);
-        Assert.Equal(2, input.ActionId);
-        input.Validate();
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ChangingSpellClearsInlineCastBeforeReturningFromRecipient(bool click)
-    {
-        BattleDefinition definition = CreateWithMagicPool(100, false, false).Capture().Definition;
-        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] };
-        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
-        BattleHudController hud = new(new BattleSession(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { });
-        OpenDrawStage(hud, 0);
-        hud.Navigate(MenuInput.Right);
-        if (click)
-        {
-            hud.Choose(1);
-        }
-        else
-        {
-            hud.Navigate(MenuInput.Down);
-            hud.Navigate(MenuInput.Confirm);
-        }
-        hud.Navigate(MenuInput.Down);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawCastRecipient);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.True(hud.SelectingDrawMode);
-        Assert.Equal(3, hud.SelectedAction!.Id);
-        hud.Navigate(MenuInput.Cancel);
-        hud.Navigate(MenuInput.Up);
-        Assert.Equal("Cure", hud.ChoiceLabels[0]);
     }
 
     [Theory]
     [InlineData(false, "ally")]
     [InlineData(true, "fallen")]
-    public void CastSelectsSourceThenSeparateRecipient(bool revive, string recipient)
+    public void CastPageChoosesSeparateRecipient(bool revive, string recipient)
     {
-        BattleSession battle = Create(revive);
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        BattleHudController hud = CreateHud(Create(revive), inputs);
         hud.Choose(0);
-        Assert.True(hud.SelectingDrawSource);
-        Assert.Equal("source", Assert.Single(hud.Targets).Id);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingAction);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawMode);
-        hud.Navigate(MenuInput.Down);
+        Assert.Equal("source", hud.SelectedTarget!.Id);
+        hud.Navigate(MenuInput.Right);
+        Assert.True(hud.DrawCast);
+        Assert.Equal(revive ? "Life" : "Cure", Assert.Single(hud.ChoiceLabels));
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingDrawCastRecipient);
         Assert.Empty(inputs);
@@ -158,31 +72,20 @@ public sealed class BattleHudDrawTests
         Assert.Equal("source", input.TargetId);
         Assert.Equal(recipient, input.DrawCastTargetId);
         Assert.True(input.DrawCast);
-        Assert.False(hud.SelectingTarget);
         input.Validate();
     }
 
     [Fact]
-    public void CancelReturnsThroughModeSpellSourceAndCommandWithoutSubmitting()
+    public void CancelReturnsFromRecipientToCastPageThenCommand()
     {
-        BattleSession battle = Create(false);
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        BattleHudController hud = CreateHud(Create(false), inputs);
         hud.Choose(0);
+        hud.ChangeDrawPage(true);
         hud.Navigate(MenuInput.Confirm);
-        hud.Navigate(MenuInput.Confirm);
-        hud.Navigate(MenuInput.Down);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawCastRecipient);
         hud.Navigate(MenuInput.Cancel);
-        Assert.False(hud.SelectingDrawCastRecipient);
-        Assert.True(hud.SelectingDrawMode);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.True(hud.SelectingAction);
-        Assert.False(hud.SelectingDrawMode);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.True(hud.SelectingDrawSource);
-        Assert.True(hud.SelectingTarget);
+        Assert.True(hud.ShowingDrawList);
+        Assert.True(hud.DrawCast);
         Assert.Equal("source", hud.SelectedTarget!.Id);
         hud.Navigate(MenuInput.Cancel);
         Assert.False(hud.SelectingAction);
@@ -191,180 +94,200 @@ public sealed class BattleHudDrawTests
     }
 
     [Fact]
-    public void GuardianForceDrawUsesSavedNameAndStockWithoutCastRecipient()
+    public void GuardianForceUsesUnknownLabelAndOnlyStock()
     {
-        BattleSession battle = Create(false, true);
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add, guardianForceName: id => id == 1 ? "Custom Shiva" : $"GF{id}");
+        BattleHudController hud = CreateHud(Create(false, true), inputs);
         hud.Choose(0);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.Contains("Custom Shiva", hud.ChoiceLabels);
-        Assert.True(hud.SelectedAction!.Available);
-        Assert.Equal("", hud.ChoiceValue(hud.SelectedAction));
-        hud.Navigate(MenuInput.Confirm);
-        Assert.Equal("Stock", Assert.Single(hud.ChoiceLabels));
+        Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
+        Assert.True(hud.IsDrawGuardianForce(hud.SelectedAction!));
+        Assert.False(hud.DrawCastAvailable);
         hud.Navigate(MenuInput.Right);
+        Assert.False(hud.DrawCast);
         hud.Navigate(MenuInput.Confirm);
         BattleInput input = Assert.Single(inputs);
         Assert.Equal(65, input.ActionId);
-        Assert.Equal("source", input.TargetId);
         Assert.False(input.DrawCast);
         Assert.Null(input.DrawCastTargetId);
     }
 
     [Fact]
-    public void SourceSelectionShowsOnlyItsOwnSpellsAndStockSubmitsWithoutARecipient()
+    public void UnseenMagicUsesSavedKnowledgeBank()
     {
         BattleDefinition definition = Create(false).Capture().Definition;
-        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(3, 0), new(0, 0), new(0, 0), new(0, 0)] };
-        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        NativeKnownMagic empty = new(NativeInputConfiguration.OriginalInitHash, ImmutableArray.Create<uint>(0, 0));
+        BattleHudController hud = CreateHud(new(definition with { NativeKnownMagic = empty }, BattleAtbMode.TurnBased));
         hud.Choose(0);
-        hud.SelectTarget("other", true);
-        Assert.Equal("Fire", Assert.Single(hud.ChoiceLabels));
-        hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(new[] { "Stock", "Cast" }, hud.ChoiceLabels);
-        hud.Navigate(MenuInput.Confirm);
-        BattleInput input = Assert.Single(inputs);
-        Assert.Equal("other", input.TargetId);
-        Assert.Equal(3, input.ActionId);
-        Assert.False(input.DrawCast);
-        Assert.Null(input.DrawCastTargetId);
-        Assert.False(hud.SelectingAction);
-        Assert.False(hud.SelectingTarget);
-        Assert.False(hud.SelectingDrawMode);
-    }
-
-    [Fact]
-    public void UnseenSpellUsesTheSavedKnowledgeBankWithoutHidingItsDrawSelection()
-    {
-        BattleDefinition definition = Create(false).Capture().Definition;
-        NativeKnownMagic empty = new(NativeInputConfiguration.OriginalInitHash, System.Collections.Immutable.ImmutableArray.Create<uint>(0, 0));
-        BattleSession battle = new(definition with { NativeKnownMagic = empty }, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
-        hud.Choose(0);
-        hud.Navigate(MenuInput.Confirm);
         Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
         Assert.Equal(2, hud.SelectedAction!.Id);
+        hud.ChangeDrawPage(true);
+        Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
     }
 
     [Fact]
-    public void EmptyEnemiesCannotBeSelectedAsDrawSources()
-    {
-        BattleSession battle = Create(false);
-        List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        hud.Choose(0);
-        hud.SelectTarget("other", true);
-
-        Assert.True(hud.SelectingDrawSource);
-        Assert.Equal("source", Assert.Single(hud.Targets).Id);
-        Assert.Empty(inputs);
-    }
-
-    [Fact]
-    public void DrawIsUnavailableWhenNoEnemyHasEntries()
+    public void DrawListUnifiesUniqueSpellsAndSelectsBestSourceWithoutRandomConsumption()
     {
         BattleDefinition definition = Create(false).Capture().Definition;
-        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(0, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 5), new(3, 0), new(0, 0), new(0, 0)] };
+        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        List<MenuSound> sounds = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
-        hud.SoundRequested += sounds.Add;
-
-        Assert.False(hud.DrawAvailable);
-        Assert.Contains(BattleAbility.Draw, hud.Commands);
+        var random = battle.Capture().Random;
+        List<BattleInput> inputs = [];
+        BattleHudController hud = CreateHud(battle, inputs);
         hud.Choose(0);
-
-        Assert.False(hud.SelectingAction);
-        Assert.False(hud.SelectingTarget);
-        Assert.Equal(MenuSound.Error, Assert.Single(sounds));
+        Assert.Equal(new[] { 2, 3 }, hud.ActionChoices.Select(action => action.Id));
+        Assert.Equal("other", hud.SelectedTarget!.Id);
+        hud.Navigate(MenuInput.Down);
+        Assert.Equal("source", hud.SelectedTarget!.Id);
+        hud.HoverDrawChoice(0);
+        Assert.Equal("other", hud.SelectedTarget!.Id);
+        hud.ChangeDrawPage(true);
+        Assert.Equal("other", hud.SelectedTarget!.Id);
+        hud.ChangeDrawPage(false);
+        hud.BuildView();
+        Assert.Equal(random, battle.Capture().Random);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal("other", Assert.Single(inputs).TargetId);
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, false)]
-    [InlineData(2, false)]
-    [InlineData(0, true)]
-    [InlineData(1, true)]
-    [InlineData(2, true)]
-    public void DepletedSourceReturnsStaleMenusToSourceOrCommand(int stage, bool anotherSource)
+    [InlineData(0, "other")]
+    [InlineData(99, "source")]
+    public void StockRanksAcceptedQuantityAndKeepsStableTiesWhenCapacityClampsBothSources(int stock, string expectedSource)
     {
-        BattleSession battle = CreateConcurrentDraw(anotherSource, false);
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[0] = definition.Combatants[0] with { MagicStocks = stock == 0 ? [] : [new(2, stock)] };
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 2), new(0, 0), new(0, 0), new(0, 0)] };
+        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleCombatant caster = battle.Combatants[0];
+        BattleCombatant weaker = battle.Combatants[3];
+        BattleCombatant stronger = battle.Combatants[4];
+        int weakerQuantity = Enumerable.Range(0, 32).Sum(random => battle.PreviewDrawQuantity(caster, weaker, 2, random));
+        int strongerQuantity = Enumerable.Range(0, 32).Sum(random => battle.PreviewDrawQuantity(caster, stronger, 2, random));
+        Assert.True(weakerQuantity < strongerQuantity);
+        Assert.All(Enumerable.Range(0, 32), random => Assert.True(battle.PreviewDrawQuantity(caster, weaker, 2, random) > 0));
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        OpenDrawStage(hud, stage);
-        ConsumeSourceMagic(battle);
+        BattleHudController hud = CreateHud(battle, inputs);
+        hud.Choose(0);
+        Assert.Equal(expectedSource, hud.SelectedTarget!.Id);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(expectedSource, Assert.Single(inputs).TargetId);
+    }
 
-        hud.BuildView();
+    [Fact]
+    public void CastRanksSuccessProbabilityAndKeepsStableTiesRegardlessOfQuantity()
+    {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 2), new(0, 0), new(0, 0), new(0, 0)] };
+        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        List<BattleInput> inputs = [];
+        BattleHudController hud = CreateHud(new(definition, BattleAtbMode.TurnBased), inputs);
+        hud.Choose(0);
+        Assert.Equal("other", hud.SelectedTarget!.Id);
+        hud.ChangeDrawPage(true);
+        Assert.Equal("source", hud.SelectedTarget!.Id);
+        hud.Navigate(MenuInput.Confirm);
+        hud.SelectTarget("ally", true);
+        BattleInput input = Assert.Single(inputs);
+        Assert.True(input.DrawCast);
+        Assert.Equal("source", input.TargetId);
+    }
 
-        Assert.False(hud.SelectingAction);
-        Assert.False(hud.SelectingDrawMode);
-        Assert.False(hud.SelectingDrawCastRecipient);
-        Assert.Equal(anotherSource, hud.SelectingDrawSource);
-        Assert.Equal(anotherSource, hud.DrawAvailable);
-        if (anotherSource)
+    [Fact]
+    public void DeadSourcesUnavailableSpellsAcquiredGuardiansAndImpossibleDrawsAreHidden()
+    {
+        BattleDefinition definition = Create(false, true).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 255), new(3, 0), new(65, 0), new(0, 0)] };
+        definition.Combatants[4] = definition.Combatants[4] with { CurrentHp = 0, NativeStatus0 = 1, NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        definition = definition with
         {
-            Assert.Equal("other", Assert.Single(hud.Targets).Id);
-        }
-        Assert.Empty(inputs);
+            GuardianForces = [new(1, 100, 1000, true)],
+            ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false, Available: false)]
+        };
+        BattleHudController hud = CreateHud(new(definition, BattleAtbMode.TurnBased));
+        Assert.False(hud.DrawAvailable);
+        hud.Choose(0);
+        Assert.False(hud.ShowingDrawList);
+        Assert.Empty(hud.ActionChoices);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DepletedSelectedSpellCannotSubmitAnotherSpellFromStaleMode(bool castRecipient)
+    public void DepletedSpellLeavesMenuOrRefreshesToRemainingSpellWithoutSubmitting(bool anotherSpell)
     {
-        BattleSession battle = CreateConcurrentDraw(false, true);
+        BattleSession battle = CreateConcurrentDraw(false, anotherSpell);
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        OpenDrawStage(hud, castRecipient ? 2 : 1);
-        ConsumeSourceMagic(battle);
-
+        BattleHudController hud = CreateHud(battle, inputs);
+        hud.Choose(0);
+        hud.ChangeDrawPage(true);
         hud.Navigate(MenuInput.Confirm);
-
-        Assert.True(hud.SelectingAction);
-        Assert.False(hud.SelectingDrawMode);
-        Assert.False(hud.SelectingTarget);
-        Assert.Equal(3, Assert.Single(hud.ActionChoices).Id);
-        Assert.Equal("Fire", Assert.Single(hud.ChoiceLabels));
+        ConsumeSourceMagic(battle);
+        hud.Navigate(MenuInput.Confirm);
         Assert.Empty(inputs);
+        Assert.False(hud.SelectingTarget);
+        Assert.Equal(anotherSpell, hud.ShowingDrawList);
+        if (anotherSpell)
+        {
+            Assert.Equal(3, hud.SelectedAction!.Id);
+        }
     }
 
     [Fact]
-    public void ConsumingAnotherSpellPreservesTheSelectedDrawModeSpell()
+    public void DepletedSourceAutomaticallyRebindsSameSpellToAnotherEnemy()
     {
-        BattleDefinition definition = CreateConcurrentDraw(false, true).Capture().Definition;
-        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(4, 0), new(0, 0)] };
-        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 4, "Thunder", BattleActionEffect.Damage, 10, false)] };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = CreateConcurrentDraw(true, false);
         List<BattleInput> inputs = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
-        OpenDrawStage(hud, 0);
-        hud.Choose(1);
-        Assert.True(hud.SelectingDrawMode);
+        BattleHudController hud = CreateHud(battle, inputs);
+        hud.Choose(0);
+        Assert.Equal("source", hud.SelectedTarget!.Id);
         ConsumeSourceMagic(battle);
-
+        hud.BuildView();
+        Assert.True(hud.ShowingDrawList);
+        Assert.Equal("other", hud.SelectedTarget!.Id);
         hud.Navigate(MenuInput.Confirm);
-
-        Assert.Equal(3, Assert.Single(inputs).ActionId);
+        Assert.Equal("other", Assert.Single(inputs).TargetId);
     }
 
-    private static void OpenDrawStage(BattleHudController hud, int stage)
+    [Fact]
+    public void FullIndividualInventoryHidesNewStockButAllowsCast()
     {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[0] = definition.Combatants[0] with { NativeMagicInventory = Enumerable.Range(3, 32).Select(id => new NativeMagicStock((byte)id, 1)).ToArray() };
+        BattleHudController hud = CreateHud(new(definition, BattleAtbMode.TurnBased));
         hud.Choose(0);
-        hud.SelectTarget("source", true);
-        if (stage >= 1)
-        {
-            hud.Navigate(MenuInput.Confirm);
-        }
-        if (stage == 2)
-        {
-            hud.Navigate(MenuInput.Down);
-            hud.Navigate(MenuInput.Confirm);
-        }
+        Assert.False(hud.DrawStockAvailable);
+        Assert.True(hud.DrawCast);
+    }
+
+    [Fact]
+    public void ColumnNavigationMovesWithinBalancedLayoutBeforeChangingPage()
+    {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(4, 0), new(5, 0)] };
+        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(6, 0), new(7, 0), new(8, 0), new(9, 0)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, .. Enumerable.Range(3, 7).Select(id => new BattleActionDefinition(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false))] };
+        BattleHudController hud = CreateHud(new(definition, BattleAtbMode.TurnBased));
+        hud.Choose(0);
+        hud.Navigate(MenuInput.Down);
+        Assert.Equal(3, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Right);
+        Assert.Equal(7, hud.SelectedAction!.Id);
+        Assert.False(hud.DrawCast);
+        hud.Navigate(MenuInput.Right);
+        Assert.True(hud.DrawCast);
+        Assert.Equal(7, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Left);
+        Assert.Equal(3, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Left);
+        Assert.False(hud.DrawCast);
+    }
+
+    private static BattleHudController CreateHud(BattleSession battle, List<BattleInput>? inputs = null)
+    {
+        return new(battle, (_, _) => { }, () => { }, () => { }, execute: input => inputs?.Add(input));
     }
 
     private static void ConsumeSourceMagic(BattleSession battle)

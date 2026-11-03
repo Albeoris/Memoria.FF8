@@ -33,12 +33,10 @@ public sealed class NativeZombieRevivalHudTests
         hud.Choose(0);
         if (draw)
         {
-            Assert.True(hud.SelectingDrawSource);
-            hud.SelectTarget("source", true);
             Assert.True(hud.SelectingAction);
-            hud.Choose(0);
-            Assert.True(hud.SelectingDrawMode);
+            Assert.False(hud.SelectingTarget);
             hud.Navigate(MenuInput.Right);
+            Assert.True(hud.DrawCast);
             hud.Navigate(MenuInput.Confirm);
             Assert.True(hud.SelectingDrawCastRecipient);
         }

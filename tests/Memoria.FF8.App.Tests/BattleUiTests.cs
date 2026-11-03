@@ -40,8 +40,8 @@ public sealed class BattleUiTests
         hud.Navigate(MenuInput.Down);
         Assert.Equal(ability, hud.SelectedCommand);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(!silenced && ability == BattleAbility.Magic, hud.SelectingAction);
-        Assert.Equal(!silenced && ability == BattleAbility.Draw, hud.SelectingTarget);
+        Assert.Equal(!silenced, hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
     }
 
     [Theory]
@@ -88,20 +88,20 @@ public sealed class BattleUiTests
     [InlineData(0)]
     [InlineData(99)]
     [InlineData(100)]
-    public void DrawListReservesRightAlignedStockColumnWithoutReducingNameSpace(int count)
+    public void DrawListAlignsStockQuantitiesAndUsesCastPageWhenStockIsFull(int count)
     {
         BattleSession battle = new(new BattleDefinition
         {
             Combatants =
             [
-                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw], MagicStocks = count == 0 ? [] : [new(2, count)] },
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw], MagicStocks = count == 0 ? [] : count == 100 ? [new(2, 100), new(3, 100)] : [new(2, count)] },
                 new() { Id = "source", Name = "Source", NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] }
             ],
             ActionDefinitions = [new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 10, false), new(BattleAbility.Magic, 3, "Sleep", BattleActionEffect.Damage, 10, false)]
         }, BattleAtbMode.TurnBased);
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
         hud.Choose(0);
-        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(count == 100, hud.DrawCast);
         TestCanvas canvas = new();
         UiTheme theme = new();
         UiView view = hud.BuildView();
@@ -109,30 +109,36 @@ public sealed class BattleUiTests
         view.Draw(canvas, theme);
 
         var name = Assert.Single(canvas.TextDraws, draw => draw.Text == "Blizzard");
-        var quantity = Assert.Single(canvas.TextDraws, draw => draw.Text == count.ToString() && draw.Bounds.Y == name.Bounds.Y);
-        var emptyQuantity = Assert.Single(canvas.TextDraws, draw => draw.Text == "0" && draw.Bounds.Y == name.Bounds.Y + 28);
-        Assert.Equal(count == 100 ? theme.Muted : theme.Foreground, name.Color);
-        Assert.Equal(name.Color, quantity.Color);
-        Assert.Equal(theme.Foreground, emptyQuantity.Color);
-        UiRect quantityClip = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y && clip.X > 216);
-        UiRect emptyQuantityClip = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y + 28 && clip.X > 216);
-        Assert.Equal(quantityClip.Right, emptyQuantityClip.Right);
-        Assert.Contains(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y && clip.Width == 156);
-        Assert.Equal(count == 100 ? 288 : 266, canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right));
+        Assert.Equal(theme.Foreground, name.Color);
+        UiRect nameClip = Assert.Single(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y);
+        Assert.True(nameClip.Width >= canvas.MeasureText("Blizzard", 20, 4096).Width);
         if (count == 100)
         {
-            var arrow = Assert.Single(canvas.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 5));
-            Assert.True(arrow.Bounds.X >= quantityClip.Right);
-            hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / hud.BattleCallbackRate));
-            TestCanvas blink = new();
-            view.Draw(blink, theme);
-            Assert.Contains(blink.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 0));
-            hud.Navigate(MenuInput.Right);
-            TestCanvas expanded = new();
-            view.Draw(expanded, theme);
-            Assert.Contains(expanded.TextDraws, draw => draw.Text == "Cast: Blizzard" && draw.Color == theme.Foreground);
-            Assert.DoesNotContain(expanded.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
+            Assert.Contains(canvas.TextDraws, draw => draw.Text == "Cast" && draw.Color == new UiColor(255, 255, 0));
+            Assert.DoesNotContain(canvas.TextDraws, draw => draw.Text == "100" && draw.Bounds.Y == name.Bounds.Y);
+            Assert.DoesNotContain(canvas.Images, image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 6);
+            return;
         }
+
+        var quantity = Assert.Single(canvas.TextDraws, draw => draw.Text == count.ToString() && draw.Bounds.Y == name.Bounds.Y);
+        var emptyQuantity = Assert.Single(canvas.TextDraws, draw => draw.Text == "0" && draw.Bounds.Y == name.Bounds.Y + 28);
+        Assert.Equal(theme.Foreground, quantity.Color);
+        Assert.Equal(theme.Foreground, emptyQuantity.Color);
+        Assert.Equal(quantity.Bounds.Right, emptyQuantity.Bounds.Right);
+        Assert.True(nameClip.Right < quantity.Bounds.X);
+        var arrow = Assert.Single(canvas.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 5));
+        Assert.True(arrow.Bounds.X >= quantity.Bounds.Right);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / hud.BattleCallbackRate));
+        TestCanvas blink = new();
+        view.Draw(blink, theme);
+        Assert.Contains(blink.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 0));
+        hud.Navigate(MenuInput.Right);
+        Assert.True(hud.DrawCast);
+        TestCanvas cast = new();
+        view.Draw(cast, theme);
+        Assert.Contains(cast.TextDraws, draw => draw.Text == "Blizzard" && draw.Color == theme.Foreground);
+        Assert.Contains(cast.TextDraws, draw => draw.Text == "Cast" && draw.Color == new UiColor(255, 255, 0));
+        Assert.DoesNotContain(cast.TextDraws, draw => draw.Text == count.ToString() && draw.Bounds.Y == name.Bounds.Y);
     }
 
     [Theory]

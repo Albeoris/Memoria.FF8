@@ -108,11 +108,10 @@ public sealed class BattleTargetSideSelectionTests
             submitted = input;
         });
         hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawSource);
-        hud.Navigate(MenuInput.Confirm);
-        hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingDrawMode);
+        Assert.True(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
         hud.Navigate(MenuInput.Right);
+        Assert.True(hud.DrawCast);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingDrawCastRecipient);
         Assert.Equal("caster", hud.SelectedTarget!.Id);

@@ -102,12 +102,12 @@ internal sealed partial class BattleHudElement : UiElement
         }
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.SelectingTarget ? [] : controller.ChoiceLabels;
-        string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingDrawMode ? controller.SystemText("battle.hud.draw", "DRAW") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
-        IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
+        string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
+        IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.ShowingDrawList && !controller.SelectingNativeSlots && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
-            ? controller.CanOpenGuardianFormActions(actions[index]) || controller.CanExpandDrawCast(actions[index]) && !controller.IsExpandedDrawCast(actions[index])
+            ? controller.CanOpenGuardianFormActions(actions[index])
             : !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.NativeLimitAvailable && controller.Commands.ElementAtOrDefault(index) == BattleAbility.Attack).ToArray();
         float arrowWidth = rightArrows.Any(value => value) ? 22 : 0;
         float fontSize = (ShowingMagicList ? 18 : 20) * controller.TextScale;
@@ -123,13 +123,6 @@ internal sealed partial class BattleHudElement : UiElement
                 valueWidth = Math.Max(valueWidth, canvas.MeasureText("9999", fontSize * Scale, 4096 * Scale).Width / Scale) * fit;
                 fontSize *= fit;
                 CommandWidth = Math.Clamp(38 + arrowWidth + nameWidth * fit, 194, 440) + 12 + valueWidth;
-            }
-            else if (controller.SelectedCommand == BattleAbility.Draw && valueWidth > 0)
-            {
-                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38 - arrowWidth) / Math.Max(1, nameWidth)));
-                valueWidth = canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale * fit;
-                fontSize *= fit;
-                CommandWidth = Math.Clamp(38 + nameWidth * fit, 194, 440 - arrowWidth) + arrowWidth + 12 + valueWidth;
             }
             else
             {
@@ -160,7 +153,7 @@ internal sealed partial class BattleHudElement : UiElement
         {
             CommandContentY += 28;
         }
-        if ((canAttack && !controller.SelectingTarget) || session.Outcome != BattleOutcome.Active)
+        if ((canAttack && !controller.SelectingTarget && !controller.ShowingDrawList) || session.Outcome != BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight), caption, captionSize);
         }
@@ -173,7 +166,7 @@ internal sealed partial class BattleHudElement : UiElement
         {
             DrawTargets(canvas, theme);
         }
-        else if (canAttack)
+        else if (canAttack && !controller.ShowingDrawList)
         {
             if (controller.NativeSlotsLabel is { } rollLabel)
             {
@@ -187,7 +180,7 @@ internal sealed partial class BattleHudElement : UiElement
                 {
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
-                bool unavailable = actions.Count > start + row && (!actions[start + row].Available && !controller.IsExpandedDrawCast(actions[start + row]) || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Magic && !controller.MagicAvailable;
                 float valueLeft = 30 + CommandWidth - 8 - valueWidth - (guardianHpColumn ? 0 : arrowWidth);
@@ -253,6 +246,10 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 Text(canvas, theme, controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form.RemainingTicks)), 906, y - 5, 42, 18, 12);
             }
+        }
+        if (canAttack && controller.ShowingDrawList)
+        {
+            DrawDrawList(canvas, theme);
         }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
@@ -390,6 +387,11 @@ internal sealed partial class BattleHudElement : UiElement
             controller.SlotsPointer(x, y, Bounds, false);
             return;
         }
+        if (!controller.CommandMenuHidden && controller.ShowingDrawList)
+        {
+            HoverDrawList(x, y);
+            return;
+        }
         if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + TargetContentOffset, TargetPanel.Width, TargetPanel.Height - TargetContentOffset).Contains(x, y))
         {
             return;
@@ -418,6 +420,11 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 controller.ConfirmResult();
             }
+            return;
+        }
+        if (controller.ShowingDrawList)
+        {
+            ClickDrawList(x, y);
             return;
         }
         if (controller.CanChangeTargetSide && Rect(TargetPanel.X, TargetPanel.Y - 12, TargetPanel.Width, TargetContentOffset + 12).Contains(x, y))
