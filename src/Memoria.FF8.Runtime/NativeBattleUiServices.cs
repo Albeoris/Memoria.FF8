@@ -11,14 +11,10 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
     public sbyte? Menu955 { get; init; }
     public ushort? HeldButtons16 { get; init; }
     public NativeBattleUiWindows? Windows { get; init; }
-    public NativeBattleLimitCommandRow? CommandRow { get; init; }
-    public NativeBattleCommandRowSelection? CommandRowSelection { get; init; }
-    public byte? Modal701 { get; init; }
-    public byte? Modal702 { get; init; }
     public static NativeBattleUiServices Initialize()
     {
         //506CF0 phase1→47D890→4A94D0;4AD670 sets942bit40 and clears1D75410.
-        return new(0, 0, 1, false, null, 0x40, -1, 0, false) { HeldButtons16 = 0, Windows = NativeBattleUiWindows.Initialize4A94D0(), CommandRow = NativeBattleLimitCommandRow.Reset4BB840(), Modal701 = 0, Modal702 = 0 };
+        return new(0, 0, 1, false, null, 0x40, -1, 0, false) { HeldButtons16 = 0, Windows = NativeBattleUiWindows.Initialize4A94D0() };
     }
 
     public NativeBattleUiServices AdvancePublication()
@@ -48,23 +44,6 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
     public NativeBattleUiServices SetFlags(ushort set, ushort clear = 0)
     {
         return this with { Flags942 = (ushort)((Flags942 & ~clear) | set) };
-    }
-
-    public NativeBattleUiServices AdvanceCommandRow4BB9E0()
-    {
-        if (PauseDE9 || (Flags942 & 0x40) == 0 || CommandRowSelection is not { Editing: true } selection || Menu957 != 4)
-        {
-            return this;
-        }
-        byte modal701 = Modal701 ?? throw new NotSupportedException("Native4BA470 requires retained modal BYTE701; migrate the named snapshot explicitly.");
-        byte modal702 = Modal702 ?? throw new NotSupportedException("Native4BA470 requires retained modal BYTE702; migrate the named snapshot explicitly.");
-        if (modal701 != 0 && modal702 != 0)
-        {
-            return this;
-        }
-        NativeBattleLimitCommandRow row = CommandRow ?? throw new NotSupportedException("Native4BB9E0 requires retained widget BYTE26.");
-        ushort held = (Flags942 & 0x801) != 0 ? (ushort)0 : HeldButtons16 ?? throw new NotSupportedException("Native command row requires mapped input WORD16.");
-        return this with { CommandRow = row.Advance4BB9E0(held, selection.RowFlags) };
     }
 
     public NativeBattleUiServices ApplyWindowCommand4AD400(ushort command)
@@ -102,8 +81,6 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
     {
         Commands.Validate(ReadyMask);
         Windows?.Validate();
-        CommandRow?.Validate();
-        CommandRowSelection?.Validate();
         if (Duration == 0)
         {
             throw new InvalidDataException("Native4A9220 duration must include its zero-to-one producer normalization.");

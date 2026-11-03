@@ -96,6 +96,7 @@ public sealed partial class BattleHudController
         }
         AdvanceResults(elapsed);
         RefreshNativeLimitSelection();
+        AdvanceCommandRowTransition(elapsed);
         CollectBattleMessages();
         battlePresentationSeconds += elapsed.TotalSeconds;
         battleMessageFrames += elapsed.TotalSeconds * BattleCallbackRate;

@@ -438,10 +438,6 @@ public sealed partial class BattleHudController
             SetSystemMessage(() => SystemText("battle.ui.attack.waiting.for.a.character.s.atb.gauge", "Waiting for a character's ATB gauge."));
             return;
         }
-        if (!SelectingAction && !SelectingTarget && session.NativeGraphics?.UiServices is not null)
-        {
-            session.SetNativeCommandRowSelection(actor.Id, checked((byte)commandIndex), true, commandIndex == 0 && NativeLimitAvailable);
-        }
         if (ConfirmGuardianFormCommand(actor))
         {
             return;

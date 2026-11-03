@@ -59,7 +59,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidOperationException("A menu battle is already active.");
             }
-            battle = StartNativeBattleSession(request.Formation, request.Flags, input.NativeSeed, input.Mode);
+            battle = StartNativeBattleSession(request.Formation, request.Flags, input.NativeSeed!.Value, input.Mode);
         }
         else
         {

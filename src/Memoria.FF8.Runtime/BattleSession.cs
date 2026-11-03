@@ -347,7 +347,6 @@ public sealed partial class BattleSession
             NativeEntryAdvantage = NativeEntryAdvantage,
             NativeCamera = NativeCamera,
             NativeGraphics = NativeGraphics,
-            NativeExperience = nativeExperience,
             NativeTimedAction = CaptureNativeTimedAction(),
             NativeGuardianBoost = nativeGuardianBoost,
             NativeReactionOrder = nativeReactionOrder,
@@ -1158,10 +1157,6 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("An enemy reward slot requires its original reward definition.");
             }
             HashSet<BattleStatusKind> statusKinds = [];
-            if (source.NativeClockRules is not null && actor.StatusEffects.Length != 0)
-            {
-                throw new InvalidDataException("Native battle clocks require original status WORD/DWORD and timer owners; explicitly migrate projected component status effects.");
-            }
             foreach (BattleStatusEffectDefinition effect in actor.StatusEffects)
             {
                 if (effect.DurationFrames is < 1 or > 1_000_000 || effect.TickIntervalFrames is < 1 or > 1_000_000 || effect.Magnitude is < 0 or > 1_000_000)
@@ -1180,10 +1175,6 @@ public sealed partial class BattleSession
             }
         }
         ValidateStocks(source.Items, 198);
-        if (source.NativeClockRules is not null && source.ActionDefinitions.Any(action => action.NativeAction is null && action.Statuses is { Length: > 0 }))
-        {
-            throw new InvalidDataException("Native battle actions require original status producers instead of projected component status definitions.");
-        }
         if (source.ActionDefinitions.Any(action => !Enum.IsDefined(action.Ability) || !Enum.IsDefined(action.Effect) || action.Id < 0 || string.IsNullOrWhiteSpace(action.Name) || action.Power < 0 || action.Statuses?.Any(kind => !handlers.ContainsKey(kind)) == true) || source.ActionDefinitions.GroupBy(action => (action.Ability, action.Id)).Any(group => group.Count() != 1))
         {
             throw new InvalidDataException("Invalid or unsupported battle action catalog.");
@@ -1254,10 +1245,6 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle combatant state.");
             }
-            if (definition.NativeClockRules is not null && saved.StatusEffects.Length != 0)
-            {
-                throw new InvalidDataException("Native battle snapshots cannot restore projected component status effects alongside original status owners; explicitly migrate the affected snapshot.");
-            }
             Dictionary<BattleStatusKind, BattleStatusState> initial = actor.Effects.ToDictionary(effect => effect.Definition.Kind);
             actor.Effects.Clear();
             HashSet<BattleStatusKind> kinds = [];
@@ -1303,7 +1290,6 @@ public sealed partial class BattleSession
         RestoreNativeSupport(snapshot.NativeSupport);
         RestoreNativeBattleClock(snapshot.NativeClock);
         RestoreNativeGraphics(snapshot.NativeGraphics);
-        RestoreNativeExperience(snapshot.NativeExperience);
         ValidateNativeSupportEntryOwner();
         HashSet<string> busy = new(StringComparer.Ordinal);
         if (combatants.Where(actor => actor.IsActive).GroupBy(actor => actor.NativeIndex).Any(group => group.Count() != 1))
@@ -1619,7 +1605,6 @@ public sealed partial class BattleSession
         pendingSlotsDeal = candidate.pendingSlotsDeal;
         NativeCamera = candidate.NativeCamera;
         NativeGraphics = candidate.NativeGraphics;
-        nativeExperience = candidate.nativeExperience;
         RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
         RestoreGuardianForces(candidateSnapshot);
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);

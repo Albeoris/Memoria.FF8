@@ -35,7 +35,8 @@ public sealed class NativeBattleDuelProtocolTests
         BattleNativeDuelState original = new(0, 8, 400, 279, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254 };
         states.Add("party", original);
         Invoke(session, "QueueNativeDuelChoice", "party", new BattleNativeDuelChoice(moveSet, action, "Move", true, action >= 6, [1]));
-        Assert.Equal(original with { MoveSetId = moveSet, Selection1D28DEF = moveSet, Phase = phase }, states["party"]);
+        Assert.Equal(original with { MoveSetId = moveSet, Selection1D28DEF = moveSet, Phase = phase }, states["party"] with { Ui = null });
+        Assert.Equal(action >= 6 ? BattleTimedInputUiPhase.Closing : BattleTimedInputUiPhase.Active, session.GetDuelUi("party")!.Phase);
         Assert.Empty(session.QueuedActions);
         Assert.Equal((byte)0, session.NativeActionPackets.ActionCount);
         Assert.Throws<TargetInvocationException>(() => Invoke(session, "QueueNativeDuelChoice", "party", new BattleNativeDuelChoice(moveSet, action, "Move", true, action >= 6, [1])));

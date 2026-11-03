@@ -6,12 +6,11 @@ internal sealed partial class BattleHudElement
 {
     private bool DrawNativeLimitCommandRow(IUiCanvas canvas, UiTheme theme, int row, float y, float width, float fontSize, bool unavailable)
     {
-        if (controller.SelectingAction || controller.SelectingTarget || row != 0 || !controller.NativeLimitAvailable || controller.NativeCommandRow is not { Offset26: > 0 } native)
+        if (controller.SelectingAction || controller.SelectingTarget || row != 0 || !controller.NativeLimitAvailable || controller.LimitCommandReveal <= 0)
         {
             return false;
         }
-        //4BCE10 clips both labels against the49ACD0 curve. Retain this HUD's chosen font/panel sizing.
-        float ordinaryWidth = width * native.OrdinaryClipWidth4BCE10(64) / 64;
+        float ordinaryWidth = width * (1 - controller.LimitCommandReveal);
         if (ordinaryWidth < width)
         {
             canvas.PushClip(Rect(60 + ordinaryWidth, y, width - ordinaryWidth, 32));

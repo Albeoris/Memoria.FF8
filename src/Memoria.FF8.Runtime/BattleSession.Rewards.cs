@@ -42,10 +42,6 @@ public sealed partial class BattleSession
         {
             nativeRewardItems.Add(rewards.Drop(target.Level, selection));
         }
-        if (NativeGraphics is not null)
-        {
-            AccrueNativeExperience494AF0(target);
-        }
         BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection) { AllocationId = target.Id, NativeCommand = nativeCommand };
         fact.Validate();
         if (guardianForce is byte id)

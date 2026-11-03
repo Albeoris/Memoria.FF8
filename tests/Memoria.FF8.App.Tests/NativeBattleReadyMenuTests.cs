@@ -9,42 +9,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleReadyMenuTests
 {
     [Fact]
-    public void Raw_Limit_row_restores_mid_slide_and_confirms_through_the_actual_ui_service()
-    {
-        using GameAssets game = new(TestResources.GameDirectory);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = Create(game, assets, limits: true);
-        battle.Tick();
-        battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party-0", 4)] });
-        BattleHudController hud = Hud(battle);
-        battle.PublishNativeScanMappedButtons(0x2000);
-        hud.SetNativeCommandButtons(0x2000);
-        Assert.Equal(0, battle.NativeCommandRow!.Offset26);
-        battle.Tick();
-        Assert.InRange(battle.NativeCommandRow!.Offset26, (byte)8, (byte)56);
-        string saved = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
-        BattleHudController restoredHud = Hud(restored);
-        UiView view = restoredHud.BuildView();
-        view.Resize(960, 672);
-        view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
-        view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
-        Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(BattleAbility.LimitBreak, restoredHud.SelectedCommand);
-        hud.Navigate(MenuInput.Confirm);
-        restoredHud.Navigate(MenuInput.Confirm);
-        Assert.True(restoredHud.SelectingTarget);
-        Assert.Equal(64, restored.NativeCommandRow!.Offset26);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        battle.PublishNativeScanMappedButtons(0);
-        restored.PublishNativeScanMappedButtons(0);
-        battle.Tick();
-        restored.Tick();
-        Assert.Equal(64, restored.NativeCommandRow!.Offset26);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-    }
-
-    [Fact]
     public void Raw_select_input_hides_the_registered_menu_and_JSON_restore_releases_it_on_the_same_callback()
     {
         using GameAssets game = new(TestResources.GameDirectory);

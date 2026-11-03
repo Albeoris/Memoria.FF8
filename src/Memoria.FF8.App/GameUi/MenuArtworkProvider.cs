@@ -43,7 +43,18 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
     public PixelImage Read(UiImageSource source, string? fontFamily = null)
     {
         Refresh();
-        return ReadCurrent(source, fontFamily ?? SystemFontCatalog.DefaultFamily);
+        PixelImage original = ReadCurrent(source, fontFamily ?? SystemFontCatalog.DefaultFamily);
+        if (source.RgbModulation == 128)
+        {
+            return original;
+        }
+        PixelImage modulated = new(original.Width, original.Height);
+        for (int index = 0; index < original.Pixels.Length; index++)
+        {
+            Rgba32 color = original.Pixels[index];
+            modulated.Pixels[index] = new((byte)Math.Min(255, color.R * source.RgbModulation >> 7), (byte)Math.Min(255, color.G * source.RgbModulation >> 7), (byte)Math.Min(255, color.B * source.RgbModulation >> 7), color.A);
+        }
+        return modulated;
     }
 
     private void Refresh()

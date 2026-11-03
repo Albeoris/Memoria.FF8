@@ -115,8 +115,6 @@ public sealed partial class BattleSession
             NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");
             ObserveNativeMegaSpark279UiStack(windows, nativePreCoreUiStack);
             AdvanceNativePresentedVitals4B0500();
-            AdvanceNativeCommandRow4BB9E0();
-            services = NativeGraphics.UiServices!;
             services = services with { Windows = windows.AdvanceVitals4B0450().CommitDraw4B9DB0(services.Frame33 == true, services.Flags942) };
             NativeGraphics = NativeGraphics with { UiServices = services };
             AdvanceNativeTriggerWidget();
@@ -142,7 +140,7 @@ public sealed partial class BattleSession
         if (selectMenu && !slotsPending)
         {
             //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).
-            return services.SetFlags(0, 0x10) with { Menu957 = 4, CommandRow = NativeBattleLimitCommandRow.Reset4BB840(), CommandRowSelection = null };
+            return services.SetFlags(0, 0x10) with { Menu957 = 4 };
         }
         return services;
     }
@@ -168,7 +166,7 @@ public sealed partial class BattleSession
         {
             // TODO(TD-009): The current HUD publishes the opened-list transition without native pixel-opening phases.
             //4ADD10/4FDD90 select menu2;4ADDB0/4FDD90's opened-list path calls4A7160(1).
-            NativeGraphics = NativeGraphics with { UiServices = ConfirmNativeCommandRow4BC770(ui).SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } };
+            NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } };
         }
     }
 
@@ -178,7 +176,7 @@ public sealed partial class BattleSession
         if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
         {
             //4BB710/4BB7A0 restore command menu4 and call4A7160(0).
-            NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0, 0x10) with { Menu957 = 4, CommandRowSelection = ui.CommandRowSelection is { } selection ? selection with { Editing = true } : null } };
+            NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0, 0x10) with { Menu957 = 4 } };
         }
     }
 
@@ -190,8 +188,6 @@ public sealed partial class BattleSession
         NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)actor.NativeIndex), block, options, ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[actor.NativeIndex].ResourceMagicId };
         nativeGuardianBoost = null;
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
-        //4BA560 always sets702, while701 retains the actual visible-bar operand.
-        ui = ui with { Modal701 = widget.Visible ? block.ShowBar : (byte)0, Modal702 = 1 };
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };
         MirrorNativeRenzokukenWidget(widget);
     }
@@ -218,11 +214,6 @@ public sealed partial class BattleSession
         if (step.Unregistered && widget.Visible)
         {
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
-        }
-        if (step.Unregistered)
-        {
-            //4BA6C0 case12 clears only702;701 retains its registration value.
-            ui = ui with { Modal702 = 0 };
         }
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActorIndex = step.PlayTriggerSound ? widget.ActorIndex : graphics.PendingTriggerSoundActorIndex };
         MirrorNativeRenzokukenWidget(step.Widget);

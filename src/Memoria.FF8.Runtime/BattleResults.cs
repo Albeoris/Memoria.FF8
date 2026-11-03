@@ -155,7 +155,6 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             defeat.Validate();
         }
         ValidateNativeGuardianForceCounters();
-        NativeExperience?.Validate(this);
     }
 
     public BattleResult DeepCopy()

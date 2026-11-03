@@ -27,7 +27,7 @@ internal sealed partial class RecreateGame
     private bool previousBattleMouse;
     private bool slotsInputReleasePending;
     private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
-    private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetNativeDuel(actor.Id) is not null);
+    private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetDuelUi(actor.Id) is { OwnsInput: true });
     private bool BattleModalBlocksGameplay => SlotsModalBlocksGameplay || DuelOwnsInput;
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
@@ -162,7 +162,7 @@ internal sealed partial class RecreateGame
         active.AdvanceNativeDuelPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
-        BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
+        BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetShotUi(actor.Id) is { OwnsInput: true });
         bool shotInput = !slotsOwned && !duelOwned && keyboard.GunbladeTriggerRequested && shotActor is not null;
         if (shotInput)
         {

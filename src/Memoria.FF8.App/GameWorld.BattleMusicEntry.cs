@@ -7,27 +7,26 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    internal sealed record PreparedBattleEntry(GameState Source, PreparedNativeBattleMusicEntry? Music, NativeBattleMusicEntryPreparation? CommittedMusic, BattleSession Battle, bool NativeSeedDrawn = false);
+    internal sealed record PreparedBattleEntry(GameState Source, PreparedNativeBattleMusicEntry? Music, NativeBattleMusicEntryPreparation? CommittedMusic, BattleSession Battle);
     private NativeBattleMusicEntryResources? battleMusicEntryResources;
     private long synchronizedNativeBattleCallbacks;
 
     private NativeBattleMusicEntryResources BattleMusicEntryResources => battleMusicEntryResources ??= new NativeMusicCatalog(assets.GameDirectory).ReadBattleEntryResources();
 
-    private BattleSession StartNativeBattleSession(int encounter, ushort flags, byte? seed, BattleAtbMode mode)
+    private BattleSession StartNativeBattleSession(int encounter, ushort flags, byte seed, BattleAtbMode mode)
     {
         return CommitPreparedBattleEntry(PrepareBattleEntry(encounter, flags, seed, mode));
     }
 
-    internal PreparedBattleEntry PrepareBattleEntry(int encounter, ushort flags, byte? seed, BattleAtbMode mode, PreparedNativeBattleMusicEntry? selectedMusic = null)
+    internal PreparedBattleEntry PrepareBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, PreparedNativeBattleMusicEntry? selectedMusic = null)
     {
         GameState source = session.State;
         PreparedNativeBattleMusicEntry prepared = selectedMusic ?? Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
-        (byte selectedSeed, NativeCrtRandomState? random) = PrepareNativeBattleSeed(seed, source.CrtRandom);
-        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, selectedSeed, mode, prepared.Native, random);
-        return new(source, prepared, null, candidate, seed is null);
+        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, seed, mode, prepared.Native);
+        return new(source, prepared, null, candidate);
     }
 
-    internal PreparedBattleEntry PrepareCommittedBattleEntry(int encounter, ushort flags, byte? seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
+    internal PreparedBattleEntry PrepareCommittedBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
     {
         GameState source = session.State;
         ValidateCommittedBattleEntryMusic(music);
@@ -35,25 +34,13 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("Committed native music identifies a different battle entry.");
         }
-        (byte selectedSeed, NativeCrtRandomState? random) = PrepareNativeBattleSeed(seed, source.CrtRandom);
-        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, selectedSeed, mode, music, random);
-        return new(source, null, music, candidate, seed is null);
+        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, seed, mode, music);
+        return new(source, null, music, candidate);
     }
 
-    internal static (byte Seed, NativeCrtRandomState? Random) PrepareNativeBattleSeed(byte? seed, NativeCrtRandomState? random)
+    private BattleSession PrepareBattleEntrySession(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
     {
-        if (seed is byte supplied)
-        {
-            return (supplied, random);
-        }
-        //47CCB0 seeds48F050 with the low BYTE of one55CBD2 draw.
-        NativeCrtRandomState advanced = (random ?? throw new NotSupportedException("Native battle entry requires its retained CRT random owner.")).Draw(out ushort value);
-        return (unchecked((byte)value), advanced);
-    }
-
-    private BattleSession PrepareBattleEntrySession(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music, NativeCrtRandomState? random)
-    {
-        BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess, NativeCrtRandom = random };
+        BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess };
         definition = PrepareDiagnosticCapabilities(definition);
         return AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
     }
@@ -78,7 +65,8 @@ internal sealed partial class GameWorld
         {
             //48B7E0 refreshes the active characters and calls495EC0 before publishing the entry banks.
             NativeCharacterVitals vitals = session.State.CharacterVitals!.RebuildParty();
-            session.SetLiveBattle(candidate, entry.NativeSeedDrawn ? entry.Source.CrtRandom : null, vitals);
+            session.SetCharacterVitals(vitals);
+            session.SetLiveBattle(candidate);
         }
         if (entry.Music is { } prepared && entry.CommittedMusic is null)
         {

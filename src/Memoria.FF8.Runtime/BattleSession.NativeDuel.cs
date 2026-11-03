@@ -20,6 +20,8 @@ public sealed record BattleNativeDuelState(byte MoveSetId, ushort TargetMask, sh
     public ushort PreviousButtons { get; init; }
     public ushort PendingPulse { get; init; }
     public long UiSubframeTicks { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleTimedInputUi? Ui { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -32,6 +34,10 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         return Outcome == BattleOutcome.Active && actor.IsAlive ? nativeDuelProcesses.GetValueOrDefault(actorId) : null;
     }
+
+    public BattleTimedInputUi? GetDuelUi(string actorId) => GetNativeDuel(actorId) is { } state ? DuelUi(state) : null;
+
+    private static BattleTimedInputUi DuelUi(BattleNativeDuelState state) => state.Ui ?? new(state.Phase == BattleNativeDuelPhase.Finisher ? BattleTimedInputUiPhase.Closing : state.Phase == BattleNativeDuelPhase.Opening ? BattleTimedInputUiPhase.Opening : BattleTimedInputUiPhase.Active);
 
     public IReadOnlyList<BattleNativeDuelChoice> GetNativeDuelChoices(string actorId)
     {
@@ -103,7 +109,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native48D200 Duel requires its selected physical command entry.");
         }
-        nativeDuelProcesses.Add(actor.Id, new(moveSet, mask, timer, timer, BattleNativeDuelPhase.Opening) { Selection1D28DEF = NativeGraphics is null ? null : (byte)254 });
+        nativeDuelProcesses.Add(actor.Id, new(moveSet, mask, timer, timer, BattleNativeDuelPhase.Opening) { Selection1D28DEF = NativeGraphics is null ? null : (byte)254, Ui = new(BattleTimedInputUiPhase.Opening) });
         return command with { NativeAction = NativeDuelControl(actor, crisis) };
     }
 
@@ -115,8 +121,10 @@ public sealed partial class BattleSession
         }
         for (int frame = 0; frame < frames; frame++)
         {
-            foreach ((string actorId, BattleNativeDuelState state) in nativeDuelProcesses.ToArray())
+            foreach ((string actorId, BattleNativeDuelState previous) in nativeDuelProcesses.ToArray())
             {
+                BattleNativeDuelState state = previous with { Ui = DuelUi(previous).Advance(NativeDuelTicksPerSecond) };
+                nativeDuelProcesses[actorId] = state;
                 if (GetNativeDuel(actorId) is null)
                 {
                     EndNativeDuel(actorId);
@@ -132,7 +140,7 @@ public sealed partial class BattleSession
                 {
                     if (NativeGraphics is not null)
                     {
-                        nativeDuelProcesses[actorId] = next with { Selection1D28DEF = 255, Phase = BattleNativeDuelPhase.Finisher };
+                        nativeDuelProcesses[actorId] = next with { Selection1D28DEF = 255, Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
                     }
                     else
                     {
@@ -188,7 +196,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native4852A0 requires its acknowledged selection BYTE1D28DEF.");
             }
-            nativeDuelProcesses[actorId] = state with { Selection1D28DEF = choice.MoveSetId, MoveSetId = choice.MoveSetId, Phase = choice.ActionId >= 6 ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect };
+            nativeDuelProcesses[actorId] = state with { Selection1D28DEF = choice.MoveSetId, MoveSetId = choice.MoveSetId, Phase = choice.ActionId >= 6 ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect, Ui = choice.ActionId >= 6 ? new(BattleTimedInputUiPhase.Closing) : state.Ui };
             return;
         }
         BattleCombatant actor = GetActor(actorId);
@@ -197,7 +205,7 @@ public sealed partial class BattleSession
         byte flags = action.TargetFlags!.Value;
         ushort mask = choice.Finisher && (flags & 0x30) != 0x10 ? NativeAutomaticActionTargetMask(flags) : state.TargetMask;
         QueueNativeCommand(actor, command, choice.ActionId, 0, mask, callback: choice.Finisher ? NativeLimitCallback.DuelFinisher : NativeLimitCallback.DuelEffect, playerInput: true);
-        nativeDuelProcesses[actorId] = state with { MoveSetId = choice.MoveSetId, Phase = choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect };
+        nativeDuelProcesses[actorId] = state with { MoveSetId = choice.MoveSetId, Phase = choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect, Ui = choice.Finisher ? new(BattleTimedInputUiPhase.Closing) : state.Ui };
     }
 
     private void EndNativeDuel(string actorId)
@@ -241,7 +249,7 @@ public sealed partial class BattleSession
         (string actorId, BattleNativeDuelState state) = nativeDuelProcesses.Single();
         ushort pulse = (ushort)(heldButtons & ~state.PreviousButtons);
         ushort pending = state.Phase == BattleNativeDuelPhase.Ready ? (ushort)(state.PendingPulse | pulse) : (ushort)0;
-        // TODO(TD-009): Project nominal timer units onto elapsed time until the original widget publication scheduler is owned.
+        //The same presentation clock consumes timed input in both graphics modes.
         long ticks = state.UiSubframeTicks + elapsed.Ticks * NativeDuelTicksPerSecond;
         int frames = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeDuelProcesses[actorId] = state with { PreviousButtons = heldButtons, PendingPulse = frames == 0 ? pending : (ushort)0, UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };

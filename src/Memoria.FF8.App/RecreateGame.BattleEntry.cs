@@ -28,6 +28,7 @@ internal sealed partial class RecreateGame
         int formation = session.State.PendingBattleEncounter!.Formation;
         NativeBattleMusicEntryPreparation music = world.BeginBattleEntryMusic(formation, flags);
         BattleAtbMode mode = session.State.GameplayPreferences.AtbMode;
+        byte seed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256);
         UploadField(gameplayClock.Total);
         battleEntryCapture = PresentedFieldTexture;
         battleEntryPrevious?.Dispose();
@@ -53,7 +54,7 @@ internal sealed partial class RecreateGame
         battleEntryPreparation = Task.Run(() =>
         {
             long started = Stopwatch.GetTimestamp();
-            GameWorld.PreparedBattleEntry prepared = world.PrepareCommittedBattleEntry(formation, flags, null, mode, music);
+            GameWorld.PreparedBattleEntry prepared = world.PrepareCommittedBattleEntry(formation, flags, seed, mode, music);
             BattleScenePresentation scene = new(world.BattleResources, prepared.Battle.ReadDefinition(), true);
             EnsureLiveMenuCatalog();
             return new PreparedBattlePresentation(prepared, scene, Stopwatch.GetElapsedTime(started).TotalMilliseconds);

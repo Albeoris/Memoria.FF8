@@ -143,7 +143,7 @@ public static partial class BattleResultProjection
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
-            experience = result.NativeExperience is { } nativeExperience ? nativeExperience.ProjectExperience(vitals, noExperience, result.Tuning) : NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning);
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems, itemOrderAliases);
             List<byte> grantedCards = [.. loot.CardsGranted];
@@ -169,7 +169,7 @@ public static partial class BattleResultProjection
         if (eligible.Length > 0)
         {
             ushort points = 0;
-            foreach (int slot in result.NativeExperience is not null ? Array.Empty<int>() : result.RewardPolicy == BattleRewardPolicy.NativeCombat ? result.EnemyDefeats.Select(defeat => defeat.Slot) : result.DefeatedEnemySlots)
+            foreach (int slot in result.RewardPolicy == BattleRewardPolicy.NativeCombat ? result.EnemyDefeats.Select(defeat => defeat.Slot) : result.DefeatedEnemySlots)
             {
                 if (!currentEnemyAbilityPoints.TryGetValue(slot, out int amount) || amount is < 0 or > 255)
                 {
@@ -180,10 +180,6 @@ public static partial class BattleResultProjection
             points = checked((ushort)Math.Min(ushort.MaxValue, (long)points * result.Tuning.ApMultiplier));
             foreach (int id in eligible)
             {
-                if (result.NativeExperience is { } nativeExperience)
-                {
-                    points = BattleNativeExperienceReceipt.ScaleAward(nativeExperience.Banks.ReadWord(76 + 2 * id), result.Tuning.ApMultiplier);
-                }
                 if (vitals.GuardianForceAbilities(id).Any(ability => !ability.Learned && ability.Ability == vitals.GuardianForces[id].Learning))
                 {
                     abilityPointsNotice = result.Tuning.ApMultiplier == 1 ? unchecked((byte)points) : points;

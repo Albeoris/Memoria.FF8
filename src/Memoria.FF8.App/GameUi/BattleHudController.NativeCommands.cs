@@ -7,6 +7,7 @@ public sealed partial class BattleHudController
 {
     private string? nativeLimitSelectionActorId;
     private bool nativeLimitCommandSelected;
+    private float limitCommandReveal;
     private ushort nativeCommandHeldButtons;
     private int nativeSlotsChoice;
 
@@ -64,12 +65,6 @@ public sealed partial class BattleHudController
 
     private void SelectNativeLimit(bool selected)
     {
-        if (session.NativeGraphics?.UiServices is not null && SelectedActor is { } actor)
-        {
-            session.SetNativeCommandRowSelection(actor.Id, checked((byte)commandIndex), !SelectingAction && !SelectingTarget, commandIndex == 0 && NativeLimitAvailable);
-            return;
-        }
-        //TODO(TD-009): Graphicsless components retain immediate selection without a native UI callback owner.
         bool next = selected && commandIndex == 0 && NativeLimitAvailable;
         if (next != nativeLimitCommandSelected)
         {
@@ -94,9 +89,10 @@ public sealed partial class BattleHudController
         return formatted;
     }
 
-    private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
-    private BattleCombatant? NativeDuelActor => session.Combatants.FirstOrDefault(actor => session.GetNativeDuel(actor.Id) is not null);
+    private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetShotUi(actor.Id) is { OwnsInput: true });
+    private BattleCombatant? NativeDuelActor => session.Combatants.FirstOrDefault(actor => session.GetDuelUi(actor.Id) is { OwnsInput: true });
     public BattleNativeDuelState? NativeDuelState => NativeDuelActor is { } actor ? session.GetNativeDuel(actor.Id) : null;
+    internal BattleTimedInputUi? DuelUi => NativeDuelActor is { } actor ? session.GetDuelUi(actor.Id) : null;
     public IReadOnlyList<BattleNativeDuelChoice> NativeDuelChoices => NativeDuelActor is { } actor ? session.GetNativeDuelChoices(actor.Id).Where(choice => choice.Learned).ToArray() : [];
     private BattleCombatant? NativeRenzokukenActor => session.Combatants.FirstOrDefault(actor => session.GetNativeRenzokuken(actor.Id) is not null);
     private bool NativeTimedLimitActive => NativeShotActor is not null || NativeDuelActor is not null || NativeRenzokukenActor is not null;
@@ -163,10 +159,7 @@ public sealed partial class BattleHudController
         {
             return [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce];
         }
-        bool limitSelected = session.NativeGraphics?.UiServices is not null
-            ? (session.NativeCommandRow ?? throw new NotSupportedException("Native command labels require retained widget BYTE26; migrate the named snapshot explicitly.")).SelectsLimit(NativeLimitAvailable && commandIndex == 0 ? (byte)4 : (byte)0)
-            : nativeLimitCommandSelected;
-        if (limitSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
+        if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {
             BattleAbility[] commands = actor.Abilities.ToArray();
             commands[0] = BattleAbility.LimitBreak;
@@ -204,6 +197,7 @@ public sealed partial class BattleHudController
         }
         nativeLimitSelectionActorId = actor?.Id;
         nativeLimitCommandSelected = false;
+        limitCommandReveal = 0;
         RestoreCommandCursor(actor);
         if (actor?.NativeLimit is not null && !ownedSelection)
         {
@@ -211,6 +205,12 @@ public sealed partial class BattleHudController
         }
     }
 
-    internal NativeBattleLimitCommandRow? NativeCommandRow => session.NativeCommandRow;
+    private void AdvanceCommandRowTransition(TimeSpan elapsed)
+    {
+        float progress = (float)(elapsed.TotalSeconds / 0.12);
+        limitCommandReveal = nativeLimitCommandSelected ? Math.Min(1, limitCommandReveal + progress) : Math.Max(0, limitCommandReveal - progress);
+    }
+
+    internal float LimitCommandReveal => limitCommandReveal;
     internal string OrdinaryFirstCommandLabel => SelectedActor is { Abilities.Count: > 0 } actor ? CommandLabel(actor.Abilities[0]) : string.Empty;
 }

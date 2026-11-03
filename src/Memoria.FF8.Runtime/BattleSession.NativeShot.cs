@@ -11,6 +11,8 @@ public enum BattleNativeShotPhase
 public sealed record BattleNativeShotState(byte ActionId, ushort TargetMask, short InitialTimer, short RemainingTimer, byte RemainingAmmo, BattleNativeShotPhase Phase)
 {
     public long UiSubframeTicks { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleTimedInputUi? Ui { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -22,6 +24,10 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         return Outcome == BattleOutcome.Active && actor.IsAlive ? nativeShotProcesses.GetValueOrDefault(actorId) : null;
     }
+
+    public BattleTimedInputUi? GetShotUi(string actorId) => GetNativeShot(actorId) is { } state ? ShotUi(state) : null;
+
+    private static BattleTimedInputUi ShotUi(BattleNativeShotState state) => state.Ui ?? new(state.Phase == BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Closing : state.Phase == BattleNativeShotPhase.Opening ? BattleTimedInputUiPhase.Opening : BattleTimedInputUiPhase.Active);
 
     private IEnumerable<BattleNativeAction> GetNativeShotChoices()
     {
@@ -52,7 +58,7 @@ public sealed partial class BattleSession
         byte flags = (action.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.NativeIndex);
         QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening, playerInput: true);
-        nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening));
+        nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
     }
 
     public void AdvanceNativeShotUi(int frames = 1)
@@ -63,8 +69,10 @@ public sealed partial class BattleSession
         }
         for (int frame = 0; frame < frames; frame++)
         {
-            foreach ((string actorId, BattleNativeShotState state) in nativeShotProcesses.ToArray())
+            foreach ((string actorId, BattleNativeShotState previous) in nativeShotProcesses.ToArray())
             {
+                BattleNativeShotState state = previous with { Ui = ShotUi(previous).Advance(FramesPerSecond) };
+                nativeShotProcesses[actorId] = state;
                 if (Outcome != BattleOutcome.Active || !GetActor(actorId).IsAlive)
                 {
                     nativeShotProcesses.Remove(actorId);
@@ -96,11 +104,7 @@ public sealed partial class BattleSession
             return;
         }
         (string actorId, BattleNativeShotState state) = nativeShotProcesses.Single();
-        if (state.Phase is BattleNativeShotPhase.Opening or BattleNativeShotPhase.Ending)
-        {
-            return;
-        }
-        //TODO(TD-009): Project the original active Shot widget callbacks onto the host's30Hz presentation clock until native UI/effect scheduling is owned.
+        //The host presentation API is the single timed-input clock in both graphics modes.
         long ticks = state.UiSubframeTicks + elapsed.Ticks * FramesPerSecond;
         int frames = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeShotProcesses[actorId] = state with { UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };
@@ -132,7 +136,7 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeActionContract(FindInstalledNativeAction(238, state.ActionId));
-        nativeShotProcesses[actorId] = state with { Phase = BattleNativeShotPhase.Ending, RemainingTimer = -1 };
+        nativeShotProcesses[actorId] = state with { Phase = BattleNativeShotPhase.Ending, RemainingTimer = -1, Ui = new(BattleTimedInputUiPhase.Closing) };
         QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding, playerInput: true);
     }
 

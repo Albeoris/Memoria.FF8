@@ -175,7 +175,7 @@ public sealed partial class BattleSession
                         {
                             if (operand == 203)
                             {
-                                operand = (uint)NativeActorIndex(FindAiActor(actor, 203));
+                                operand = checked((uint)NativeConditionLastAttackerIndex(actor));
                             }
                             WriteNativeActorVariable(actor, variable, operand, opcode == 18);
                             break;
@@ -475,49 +475,7 @@ public sealed partial class BattleSession
         id = ability.Id;
         sequence = ability.Sequence;
     }
-    private BattleCombatant FindAiActor(BattleCombatant actor, int selector)
-    {
-        if (selector == 200)
-        {
-            return actor;
-        }
-        if (selector == 203)
-        {
-            return actor.LastAttackerId is string id ? byId[id] : throw new InvalidDataException("Native battle AI requires an executed last-attacker owner.");
-        }
-        if (selector == 201)
-        {
-            BattleCombatant[] party = combatants.Where(candidate => candidate.IsPlayer && candidate.IsAlive && !candidate.Untargetable).ToArray();
-            if (party.Length == 0)
-            {
-                throw new InvalidDataException("Native battle AI has no living party target.");
-            }
-            // Native201 samples the three physical party slots with rejection.
-            for (int attempt = 0; attempt < 4096; attempt++)
-            {
-                int slot = NextRandomByte() % 3;
-                BattleCombatant? selected = party.SingleOrDefault(candidate => combatants.Where(member => member.IsPlayer).ToList().IndexOf(candidate) == slot);
-                if (selected is not null)
-                {
-                    return selected;
-                }
-            }
-            throw new NotSupportedException("Native battle AI target rejection exceeded its bounded sampling.");
-        }
-        if (selector is 204 or 205)
-        {
-            // The native mask is retained by the action resolver, with this actor as the queue owner.
-            return actor;
-        }
-        if (selector is >= 220 and <= 227)
-        {
-            return FindNativeActor(checked((int)actor.AiVariables[selector - 220]));
-        }
-        return combatants.FirstOrDefault(candidate => candidate.IsActive && NativeModelId(candidate) == selector) ?? throw new NotSupportedException($"Native battle AI model selector {selector} has no allocated actor.");
-    }
-
-    private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => NativeActorIndex(actor) == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
-    private int NativeActorIndex(BattleCombatant actor) => actor.NativeIndex;
+    private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => actor.NativeIndex == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
     private static int NativeModelId(BattleCombatant actor) => actor.NativeAllocationPendingStatistics ? 255 : actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
     private static int ReadAiByte(byte[] code, ref int pc)
     {
