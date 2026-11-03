@@ -6,6 +6,68 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class FieldAuditDecoderTests
 {
+    [Theory]
+    [InlineData("en", 0x19)]
+    [InlineData("fr", 0x1A)]
+    [InlineData("de", 0x1B)]
+    [InlineData("es", 0x1C)]
+    [InlineData("it", 0x19)]
+    public void JapaneseEscapesInEuropeanSourcesRemainExplicitDecodeFailures(string language, byte escape)
+    {
+        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank([escape, 0x20, 0]), language, "fixture");
+
+        FieldAuditDecodedRow row = Assert.Single(bank.Rows);
+        Assert.False(bank.Complete);
+        Assert.Null(row.Text);
+        Assert.Empty(row.Tokens);
+        Assert.Contains("Unsupported source encoding", row.Error);
+        Assert.Contains($"0x{escape:X2} at byte 0", row.Error);
+        Assert.Equal(0, row.Ordinal);
+        Assert.Equal(4, row.Offset);
+        Assert.Equal(3, row.Length);
+    }
+
+    [Theory]
+    [InlineData(0x03)]
+    [InlineData(0x04)]
+    [InlineData(0x05)]
+    [InlineData(0x06)]
+    [InlineData(0x08)]
+    [InlineData(0x09)]
+    [InlineData(0x0A)]
+    [InlineData(0x0B)]
+    [InlineData(0x0C)]
+    [InlineData(0x0D)]
+    [InlineData(0x0E)]
+    public void EuropeanControlParametersAreNotMistakenForJapaneseEscapes(byte control)
+    {
+        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank([control, 0x1C, 0]), "en", "fixture");
+
+        Assert.True(bank.Complete, Assert.Single(bank.Rows).Error);
+        Assert.NotNull(bank.Rows[0].Text);
+    }
+
+    [Fact]
+    public void EuropeanPackedPairsAndNativeWordmarksRemainSupported()
+    {
+        byte[] bytes = [0xCC, 0xE2, 0xE8, 0xFF, 0];
+        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank(bytes), "en", "fixture");
+
+        Assert.True(bank.Complete);
+        Assert.Equal(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes), Assert.Single(bank.Rows).Text);
+    }
+
+    [Theory]
+    [InlineData(0x08, "{Speed 28}{End}")]
+    [InlineData(0x0D, "{Item 28}{End}")]
+    public void JapaneseSpeedAndItemParametersDoNotRequireAFieldCharacterTable(byte control, string expected)
+    {
+        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank([control, 0x1C, 0]), "ja", "unknown-field");
+
+        Assert.True(bank.Complete, Assert.Single(bank.Rows).Error);
+        Assert.Equal(expected, bank.Rows[0].Text);
+    }
+
     [Fact]
     public void FieldSpecificJapaneseTablesStayIndependentUnderParallelDecoding()
     {

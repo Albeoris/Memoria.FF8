@@ -82,6 +82,35 @@ public sealed class LocalizationSourceExporterTests
     }
 
     [Fact]
+    public void JapaneseEscapesInEuropeanNonfieldsRetainTheSourceSlotAndDiagnostic()
+    {
+        using InMemoryResourceSource source = Source();
+        source.Set(new("menu/namedic.bin"), [1, 0, 4, 0, 0x19, 0x20, 0], "bin");
+
+        LocalizationSourceCatalog result = LocalizationSourceExporter.Read(source, new MissingArchives(), "en", TestContext.Current.CancellationToken);
+
+        LocalizationSourceEntry missing = Assert.Single(result.Entries);
+        Assert.Equal("$en_namedic_menu_0000", missing.Key);
+        Assert.Empty(missing.Text);
+        Assert.Equal("false", missing.Metadata["Source Present"]);
+        Assert.Contains("Unsupported source encoding", missing.Metadata["Decode Error"]);
+        Assert.Contains(result.Gaps, gap => gap.Category == "Menus" && gap.Reason.Contains("Unsupported source encoding"));
+    }
+
+    [Fact]
+    public void EuropeanNonfieldControlParametersKeepTheirOriginalMeaning()
+    {
+        using InMemoryResourceSource source = Source();
+        source.Set(new("menu/namedic.bin"), [1, 0, 4, 0, 0x08, 0x19, 0x0D, 0x1C, 0], "bin");
+
+        LocalizationSourceCatalog result = LocalizationSourceExporter.Read(source, new MissingArchives(), "en", TestContext.Current.CancellationToken);
+
+        LocalizationSourceEntry row = Assert.Single(result.Entries);
+        Assert.Equal("{Speed 25}{Item 28}", row.Text);
+        Assert.False(row.Metadata.ContainsKey("Decode Error"));
+    }
+
+    [Fact]
     public void CancellationPropagatesWithoutInventingAvailability()
     {
         using InMemoryResourceSource source = Source();

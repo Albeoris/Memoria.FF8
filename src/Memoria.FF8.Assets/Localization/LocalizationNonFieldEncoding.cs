@@ -21,9 +21,10 @@ internal sealed class LocalizationNonFieldEncoding(FF8Encoding selected) : Encod
         byte[] bounded = bytes.AsSpan(index, count).ToArray();
         try
         {
+            FieldAuditDecoder.ValidateCharacters(bounded, language == FF8TextLanguage.JP, encoding.FieldCharacters);
             return encoding.GetString(bounded, 0, bounded.Length);
         }
-        catch (Exception error) when (error is FormatException or InvalidOperationException or IndexOutOfRangeException or ArgumentException)
+        catch (Exception error) when (error is FormatException or InvalidDataException or InvalidOperationException or IndexOutOfRangeException or ArgumentException)
         {
             // Noncharacters cannot be produced by the game's character tables. The private
             // identity token is consumed before a source record is published.

@@ -52,12 +52,16 @@ public static partial class FieldAuditDecoder
         return new($"FF8Encoding/{(japanese ? "Japanese" : "European")}/{typeof(FF8Encoding).Assembly.GetName().Version}", tableHash, rows.ToArray());
     }
 
-    private static void ValidateCharacters(ReadOnlySpan<byte> bytes, bool japanese, FieldCharacterSet? table)
+    internal static void ValidateCharacters(ReadOnlySpan<byte> bytes, bool japanese, FieldCharacterSet? table)
     {
         for (int offset = 0; offset < bytes.Length; offset++)
         {
             byte value = bytes[offset];
-            bool parameter = value is 3 or 4 or 5 or 6 or 9 or 10 or 11 or 12 or 14;
+            if (!japanese && value is >= 0x19 and <= 0x1C)
+            {
+                throw new InvalidDataException($"Unsupported source encoding: Japanese character escape 0x{value:X2} at byte {offset} in a European text resource. The source codepage must be established before this row can be exported.");
+            }
+            bool parameter = value is 3 or 4 or 5 or 6 or 8 or 9 or 10 or 11 or 12 or 13 or 14;
             bool escape = japanese && value is >= 0x18 and <= 0x1C;
             if (!parameter && !escape)
             {

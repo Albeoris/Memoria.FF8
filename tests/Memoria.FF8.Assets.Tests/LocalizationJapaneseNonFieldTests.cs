@@ -105,7 +105,11 @@ public sealed class LocalizationJapaneseNonFieldTests
         Assert.Equal(110, result.Entries.Count(row => row.File == "names_cards"));
         Assert.Equal(160, result.Entries.Count(row => row.File == "scan_monsters"));
         Assert.Equal(151, result.Entries.Count(row => row.File == "messages_world"));
-        Assert.Contains(result.Entries, row => row.File == "messages_world" && row.Metadata.GetValueOrDefault("Source Present") == "false");
+        Assert.All(result.Entries.Where(row => row.Metadata.GetValueOrDefault("Source Present") == "false"), row =>
+        {
+            Assert.Empty(row.Text);
+            Assert.NotEmpty(row.Metadata["Decode Error"]!);
+        });
         Assert.DoesNotContain(result.Entries, row => row.Category == "Fields");
         Assert.All(result.Entries, row =>
         {
