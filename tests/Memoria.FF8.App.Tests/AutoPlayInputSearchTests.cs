@@ -174,6 +174,42 @@ public sealed class AutoPlayInputSearchTests
     }
 
     [Fact]
+    public void RepeatedInputOccurrenceGivesNeutralATurnAndThenReturnsToPhysicalInput()
+    {
+        AutoPlayInputSearchFrame parent = Frame("previous");
+        parent.FieldId = 100;
+        parent.IncludeNeutralInput = true;
+        parent.Options.Add(2);
+        parent.ActiveTrial = 0;
+        parent.Trials.Add(new() { Selection = 1, Mask = 2, Sampled = true, SampledQuery = Query });
+        AutoPlayInputSearch search = new() { Frames = [parent] };
+        AutoPlayInputSearchFrame next = Frame("next");
+        next.IncludeNeutralInput = true;
+        next.Options.Add(2);
+        next.PreviousInputSelection = AutoPlayController.PreviousInputSelection(search, parent, parent.Key);
+        Assert.Equal(2, AutoPlayController.NextInputSearchSelection(next));
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(next, includeNeutral: false));
+        next.PreferredSelection = 1;
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(next));
+        next.PreferredSelection = null;
+        AutoPlayInputSearchFrame cold = JsonSerializer.Deserialize<AutoPlayInputSearchFrame>(JsonSerializer.Serialize(next, AutoPlayController.JsonOptions), AutoPlayController.JsonOptions)!;
+        Assert.Equal(2, AutoPlayController.NextInputSearchSelection(cold));
+        next.Trials.Add(new() { Selection = 2, Mask = 0 });
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(next));
+        next.Trials.Add(new() { Selection = 0, Mask = 1 });
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(next));
+        next.Trials.Add(new() { Selection = 1, Mask = 2 });
+        Assert.Null(AutoPlayController.NextInputSearchSelection(next));
+
+        parent.Trials[0] = new() { Selection = 2, Mask = 0, NeutralReceipt = new(Query, new(3, 0, 0, 43, 100, 0, 0, 0, 0)) };
+        next.Trials.Clear();
+        next.PreviousInputSelection = AutoPlayController.PreviousInputSelection(search, parent, parent.Key);
+        Assert.Equal(2, next.PreviousInputSelection);
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(next));
+        Assert.False(AutoPlayController.RecordInputSearchKnowledge(search, parent, parent.Trials[0]));
+    }
+
+    [Fact]
     public void RecordedDialogueRetainsItsExactWindowWhenLiveAnimationChanges()
     {
         DialogueState live = new(0, 3, "Actual choice", 55, 65, 3, 6, NativeWindow: new(1, 2048, 512));

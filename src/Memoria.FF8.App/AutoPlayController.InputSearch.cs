@@ -47,6 +47,7 @@ internal sealed class AutoPlayInputSearchFrame
     public bool IncludeNeutralInput { get; set; }
     public List<int> Options { get; set; } = [];
     public int? PreferredSelection { get; set; }
+    public int? PreviousInputSelection { get; set; }
     public List<AutoPlayChoiceSelection>? BeforeSelections { get; set; }
     public AutoPlayInputSearchContext Context { get; set; } = new();
     public List<AutoPlayInputSearchTrial> Trials { get; set; } = [];
@@ -131,6 +132,7 @@ internal sealed partial class AutoPlayController
             IncludeNeutralInput = input is not null,
             Options = input is null ? Enumerable.Range(dialogue!.FirstChoice!.Value, dialogue.LastChoice!.Value - dialogue.FirstChoice.Value + 1).ToList() : Enumerable.Range(0, input.Masks.Count + 1).ToList(),
             PreferredSelection = preferredSelection,
+            PreviousInputSelection = input is null ? null : PreviousInputSelection(search, parent, key),
             BeforeSelections = run.ActiveSelections?.ToList(),
             Context = CaptureInputSearchContext()
         };
@@ -199,6 +201,22 @@ internal sealed partial class AutoPlayController
         return dialogue is null ? null : dialogue with { NativeWindow = dialogue.NativeWindow is null ? null : dialogue.NativeWindow with { } };
     }
 
+    internal static int? PreviousInputSelection(AutoPlayInputSearch search, AutoPlayInputSearchFrame? parent, string key)
+    {
+        for (AutoPlayInputSearchFrame? frame = parent; frame is not null; frame = frame.ParentId is string id ? search.Frames.Single(item => item.Id == id) : null)
+        {
+            if (frame.Key == key && frame.Input is not null && frame.ActiveTrial is int active)
+            {
+                AutoPlayInputSearchTrial trial = frame.Trials[active];
+                if (trial.Sampled || HasNeutralInputSearchReceipt(frame, trial))
+                {
+                    return trial.Selection;
+                }
+            }
+        }
+        return null;
+    }
+
     internal static int? NextInputSearchSelection(AutoPlayInputSearchFrame frame, bool includeNeutral = true)
     {
         int positiveCount = frame.Input?.Masks.Count ?? frame.Options.Count;
@@ -210,6 +228,19 @@ internal sealed partial class AutoPlayController
                 throw new InvalidDataException("The planned local input alternative is outside its original domain.");
             }
             start = frame.Options.IndexOf(preferred);
+        }
+        else if (frame.PreviousInputSelection is int previousInput)
+        {
+            if (frame.Input is null || !frame.Options.Contains(previousInput))
+            {
+                throw new InvalidDataException("The preceding input occurrence is outside its original domain.");
+            }
+            int next = (frame.Options.IndexOf(previousInput) + 1) % frame.Options.Count;
+            if (next == positiveCount && includeNeutral && !frame.Trials.Any(trial => trial.Selection == frame.Options[next]))
+            {
+                return frame.Options[next];
+            }
+            start = next < positiveCount ? next : 0;
         }
         else if (frame.BeforeSelections?.LastOrDefault(selection => selection.Key == frame.Key) is { } previous)
         {
@@ -583,6 +614,10 @@ internal sealed partial class AutoPlayController
         {
             int first = frame.Input is null ? frame.Dialogue?.FirstChoice ?? -1 : 0;
             int count = frame.Input is null ? (frame.Dialogue?.LastChoice ?? -2) - first + 1 : frame.Input.Masks.Count + (frame.IncludeNeutralInput ? 1 : 0);
+            if (frame.PreviousInputSelection is int previousInput && (frame.Input is null || !frame.Options.Contains(previousInput)))
+            {
+                throw new InvalidDataException("The preceding input occurrence is outside its original domain.");
+            }
             if (first < 0 || count <= 0 || frame.IncludeNeutralInput && frame.Input is null || frame.PreferredSelection is int preferred && (frame.ParentId is not null || !frame.Options.Contains(preferred) || frame.Input is not null && preferred >= frame.Input.Masks.Count) || !frame.Options.SequenceEqual(Enumerable.Range(first, count)) || frame.Input is { } input && (input.Masks.Distinct().Count() != input.Masks.Count || input.Masks.Any(mask => mask is <= 0 or > ushort.MaxValue)) || frame.Trials.Select(trial => trial.Selection).Distinct().Count() != frame.Trials.Count || frame.ActiveTrial is int active && (active < 0 || active >= frame.Trials.Count))
             {
                 throw new InvalidDataException("A local input search ledger has a changed ordered option domain or active trial.");
