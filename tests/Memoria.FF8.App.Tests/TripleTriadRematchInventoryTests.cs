@@ -381,11 +381,90 @@ public sealed class TripleTriadRematchInventoryTests
         }
     }
 
-    private static GameWorld CreateWorld(GameSession session, string directory, TripleTriadTradeRule rule, bool randomDeck)
+    [Theory]
+    [InlineData(965, 40, false)]
+    [InlineData(965, 40, true)]
+    [InlineData(965, 41, false)]
+    [InlineData(965, 41, true)]
+    [InlineData(965, 42, false)]
+    [InlineData(965, 42, true)]
+    [InlineData(965, 39, true)]
+    [InlineData(965, 43, true)]
+    [InlineData(600, 40, true)]
+    [InlineData(600, 41, true)]
+    [InlineData(600, 42, true)]
+    public void OnlyPaidPrisonOpponentsReturnAfterOneMatch(int fieldId, int owner, bool strongDeck)
+    {
+        string directory = TestResources.GameDirectory;
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        foreach (int id in Enumerable.Range(0, 20).Concat(Enumerable.Range(105, 5)))
+        {
+            cards = cards.Acquire(id, out _);
+        }
+        GameSession cold = GameSession.CreateColdProcess();
+        cold.StartNewGame();
+        GameSession session = new(cold.State with
+        {
+            Scene = SceneKind.Field,
+            FieldId = fieldId,
+            FieldLoadContext = NativeFieldLoadContext.FromOriginalSave(fieldId),
+            CardInventory = cards,
+            SeeD = null,
+            WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x10 }
+        });
+        using GameWorld world = CreateWorld(session, directory, TripleTriadTradeRule.All, false, fieldId, owner);
+        Assert.True(world.Events.TalkTo(0, true));
+        world.Events.Step();
+        TripleTriadController controller = world.EnsureTripleTriad()!;
+        for (int tick = 0; tick < 45 && controller.AwaitingRules; tick++)
+        {
+            world.AdvanceTripleTriadPrompt(0);
+        }
+        Assert.False(controller.AwaitingRules);
+        IEnumerable<int> ids = strongDeck ? Enumerable.Range(0, 110).Reverse() : Enumerable.Range(0, 110);
+        foreach (int id in ids.Where(id => cards.AvailableCount(id) > 0).Take(5))
+        {
+            controller.ChooseCard(id);
+        }
+        TripleTriadMatch match = controller.Match!;
+        while (match.Outcome == TripleTriadOutcome.InProgress)
+        {
+            if (match.CurrentPlayer == 0)
+            {
+                TripleTriadMove move = match.ChooseMove();
+                controller.Play(move.HandIndex, move.CellIndex);
+            }
+            else
+            {
+                Assert.True(controller.AdvanceOpponent());
+            }
+        }
+        controller.Navigate(UiKey.Confirm);
+        bool paidPrisonMatch = fieldId == 965 && owner is 40 or 41 or 42;
+        Assert.Equal(!paidPrisonMatch, controller.AwaitingReplay);
+        if (paidPrisonMatch)
+        {
+            Assert.Null(world.Events.PendingTripleTriad);
+            Assert.Null(world.ActiveTripleTriad);
+            Assert.Null(session.State.TripleTriadPlay);
+            TripleTriadStatistics statistics = session.CardInventory!.TripleTriadStatistics!;
+            Assert.Equal(1, statistics.Wins + statistics.Losses + statistics.Draws);
+            string settled = JsonSerializer.Serialize(session.CardInventory);
+            controller.Navigate(UiKey.Confirm);
+            Assert.Equal(settled, JsonSerializer.Serialize(session.CardInventory));
+        }
+        else
+        {
+            Assert.NotNull(world.Events.PendingTripleTriad);
+            Assert.Same(controller, world.ActiveTripleTriad);
+        }
+    }
+
+    private static GameWorld CreateWorld(GameSession session, string directory, TripleTriadTradeRule rule, bool randomDeck, int fieldId = 600, int owner = 121)
     {
         GameWorld world = new(session, directory);
         List<(Jsm.Opcode Opcode, int Parameter)> operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 2)];
-        operations.AddRange(new[] { 121, randomDeck ? 9 : 1, (int)rule, 200, 7, 4, 127 }.Select(value => (Jsm.Opcode.PSHN_L, value)));
+        operations.AddRange(new[] { owner, randomDeck ? 9 : 1, (int)rule, 200, 7, 4, 127 }.Select(value => (Jsm.Opcode.PSHN_L, value)));
         operations.AddRange([(Jsm.Opcode.CARDGAME, 0), (Jsm.Opcode.RET, 8)]);
         byte[] bytes = new byte[18 + operations.Count * 4];
         bytes[3] = 1;
@@ -401,7 +480,7 @@ public sealed class TripleTriadRematchInventoryTests
             int encoded = operation.Parameter != 0 || operation.Opcode == Jsm.Opcode.PSHN_L ? (int)operation.Opcode << 24 | operation.Parameter & 0xFFFFFF : (int)operation.Opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(18 + index * 4), encoded);
         }
-        world.Events.LoadField(600, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        world.Events.LoadField(fieldId, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         if (session.State.EventState is { } snapshot)
         {
             world.Events.Restore(snapshot);

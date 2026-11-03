@@ -332,8 +332,11 @@ internal sealed partial class GameWorld
             tripleTriad = null;
             session.SetEventState(Events.Capture());
         }
-        // This opponent's field script owns the 500-gil fee and item reward for each match.
-        if (request.FieldId == 965 && request.OpponentOwner == 41)
+        // The prison opponents charge 200 gil (owner 40), 500 gil (41) and 300 gil (42).
+        // Their field scripts collect the fee and grant the corresponding item or Battle Meter reward.
+        // Allow only one match per CARDGAME request: an in-module replay would bypass that settlement
+        // and the next entry's payment check. Return to the field before another paid match can start.
+        if (request.FieldId == 965 && request.OpponentOwner is 40 or 41 or 42)
         {
             ReturnToField();
             return;
