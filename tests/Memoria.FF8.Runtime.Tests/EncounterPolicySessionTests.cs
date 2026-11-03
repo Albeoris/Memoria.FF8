@@ -192,7 +192,8 @@ public sealed class EncounterPolicySessionTests
     [InlineData(0u, 0x40000u, 3, 3)]
     [InlineData(0x40000u, 0x20000u, 3, 3)]
     [InlineData(0u, 0u, 1, 3)]
-    [InlineData(0x40000u, 0u, 2, 2)]
+    [InlineData(0x40000u, 0u, 3, 2)]
+    [InlineData(0x40000u, 0u, 3, 1)]
     public void MirrorUsesOwnOrOriginalMulticastAndScansDistinctOpponents(uint originalStatus, uint mirrorStatus, int casts, int opponents)
     {
         BattleDefinition source = Create(false).ReadDefinition();
@@ -208,25 +209,26 @@ public sealed class EncounterPolicySessionTests
                 Templates = mod.Templates.SetItem("mirror", new("mirror", "original", "family", "mod/policy", "arrival"))
             }
         };
-        definition = definition with { Combatants = definition.Combatants.Where(actor => opponents == 3 || actor.Id != "party-c").ToArray() };
+        definition = definition with { Combatants = definition.Combatants.Where(actor => opponents == 3 || actor.Id != "party-c" && (opponents == 2 || actor.Id != "party-b")).ToArray() };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
         {
             battle.Tick();
         }
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan" && entry.ActorId == "mirror"));
-        Assert.Equal(casts, battle.ScanKnowledge.Observations.Length);
+        Assert.Equal(Math.Min(casts, opponents), battle.ScanKnowledge.Observations.Length);
         Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(casts, battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
+        Assert.Equal(Math.Min(casts, opponents), battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         Assert.Equal(battle.EncounterPolicies.Cursors["mirror"].LastTargetIds.ToArray(), restored.EncounterPolicies!.Cursors["mirror"].LastTargetIds.ToArray());
     }
 
     [Theory]
-    [InlineData(0u, 1)]
-    [InlineData(0x20000u, 2)]
-    [InlineData(0x40000u, 3)]
-    public void MirrorGroupSpellCastsOncePerDistinctRecipientUpToCurrentLimit(uint originalStatus, int casts)
+    [InlineData(0u, 1, 3)]
+    [InlineData(0x20000u, 2, 3)]
+    [InlineData(0x40000u, 3, 3)]
+    [InlineData(0x40000u, 3, 2)]
+    public void MirrorGroupSpellRepeatsWithinNamedAlliesAfterDistinctRecipientsAreExhausted(uint originalStatus, int casts, int allies)
     {
         BattleDefinition source = Create(false).ReadDefinition();
         EncounterCompiledDefinition mod = source.EncounterMod!;
@@ -242,7 +244,7 @@ public sealed class EncounterPolicySessionTests
                 NormalActionPolicies = mod.NormalActionPolicies.Remove("original"),
                 Policies = mod.Policies.SetItem(policy.Id, policy with { Rules = [rule] }),
                 Templates = mod.Templates.SetItem("mirror", new("mirror", "original", "family", policy.Id, "arrival")),
-                Groups = mod.Groups.SetItem("family", ["original", "mirror", "other"])
+                Groups = mod.Groups.SetItem("family", allies == 3 ? ["original", "mirror", "other"] : ["original", "mirror"])
             }
         }, BattleAtbMode.Normal);
         for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
@@ -250,9 +252,44 @@ public sealed class EncounterPolicySessionTests
             battle.Tick();
         }
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan"));
-        Assert.Equal(casts, battle.ScanKnowledge.Observations.Length);
+        Assert.Equal(Math.Min(casts, allies), battle.ScanKnowledge.Observations.Length);
         Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(casts, battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
+        Assert.Equal(Math.Min(casts, allies), battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Scan" && entry.TargetId == "party");
+        if (allies == 2)
+        {
+            Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Scan" && entry.TargetId == "other");
+        }
+    }
+
+    [Theory]
+    [InlineData(EncounterCompiledTargetKind.RandomAlly, "enemy")]
+    [InlineData(EncounterCompiledTargetKind.RandomOpponent, "party")]
+    public void WaterDamagesItsSelectedSideEvenWhenTripleRepeatsOneRecipient(EncounterCompiledTargetKind targetKind, string recipientId)
+    {
+        BattleDefinition source = Create(false, true).ReadDefinition();
+        BattleNativeAction water = source.NativeActions[0] with { ActionId = 10, KernelIndex = 10, Name = "Water", Element = 64 };
+        EncounterCompiledDefinition mod = source.EncounterMod!;
+        EncounterCompiledPolicy policy = mod.Policies["mod/policy"];
+        EncounterCompiledRule rule = policy.Rules[0];
+        rule = rule with { Action = rule.Action with { Spells = [new("Water", water, 6, true, false)], Target = targetKind } };
+        BattleSession battle = new(source with
+        {
+            Combatants = source.Combatants.Select(actor => actor with { NativeStatus1 = actor.IsPlayer ? 0 : 0x40000u }).ToArray(),
+            NativeActions = [water],
+            ActionDefinitions = [new(BattleAbility.Magic, 10, "Water", BattleActionEffect.Native, water.Power, false) { NativeAction = water }],
+            EncounterMod = mod with { Policies = mod.Policies.SetItem(policy.Id, policy with { Rules = [rule] }) }
+        }, BattleAtbMode.Normal);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(3, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == recipientId && entry.Amount > 0));
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Miss" || entry.Kind == "Reflect");
+        Assert.Equal(3, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(new[] { recipientId }, battle.EncounterPolicies!.Cursors["enemy"].LastTargetIds.ToArray());
+        string otherId = recipientId == "enemy" ? "party" : "enemy";
+        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == otherId).CurrentHp);
     }
 
     [Fact]

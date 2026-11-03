@@ -33,8 +33,10 @@ public sealed partial class BattleSession
         try
         {
             nativeAffinityAction = null;
+            BattleNativeAction? invocation = command.NativeAction ?? (command.Ability == BattleAbility.Magic ? FindAction(BattleAbility.Magic, command.ActionId).NativeAction : null);
+            bool silencedMagic = invocation is not null && NativeMagicInvocationSilenced(actor, command, invocation);
             ResolveAction(actor, target, command);
-            CompleteNativeActionOwners(actor, command);
+            CompleteNativeActionOwners(actor, command, silencedMagic);
             completed = true;
         }
         finally
@@ -55,10 +57,10 @@ public sealed partial class BattleSession
         }
     }
 
-    private void CompleteNativeActionOwners(BattleCombatant actor, BattleActionPresentation command)
+    private void CompleteNativeActionOwners(BattleCombatant actor, BattleActionPresentation command, bool silencedMagic)
     {
         CompleteNativeOrdinaryCommand(actor, command);
-        bool continueAffinity = CompleteNativeActionInventory(actor, command);
+        bool continueAffinity = CompleteNativeActionInventory(actor, command, silencedMagic);
         if (continueAffinity && command.NativeMagicTargets.IsDefaultOrEmpty)
         {
             CompleteGuardianForceAffinity(actor, command);

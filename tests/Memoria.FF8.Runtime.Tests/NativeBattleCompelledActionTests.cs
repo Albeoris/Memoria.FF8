@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -65,7 +66,63 @@ public sealed class NativeBattleCompelledActionTests
         Assert.Equal(new NativeItemStock(0, 0), battle.Capture().NativeItemInventory![5]);
     }
 
-    private static BattleSession Create(ushort saved, uint transient)
+    [Theory]
+    [InlineData(0x4000u)]
+    [InlineData(0x2000000u)]
+    public void SilencedCompelledMagicStillPublishesTheFailedAttemptWithoutSpendingStock(uint compelledStatus)
+    {
+        BattleSession battle = Create(0x10, compelledStatus, magicOnly: true);
+
+        battle.Tick();
+
+        Assert.Equal((byte)2, battle.ActiveAction!.NativeQueuedCommand);
+        AssertSilencedMagicAttempt(battle);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(3, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+        Assert.Equal(500, battle.Combatants[1].CurrentHp);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void MagicQueuedBeforeSilenceUsesTheSameFailedInvocationContract()
+    {
+        BattleSession battle = Create(0, 0, magicOnly: true);
+        battle.QueueAction("party", "enemy", BattleAbility.Magic, 2);
+        BattleSnapshot queued = battle.Capture();
+        queued.Combatants[0] = queued.Combatants[0] with { NativeStatus = queued.Combatants[0].NativeStatus! with { Saved = 0x10 } };
+        battle = BattleSession.Restore(queued);
+
+        battle.Tick();
+
+        AssertSilencedMagicAttempt(battle);
+    }
+
+    private static void AssertSilencedMagicAttempt(BattleSession battle)
+    {
+        int header = battle.ActiveAction!.NativeHeaderIndex!.Value;
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(1));
+        Assert.Equal((byte)10, battle.NativeActionPackets.Headers[header].ReadByte(2));
+        Assert.Equal((byte)9, battle.NativeActionPackets.Headers[header].ReadByte(4));
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(5));
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(6));
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(7));
+        Assert.Equal(0x47E970u, battle.NativeActionPackets.Headers[header].Data!.ProducerAddress);
+        Assert.Equal((ushort)2, battle.NativeActionPackets.Headers[header].Data!.Argument);
+        BattleEvent message = Assert.Single(battle.Events, item => item.Kind == "NativeText");
+        Assert.Equal("Message100", message.Message);
+        Assert.Equal(16, message.Amount);
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[header].ReadByte(16));
+        Assert.Equal(3, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+        Assert.Equal(500, battle.Combatants[1].CurrentHp);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
+    }
+
+    private static BattleSession Create(ushort saved, uint transient, bool magicOnly = false)
     {
         NativeMagicStock[] magic = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
         magic[5] = new(2, 3);
@@ -76,7 +133,7 @@ public sealed class NativeBattleCompelledActionTests
             Name = "Offensive spell",
             MagicId = 2,
             AttackType = 2,
-            Power = 0,
+            Power = magicOnly ? (byte)32 : (byte)0,
             HitCount = 1,
             TargetFlags = 0x40,
             AttackFlags = 1,
@@ -98,12 +155,14 @@ public sealed class NativeBattleCompelledActionTests
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Compelled action component",
             NativeFieldBattleRules = 0,
+            NativeMessageSpeed = 1,
+            NativeGlobalMessages = Enumerable.Range(0, 101).Select(index => (string?)$"Message{index}").ToArray(),
             NativeActions = [spell],
             NativeItemInventory = items,
-            ActionDefinitions = [new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Heal, 20, true)],
+            ActionDefinitions = [new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Heal, 20, true), new(BattleAbility.Magic, 2, "Offensive spell", BattleActionEffect.Native, 0, false) { NativeAction = spell }],
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeMagicInventory = magic, NativeCommandSlots = ImmutableArray.Create<byte>(1, 0, 0, 0), NativeStatus0 = saved, NativeStatus1 = transient, Abilities = [BattleAbility.Attack, BattleAbility.Item] },
+                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeMagicInventory = magic, NativeCommandSlots = magicOnly ? ImmutableArray.Create<byte>(2, 2, 2, 2) : ImmutableArray.Create<byte>(1, 0, 0, 0), NativeStatus0 = saved, NativeStatus1 = transient, Abilities = [BattleAbility.Attack, BattleAbility.Item, BattleAbility.Magic] },
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 500, CurrentHp = 500 }
             ]
         }, BattleAtbMode.Normal);

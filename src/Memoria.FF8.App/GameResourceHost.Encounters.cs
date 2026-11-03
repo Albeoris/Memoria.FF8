@@ -109,14 +109,15 @@ internal sealed partial class GameResourceHost
     private static BattleDefinition ApplyCompiledEncounterDefinition(BattleDefinition definition, EncounterBindingResult binding, EncounterCompiledDefinition compiled)
     {
         BattleCombatantDefinition[] combatants = definition.Combatants.ToArray();
-        foreach ((string property, double multiplier) in compiled.ActorProperties)
+        foreach ((string property, double multiplier) in compiled.ActorProperties.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
-            const string suffix = "/stats.maximumHpMultiplier";
-            if (!property.EndsWith(suffix, StringComparison.Ordinal))
+            int separator = property.LastIndexOf('/');
+            string name = property[(separator + 1)..];
+            if (separator < 0 || name is not ("stats.maximumHpMultiplier" or EncounterActorProperties.ReflectResistanceMultiplier))
             {
                 throw new InvalidDataException("Unsupported compiled encounter actor property: " + property);
             }
-            string role = property[..^suffix.Length];
+            string role = property[..separator];
             string actorId = role == "original" ? binding.OriginalActorId : role.StartsWith("scene-", StringComparison.Ordinal) ? "enemy-" + role[6..] : role;
             int index = Array.FindIndex(combatants, actor => actor.Id == actorId);
             if (index < 0)
@@ -125,9 +126,14 @@ internal sealed partial class GameResourceHost
                 {
                     continue;
                 }
-                throw new InvalidDataException("Maximum-HP modifiers currently require a selected baseline actor: " + role);
+                throw new InvalidDataException("Encounter actor modifiers require a selected baseline actor or template: " + role);
             }
             BattleCombatantDefinition actor = combatants[index];
+            if (name == EncounterActorProperties.ReflectResistanceMultiplier)
+            {
+                combatants[index] = EncounterActorProperties.ScaleReflectResistance(actor, multiplier);
+                continue;
+            }
             if (actor.MaximumHpMultiplier != 1)
             {
                 throw new InvalidDataException("Encounter maximum-HP multiplier has already been applied to actor: " + role);

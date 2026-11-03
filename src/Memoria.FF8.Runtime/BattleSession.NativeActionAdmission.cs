@@ -1,10 +1,16 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static byte NativeHeaderCommand(BattleActionPresentation command, BattleNativeAction native)
+    private static byte NativeHeaderCommand(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
     {
-        return command.NativeDraw is { Failed: true } || NativeSpecialInvocationFailed(command, native) ? (byte)0 : command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+        return NativeMagicInvocationSilenced(actor, command, native) || command.NativeDraw is { Failed: true } || NativeSpecialInvocationFailed(command, native) ? (byte)0 : command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+    }
+
+    private static bool NativeMagicInvocationSilenced(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
+    {
+        //48D200 case2 checks the live saved-status WORD after compelled command replacement.
+        return (command.NativeQueuedCommand ?? native.Command) == 2 && (NativeSavedStatusBits(actor) & 0x10) != 0;
     }
 
     private static bool NativeSpecialInvocationFailed(BattleActionPresentation command, BattleNativeAction native)
@@ -14,6 +20,11 @@ public sealed partial class BattleSession
 
     private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
     {
+        if (NativeMagicInvocationSilenced(actor, command, native))
+        {
+            NativeBattleActionDataReference title = new(0x47E970, native.ActionId) { FormattedText = native.Name };
+            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+        }
         if (NativeSpecialInvocationFailed(command, native))
         {
             ushort message = native.AttackType == 17 ? (ushort)50 : (ushort)112;
@@ -35,7 +46,7 @@ public sealed partial class BattleSession
             NativeBattleActionDataReference drawTitle = command.DrawCast && !draw.Failed ? new(0x495280, 0) { FormattedText = NativeDrawResultText(actor, draw, true) } : new(0x47EBD0, 6) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(6) };
             return new(checked((byte)actor.NativeIndex), drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
         }
-        byte original = NativeHeaderCommand(command, native);
+        byte original = NativeHeaderCommand(actor, command, native);
         byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
         ushort action = original == 14 ? checked((ushort)(native.ActionId + 101)) : native.ActionId;
         ushort effect = original is 0 or 1 or 12 or 28 ? (ushort)0 : native.MagicId;

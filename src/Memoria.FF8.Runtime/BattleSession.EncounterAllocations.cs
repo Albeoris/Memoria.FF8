@@ -106,6 +106,10 @@ public sealed partial class BattleSession
     private BattleCombatantDefinition CreateEncounterCopyDefinition(BattleCombatant source, string id, string role)
     {
         BattleCombatantDefinition resolved = GetCombatantDefinition(source.Id);
+        if (definition.EncounterMod is { } encounterMod && encounterMod.ActorProperties.TryGetValue(role + "/" + EncounterActorProperties.ReflectResistanceMultiplier, out double reflectResistanceMultiplier))
+        {
+            resolved = EncounterActorProperties.ScaleReflectResistance(resolved, reflectResistanceMultiplier);
+        }
         NativeBattleEnemyTemplate template = resolved.NativeTemplate!;
         NativeBattleStatusAllocation freshStatuses = template.NativeStatusAllocation ?? new(0, 0, resolved.NativeStatusResistances.ToImmutableArray());
         NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, []) : null;

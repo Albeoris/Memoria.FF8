@@ -68,8 +68,13 @@ public sealed partial class BattleSession
         return added;
     }
 
-    private bool CompleteNativeActionInventory(BattleCombatant actor, BattleActionPresentation command)
+    private bool CompleteNativeActionInventory(BattleCombatant actor, BattleActionPresentation command, bool silencedMagic)
     {
+        if (silencedMagic)
+        {
+            ReleaseMagicReservation(command.MagicReservationId);
+            return false;
+        }
         bool continueAffinity = true;
         //485610 consumes ordinary player magic after its effects; Angel Wing and Draw-cast remain free.
         if (actor.IsPlayer && command.NativeMagicTargets.IsDefaultOrEmpty && command.Ability != BattleAbility.Draw && !command.FreeNativeMagic && (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2))

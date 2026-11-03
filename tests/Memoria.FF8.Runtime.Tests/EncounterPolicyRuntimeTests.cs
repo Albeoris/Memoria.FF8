@@ -264,6 +264,23 @@ public sealed class EncounterPolicyRuntimeTests
         Assert.Equal("enemy", EncounterPolicyRuntime.Select(compiled, "mod/policy", new EncounterActionCursor().Admit(["enemy"]), "enemy", [Enemy()], new(), _ => 0)!.TargetIds.Single());
     }
 
+    [Theory]
+    [InlineData("Protect", 29, "randomAlly", 0x20u, 0)]
+    [InlineData("Shell", 30, "randomAlly", 0x40u, 0)]
+    [InlineData("Haste", 35, "randomAlly", 2u, 0)]
+    [InlineData("Slow", 36, "randomOpponent", 4u, 0)]
+    [InlineData("Blind", 38, "randomOpponent", 0u, 8)]
+    public void ExhaustedDistinctStatusTargetsRepeatWithinAuthoredSide(string spell, int spellId, string target, uint battleStatus, int savedStatus)
+    {
+        string rules = "{\"id\":\"status\",\"when\":{\"ownTurnAtLeast\":1},\"action\":{\"kind\":\"Cast\",\"spell\":\"" + spell + "\",\"target\":\"" + target + "\",\"casts\":\"nativeDouble\"}}";
+        EncounterCompiledDefinition compiled = Compile(rules, [Magic(checked((ushort)spellId)) with { Statuses1 = battleStatus, Statuses0 = checked((ushort)savedStatus) }]);
+        ImmutableArray<EncounterPolicyActor> actors = [Enemy() with { BattleStatuses = battleStatus, SavedStatuses = checked((ushort)savedStatus) }, Party("party") with { BattleStatuses = battleStatus, SavedStatuses = checked((ushort)savedStatus) }];
+        string expected = target == "randomAlly" ? "enemy" : "party";
+        EncounterPolicyDecision repeated = EncounterPolicyRuntime.Resolve(compiled, "mod/policy", compiled.Policies["mod/policy"].Select(1), 1, "enemy", actors, new(), _ => 0, [expected], distinctTargets: true)!;
+        Assert.Equal(new[] { expected }, repeated.TargetIds.ToArray());
+        Assert.Equal(1ul, repeated.OwnTurn);
+    }
+
     [Fact]
     public void TripleCompilesAsCanonicalKernelSpell34()
     {

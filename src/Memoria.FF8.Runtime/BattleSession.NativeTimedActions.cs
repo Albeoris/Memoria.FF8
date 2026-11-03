@@ -121,7 +121,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Native timed command cannot finish within a nested hit transaction.");
         }
         BattleCombatant actor = GetActor(timed.Command.ActorId);
-        CompleteNativeActionOwners(actor, timed.Command);
+        CompleteNativeTimedActionOwners(actor, timed.Command);
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
         QueueNativeActionClockCompletion(0x47DE70);
@@ -141,7 +141,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Renzokuken final descriptor reached an unfinished contact transaction.");
         }
-        CompleteNativeActionOwners(actor, timed.Command);
+        CompleteNativeTimedActionOwners(actor, timed.Command);
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
         nativeRenzokukenProcesses.Remove(actor.Id);
@@ -149,6 +149,17 @@ public sealed partial class BattleSession
         actor.IsBusy = actions.Any(command => command.ActorId == actor.Id);
         RefreshNativeKnownMagicStocks();
         RefreshNativeEnemyDrawSlots();
+    }
+
+    private void CompleteNativeTimedActionOwners(BattleCombatant actor, BattleActionPresentation command)
+    {
+        if (command.NativeQueuedCommand != 5)
+        {
+            throw new InvalidDataException("Native timed owner completion requires its original Renzokuken command5.");
+        }
+        //The retained timed owner is command5, not its251 contacts or250 finisher.
+        //48D200's Silence rejection is exclusive to command2 and cannot reject this owner.
+        CompleteNativeActionOwners(actor, command, silencedMagic: false);
     }
 
     private NativeBattleTimedAction? CaptureNativeTimedAction()

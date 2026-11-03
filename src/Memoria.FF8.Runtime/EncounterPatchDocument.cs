@@ -402,9 +402,10 @@ public sealed record EncounterPatchDocument
                 break;
             case EncounterPatchOperationKind.SetActorProperty:
                 Identity(op.Actor, "actor");
-                Require(op.Property == "stats.maximumHpMultiplier", "Unsupported actor property.");
+                Require(op.Property is "stats.maximumHpMultiplier" or EncounterActorProperties.ReflectResistanceMultiplier, "Unsupported actor property.");
                 Guard(op);
-                Require(op.Value.ValueKind == JsonValueKind.Number && op.Value.TryGetDouble(out double multiplier) && double.IsFinite(multiplier) && multiplier is >= 0.01 and <= 100, "maximumHpMultiplier must be between 0.01 and 100.");
+                double minimumMultiplier = op.Property == EncounterActorProperties.ReflectResistanceMultiplier ? 0 : 0.01;
+                Require(op.Value.ValueKind == JsonValueKind.Number && op.Value.TryGetDouble(out double multiplier) && double.IsFinite(multiplier) && multiplier >= minimumMultiplier && multiplier <= 100, "Actor multiplier is outside its supported range.");
                 break;
             case EncounterPatchOperationKind.SetNormalActionPolicy:
                 Identity(op.Actor, "actor");

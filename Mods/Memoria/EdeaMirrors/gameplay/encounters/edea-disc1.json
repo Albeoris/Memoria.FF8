@@ -6,6 +6,14 @@
   "atomic": true,
   "operations": [
     {
+      "id": "remove-reflect-resistance",
+      "kind": "SetActorProperty",
+      "actor": "original",
+      "property": "statusResistances.reflectMultiplier",
+      "expectedValue": 1,
+      "value": 0
+    },
+    {
       "id": "raise-camera",
       "kind": "SetCameraProperty",
       "property": "elevationDegrees",

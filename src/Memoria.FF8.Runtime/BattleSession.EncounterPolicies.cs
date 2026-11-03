@@ -161,8 +161,12 @@ public sealed partial class BattleSession
             List<string> available = decision.TargetIds.ToList();
             List<ushort> masks = [];
             List<string> selected = [];
-            for (int cast = 0; cast < castCount && available.Count != 0; cast++)
+            for (int cast = 0; cast < castCount; cast++)
             {
+                if (available.Count == 0)
+                {
+                    available.AddRange(decision.TargetIds);
+                }
                 string[] preferred = available.Where(id => (NativeBattleStatusBits(GetActor(id)) & spell.NativeAction.Statuses1) != spell.NativeAction.Statuses1 || (NativeSavedStatusBits(GetActor(id)) & spell.NativeAction.Statuses0) != spell.NativeAction.Statuses0).ToArray();
                 if (preferred.Length == 0)
                 {
@@ -179,7 +183,7 @@ public sealed partial class BattleSession
                 selected.Add(id);
                 masks.Add(checked((ushort)(1 << GetActor(id).NativeIndex)));
             }
-            targets = selected.ToImmutableArray();
+            targets = selected.Distinct(StringComparer.Ordinal).ToImmutableArray();
             firstMask = masks[0];
             repeats = masks.Count > 1 ? masks.ToImmutableArray() : [];
         }
@@ -198,10 +202,6 @@ public sealed partial class BattleSession
             {
                 EncounterPolicyDecision? next = EncounterPolicyRuntime.Resolve(mod, decision.PolicyId, pinned, decision.OwnTurn, actor.Id, EncounterPolicyCandidates(), scanKnowledge, NextEncounterRandomIndex, targets, distinctTargets: true);
                 if (next is null)
-                {
-                    break;
-                }
-                if (mirror && !next.TargetIds.Any(id => !targets.Contains(id, StringComparer.Ordinal)))
                 {
                     break;
                 }

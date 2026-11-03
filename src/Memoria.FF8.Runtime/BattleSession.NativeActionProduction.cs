@@ -9,21 +9,26 @@ public sealed partial class BattleSession
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context)
     {
-        if (header.Actor != actor.NativeIndex || header.Command != NativeHeaderCommand(command, action.NativeAction!) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Actor != actor.NativeIndex || header.Command != NativeHeaderCommand(actor, command, action.NativeAction!) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
+        bool silencedMagic = NativeMagicInvocationSilenced(actor, command, action.NativeAction!);
         bool failedSpecial = NativeSpecialInvocationFailed(command, action.NativeAction!);
         BattleActionPresentation formulaCommand = command;
         BattleActionDefinition formulaAction = action;
-        if (failedSpecial)
+        if (failedSpecial || silencedMagic)
         {
             BattleNativeAction control = action.NativeAction! with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
             formulaCommand = command with { NativeQueuedCommand = 0, NativeAction = control };
             formulaAction = action with { NativeAction = control };
         }
+        if (silencedMagic && definition.NativeGlobalMessages.Length != 0)
+        {
+            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
+        }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context);
-        byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial ? produced.PublishedCount : (byte)0;
+        byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial && !silencedMagic ? produced.PublishedCount : (byte)0;
         return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex) { RepeatAborted = produced.RepeatAborted };
     }
 
