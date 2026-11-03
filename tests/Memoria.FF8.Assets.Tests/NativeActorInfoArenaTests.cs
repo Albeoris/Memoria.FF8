@@ -9,7 +9,7 @@ public sealed class NativeActorInfoArenaTests
     public void InstalledDefinitionUsesEnabledResourceLengthsAndCachesAcrossAssetOwners()
     {
         string directory = TestResources.GameDirectory;
-        using ClassicGameDataSource source = new(directory);
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
         ResourceService resources = new(source);
         using GameAssets first = new(directory, resources: resources);
         NativeActorInfoArenaDefinition definition = first.ReadNativeActorInfoArena();

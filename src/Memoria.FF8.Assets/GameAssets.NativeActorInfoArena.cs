@@ -86,30 +86,39 @@ public sealed partial class GameAssets
 
     private ResourcePrefix? ReadActorInfoHeader(string name)
     {
-        byte[] listing;
+        if (overrides is not null)
+        {
+            byte[] listing;
+            try
+            {
+                listing = Read(outer, name + ".fl");
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            string? logicalPath = FlArchive.PathEncoding.GetString(listing).Replace("\r", string.Empty).Split('\n').Where(path => ActorInfoBasename(path).Equals(name + ".jsm", StringComparison.OrdinalIgnoreCase)).SingleOrDefault();
+            if (logicalPath is not null)
+            {
+                if (logicalPath.StartsWith(FlArchive.InternalPathPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    logicalPath = logicalPath[FlArchive.InternalPathPrefix.Length..];
+                }
+                if (overrides.TryRead(logicalPath.Replace('\\', '/').TrimStart('/'), out byte[]? replacement))
+                {
+                    return new ResourcePrefix(replacement.Take(8).ToArray(), replacement.LongLength);
+                }
+            }
+        }
         try
         {
-            listing = Read(outer, name + ".fl");
+            ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey("field/" + name + "/" + name + ".jsm"), 8);
+            return prefix.Length == 0 ? null : prefix;
         }
         catch (FileNotFoundException)
         {
             return null;
         }
-        string? logicalPath = FlArchive.PathEncoding.GetString(listing).Replace("\r", string.Empty).Split('\n').Where(path => ActorInfoBasename(path).Equals(name + ".jsm", StringComparison.OrdinalIgnoreCase)).SingleOrDefault();
-        if (logicalPath is null)
-        {
-            return null;
-        }
-        if (logicalPath.StartsWith(FlArchive.InternalPathPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            logicalPath = logicalPath[FlArchive.InternalPathPrefix.Length..];
-        }
-        if (overrides?.TryRead(logicalPath.Replace('\\', '/').TrimStart('/'), out byte[]? replacement) == true)
-        {
-            return new ResourcePrefix(replacement.Take(8).ToArray(), replacement.LongLength);
-        }
-        ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey("field/" + name + "/" + name + ".jsm"), 8);
-        return prefix.Length == 0 ? null : prefix;
     }
 
     private static string ActorInfoBasename(string path)
