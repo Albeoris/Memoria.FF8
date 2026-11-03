@@ -233,6 +233,13 @@ internal sealed partial class GameWorld : IDisposable
         {
             if (worldScene is not null)
             {
+                if (pendingWorldDepartureCapture)
+                {
+                    // The prepared entry runs inside the field callback. Capture only after it returns,
+                    // so direct graphical steps retain the completed VM and music-loader state too.
+                    session.SetDepartingFieldState(Events.Capture());
+                    pendingWorldDepartureCapture = false;
+                }
                 if (session.State.DepartingFieldState is System.Text.Json.JsonElement departure)
                 {
                     session.SetEventState(departure);
@@ -516,6 +523,7 @@ internal sealed partial class GameWorld : IDisposable
         if (Events.FieldId != session.State.FieldId || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || session.State.Scene == SceneKind.WorldMap)
         {
             session.SetDepartingFieldState(Events.Capture());
+            pendingWorldDepartureCapture = false;
             return result;
         }
         ActorState? player = Events.PlayerActor;

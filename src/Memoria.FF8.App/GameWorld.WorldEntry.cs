@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private PreparedWorldEntry? preparedWorldEntry;
+    private bool pendingWorldDepartureCapture;
 
     internal event Action<NativeWorldTransitionRequest>? BeforeWorldEntry;
 
@@ -40,6 +41,7 @@ internal sealed partial class GameWorld
             ValidateWorldDeparture(request);
             session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld, ticket.InitialEventMemory);
             worldScene = ticket.Adopt(session);
+            pendingWorldDepartureCapture = true;
             ConfigureWorldScene(worldScene);
             committed = true;
             preparedWorldEntry = null;
