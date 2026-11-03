@@ -44,9 +44,11 @@ public sealed class ShippedEncounterPackageTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PackageStartsDisabledAndBundledUpdatesRetainTheSavedUserChoice(bool enabled)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PackageInheritsGlobalPolicyAndBundledUpdatesRetainTheSavedUserChoice(bool enabled, bool autoEnable)
     {
         string application = Path.Combine(root, "Data");
         string bundle = Path.Combine(application, "BundledMods", "Memoria", "EdeaMirrors");
@@ -57,16 +59,12 @@ public sealed class ShippedEncounterPackageTests : IDisposable
         string mods = Path.Combine(root, "Mods");
         using (ModRuntime runtime = new(application, watch: false, modsDirectory: mods))
         {
+            Assert.True(runtime.SetAutoEnableNewMods(autoEnable).Success);
             Publish(runtime);
             ModPackage package = Assert.Single(runtime.Catalog.Packages);
-            Assert.Equal(false, package.ExplicitEnabled);
-            Assert.Equal(ModEffectiveStatus.Disabled, package.Status);
-            Assert.Empty(runtime.Catalog.Files);
-            if (!enabled)
-            {
-                Assert.True(runtime.SetEnabled(package.Id, true).Success);
-                Publish(runtime);
-            }
+            Assert.Null(package.ExplicitEnabled);
+            Assert.Equal(autoEnable ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, package.Status);
+            Assert.Equal(autoEnable ? 1 : 0, runtime.Catalog.Files.Count);
             Assert.True(runtime.SetEnabled(package.Id, enabled).Success);
             Publish(runtime);
             Assert.Equal(enabled ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, Assert.Single(runtime.Catalog.Packages).Status);
@@ -78,6 +76,10 @@ public sealed class ShippedEncounterPackageTests : IDisposable
         ModPackage retained = Assert.Single(reopened.Catalog.Packages);
         Assert.Equal(enabled, retained.ExplicitEnabled);
         Assert.Equal(enabled ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, retained.Status);
+        Assert.True(reopened.SetAutoEnableNewMods(!autoEnable).Success);
+        Publish(reopened);
+        Assert.Equal(enabled, Assert.Single(reopened.Catalog.Packages).ExplicitEnabled);
+        Assert.Equal(enabled ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, Assert.Single(reopened.Catalog.Packages).Status);
         if (enabled)
         {
             Assert.True(EncounterMods.TryPrepare(reopened.Catalog, out EncounterMods prepared, out IReadOnlyList<ModDiagnostic> diagnostics));
@@ -86,8 +88,10 @@ public sealed class ShippedEncounterPackageTests : IDisposable
         }
     }
 
-    [Fact]
-    public void ConfigurationOnlyUserDirectoryInheritsTheShippedDisabledDefault()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConfigurationOnlyUserDirectoryInheritsTheGlobalPolicy(bool autoEnable)
     {
         string application = Path.Combine(root, "Data");
         string bundle = Path.Combine(application, "BundledMods", "Memoria", "EdeaMirrors");
@@ -100,12 +104,14 @@ public sealed class ShippedEncounterPackageTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(configuration)!);
         File.WriteAllText(configuration, "title = Local preferences\n");
         using ModRuntime runtime = new(application, watch: false, modsDirectory: mods);
+        Assert.True(runtime.SetAutoEnableNewMods(autoEnable).Success);
         Publish(runtime);
-        Assert.True(runtime.AutoEnableNewMods);
+        Assert.Equal(autoEnable, runtime.AutoEnableNewMods);
         ModPackage package = Assert.Single(runtime.Catalog.Packages);
-        Assert.Equal(false, package.ExplicitEnabled);
-        Assert.Equal(ModEffectiveStatus.Disabled, package.Status);
-        Assert.Empty(runtime.Catalog.Files);
+        Assert.Null(package.ExplicitEnabled);
+        Assert.Equal(autoEnable ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, package.Status);
+        Assert.Equal(autoEnable ? 1 : 0, runtime.Catalog.Files.Count);
+        Assert.Equal("title = Local preferences\n", File.ReadAllText(configuration));
     }
     public void Dispose()
     {

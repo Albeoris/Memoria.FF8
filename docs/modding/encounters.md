@@ -115,7 +115,7 @@ The original retains its native lifecycle. Native sequences **13/14** are the op
 
 ## Enablement and refresh
 
-The supplied package lives at `Mods/Memoria/EdeaMirrors/` and ships with `mod.ini` containing `enabled = 0`. Enable `Memoria/EdeaMirrors` through the existing Mods controls, refresh after editing, and inspect that package's diagnostics. Saved user enablement is kept separately from bundled defaults and survives package updates. Enter or restart the intended encounter after a successful publication; active captured encounters retain their accepted definitions.
+The supplied package lives at `Mods/Memoria/EdeaMirrors/` and ships without an explicit `enabled` setting. It inherits the Mods menu's global automatic enablement policy until the player explicitly enables or disables the package. Saved user choices survive package updates. Refresh after editing and inspect the package's diagnostics. Enter or restart the intended encounter after a successful publication; active captured encounters retain their accepted definitions.
 
 Preparation reads all documents and composes a complete candidate generation. Publication updates resource selection and encounter definitions at the existing commit boundary. A malformed or incompatible refresh retains the previous accepted generation. Disabling a package rebuilds the next encounter from the selected baseline and remaining enabled documents. Saves requiring an unavailable definition identity must fail with a compatibility diagnostic rather than attach new rules to old counters.
 

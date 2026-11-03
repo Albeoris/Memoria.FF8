@@ -216,23 +216,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
-            List<(string Path, byte[]? Original)> backups = [];
             try
             {
-                bool current = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
-                if (current && !enabled)
-                {
-                    foreach (ModPackage package in installedPackages)
-                    {
-                        string path = PreferencePath(package);
-                        if (ReadPackageEnabled(package) is null)
-                        {
-                            ValidatePreferencePath(path);
-                            backups.Add((path, File.Exists(path) ? File.ReadAllBytes(path) : null));
-                            ModConfiguration.WriteBoolean(path, "enabled", true);
-                        }
-                    }
-                }
                 ModConfiguration.WriteBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods", enabled);
                 autoEnable = enabled;
                 ReconcilePreferences();
@@ -242,24 +227,6 @@ public sealed partial class ModRuntime : IModService, IDisposable
             catch (Exception exception) when (IsFileError(exception))
             {
                 List<ModDiagnostic> errors = [new("configuration-write-failed", exception.Message)];
-                foreach ((string path, byte[]? original) in backups.AsEnumerable().Reverse())
-                {
-                    try
-                    {
-                        if (original is null)
-                        {
-                            File.Delete(path);
-                        }
-                        else
-                        {
-                            ModConfiguration.WriteAtomic(path, original);
-                        }
-                    }
-                    catch (Exception rollbackException) when (IsFileError(rollbackException))
-                    {
-                        errors.Add(new("configuration-rollback-failed", rollbackException.Message));
-                    }
-                }
                 updateOutcome = ModUpdateOutcome.Failed;
                 ReconcilePreferences(errors);
                 diagnostics = Array.AsReadOnly(errors.ToArray());

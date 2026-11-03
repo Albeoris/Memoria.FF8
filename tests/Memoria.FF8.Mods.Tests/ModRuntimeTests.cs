@@ -186,7 +186,7 @@ public sealed class ModRuntimeTests : IDisposable
     }
 
     [Fact]
-    public void GlobalOffPinsInheritedPackagesWithoutOverwritingExplicitDisable()
+    public void GlobalPolicyControlsInheritedPackagesWithoutWritingExplicitChoices()
     {
         Write("Tonberry/inherited/test.png", "image");
         Write("Demaster/disabled/test.png", "image");
@@ -194,22 +194,25 @@ public sealed class ModRuntimeTests : IDisposable
         using ModRuntime runtime = Runtime();
         Publish(runtime);
         Assert.True(runtime.SetAutoEnableNewMods(false).Success);
-        Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(root, "Mods/Tonberry/inherited/mod.ini")));
+        Assert.False(File.Exists(Path.Combine(root, "Mods/Tonberry/inherited/mod.ini")));
         Assert.Contains("enabled = 0", File.ReadAllText(Path.Combine(root, "Mods/Demaster/disabled/mod.ini")));
         Assert.Contains("custom = keep", File.ReadAllText(Path.Combine(root, "Mods/Demaster/disabled/mod.ini")));
         Write("Demaster/new/test.png", "new image");
         runtime.RequestRefresh();
         Publish(runtime);
-        Assert.True(runtime.Catalog.Packages.Single(package => package.Name == "inherited").RequestedEnabled);
+        Assert.False(runtime.Catalog.Packages.Single(package => package.Name == "inherited").RequestedEnabled);
+        Assert.Null(runtime.Catalog.Packages.Single(package => package.Name == "inherited").ExplicitEnabled);
         Assert.False(runtime.Catalog.Packages.Single(package => package.Name == "new").RequestedEnabled);
         Assert.True(runtime.SetAutoEnableNewMods(true).Success);
         Publish(runtime);
+        Assert.True(runtime.Catalog.Packages.Single(package => package.Name == "inherited").RequestedEnabled);
+        Assert.Null(runtime.Catalog.Packages.Single(package => package.Name == "inherited").ExplicitEnabled);
         Assert.True(runtime.Catalog.Packages.Single(package => package.Name == "new").RequestedEnabled);
         Assert.False(runtime.Catalog.Packages.Single(package => package.Name == "disabled").RequestedEnabled);
     }
 
     [Fact]
-    public void FailedGlobalWriteRollsBackPinningAndKeepsPreviousPolicy()
+    public void FailedGlobalWriteKeepsPreviousPolicyWithoutCreatingPackageSettings()
     {
         Write("Tonberry/inherited/test.png", "image");
         using ModRuntime runtime = Runtime();

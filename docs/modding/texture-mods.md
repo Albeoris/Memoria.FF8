@@ -19,7 +19,7 @@ enabled = 1
 priority = 0
 ```
 
-Only `0` and `1` are valid boolean values. Missing global policy means automatic enablement is on. Missing package enablement inherits that policy; explicit `0` or `1` overrides it. Discovery does not create missing configuration files. Menu changes write to the selected package's own directory. Turning automatic enablement off first preserves the current state of discovered inherited packages. Explicit disables survive turning it on again. Writes preserve unrelated keys/comments and use temporary-file replacement.
+Only `0` and `1` are valid boolean values. Missing global policy means automatic enablement is on. Missing package enablement inherits that policy; explicit `0` or `1` overrides it. Shipped packages leave enablement unspecified. Discovery and global policy changes do not create per-package enable settings. Only the player's explicit package enable/disable choice writes that setting to the selected package's own directory. Changing the global checkbox affects all packages which still inherit it, while explicit choices remain unchanged. Writes preserve unrelated keys/comments and use temporary-file replacement.
 
 Tonberry and Demaster packages may set `priority` to a signed 32-bit integer (`-2147483648` through `2147483647`); the default is `0`. Higher values win before lower values. An invalid priority rejects the reload and reports its package and `mod.ini`; the previous committed generation remains active.
 

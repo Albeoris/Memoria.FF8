@@ -265,7 +265,7 @@ public sealed class GuardianForceAbilityModsTests
             Assert.Equal(reject ? ModEffectiveStatus.ReloadFailure : ModEffectiveStatus.Active, installed.Status);
             Assert.Equal(saved.Revision, GuardianForceAbilityPackageStore.Open(installed).Revision);
             Assert.True(runtime.SetAutoEnableNewMods(false).Success);
-            Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(installed.RootDirectory, "mod.ini")));
+            Assert.Null(Assert.Single(runtime.InstalledPackages).ExplicitEnabled);
             Assert.True(runtime.SetEnabled(installed.Id, false).Success);
             Assert.True(runtime.PreparePending(force: true));
             Assert.True(runtime.CommitPending());

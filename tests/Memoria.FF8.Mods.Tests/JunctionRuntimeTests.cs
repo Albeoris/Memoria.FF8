@@ -33,7 +33,7 @@ public sealed class JunctionRuntimeTests : IDisposable
     }
 
     [Fact]
-    public void ArchiveSettingsUseASidecarAndInheritedPackagesArePinnedWhenTheGlobalPolicyChanges()
+    public void ArchiveSettingsUseASidecarOnlyForExplicitPackageChoices()
     {
         string archive = Path.Combine(root, "Mods", "Junction", "Example.iroj");
         WriteArchive(archive, ("mod.xml", Metadata("Archive name")), ("Assets/movies/intro.cam", "camera"));
@@ -46,8 +46,9 @@ public sealed class JunctionRuntimeTests : IDisposable
         Assert.Equal("camera", Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
         Assert.True(runtime.SetAutoEnableNewMods(false).Success);
         Publish(runtime);
-        Assert.Contains("enabled = 1", File.ReadAllText(archive + ".ini"));
-        Assert.True(Assert.Single(runtime.Catalog.Packages).RequestedEnabled);
+        Assert.False(File.Exists(archive + ".ini"));
+        Assert.False(Assert.Single(runtime.Catalog.Packages).RequestedEnabled);
+        Assert.Null(Assert.Single(runtime.Catalog.Packages).ExplicitEnabled);
         Assert.True(runtime.SetEnabled(package.Id, false).Success);
         Publish(runtime);
         Assert.Contains("enabled = 0", File.ReadAllText(archive + ".ini"));
