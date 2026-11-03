@@ -406,4 +406,3 @@ public sealed record NativeFieldParticlesState([property: JsonRequired] byte[] M
     private static void W16(byte[] data, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset, 2), unchecked((short)value));
     private static void W32(byte[] data, int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset, 4), value);
 }
-
