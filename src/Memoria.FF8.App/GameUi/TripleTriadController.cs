@@ -58,7 +58,7 @@ public sealed partial class TripleTriadController
     public int RedrawsRemaining { get; private set; }
     public Func<IReadOnlyList<int>>? RedrawHand { get; set; }
     private bool openingConfirmed;
-    private OpeningControl openingControl;
+    private OpeningControl openingControl = OpeningControl.Start;
     private enum OpeningControl
     {
         None,
@@ -80,8 +80,8 @@ public sealed partial class TripleTriadController
         }
     }
 
-    public bool AwaitingOpeningConfirmation => CanRedraw && !openingConfirmed && Match?.CurrentPlayer == 1;
-    public bool CanRedraw => RedrawsRemaining > 0 && Rules.HasFlag(TripleTriadRules.Random) && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && Match is { Round: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Board.All(card => card is null) && RedrawHand is not null;
+    public bool AwaitingOpeningConfirmation => CanRedraw && !openingConfirmed;
+    public bool CanRedraw => !openingConfirmed && RedrawsRemaining > 0 && Rules.HasFlag(TripleTriadRules.Random) && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && Match is { Round: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Board.All(card => card is null) && RedrawHand is not null;
 
     public bool Redraw()
     {
@@ -99,6 +99,7 @@ public sealed partial class TripleTriadController
         RedrawsRemaining--;
         ChoosingCell = false;
         ResetTurnSelection();
+        openingControl = RedrawsRemaining > 0 ? OpeningControl.Redraw : OpeningControl.None;
         SetSystemMessage(() => "");
         DeckConfirmed?.Invoke(deck.ToArray());
         RequestSound(TripleTriadSound.Confirm);
@@ -212,7 +213,9 @@ public sealed partial class TripleTriadController
         if (deck.Count == Options.HandSize)
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules, width: Options.Width, height: Options.Height, useModifiedSamePlus: Options.UseModifiedSamePlus, blockedCells: Enumerable.Range(0, Options.BlockedCellCount).ToArray());
+            openingConfirmed = false;
             ResetTurnSelection();
+            openingControl = OpeningControl.Start;
             SetSystemMessage(() => "");
             DeckConfirmed?.Invoke(deck.ToArray());
         }
@@ -245,10 +248,24 @@ public sealed partial class TripleTriadController
         TradingHand = null;
         tradeCompleted = null;
         tradeSelection.Clear();
+        openingConfirmed = false;
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         ResetTurnSelection();
+        openingControl = OpeningControl.Start;
         SetSystemMessage(() => Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? "" : SystemText("card.ui.restorematch.opponent.is.thinking", "Opponent is thinking\u2026"));
+    }
+
+    public void DealHand(IReadOnlyList<int> hand)
+    {
+        ArgumentNullException.ThrowIfNull(hand);
+        if (hand.Count != Options.HandSize)
+        {
+            throw new ArgumentException("A dealt hand must contain the configured number of cards.", nameof(hand));
+        }
+        RestoreDeck(hand);
+        CompleteDeckSelection();
+        Changed?.Invoke();
     }
 
     public void RestoreDeck(IReadOnlyList<int> selected)
@@ -308,7 +325,12 @@ public sealed partial class TripleTriadController
             }
             if (AwaitingTradeConfirmation)
             {
-                if (key is UiKey.Confirm or UiKey.Cancel)
+                if (key is UiKey.PageUp or UiKey.PageDown)
+                {
+                    int browseDirection = key == UiKey.PageUp ? -1 : 1;
+                    browsedTradePage = (TradePage + browseDirection + TradePageCount) % TradePageCount;
+                }
+                else if (key is UiKey.Confirm or UiKey.Cancel)
                 {
                     ConfirmTradeTransfer();
                 }
@@ -429,16 +451,7 @@ public sealed partial class TripleTriadController
             }
             return;
         }
-        if (key is UiKey.PageUp or UiKey.PageDown && CanRedraw)
-        {
-            Redraw();
-            return;
-        }
-        if (!OpeningControlSelected)
-        {
-            openingControl = OpeningControl.None;
-        }
-        if (OpeningControlSelected)
+        if (AwaitingOpeningConfirmation)
         {
             if (key == UiKey.Confirm)
             {
@@ -451,24 +464,10 @@ public sealed partial class TripleTriadController
                     ConfirmOpening();
                 }
             }
-            else if (key is UiKey.Down or UiKey.Cancel)
-            {
-                openingControl = OpeningControl.None;
-            }
-            else if (key is UiKey.Left or UiKey.Right && AwaitingOpeningConfirmation)
+            else if (key is UiKey.Up or UiKey.Down or UiKey.Left or UiKey.Right)
             {
                 openingControl = RedrawSelected ? OpeningControl.Start : OpeningControl.Redraw;
             }
-            return;
-        }
-        if (key == UiKey.Up && CanRedraw && !ChoosingCell && SelectedHand % new TripleTriadLayout(Match.Width, Match.Height, Match.HandSize).HandRows == 0)
-        {
-            openingControl = OpeningControl.Redraw;
-            return;
-        }
-        if (key == UiKey.Confirm && AwaitingOpeningConfirmation)
-        {
-            ConfirmOpening();
             return;
         }
         if (Match.CurrentPlayer != 0)
@@ -542,7 +541,7 @@ public sealed partial class TripleTriadController
 
     public void Play(int handIndex, int cellIndex)
     {
-        if (AwaitingReplay)
+        if (AwaitingReplay || AwaitingOpeningConfirmation)
         {
             return;
         }
@@ -581,7 +580,7 @@ public sealed partial class TripleTriadController
         return true;
     }
 
-    public bool CanCompleteInstantly => !replayResolved && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && TradePhase == TripleTriadTradePhase.None && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress };
+    public bool CanCompleteInstantly => !replayResolved && !AwaitingRules && !AwaitingReplay && !AwaitingOpeningConfirmation && !IsAnimating && TradingHand is null && TradePhase == TripleTriadTradePhase.None && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress };
 
     public bool CompleteInstantly(bool victory)
     {
@@ -601,7 +600,7 @@ public sealed partial class TripleTriadController
 
     public void SelectHand(int index)
     {
-        if (!AwaitingReplay && !IsAnimating && (uint)index < Options.HandSize && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
+        if (!AwaitingReplay && !AwaitingOpeningConfirmation && !IsAnimating && (uint)index < Options.HandSize && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
         {
             openingControl = OpeningControl.None;
             SelectedHand = index;

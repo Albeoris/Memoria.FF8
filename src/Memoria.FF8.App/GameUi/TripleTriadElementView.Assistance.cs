@@ -5,8 +5,8 @@ namespace Memoria.FF8.GameUi;
 
 internal sealed partial class TripleTriadElementView
 {
-    private static readonly UiRect RedrawBounds = new(746, 0, 196, 24);
-    private static readonly UiRect StartBounds = new(24, 0, 196, 24);
+    private UiRect openingBeginBounds;
+    private UiRect openingRedrawBounds;
     private string? hintPosition;
     private readonly Dictionary<int, (bool Same, bool Plus)> handHints = [];
 
@@ -26,29 +26,28 @@ internal sealed partial class TripleTriadElementView
         }
     }
 
-    private void DrawRedraw(IUiCanvas canvas, UiTheme theme)
+    private void DrawOpeningPrompt(IUiCanvas canvas, UiTheme theme)
     {
-        if (controller.CanRedraw)
-        {
-            theme.Panel(canvas, RedrawBounds);
-            canvas.Text(controller.FormatSystemText("card.ui.redraw", "Redraw ({0})", controller.RedrawsRemaining), 19, RedrawBounds.Inset(4), theme.Foreground, UiAlignment.Center);
-        }
-        if (controller.AwaitingOpeningConfirmation)
-        {
-            theme.Panel(canvas, StartBounds);
-            canvas.Text(controller.SystemText("card.ui.start", "Begin match"), 19, StartBounds.Inset(4), theme.Foreground, UiAlignment.Center);
-        }
-        if (controller.OpeningControlSelected)
-        {
-            UiRect selected = controller.RedrawSelected ? RedrawBounds : StartBounds;
-            theme.Pointer(canvas, selected.X + 4, selected.Bottom, 20);
-        }
+        string begin = controller.SystemText("card.ui.begin", "Begin");
+        string redraw = controller.FormatSystemText("card.ui.redraw", "Redraw ({0})", controller.RedrawsRemaining);
+        const float fontSize = 26;
+        float rowHeight = Math.Max(42, Math.Max(canvas.MeasureText(begin, fontSize, float.PositiveInfinity).Height, canvas.MeasureText(redraw, fontSize, float.PositiveInfinity).Height) + 8);
+        float width = Math.Max(canvas.MeasureText(begin, fontSize, float.PositiveInfinity).Width, canvas.MeasureText(redraw, fontSize, float.PositiveInfinity).Width) + 110;
+        float height = rowHeight * 2 + 32;
+        UiRect panel = new(Bounds.X + (Bounds.Width - width) / 2, Bounds.Y + (Bounds.Height - height) / 2, width, height);
+        theme.Panel(canvas, panel);
+        openingBeginBounds = new UiRect(panel.X + 70, panel.Y + 16, width - 86, rowHeight);
+        openingRedrawBounds = new UiRect(panel.X + 70, panel.Y + 16 + rowHeight, width - 86, rowHeight);
+        canvas.Text(begin, fontSize, openingBeginBounds, theme.Foreground, UiAlignment.Center);
+        canvas.Text(redraw, fontSize, openingRedrawBounds, theme.Foreground, UiAlignment.Center);
+        UiRect selected = controller.RedrawSelected ? openingRedrawBounds : openingBeginBounds;
+        theme.Pointer(canvas, panel.X + 16, selected.Y + (rowHeight - 30) / 2, 30);
     }
 
     private void DrawAssistance(IUiCanvas canvas, UiTheme theme, TripleTriadMatch match)
     {
         TripleTriadAssistance assistance = controller.Options.Assistance;
-        if (assistance == TripleTriadAssistance.Off || match.CurrentPlayer != 0 || match.Outcome != TripleTriadOutcome.InProgress || controller.IsAnimating || controller.AwaitingReplay)
+        if (assistance == TripleTriadAssistance.Off || match.CurrentPlayer != 0 || match.Outcome != TripleTriadOutcome.InProgress || controller.IsAnimating || controller.AwaitingReplay || controller.AwaitingOpeningConfirmation)
         {
             return;
         }

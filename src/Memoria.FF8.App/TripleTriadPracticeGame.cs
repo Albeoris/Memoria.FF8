@@ -25,6 +25,7 @@ internal sealed class TripleTriadPracticeGame : Game
     private TripleTriadAudioPresentation? cardAudio;
     private double opponentDelay;
     private string? notice;
+    private Runtime.TripleTriadMatch? preparedMatch;
 
     public TripleTriadPracticeGame(TripleTriadController controller, string gameDirectory, Action save, Action load, GameResourceHost? resourceHost = null)
     {
@@ -50,6 +51,7 @@ internal sealed class TripleTriadPracticeGame : Game
         pixel.SetData([Color.White]);
         canvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, gameDirectory, resourceHost?.Resources);
         canvas.PrepareTripleTriad(controller);
+        preparedMatch = controller.Match;
         audio = new FieldAudioPresentation(gameDirectory, "");
         cardAudio = new TripleTriadAudioPresentation(audio, controller);
     }
@@ -113,6 +115,11 @@ internal sealed class TripleTriadPracticeGame : Game
             {
                 opponentDelay = 0;
             }
+        }
+        if (!ReferenceEquals(preparedMatch, controller.Match))
+        {
+            canvas.PrepareTripleTriadImages(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []);
+            preparedMatch = controller.Match;
         }
         audio?.Update();
         if (!IsActive)

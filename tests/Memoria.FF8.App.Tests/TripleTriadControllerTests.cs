@@ -145,6 +145,7 @@ public sealed class TripleTriadControllerTests
         Assert.Equal(opening.InitialHands[1], controller.Match.InitialHands[1]);
         Assert.Equal(1, controller.RedrawsRemaining);
         Assert.Equal(new[] { 5, 6, 7, 8, 9 }, controller.Deck);
+        controller.Navigate(UiKey.Up);
         controller.Navigate(UiKey.Confirm);
         Assert.False(controller.AwaitingOpeningConfirmation);
         Assert.True(controller.AdvanceOpponent());

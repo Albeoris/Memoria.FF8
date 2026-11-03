@@ -58,6 +58,10 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             canvas.Text(controller.SystemText("card.ui.drawself.no", "No"), 24, new UiRect(400, 354, 190, 36), theme.Foreground);
             theme.Pointer(canvas, 350, 316 + controller.ReplaySelection * 42, 26);
         }
+        if (controller.AwaitingOpeningConfirmation)
+        {
+            DrawOpeningPrompt(canvas, theme);
+        }
         DrawPromptFade(canvas);
     }
 
@@ -133,7 +137,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         {
             DrawExchangeCard(controller.TradingCardIndex);
         }
-        if (controller.TradePageCount > 1 && selecting)
+        if (controller.CanBrowseTradePages)
         {
             DrawPageButton(TradePreviousPageBounds, "<");
             DrawPageButton(TradeNextPageBounds, ">");
@@ -270,8 +274,11 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             canvas.Text("◀", 23, PreviousPageBounds, theme.Foreground);
             canvas.Text("▶", 23, NextPageBounds, theme.Foreground);
         }
-        int selected = controller.Available[controller.Selection];
-        DrawCard(canvas, theme, new UiRect(570, 312, 156, 198), selected, 0, false);
+        if (controller.RecentDeckSelection < 0)
+        {
+            int selected = controller.Available[controller.Selection];
+            DrawCard(canvas, theme, new UiRect(570, 312, 156, 198), selected, 0, false);
+        }
         canvas.OutlinedText(controller.Message, 20, new UiRect(152, 586, 580, 64), theme.Foreground, new UiColor(0, 0, 0), 1);
     }
 
@@ -286,8 +293,8 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             {
                 if (hands[owner][hand] is int id)
                 {
-                    bool selected = owner == 0 && !controller.ChoosingCell && !controller.OpeningControlSelected && controller.SelectedHand == hand && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating;
-                    DrawCard(canvas, theme, HandBounds(hand, owner), owner == 0 || match.Rules.HasFlag(TripleTriadRules.Open) ? id : null, owner, selected);
+                    bool selected = owner == 0 && !controller.ChoosingCell && !controller.AwaitingOpeningConfirmation && controller.SelectedHand == hand && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating;
+                    DrawCard(canvas, theme, HandBounds(hand, owner), owner == 0 || !controller.AwaitingOpeningConfirmation && match.Rules.HasFlag(TripleTriadRules.Open) ? id : null, owner, selected);
                 }
             }
             canvas.OutlinedText(controller.PresentedScore(owner).ToString(), 26, new UiRect(owner == 0 ? 818 : 108, 648, 48, 24), owner == 0 ? Blue : Red, new UiColor(0, 0, 0), 1.5f);
@@ -343,7 +350,6 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             DrawCard(canvas, theme, bounds, reveal && progress < 0.5f ? null : moving.CardId, moving.Player, false);
         }
         DrawAssistance(canvas, theme, match);
-        DrawRedraw(canvas, theme);
         if (controller.ChoosingCell && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating)
         {
             UiRect selected = CellBounds(controller.SelectedCell);
@@ -385,6 +391,18 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
     {
         if (controller.IsAnimating)
         {
+            return;
+        }
+        if (controller.AwaitingOpeningConfirmation)
+        {
+            if (openingBeginBounds.Contains(x, y))
+            {
+                controller.ConfirmOpening();
+            }
+            else if (openingRedrawBounds.Contains(x, y))
+            {
+                controller.Redraw();
+            }
             return;
         }
         if (controller.AwaitingReplay)
@@ -436,12 +454,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
                 }
                 return;
             }
-            if (controller.AwaitingTradeConfirmation)
-            {
-                controller.Navigate(UiKey.Confirm);
-                return;
-            }
-            if (controller.TradePhase == TripleTriadTradePhase.Selecting && controller.TradePageCount > 1)
+            if (controller.CanBrowseTradePages)
             {
                 if (TradePreviousPageBounds.Contains(x, y))
                 {
@@ -453,6 +466,11 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
                     controller.Navigate(UiKey.PageDown);
                     return;
                 }
+            }
+            if (controller.AwaitingTradeConfirmation)
+            {
+                controller.Navigate(UiKey.Confirm);
+                return;
             }
             for (int slot = 0; slot < controller.Options.HandSize; slot++)
             {
@@ -500,16 +518,6 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
                     }
                 }
             }
-            return;
-        }
-        if (controller.AwaitingOpeningConfirmation && StartBounds.Contains(x, y))
-        {
-            controller.ConfirmOpening();
-            return;
-        }
-        if (controller.CanRedraw && RedrawBounds.Contains(x, y))
-        {
-            controller.Redraw();
             return;
         }
         for (int hand = controller.Match.HandSize - 1; hand >= 0; hand--)

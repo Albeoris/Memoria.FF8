@@ -171,10 +171,7 @@ internal static class TripleTriadPractice
             {
                 throw new ArgumentException("Random selects its hand; omit --player.");
             }
-            foreach (int id in controller.RedrawHand())
-            {
-                controller.ChooseCard(id);
-            }
+            controller.DealHand(controller.RedrawHand());
         }
         else if (player is not null || preview is not null || autoPlay)
         {

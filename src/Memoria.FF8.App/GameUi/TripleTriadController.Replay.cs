@@ -78,6 +78,8 @@ public sealed partial class TripleTriadController
         Selection = 0;
         SelectedHand = 0;
         SelectedCell = (Options.Height / 2) * Options.Width + Options.Width / 2;
+        openingConfirmed = false;
+        openingControl = OpeningControl.Start;
         RedrawsRemaining = Options.RandomRedraws;
         RecentDeckSelection = recentDecks.Length > 0 ? 0 : -1;
         SetSystemMessage(() => SystemText("card.ui.resetforreplay.choose.five.cards", "Choose five cards."));

@@ -30,8 +30,8 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void PrepareTripleTriad(TripleTriadController controller)
     {
-        PrepareTripleTriadImages(controller.Available.Concat(controller.RecentDecks.SelectMany(deck => deck)).Concat(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []));
-        foreach (int id in controller.RecentDecks.SelectMany(deck => deck).Distinct())
+        PrepareTripleTriadImages(InitialTripleTriadCards(controller));
+        foreach (int id in InitialTripleTriadHistoryCards(controller))
         {
             _ = GetImage(new UiImageSource(UiImageKind.CardFaceGrayscale, id));
         }
@@ -45,6 +45,16 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
                 text.Preload((controller.Remaining(id) - selected).ToString(), 27 * scale, 50 * scale);
             }
         }
+    }
+
+    internal static IEnumerable<int> InitialTripleTriadCards(TripleTriadController controller)
+    {
+        return controller.Match is { } match ? match.InitialHands.SelectMany(hand => hand).Distinct() : InitialTripleTriadHistoryCards(controller);
+    }
+
+    private static IEnumerable<int> InitialTripleTriadHistoryCards(TripleTriadController controller)
+    {
+        return controller.Match is null && !controller.Rules.HasFlag(Memoria.FF8.Runtime.TripleTriadRules.Random) ? controller.RecentDecks.SelectMany(deck => deck).Distinct() : [];
     }
 
     public void PrepareTripleTriadImages(IEnumerable<int> cardIds)

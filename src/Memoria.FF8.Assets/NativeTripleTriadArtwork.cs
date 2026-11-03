@@ -11,14 +11,14 @@ namespace Memoria.FF8.Assets;
 public sealed class NativeTripleTriadArtwork
 {
     private readonly PixelImage[] elements;
-    private readonly PixelImage[] fronts;
+    private readonly Lazy<PixelImage>[] fronts;
     private readonly PixelImage[] outcomes;
     private readonly PixelImage[] captures;
 
-    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage[] outcomes, PixelImage[] captures, PixelImage back, PixelImage background, PixelImage boardBackground)
+    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage[] outcomes, PixelImage[] captures, PixelImage back, PixelImage background, PixelImage boardBackground, Func<int, PixelImage, PixelImage>? resolveFront = null)
     {
         this.elements = elements;
-        this.fronts = fronts;
+        this.fronts = fronts.Select((front, id) => new Lazy<PixelImage>(() => resolveFront?.Invoke(id, front) ?? front)).ToArray();
         this.outcomes = outcomes;
         this.captures = captures;
         Back = back;
@@ -35,11 +35,12 @@ public sealed class NativeTripleTriadArtwork
     /// <summary>The original 384 by 224 board background used during card selection and play.</summary>
     public PixelImage BoardBackground { get; }
 
+    /// <summary>Resolves and caches replacement artwork only for the requested card.</summary>
     public PixelImage GetFront(int cardId)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(cardId);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(cardId, fronts.Length);
-        return fronts[cardId];
+        return fronts[cardId].Value;
     }
 
     /// <summary>Native result banner order: player win, opponent win, draw.</summary>
@@ -70,14 +71,18 @@ public sealed class NativeTripleTriadArtwork
     {
         using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
         NativeTripleTriadArtwork original = Read(GameDataResources.ReadNativeMemory(new ResourceService(source)));
-        PixelImage[] fronts = Enumerable.Range(0, CardArtwork.CardCount).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.fronts[id], subresource: $"front/{id}", resources: resources)).ToArray();
         PixelImage back = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Back, subresource: "back", resources: resources);
         PixelImage[] elements = Enumerable.Range(0, original.elements.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.elements[id], subresource: $"element/{id}", resources: resources)).ToArray();
         PixelImage[] outcomes = Enumerable.Range(0, original.outcomes.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.outcomes[id], subresource: $"outcome/{id}", resources: resources)).ToArray();
         PixelImage[] captures = Enumerable.Range(0, original.captures.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.captures[id], subresource: $"capture/{id}", resources: resources)).ToArray();
         PixelImage background = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Background, subresource: "background", resources: resources);
         PixelImage boardBackground = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.BoardBackground, subresource: "board-background", resources: resources);
-        return new NativeTripleTriadArtwork(elements, fronts, outcomes, captures, back, background, boardBackground);
+        return new NativeTripleTriadArtwork(elements, Enumerable.Range(0, CardArtwork.CardCount).Select(original.GetFront).ToArray(), outcomes, captures, back, background, boardBackground, (id, front) =>
+        {
+            using IResourceSource? ownedSource = resources is null ? GameDataSourceFactory.Open(gameDirectory) : null;
+            IResourceSource activeSource = ownedSource ?? resources!.GetSource<IResourceSource>() ?? throw new NotSupportedException("Card artwork requires its resource source.");
+            return NativeArtworkTexture.Resolve(activeSource, new ResourceKey("cards/cards"), front, subresource: $"front/{id}", resources: resources);
+        });
     }
 
     /// <summary>Loads only the hidden-card back, without preparing a complete Triple Triad match.</summary>

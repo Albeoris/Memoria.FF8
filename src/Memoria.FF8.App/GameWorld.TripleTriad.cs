@@ -372,10 +372,7 @@ internal sealed partial class GameWorld
         }
         TripleTriadPreparedHand random = TripleTriadPreparation.SelectRandomHand(cards, session.State.TripleTriadPlay!.RandomState, controller.Options.HandSize);
         session.SetTripleTriadPlay(session.State.TripleTriadPlay! with { RandomState = random.RandomState });
-        foreach (int id in random.Cards)
-        {
-            controller.ChooseCard(id);
-        }
+        controller.DealHand(random.Cards);
     }
 
     private PlayerActionResult ApplyTripleTriad(PlayerAction action)

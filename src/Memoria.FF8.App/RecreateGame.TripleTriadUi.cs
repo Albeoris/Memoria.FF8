@@ -82,10 +82,7 @@ internal sealed partial class RecreateGame
         {
             view.Key(UiKey.Right);
         }
-        if (input.MenuPage != 0)
-        {
-            view.Key(input.MenuPage < 0 ? UiKey.PageUp : UiKey.PageDown);
-        }
+        RouteTripleTriadPageInput(controller, view, input, keyboard);
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
             view.Key(UiKey.Confirm);
@@ -120,5 +117,18 @@ internal sealed partial class RecreateGame
         }
         fieldSeconds = 0;
         return true;
+    }
+
+    internal static void RouteTripleTriadPageInput(TripleTriadController controller, UiView view, InputFrame input, KeyboardInput keyboard)
+    {
+        int page = input.MenuPage;
+        if (page == 0 && controller.TradingHand is not null)
+        {
+            page = keyboard.UiPaneFocus != 0 ? keyboard.UiPaneFocus : keyboard.UiCharacterPage;
+        }
+        if (page != 0)
+        {
+            view.Key(page < 0 ? UiKey.PageUp : UiKey.PageDown);
+        }
     }
 }

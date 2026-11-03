@@ -50,7 +50,9 @@ public sealed partial class TripleTriadController
 
     internal const int TradeCardsPerPage = 5;
     internal int TradePageCount => (Options.HandSize + TradeCardsPerPage - 1) / TradeCardsPerPage;
-    internal int TradePage => (TradingCardIndex >= 0 ? TradingCardIndex % Options.HandSize : TradePhase == TripleTriadTradePhase.Flipping && flippingTradeSlot >= 0 ? flippingTradeSlot % Options.HandSize : Selection) / TradeCardsPerPage;
+    private int? browsedTradePage;
+    internal int TradePage => browsedTradePage ?? (TradingCardIndex >= 0 ? TradingCardIndex % Options.HandSize : TradePhase == TripleTriadTradePhase.Flipping && flippingTradeSlot >= 0 ? flippingTradeSlot % Options.HandSize : Selection) / TradeCardsPerPage;
+    internal bool CanBrowseTradePages => TradePageCount > 1 && (TradePhase == TripleTriadTradePhase.Selecting || AwaitingTradeConfirmation);
 
     public TripleTriadTradePhase TradePhase { get; private set; }
     public IReadOnlyList<int> TradeCards => tradeCards;
@@ -303,6 +305,7 @@ public sealed partial class TripleTriadController
 
     private void SetTradePhase(TripleTriadTradePhase phase)
     {
+        browsedTradePage = null;
         TradePhase = phase;
         tradeTime = 0;
     }
