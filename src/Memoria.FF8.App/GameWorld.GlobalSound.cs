@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
@@ -7,16 +8,21 @@ internal sealed partial class GameWorld
 {
     private GlobalSoundResource? ResolveGlobalSound(int sampleIndex)
     {
+        return ResolveGlobalSound(assets.Resources, sampleIndex);
+    }
+
+    internal static GlobalSoundResource ResolveGlobalSound(ResourceService resources, int sampleIndex)
+    {
         GlobalAudioSampleDescriptor sample;
         try
         {
-            sample = GlobalAudioFormat.Read(assets.GameDirectory, sampleIndex);
+            sample = GlobalAudioFormat.Read(resources, sampleIndex);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentOutOfRangeException)
         {
-            return null;
+            throw new InvalidDataException($"Cannot resolve global audio sample {sampleIndex}: {exception.Message}", exception);
         }
-        return CreateMutedGlobalSoundResource(sample);
+        return CreateMutedGlobalSoundResource(sample) ?? throw new InvalidDataException($"Global audio sample {sampleIndex} has an unsupported wave format or loop policy (tag={sample.WaveFormat.Tag}, channels={sample.WaveFormat.Channels}, rate={sample.WaveFormat.SampleRate}, bits={sample.WaveFormat.BitsPerSample}, loop={sample.LoopStartPcmByte}..{sample.LoopEndPcmByte}).");
     }
 
     internal static GlobalSoundResource? CreateMutedGlobalSoundResource(GlobalAudioSampleDescriptor sample)

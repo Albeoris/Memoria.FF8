@@ -37,13 +37,39 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         string relative = new ResourceKey(relativeDataPath).Path;
         if (relative.StartsWith("movies/", StringComparison.Ordinal))
         {
-            string localized = Path.Combine(gameDirectory, "Data", "lang-en", relative.Replace('/', Path.DirectorySeparatorChar));
+            string localized = ResolveLoosePath("Data/lang-en/" + relative);
             if (File.Exists(localized))
             {
                 return localized;
             }
         }
-        return Path.Combine(gameDirectory, "Data", relative.Replace('/', Path.DirectorySeparatorChar));
+        return ResolveLoosePath("Data/" + relative);
+    }
+
+    private string ResolveLoosePath(string relative)
+    {
+        string current = gameDirectory;
+        foreach (string component in relative.Split('/'))
+        {
+            string? match = null;
+            if (Directory.Exists(current))
+            {
+                foreach (string entry in Directory.EnumerateFileSystemEntries(current))
+                {
+                    if (!Path.GetFileName(entry).Equals(component, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (match is not null)
+                    {
+                        throw new InvalidDataException($"Ambiguous Classic file path component '{component}' in '{current}'.");
+                    }
+                    match = entry;
+                }
+            }
+            current = match ?? Path.Combine(current, component);
+        }
+        return current;
     }
 
     public ResourceContent? Find(ResourceKey key)
