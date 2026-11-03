@@ -77,7 +77,8 @@ public sealed partial class BattleSession
             NativeBattleGraphicsState graphics = RequireNativeGraphics();
             NativeBattleUiServices ui = graphics.UiServices!;
             //4BB9E0 state19 writes byte1D76844 from the ordered4AD370 ready list;957 remains the command menu.
-            NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands with { SelectedActor = checked((sbyte)GetActor(actorId).NativeIndex) } } };
+            sbyte selected = checked((sbyte)GetActor(actorId).NativeIndex);
+            NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands with { SelectedActor = selected }, CommandRow = NativeBattleLimitCommandRow.Reset4BB840(), CommandRowSelection = new(selected, 0, GetNativeLimitLevel(actorId) > 0 ? (byte)4 : (byte)0, true) } };
         }
     }
 }

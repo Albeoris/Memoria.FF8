@@ -301,11 +301,6 @@ internal sealed partial class GameWorld
             return 0;
         }
         ObservePendingBattle();
-        if (input.Kind == BattleInputKind.StartEncounter && input.NativeSeed is null)
-        {
-            // TODO(TD-009): Original CRT entropy provenance remains unowned.
-            input = input with { NativeSeed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256) };
-        }
         if (TryApplyMenuBattleInput(input, out int menuAdvanced, guardianForceLearning))
         {
             return menuAdvanced;
@@ -321,7 +316,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
             }
-            battle = StartNativeBattleSession(request.Encounter, request.Flags, input.NativeSeed!.Value, input.Mode);
+            battle = StartNativeBattleSession(request.Encounter, request.Flags, input.NativeSeed, input.Mode);
             return 0;
         }
         BattleSession active = battle ?? throw new InvalidOperationException("No interactive battle is active.");
@@ -474,6 +469,10 @@ internal sealed partial class GameWorld
             {
                 RemainingEnemyExperience = active.CaptureEscapeRemainingExperience()
             };
+        }
+        if (!debugVictory && active.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && active.NativeGraphics is not null)
+        {
+            result = result with { NativeExperience = active.CaptureNativeExperienceResult() };
         }
         result.Validate();
         return result;

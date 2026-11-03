@@ -190,7 +190,10 @@ internal sealed partial class BattleHudElement : UiElement
                 {
                     canvas.Image(portrait, Rect(ownerLeft, y, 26, 26));
                 }
-                ChoiceText(canvas, theme, choices[start + row], 60, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable);
+                if (!DrawNativeLimitCommandRow(canvas, theme, start + row, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable))
+                {
+                    ChoiceText(canvas, theme, choices[start + row], 60, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable);
+                }
                 if (rightArrows[start + row])
                 {
                     // Native row flag4 uses icon6 and alternates CLUT offsets0/5 every two UI frames.

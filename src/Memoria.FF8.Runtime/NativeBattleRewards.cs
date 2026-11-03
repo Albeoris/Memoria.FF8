@@ -212,9 +212,7 @@ public static class NativeBattleRewardDistribution
             {
                 continue;
             }
-            int scaled = 5 * basis * enemy.Level / averageLevel - basis;
-            int partial = unchecked((enemy.MaximumHp - enemy.CurrentHp) * scaled) / enemy.MaximumHp;
-            ushort amount = partial < 1 ? (ushort)1 : Math.Min(unchecked((ushort)partial), (ushort)60000);
+            ushort amount = NativeBattleExperienceBanks.PartialShared(basis, enemy.Level, averageLevel, enemy.MaximumHp, enemy.CurrentHp);
             shared = Accumulate(shared, amount);
         }
         Dictionary<byte, ushort> characters = [];
@@ -252,12 +250,7 @@ public static class NativeBattleRewardDistribution
 
     private static ushort ScaledExperience(ushort basis, int enemyLevel, int recipientLevel)
     {
-        if (basis == 0)
-        {
-            return 0;
-        }
-        int value = 5 * basis * enemyLevel / recipientLevel - basis;
-        return value < 1 ? (ushort)1 : Math.Min(unchecked((ushort)value), (ushort)60000);
+        return NativeBattleExperienceBanks.Scale(basis, enemyLevel, recipientLevel);
     }
 
     private static ushort Accumulate(ushort accumulated, ushort amount) => Math.Min(unchecked((ushort)(accumulated + amount)), (ushort)60000);

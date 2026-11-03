@@ -334,6 +334,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleExperienceState? NativeExperience { get; init; }
     public BattleScanKnowledge ScanKnowledge { get; init; } = new();
     public BattleEncounterAllocationState? EncounterAllocation { get; init; }
     public BattleEncounterPolicyState? EncounterPolicies { get; init; }

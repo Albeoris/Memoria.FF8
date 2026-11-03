@@ -220,8 +220,22 @@ public sealed partial class GameSession
         acceptedBattleObservation = owned is null ? null : BattleLiveObservation.FromSnapshot(owned);
     }
 
-    public void SetLiveBattle(BattleSession? active)
+    public void SetLiveBattle(BattleSession? active, NativeCrtRandomState? nativeEntryRandomBefore = null, NativeCharacterVitals? nativeEntryVitals = null)
     {
+        NativeCrtRandomState? nativeEntryRandomAfter = null;
+        if (nativeEntryRandomBefore is not null)
+        {
+            nativeEntryRandomAfter = nativeEntryRandomBefore.Draw(out ushort seed);
+            BattleDefinition? entry = active?.ReadDefinition();
+            if (entry is null || State.CrtRandom != nativeEntryRandomBefore || State.PendingBattleEncounter is null || HasActiveBattle || entry.NativeCrtRandom != nativeEntryRandomAfter || entry.NativeSeed != unchecked((byte)seed))
+            {
+                throw new InvalidOperationException("Native battle entry requires its unchanged CRT owner and the prepared single-draw battle owner.");
+            }
+        }
+        if (nativeEntryVitals is not null && active is null)
+        {
+            throw new InvalidOperationException("Native battle entry vitals require an active battle publication.");
+        }
         if (active is null)
         {
             if (liveBattle is not null)
@@ -235,12 +249,23 @@ public sealed partial class GameSession
         }
         BattleLiveObservation observation = active.ObserveLiveState();
         GameState candidate = AdvanceNativePlaytime(State with { Battle = null, ExamTimer = observation.Timer ?? State.ExamTimer, VibrationProcess = observation.Vibration ?? State.VibrationProcess, GlobalSoundProcess = observation.Sound ?? State.GlobalSoundProcess });
+        if (nativeEntryVitals is not null)
+        {
+            NativeCharacterVitals vitals = nativeEntryVitals.NormalizeGuardianForceCompatibility();
+            vitals.Validate();
+            candidate = candidate with { CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = SynchronizeSavedBattleFlags(vitals) };
+            ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
+        }
         if (candidate.AchievementCursor is null && State.PendingBattleEncounter is not null)
         {
             candidate = candidate with { AchievementCursor = LegacyAchievementCursor(State) };
         }
         candidate = StageOriginalAchievementDraws(candidate, observation);
         candidate = StageBattleAchievementFacts(candidate, observation.EnemyDefeats);
+        if (nativeEntryRandomAfter is not null)
+        {
+            candidate = candidate with { CrtRandom = nativeEntryRandomAfter };
+        }
         State = candidate;
         liveFieldMemory = null;
         liveBattle = active;

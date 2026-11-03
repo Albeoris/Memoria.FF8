@@ -64,7 +64,12 @@ public sealed partial class BattleHudController
 
     private void SelectNativeLimit(bool selected)
     {
-        // TODO(TD-009): Project the native eight-unit command-row slide without its pixel animation.
+        if (session.NativeGraphics?.UiServices is not null && SelectedActor is { } actor)
+        {
+            session.SetNativeCommandRowSelection(actor.Id, checked((byte)commandIndex), !SelectingAction && !SelectingTarget, commandIndex == 0 && NativeLimitAvailable);
+            return;
+        }
+        //TODO(TD-009): Graphicsless components retain immediate selection without a native UI callback owner.
         bool next = selected && commandIndex == 0 && NativeLimitAvailable;
         if (next != nativeLimitCommandSelected)
         {
@@ -158,7 +163,10 @@ public sealed partial class BattleHudController
         {
             return [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce];
         }
-        if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
+        bool limitSelected = session.NativeGraphics?.UiServices is not null
+            ? (session.NativeCommandRow ?? throw new NotSupportedException("Native command labels require retained widget BYTE26; migrate the named snapshot explicitly.")).SelectsLimit(NativeLimitAvailable && commandIndex == 0 ? (byte)4 : (byte)0)
+            : nativeLimitCommandSelected;
+        if (limitSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {
             BattleAbility[] commands = actor.Abilities.ToArray();
             commands[0] = BattleAbility.LimitBreak;
@@ -202,4 +210,7 @@ public sealed partial class BattleHudController
             session.SelectPlayerCommandActor(actor.Id);
         }
     }
+
+    internal NativeBattleLimitCommandRow? NativeCommandRow => session.NativeCommandRow;
+    internal string OrdinaryFirstCommandLabel => SelectedActor is { Abilities.Count: > 0 } actor ? CommandLabel(actor.Abilities[0]) : string.Empty;
 }

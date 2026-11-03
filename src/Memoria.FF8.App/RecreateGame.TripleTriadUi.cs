@@ -26,7 +26,7 @@ internal sealed partial class RecreateGame
                 presentedTripleTriad = null;
                 if (world?.Field is not null)
                 {
-                    fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
+                    fieldAudio?.ReplayMusicSelection(session.State.GlobalSoundProcess?.MusicPlayback);
                 }
             }
             return false;

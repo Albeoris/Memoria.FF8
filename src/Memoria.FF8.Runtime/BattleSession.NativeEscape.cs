@@ -135,6 +135,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native4862A0 requires its original miscellaneous text1 binding.");
         }
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native4862A0 requires its saved message-speed BYTE.")) + 8;
+        FinalizeNativeExperience494D40();
         NativeBattleOutcomeState state = graphics.NativeOutcome ?? new();
         graphics = graphics with { NativeOutcome = state with { ResultByte6E7 = 2, VictoryQueuedDFE = 1, FadeStyleE01 = 2 } };
         graphics = QueueNativeDescriptor(graphics, 112, 0);

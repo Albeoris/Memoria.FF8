@@ -45,6 +45,7 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeGraphicsDefinition(source);
+        InitializeNativeExperience48D020();
         if (NativeCamera is not null)
         {
             NativeCamera = NativeCamera.Initialize500400();

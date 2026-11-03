@@ -6,7 +6,7 @@ internal static class NativeBattleChocoPresentationDepths
 {
     internal static NativeBattleModulePacketBatch Capture(NativeBattleModulePacketBatch batch)
     {
-        return batch with { Primitives = batch.Primitives.Select(item => item with { Primitive = Capture(item.Primitive) }).ToImmutableArray() };
+        return batch with { Primitives = batch.Primitives.Select(item => item with { Primitive = Capture(item.Primitive) }).ToImmutableArray(), CapturedWrites = batch.CapturedWrites is { } captured ? Capture(captured) : null };
     }
 
     internal static NativeBattleGfGeometryBatch Capture(NativeBattleGfGeometryBatch batch)

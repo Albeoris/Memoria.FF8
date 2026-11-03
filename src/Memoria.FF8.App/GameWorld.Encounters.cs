@@ -102,7 +102,7 @@ internal sealed partial class GameWorld
                     throw new InvalidOperationException("A random battle is already active.");
                 }
                 ushort flags = request.Scene == SceneKind.Field ? Events.BeginNativeRandomFieldBattle(request) : (ushort)0;
-                battle = StartNativeBattleSession(request.Formation, flags, input.NativeSeed!.Value, input.Mode);
+                battle = StartNativeBattleSession(request.Formation, flags, input.NativeSeed, input.Mode);
             }
             else
             {

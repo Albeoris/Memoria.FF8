@@ -35,6 +35,7 @@ public sealed class BattleEntryPerformanceTests
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-before-battle", session.State);
         started = Stopwatch.GetTimestamp();
         long allocated = GC.GetTotalAllocatedBytes();
+        NativeCrtRandomState seedRandomBefore = session.State.CrtRandom!;
         if (prepareOnWorker)
         {
             ushort flags = world.CaptureBattleEntryFlags();
@@ -50,25 +51,34 @@ public sealed class BattleEntryPerformanceTests
             NativeBattleMusicEntryPreparation music = world.BeginBattleEntryMusic(session.State.PendingBattleEncounter!.Formation, flags);
             Assert.Equal(1, entryMusicReceipts);
             GameState suspended = session.State;
+            seedRandomBefore = suspended.CrtRandom!;
             JsonElement vm = world.Events.Capture();
-            Assert.Throws<InvalidOperationException>(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, 0, suspended.GameplayPreferences.AtbMode, music with { Receipt = music.Receipt with { } }));
-            GameWorld.PreparedBattleEntry entry = await Task.Run(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, 0, suspended.GameplayPreferences.AtbMode, music));
+            Assert.Throws<InvalidOperationException>(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, null, suspended.GameplayPreferences.AtbMode, music with { Receipt = music.Receipt with { } }));
+            Assert.Same(suspended, session.State);
+            GameWorld.PreparedBattleEntry entry = await Task.Run(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, null, suspended.GameplayPreferences.AtbMode, music));
             Assert.Null(world.Battle);
             Assert.Same(suspended, session.State);
             Assert.True(JsonElement.DeepEquals(vm, world.Events.Capture()));
             Assert.Equal(0, entry.Battle.NativeHostCallbacks);
             Assert.Equal(82, transition.CompletionCounter);
             world.PublishPreparedBattleEntry(entry);
+            GameState published = session.State;
+            Assert.Throws<InvalidOperationException>(() => world.PublishPreparedBattleEntry(entry));
+            Assert.Same(published, session.State);
             Assert.Equal(1, entryMusicReceipts);
             Assert.Same(music.Receipt, world.Events.Scene.NativeBattleMusicEntry);
         }
         else
         {
-            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode));
         }
         double startMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         long startBytes = GC.GetTotalAllocatedBytes() - allocated;
         BattleSession active = world.Battle!;
+        NativeCrtRandomState seedRandomAfter = seedRandomBefore.Draw(out ushort seedDraw);
+        Assert.Equal(unchecked((byte)seedDraw), active.ReadDefinition().NativeSeed);
+        Assert.Equal(seedRandomAfter, active.ReadDefinition().NativeCrtRandom);
+        Assert.Equal(seedRandomAfter, session.State.CrtRandom);
         started = Stopwatch.GetTimestamp();
         BattleScenePresentation scene = new(world.BattleResources, active.Capture().Definition, true);
         double sceneMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;

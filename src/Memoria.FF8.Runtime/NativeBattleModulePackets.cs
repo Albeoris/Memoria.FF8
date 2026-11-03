@@ -27,6 +27,7 @@ public static partial class NativeBattleModulePackets
         NativeBattleActionMatrix main = currentMatrix ?? NativeBattlePoseMatrices.ModuleSpriteCamera(draw, projection.View ?? throw new NotSupportedException("Native571DC0 requires its previous published camera matrix."), cameraRoll);
         main.Validate();
         ImmutableArray<NativeBattleAllocatedPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleAllocatedPrimitive>();
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         int? retainedBucket = null;
         for (int offset = 0; offset < frame.Quads.Length; offset += 20)
@@ -36,10 +37,7 @@ public static partial class NativeBattleModulePackets
             short width = (short)(8 * quad[0]);
             short height = (short)(8 * quad[2]);
             NativeBattleProjectedVertex[] vertices = [Project(-width, -height), Project(width, -height), Project(-width, height), Project(width, height)];
-            if (((vertices[0].DepthAndClip | vertices[1].DepthAndClip | vertices[2].DepthAndClip) & 0x60000) != 0)
-            {
-                continue;
-            }
+            bool rejected = ((vertices[0].DepthAndClip | vertices[1].DepthAndClip | vertices[2].DepthAndClip) & 0x60000) != 0;
             ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(quad[14..]);
             int selector = flags >> 12;
             if (selector > 3 || resource.Bytes.Length < 8)
@@ -69,12 +67,21 @@ public static partial class NativeBattleModulePackets
             byte u1 = unchecked((byte)Math.Min(quad[0] + quad[4] - inset, 255));
             byte v1 = unchecked((byte)Math.Min(quad[2] + quad[5] - inset, 255));
             uint[] words = [0x9000000, command, vertices[0].Screen, (uint)(quad[4] | quad[5] << 8) | (uint)unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(quad[6..]) + (palette << 6))) << 16, vertices[1].Screen, (uint)(u1 | quad[5] << 8) | (uint)(flags & 0x1FF) << 16, vertices[2].Screen, (uint)(quad[4] | v1 << 8), vertices[3].Screen, (uint)(u1 | v1 << 8)];
+            if (rejected)
+            {
+                stores.Add(SpritePacketStore(allocated, words, SpriteRejectedStoreMask, null));
+                continue;
+            }
             int bucket = retainedBucket ?? Bucket(vertices, tableBaseBucket, depthShift);
             bool extended = retainedBucket is null && (frame.ExtendedPacket || (draw.SpriteFlags & 0x100) != 0);
             if (extended)
             {
                 //571DC0 reserves52 bytes, puts E1 at+40, inserts it first, then inserts the FT4 at+0.
-                result.Add(new(new(bucket, [0x1000000, 0xE1000220], [0, 0, 0, 0]), allocated + 40, 0));
+                NativeBattleGeometryPrimitive mode = new(bucket, [0x1000000, 0xE1000220], [0, 0, 0, 0]);
+                result.Add(new(mode, allocated + 40, 0));
+                // The polygon stores precede both links; the E1 link precedes the polygon link.
+                stores.Add(SpritePacketStore(allocated, words, SpriteAcceptedStoreMask, null));
+                stores.Add(SpritePacketStore(allocated + 40, [0x1000000, 0xE1000220, 0], SpriteExtendedStoreMask, mode));
             }
             NativeBattleGeometryPrimitive primitive = new(bucket, NativeBattleTelemetry.Immutable(1119, words), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray());
             if (draw.PilotIdentity is { } identity)
@@ -89,13 +96,14 @@ public static partial class NativeBattleModulePackets
                 primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset / 20) }, a, b, c, d, 4, draw.PilotContinuous) { Sprite = sprite } };
             }
             result.Add(new(primitive, allocated, 0));
+            stores.Add(SpritePacketStore(allocated, words, extended ? SpriteUnwrittenStoreMask : SpriteAcceptedStoreMask, primitive));
             allocated += extended ? 52 : 40;
             //571DC0 stores the first accepted AVSZ4 in contextDWORD60 and reuses its bucket for subsequent quads.
             retainedBucket = bucket;
 
             NativeBattleProjectedVertex Project(int x, int y) => NativeBattleModuleProjection.Project45FE10(matrix, new(unchecked((short)x), unchecked((short)y), 0), projection);
         }
-        return new(result.ToImmutable(), allocated);
+        return new(result.ToImmutable(), allocated) { CapturedWrites = new(stores.ToImmutable(), allocated) };
     }
 
     private static NativeBattlePilotSpriteGeometry? CaptureActualSprite(NativeBattleActionMatrix main, NativeBattleCameraProjection projection, System.Numerics.Vector3 a, System.Numerics.Vector3 b, System.Numerics.Vector3 c, System.Numerics.Vector3 d)
