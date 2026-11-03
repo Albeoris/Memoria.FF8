@@ -25,6 +25,8 @@ function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure) {
     if (($LASTEXITCODE -ne 0) -ne [bool]$ExpectFailure) {
         throw "Unexpected distribution checker result for $($Arguments[0]): $($output -join [Environment]::NewLine)"
     }
+    # The expected native failure was handled; keep a successful script exit code.
+    $global:LASTEXITCODE = 0
 }
 
 function Test-RejectedMutation([string]$Name, [scriptblock]$Mutation) {
