@@ -6,6 +6,7 @@ public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int G
     public BattleCombatantDefinition? ResolvedDefinition { get; init; }
     public string? EncounterBatchId { get; init; }
     public string? EncounterRole { get; init; }
+    public EncounterAllocationRetirement? Retirement { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -32,10 +33,14 @@ public sealed partial class BattleSession
         RequireNoPendingEncounterAllocation();
         BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
         NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
-        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index), -1) : requestedIndex;
+        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index) && !IsEncounterRetirementPending(index), -1) : requestedIndex;
         if (physicalIndex is < 3 or > 6)
         {
             throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
+        }
+        if (IsEncounterRetirementPending(physicalIndex))
+        {
+            throw new InvalidOperationException("The selected physical enemy slot is still owned by an accepted encounter retirement.");
         }
         StopTurnAdvance();
         BattleCombatant? previous = combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex);
@@ -147,6 +152,10 @@ public sealed partial class BattleSession
             if (allocation is null)
             {
                 throw new InvalidDataException("Native allocation list contains an empty owner.");
+            }
+            if (allocation.Retirement is { } retirement && (allocation.EncounterBatchId is null || retirement.PhysicalIndex is < 3 or > 6))
+            {
+                throw new InvalidDataException("Encounter retirement requires its allocation generation and an enemy physical slot.");
             }
             NativeBattleEnemyAllocation owned = CloneNativeAllocation(allocation);
             CreateNativeAllocation(owned);

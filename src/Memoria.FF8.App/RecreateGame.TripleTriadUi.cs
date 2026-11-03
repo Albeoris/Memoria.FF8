@@ -91,7 +91,7 @@ internal sealed partial class RecreateGame
         {
             view.Key(UiKey.Cancel);
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         view.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
         if (!ReferenceEquals(preparedTripleTriadMatch, controller.Match))
         {

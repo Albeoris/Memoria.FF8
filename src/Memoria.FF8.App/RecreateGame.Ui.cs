@@ -569,7 +569,7 @@ internal sealed partial class RecreateGame
         }
         bool nativeMainWasOpen = !hostOnly && IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
         bool menuWasOpen = gameMenus.IsOpen;
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         int wheelDelta = previousMenuWheel is int previousWheel ? mouse.ScrollWheelValue - previousWheel : 0;
         previousMenuWheel = mouse.ScrollWheelValue;
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
@@ -828,7 +828,7 @@ internal sealed partial class RecreateGame
 
     private void UpdateControlsCapturePointer()
     {
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         UiView view = gameMenus!.BuildView();
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);

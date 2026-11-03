@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         ushort mask = (ushort)((1 << target.NativeIndex) | ((flags & 1) != 0 ? 0x4000 : 0) | ((flags & 2) != 0 ? 0x2000 : 0));
         PendingDiagnosticReflection? diagnostic = PrepareDiagnosticReflection(sourceHeader, actor, reflector, target, source, reflected, mask);
         BattleAttackCommand packet = new(actor.Id, target.Id, BattleAbility.Magic, reflected.ActionId) { NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask, FreeNativeMagic = true };
-        if (nativeAiDepth == 0)
+        if (nativeAiDepth == 0 && nativeCallbackTail is null)
         {
             if (diagnostic is not null)
             {
@@ -39,6 +39,11 @@ public sealed partial class BattleSession
         BattleActionPresentation reflectedCommand = command with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask };
         BattleActionDefinition reflectedDefinition = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? "Reflected magic", BattleActionEffect.Native, reflected.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = reflected };
         PendingDiagnosticReflection? previousDiagnostic = diagnosticReflectionProduction;
+        NativeBattleActionProductionContext? previousProduction = nativeProductionContext;
+        if (nativeAiDepth == 0 && previousProduction is not null)
+        {
+            nativeProductionContext = previousProduction with { RepeatMode = 0, DrawFollowUp = true };
+        }
         diagnosticReflectionProduction = diagnostic;
         try
         {
@@ -47,6 +52,7 @@ public sealed partial class BattleSession
         finally
         {
             diagnosticReflectionProduction = previousDiagnostic;
+            nativeProductionContext = previousProduction;
         }
     }
 
@@ -71,6 +77,7 @@ public sealed partial class BattleSession
         {
             BattleAttackCommand produced = ProduceNativeQueuedCommand(GetActor(command.ActorId), GetActor(command.TargetId), command);
             actions.Enqueue(produced);
+            FlushEncounterCounterCommands();
         }
         finally
         {

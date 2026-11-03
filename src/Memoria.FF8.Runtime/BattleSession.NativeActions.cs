@@ -123,6 +123,8 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced;
         int? previousDiagnosticHeader = diagnosticCounterProducingHeader;
+        int? previousEncounterHeader = encounterProducingHeaderIndex;
+        encounterProducingHeaderIndex = headerIndex;
         diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
         try
         {
@@ -131,6 +133,7 @@ public sealed partial class BattleSession
         finally
         {
             diagnosticCounterProducingHeader = previousDiagnosticHeader;
+            encounterProducingHeaderIndex = previousEncounterHeader;
         }
         foreach (NativeBattleContactPacket packet in produced.Contacts)
         {

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record EncounterHpMutation(BattleCombatant? Actor, BattleCombatant Target, int Amount, string Source, bool CounterEligible, bool PublishDamage, EncounterHpCause Cause, NativeContactWorking? Contact, bool Secondary, BattleActionPresentation? Action, bool Healing = false);
+    private sealed record EncounterHpMutation(BattleCombatant? Actor, BattleCombatant Target, int Amount, string Source, bool CounterEligible, bool PublishDamage, EncounterHpCause Cause, NativeContactWorking? Contact, bool Secondary, BattleActionPresentation? Action, bool Healing = false, bool CounterSuppressed = false);
 
     private sealed class EncounterHitTransaction(ImmutableArray<EncounterDamageActor> actors, ImmutableArray<EncounterDamageRoute> routes)
     {
@@ -12,6 +12,8 @@ public sealed partial class BattleSession
         public ImmutableArray<EncounterDamageRoute> Routes { get; } = routes;
         public List<EncounterHpMutation> Mutations { get; } = [];
         public List<(int Position, NativeContactWorking Contact)> Contacts { get; } = [];
+        public List<(int Position, NativeContactWorking Contact)> ExtraContacts { get; } = [];
+        public List<EncounterImmediateCounter> Counters { get; } = [];
         public int ContactPosition { get; set; }
     }
 
@@ -57,6 +59,36 @@ public sealed partial class BattleSession
         encounterHitTransaction = new(CaptureEncounterDamageActors(), ResolveEncounterDamageRoutes());
     }
 
+    private void ValidateEncounterContactCapacity((BattleCombatant[] Targets, byte CoverSource)[] plan, BattleNativeAction native, bool deferred)
+    {
+        if (!HasEncounterDamageRoutes)
+        {
+            return;
+        }
+        ImmutableArray<EncounterDamageRoute> routes = ResolveEncounterDamageRoutes();
+        bool mayDamage = !deferred && (native.AttackType is not (0 or 12 or 13 or 14 or 16 or 17 or 23 or 30 or 31) || native.Command == 0 && native.ActionId is 2 or 4 or 6);
+        int required = nativeActionPackets.ContactCount;
+        foreach (var (targets, _) in plan)
+        {
+            required = checked(required + targets.Length);
+            if (mayDamage)
+            {
+                foreach (BattleCombatant target in targets.Where(target => !NativeActionReflects(target, native)))
+                {
+                    EncounterDamageRoute? route = routes.SingleOrDefault(route => route.SourceActorId == target.Id);
+                    if (route is not null)
+                    {
+                        required = checked(required + route.RecipientActorIds.Count(id => GetActor(id).IsAlive));
+                    }
+                }
+            }
+        }
+        if (required > NativeBattleActionPacketsState.ContactCapacity)
+        {
+            throw new InvalidDataException($"Encounter action requires up to {required} native contact slots including existing headers and routed recipients; capacity is {NativeBattleActionPacketsState.ContactCapacity}. No HP transaction was published.");
+        }
+    }
+
     private void SetEncounterContactPosition(int position)
     {
         if (encounterHitTransaction is { } transaction)
@@ -81,7 +113,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        EncounterHpMutation mutation = new(actor, target, amount, source, counterEligible, publishDamage, cause, nativeContactWorking, nativeContactWorking?.CommittingSecondary == true, resolvingNativeAction ?? ActiveAction);
+        EncounterHpMutation mutation = new(actor, target, amount, source, counterEligible, publishDamage, cause, nativeContactWorking, nativeContactWorking?.CommittingSecondary == true, resolvingNativeAction ?? ActiveAction, CounterSuppressed: suppressNativeImmediateCounter);
         if (encounterHitTransaction is { } transaction)
         {
             transaction.Mutations.Add(mutation);
@@ -101,7 +133,21 @@ public sealed partial class BattleSession
             return false;
         }
         List<NativeBattleContactPacket> extra = [];
-        CommitEncounterHpMutation(mutation, receipts, extra);
+        EncounterHitTransaction immediate = new(CaptureEncounterDamageActors(), ResolveEncounterDamageRoutes());
+        encounterHitTransaction = immediate;
+        try
+        {
+            CommitEncounterHpMutation(mutation, receipts, extra);
+            RunDeferredEncounterCounters(immediate);
+            foreach ((int position, NativeContactWorking contact) in immediate.ExtraContacts)
+            {
+                extra[position] = BuildNativeContactPacket(contact);
+            }
+        }
+        finally
+        {
+            encounterHitTransaction = null;
+        }
         if (NativeGraphics is not null)
         {
             foreach (NativeBattleContactPacket packet in extra)
@@ -109,6 +155,7 @@ public sealed partial class BattleSession
                 QueueNativeContactPacket(packet);
             }
         }
+        FlushEncounterCounterCommands();
         return true;
     }
 
@@ -128,11 +175,20 @@ public sealed partial class BattleSession
         {
             return 0;
         }
+        bool ownsReactionBatch = nativeActionCommitDepth == 0;
+        if (ownsReactionBatch)
+        {
+            if (nativeProductionContext is null)
+            {
+                BeginNativeReactionBatch();
+            }
+            nativeActionCommitDepth++;
+        }
         try
         {
             ImmutableArray<EncounterHpReceipt> receipts = EncounterDamageRouting.Plan(transaction.Mutations.Select((mutation, index) => new EncounterHpIntent(index, mutation.Actor?.Id, mutation.Target.Id, Math.Max(0, mutation.Amount), mutation.Cause)), transaction.Actors, transaction.Routes);
             int extraCount = receipts.Count(receipt => receipt.RouteId is not null && receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0);
-            if (packets.Count + extraCount > NativeBattleActionPacketsState.ContactCapacity)
+            if (nativeActionPackets.ContactCount + packets.Count + extraCount > NativeBattleActionPacketsState.ContactCapacity)
             {
                 throw new InvalidDataException("Encounter routed contacts exceed the native contact bank capacity before HP publication.");
             }
@@ -141,6 +197,7 @@ public sealed partial class BattleSession
             {
                 CommitEncounterHpMutation(transaction.Mutations[index], receipts.Where(receipt => receipt.ContactId == index).ToImmutableArray(), extra);
             }
+            RunDeferredEncounterCounters(transaction);
             foreach ((int position, NativeContactWorking contact) in transaction.Contacts)
             {
                 contact.PrimaryStatusSnapshot = NativeContactStatusMirror(contact.Recipient);
@@ -148,12 +205,21 @@ public sealed partial class BattleSession
                 packets[position] = packet;
                 ObserveDiagnosticCounterResolvedContact(contact, packet);
             }
+            foreach ((int position, NativeContactWorking contact) in transaction.ExtraContacts)
+            {
+                extra[position] = BuildNativeContactPacket(contact);
+            }
             packets.AddRange(extra);
             return extra.Count;
         }
         finally
         {
             encounterHitTransaction = null;
+            if (ownsReactionBatch)
+            {
+                nativeActionCommitDepth--;
+                FlushNativeReactions();
+            }
         }
     }
 
@@ -162,9 +228,11 @@ public sealed partial class BattleSession
         NativeContactWorking? previousContact = nativeContactWorking;
         BattleActionPresentation? previousAction = resolvingNativeAction;
         bool previousCommit = committingEncounterHp;
+        bool previousSuppression = suppressNativeImmediateCounter;
         nativeContactWorking = mutation.Contact;
         resolvingNativeAction = mutation.Action;
         committingEncounterHp = true;
+        suppressNativeImmediateCounter = mutation.CounterSuppressed;
         bool previousSecondary = mutation.Contact?.CommittingSecondary == true;
         if (mutation.Contact is { } contact)
         {
@@ -197,6 +265,7 @@ public sealed partial class BattleSession
                 else
                 {
                     originalContact.Magnitude = 0;
+                    originalContact.EncounterRedirectedDamage = true;
                     originalContact.Sequence = 0;
                     originalContact.Flags = 0;
                     originalContact.HitFlags = 0;
@@ -206,6 +275,13 @@ public sealed partial class BattleSession
             // The original keeps its hit-only native callback, with zero HP loss and zero return-damage magnitude.
             ApplyDamageCore(mutation.Actor, mutation.Target, 0, mutation.Source, mutation.CounterEligible, false);
             RefreshNativePresentationStatus(mutation.Target);
+            if (mutation.Contact is { } zeroContact && !mutation.Secondary)
+            {
+                zeroContact.Magnitude = 0;
+                zeroContact.Sequence = 0;
+                zeroContact.Flags = 0;
+                zeroContact.HitFlags = 0;
+            }
             foreach (EncounterHpReceipt receipt in receipts.Where(receipt => receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0))
             {
                 BattleCombatant recipient = GetActor(receipt.RecipientId);
@@ -232,6 +308,7 @@ public sealed partial class BattleSession
                 RefreshNativePresentationStatus(recipient);
                 if (routedContact is not null)
                 {
+                    encounterHitTransaction?.ExtraContacts.Add((extra.Count, routedContact));
                     extra.Add(BuildNativeContactPacket(routedContact));
                 }
                 else if (NativeGraphics is not null)
@@ -251,12 +328,13 @@ public sealed partial class BattleSession
             nativeContactWorking = previousContact;
             resolvingNativeAction = previousAction;
             committingEncounterHp = previousCommit;
+            suppressNativeImmediateCounter = previousSuppression;
         }
     }
 
     private void RequireEncounterDamagePublicationBoundary()
     {
-        if (encounterHitTransaction is not null || committingEncounterHp)
+        if (encounterHitTransaction is not null || committingEncounterHp || capturingEncounterCounterCommands || flushingEncounterCounterCommands || encounterCounterCommands.Count != 0)
         {
             throw new InvalidOperationException("Capture must wait for the atomic encounter HP/contact transaction to be published.");
         }

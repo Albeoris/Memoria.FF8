@@ -531,6 +531,7 @@ public sealed partial class BattleSession
             PublishNativeRegisteredCallbacks4847B0();
         }
         DispatchAction();
+        FlushEncounterCounterCommands();
         DispatchNativeTriggerReceipt();
         if (clockAdmitted)
         {
@@ -832,7 +833,7 @@ public sealed partial class BattleSession
             if (target.NativeAi is not null && !target.AiDeathHandled && (target.NativeCombatantFlags & 0x20) != 0 && (NativeBattleStatusBits(target) & 0x10000) == 0)
             {
                 QueueNativeReaction(target, 3);
-                RunNativeAi(target, 4);
+                RunEncounterImmediateCounter(target, death: true);
                 target.NativeStatus0 &= 0xFFFE;
             }
             if (nativeContactWorking is null || NativeGraphics is null)
@@ -851,7 +852,7 @@ public sealed partial class BattleSession
             }
             if (counterEligible && actor is not null && !target.IsPlayer && NativeImmediateCounterAllowed(target) && (target.NativeCombatantFlags & 0x10) != 0)
             {
-                RunNativeAi(target, 4);
+                RunEncounterImmediateCounter(target);
             }
         }
     }
@@ -955,11 +956,19 @@ public sealed partial class BattleSession
             {
                 return BattleOutcome.Defeat;
             }
+            if (encounterPolicies?.TerminalReached == true)
+            {
+                return BattleOutcome.Victory;
+            }
             return combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) ? BattleOutcome.Active : BattleOutcome.Victory;
         }
         if (!combatants.Any(actor => actor.IsPlayer && IsNativeBattleCapable(actor)))
         {
             return BattleOutcome.Defeat;
+        }
+        if (encounterPolicies?.TerminalReached == true)
+        {
+            return BattleOutcome.Victory;
         }
         return combatants.Any(actor => !actor.IsPlayer && IsNativeBattleCapable(actor) && !actor.Untargetable) ? BattleOutcome.Active : BattleOutcome.Victory;
     }

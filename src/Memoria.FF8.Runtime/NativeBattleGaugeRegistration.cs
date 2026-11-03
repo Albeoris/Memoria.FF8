@@ -23,6 +23,11 @@ public static class NativeBattleGaugeRegistrations
         bool forced = (savedStatuses & 0x20) != 0 || (battleStatuses & 0x2004000) != 0;
         if (forced)
         {
+            if ((actorFlags & 0x10) != 0)
+            {
+                //483EB0 registers script actors through flag200 before4842B0 adds flag4.
+                return new(NativeBattleGaugeRegistrationKind.DeferredScript, actorFlags | 0x204u);
+            }
             return new(NativeBattleGaugeRegistrationKind.ForcedCommand, actorFlags | 4u);
         }
         uint flags = actorFlags | 8u;

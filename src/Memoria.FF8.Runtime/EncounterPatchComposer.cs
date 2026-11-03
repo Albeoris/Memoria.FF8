@@ -43,11 +43,14 @@ public static class EncounterPatchComposer
         EncounterPatchLayer[] layers = contributions.ToArray();
         EncounterPatchDocument.Require(layers.Length <= 1024, "Too many encounter documents.");
         Dictionary<string, EncounterPatchLayer> documents = new(StringComparer.Ordinal);
-        foreach (EncounterPatchLayer layer in layers)
+        for (int index = 0; index < layers.Length; index++)
         {
+            EncounterPatchLayer layer = layers[index];
             try
             {
                 EncounterPatchDocument.Require(!string.IsNullOrWhiteSpace(layer.PackageId) && !string.IsNullOrWhiteSpace(layer.PayloadPath), "Missing package/payload identity.");
+                layer = layer with { Document = layer.Document.NormalizeAliases() };
+                layers[index] = layer;
                 layer.Document.Validate();
                 EncounterPatchDocument.Require(layer.Document.Encounter == baseline.Encounter, "Document encounter does not match selected baseline.");
                 EncounterPatchDocument.Require(layer.Document.SourceProfile is null || layer.Document.SourceProfile == baseline.SourceProfile, $"Expected source profile '{layer.Document.SourceProfile}', observed '{baseline.SourceProfile}'. Select a compatible package/profile.");
@@ -87,7 +90,26 @@ public static class EncounterPatchComposer
             string document = layer.Document.DocumentId;
             string ScopeLocal(string value) => baseline.Actors.Contains(value) ? value : Scope(document, value);
             string targetDocument = op.Producer?.DocumentId ?? document;
-            string Entity(string value) => Scope(targetDocument, value);
+            string Entity(string value)
+            {
+                if (op.Producer is { } producer && produced.TryGetValue((producer.DocumentId, producer.OperationId), out HashSet<string>? entities))
+                {
+                    foreach (string producedEntity in entities)
+                    {
+                        int separator = producedEntity.IndexOf('/');
+                        if (separator < 0)
+                        {
+                            continue;
+                        }
+                        string candidate = Scope(producedEntity[..separator], value);
+                        if (producedEntity == candidate || producedEntity.StartsWith(candidate + "/", StringComparison.Ordinal))
+                        {
+                            return candidate;
+                        }
+                    }
+                }
+                return Scope(targetDocument, value);
+            }
             string target = op.Kind switch
             {
                 EncounterPatchOperationKind.AddActorTemplate => Scope(document, op.ActorTemplate!),
@@ -109,6 +131,7 @@ public static class EncounterPatchComposer
                 switch (op.Kind)
                 {
                     case EncounterPatchOperationKind.AddActorTemplate:
+                        EncounterPatchDocument.Require(!baseline.Actors.Contains(op.ActorTemplate!), "Actor templates cannot shadow a selected baseline actor alias: " + op.ActorTemplate);
                         changed = Ensure(templates, target, op);
                         break;
                     case EncounterPatchOperationKind.EnsureGroup:
@@ -274,6 +297,23 @@ public static class EncounterPatchComposer
                 string writeKey = entity + "/" + property;
                 CheckWrite(writeKey);
                 JsonObject root = JsonSerializer.SerializeToNode(current, EncounterPatchDocument.JsonOptions)!.AsObject();
+                if (property.StartsWith("action.spellWeights.", StringComparison.Ordinal))
+                {
+                    JsonObject action = root["action"]?.AsObject() ?? throw new InvalidDataException("Spell weights require a named action rule.");
+                    EncounterPatchDocument.Require(action["kind"]?.GetValue<string>() == "CastFromPool", "Spell weights require a CastFromPool rule.");
+                    JsonObject weights = action["spellWeights"]?.AsObject() ?? new JsonObject();
+                    if (action["spellWeights"] is null)
+                    {
+                        action["spellWeights"] = weights;
+                    }
+                    string spell = property["action.spellWeights.".Length..];
+                    JsonArray spells = action["spells"]?.AsArray() ?? throw new InvalidDataException("Spell weights require the declared pool.");
+                    EncounterPatchDocument.Require(spells.Any(candidate => candidate?.GetValue<string>() == spell), "Spell-weight target is not a member of the declared pool: " + spell);
+                    if (weights[spell] is null)
+                    {
+                        weights[spell] = 1;
+                    }
+                }
                 string[] parts = property.Split('.');
                 JsonObject parent = root;
                 foreach (string part in parts[..^1])
@@ -339,15 +379,16 @@ public static class EncounterPatchComposer
                 string document = owners[key].DocumentId;
                 foreach (EncounterPatchRule rule in policy.Rules)
                 {
+                    string ruleDocument = owners.TryGetValue(key + "/" + rule.Id, out EncounterPatchOrigin? ruleOwner) ? ruleOwner.DocumentId : document;
                     if (rule.Action.Target.ValueKind == JsonValueKind.Object)
                     {
                         EncounterPatchTarget target = rule.Action.Target.Deserialize<EncounterPatchTarget>(EncounterPatchDocument.JsonOptions)!;
-                        RequireReference(groups.ContainsKey(Scope(document, target.Group)), key, "target.group", target.Group);
+                        RequireReference(groups.ContainsKey(Scope(ruleDocument, target.Group)), key, "target.group", target.Group);
                     }
                     foreach (EncounterPatchSpawn spawn in rule.Action.Actors)
                     {
-                        RequireReference(templates.ContainsKey(Scope(document, spawn.Template)), key, "template", spawn.Template);
-                        RequireReference(placements.ContainsKey(Scope(document, spawn.Anchor)), key, "anchor", spawn.Anchor);
+                        RequireReference(templates.ContainsKey(Scope(ruleDocument, spawn.Template)), key, "template", spawn.Template);
+                        RequireReference(placements.ContainsKey(Scope(ruleDocument, spawn.Anchor)), key, "anchor", spawn.Anchor);
                     }
                 }
             }
@@ -501,6 +542,3 @@ public static class EncounterPatchComposer
     }
     private static InvalidDataException Failure(EncounterPatchLayer layer, EncounterPatchOperation? operation, string message, Exception? inner = null) => new($"Package '{layer.PackageId}', payload '{layer.PayloadPath}', document '{layer.Document.DocumentId}', operation '{operation?.Id ?? "<document>"}', encounter '{layer.Document.Encounter}': {message}", inner);
 }
-
-
-

@@ -10,7 +10,8 @@ public sealed class EncounterBindingResolverTests
         EncounterBindingResult result = EncounterBindingResolver.Resolve(EncounterBindingResolver.Disc1Edea, modified, new("Classic", 768, 136, 18));
         Assert.Equal("original", result.OriginalActorId);
         Assert.True(result.StoryRequestVerified);
-        Assert.Equal(new byte[] { 8, 9, 10 }, result.TauntAbilities);
+        Assert.Equal(new byte[] { 8, 9 }, result.TauntAbilities);
+        Assert.Equal((byte)10, result.LowHpTerminalAbility);
     }
 
     [Theory]
@@ -65,6 +66,37 @@ public sealed class EncounterBindingResolverTests
         Assert.Contains("taunt branches", Assert.Throws<InvalidDataException>(() => EncounterBindingResolver.Resolve(EncounterBindingResolver.Disc1Edea, changed, new("Classic"))).Message);
     }
 
+    [Fact]
+    public void RequiresNativeEventVariableInitializationBeforeApplyingTauntAdapter()
+    {
+        BattleDefinition baseline = Definition();
+        NativeBattleAiDefinition ai = baseline.Combatants[0].NativeAi!;
+        byte[][] scripts = ai.Scripts.Select(script => script.ToArray()).ToArray();
+        scripts[0][2] = 1;
+        BattleDefinition changed = baseline with { Combatants = [baseline.Combatants[0] with { NativeAi = ai with { Scripts = scripts } }] };
+        Assert.Contains("event initialization", Assert.Throws<InvalidDataException>(() => EncounterBindingResolver.Resolve(EncounterBindingResolver.Disc1Edea, changed, new("Classic"))).Message);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void GuardsTheSelectedLevelBandAndDoesNotBorrowBandZeroAbilities(int band)
+    {
+        BattleDefinition baseline = Definition();
+        NativeBattleAiDefinition ai = baseline.Combatants[0].NativeAi!;
+        NativeBattleAiAbility[] abilities = ai.Abilities.ToArray();
+        foreach (int index in new[] { 8, 9, 10, 11 })
+        {
+            abilities[16 * band + index] = abilities[index];
+            abilities[index] = new(0, 0, 0);
+        }
+        ai = ai with { LevelBand = band, Abilities = abilities };
+        BattleDefinition changed = baseline with { Combatants = [baseline.Combatants[0] with { NativeAi = ai }] };
+        Assert.Equal("original", EncounterBindingResolver.Resolve(EncounterBindingResolver.Disc1Edea, changed, new("Classic")).OriginalActorId);
+        abilities[16 * band + 11] = new(8, 17, 265);
+        Assert.Contains($"level band {band}", Assert.Throws<InvalidDataException>(() => EncounterBindingResolver.Resolve(EncounterBindingResolver.Disc1Edea, changed, new("Classic"))).Message);
+    }
+
     private static BattleDefinition Definition()
     {
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
@@ -76,7 +108,7 @@ public sealed class EncounterBindingResolverTests
         Write(0, [2, 220, 200, 0, 0, 0, 18, 0, 14, 220, 1, 4, 200, 12, 8]);
         Write(26, [2, 221, 200, 0, 0, 0, 22, 0, 2, 6, 200, 4, 2, 0, 11, 0, 14, 221, 1, 4, 200, 12, 9, 0]);
         Write(56, [2, 0, 0, 1, 10, 0, 19, 0, 2, 6, 200, 4, 2, 0, 8, 0, 4, 200, 12, 10, 0]);
-        NativeBattleAiDefinition ai = new([[0], normal, [0], [4, 200, 12, 11, 0, 0], [0]], abilities, 0, []);
+        NativeBattleAiDefinition ai = new([[14, 220, 0, 14, 221, 0, 0], normal, [0], [4, 200, 12, 11, 0, 0], [0]], abilities, 0, []);
         return new() { EncounterId = 136, StageId = 147, Combatants = [new() { Id = "original", ModelId = 88, SceneSlot = 0, NativeAi = ai }] };
 
         void Write(int offset, byte[] instructions)

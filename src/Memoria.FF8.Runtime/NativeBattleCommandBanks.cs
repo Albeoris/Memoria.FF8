@@ -183,6 +183,49 @@ public sealed record NativeBattleCommandBanks([property: JsonRequired] Immutable
         return state;
     }
 
+    /// <summary>Retires unconsumed callback events without discarding already produced action headers or a later allocation's bound commands.</summary>
+    public NativeBattleCommandBanks RemoveActorCallbacks(byte actor, string allocationId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(allocationId);
+        if (actor >= 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(actor));
+        }
+        return RemoveCallbacks((packet, owner) => packet.ReadByte(0) == actor && (owner is null || owner.ActorId == allocationId));
+    }
+
+    public NativeBattleCommandBanks RemoveAllocationCallbacks(string allocationId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(allocationId);
+        return RemoveCallbacks((_, owner) => owner?.ActorId == allocationId);
+    }
+
+    private NativeBattleCommandBanks RemoveCallbacks(Func<NativeBattleCommandPacket, BattleAttackCommand?, bool> remove)
+    {
+        NativeBattleCommandBanks state = this;
+        for (byte slot = 0; slot < 11; slot++)
+        {
+            NativeBattleCommandBank bank = state.Banks[0];
+            NativeBattleCommandLink link = bank.Links[slot];
+            if (link.Previous == 0 && link.Next == 0)
+            {
+                continue;
+            }
+            NativeBattleCommandPacket packet = bank.Packets[2 * slot];
+            if (packet.ReadByte(1) != 255)
+            {
+                continue;
+            }
+            BattleAttackCommand? owner = bank.LogicalCommands[2 * slot];
+            if (!remove(packet, owner))
+            {
+                continue;
+            }
+            state = state.Release(new(0, slot));
+        }
+        return state;
+    }
+
     public NativeBattleCommandLocation? FirstEligible(Func<byte, bool> actorBlocked)
     {
         for (byte bank = 0; bank < 3; bank++)

@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record EncounterSpellChoice(string Spell, int ElementIndex, bool Reflectable);
+public sealed record EncounterSpellChoice(string Spell, int ElementIndex, bool Reflectable, int Weight = 1);
 public sealed record EncounterTargetChoice(string AllocationId, bool Reflect);
 public enum EncounterOffensiveDelivery
 {
@@ -18,7 +18,7 @@ public static class EncounterActionSelection
     public static EncounterOffensiveChoice? Select(ImmutableArray<EncounterSpellChoice> spells, IEnumerable<EncounterTargetChoice> opponents, IEnumerable<EncounterTargetChoice> allies, BattleScanKnowledge knowledge, BattleObserverSide observer, bool avoidReflect, Func<int, int> nextIndex)
     {
         ArgumentNullException.ThrowIfNull(nextIndex);
-        if (spells.IsDefaultOrEmpty || spells.Any(spell => string.IsNullOrWhiteSpace(spell.Spell) || spell.ElementIndex is < 0 or > 7) || spells.Select(spell => spell.Spell).Distinct(StringComparer.Ordinal).Count() != spells.Length)
+        if (spells.IsDefaultOrEmpty || spells.Any(spell => string.IsNullOrWhiteSpace(spell.Spell) || spell.ElementIndex is < 0 or > 7 || spell.Weight is < 1 or > 255) || spells.Sum(spell => spell.Weight) > 256 || spells.Select(spell => spell.Spell).Distinct(StringComparer.Ordinal).Count() != spells.Length)
         {
             throw new InvalidDataException("An elemental policy requires distinct spells and their canonical element indices.");
         }
@@ -75,7 +75,30 @@ public static class EncounterActionSelection
             return new(EncounterOffensiveDelivery.Direct, selected.Target, selected.Spell);
         }
         string fallbackTarget = Choose(targets, nextIndex).AllocationId;
-        return new(EncounterOffensiveDelivery.Direct, fallbackTarget, Choose(pool, nextIndex).Spell);
+        return new(EncounterOffensiveDelivery.Direct, fallbackTarget, pool[ChooseWeightedIndex(pool.Select(spell => spell.Weight).ToImmutableArray(), nextIndex)].Spell);
+    }
+
+    internal static int ChooseWeightedIndex(ImmutableArray<int> weights, Func<int, int> nextIndex)
+    {
+        if (weights.IsDefaultOrEmpty || weights.Any(weight => weight is < 1 or > 255) || weights.Sum() > 256)
+        {
+            throw new InvalidDataException("A spell pool requires positive integer weights in 1–255 totaling at most 256.");
+        }
+        int total = weights.Sum();
+        int draw = nextIndex(total);
+        if ((uint)draw >= total)
+        {
+            throw new InvalidDataException("Battle RNG returned an index outside the weighted spell pool.");
+        }
+        for (int index = 0; index < weights.Length; index++)
+        {
+            if (draw < weights[index])
+            {
+                return index;
+            }
+            draw -= weights[index];
+        }
+        throw new InvalidDataException("Weighted spell selection did not reach a valid interval.");
     }
 
     private static EncounterTargetChoice[] StableTargets(IEnumerable<EncounterTargetChoice> targets)

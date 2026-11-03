@@ -106,6 +106,7 @@ public sealed partial class BattleSession
                 try
                 {
                     actions.Enqueue(ProduceNativeQueuedCommand(GetActor(command.ActorId), GetActor(command.TargetId), command));
+                    FlushEncounterCounterCommands();
                 }
                 finally
                 {

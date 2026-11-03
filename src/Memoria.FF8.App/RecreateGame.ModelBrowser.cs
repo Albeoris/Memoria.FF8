@@ -39,12 +39,12 @@ internal sealed partial class RecreateGame
         modelBrowser.LocalizeText = LocalizeUiText;
         modelBrowser.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         UpdateModelBrowserHints();
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         previousModelBrowserMouse = mouse.LeftButton == ButtonState.Pressed;
         previousModelBrowserWheel = mouse.ScrollWheelValue;
         previousModelBrowserButtons = keyboard.HeldControlButtons;
-        previousModelBrowserEnter = Keyboard.GetState().IsKeyDown(Keys.Enter);
-        previousModelBrowserEscape = Keyboard.GetState().IsKeyDown(Keys.Escape);
+        previousModelBrowserEnter = physicalInput.ReadKeyboard().IsKeyDown(Keys.Enter);
+        previousModelBrowserEscape = physicalInput.ReadKeyboard().IsKeyDown(Keys.Escape);
         modelPreviewIdentity = null;
         try
         {
@@ -165,7 +165,7 @@ internal sealed partial class RecreateGame
             RefreshModelBrowserEntries();
         }
         ModelBrowserController browser = modelBrowser;
-        KeyboardState keys = windowModeHotkey.Filter(Keyboard.GetState());
+        KeyboardState keys = windowModeHotkey.Filter(physicalInput.ReadKeyboard());
         bool enter = IsActive && keys.IsKeyDown(Keys.Enter);
         bool escape = IsActive && keys.IsKeyDown(Keys.Escape);
         if (modelBrowserDialogInputDrain)
@@ -173,7 +173,7 @@ internal sealed partial class RecreateGame
             previousModelBrowserEnter = enter;
             previousModelBrowserEscape = escape;
             previousModelBrowserButtons = keyboard.HeldControlButtons;
-            previousModelBrowserMouse = Mouse.GetState().LeftButton == ButtonState.Pressed;
+            previousModelBrowserMouse = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
             modelBrowserDialogInputDrain = enter || escape || keyboard.HeldControlButtons != 0 || previousModelBrowserMouse;
             return true;
         }
@@ -232,7 +232,7 @@ internal sealed partial class RecreateGame
         {
             browser.StepModel((pressed & 2) != 0 ? 1 : -1);
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         int wheel = mouse.ScrollWheelValue - previousModelBrowserWheel;
         previousModelBrowserWheel = mouse.ScrollWheelValue;
         if (IsActive && wheel != 0)

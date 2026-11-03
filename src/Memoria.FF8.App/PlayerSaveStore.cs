@@ -39,13 +39,13 @@ internal sealed partial class PlayerSaveStore
     private readonly Dictionary<string, CachedSaveEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int quickSaveCount = DefaultQuickSaveCount;
 
-    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null)
+    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null, bool discoverOriginalSaves = true)
     {
         this.directory = Path.GetFullPath(directory ?? DefaultDirectory);
         this.researchCheckpoint = Path.GetFullPath(researchCheckpoint);
         this.locationName = locationName;
         this.loadOriginal = loadOriginal;
-        OriginalDirectoryCandidates = OriginalSaveLocation.FindCandidates();
+        OriginalDirectoryCandidates = discoverOriginalSaves ? OriginalSaveLocation.FindCandidates() : [];
         OriginalDirectory = originalDirectory is not null ? OriginalSaveLocation.ValidateDirectory(originalDirectory) : OriginalDirectoryCandidates.Count == 1 ? OriginalDirectoryCandidates[0] : null;
     }
 

@@ -29,7 +29,7 @@ internal sealed partial class RecreateGame
         sceneInspector = new SceneInspectorController(ReadSceneInspectorSnapshot, command => world!.ApplySceneInspection(command), CloseSceneInspector);
         sceneInspector.LocalizeText = LocalizeUiText;
         sceneInspector.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         previousSceneInspectorMouse = mouse.LeftButton == ButtonState.Pressed;
         previousSceneInspectorWheel = mouse.ScrollWheelValue;
         SynchronizeUiMoviePause();
@@ -66,7 +66,7 @@ internal sealed partial class RecreateGame
         NavigateBattleView(sceneInspector.Navigate, input);
         if (sceneInspector is not null)
         {
-            MouseState mouse = Mouse.GetState();
+            MouseState mouse = physicalInput.ReadMouse();
             int wheel = mouse.ScrollWheelValue - previousSceneInspectorWheel;
             previousSceneInspectorWheel = mouse.ScrollWheelValue;
             if (IsActive && wheel != 0)

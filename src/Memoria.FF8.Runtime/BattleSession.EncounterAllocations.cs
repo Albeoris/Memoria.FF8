@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Encounter allocation cannot overlap another native model allocation.");
         }
-        int[] slots = Enumerable.Range(3, 4).Where(index => !combatants.Any(actor => actor.NativeIndex == index && actor.IsActive)).Take(roles.Length).ToArray();
+        int[] slots = Enumerable.Range(3, 4).Where(index => !combatants.Any(actor => actor.NativeIndex == index && actor.IsActive) && !IsEncounterRetirementPending(index)).Take(roles.Length).ToArray();
         if (slots.Length != roles.Length)
         {
             throw new InvalidOperationException($"Encounter allocation requires {roles.Length} free enemy slots; only {slots.Length} are available within physical slots 3–6.");
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         {
             int generation = checked(nativeAllocations.Count + index + 1);
             string id = $"native-allocation-{generation}";
-            BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(source, id);
+            BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(source, id, roles[index]);
             prepared.Add(new(id, sceneSlot, generation) { ResolvedDefinition = resolved, EncounterBatchId = batchId, EncounterRole = roles[index] });
         }
         encounterAllocationRollback = rollback;
@@ -103,19 +103,21 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleCombatantDefinition CreateEncounterCopyDefinition(BattleCombatant source, string id)
+    private BattleCombatantDefinition CreateEncounterCopyDefinition(BattleCombatant source, string id, string role)
     {
         BattleCombatantDefinition resolved = GetCombatantDefinition(source.Id);
         NativeBattleEnemyTemplate template = resolved.NativeTemplate!;
-        NativeBattleStatusAllocation freshStatuses = new(0, 0, template.NativeStatusAllocation?.Resistances ?? resolved.NativeStatusResistances.ToImmutableArray());
+        NativeBattleStatusAllocation freshStatuses = template.NativeStatusAllocation ?? new(0, 0, resolved.NativeStatusResistances.ToImmutableArray());
         NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, []) : null;
+        double maximumHpMultiplier = definition.EncounterMod is { } mod && mod.Templates.ContainsKey(role) ? mod.ActorProperties.GetValueOrDefault(role + "/stats.maximumHpMultiplier", 1) : 1;
+        int maximumHp = EncounterActorProperties.ScaleMaximumHp(source.MaximumHp, maximumHpMultiplier);
         return resolved with
         {
             Id = id,
             Level = source.Level,
-            MaximumHp = source.MaximumHp,
+            MaximumHp = maximumHp,
             MaximumHpMultiplier = 1,
-            CurrentHp = source.MaximumHp,
+            CurrentHp = maximumHp,
             InitialAtb = 0,
             InitialActive = false,
             InitialHidden = true,
@@ -131,8 +133,8 @@ public sealed partial class BattleSession
             NativeKillCount = 0,
             NativeDeathCount = 0,
             NativeCombatantFlags = resolved.NativeCombatantFlags & ~0xE3u,
-            NativeStatus0 = 0,
-            NativeStatus1 = 0,
+            NativeStatus0 = freshStatuses.Saved,
+            NativeStatus1 = freshStatuses.Battle,
             NativeRetainedStatusBits = 0,
             StatusEffects = []
         };
@@ -141,7 +143,8 @@ public sealed partial class BattleSession
     private static void ValidateEncounterAllocationDefinition(NativeBattleEnemyAllocation allocation, BattleCombatantDefinition resolved, BattleCombatantDefinition prototype)
     {
         bool hasLifecycleAi = resolved.NativeAi is { } ai && (ai.Scripts.Length != 5 || ai.Scripts.Any(script => script is not { Length: 1 } || script[0] != 0) || ai.Texts.Length != 0 || ai.NameBuffers.Length != 0 || ai.DisplayNames.Length != 0 || !ai.SequenceTracks.IsEmpty || ai.Abilities.Length != 48);
-        if (string.IsNullOrWhiteSpace(allocation.EncounterBatchId) || string.IsNullOrWhiteSpace(allocation.EncounterRole) || resolved.Id != allocation.Id || resolved.IsPlayer || resolved.SceneSlot != allocation.SceneSlot || resolved.ModelId != prototype.ModelId || resolved.NativeTemplate is null || hasLifecycleAi || resolved.Rewards is not null || resolved.RewardSlot is not null || resolved.NativeMug is not null || resolved.NativeTemplate.NativeMug is not null || resolved.MaximumHp <= 0 || resolved.CurrentHp != resolved.MaximumHp || resolved.Level is < 0 or > 100 || resolved.InitialActive || !resolved.InitialHidden || !resolved.InitialUntargetable || !resolved.InitialSuspended || resolved.InitialAtb != 0 || resolved.NativeStatus0 != 0 || resolved.NativeStatus1 != 0 || resolved.StatusEffects.Length != 0)
+        NativeBattleStatusAllocation? innate = resolved.NativeTemplate?.NativeStatusAllocation;
+        if (string.IsNullOrWhiteSpace(allocation.EncounterBatchId) || string.IsNullOrWhiteSpace(allocation.EncounterRole) || resolved.Id != allocation.Id || resolved.IsPlayer || resolved.SceneSlot != allocation.SceneSlot || resolved.ModelId != prototype.ModelId || resolved.NativeTemplate is null || hasLifecycleAi || resolved.Rewards is not null || resolved.RewardSlot is not null || resolved.NativeMug is not null || resolved.NativeTemplate.NativeMug is not null || (resolved.NativeCombatantFlags & 0x20) != 0 || (resolved.NativeTemplate.NativeCombatantFlags & 0x20) != 0 || resolved.MaximumHp <= 0 || resolved.CurrentHp != resolved.MaximumHp || resolved.MaximumHpMultiplier != 1 || resolved.Level is < 0 or > 100 || resolved.InitialActive || !resolved.InitialHidden || !resolved.InitialUntargetable || !resolved.InitialSuspended || resolved.InitialAtb != 0 || resolved.NativeStatus0 != (innate?.Saved ?? 0) || resolved.NativeStatus1 != (innate?.Battle ?? 0) || resolved.StatusEffects.Length != 0)
         {
             throw new InvalidDataException("Encounter allocation snapshot has incompatible resolved statistics, identity or lifecycle ownership.");
         }
@@ -307,5 +310,6 @@ public sealed partial class BattleSession
         }
         encounterAllocation = state;
         encounterAllocationRollback = null;
+        ValidateEncounterRetirements();
     }
 }

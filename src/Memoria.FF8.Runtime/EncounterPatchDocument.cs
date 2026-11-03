@@ -37,6 +37,7 @@ public sealed record EncounterPatchAction
     public required string Kind { get; init; }
     public string? Spell { get; init; }
     public ImmutableArray<string> Spells { get; init; } = [];
+    public ImmutableDictionary<string, int> SpellWeights { get; init; } = ImmutableDictionary<string, int>.Empty;
     public JsonElement Target { get; init; }
     public string? TargetPolicy { get; init; }
     public string? Selection { get; init; }
@@ -153,6 +154,10 @@ public sealed record EncounterPatchDocument
                 {
                     property.ShouldSerialize = (_, value) => value is ImmutableArray<EncounterPatchSpawn> array && !array.IsDefaultOrEmpty;
                 }
+                else if (property.PropertyType == typeof(ImmutableDictionary<string, int>))
+                {
+                    property.ShouldSerialize = (_, value) => value is ImmutableDictionary<string, int> values && !values.IsEmpty;
+                }
             }
         });
         return resolver;
@@ -167,7 +172,7 @@ public sealed record EncounterPatchDocument
         {
             using JsonDocument raw = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 48 });
             RejectDuplicateProperties(raw.RootElement, "$");
-            EncounterPatchDocument document = JsonSerializer.Deserialize<EncounterPatchDocument>(json, JsonOptions) ?? throw new InvalidDataException("Encounter payload must be an object.");
+            EncounterPatchDocument document = (JsonSerializer.Deserialize<EncounterPatchDocument>(json, JsonOptions) ?? throw new InvalidDataException("Encounter payload must be an object.")).NormalizeAliases();
             document.Validate();
             int operationIndex = 0;
             foreach (JsonElement rawOperation in raw.RootElement.GetProperty("operations").EnumerateArray())
@@ -203,20 +208,109 @@ public sealed record EncounterPatchDocument
             Require(float.IsFinite(placement.X) && float.IsFinite(placement.Y) && float.IsFinite(placement.Z) && Math.Abs(placement.X) <= 100000 && Math.Abs(placement.Y) <= 100000 && Math.Abs(placement.Z) <= 100000, "Placement coordinates must be finite and bounded.");
         }
         ids.Clear();
-        foreach (EncounterPatchOperation operation in Operations)
+        foreach (EncounterPatchOperation original in Operations)
         {
-            Require(operation is not null, "Null operation.");
+            Require(original is not null, "Null operation.");
+            EncounterPatchOperation operation = original;
             Identity(operation.Id, "operation");
             Require(ids.Add(operation.Id), "Duplicate operation ID: " + operation.Id);
             try
             {
+                operation = NormalizeOperation(original);
                 ValidateOperation(operation);
             }
-            catch (InvalidDataException error)
+            catch (Exception error) when (error is InvalidDataException or JsonException)
             {
                 throw new InvalidDataException($"Document '{DocumentId}', operation '{operation.Id}': {error.Message}", error);
             }
         }
+    }
+
+    internal EncounterPatchDocument NormalizeAliases()
+    {
+        Require(!Operations.IsDefault && Operations.Length <= 1024, "operations must be a bounded array.");
+        ImmutableArray<EncounterPatchOperation>.Builder operations = ImmutableArray.CreateBuilder<EncounterPatchOperation>(Operations.Length);
+        foreach (EncounterPatchOperation operation in Operations)
+        {
+            Require(operation is not null, "Null encounter operation.");
+            try
+            {
+                operations.Add(NormalizeOperation(operation));
+            }
+            catch (Exception error) when (error is InvalidDataException or JsonException)
+            {
+                throw new InvalidDataException($"Document '{DocumentId}', operation '{operation.Id}': {error.Message}", error);
+            }
+        }
+        return this with { Operations = operations.MoveToImmutable() };
+    }
+
+    private static string CanonicalSpell(string name) => name switch
+    {
+        "Blizaga" => "Blizzaga",
+        "Darkness" => "Blind",
+        "Reflection" => "Reflect",
+        _ => name
+    };
+
+    private static EncounterPatchOperation NormalizeOperation(EncounterPatchOperation operation)
+    {
+        string? property = operation.Property;
+        const string weightPrefix = "action.spellWeights.";
+        if (property?.StartsWith(weightPrefix, StringComparison.Ordinal) == true)
+        {
+            property = weightPrefix + CanonicalSpell(property[weightPrefix.Length..]);
+        }
+        JsonElement NormalizeValue(JsonElement value)
+        {
+            if (property == "action.spell" && value.ValueKind == JsonValueKind.String)
+            {
+                return JsonSerializer.SerializeToElement(CanonicalSpell(value.GetString()!));
+            }
+            if (property == "action.spells" && value.ValueKind == JsonValueKind.Array && value.EnumerateArray().All(entry => entry.ValueKind == JsonValueKind.String))
+            {
+                return JsonSerializer.SerializeToElement(value.EnumerateArray().Select(entry => CanonicalSpell(entry.GetString()!)).ToArray());
+            }
+            if (operation.Kind == EncounterPatchOperationKind.RemoveRule && value.ValueKind == JsonValueKind.Object)
+            {
+                EncounterPatchRule rule = value.Deserialize<EncounterPatchRule>(JsonOptions) ?? throw new InvalidDataException("Rule removal requires its full expected definition.");
+                return JsonSerializer.SerializeToElement(NormalizeRule(rule), JsonOptions);
+            }
+            return value;
+        }
+        return operation with
+        {
+            Property = property,
+            ExpectedValue = NormalizeValue(operation.ExpectedValue),
+            Value = NormalizeValue(operation.Value),
+            Rules = operation.Rules.IsDefault ? operation.Rules : operation.Rules.Select(NormalizeRule).ToImmutableArray(),
+            RuleDefinition = operation.RuleDefinition is null ? null : NormalizeRule(operation.RuleDefinition)
+        };
+    }
+
+    private static EncounterPatchRule NormalizeRule(EncounterPatchRule rule)
+    {
+        Require(rule is not null && rule.Action is not null, "Null rule or action.");
+        return rule with { Action = NormalizeAction(rule.Action) };
+    }
+
+    private static EncounterPatchAction NormalizeAction(EncounterPatchAction action)
+    {
+        Require(action is not null, "Null action.");
+        ImmutableDictionary<string, int>.Builder weights = ImmutableDictionary.CreateBuilder<string, int>(StringComparer.Ordinal);
+        Require(action.SpellWeights is not null, "Spell weights cannot be null.");
+        foreach ((string spell, int weight) in action.SpellWeights)
+        {
+            string canonical = CanonicalSpell(spell);
+            Require(weights.TryAdd(canonical, weight), "Duplicate spell-weight identity after canonicalization: " + canonical);
+        }
+        return action with
+        {
+            Spell = action.Spell is null ? null : CanonicalSpell(action.Spell),
+            Spells = action.Spells.IsDefault ? action.Spells : action.Spells.Select(CanonicalSpell).ToImmutableArray(),
+            SpellWeights = weights.ToImmutable(),
+            ReflectionPolicy = action.ReflectionPolicy is { } reflection ? reflection with { WithoutReflectedAlly = NormalizeAction(reflection.WithoutReflectedAlly) } : null
+        };
     }
 
     private static string OperationFields(EncounterPatchOperationKind kind) => kind switch
@@ -285,8 +379,14 @@ public sealed record EncounterPatchDocument
             case EncounterPatchOperationKind.SetRuleProperty:
                 Identity(op.Policy, "policy");
                 Identity(op.Rule, "rule");
-                Require(op.Property is "action.spell" or "action.spells" or "when.ownTurn" or "when.ownTurnAtLeast" or "when.ownTurnAtMost" or "priority", "Unsupported rule property.");
+                bool spellWeight = op.Property?.StartsWith("action.spellWeights.", StringComparison.Ordinal) == true;
+                Require(spellWeight || op.Property is "action.spell" or "action.spells" or "when.ownTurn" or "when.ownTurnAtLeast" or "when.ownTurnAtMost" or "priority", "Unsupported rule property.");
                 Guard(op);
+                if (spellWeight)
+                {
+                    Spell(op.Property!["action.spellWeights.".Length..]);
+                    Require(op.ExpectedValue.ValueKind == JsonValueKind.Number && op.ExpectedValue.TryGetInt32(out int expectedWeight) && expectedWeight is >= 1 and <= 255 && op.Value.ValueKind == JsonValueKind.Number && op.Value.TryGetInt32(out int weight) && weight is >= 1 and <= 255, "Spell-weight edits require integer expectedValue/value between 1 and 255.");
+                }
                 break;
             case EncounterPatchOperationKind.RemoveRule:
                 Identity(op.Policy, "policy");
@@ -297,7 +397,7 @@ public sealed record EncounterPatchDocument
                 Identity(op.Actor, "actor");
                 Require(op.Property == "stats.maximumHpMultiplier", "Unsupported actor property.");
                 Guard(op);
-                Require(op.Value.TryGetDouble(out double multiplier) && double.IsFinite(multiplier) && multiplier is >= 0.01 and <= 100, "maximumHpMultiplier must be between 0.01 and 100.");
+                Require(op.Value.ValueKind == JsonValueKind.Number && op.Value.TryGetDouble(out double multiplier) && double.IsFinite(multiplier) && multiplier is >= 0.01 and <= 100, "maximumHpMultiplier must be between 0.01 and 100.");
                 break;
             case EncounterPatchOperationKind.SetNormalActionPolicy:
                 Identity(op.Actor, "actor");
@@ -368,10 +468,10 @@ public sealed record EncounterPatchDocument
 
     private static void ValidateAction(EncounterPatchAction action)
     {
-        Require(!action.Spells.IsDefault && !action.Actors.IsDefault, "Action arrays cannot be null/default.");
+        Require(!action.Spells.IsDefault && !action.Actors.IsDefault && action.SpellWeights is not null, "Action arrays/weights cannot be null/default.");
         if (action.Kind == "SummonGroup")
         {
-            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= 3 && action.Spell is null && action.Spells.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast and 1–3 templates.");
+            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= 3 && action.Spell is null && action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast and 1–3 templates.");
             foreach (EncounterPatchSpawn spawn in action.Actors)
             {
                 Require(spawn is not null, "Null spawn.");
@@ -386,7 +486,7 @@ public sealed record EncounterPatchDocument
         if (action.Kind == "Cast")
         {
             Spell(action.Spell);
-            Require(action.Spells.IsEmpty && action.Selection is null, "Cast cannot specify a pool.");
+            Require(action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Selection is null, "Cast cannot specify a pool or weights.");
         }
         else
         {
@@ -396,6 +496,7 @@ public sealed record EncounterPatchDocument
                 Spell(spell);
             }
             Require(action.Spell is null && action.Selection is null or "uniform", "Pool selection must be uniform.");
+            Require(action.SpellWeights.All(pair => action.Spells.Contains(pair.Key, StringComparer.Ordinal) && pair.Value is >= 1 and <= 255) && action.Spells.Sum(spell => action.SpellWeights.GetValueOrDefault(spell, 1)) <= 256, "spellWeights must name pool spells, use integer weights in 1–255, and total at most 256 including omitted defaults of 1.");
         }
         Require(action.Casts.ValueKind == JsonValueKind.Undefined || action.Casts.ValueKind == JsonValueKind.String && action.Casts.GetString() == "nativeDouble" || action.Casts.ValueKind == JsonValueKind.Number && action.Casts.TryGetInt32(out int casts) && casts == 1, "casts must be 1 or nativeDouble.");
         Require(action.TargetPolicy is null or "scanKnownWeakestElseRandom", "Unknown targetPolicy.");
@@ -473,10 +574,3 @@ public sealed record EncounterPatchDocument
         }
     }
 }
-
-
-
-
-
-
-

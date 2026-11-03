@@ -91,6 +91,7 @@ public sealed partial class BattleSession
         try
         {
             graphics = AdvanceNativeGraphicsRequests(graphics);
+            graphics = AdvanceEncounterAllocationRetirements(graphics);
             graphics = AdvanceEncounterPolicySpawn(graphics);
             flags = graphics.Flags;
             graphics = AdvanceNativeAuxiliary(graphics);
@@ -330,6 +331,7 @@ public sealed partial class BattleSession
                         {
                             actor.NativeCombatantFlags |= 0x40;
                             actor.NativeStatus0 |= 1;
+                            ObserveEncounterNativeTerminal(actor, checked((byte)cue.First), graphics);
                         }
                         else if (cue.Kind == NativeBattleSequenceCueKind.ActionCallback)
                         {

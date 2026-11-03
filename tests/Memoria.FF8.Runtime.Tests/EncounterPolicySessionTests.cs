@@ -42,7 +42,74 @@ public sealed class EncounterPolicySessionTests
         Assert.Single(restored.ScanKnowledge.Observations);
     }
 
-    private static BattleSession Create(bool doubleActive)
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 2)]
+    public void EnemyPolicyReflectionPreservesCasterMainTurnAndRepeatCountAcrossSnapshot(bool doubleActive, int casts)
+    {
+        BattleSession battle = Create(doubleActive, true);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "Reflect"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Reflect"));
+        Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == "enemy"));
+        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
+        Assert.Equal(casts * 2, battle.NativeActionPackets.ActionCount);
+        if (doubleActive)
+        {
+            Assert.Equal((byte)1, battle.NativeActionPackets.Headers[0].ReadByte(17));
+        }
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSession restored = BattleSession.Restore(snapshot);
+        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, restored.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+        Assert.Equal(1ul, restored.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
+        Assert.Empty(restored.Combatants.Single(actor => actor.Id == "enemy").MagicStocks);
+        restored.Tick();
+        Assert.Equal(casts, restored.Events.Count(entry => entry.Kind == "Reflect"));
+    }
+
+    [Fact]
+    public void EnemyReflectedFreeMagicPacketSurvivesTheSharedInventorySnapshotValidator()
+    {
+        BattleDefinition source = Create(false, true).ReadDefinition();
+        BattleDefinition definition = source with
+        {
+            EncounterMod = null,
+            Combatants = source.Combatants.Select(actor => actor.Id == "enemy" ? actor with { NativeAi = null, Abilities = [BattleAbility.Magic], MagicStocks = [new(1, 1)] } : actor).ToArray()
+        };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.QueueAction("enemy", "party", BattleAbility.Magic, 1);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "Reflect"); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Single(battle.Events, entry => entry.Kind == "Reflect");
+        Assert.True(battle.QueuedActions.Any(command => command.NativeQueuedCommand == 247 && command.FreeNativeMagic) || battle.ActiveAction is { NativeQueuedCommand: 247, FreeNativeMagic: true });
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSession restored = BattleSession.Restore(snapshot);
+        Assert.Single(restored.Events, entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == "enemy");
+        restored.Tick();
+        Assert.Single(restored.Events, entry => entry.Kind == "Reflect");
+    }
+    [Fact]
+    public void EnemyOrdinaryMagicCannotClaimThePlayerFreeMagicSnapshotFlag()
+    {
+        BattleSession battle = Create(false);
+        for (int frame = 0; frame < 40 && !battle.Events.Any(entry => entry.Kind == "EncounterPolicy"); frame++)
+        {
+            battle.Tick();
+        }
+        BattleSnapshot snapshot = battle.Capture();
+        Assert.True(snapshot.QueuedActions.Any(command => command.NativeQueuedCommand == 2) || snapshot.ActiveAction?.NativeQueuedCommand == 2);
+        BattleSnapshot invalid = snapshot with
+        {
+            QueuedActions = snapshot.QueuedActions.Select(command => command.NativeQueuedCommand == 2 ? command with { FreeNativeMagic = true } : command).ToArray(),
+            ActiveAction = snapshot.ActiveAction?.NativeQueuedCommand == 2 ? snapshot.ActiveAction with { FreeNativeMagic = true } : snapshot.ActiveAction
+        };
+        Assert.Contains("free magic", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(invalid)).Message);
+    }
+    private static BattleSession Create(bool doubleActive, bool reflect = false)
     {
         BattleNativeAction scan = new(2, 50, 1, 50)
         {
@@ -65,27 +132,32 @@ public sealed class EncounterPolicySessionTests
             RawRecord = [0],
             SupplementalRecord = []
         };
+        if (reflect)
+        {
+            scan = scan with { ActionId = 1, KernelIndex = 1, AttackType = 2, Power = 10, AttackFlags = 0x11 };
+        }
         NativeBattleAiDefinition ai = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(2, 0, 50), 48).ToArray(), 0, []);
         BattleDefinition definition = new()
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
-            NativeActions = [scan],
-            ActionDefinitions = [new(BattleAbility.Magic, 50, "Scan", BattleActionEffect.Native, 0, false) { NativeAction = scan }],
+            NativeActions = reflect ? [scan, scan with { Command = 247 }] : [scan],
+            ActionDefinitions = [new(BattleAbility.Magic, scan.ActionId, reflect ? "Fire" : "Scan", BattleActionEffect.Native, 0, false) { NativeAction = scan }],
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, ElementDefenses = [700, 800, 850, 900, 1000, 800, 800, 800] },
-                new() { Id = "enemy", Name = "Enemy", ModelId = 88, NativeAi = ai, NativeCombatantFlags = 0x11, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = doubleActive ? 0x20000u : 0 }
+                new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, NativeStatus1 = reflect ? 0x80u : 0, ElementDefenses = [700, 800, 850, 900, 1000, 800, 800, 800] },
+                new() { Id = "enemy", Name = "Enemy", ModelId = 88, MaximumHp = 1000, CurrentHp = 1000, NativeAi = ai, NativeCombatantFlags = 0x11, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = doubleActive ? 0x20000u : 0 }
             ]
         };
         const string json = """
-            {"schemaVersion":1,"documentId":"mod","encounter":"ff8.disc1.edea","atomic":true,"operations":[
+            {"schemaVersion":1,"documentId":"mod","encounter":"fixture.encounter","atomic":true,"operations":[
               {"id":"policy","kind":"AddActionPolicy","policy":"policy","rules":[{"id":"scan","when":{"ownTurnAtLeast":1},"action":{"kind":"Cast","spell":"Scan","target":"randomOpponent","casts":"nativeDouble"}}]},
               {"id":"assign","kind":"SetNormalActionPolicy","actor":"original","expectedOwner":"nativeNormalAction","policy":"policy","preserveNativeLifecycle":true}
             ]}
             """;
-        EncounterPatchComposition composition = EncounterPatchComposer.Compose(new("ff8.disc1.edea", "Classic", ["original"]), [new("package", "gameplay/encounters/test.json", EncounterPatchDocument.Parse(json))]);
-        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("ff8.disc1.edea", "enemy", 11, 11, [8, 9, 10], true));
+        string payload = reflect ? json.Replace("\"Scan\"", "\"Fire\"", StringComparison.Ordinal) : json;
+        EncounterPatchComposition composition = EncounterPatchComposer.Compose(new("fixture.encounter", "Classic", ["original"]), [new("package", "gameplay/encounters/test.json", EncounterPatchDocument.Parse(payload))]);
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("fixture.encounter", "enemy", 11, 11, [8, 9, 10], true));
         return new(definition with { EncounterMod = compiled }, BattleAtbMode.Normal);
     }
 }

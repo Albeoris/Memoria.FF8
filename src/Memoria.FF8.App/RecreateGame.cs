@@ -19,6 +19,7 @@ internal sealed partial class RecreateGame : Game
     private readonly GraphicsDeviceManager graphics;
     private GraphicsHostReadiness? graphicsReadiness;
     private KeyboardInput keyboard = new();
+    private readonly HostPhysicalInput physicalInput;
     private ControllerDevice? controller;
     private ControllerFeedback? controllerFeedback;
     private bool capturingControls;
@@ -71,17 +72,18 @@ internal sealed partial class RecreateGame : Game
     public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false)
     {
         this.options = options;
+        physicalInput = new(options.AcceptsPhysicalInput, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
         achievementToolSession = !playerSession || options.IsAchievementToolSession;
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
-        playerSaves = new PlayerSaveStore(options.SavePath, directory: !options.IsDiagnosticGraphicalHost ? null : Path.Combine(globalSettings.DirectoryPath, "player-saves"), locationName: state =>
+        playerSaves = new PlayerSaveStore(options.SavePath, directory: options.IsolatedPlayerSaveDirectory, locationName: state =>
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
-        }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
+        }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -113,7 +115,7 @@ internal sealed partial class RecreateGame : Game
         resourceHost.ConnectEncounterMods();
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();
-        controllerFeedback = new ControllerFeedback(controller.SetVibration);
+        controllerFeedback = options.AcceptsPhysicalInput ? new ControllerFeedback(controller.SetVibration) : null;
         batch = GraphicsHostReadiness.Initialize(() => new SpriteBatch(GraphicsDevice));
         text = new SystemTextRenderer(GraphicsDevice);
         pixel = GraphicsHostReadiness.Initialize(() => new Texture2D(GraphicsDevice, 1, 1));
@@ -225,7 +227,7 @@ internal sealed partial class RecreateGame : Game
         long updateStarted = Stopwatch.GetTimestamp();
         SynchronizeMenuPresentation();
         ControllerDevice inputController = controller ?? throw new InvalidOperationException("The graphical host requires its initialized input device.");
-        GamePadState pad = !options.IsDiagnosticGraphicalHost ? inputController.Read() : default;
+        GamePadState pad = physicalInput.ReadController();
         if (gameMenus is not null)
         {
             gameMenus.NamingControllerConnected = pad.IsConnected;
@@ -234,7 +236,7 @@ internal sealed partial class RecreateGame : Game
         {
             SynchronizeNativeNamePrompt();
         }
-        KeyboardState keys = !options.IsDiagnosticGraphicalHost ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        KeyboardState keys = physicalInput.ReadKeyboard();
         keys = windowModeHotkey.Filter(keys);
         keyboard.ControllerPresentation = inputController.Presentation;
         keyboard.ControllerGeneration = inputController.Generation;
@@ -643,6 +645,10 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        if (!physicalInput.Enabled)
+        {
+            return;
+        }
         if (IsActive && localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard)
         {
             if (!char.IsControl(args.Character))

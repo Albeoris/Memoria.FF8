@@ -232,7 +232,7 @@ internal sealed partial class RecreateGame
                 return;
             }
             localizationWorkbench.Enabled = true;
-            authoringKeyboard.Reset(Keyboard.GetState());
+            authoringKeyboard.Reset(physicalInput.ReadKeyboard());
             LocalizationTextTrace.Enabled = true;
             gameMenus!.InvalidateLiveData();
             gameMenus.Close();
@@ -482,7 +482,7 @@ internal sealed partial class RecreateGame
                 if (authoringSelectionEnableWhenReady)
                 {
                     localizationWorkbench.Enabled = true;
-                    authoringKeyboard.Reset(Keyboard.GetState());
+                    authoringKeyboard.Reset(physicalInput.ReadKeyboard());
                     LocalizationTextTrace.Enabled = true;
                     gameMenus?.Close();
                 }
@@ -660,7 +660,7 @@ internal sealed partial class RecreateGame
                 observedAuthoringOccurrenceIds.Remove(channel);
             }
         }
-        KeyboardState keys = Keyboard.GetState();
+        KeyboardState keys = physicalInput.ReadKeyboard();
         if (authoringRebinding is not null)
         {
             Keys[] capturedKeys = keys.GetPressedKeys().Where(key => key is not (Keys.LeftControl or Keys.RightControl or Keys.LeftShift or Keys.RightShift or Keys.LeftAlt or Keys.RightAlt)).ToArray();
@@ -728,7 +728,7 @@ internal sealed partial class RecreateGame
                 localizationWorkbench.HandleCommand(command.Command, command.Shift, command.Control);
             }
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool clicked = pressed && !authoringPreviousMouse;
         bool released = !pressed && authoringPreviousMouse;
@@ -947,7 +947,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         if (localizationWorkbench.PickText && !localizationWorkbench.IsEditing && authoringHits.LastOrDefault(hit => hit.Bounds.Contains(mouse.X, mouse.Y)) is { } hovered)
         {
             uiCanvas.Fill(hovered.Bounds, new UiColor(255, 200, 220, 35));

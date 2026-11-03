@@ -124,9 +124,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved item reservation does not identify its physical inventory slot and item command.");
         }
-        if (freeMagic && (!actor.IsPlayer || ability != BattleAbility.Magic && native?.Command != 2))
+        bool reflectedMagic = ability == BattleAbility.Magic && native?.Command == 247;
+        if (freeMagic && !reflectedMagic && (!actor.IsPlayer || ability != BattleAbility.Magic && native?.Command != 2))
         {
-            throw new InvalidDataException("Saved free magic does not belong to a player's compelled spell command.");
+            throw new InvalidDataException("Saved free magic requires a player compelled spell or a native reflected spell command.");
         }
     }
 }

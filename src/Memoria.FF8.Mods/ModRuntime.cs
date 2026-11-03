@@ -197,7 +197,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
             try
             {
                 ValidatePreferenceTarget(package);
-                ModConfiguration.WriteBoolean(ConfigurationPath(package.RootDirectory, package.Format), "enabled", enabled);
+                string preferencePath = PreferencePath(package);
+                ValidatePreferencePath(preferencePath);
+                ModConfiguration.WriteBoolean(preferencePath, "enabled", enabled);
                 installedPackages = Array.AsReadOnly(installedPackages.Select(item => item.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase) ? item with { ExplicitEnabled = enabled, RequestedEnabled = enabled } : item).ToArray());
                 RequestRefreshCore(DateTime.MinValue);
                 return ModOperationResult.Completed;
@@ -222,9 +224,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     foreach (ModPackage package in installedPackages)
                     {
-                        string path = ConfigurationPath(package.RootDirectory, package.Format);
-                        if (ModConfiguration.ReadBoolean(path, "enabled") is null)
+                        string path = PreferencePath(package);
+                        if (ReadPackageEnabled(package) is null)
                         {
+                            ValidatePreferencePath(path);
                             backups.Add((path, File.Exists(path) ? File.ReadAllBytes(path) : null));
                             ModConfiguration.WriteBoolean(path, "enabled", true);
                         }
@@ -589,6 +592,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     continue;
                 }
                 bool? explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
+                if (explicitEnabled is null && bundledRoot is not null && !root.Equals(bundledRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(bundledRoot, "mod.ini"), "enabled");
+                }
                 int priority = 0;
                 if (format is ModFormat.Tonberry or ModFormat.Demaster)
                 {
@@ -866,13 +873,51 @@ public sealed partial class ModRuntime : IModService, IDisposable
             autoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
             installedPackages = Array.AsReadOnly(installedPackages.Select(package =>
             {
-                bool? enabled = ModConfiguration.ReadBoolean(ConfigurationPath(package.RootDirectory, package.Format), "enabled");
+                bool? enabled = ReadPackageEnabled(package);
                 return package with { ExplicitEnabled = enabled, RequestedEnabled = enabled ?? autoEnable };
             }).ToArray());
         }
         catch (Exception exception) when (IsFileError(exception))
         {
             errors?.Add(new("configuration-read-failed", exception.Message));
+        }
+    }
+
+    private string PreferencePath(ModPackage package)
+    {
+        string root = package.Format == ModFormat.Memoria && IsWithin(bundledModsRoot, package.RootDirectory) ? Path.Combine(modsRoot, nameof(ModFormat.Memoria), Path.GetFileName(package.RootDirectory)) : package.RootDirectory;
+        return ConfigurationPath(root, package.Format);
+    }
+
+    private bool? ReadPackageEnabled(ModPackage package)
+    {
+        bool? enabled = ModConfiguration.ReadBoolean(PreferencePath(package), "enabled");
+        if (enabled is null && package.Format == ModFormat.Memoria)
+        {
+            string bundled = Path.Combine(bundledModsRoot, nameof(ModFormat.Memoria), Path.GetFileName(package.RootDirectory), "mod.ini");
+            enabled = ModConfiguration.ReadBoolean(bundled, "enabled");
+        }
+        return enabled;
+    }
+
+    private void ValidatePreferencePath(string path)
+    {
+        if (!IsWithin(modsRoot, path))
+        {
+            return;
+        }
+        if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException("Mod preference files must not be symbolic links.");
+        }
+        DirectoryInfo? directory = Directory.GetParent(path);
+        while (directory is not null && (IsWithin(modsRoot, directory.FullName) || directory.FullName.Equals(modsRoot, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("Mod preference directories must not be symbolic links.");
+            }
+            directory = directory.Parent;
         }
     }
 

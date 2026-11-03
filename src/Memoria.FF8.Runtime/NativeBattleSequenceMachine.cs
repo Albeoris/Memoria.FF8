@@ -256,7 +256,7 @@ public static class NativeBattleSequenceMachine
                         model = model with { Flags2 = (ushort)(RequireFlags2() | 1) };
                         break;
                     case 0x9D:
-                        cues.Add(new(NativeBattleSequenceCueKind.SuspendParticipant));
+                        cues.Add(new(NativeBattleSequenceCueKind.SuspendParticipant, executingSequence));
                         break;
                     case 0x9E:
                     case 0xAD:

@@ -22,7 +22,7 @@ public enum EncounterCompiledTargetKind
     ScanKnownWeakestElseRandom
 }
 
-public sealed record EncounterCompiledSpell(string CanonicalName, BattleNativeAction NativeAction, int ElementIndex, bool Reflectable, bool NativeAllTargets);
+public sealed record EncounterCompiledSpell(string CanonicalName, BattleNativeAction NativeAction, int ElementIndex, bool Reflectable, bool NativeAllTargets, int Weight = 1);
 public sealed record EncounterCompiledSpawn(string Template, string Anchor);
 public sealed record EncounterCompiledAction(EncounterCompiledActionKind Kind, ImmutableArray<EncounterCompiledSpell> Spells, EncounterCompiledTargetKind Target, string? Group, bool NativeDouble, bool AvoidReflect, EncounterCompiledSpell? Dispel, ImmutableArray<EncounterCompiledSpawn> Spawns);
 public sealed record EncounterCompiledRule(string Id, ulong MinimumOwnTurn, ulong MaximumOwnTurn, int Priority, EncounterCompiledAction Action);
@@ -59,7 +59,12 @@ public sealed record EncounterCompiledDefinition(
     ImmutableDictionary<string, EncounterCompiledDamageRoute> DamageRoutes,
     ImmutableDictionary<string, EncounterCompiledEventGate> EventGates,
     ImmutableDictionary<string, EncounterCompiledPlacement> Placements,
-    ImmutableDictionary<string, double> ActorProperties);
+    ImmutableDictionary<string, double> ActorProperties,
+    EncounterNativeEventResources? NativeEvents = null)
+{
+    public ImmutableArray<EncounterPatchOrigin> Origins { get; init; } = [];
+    public ImmutableArray<EncounterPatchOutcome> Outcomes { get; init; } = [];
+}
 
 /// <summary>Only observable candidate state is passed to policy selection; concealed defense values are absent.</summary>
 public sealed record EncounterPolicyActor(string AllocationId, string RoleId, bool IsPlayer, bool Living, bool Active, bool Reflect, bool Targetable = true);
@@ -118,7 +123,8 @@ public static class EncounterPolicyRuntime
             {
                 try
                 {
-                    EncounterCompiledAction action = CompileAction(document, rule.Action);
+                    string ruleDocument = composition.Origins.FirstOrDefault(origin => origin.Target == id + "/" + rule.Id && origin.Property == nameof(EncounterPatchOperationKind.AddRule))?.DocumentId ?? document;
+                    EncounterCompiledAction action = CompileAction(ruleDocument, rule.Action);
                     ulong minimum = (ulong)(rule.When.OwnTurn ?? rule.When.OwnTurnAtLeast ?? 1);
                     ulong maximum = rule.When.OwnTurn is int exact ? (ulong)exact : rule.When.OwnTurnAtMost is int end ? (ulong)end : ulong.MaxValue;
                     rules.Add(new(rule.Id, minimum, maximum, rule.Priority ?? 0, action));
@@ -136,7 +142,11 @@ public static class EncounterPolicyRuntime
             composition.Presentations.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledPresentation(pair.Key, pair.Value.Clip!, pair.Value.StartFrame!.Value, pair.Value.EndFrame!.Value, pair.Value.Opacity!.From, pair.Value.Opacity.To), StringComparer.Ordinal),
             composition.DamageRoutes.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledDamageRoute(pair.Key, Role(DocumentOf(pair.Key), pair.Value.SourceActor!), pair.Value.Recipients.Select(recipient => Role(DocumentOf(pair.Key), recipient)).ToImmutableArray()), StringComparer.Ordinal),
             composition.EventGates.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledEventGate(Role(DocumentOf(pair.Key), pair.Value.Actor!), pair.Value.Event!, (ulong)pair.Value.OwnTurnAtLeast!.Value), StringComparer.Ordinal),
-            composition.Placements.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledPlacement(pair.Key, pair.Value.X, pair.Value.Y, pair.Value.Z), StringComparer.Ordinal), composition.ActorProperties);
+            composition.Placements.ToImmutableDictionary(pair => pair.Key, pair => new EncounterCompiledPlacement(pair.Key, pair.Value.X, pair.Value.Y, pair.Value.Z), StringComparer.Ordinal), composition.ActorProperties)
+        {
+            Origins = composition.Origins,
+            Outcomes = composition.Outcomes
+        };
 
         EncounterCompiledAction CompileAction(string document, EncounterPatchAction source)
         {
@@ -144,13 +154,13 @@ public static class EncounterPolicyRuntime
             {
                 return new(EncounterCompiledActionKind.SummonGroup, [], EncounterCompiledTargetKind.Self, null, false, false, null, source.Actors.Select(spawn => new EncounterCompiledSpawn(Scope(document, spawn.Template), Scope(document, spawn.Anchor))).ToImmutableArray());
             }
-            ImmutableArray<EncounterCompiledSpell> spells = source.Kind == "Cast" ? [CompileSpell(source.Spell!)] : source.Spells.Select(CompileSpell).OrderBy(spell => spell.CanonicalName, StringComparer.Ordinal).ToImmutableArray();
+            ImmutableArray<EncounterCompiledSpell> spells = source.Kind == "Cast" ? [CompileSpell(source.Spell!)] : source.Spells.Select(name => CompileSpell(name) with { Weight = source.SpellWeights.GetValueOrDefault(name, 1) }).OrderBy(spell => spell.CanonicalName, StringComparer.Ordinal).ToImmutableArray();
             EncounterCompiledTargetKind target;
             string? group = null;
             if (source.TargetPolicy == "scanKnownWeakestElseRandom")
             {
                 target = EncounterCompiledTargetKind.ScanKnownWeakestElseRandom;
-                EncounterPatchDocument.Require(spells.All(spell => spell.ElementIndex >= 0), "Scan-aware selection requires single-element native spells.");
+                EncounterPatchDocument.Require(spells.All(spell => spell.ElementIndex >= 0 && !spell.NativeAllTargets), "Scan-aware pair selection requires single-element native spells with single-target cardinality; retain nativeOpponentTargeting for native all-target spells.");
             }
             else if (source.Target.ValueKind == JsonValueKind.Object)
             {
@@ -191,7 +201,7 @@ public static class EncounterPolicyRuntime
             return new(name, native, element, reflectable, all);
         }
 
-        string Role(string document, string id) => id == "original" || definition.Combatants.Any(actor => actor.Id == id) ? id : Scope(document, id);
+        string Role(string document, string id) => composition.ActorTemplates.ContainsKey(Scope(document, id)) ? Scope(document, id) : id;
     }
 
     public static EncounterPolicyDecision? Select(EncounterCompiledDefinition definition, string policyId, EncounterActionCursor cursor, string casterId, ImmutableArray<EncounterPolicyActor> actors, BattleScanKnowledge knowledge, Func<int, int> nextIndex)
@@ -226,7 +236,7 @@ public static class EncounterPolicyRuntime
         EncounterOffensiveDelivery delivery = EncounterOffensiveDelivery.Direct;
         if (action.Target == EncounterCompiledTargetKind.ScanKnownWeakestElseRandom)
         {
-            EncounterOffensiveChoice? choice = EncounterActionSelection.Select(action.Spells.Select(candidate => new EncounterSpellChoice(candidate.CanonicalName, candidate.ElementIndex, candidate.Reflectable)).ToImmutableArray(), opponents.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), allies.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), knowledge, caster.IsPlayer ? BattleObserverSide.Party : BattleObserverSide.Enemy, action.AvoidReflect, nextIndex);
+            EncounterOffensiveChoice? choice = EncounterActionSelection.Select(action.Spells.Select(candidate => new EncounterSpellChoice(candidate.CanonicalName, candidate.ElementIndex, candidate.Reflectable, candidate.Weight)).ToImmutableArray(), opponents.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), allies.Select(actor => new EncounterTargetChoice(actor.AllocationId, actor.Reflect)), knowledge, caster.IsPlayer ? BattleObserverSide.Party : BattleObserverSide.Enemy, action.AvoidReflect, nextIndex);
             if (choice is null)
             {
                 return null;
@@ -241,7 +251,7 @@ public static class EncounterPolicyRuntime
             {
                 return null;
             }
-            spell = action.Spells.Length == 1 ? action.Spells[0] : Choose(action.Spells);
+            spell = action.Spells.Length == 1 ? action.Spells[0] : action.Spells[EncounterActionSelection.ChooseWeightedIndex(action.Spells.Select(candidate => candidate.Weight).ToImmutableArray(), nextIndex)];
             targets = action.Target switch
             {
                 EncounterCompiledTargetKind.Self => [casterId],

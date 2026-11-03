@@ -161,6 +161,98 @@ public sealed class EncounterPatchTests
         Assert.Equal("other", result.Policies["local/support"].Rules.Single().Id);
     }
 
+    [Fact]
+    public void DisjointGuardedSpellWeightEditsComposeByCanonicalSpellIdentity()
+    {
+        EncounterPatchLayer producer = Layer("base", WeightedPolicy());
+        EncounterPatchLayer fire = Layer("fire", WeightEdit("increase", "base", "define", "Fire", 1, 3));
+        EncounterPatchLayer blizzard = Layer("ice", WeightEdit("increase", "base", "define", "Blizzard", 1, 2));
+        EncounterPatchComposition first = EncounterPatchComposer.Compose(Baseline, [fire, blizzard, producer]);
+        EncounterPatchComposition second = EncounterPatchComposer.Compose(Baseline, [blizzard, fire, producer]);
+        EncounterPatchAction action = first.Policies["base/policy"].Rules.Single().Action;
+        Assert.Equal(3, action.SpellWeights["Fire"]);
+        Assert.Equal(2, action.SpellWeights["Blizzard"]);
+        Assert.Equal(action.SpellWeights["Fire"], second.Policies["base/policy"].Rules.Single().Action.SpellWeights["Fire"]);
+        Assert.Equal(action.SpellWeights["Blizzard"], second.Policies["base/policy"].Rules.Single().Action.SpellWeights["Blizzard"]);
+    }
+
+    [Fact]
+    public void ChainedWeightRefinementReferencesTheActualWriterWithoutChangingEntityScope()
+    {
+        EncounterPatchLayer producer = Layer("base", WeightedPolicy());
+        EncounterPatchLayer first = Layer("first", WeightEdit("increase", "base", "define", "Fire", 1, 3));
+        EncounterPatchLayer second = Layer("second", WeightEdit("refine", "first", "increase", "Fire", 3, 4));
+        EncounterPatchComposition result = EncounterPatchComposer.Compose(Baseline, [second, first, producer]);
+        Assert.Equal(4, result.Policies["base/policy"].Rules.Single().Action.SpellWeights["Fire"]);
+    }
+
+    [Fact]
+    public void ConflictingSpellWeightWriterAndWrongGuardAreRejectedAtomically()
+    {
+        EncounterPatchLayer producer = Layer("base", WeightedPolicy());
+        EncounterPatchLayer first = Layer("first", WeightEdit("increase", "base", "define", "Fire", 1, 3));
+        EncounterPatchLayer conflict = Layer("conflict", WeightEdit("increase", "base", "define", "Fire", 3, 4));
+        Assert.Contains("Conflicting write", Assert.Throws<InvalidDataException>(() => EncounterPatchComposer.Compose(Baseline, [producer, first, conflict])).Message);
+        EncounterPatchLayer wrongGuard = Layer("wrong", WeightEdit("increase", "base", "define", "Fire", 2, 3));
+        Assert.Contains("expected 2, observed 1", Assert.Throws<InvalidDataException>(() => EncounterPatchComposer.Compose(Baseline, [producer, wrongGuard])).Message);
+    }
+
+    private static string WeightedPolicy() => """
+        {"id":"define","kind":"AddActionPolicy","policy":"policy","rules":[{"id":"pool","when":{"ownTurnAtLeast":1},"action":{"kind":"CastFromPool","spells":["Fire","Blizzard"],"target":"self"}}]}
+        """;
+
+    [Theory]
+    [InlineData("Blizaga", "Blizzaga")]
+    [InlineData("Darkness", "Blind")]
+    [InlineData("Reflection", "Reflect")]
+    public void SpellAliasesNormalizeExecutableReferencesWithoutRewritingMetadata(string alias, string canonical)
+    {
+        EncounterPatchLayer layer = Layer("aliases", $$$"""
+            {"id":"define","kind":"AddActionPolicy","policy":"policy","metadata":{"description":"{{{alias}}}"},"rules":[{"id":"one","when":{"ownTurn":1},"action":{"kind":"Cast","spell":"{{{alias}}}","target":"self"}}]}
+            """);
+        Assert.Equal(canonical, layer.Document.Operations.Single().Rules.Single().Action.Spell);
+        Assert.Equal(alias, layer.Document.Operations.Single().Metadata!["description"].GetString());
+    }
+
+    [Fact]
+    public void AliasAndCanonicalSpellWeightPathsShareOneConflictOwnerForProgrammaticDocuments()
+    {
+        EncounterPatchLayer producer = Layer("base", WeightedPolicy().Replace("\"Fire\"", "\"Blizaga\"", StringComparison.Ordinal));
+        EncounterPatchLayer first = Layer("first", WeightEdit("increase", "base", "define", "Blizzaga", 1, 2));
+        first = first with { Document = first.Document with { Operations = [first.Document.Operations.Single() with { Property = "action.spellWeights.Blizaga" }] } };
+        EncounterPatchLayer conflict = Layer("second", WeightEdit("increase", "base", "define", "Blizzaga", 2, 3));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => EncounterPatchComposer.Compose(Baseline, [producer, first, conflict]));
+        Assert.Contains("Conflicting write", error.Message);
+        Assert.Contains("action.spellWeights.Blizzaga", error.Message);
+        Assert.Contains("first", error.Message);
+    }
+
+    [Fact]
+    public void DuplicateAliasWeightKeysAndDuplicateCanonicalPoolEntriesAreRejected()
+    {
+        const string weights = """
+            {"id":"define","kind":"AddActionPolicy","policy":"policy","rules":[{"id":"pool","when":{"ownTurn":1},"action":{"kind":"CastFromPool","spells":["Blizzaga"],"spellWeights":{"Blizaga":1,"Blizzaga":2},"target":"self"}}]}
+            """;
+        Assert.Contains("Duplicate spell-weight identity", Assert.Throws<InvalidDataException>(() => Layer("aliases", weights)).Message);
+        Assert.Throws<InvalidDataException>(() => Layer("aliases", WeightedPolicy().Replace("\"Fire\"", "\"Blizaga\"", StringComparison.Ordinal).Replace("\"Blizzard\"", "\"Blizzaga\"", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void AliasedGuardAndReplacementSpellValuesUseTheSameCanonicalRuleIdentity()
+    {
+        EncounterPatchLayer producer = Layer("base", """
+            {"id":"define","kind":"AddActionPolicy","policy":"policy","rules":[{"id":"one","when":{"ownTurn":1},"action":{"kind":"Cast","spell":"Blind","target":"self"}}]}
+            """);
+        EncounterPatchLayer consumer = Layer("consumer", """
+            {"id":"change","kind":"SetRuleProperty","producer":{"documentId":"base","operationId":"define"},"policy":"policy","rule":"one","property":"action.spell","expectedValue":"Darkness","value":"Reflection"}
+            """);
+        EncounterPatchComposition result = EncounterPatchComposer.Compose(Baseline, [consumer, producer]);
+        Assert.Equal("Reflect", result.Policies["base/policy"].Rules.Single().Action.Spell);
+    }
+
+    private static string WeightEdit(string id, string document, string operation, string spell, int expected, int value) => $$"""
+        {"id":"{{id}}","kind":"SetRuleProperty","producer":{"documentId":"{{document}}","operationId":"{{operation}}"},"policy":"policy","rule":"pool","property":"action.spellWeights.{{spell}}","expectedValue":{{expected}},"value":{{value}}}
+        """;
     private static EncounterPatchLayer Layer(string id, string operations) => new(id + "-package", "gameplay/encounters/shared.json", EncounterPatchDocument.Parse(Document(id, operations)));
 
     private static string Document(string id, string operations) => "{\"schemaVersion\":1,\"documentId\":\"" + id + "\",\"encounter\":\"ff8.disc1.edea\",\"atomic\":true,\"operations\":[" + operations + "]}";
@@ -173,5 +265,3 @@ public sealed class EncounterPatchTests
         {"id":"regen","when":{"ownTurn":3},"action":{"kind":"Cast","spell":"Regen","target":"self"}}]}
         """;
 }
-
-

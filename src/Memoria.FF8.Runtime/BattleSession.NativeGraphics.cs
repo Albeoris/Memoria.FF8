@@ -33,6 +33,10 @@ public sealed partial class BattleSession
 
     private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, ushort? diagnosticSelectedTargetMask = null)
     {
+        if (CaptureEncounterCounterCommand(actor, command, name, playerInput, diagnosticSelectedTargetMask))
+        {
+            return;
+        }
         command = PrepareNativeEventCommand(actor, command);
         NativeBattleCommandBanks? input = playerInput ? PrepareNativeInputCommand(command) : null;
         PublishNativePacket(actor, command, name, input, diagnosticSelectedTargetMask);
@@ -53,9 +57,10 @@ public sealed partial class BattleSession
         }
         Log("Queued", actor.Id, command.TargetId, command.ActionId, $"{actor.Name}: {name} queued.");
         ObserveDiagnosticCounterCommand(actor, command, diagnosticSelectedTargetMask);
-        if (nativeAiDepth != 0 && !IsNativeReturnDamageAction(command.NativeAction))
+        if ((nativeAiDepth != 0 || flushingEncounterCounterCommands) && !IsNativeReturnDamageAction(command.NativeAction))
         {
             CompleteNativeAiReturnDamage(actor, NativeCommandPresentation(command));
         }
+        FlushEncounterCounterCommands();
     }
 }

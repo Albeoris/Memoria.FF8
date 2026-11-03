@@ -2,6 +2,7 @@ using Albeoris.Games.FF8.Imaging;
 using ImageMagick;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -46,6 +47,7 @@ public sealed class GameResourceHostTests : IDisposable
         using GameResourceHost host = Host();
         Assert.Empty(host.EncounterMods.Layers);
         Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.UnsupportedEncounterRuntime" && diagnostic.PackageId == "Memoria/Encounter");
+        Assert.Contains("no valid prepared definition", Assert.Throws<InvalidDataException>(() => host.ApplyEncounterMods(new BattleDefinition { EncounterId = 136 }, new("Classic"))).Message);
     }
 
     private const string EncounterDocument = """

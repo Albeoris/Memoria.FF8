@@ -23,6 +23,7 @@ public sealed partial class BattleSession
         public byte SpecialSource { get; } = specialSource;
         public NativeBattleContactHalf? Secondary { get; set; }
         public bool CommittingSecondary { get; set; }
+        public bool EncounterRedirectedDamage { get; set; }
     }
 
     private NativeContactWorking? nativeContactWorking;

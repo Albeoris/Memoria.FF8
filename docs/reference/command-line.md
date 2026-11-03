@@ -46,6 +46,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--frames COUNT` | Exit when the host update-frame count reaches the supplied value. This is not an event-VM frame budget. |
 | `--exit-after SECONDS` | Exit after the host game clock reaches the supplied duration. |
 | `--control-dir DIRECTORY` | Enable the local file control queue. |
+| `--control-exclusive` | Accept input only through the control queue, disable physical keyboard/controller/mouse and text input, and isolate the player save bank beside the output checkpoint. Requires explicit `--control-dir`, `--settings-dir` and `--save-state`. |
 | `--update-control-dir DIRECTORY` | Launcher update handoff queue. Supports status, save-for-update, cancel-update and quit without enabling diagnostic stepping or disabling audio. |
 | `--control-step` | Disable automatic field/world time accumulation, so queue commands drive progression. Requires `--control-dir`. |
 | `--battle-test FILE` | Direct diagnostic encounter recipe; requires isolated settings/control/save paths and the normal graphical GPU host. See below. |
@@ -53,6 +54,14 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--ui-screen SCREEN_ID` | Open a registered UI screen on startup; diagnostic use. |
 
 Decimal times use a dot. Explicit path arguments are resolved against the invoking working directory before graphical startup changes to the game directory. Supply a full installed-game path in environment variables to avoid working-directory ambiguity.
+
+For a dedicated controlled instance alongside other running game windows, use a separate queue, settings directory and output save directory:
+
+```powershell
+./Data/Memoria.FF8.exe --state ./saves/session.json --control-exclusive --control-dir ./output/controlled/control --settings-dir ./output/controlled/settings --save-state ./output/controlled/save/checkpoint.json
+```
+
+The directories must be distinct, non-overlapping and outside the normal user configuration and player-save directories. The input snapshot and output checkpoint must be different files. `--settings-dir` must appear explicitly, even when a settings environment variable is configured. Menu saves and quick saves use `player-saves/` inside the output checkpoint's parent directory; original-save bank discovery is disabled. Drawing and real-time story progression continue, and UI/battle control requests remain available. Add `--control-step` when explicit field/world stepping is wanted. Ordinary `--control-dir` launches retain physical input and their existing save-bank policy.
 
 ## Direct diagnostic battle preparation
 

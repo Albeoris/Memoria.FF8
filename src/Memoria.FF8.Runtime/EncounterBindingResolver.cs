@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record EncounterBindingContext(string Profile, int? FieldId = null, int? RequestedEncounter = null, ushort? RequestFlags = null);
 
-public sealed record EncounterBindingResult(string Alias, string OriginalActorId, byte CastingSequence, byte TerminalAbility, byte[] TauntAbilities, bool StoryRequestVerified);
+public sealed record EncounterBindingResult(string Alias, string OriginalActorId, byte CastingSequence, byte TerminalAbility, byte[] TauntAbilities, bool StoryRequestVerified, byte LowHpTerminalAbility = 10);
 
 /// <summary>Resolves semantic encounter identities against selected resource contracts.</summary>
 public static class EncounterBindingResolver
@@ -46,15 +46,19 @@ public static class EncounterBindingResolver
         {
             throw new InvalidDataException($"Encounter '{alias}' original actor '{original.Id}' has an incompatible terminal callback; expected self-targeted ability 11 followed by return.");
         }
+        if (!Matches(ai.Scripts[0], 0, [14, 220, 0, 14, 221, 0]))
+        {
+            throw new InvalidDataException($"Encounter '{alias}' has incompatible native event initialization; expected actor variables 220 and 221 to be cleared before its taunt branches.");
+        }
         RequireAbility(ai, 11, 264, 17, "terminal");
         RequireAbility(ai, 8, 205, 13, "first taunt");
         RequireAbility(ai, 9, 206, 14, "second taunt");
-        RequireAbility(ai, 10, 207, 15, "third taunt");
+        RequireAbility(ai, 10, 207, 15, "low-HP terminal");
         if (!HasTauntAnchors(ai.Scripts[1]))
         {
             throw new InvalidDataException($"Encounter '{alias}' has incompatible native taunt branches; the opening, one-time party-count and low-HP anchors are ambiguous.");
         }
-        return new(alias, original.Id, 11, 11, [8, 9, 10], hasContext);
+        return new(alias, original.Id, 11, 11, [8, 9], hasContext);
     }
 
     private static bool IsTerminalCallback(byte[] code)
@@ -81,9 +85,10 @@ public static class EncounterBindingResolver
 
     private static void RequireAbility(NativeBattleAiDefinition ai, int index, ushort action, byte sequence, string role)
     {
-        if (ai.Abilities.Length <= index || ai.Abilities[index] is not { Command: 8 } ability || ability.Id != action || ability.Sequence != sequence)
+        int selected = ai.LevelBand is >= 0 and <= 2 ? ai.LevelBand * 16 + index : -1;
+        if (selected < 0 || ai.Abilities.Length <= selected || ai.Abilities[selected] is not { Command: 8 } ability || ability.Id != action || ability.Sequence != sequence)
         {
-            throw new InvalidDataException($"Encounter '{Disc1Edea}' has an incompatible {role} ability {index}; expected command 8, action {action}, sequence {sequence}.");
+            throw new InvalidDataException($"Encounter '{Disc1Edea}' has an incompatible {role} ability {index} in level band {ai.LevelBand}; expected command 8, action {action}, sequence {sequence}.");
         }
     }
 }

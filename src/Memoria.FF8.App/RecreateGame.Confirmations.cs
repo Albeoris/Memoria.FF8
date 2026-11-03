@@ -21,7 +21,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        InputFrame input = keyboard.Read(Keyboard.GetState(), controller?.Read() ?? default, IsActive);
+        InputFrame input = keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), IsActive);
         if (input.Cancel)
         {
             confirmationOverlay.Handle(UiKey.Cancel);
@@ -45,7 +45,7 @@ internal sealed partial class RecreateGame
                 confirmationOverlay.Handle(input.MenuPage < 0 ? UiKey.PageUp : UiKey.PageDown);
             }
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         confirmationOverlay.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
     }
 

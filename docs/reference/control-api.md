@@ -4,6 +4,8 @@ The opt-in control queue accepts JSON requests through a local directory. It is 
 
 See [command-line options](command-line.md) for startup modes. For a windowed instance, supply `--control-dir <directory>`. Add `--control-step` to suppress automatic field/world simulation and advance it through explicit actions. Drawing continues; decoded movies retain their playback clock and movie-driven event behavior. Without control-step, gameplay also advances in real time between requests. Control-enabled sessions mute host audio through the current launch policy.
 
+Add `--control-exclusive` for a dedicated queue-controlled window while other game instances are running. Supply explicit, separate `--settings-dir`, `--control-dir` and `--save-state` destinations. Physical keyboard, controller, mouse and text input are neutral in every gameplay/menu window, including permanent navigation keys and quick-save shortcuts. File requests continue through the normal session, UI and battle owners. Menu/quick saves are isolated under `<output-save-directory>/player-saves/`, and original-save bank discovery is disabled. The host keeps rendering and advancing normally unless `--control-step` is also selected. See the [controlled-instance launch example](command-line.md#graphical-launch-options).
+
 For a persistent headless session, use `--headless-control --state <standalone.json> --control-dir <directory>`. It requires a field, world or movie snapshot, runs no timed simulation loop and has a smaller command set. It does not render captures. The separate `--headless-play` mode consumes an action array and writes its configured outputs; see the command-line reference.
 
 ## Transport and response envelope

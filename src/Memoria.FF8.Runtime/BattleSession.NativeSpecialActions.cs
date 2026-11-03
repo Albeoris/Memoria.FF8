@@ -219,7 +219,7 @@ public sealed partial class BattleSession
         else if (effect.Effect == 31)
         {
             ApplyNativeActionStatuses(actor, actor, native with { Power = effect.Quantity, Statuses0 = effect.SavedStatuses, Statuses1 = effect.BattleStatuses, StatusAttack = 200 }, false);
-            ApplyDamage(actor, actor, amount, "Devour");
+            ApplyDamage(actor, actor, amount, "Devour", cause: (NativeSavedStatusBits(actor) & 1) != 0 ? EncounterHpCause.DeathStatus : EncounterHpCause.Damage);
         }
     }
 

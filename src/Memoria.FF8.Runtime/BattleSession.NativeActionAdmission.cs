@@ -159,6 +159,8 @@ public sealed partial class BattleSession
         }
         command = EnsureMagicReservation(actor, command);
         int firstHeader = nativeActionPackets.ActionCount;
+        int? previousEncounterCommand = encounterProducingCommandFirstHeader;
+        encounterProducingCommandFirstHeader ??= firstHeader;
         BattleActionPresentation presentation = NativeCommandPresentation(command);
         NativeBattleActionProductionContext? previousContext = nativeProductionContext;
         if (previousContext is null && nativeActionCommitDepth == 0)
@@ -189,6 +191,7 @@ public sealed partial class BattleSession
         finally
         {
             nativeProductionContext = previousContext;
+            encounterProducingCommandFirstHeader = previousEncounterCommand;
         }
     }
 

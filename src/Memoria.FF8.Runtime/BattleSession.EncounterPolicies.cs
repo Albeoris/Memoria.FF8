@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleEncounterPolicyState(string GenerationIdentity, ImmutableDictionary<string, EncounterActionCursor> Cursors, EncounterPolicyDecision? PendingSummon = null, bool CleanedUp = false);
+public sealed record BattleEncounterPolicyState(string GenerationIdentity, ImmutableDictionary<string, EncounterActionCursor> Cursors, EncounterPolicyDecision? PendingSummon = null, bool CleanedUp = false, bool TerminalStarted = false, bool TerminalReached = false);
 
 public sealed partial class BattleSession
 {
@@ -80,7 +80,11 @@ public sealed partial class BattleSession
             TryRunNativeEnemyBerserk(actor, callback);
             return true;
         }
-        if ((NativeSavedStatusBits(actor) & 0x35) != 0 || (NativeBattleStatusBits(actor) & 0x4009) != 0)
+        if (TryRunEncounterNativeTerminal(actor, callback))
+        {
+            return true;
+        }
+        if ((NativeSavedStatusBits(actor) & 0x35) != 0 || (NativeBattleStatusBits(actor) & 9) != 0)
         {
             return true;
         }
@@ -106,6 +110,7 @@ public sealed partial class BattleSession
             }
             BattleNativeAction control = NativeReturnDamageAction() with { ActionId = 9, Name = "Summon" };
             BattleAttackCommand command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control, NativeTargetMask = checked((ushort)(1 << actor.NativeIndex)) };
+            QueueEncounterNativeEvents(actor, decision.OwnTurn);
             EnqueueNativePacket(actor, command, "Summon");
             encounterPolicies = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
         }
@@ -164,7 +169,7 @@ public sealed partial class BattleSession
             EnqueueNativePacket(actor, command, spell.CanonicalName);
             if (repeats.Length > 1)
             {
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, checked((byte)(nativeActionPackets.ActionCount - firstHeader)));
+                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, checked((byte)nativeActionPackets.Headers.Skip(firstHeader).Take(nativeActionPackets.ActionCount - firstHeader).Count(header => header.ReadByte(1) == 2)));
             }
         }
         finally
@@ -189,6 +194,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Encounter policy snapshot requires its captured definition generation and allocation-owned cursors.");
         }
         encounterPolicies = state;
+        ValidateEncounterNativeTerminalWitness(state);
     }
 
     private NativeBattleGraphicsState AdvanceEncounterPolicySpawn(NativeBattleGraphicsState graphics)
@@ -240,7 +246,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant original = GetActor(mod.OriginalActorId);
-        if (Outcome == BattleOutcome.Active && !nativeScriptState.ScriptedExitRequested && original.IsActive && !(original.CurrentHp == 0 && original.AiDeathHandled))
+        if (!state.TerminalStarted && !state.TerminalReached && Outcome == BattleOutcome.Active && !nativeScriptState.ScriptedExitRequested && original.IsActive && !(original.CurrentHp == 0 && original.AiDeathHandled))
         {
             return;
         }
@@ -248,8 +254,14 @@ public sealed partial class BattleSession
         foreach (string id in retiring)
         {
             BattleCombatant actor = GetActor(id);
-            RemoveNativeQueuedActorCommands(actor);
+            if (actor.NativeIndex is >= 0 and < 7)
+            {
+                RemoveNativeQueuedActorCommands(actor);
+                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.NativeIndex), actor.Id);
+            }
+            nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
             ReleaseNativeParticipant(actor);
+            RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
             actor.Atb = 0;
             if (NativeGraphics is { } graphics && actor.NativeIndex is >= 0 and < 7)
@@ -265,7 +277,7 @@ public sealed partial class BattleSession
             actions.Enqueue(command);
         }
         encounterPolicies = state with { CleanedUp = true, PendingSummon = null };
-        if (encounterAllocation is not null && NativeScriptAllocationPending)
+        if (encounterAllocation is not null && NativeScriptAllocationPending && nativeBattleClock is not null)
         {
             CompleteNativeAllocationGate();
         }

@@ -49,7 +49,8 @@ internal sealed partial class GameResourceHost
                     EncounterBindingResult binding = EncounterBindingResolver.Resolve(group.Key, definition, new("Classic"));
                     ImmutableArray<string> baselineActors = actors.Where(actor => actor.InitialActive).Select(actor => actor.Id == binding.OriginalActorId ? "original" : "scene-" + actor.SceneSlot).ToImmutableArray();
                     EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(group.Key, "Classic", baselineActors), group);
-                    _ = ApplyCompiledEncounterDefinition(definition, binding, EncounterPolicyRuntime.Compile(composition, definition, binding));
+                    EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = EncounterNativeEventResourceReader.Bind(assets.ReadEnemyNativeGraphicsResource(actors.Single(actor => actor.Id == binding.OriginalActorId).ModelId)) };
+                    _ = ApplyCompiledEncounterDefinition(definition, binding, compiled);
                     ValidateEncounterPresentationAssets(assets, definition, binding, composition);
                     candidate.Add(formation, composition);
                 }
@@ -92,10 +93,16 @@ internal sealed partial class GameResourceHost
     {
         if (definition.EncounterId is not int formation || !encounterCompositions.TryGetValue(formation, out EncounterPatchComposition? composition))
         {
+            ModDiagnostic? unavailable = encounterCompositions.IsEmpty ? Mods.Diagnostics.FirstOrDefault(diagnostic => diagnostic.RelativePath?.StartsWith(EncounterMods.PayloadDirectory, StringComparison.OrdinalIgnoreCase) == true && Mods.InstalledPackages.Any(package => package.Id == diagnostic.PackageId && package.RequestedEnabled)) : null;
+            if (unavailable is not null)
+            {
+                throw new InvalidDataException($"An enabled encounter package has no valid prepared definition: {unavailable.PackageId}:{unavailable.RelativePath}: {unavailable.Message} Fix the package or disable it in Mods before starting an encounter.");
+            }
             return definition;
         }
         EncounterBindingResult binding = EncounterBindingResolver.Resolve(composition.Encounter, definition, context);
-        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding);
+        NativeBattleGraphicsResource resource = definition.NativeGraphics?.Bindings.SingleOrDefault(candidate => candidate.ActorId == binding.OriginalActorId)?.Resource ?? throw new InvalidDataException("Encounter policy preparation requires the selected original native model resource.");
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = EncounterNativeEventResourceReader.Bind(resource) };
         return ApplyCompiledEncounterDefinition(definition, binding, compiled);
     }
 
@@ -114,6 +121,10 @@ internal sealed partial class GameResourceHost
             int index = Array.FindIndex(combatants, actor => actor.Id == actorId);
             if (index < 0)
             {
+                if (compiled.Templates.ContainsKey(role))
+                {
+                    continue;
+                }
                 throw new InvalidDataException("Maximum-HP modifiers currently require a selected baseline actor: " + role);
             }
             BattleCombatantDefinition actor = combatants[index];

@@ -112,6 +112,15 @@ public sealed class EncounterPolicyRuntimeTests
         EncounterCompiledDefinition restored = JsonSerializer.Deserialize<EncounterCompiledDefinition>(json)!;
         EncounterPolicyDecision selected = Select(restored, [Enemy(), Party("party")])!;
         Assert.Equal(compiled.GenerationIdentity, restored.GenerationIdentity);
+        EncounterPatchOrigin origin = Assert.Single(restored.Origins);
+        Assert.Equal("package", origin.PackageId);
+        Assert.Equal("gameplay/encounters/test.json", origin.PayloadPath);
+        Assert.Equal("mod", origin.DocumentId);
+        Assert.Equal("define", origin.OperationId);
+        Assert.Equal("mod/policy", origin.Target);
+        EncounterPatchOutcome outcome = Assert.Single(restored.Outcomes);
+        Assert.Equal(origin, outcome.Origin);
+        Assert.Equal("Applied", outcome.Status);
         Assert.Equal(50, selected.Spell!.NativeAction.ActionId);
         Assert.True(selected.NativeDouble);
     }
@@ -165,6 +174,70 @@ public sealed class EncounterPolicyRuntimeTests
             """;
         return EncounterPatchComposer.Compose(new("ff8.disc1.edea", "Classic", baselineActors.IsDefault ? ["original"] : baselineActors), [new("package", "gameplay/encounters/test.json", EncounterPatchDocument.Parse(json))]);
     }
+    [Fact]
+    public void AuthoredPoolWeightsCompileAndUseOneBoundedWeightedSpellDraw()
+    {
+        EncounterCompiledDefinition compiled = Compile("""
+            {"id":"pool","when":{"ownTurnAtLeast":1},"action":{"kind":"CastFromPool","spells":["Fire","Blizzard"],"spellWeights":{"Fire":3},"target":"self"}}
+            """, [Magic(1), Magic(4)]);
+        List<int> draws = [];
+        EncounterPolicyDecision selected = EncounterPolicyRuntime.Select(compiled, "mod/policy", new(), "enemy", [Enemy()], new(), count =>
+        {
+            draws.Add(count);
+            return 2;
+        })!;
+        Assert.Equal("Fire", selected.Spell!.CanonicalName);
+        Assert.Equal(3, selected.Spell.Weight);
+        Assert.Equal(new[] { 4 }, draws);
+    }
+
+    [Theory]
+    [InlineData("{\"Fire\":0}")]
+    [InlineData("{\"Fire\":256}")]
+    [InlineData("{\"Fire\":255,\"Blizzard\":2}")]
+    [InlineData("{\"Scan\":2}")]
+    public void InvalidOrOutOfPoolSpellWeightsAreRejected(string weights)
+    {
+        string rules = "{\"id\":\"pool\",\"when\":{\"ownTurn\":1},\"action\":{\"kind\":\"CastFromPool\",\"spells\":[\"Fire\",\"Blizzard\"],\"spellWeights\":" + weights + ",\"target\":\"self\"}}";
+        Assert.Throws<InvalidDataException>(() => Compile(rules, [Magic(1), Magic(4)]));
+    }
+
+    [Fact]
+    public void ExistingSceneActorRoleIsPreservedInsteadOfBeingScopedAsATemplate()
+    {
+        const string json = """
+            {"schemaVersion":1,"documentId":"mod","encounter":"ff8.disc1.edea","atomic":true,"operations":[
+              {"id":"link","kind":"AddDamageRoute","route":"link","sourceActor":"scene-1","recipients":["original"],"recipientSelection":"livingActivatedInstances","mode":"redirectSplitEqually","damageKinds":"allPositiveHpDamage","mitigation":"alreadyResolved","remainder":"discard","overkill":"discard","withoutRecipients":"normalDamage"}
+            ]}
+            """;
+        EncounterPatchComposition composition = EncounterPatchComposer.Compose(new("ff8.disc1.edea", "Classic", ["original", "scene-1"]), [new("package", "gameplay/encounters/test.json", EncounterPatchDocument.Parse(json))]);
+        BattleDefinition definition = new() { Combatants = [new() { Id = "enemy-0" }, new() { Id = "enemy-1" }] };
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("ff8.disc1.edea", "enemy-0", 11, 11, [8, 9, 10], true));
+        Assert.Equal("scene-1", compiled.DamageRoutes["mod/link"].SourceActor);
+        Assert.Equal("original", compiled.DamageRoutes["mod/link"].Recipients.Single());
+    }
+
+    [Fact]
+    public void ScanPairSelectionRejectsNativeAllTargetSpellsInsteadOfChangingTheirCardinality()
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => Compile("""
+            {"id":"quake","when":{"ownTurnAtLeast":1},"action":{"kind":"CastFromPool","spells":["Quake"],"targetPolicy":"scanKnownWeakestElseRandom"}}
+            """, [Magic(17, element: 8) with { TargetFlags = 0x40 }]));
+        Assert.Contains("single-target cardinality", error.Message);
+        Assert.Contains("nativeOpponentTargeting", error.Message);
+    }
+
+    [Fact]
+    public void NativeOpponentTargetingPreservesQuakeAllTargetCardinality()
+    {
+        EncounterCompiledDefinition compiled = Compile("""
+            {"id":"quake","when":{"ownTurnAtLeast":1},"action":{"kind":"CastFromPool","spells":["Quake"],"target":"nativeOpponentTargeting"}}
+            """, [Magic(17, element: 8) with { TargetFlags = 0x40 }]);
+        EncounterPolicyDecision decision = Select(compiled, [Enemy(), Party("a"), Party("b")])!;
+        Assert.Equal(new[] { "a", "b" }, decision.TargetIds);
+        Assert.False(decision.OverrideNativeTargeting);
+        Assert.True(decision.Spell!.NativeAllTargets);
+    }
     private static EncounterPolicyDecision? Select(EncounterCompiledDefinition compiled, ImmutableArray<EncounterPolicyActor> actors) => EncounterPolicyRuntime.Select(compiled, "mod/policy", new(), "enemy", actors, new(), _ => 0);
     private static EncounterPolicyActor Enemy() => new("enemy", "original", false, true, true, false);
     private static EncounterPolicyActor Party(string id) => new(id, id, true, true, true, false);
@@ -203,5 +276,3 @@ public sealed class EncounterPolicyRuntimeTests
         };
     }
 }
-
-

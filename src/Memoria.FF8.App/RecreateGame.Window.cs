@@ -31,7 +31,7 @@ internal sealed partial class RecreateGame
 
     private void UpdateWindowModeHotkey()
     {
-        Microsoft.Xna.Framework.Input.KeyboardState keys = !options.IsDiagnosticGraphicalHost ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        Microsoft.Xna.Framework.Input.KeyboardState keys = physicalInput.ReadKeyboard();
         if (windowModeHotkey.Read(keys, IsActive))
         {
             var preferences = uiPreferences with { BorderlessWindow = !uiPreferences.BorderlessWindow };

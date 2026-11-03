@@ -64,6 +64,7 @@ public sealed partial class BattleSession
             recipient.NativeRemainingHits = unchecked((byte)plan.Count(hit => hit.Targets.Contains(recipient)));
         }
         NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
+        ValidateEncounterContactCapacity(plan, native, deferred != NativeBattleDeferredContactKind.None);
         ImmutableArray<NativeBattleContactPacket>.Builder contacts = ImmutableArray.CreateBuilder<NativeBattleContactPacket>();
         BattleCombatant? firstReflector = null;
         byte publishedCount = 0;

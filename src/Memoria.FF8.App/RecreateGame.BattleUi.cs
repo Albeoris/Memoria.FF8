@@ -115,7 +115,7 @@ internal sealed partial class RecreateGame
         bool duelOwned = DuelOwnsInput;
         bool slotsOwned = SlotsModalBlocksGameplay;
         bool confirmHeld = (keyboard.HeldFieldButtons & 0x40) != 0;
-        bool mouseHeld = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        bool mouseHeld = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
         battleHud!.AdvanceSlotsPresentation(presentationElapsed, confirmHeld, mouseHeld);
         if (slotsOwned && !battleHud.CardSlotsOwnsInput)
         {
@@ -260,7 +260,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = physicalInput.ReadMouse();
         bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         view.Pointer(mouse.X, mouse.Y, pressed && !previousBattleMouse);

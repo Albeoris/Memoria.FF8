@@ -40,7 +40,7 @@ internal sealed partial class RecreateGame
         presentationPacer.Reset();
         ResetElapsedTime();
         movieSkipGesture.Reset();
-        keyboard.Read(Keyboard.GetState(), controller?.Read() ?? default, false);
+        keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), false);
         fieldAudio?.SetFocusPaused(pause);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);

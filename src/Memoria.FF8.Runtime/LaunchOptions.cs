@@ -23,6 +23,23 @@ public sealed record LaunchOptions
     public int Height { get; init; } = 768;
     public bool ResolutionSpecified { get; init; }
     public string? ControlDirectory { get; init; }
+    public bool ControlExclusive { get; init; }
+    public bool AcceptsPhysicalInput => !ControlExclusive && !IsDiagnosticGraphicalHost;
+    public string? IsolatedPlayerSaveDirectory
+    {
+        get
+        {
+            if (ControlExclusive)
+            {
+                return Path.Combine(Path.GetDirectoryName(Path.GetFullPath(SavePath))!, "player-saves");
+            }
+            if (IsDiagnosticGraphicalHost)
+            {
+                return Path.Combine(Path.GetFullPath(SettingsDirectory ?? ApplicationPaths.Current.Configuration), "player-saves");
+            }
+            return null;
+        }
+    }
     public string? UpdateControlDirectory { get; init; }
     public bool ControlStep { get; init; }
     public bool MuteAudio { get; init; }
@@ -74,6 +91,7 @@ public sealed record LaunchOptions
                 "--frames" => options with { ExitAfterFrames = int.Parse(Value()) },
                 "--resolution" => SetResolution(options, Value()),
                 "--control-dir" => options with { ControlDirectory = Path.GetFullPath(Value()) },
+                "--control-exclusive" => options with { ControlExclusive = true },
                 "--update-control-dir" => options with { UpdateControlDirectory = Path.GetFullPath(Value()) },
                 "--control-step" => options with { ControlStep = true },
                 "--mute-audio" => options with { MuteAudio = true },
@@ -95,17 +113,21 @@ public sealed record LaunchOptions
         {
             throw new ArgumentException("--battle-test requires a fresh graphical GPU host with normal real-time pacing; state, scene, debug UI, validation, software rendering and control stepping are incompatible.");
         }
-        if (options.IsDiagnosticGraphicalHost && (options.SettingsDirectory is null || options.ControlDirectory is null || !args.Contains("--save-state", StringComparer.Ordinal)))
+        if ((options.IsDiagnosticGraphicalHost || options.ControlExclusive) && (options.SettingsDirectory is null || options.ControlDirectory is null || !args.Contains("--save-state", StringComparer.Ordinal) || options.ControlExclusive && !args.Contains("--settings-dir", StringComparer.Ordinal)))
         {
-            throw new ArgumentException("--battle-test requires isolated --settings-dir, --control-dir and an explicit disposable --save-state path.");
+            throw new ArgumentException("A diagnostic or --control-exclusive host requires isolated --settings-dir, --control-dir and an explicit disposable --save-state path; --control-exclusive requires --settings-dir explicitly.");
         }
-        if (options.IsDiagnosticGraphicalHost)
+        if (options.IsDiagnosticGraphicalHost || options.ControlExclusive)
         {
             string[] paths = [Path.GetFullPath(options.SettingsDirectory!), Path.GetFullPath(options.ControlDirectory!), Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!];
             string global = ApplicationPaths.Current.Configuration;
             if (paths.Any(path => IsWithin(path, global) || IsWithin(global, path)))
             {
                 throw new ArgumentException("Diagnostic output and settings must not overlap the user's global settings directory.");
+            }
+            if (options.ControlExclusive && paths.Any(path => IsWithin(path, ApplicationPaths.Current.Saves) || IsWithin(ApplicationPaths.Current.Saves, path)))
+            {
+                throw new ArgumentException("--control-exclusive output and settings must not overlap the user's normal player-save directory.");
             }
             for (int i = 0; i < paths.Length; i++)
             {
@@ -116,6 +138,10 @@ public sealed record LaunchOptions
                         throw new ArgumentException("Diagnostic settings, control and disposable save directories must be distinct and non-overlapping.");
                     }
                 }
+            }
+            if (options.ControlExclusive && options.StatePath is not null && string.Equals(Path.GetFullPath(options.StatePath), Path.GetFullPath(options.SavePath), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("--control-exclusive requires a save destination distinct from its input --state snapshot.");
             }
         }
         if (options.StatePath is not null)
