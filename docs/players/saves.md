@@ -81,6 +81,8 @@ Schema 3 initializes absent Sigh state and complete legacy uninitialized Sigh pl
 
 Schema 4 extends this migration to the other supported legacy effect-source placeholders. It preserves bound sources, modified bytes and active effect tasks, including compact saves and retained field copies. The source file is read without modification; saving normally writes the upgraded state.
 
+Schema 6 initializes missing world texture and palette animation clocks in older saves. Only the visual animation phase restarts from zero; field, story, travel and other process state are preserved. Recorded clocks are retained, and partially recorded clocks remain invalid. Loading upgrades the state in memory without changing the source file; the next save writes the current schema.
+
 When a migration is necessary:
 
 1. Preserve the source file.

@@ -45,9 +45,8 @@ public sealed class NativeWorldTextureAnimationStateTests
         Assert.Equal(process.TextureAnimation, restored.TextureAnimation);
         JsonObject legacy = JsonNode.Parse(JsonSerializer.Serialize(process))!.AsObject();
         legacy.Remove("TextureAnimation");
-        NativeWorldProcess missing = JsonSerializer.Deserialize<NativeWorldProcess>(legacy.ToJsonString())!;
-        Assert.Null(missing.TextureAnimation);
-        GameState departure = new() { WorldProcess = missing };
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldProcess>(legacy.ToJsonString()));
+        GameState departure = new() { WorldProcess = process with { TextureAnimation = null } };
         Assert.Throws<NotSupportedException>(() => NativeWorldSalaryState.Begin(departure).AdvanceTextureAnimation(0, 0));
     }
 
@@ -57,8 +56,7 @@ public sealed class NativeWorldTextureAnimationStateTests
         JsonObject saved = JsonSerializer.SerializeToNode(GameSession.CreateColdProcess().State)!.AsObject();
         saved[nameof(GameState.WorldProcess)]!.AsObject().Remove(nameof(NativeWorldProcess.TextureAnimation));
         using MemoryStream stream = new(System.Text.Encoding.UTF8.GetBytes(saved.ToJsonString()));
-        GameState restored = SnapshotDefaults.Deserialize(stream, new JsonSerializerOptions());
-        Assert.Null(restored.WorldProcess!.TextureAnimation);
+        Assert.Throws<JsonException>(() => SnapshotDefaults.Deserialize(stream, new JsonSerializerOptions()));
         saved[nameof(GameState.WorldProcess)]![nameof(NativeWorldProcess.TextureAnimation)] = new JsonObject { [nameof(NativeWorldTextureAnimationState.TextureClock)] = 3 };
         using MemoryStream partial = new(System.Text.Encoding.UTF8.GetBytes(saved.ToJsonString()));
         Assert.Throws<JsonException>(() => SnapshotDefaults.Deserialize(partial, new JsonSerializerOptions()));

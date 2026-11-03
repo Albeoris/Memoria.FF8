@@ -43,6 +43,9 @@ internal static class SnapshotMigrations
                 case 4:
                     SnapshotRetainedEffectMigration.ApplyEffect30(saved, options);
                     break;
+                case 5:
+                    SnapshotWorldTextureAnimationMigration.Apply(saved, options);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }
@@ -53,6 +56,10 @@ internal static class SnapshotMigrations
 
     internal static void CompleteInitialOwners(JsonObject saved, JsonSerializerOptions options, int originalVersion)
     {
+        if (originalVersion < 6)
+        {
+            SnapshotWorldTextureAnimationMigration.Apply(saved, options);
+        }
         // Ordinary idle-state completion can create a missing parent after the versioned pass.
         // Only historical inputs may initialize its newly introduced effect owners.
         if (originalVersion < 3)

@@ -9,6 +9,7 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
 {
     public int VehicleManualCameraVelocity { get; init; }
 
+    [JsonRequired]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldTextureAnimationState? TextureAnimation { get; init; }
 

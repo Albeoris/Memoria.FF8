@@ -33,7 +33,7 @@ public sealed class SnapshotEffect30MigrationTests
 
         SnapshotMigrations.Apply(saved, Options);
 
-        Assert.Equal(5, saved["SnapshotSchemaVersion"]!.GetValue<int>());
+        Assert.Equal(GameState.CurrentSnapshotSchemaVersion, saved["SnapshotSchemaVersion"]!.GetValue<int>());
         Assert.Equal(268L, saved["Battle"]!["Frame"]!.GetValue<long>());
         Assert.Equal(349L, saved["Battle"]!["NativeGraphics"]!["Callback"]!.GetValue<long>());
         JsonObject expected = State(NativeBattleEffect30State.FromColdProcess(), false);
@@ -143,7 +143,7 @@ public sealed class SnapshotEffect30MigrationTests
     [Fact]
     public void Current_schema_preserves_missing_null_and_unknown_owners()
     {
-        JsonObject saved = Snapshot(5);
+        JsonObject saved = Snapshot(GameState.CurrentSnapshotSchemaVersion);
         EffectCopies(saved)[1]["Effect30"] = null;
         EffectCopies(saved)[2]["Effect30"] = State(NativeBattleEffect30State.FromUnknown(), true);
         JsonObject before = (JsonObject)saved.DeepClone();
