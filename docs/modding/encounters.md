@@ -119,7 +119,7 @@ The supplied package lives at `Mods/Memoria/EdeaMirrors/` and ships with `mod.in
 
 Preparation reads all documents and composes a complete candidate generation. Publication updates resource selection and encounter definitions at the existing commit boundary. A malformed or incompatible refresh retains the previous accepted generation. Disabling a package rebuilds the next encounter from the selected baseline and remaining enabled documents. Saves requiring an unavailable definition identity must fail with a compatibility diagnostic rather than attach new rules to old counters.
 
-Schema validation is performed by the strict parser and semantic composer, including operation-specific fields, canonical identities, producer guards and effective-rule checks. No separate external JSON Schema file is required. Automated authoring and component tests do not certify a complete playthrough: windowed arrival rendering and the real Disc 1 story continuation remain acceptance work until their results are recorded.
+Schema validation is performed by the strict parser and semantic composer, including operation-specific fields, canonical identities, producer guards and effective-rule checks. No separate external JSON Schema file is required. The Classic showcase was also checked through real field entry, CPU/GPU arrival frames, each actor's first six actions, linked damage and its native story terminal through the movie and following field load. A constructed fourth actor separately exercises installed native counter completion, snapshot restore, heap retirement and slot reuse; it is not an original four-enemy story formation.
 
 ## Battle camera elevation
 
