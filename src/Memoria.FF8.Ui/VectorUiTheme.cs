@@ -42,7 +42,7 @@ public sealed class VectorUiTheme : UiTheme
         Caption(canvas, bounds, caption, captionFontSize);
     }
 
-    public override void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0)
+    public override void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0, UiColor? color = null)
     {
         if (bounds.IsEmpty || string.IsNullOrEmpty(caption))
         {
@@ -50,7 +50,7 @@ public sealed class VectorUiTheme : UiTheme
         }
 
         float size = captionFontSize > 0 ? captionFontSize : DefaultCaptionFontSize;
-        canvas.Text(caption, size, new UiRect(bounds.X + 12, bounds.Y + 5, Math.Max(0, bounds.Width - 24), size * 1.5f), Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        canvas.Text(caption, size, new UiRect(bounds.X + 12, bounds.Y + 5, Math.Max(0, bounds.Width - 24), size * 1.5f), color ?? Muted, UiAlignment.Center, UiTextFlow.SingleLine);
         float dividerY = Math.Min(bounds.Bottom - 1, bounds.Y + size * 1.5f + 9);
         canvas.Line(bounds.X + 12, dividerY, Math.Max(bounds.X + 12, bounds.Right - 12), dividerY, new UiColor(158, 180, 206, 65), 1);
     }

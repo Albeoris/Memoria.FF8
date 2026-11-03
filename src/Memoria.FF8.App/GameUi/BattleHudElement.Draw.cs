@@ -36,8 +36,7 @@ internal sealed partial class BattleHudElement
         theme.Panel(canvas, panel, controller.DrawCast ? null : caption, captionSize);
         if (controller.DrawCast)
         {
-            float height = captionSize * 1.5f;
-            canvas.OutlinedText(caption, captionSize, new(panel.X + 8, panel.Y - height / 2, panel.Width - 16, height), new UiColor(255, 255, 0), new UiColor(0, 0, 0), 1);
+            theme.Caption(canvas, panel, caption, captionSize, new UiColor(255, 255, 0));
         }
         UiColor guardianColor = LearnedAbilityHighlight.Color(controller.BattlePresentationSeconds);
         for (int index = 0; index < actions.Count; index++)

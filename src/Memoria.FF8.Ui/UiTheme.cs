@@ -118,7 +118,7 @@ public class UiTheme
         Caption(canvas, bounds, caption, captionFontSize);
     }
 
-    public virtual void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0)
+    public virtual void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0, UiColor? color = null)
     {
         if (bounds.IsEmpty || string.IsNullOrEmpty(caption))
         {
@@ -129,7 +129,7 @@ public class UiTheme
         const float inset = 8;
         float height = size * 1.5f;
         UiRect textBounds = new(bounds.X + inset, bounds.Y - height / 2, Math.Max(0, bounds.Width - inset * 2), height);
-        canvas.OutlinedText(caption, size, textBounds, Foreground, new UiColor(0, 0, 0), 1);
+        canvas.OutlinedText(caption, size, textBounds, color ?? Foreground, new UiColor(0, 0, 0), 1);
     }
 
     public virtual void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
