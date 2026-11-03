@@ -488,6 +488,10 @@ internal sealed partial class AutoPlayController
             ObserveSurveySegmentChanges(world);
         }
         world.EnsureField();
+        if (TryPlayBattle(world))
+        {
+            return;
+        }
         AutoPlayDirectCodeEntryState direct = run.DirectCodeEntry;
         if (session.State.NativeGameOver is not null && direct.TrainRetryCheckpoint is not null)
         {
