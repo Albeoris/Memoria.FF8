@@ -81,7 +81,12 @@ public sealed partial class BattleHudController
             return FormatBattleText(localizedCommandName?.Invoke(command, actor, original) ?? original);
         }
         string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
-        return FormatBattleText(localizedCommandName?.Invoke(command, SelectedActor, label) ?? label);
+        string formatted = FormatBattleText(localizedCommandName?.Invoke(command, SelectedActor, label) ?? label);
+        if (command == BattleAbility.Draw && !DrawStockAvailable && DrawAvailable)
+        {
+            return formatted + ": " + SystemText("battle.ui.choicelabels.cast", "Cast");
+        }
+        return formatted;
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
