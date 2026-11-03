@@ -149,6 +149,7 @@ public sealed class TripleTriadReplayTests
     [InlineData(0, false)]
     [InlineData(1, false)]
     [InlineData(1, true)]
+    [InlineData(-1, false)]
     public void ResolvedHostReplayIgnoresInputFromTheRetiredView(int choice, bool cancel)
     {
         TripleTriadController controller = Create(CreateCards(9, 1));
@@ -175,14 +176,24 @@ public sealed class TripleTriadReplayTests
         {
             settlements++;
             Assert.Equal(1, settlements);
-            controller.BeginReplayPrompt(() => replayChoices++, () => replayChoices++);
+            if (choice < 0)
+            {
+                controller.FinishSession();
+            }
+            else
+            {
+                controller.BeginReplayPrompt(() => replayChoices++, () => replayChoices++);
+            }
         };
         UiView view = controller.BuildView();
         view.Resize(960, 672);
         view.Key(UiKey.Confirm);
-        Assert.True(controller.AwaitingReplay);
-        controller.SelectReplayChoice(choice);
-        view.Key(cancel ? UiKey.Cancel : UiKey.Confirm);
+        Assert.Equal(choice >= 0, controller.AwaitingReplay);
+        if (choice >= 0)
+        {
+            controller.SelectReplayChoice(choice);
+            view.Key(cancel ? UiKey.Cancel : UiKey.Confirm);
+        }
         Assert.False(controller.AwaitingReplay);
 
         // The live frame can still dispatch another input through the previous view.
@@ -190,7 +201,7 @@ public sealed class TripleTriadReplayTests
         view.Pointer(700, 620, true);
         view.Key(UiKey.Confirm);
         Assert.Equal(1, settlements);
-        Assert.Equal(1, replayChoices);
+        Assert.Equal(choice >= 0 ? 1 : 0, replayChoices);
     }
 
     [Theory]

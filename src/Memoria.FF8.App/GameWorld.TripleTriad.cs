@@ -325,12 +325,20 @@ internal sealed partial class GameWorld
         NativeCardInventory next = settlement.Inventory.CompleteMatch(result, play.RandomState);
         bool rareCardLost = settlement.LostCardIds.Any(id => id >= NativeCardInventory.CommonCardCount);
         bool cardsClubMaster = request.OpponentOwner == 0xCA && settlement.TookOpponentInstance;
-        tripleTriad.BeginReplayPrompt(() => RestartTripleTriad(next, rareCardLost, cardsClubMaster), () =>
+        void ReturnToField()
         {
+            tripleTriad.FinishSession();
             Events.ReturnFromTripleTriad(result, () => session.CompleteTripleTriad(next, rareCardLost, cardsClubMaster));
             tripleTriad = null;
             session.SetEventState(Events.Capture());
-        }, next.TotalAvailableCount >= match.HandSize);
+        }
+        // This opponent's field script owns the 500-gil fee and item reward for each match.
+        if (request.FieldId == 965 && request.OpponentOwner == 41)
+        {
+            ReturnToField();
+            return;
+        }
+        tripleTriad.BeginReplayPrompt(() => RestartTripleTriad(next, rareCardLost, cardsClubMaster), ReturnToField, next.TotalAvailableCount >= match.HandSize);
     }
 
     private void RestartTripleTriad(NativeCardInventory inventory, bool rareCardLost = false, bool cardsClubMaster = false)

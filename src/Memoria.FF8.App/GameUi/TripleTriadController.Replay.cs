@@ -48,9 +48,8 @@ public sealed partial class TripleTriadController
         {
             bool accepted = key == UiKey.Confirm && ReplaySelection == 0;
             Action callback = (accepted ? replayAccepted : replayDeclined)!;
-            ClearReplayPrompt();
             // The host may replace this controller while its view still has queued input.
-            replayResolved = true;
+            FinishSession();
             RequestSound(accepted ? TripleTriadSound.Confirm : TripleTriadSound.Cancel);
             callback();
         }
@@ -61,6 +60,12 @@ public sealed partial class TripleTriadController
         AwaitingReplay = false;
         replayAccepted = null;
         replayDeclined = null;
+    }
+
+    internal void FinishSession()
+    {
+        ClearReplayPrompt();
+        replayResolved = true;
     }
 
     private void ResetForReplay()
