@@ -174,6 +174,71 @@ public sealed class AutoPlayInputSearchTests
     }
 
     [Fact]
+    public void RecordedDialogueRetainsItsExactWindowWhenLiveAnimationChanges()
+    {
+        DialogueState live = new(0, 3, "Actual choice", 55, 65, 3, 6, NativeWindow: new(1, 2048, 512));
+        DialogueState saved = AutoPlayController.SnapshotInputSearchDialogue(live)!;
+        live.NativeWindow!.Progress = 0;
+        live.NativeWindow.Delta = -512;
+
+        Assert.NotSame(live.NativeWindow, saved.NativeWindow);
+        Assert.Equal(2048, saved.NativeWindow!.Progress);
+        Assert.Equal(512, saved.NativeWindow.Delta);
+        DialogueState cold = JsonSerializer.Deserialize<DialogueState>(JsonSerializer.Serialize(saved, AutoPlayController.JsonOptions), AutoPlayController.JsonOptions)!;
+        Assert.Equal(saved, cold);
+        Assert.NotEqual(live, cold);
+    }
+
+    [Fact]
+    public void RepeatedPhysicalDomainRotatesActualAlternativesBeforeNeutralAndPreservesColdOrder()
+    {
+        AutoPlayInputSearchFrame frame = Frame("repeat");
+        frame.Input = frame.Input! with { Masks = [1, 2, 4, 8] };
+        frame.IncludeNeutralInput = true;
+        frame.Options = [0, 1, 2, 3, 4];
+        frame.BeforeSelections = [new(frame.Key, 0), new("other", 2), new(frame.Key, 2)];
+
+        AutoPlayInputSearchFrame cold = JsonSerializer.Deserialize<AutoPlayInputSearchFrame>(JsonSerializer.Serialize(frame, AutoPlayController.JsonOptions), AutoPlayController.JsonOptions)!;
+        foreach (AutoPlayInputSearchFrame candidate in new[] { frame, cold })
+        {
+            foreach (int expected in new[] { 3, 0, 1, 2 })
+            {
+                Assert.Equal(expected, AutoPlayController.NextInputSearchSelection(candidate));
+                candidate.Trials.Add(new() { Selection = expected });
+            }
+            Assert.Equal(4, AutoPlayController.NextInputSearchSelection(candidate));
+            Assert.Null(AutoPlayController.NextInputSearchSelection(candidate, includeNeutral: false));
+            candidate.Trials.Add(new() { Selection = 4 });
+            Assert.Null(AutoPlayController.NextInputSearchSelection(candidate));
+            Assert.False(candidate.Exhausted);
+        }
+    }
+
+    [Fact]
+    public void RepeatedSingleMaskStillPrecedesNeutralAndExplicitReplayKeepsPriority()
+    {
+        AutoPlayInputSearchFrame frame = Frame("single");
+        frame.Input = frame.Input! with { Masks = [1] };
+        frame.IncludeNeutralInput = true;
+        frame.Options = [0, 1];
+        frame.BeforeSelections = [new(frame.Key, 0)];
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(frame));
+        frame.Trials.Add(new() { Selection = 0 });
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(frame));
+
+        AutoPlayInputSearchFrame replay = Frame("replay");
+        replay.IncludeNeutralInput = true;
+        replay.Options.Add(2);
+        replay.BeforeSelections = [new(replay.Key, 0)];
+        replay.PreferredSelection = 0;
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(replay));
+        replay.Trials.Add(new() { Selection = 0 });
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(replay));
+        replay.Trials.Add(new() { Selection = 1 });
+        Assert.Equal(2, AutoPlayController.NextInputSearchSelection(replay));
+    }
+
+    [Fact]
     public void RepeatedDialogueStartsAfterItsLastActualPrefixSelectionAndRetainsEverySibling()
     {
         AutoPlayInputSearchFrame frame = new()

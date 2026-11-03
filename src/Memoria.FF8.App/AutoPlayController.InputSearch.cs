@@ -125,7 +125,7 @@ internal sealed partial class AutoPlayController
             ProgramHash = program,
             Key = key,
             Input = input,
-            Dialogue = dialogue,
+            Dialogue = SnapshotInputSearchDialogue(dialogue),
             Prepared = input is not null,
             AllowControlled = allowControlled,
             IncludeNeutralInput = input is not null,
@@ -199,8 +199,14 @@ internal sealed partial class AutoPlayController
         DriveInputSearchBoundary(null, false, dialogue, key, preferredSelection: selection);
     }
 
+    internal static DialogueState? SnapshotInputSearchDialogue(DialogueState? dialogue)
+    {
+        return dialogue is null ? null : dialogue with { NativeWindow = dialogue.NativeWindow is null ? null : dialogue.NativeWindow with { } };
+    }
+
     internal static int? NextInputSearchSelection(AutoPlayInputSearchFrame frame, bool includeNeutral = true)
     {
+        int positiveCount = frame.Input?.Masks.Count ?? frame.Options.Count;
         int start = 0;
         if (frame.PreferredSelection is int preferred)
         {
@@ -210,13 +216,17 @@ internal sealed partial class AutoPlayController
             }
             start = frame.Options.IndexOf(preferred);
         }
-        else if (frame.Dialogue is not null && frame.BeforeSelections?.LastOrDefault(selection => selection.Key == frame.Key) is { } previous && frame.Options.Contains(previous.Selection))
+        else if (frame.BeforeSelections?.LastOrDefault(selection => selection.Key == frame.Key) is { } previous)
         {
-            start = (frame.Options.IndexOf(previous.Selection) + 1) % frame.Options.Count;
+            int previousIndex = frame.Options.IndexOf(previous.Selection);
+            if (previousIndex >= 0 && previousIndex < positiveCount)
+            {
+                start = (previousIndex + 1) % positiveCount;
+            }
         }
         for (int offset = 0; offset < frame.Options.Count; offset++)
         {
-            int selection = frame.Options[(start + offset) % frame.Options.Count];
+            int selection = frame.Options[offset < positiveCount ? (start + offset) % positiveCount : offset];
             if (!includeNeutral && frame.IncludeNeutralInput && frame.Input is { } input && selection == input.Masks.Count)
             {
                 continue;
