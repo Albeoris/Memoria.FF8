@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Mods;
@@ -27,6 +26,39 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     private int musicPreference = 100;
     private int soundPreference = 100;
     private int battleVoice;
+    private int soundSpeed = 1;
+    internal TimeProvider SoundTimeProvider { get; init; } = TimeProvider.System;
+
+    public void SetSoundSpeed(int speed)
+    {
+        if (speed is not (1 or 3))
+        {
+            throw new ArgumentOutOfRangeException(nameof(speed));
+        }
+        if (soundSpeed == speed)
+        {
+            return;
+        }
+        soundSpeed = speed;
+        foreach (Voice voice in voices.Values)
+        {
+            TryOutput(() =>
+            {
+                voice.Primary.Tempo(speed);
+                voice.Loop?.Tempo(speed);
+                voice.Clock.SetSpeed(speed);
+                voice.VolumeRamp?.SetSpeed(speed);
+                voice.PanRamp?.SetSpeed(speed);
+            });
+        }
+    }
+
+    private Ramp SoundRamp(float initial, float target, int duration)
+    {
+        Ramp ramp = new(initial, target, duration, SoundTimeProvider);
+        ramp.SetSpeed(soundSpeed);
+        return ramp;
+    }
 
     internal static int OutputGain(int nativeGain, int percentage)
     {
@@ -235,12 +267,15 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             }
             int gain = OutputGain(Catalog.SoundVolume((int)volume), soundPreference);
             int pan = Catalog.SoundPan((int)effectivePan);
+            primary.Tempo(soundSpeed);
+            loop?.Tempo(soundSpeed);
             primary.Volume(gain);
             primary.Pan(pan);
             loop?.Volume(gain);
             loop?.Pan(pan);
             StopVoice(voiceId);
-            var voice = new Voice(primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds);
+            var voice = new Voice(primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider);
+            voice.Clock.SetSpeed(soundSpeed);
             voices.Add(voiceId, voice);
             primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
         }
@@ -440,7 +475,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     {
         if (voices.TryGetValue(voice, out Voice? active))
         {
-            active.VolumeRamp = new Ramp(active.Volume, volume, duration);
+            active.VolumeRamp = SoundRamp(active.Volume, volume, duration);
         }
     }
 
@@ -456,7 +491,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     {
         if (voices.TryGetValue(voice, out Voice? active))
         {
-            active.PanRamp = new Ramp(active.Pan, pan, duration);
+            active.PanRamp = SoundRamp(active.Pan, pan, duration);
         }
     }
 
@@ -656,11 +691,11 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         gameFiles.Dispose();
     }
 
-    private sealed class Voice(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay)
+    private sealed class Voice(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider)
     {
         public PcmAudioOutput.Buffer Primary { get; } = primary;
         public PcmAudioOutput.Buffer? Loop { get; } = loop;
-        public Stopwatch Clock { get; } = Stopwatch.StartNew();
+        public SoundClock Clock { get; } = new(timeProvider);
         public int LoopDelay { get; } = loopDelay ?? 0;
         public bool LoopStarted { get; set; }
         public float Volume { get; set; } = volume;
@@ -671,24 +706,50 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     internal sealed class Ramp(float initial, float target, int milliseconds, TimeProvider? timeProvider = null)
     {
+        private readonly SoundClock clock = new(timeProvider);
+        public void SetSpeed(int speed)
+        {
+            clock.SetSpeed(speed);
+        }
+        private double ElapsedMilliseconds => clock.Elapsed.TotalMilliseconds;
+        public bool Finished => milliseconds <= 0 || ElapsedMilliseconds >= milliseconds;
+        public float Value => Finished ? target : initial + (target - initial) * (float)(ElapsedMilliseconds / milliseconds);
+        public void Pause()
+        {
+            clock.Stop();
+        }
+        public void Resume()
+        {
+            clock.Start();
+        }
+    }
+
+    internal sealed class SoundClock(TimeProvider? timeProvider = null)
+    {
         private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
         private long started = (timeProvider ?? TimeProvider.System).GetTimestamp();
         private TimeSpan elapsed;
         private bool paused;
-        private double ElapsedMilliseconds => (elapsed + (paused ? TimeSpan.Zero : time.GetElapsedTime(started))).TotalMilliseconds;
-        public bool Finished => milliseconds <= 0 || ElapsedMilliseconds >= milliseconds;
-        public float Value => Finished ? target : initial + (target - initial) * (float)(ElapsedMilliseconds / milliseconds);
+        private int speed = 1;
+        public TimeSpan Elapsed => elapsed + (paused ? TimeSpan.Zero : time.GetElapsedTime(started) * speed);
 
-        public void Pause()
+        public void SetSpeed(int value)
+        {
+            elapsed = Elapsed;
+            started = time.GetTimestamp();
+            speed = value;
+        }
+
+        public void Stop()
         {
             if (!paused)
             {
-                elapsed += time.GetElapsedTime(started);
+                elapsed = Elapsed;
                 paused = true;
             }
         }
 
-        public void Resume()
+        public void Start()
         {
             if (paused)
             {

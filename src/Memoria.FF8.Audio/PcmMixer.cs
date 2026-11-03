@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Audio;
 
@@ -75,10 +76,14 @@ public sealed class PcmMixer(int sampleRate = 44100)
 
     public sealed class Voice : IDisposable
     {
+        private static readonly ConditionalWeakTable<byte[], CompressedSource> compressedSources = new();
         private readonly PcmMixer owner;
         private readonly byte[] pcm;
         private readonly int rate;
         private readonly int channels;
+        private readonly object tempoGate = new();
+        private byte[]? compressed;
+        private byte[] playbackPcm;
         private double cursor;
         private double volume = 1;
         private double leftPan = 1;
@@ -94,6 +99,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
             this.pcm = pcm;
             this.rate = rate;
             this.channels = channels;
+            playbackPcm = pcm;
         }
 
         public bool IsPlaying
@@ -187,30 +193,64 @@ public sealed class PcmMixer(int sampleRate = 44100)
             }
         }
 
+        /// <summary>Changes duration while retaining pitch and the original PCM position.</summary>
+        public void Tempo(int speed)
+        {
+            if (speed is not (1 or 3))
+            {
+                throw new ArgumentOutOfRangeException(nameof(speed));
+            }
+            // Compression can be expensive. Never hold the render lock while preparing it.
+            lock (tempoGate)
+            {
+                lock (owner.gate)
+                {
+                    ObjectDisposedException.ThrowIf(disposed, this);
+                }
+                if (speed == 3)
+                {
+                    compressed ??= compressedSources.GetValue(pcm, static _ => new CompressedSource()).Get(pcm, rate, channels);
+                }
+                lock (owner.gate)
+                {
+                    ObjectDisposedException.ThrowIf(disposed, this);
+                    playbackPcm = speed == 1 ? pcm : compressed!;
+                }
+            }
+        }
+
         internal void Mix(ref double left, ref double right)
         {
             if (!playing || paused)
             {
                 return;
             }
-            int frames = pcm.Length / (channels * 2);
-            int first = (int)cursor;
+            int originalFrames = pcm.Length / (channels * 2);
+            int frames = playbackPcm.Length / (channels * 2);
+            if (frames == 0)
+            {
+                cursor = originalFrames;
+                playing = false;
+                return;
+            }
+            double playbackCursor = cursor * frames / originalFrames;
+            int first = Math.Min((int)playbackCursor, frames - 1);
             int second = first + 1 < frames ? first + 1 : loop ? 0 : first;
-            double fraction = cursor - first;
+            double fraction = playbackCursor - first;
             double l = Read(first, 0) * (1 - fraction) + Read(second, 0) * fraction;
             double r = channels == 1 ? l : Read(first, 1) * (1 - fraction) + Read(second, 1) * fraction;
             left += l * volume * leftPan;
             right += r * volume * rightPan;
-            cursor += (double)rate / owner.SampleRate;
-            if (cursor >= frames)
+            cursor += (double)rate / owner.SampleRate * originalFrames / frames;
+            if (cursor >= originalFrames)
             {
                 if (loop)
                 {
-                    cursor %= frames;
+                    cursor %= originalFrames;
                 }
                 else
                 {
-                    cursor = frames;
+                    cursor = originalFrames;
                     playing = false;
                 }
             }
@@ -218,7 +258,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
 
         private short Read(int frame, int channel)
         {
-            return BinaryPrimitives.ReadInt16LittleEndian(pcm.AsSpan((frame * channels + channel) * 2));
+            return BinaryPrimitives.ReadInt16LittleEndian(playbackPcm.AsSpan((frame * channels + channel) * 2));
         }
 
         public void Dispose()
@@ -228,6 +268,24 @@ public sealed class PcmMixer(int sampleRate = 44100)
                 playing = false;
                 disposed = true;
                 owner.voices.Remove(this);
+            }
+        }
+
+        private sealed class CompressedSource
+        {
+            private readonly Dictionary<(int Rate, int Channels), byte[]> formats = [];
+
+            public byte[] Get(byte[] pcm, int rate, int channels)
+            {
+                lock (formats)
+                {
+                    if (!formats.TryGetValue((rate, channels), out byte[]? result))
+                    {
+                        result = PcmTimeStretch.Compress(pcm, rate, channels, 3);
+                        formats.Add((rate, channels), result);
+                    }
+                    return result;
+                }
             }
         }
     }

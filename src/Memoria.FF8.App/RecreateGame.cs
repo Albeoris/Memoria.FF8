@@ -298,6 +298,7 @@ internal sealed partial class RecreateGame : Game
         {
             gameplayClock.ToggleSpeed();
         }
+        fieldAudio?.SetSoundSpeed(gameplayClock.EffectiveSpeed(session.State.Scene, events?.IsScriptedInterface == true));
         // A capture fences the queue until Draw publishes that exact presented frame.
         if (pendingCapture is null)
         {

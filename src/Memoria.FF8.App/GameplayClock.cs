@@ -12,11 +12,16 @@ internal sealed class GameplayClock
         SpeedMultiplier = SpeedMultiplier == 1 ? 3 : 1;
     }
 
+    public int EffectiveSpeed(SceneKind scene, bool scriptedInterface = false)
+    {
+        return !scriptedInterface && (scene is SceneKind.Field or SceneKind.WorldMap) ? SpeedMultiplier : 1;
+    }
+
     public TimeSpan Advance(TimeSpan elapsed, SceneKind scene, bool scriptedInterface = false)
     {
         // Movie callbacks follow decoded frames and real PCM playback together.
         // Scripted interfaces own their held-button repeat delays in field callbacks.
-        int multiplier = !scriptedInterface && (scene is SceneKind.Field or SceneKind.WorldMap) ? SpeedMultiplier : 1;
+        int multiplier = EffectiveSpeed(scene, scriptedInterface);
         TimeSpan simulationElapsed = TimeSpan.FromTicks(checked(elapsed.Ticks * multiplier));
         Total += simulationElapsed;
         return simulationElapsed;
