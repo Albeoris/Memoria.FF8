@@ -90,15 +90,41 @@ jobs:
         with:
           path: ${{ matrix.native-path }}
           key: ${{ steps.native.outputs.key }}
-      - name: Validate artifact reuse and orchestration contracts
+      - name: Validate artifact reuse contracts
         if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 2
         shell: pwsh
         run: |
           node --test .github/scripts/*.test.cjs
+      - name: Validate Linux orchestration contracts
+        if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
           ./tools/linux-testing/tests/Orchestration.Tests.ps1
+      - name: Validate packaging contracts
+        if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
           ./tools/packaging/tests/Packaging.Tests.ps1
+      - name: Validate publication contracts
+        if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
           ./tools/packaging/tests/Publication.Tests.ps1
+      - name: Validate native macOS signing contracts
+        if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
           ./tools/packaging/tests/MacSigning.Tests.ps1
+      - name: Validate platform inventory
+        if: steps.distribution.outputs.reuse != 'true'
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
           ./tools/Get-PlatformInventory.ps1 -Check
       - name: Install Linux build and font dependencies
         if: runner.os == 'Linux' && steps.distribution.outputs.reuse != 'true'

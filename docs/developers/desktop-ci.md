@@ -46,7 +46,9 @@ assemblies built by their graph. The portable subset uses the native graph's
 output directory and build properties, so it updates that graph incrementally
 after packaging rather than compiling a second copy. A standalone portable run
 still builds its full subset before testing. Repeated packaging checks reuse
-their compiled checker.
+their compiled checker by invoking its assembly directly, without starting MSBuild for each assertion.
+
+Artifact reuse, orchestration, archive packaging, release publication, native macOS signing and project coverage have separate validation steps with individual time limits. Packaging tests print each checker operation before executing it, so a stalled operation remains visible in the log.
 
 The native graph is built for the selected RID with the same self-contained and
 debug settings as the distribution. Vulkan, dispatcher, music and launcher

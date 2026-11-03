@@ -96,3 +96,28 @@ test('publication matrix covers four native RIDs with macOS 26 architecture-spec
     assert.match(workflow, /Verify the native macOS build host/);
     assert.match(workflow, /Publication\.Tests\.ps1/);
 });
+
+test('pre-build validations run in dedicated bounded steps and respect artifact reuse', () => {
+    const workflow = require('node:fs').readFileSync('.github/workflows/build.yml', 'utf8');
+    const steps = workflow.split(/^      - /m).slice(1);
+    const validations = [
+        ['node --test .github/scripts/*.test.cjs', 2],
+        ['./tools/linux-testing/tests/Orchestration.Tests.ps1', 3],
+        ['./tools/packaging/tests/Packaging.Tests.ps1', 5],
+        ['./tools/packaging/tests/Publication.Tests.ps1', 2],
+        ['./tools/packaging/tests/MacSigning.Tests.ps1', 8],
+        ['./tools/Get-PlatformInventory.ps1 -Check', 2]
+    ];
+    for (const [command, timeout] of validations) {
+        const matches = steps.filter(step => step.includes(command));
+        assert.equal(matches.length, 1, `${command} must run exactly once`);
+        const step = matches[0];
+        assert.match(step, /^name: .+/);
+        assert.match(step, /^        if: steps\.distribution\.outputs\.reuse != 'true'\r?$/m);
+        assert.match(step, new RegExp(`^        timeout-minutes: ${timeout}\\r?$`, 'm'));
+        assert.match(step, /^        shell: pwsh\r?$/m);
+        const run = step.match(/^        run: \|\r?\n((?:          [^\r\n]*\r?\n)+)/m);
+        assert.ok(run, `${command} must have a run block`);
+        assert.deepEqual(run[1].trim().split(/\r?\n/).map(line => line.trim()), [command], `${command} must be the only command in its step`);
+    }
+});
