@@ -164,9 +164,9 @@ public sealed class BattleUiTests
         UiColor expected = new((byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128));
         UiColor expectedHp = new((byte)Math.Min(255, 255 * shade / 128), (byte)Math.Min(255, 255 * shade / 128), (byte)Math.Min(255, 255 * shade / 128));
         Assert.Equal(expected, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
-        Assert.Equal(expectedHp, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
+        Assert.Equal(expectedHp, Assert.Single(canvas.TextDraws, draw => draw.Bounds.Right == 730 && draw.Bounds.Y == 528).Color);
         Assert.Equal(new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
-        Assert.Equal(new UiColor(255, 255, 255), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        Assert.Equal(new UiColor(255, 255, 255), Assert.Single(canvas.TextDraws, draw => draw.Bounds.Right == 730 && draw.Bounds.Y == 566).Color);
         Assert.DoesNotContain(canvas.Pointers, bounds => bounds.X == 496);
         Assert.Contains(canvas.Pointers, bounds => bounds.X == 38);
         Assert.Equal(0, session.Frame);
@@ -188,8 +188,14 @@ public sealed class BattleUiTests
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
         Assert.Equal(hp == 0 ? new UiColor(148, 148, 164) : new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
-        Assert.Equal(new UiColor(red, green, blue), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
-        Assert.Equal(new UiColor(255, 255, 255), Assert.Single(canvas.TextDraws, draw => draw.Text == " /  100" && draw.Bounds.Y == 528).Color);
+        var currentHp = Assert.Single(canvas.TextDraws, draw => draw.Text == hp.ToString() && draw.Bounds.Y == 528 && draw.Bounds.X < 738);
+        Assert.Equal(new UiColor(red, green, blue), currentHp.Color);
+        Assert.Equal(730, currentHp.Bounds.Right);
+        var separator = Assert.Single(canvas.TextDraws, draw => draw.Text == "/" && draw.Bounds.Y == 528);
+        Assert.Equal(738, separator.Bounds.X);
+        Assert.Equal(new UiColor(255, 255, 255), separator.Color);
+        var maximumHp = Assert.Single(canvas.TextDraws, draw => draw.Text == "100" && draw.Bounds.Y == 528 && draw.Bounds.X == 760);
+        Assert.Equal(new UiColor(255, 255, 255), maximumHp.Color);
     }
 
     [Fact]
@@ -203,7 +209,7 @@ public sealed class BattleUiTests
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
         Assert.Equal(new UiColor(148, 148, 148), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
-        Assert.Equal(new UiColor(159, 159, 76), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
+        Assert.Equal(new UiColor(159, 159, 76), Assert.Single(canvas.TextDraws, draw => draw.Text == "24" && draw.Bounds.Y == 528).Color);
     }
 
     [Fact]
@@ -224,7 +230,7 @@ public sealed class BattleUiTests
         Assert.Equal(new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
         Assert.NotEqual(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
         Assert.Equal(new UiColor(59, 59, 59), Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
-        Assert.Equal(new UiColor(63, 63, 63), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        Assert.Equal(new UiColor(63, 63, 63), Assert.Single(canvas.TextDraws, draw => draw.Bounds.Right == 730 && draw.Bounds.Y == 566).Color);
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("party-0", hud.SelectedActor!.Id);
         canvas = new();

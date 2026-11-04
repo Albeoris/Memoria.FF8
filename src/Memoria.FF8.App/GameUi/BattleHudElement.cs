@@ -239,9 +239,9 @@ internal sealed partial class BattleHudElement : UiElement
                 hpColor = Modulate(hpColor, shade);
             }
             Text(canvas, theme, label, 520, y, 150, 30, 22, color: nameColor);
-            float hpWidth = canvas.MeasureText($"{hp,4}", 22 * Scale * controller.TextScale, 4096 * Scale).Width / Scale;
-            Text(canvas, theme, $"{hp,4}", 674, y, hpWidth, 30, 22, color: hpColor);
-            Text(canvas, theme, $" / {maximumHp,4}", 674 + hpWidth, y, Math.Max(0, 150 - hpWidth), 30, 22, color: new UiColor(255, 255, 255));
+            canvas.AlignedText(hp.ToString(), 22 * Scale * controller.TextScale, Rect(674, y, 56, 30), hpColor, UiAlignment.End);
+            Text(canvas, theme, "/", 738, y, 14, 30, 22, color: new UiColor(255, 255, 255));
+            Text(canvas, theme, maximumHp.ToString(), 760, y, 64, 30, 22, color: new UiColor(255, 255, 255));
             BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
             DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, statuses.Battle);
             DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
