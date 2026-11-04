@@ -9,8 +9,7 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
     private readonly GameWindow window;
     private readonly GraphicsDeviceManager graphics;
     private readonly nint handle;
-    private readonly bool forceSwapchainRecreation;
-    private (int Width, int Height, int Samples)? recreatedSwapchain;
+    private readonly NativeSwapchainRecreation? swapchainRecreation;
     private bool synchronizing;
 
     internal NativeWindowBackBufferSynchronizer(GameWindow window, GraphicsDeviceManager graphics)
@@ -18,7 +17,7 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
         this.window = window;
         this.graphics = graphics;
         handle = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(window.Title) : 0;
-        forceSwapchainRecreation = OperatingSystem.IsMacOS();
+        swapchainRecreation = OperatingSystem.IsMacOS() ? new NativeSwapchainRecreation() : null;
         window.ClientSizeChanged += OnClientSizeChanged;
     }
 
@@ -51,30 +50,20 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
         }
     }
 
-    /// <summary>
-    /// MonoGame's native Vulkan ResizeSwapchain ignores size-only changes and relies on out-of-date presentation, which then
-    /// recreates at the previous extent clamped to the surface limits. MoltenVK reports open-ended extent limits, so the
-    /// swapchain keeps its first size and is stretched over the window. A changed present interval is the only managed
-    /// request that reaches a full recreation using the current presentation size and sample count.
-    /// </summary>
     private void RecreateStaleSwapchain()
     {
-        if (!forceSwapchainRecreation)
+        if (swapchainRecreation is null)
         {
             return;
         }
         PresentationParameters presentation = graphics.GraphicsDevice.PresentationParameters;
-        var current = (presentation.BackBufferWidth, presentation.BackBufferHeight, presentation.MultiSampleCount);
-        if (recreatedSwapchain == current)
-        {
-            return;
-        }
-        bool vsync = graphics.SynchronizeWithVerticalRetrace;
-        graphics.SynchronizeWithVerticalRetrace = !vsync;
+        swapchainRecreation.Synchronize(presentation.BackBufferWidth, presentation.BackBufferHeight, presentation.MultiSampleCount, graphics.SynchronizeWithVerticalRetrace, ApplyVerticalSync);
+    }
+
+    private void ApplyVerticalSync(bool enabled)
+    {
+        graphics.SynchronizeWithVerticalRetrace = enabled;
         graphics.ApplyChanges();
-        graphics.SynchronizeWithVerticalRetrace = vsync;
-        graphics.ApplyChanges();
-        recreatedSwapchain = current;
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs args)
