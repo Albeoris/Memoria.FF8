@@ -70,7 +70,7 @@ public static class NativeBattleVictoryResources
 
         byte[] Read(NativeBattleResourcePointer pointer, int length)
         {
-            return pointer.Cpu is { } reference ? NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length) : staging.Read(pointer.StagingAddress ?? throw new NotSupportedException("Native resource pointer has no observed address owner."), length);
+            return NativeBattleModelResourceView.Open(cpu, staging, pointer, length).Read(0, length);
         }
     }
 

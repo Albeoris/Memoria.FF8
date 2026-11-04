@@ -13,7 +13,7 @@ public static class NativeBattleModelEnemyHeap
 {
     public static byte[] Read(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelCpuReference reference, int length)
     {
-        return reference.Bank < 3 ? cpu.Cpu.Banks[reference.Bank].Read(reference.Offset, length) : staging.Read(reference.SharedAddress, length);
+        return NativeBattleModelResourceView.Open(cpu, staging, reference, length).Read(0, length);
     }
 
     public static (NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Load(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int destination, int? sharedRow, bool special143)

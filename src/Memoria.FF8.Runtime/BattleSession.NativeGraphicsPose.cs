@@ -47,9 +47,9 @@ public sealed partial class BattleSession
 
             byte[] ReadBytes(NativeBattleResourcePointer pointer, int length)
             {
-                if (pointer.Cpu is { } reference)
+                if (pointer.Cpu is not null)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length);
+                    return NativeBattleModelResourceView.Open(cpu, staging, pointer, length).Read(0, length);
                 }
                 uint address = pointer.StagingAddress ?? throw new NotSupportedException("Native bound resource has no actual byte owner.");
                 if (NativeBattleEffectTaskMemory.TryRead(pools, address, length, out byte[] bytes))
