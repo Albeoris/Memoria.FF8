@@ -128,8 +128,13 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     {
         TryOutput(() => DispatchNativeMusicResume(playback, (slot, id, gain) =>
         {
-            // TODO(TD-009): Device phase is not retained; restart the proved selection at its segment start.
+            // Loading resumes the retained musical selection from its beginning.
             PlayMusic(id, slot, gain, -1, forceRestart: true, identityResolved: true);
+        }, (mask, gain) =>
+        {
+            StopMusicSlot(0);
+            midiVolume = gain;
+            PlayConcert(mask, gain);
         }));
     }
 
@@ -211,15 +216,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
                     break;
             }
         });
-    }
-
-    internal static void RequireOrdinaryMusicOutput(uint? choiceMask)
-    {
-        if (choiceMask is not null)
-        {
-            // TODO(TD-003): concert segments need their actual DirectMusic output lifecycle.
-            throw new NotSupportedException("Concert segment output requires the original instrument-selection backend; ordinary full-track rendering is unsupported.");
-        }
     }
 
     private void PlaySound(GlobalSoundRequest request)

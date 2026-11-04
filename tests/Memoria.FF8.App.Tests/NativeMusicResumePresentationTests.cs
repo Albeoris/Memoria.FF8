@@ -5,6 +5,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeMusicResumePresentationTests
 {
     [Fact]
+    public void Concert_resume_uses_retained_instruments_and_gain_without_an_ordinary_track_fallback()
+    {
+        NativeMusicPlaybackState playback = NativeMusicPlaybackState.FromColdProcess().SetGain46BB40(0, 63).Concert46B990(4080);
+        List<string> calls = [];
+        FieldAudioPresentation.DispatchNativeMusicResume(playback, (_, _, _) => Assert.Fail("A concert must use its instrument selection."), (mask, gain) => calls.Add($"{mask}:{gain}"));
+        Assert.Equal(new[] { "4080:63" }, calls);
+        Assert.Null(playback.Stop46C060(0).ConcertMask);
+        Assert.Null(playback.PlayEncoded46B530(0, 7, 63).ConcertMask);
+        Assert.Equal(4080u, playback.Stop46C060(1).ConcertMask);
+        Assert.Throws<InvalidDataException>(() => (playback with { CurrentMusicId0 = 17 }).Validate());
+    }
+
+    [Fact]
     public void Stopped_modes_do_not_restart_track_zero_or_read_unneeded_gain_and_identity()
     {
         Assert.Empty(Trace(new(null, null, null, null) { Mode0 = NativeMusicPlaybackMode.Stopped, Mode1 = NativeMusicPlaybackMode.Stopped }));

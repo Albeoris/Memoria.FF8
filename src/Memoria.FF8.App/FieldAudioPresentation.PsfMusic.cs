@@ -98,6 +98,15 @@ internal sealed partial class FieldAudioPresentation
             int volume = Math.Clamp((int)(kind == MusicKind.Midi ? midiVolume : streamVolume), 0, 127);
             output.SetGain(ExternalGain(kind, volume, output.Volume));
             output.Pause(focusPaused || nativeMidiPaused);
+            if (kind == MusicKind.Midi)
+            {
+                music?.Stop();
+            }
+            else
+            {
+                streamedMusic?.Dispose();
+                streamedMusic = null;
+            }
             output.Start();
         }
         catch

@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class FieldAudioPresentation
 {
-    internal static void DispatchNativeMusicResume(NativeMusicPlaybackState? playback, Action<int, int, int> play)
+    internal static void DispatchNativeMusicResume(NativeMusicPlaybackState? playback, Action<int, int, int> play, Action<uint, int>? concert = null)
     {
         if (playback is null)
         {
@@ -22,6 +22,11 @@ internal sealed partial class FieldAudioPresentation
         Prepare(1, second, playback.CurrentMusicId1, playback.Gain1);
         foreach (var selection in selected)
         {
+            if (selection.Slot == 0 && playback.ConcertMask is uint mask)
+            {
+                concert!(mask, selection.Gain);
+                continue;
+            }
             play(selection.Slot, selection.Id, selection.Gain);
         }
 
@@ -35,8 +40,10 @@ internal sealed partial class FieldAudioPresentation
             int volume = gain ?? throw new NotSupportedException("Music resume requires the selected slot's native gain latch.");
             if (music == 43)
             {
-                // TODO(TD-003): Slot mode/ID cannot distinguish concert instruments from ordinary43.
-                throw new NotSupportedException("Music43 resume requires its retained concert or ordinary-segment selection.");
+                if (slot != 0 || playback.ConcertMask is null || concert is null)
+                {
+                    throw new NotSupportedException("Music43 resume requires its retained concert selection and output route.");
+                }
             }
             if (mode != NativeMusicRouting.Mode46B530(music))
             {
@@ -55,11 +62,42 @@ internal sealed partial class FieldAudioPresentation
         DispatchNativeMusicPlayback(decision, StopMusicSlot, (slot, music, gain) => PlayMusic(music, slot, gain, fieldId, startPoint, forceRestart: true, identityResolved: true, noIntro: noIntro), (slot, gain) => SetMusicGain(slot, null, gain, finalDuration), () =>
         {
             uint mask = choiceMask ?? throw new InvalidDataException("Native concert output requires its executed instrument-selection mask.");
-            if (!TryPlayExternalConcert(mask))
-            {
-                RequireOrdinaryMusicOutput(mask);
-            }
+            PlayConcert(mask, (int)midiVolume);
         }, initialGain);
+    }
+
+    private void PlayConcert(uint mask, int gain)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(gain);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(gain, 127);
+        midiVolume = gain;
+        midiRamp = null;
+        IReadOnlyList<string> tracks = Memoria.FF8.Assets.NativeConcertSelection.Tracks(mask);
+        if (tracks.Count == 0)
+        {
+            CancelMusicDecode(MusicKind.Midi);
+            StopExternalMusic(MusicKind.Midi);
+            music?.Stop();
+            musicKinds[0] = MusicKind.Midi;
+            musicIds[0] = 43;
+            nativeMidiPaused = false;
+            return;
+        }
+        if (TryPlayExternalConcert(mask))
+        {
+            return;
+        }
+        string[] paths = tracks.Select(track => gameFiles.ResolveDataFile($"music/dmusic/{track}")).ToArray();
+        CancelMusicDecode(MusicKind.Midi);
+        StopExternalMusic(MusicKind.Midi);
+        Music.PlayConcert(paths, OutputGain(Catalog.MusicVolume(gain), musicPreference));
+        if (focusPaused)
+        {
+            Music.Pause();
+        }
+        musicKinds[0] = MusicKind.Midi;
+        musicIds[0] = 43;
+        nativeMidiPaused = false;
     }
 
     internal static void DispatchNativeMusicPlayback(NativeMusicPlaybackDecision? decision, Action<int> stop, Action<int, int, int> play, Action<int, int> gain, Action concert, int? initialGain = null)

@@ -29,6 +29,9 @@ internal static class MusicProgram
                         case "Play":
                             output.Play(command.GetProperty("Path").GetString()!, command.GetProperty("Volume").GetInt32(), command.GetProperty("StartPoint").GetInt32());
                             break;
+                        case "Concert":
+                            output.PlayConcert(command.GetProperty("Paths").EnumerateArray().Select(path => path.GetString()!).ToArray(), command.GetProperty("Volume").GetInt32());
+                            break;
                         case "Volume":
                             output.Volume(command.GetProperty("Volume").GetInt32());
                             break;

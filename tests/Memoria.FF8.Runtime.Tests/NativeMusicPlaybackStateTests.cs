@@ -116,7 +116,19 @@ public sealed class NativeMusicPlaybackStateTests
     [InlineData(0x400000u)]
     public void Concert_non_sentinel_masks_write_ID43_without_field_or_gain_reads(uint mask)
     {
-        Assert.Equal(new NativeMusicPlaybackState(null, -1, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi }, new NativeMusicPlaybackState(null, -1, null, null).Concert46B990(mask, () => throw new InvalidOperationException()));
+        Assert.Equal(new NativeMusicPlaybackState(null, -1, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi, ConcertMask = mask }, new NativeMusicPlaybackState(null, -1, null, null).Concert46B990(mask, () => throw new InvalidOperationException()));
+    }
+
+    [Fact]
+    public void Concert_selection_round_trips_without_device_or_waveform_state()
+    {
+        NativeMusicPlaybackState state = NativeMusicPlaybackState.FromColdProcess().Concert46B990(4080);
+        string json = System.Text.Json.JsonSerializer.Serialize(state);
+        NativeMusicPlaybackState restored = System.Text.Json.JsonSerializer.Deserialize<NativeMusicPlaybackState>(json)!;
+        Assert.Equal(state, restored);
+        restored.Validate();
+        Assert.DoesNotContain("ConcertMask", System.Text.Json.JsonSerializer.Serialize(state.Stop46C060(0)));
+        Assert.Throws<InvalidDataException>(() => (state with { ConcertMask = 0x04000000 }).Validate());
     }
 
     [Fact]
@@ -124,7 +136,7 @@ public sealed class NativeMusicPlaybackStateTests
     {
         NativeMusicPlaybackState unknown = NativeMusicPlaybackState.Unknown();
         Assert.Same(unknown, unknown.Concert46B990(4095, () => 633));
-        Assert.Equal(new NativeMusicPlaybackState(null, null, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi }, unknown.Concert46B990(4095, () => 634));
+        Assert.Equal(new NativeMusicPlaybackState(null, null, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi, ConcertMask = 4095 }, unknown.Concert46B990(4095, () => 634));
         Assert.Throws<NotSupportedException>(() => unknown.Concert46B990(4095));
     }
 

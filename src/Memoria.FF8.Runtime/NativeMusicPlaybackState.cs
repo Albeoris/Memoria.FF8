@@ -10,6 +10,10 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMusicPlaybackMode? Mode1 { get; init; }
 
+    /// <summary>The semantic instrument selection for the primary concert composition.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ConcertMask { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? BattleFirstLoadB8B7D4 { get; init; }
 
@@ -30,6 +34,10 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
 
     public void Validate()
     {
+        if (ConcertMask is uint mask && (mask > 0x03FFFFFF || CurrentMusicId0 != 43 || Mode0 != NativeMusicPlaybackMode.Midi))
+        {
+            throw new InvalidDataException("A concert selection requires its primary MIDI composition and a 26-bit instrument mask.");
+        }
         if (Mode0 is { } first && !Enum.IsDefined(first) || Mode1 is { } second && !Enum.IsDefined(second))
         {
             throw new InvalidDataException("Native music mode must retain the original stopped/MIDI/WAV route or remain unknown.");
@@ -78,7 +86,7 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
     public NativeMusicPlaybackState Stop46C060(int channel)
     {
         ValidateChannel(channel);
-        return channel == 0 ? this with { CurrentMusicId0 = 0, Mode0 = NativeMusicPlaybackMode.Stopped } : this with { CurrentMusicId1 = 0, Mode1 = NativeMusicPlaybackMode.Stopped };
+        return channel == 0 ? this with { CurrentMusicId0 = 0, Mode0 = NativeMusicPlaybackMode.Stopped, ConcertMask = null } : this with { CurrentMusicId1 = 0, Mode1 = NativeMusicPlaybackMode.Stopped };
     }
 
     public NativeMusicPlaybackState Stop46B800(uint channel)
@@ -127,7 +135,7 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
         }
         // Native46C060 precedes both writes; on this pure owner it clears only the ID replaced below.
         NativeMusicPlaybackMode mode = NativeMusicRouting.Mode46B530(id);
-        return channel == 0 ? this with { Gain0 = gain, CurrentMusicId0 = id, Mode0 = mode } : this with { Gain1 = gain, CurrentMusicId1 = id, Mode1 = mode };
+        return channel == 0 ? this with { Gain0 = gain, CurrentMusicId0 = id, Mode0 = mode, ConcertMask = null } : this with { Gain1 = gain, CurrentMusicId1 = id, Mode1 = mode };
     }
 
     public NativeMusicPlaybackState Play46B510(ReadOnlySpan<byte> resource, Func<ushort>? readCurrentField = null)
@@ -153,7 +161,7 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
             return this;
         }
         // Every remaining concert mask stops channel0 and writes ID43 before device selection.
-        return this with { CurrentMusicId0 = 43, Mode0 = NativeMusicPlaybackMode.Midi };
+        return this with { CurrentMusicId0 = 43, Mode0 = NativeMusicPlaybackMode.Midi, ConcertMask = mask };
     }
 
     private static ushort ReadCurrentField(Func<ushort>? readCurrentField)
