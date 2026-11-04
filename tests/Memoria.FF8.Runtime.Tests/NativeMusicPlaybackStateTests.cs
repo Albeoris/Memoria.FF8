@@ -6,6 +6,51 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeMusicPlaybackStateTests
 {
     [Theory]
+    [InlineData(null)]
+    [InlineData(0u)]
+    [InlineData(4080u)]
+    public void Full_session_preserves_old_ordinary_shape_and_explicit_concert_masks(uint? mask)
+    {
+        NativeGlobalSoundProcess process = NativeGlobalSoundProcess.FromBufferlessColdProcess();
+        if (mask is uint selected)
+        {
+            process = process with { MusicPlayback = process.MusicPlayback!.Concert46B990(selected) };
+        }
+        GameState state = new() { GlobalSoundProcess = process };
+        JsonObject checkpoint = JsonNode.Parse(RuntimeOwnerCheckpointFixture.Capture(state).GetRawText())!.AsObject();
+        // The owner-only fixture uses numeric enums; session checkpoints use their names.
+        JsonSerializerOptions options = new() { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+        checkpoint["GlobalSoundProcess"] = JsonSerializer.SerializeToNode(process, options);
+        GameSession session = new(state with { EventState = JsonSerializer.SerializeToElement(checkpoint) });
+        string path = Path.Combine(Path.GetTempPath(), "ff8-music-selection-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            session.Save(path);
+            JsonObject saved = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            if (mask is null)
+            {
+                saved["GlobalSoundProcess"]!["MusicPlayback"]!.AsObject().Remove("ConcertMask");
+                saved["EventState"]!["GlobalSoundProcess"]!["MusicPlayback"]!.AsObject().Remove("ConcertMask");
+                File.WriteAllText(path, saved.ToJsonString());
+            }
+            else
+            {
+                Assert.Equal(mask, saved["GlobalSoundProcess"]!["MusicPlayback"]!["ConcertMask"]!.GetValue<uint>());
+                Assert.Equal(mask, saved["EventState"]!["GlobalSoundProcess"]!["MusicPlayback"]!["ConcertMask"]!.GetValue<uint>());
+            }
+            GameState loaded = GameSession.Load(path);
+            Assert.Equal(mask, loaded.GlobalSoundProcess!.MusicPlayback!.ConcertMask);
+            new GameSession(loaded).Save(path);
+            Assert.Equal(mask, GameSession.Load(path).GlobalSoundProcess!.MusicPlayback!.ConcertMask);
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(path + ".tmp");
+        }
+    }
+
+    [Theory]
     [InlineData(0u, 300, null)]
     [InlineData(1u, null, 300)]
     [InlineData(2u, 300, 300)]

@@ -58,16 +58,27 @@ public sealed class BattleResultPresentationTests
         Assert.Equal(0u, result.ExperienceToNextLevel);
     }
 
-    [Fact]
-    public void GuardianNoticesIncludeOnlyChangedAcquiredOwnersAndNewLearnedBits()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GuardianNoticesIncludeOnlyChangedAcquiredOwnersAndNewLearnedBits(bool hasProgression)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals before = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1);
         NativeGuardianForceVital[] previous = before.GuardianForces.ToArray();
-        previous[0] = previous[0] with { LearnedBank = new NativeGuardianForceLearnedBank(1UL << 3, 0) };
+        previous[0] = previous[0] with
+        {
+            LearnedBank = new NativeGuardianForceLearnedBank(1UL << 3, 0),
+            Progression = hasProgression ? new(true, [new(3, true)]) : null
+        };
         before = before with { GuardianForces = previous };
         NativeCharacterVitals after = before.DeepCopy();
-        after.GuardianForces[0] = after.GuardianForces[0] with { Experience = 1000000, LearnedBank = new NativeGuardianForceLearnedBank((1UL << 3) | (1UL << 5), 1UL << 63) };
+        after.GuardianForces[0] = after.GuardianForces[0] with
+        {
+            Experience = 1000000,
+            LearnedBank = new NativeGuardianForceLearnedBank((1UL << 3) | (1UL << 5), 1UL << 63),
+            Progression = hasProgression ? new(true, [new(3, true), new(5, true), new(127, true)]) : null
+        };
         string original = JsonSerializer.Serialize(before);
         string projected = JsonSerializer.Serialize(after);
 
