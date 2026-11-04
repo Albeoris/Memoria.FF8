@@ -48,8 +48,7 @@ public static partial class NativeBattleEffect303Controller
             {
                 packet.Dword(8 + corner * 8, screen[corner]);
             }
-            bool outsideX = screen.All(value => unchecked((ushort)value) > 2560);
-            bool outsideY = screen.All(value => unchecked((ushort)(value >> 16)) > 1728);
+            bool outside = BattleSceneVisibleArea.RejectPacked(screen);
             if (quad)
             {
                 NativeBattleEffectArena point = Context(frame, temporary, 8);
@@ -67,8 +66,7 @@ public static partial class NativeBattleEffect303Controller
                 uint fourth = registers.Geometry.Sxy[2]!.Value;
                 packet.Copy(36, row, 74, 2);
                 packet.Dword(32, fourth);
-                outsideX &= unchecked((ushort)fourth) > 2560;
-                outsideY &= unchecked((ushort)(fourth >> 16)) > 1728;
+                outside = BattleSceneVisibleArea.RejectPacked(screen.Append(fourth));
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect303 fragments require current ZSF4."));
             }
             else
@@ -77,7 +75,7 @@ public static partial class NativeBattleEffect303Controller
             }
             NativeBattleGeometryPrimitive? primitive = null;
             int allocation = 0;
-            if (!outsideX && !outsideY)
+            if (!outside)
             {
                 if (!quad)
                 {

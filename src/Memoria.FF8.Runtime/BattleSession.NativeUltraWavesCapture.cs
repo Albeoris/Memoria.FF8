@@ -9,6 +9,7 @@ public sealed partial class BattleSession
 
     private NativeUltraWavesCaptureResult CaptureNativeUltraWaves(NativeBattleGraphicsState graphics, NativeBattleEffectArena packets, NativeBattleEffectArena capturePackets, int cursor, string packetBank, string captureBank, ImmutableArray<int> directory, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source, 384, 256);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ultra Waves capture requires its process memory.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Ultra Waves capture requires its primitive process.");
         byte buffer = process.Buffer80 ?? throw new NotSupportedException("Ultra Waves capture requires its display buffer.");

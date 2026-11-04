@@ -274,10 +274,11 @@ internal static class NativeBattleEffectMeshPackets
 
     private static bool OutsideScreen(NativeBattleModuleProjectedVertex[] vertices, NativeBattleEffectMeshPacketContext context)
     {
-        return vertices.All(vertex => Outside(unchecked((short)vertex.Screen), context.ScreenMaximumX)) || vertices.All(vertex => Outside(unchecked((short)(vertex.Screen >> 16)), context.ScreenMaximumY));
+        BattleSceneVisibleArea area = BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native || context.ScreenMaximumX == 2560 && context.ScreenMaximumY == 1728 ? BattleSceneVisibleArea.Current : new(0, 0, context.ScreenMaximumX, context.ScreenMaximumY);
+        IEnumerable<BattleSceneScreenPoint> points = vertices.Select(vertex => new BattleSceneScreenPoint(unchecked((short)vertex.Screen), unchecked((short)(vertex.Screen >> 16))));
+        return BattleSceneVisibleArea.Current == BattleSceneVisibleArea.Native ? area.RejectNative(points) : area.Reject(points);
     }
 
-    private static bool Outside(short value, int end) => value < 0 || value > end;
     private static int Average(NativeBattleModuleProjectedVertex[] vertices) => (int)(unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (vertices.Length == 4 ? 0x100u : 0x155u)) >> 12);
     private static int RequiredFade(NativeBattleEffectMeshPacketContext context) => context.Fade ?? throw new NotSupportedException("Native mesh fade requires its actual signed contextDWORD0C.");
     private static uint RequiredFar(NativeBattleEffectMeshPacketContext context) => context.FarColor ?? throw new NotSupportedException("Native mesh fade requires its actually written contextRGB8.");

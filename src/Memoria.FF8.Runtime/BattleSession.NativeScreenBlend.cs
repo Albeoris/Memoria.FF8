@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGeometryPrimitive primitive = new(3, words.ToImmutableArray(), [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(3, words.ToImmutableArray(), [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         primitive = CaptureNativeScreenBlend501E80(primitive, graphics.OriginalEffect?.Binding.Effect);
         NativeBattleGfGeometryAttempt packet = new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 16).ToImmutableArray(), primitive);
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, frame.Pending, new([packet], 16), 1);

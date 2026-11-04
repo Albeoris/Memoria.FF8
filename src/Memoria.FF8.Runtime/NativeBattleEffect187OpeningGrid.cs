@@ -96,7 +96,7 @@ public static class NativeBattleEffect187OpeningGrid
                 screens[3] = registers.Geometry.Sxy[2]!.Value;
                 packet.Word(32, screens[3]);
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect187 opening grid requires its actual ZSF4."));
-                if (screens.All(screen => (screen & 0xFFFF) > 0xA00) || screens.All(screen => (screen >> 16) > 0x6C0))
+                if (BattleSceneVisibleArea.RejectPacked(screens))
                 {
                     attempts.Add(packet.Attempt(null));
                     continue;

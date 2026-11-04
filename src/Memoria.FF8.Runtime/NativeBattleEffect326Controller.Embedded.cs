@@ -116,7 +116,7 @@ public static partial class NativeBattleEffect326Controller
         {
             packet.Word(lane * 4, words[lane]);
         }
-        NativeBattleGeometryPrimitive primitive = new(17 + 4096, words.ToImmutableArray(), [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(17 + 4096, words.ToImmutableArray(), [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         if (inputs.CapturePresentation && NativeBattleEffect326Presentation.Task(inputs, Read(frame, address).Callback) is { } identity)
         {
             primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(2560, 0, 0), new(0, 1728, 0), new(2560, 1728, 0), 4, false) { ScreenSpace = true, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };

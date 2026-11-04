@@ -7,6 +7,7 @@ public static class NativeBattleRinoa89ShardDrawing
 {
     public static NativeBattleGfGeometryBatch Draw6FCFD0(NativeBattleEffectArena arena, bool captureVisual = false)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Image);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int cursor = 0;
         for (int index = 0; index < 120; index++)

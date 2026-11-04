@@ -7,6 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWall189State State, NativeBattleGraphicsState Graphics, int Cursor) CaptureNativeWall189(NativeBattleWall189State state, NativeBattleGraphicsState graphics, NativeBattleVector center, int cursor, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess ?? throw new NotSupportedException("Native Wall capture requires its actual primitive process.");
         byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native Wall capture requires its current draw environment selector.");
         NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native Wall capture requires its retained drawing environments.");

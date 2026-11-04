@@ -21,7 +21,7 @@ public static class NativeBattleDuelSharedPackets
     public static NativeBattleModulePacketBatch Flash6CBF90()
     {
         NativeBattleGeometryPrimitive before = new(8, [0x01000000, 0xE1000020], []) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray() };
-        NativeBattleGeometryPrimitive flash = new(8, [0x05000000, 0x2A808080, 0, 320, 216u << 16, 216u << 16 | 320], [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray() };
+        NativeBattleGeometryPrimitive flash = new(8, [0x05000000, 0x2A808080, 0, 320, 216u << 16, 216u << 16 | 320], [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(), ScreenCoverage = NativeBattleScreenCoverage.Full };
         NativeBattleGeometryPrimitive after = new(8, [0x01000000, 0xE1000040], []) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray() };
         return new([new(before, 24, 1), new(flash, 0, 1), new(after, 32, 1)], 40);
     }
@@ -46,7 +46,8 @@ public static class NativeBattleDuelSharedPackets
         uint color = (uint)(r | g << 8 | b << 16);
         NativeBattleGeometryPrimitive primitive = new(8, [0x05000000, 0x2A000000 | color, 0, 320, 216u << 16, 216u << 16 | 320], [0, 0, 0, 0])
         {
-            PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray()
+            PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(),
+            ScreenCoverage = NativeBattleScreenCoverage.Full
         };
         return new([new(primitive, 0, 1)], 24);
     }

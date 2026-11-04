@@ -51,6 +51,7 @@ public static partial class NativeBattleSonic139Warp
             throw new InvalidDataException("Native Sonic warp requires its bounded positive screen-record count and sine table.");
         }
         uint destination = checked(Dword(frame, 0x2517B58) + 0x1584);
+        ImmutableDictionary<uint, BattleSceneScreenPoint>.Builder sampleCoordinates = ImmutableDictionary.CreateBuilder<uint, BattleSceneScreenPoint>();
         for (int index = 0; index < count; index++)
         {
             uint source = checked(morph + (uint)index * 8);
@@ -91,6 +92,7 @@ public static partial class NativeBattleSonic139Warp
             colors = frame.Memory.ScriptedColorRegisters!;
             short u = unchecked((short)colors.Ir[0]!.Value);
             short v = unchecked((short)colors.Ir[1]!.Value);
+            sampleCoordinates[target] = new(u, v);
             if (u < 0)
             {
                 u = 0;
@@ -110,7 +112,7 @@ public static partial class NativeBattleSonic139Warp
             record = record.Write(4, BitConverter.GetBytes(u)).Write(6, BitConverter.GetBytes(v));
             frame = WriteBytes(frame, target, record, 12);
         }
-        return frame;
+        return frame with { WarpSamples = sampleCoordinates.ToImmutable() };
     }
 
     private static NativeBattleSonic139Frame TransformXY(NativeBattleSonic139Frame frame, short x, short y)
@@ -128,6 +130,7 @@ public static partial class NativeBattleSonic139Warp
 
     private static NativeBattleSonic139Frame Environment(NativeBattleSonic139Frame frame, ImmutableArray<byte> saved, short x, short y, bool restore, int bucket, NativeBattleSonic139Inputs inputs)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(restore ? NativeBattleSceneCaptureKind.SourceEnvironment : NativeBattleSceneCaptureKind.Image, 576, 256);
         byte[] source = new byte[92];
         short[] rectangle = [x, y, 320, 216, x, y];
         for (int index = 0; index < rectangle.Length; index++)
@@ -147,7 +150,7 @@ public static partial class NativeBattleSonic139Warp
         return Append(frame, address, 64, written, bucket, 0, retained, inputs, true);
     }
 
-    private static NativeBattleSonic139Frame Append(NativeBattleSonic139Frame frame, uint address, int allocation, int written, int bucket, ushort flags, NativeBattleEffectArena packet, NativeBattleSonic139Inputs inputs, bool preserveLink = false, NativeBattlePilotVisualGeometry? pilotGeometry = null)
+    private static NativeBattleSonic139Frame Append(NativeBattleSonic139Frame frame, uint address, int allocation, int written, int bucket, ushort flags, NativeBattleEffectArena packet, NativeBattleSonic139Inputs inputs, bool preserveLink = false, NativeBattlePilotVisualGeometry? pilotGeometry = null, NativeBattleSceneCapture? sceneCapture = null)
     {
         frame = WriteBytes(frame, address, packet, allocation);
         (byte[] bytes, bool[] known) = packet.ReadSnapshot(0, allocation);
@@ -160,7 +163,7 @@ public static partial class NativeBattleSonic139Warp
             mask[30] = NativeBattleGfPacketByteState.Untouched;
             mask[31] = NativeBattleGfPacketByteState.Untouched;
         }
-        return inputs.Execute(frame, new NativeBattleSonic139AppendPacket(address, allocation, written, bucket, flags, bytes, known) { WriteMask = mask, PilotGeometry = pilotGeometry });
+        return inputs.Execute(frame, new NativeBattleSonic139AppendPacket(address, allocation, written, bucket, flags, bytes, known) { WriteMask = mask, PilotGeometry = pilotGeometry, SceneCapture = sceneCapture ?? NativeBattleSceneCapture.Current });
     }
 
     private static uint Cursor(NativeBattleSonic139Frame frame) => Dword(frame, 0x2520BF4);

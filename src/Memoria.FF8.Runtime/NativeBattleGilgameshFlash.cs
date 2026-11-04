@@ -47,7 +47,7 @@ public static class NativeBattleGilgameshFlash
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask, ScreenCoverage = offset == 0 ? NativeBattleScreenCoverage.Full : null };
         return new(offset, bytes.ToImmutableArray(), mask, primitive);
     }
 }

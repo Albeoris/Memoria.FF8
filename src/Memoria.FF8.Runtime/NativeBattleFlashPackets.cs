@@ -62,7 +62,7 @@ public static class NativeBattleFlashPackets
         {
             overlay = overlay with { Identity = identity, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
         }
-        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray(), PilotGeometry = overlay };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray(), PilotGeometry = overlay, ScreenCoverage = NativeBattleScreenCoverage.Full };
         return new([new(primitive, 0, 1)], words.Length * 4);
     }
 }

@@ -75,7 +75,7 @@ public static class NativeBattleBladeShot12MeshContext88
                             registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Blade Shot requires its actual ZSF3."));
                         }
                         uint rawDepth = registers.Geometry.Otz!.Value;
-                        bool outside = projected.All(vertex => unchecked((ushort)vertex.Screen) > 2560) || projected.All(vertex => (vertex.Screen >> 16) > 1728);
+                        bool outside = BattleSceneVisibleArea.RejectPacked(projected.Select(vertex => vertex.Screen));
                         if (!quad || !outside)
                         {
                             context = Put(context, 0x2C, rawDepth);

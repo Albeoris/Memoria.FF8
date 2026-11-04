@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
             }
             NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, primitive, linked);
-            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId);
+            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture);
             if (linked)
             {
                 stores.Add(new(cursor, ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));

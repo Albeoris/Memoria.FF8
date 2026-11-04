@@ -34,7 +34,7 @@ public static class NativeBattleDuel215ParticlePackets
         {
             return Rejected();
         }
-        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 2560) || vertices.All(vertex => unchecked((ushort)(vertex.Screen >> 16)) > 1728))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return Rejected();
         }

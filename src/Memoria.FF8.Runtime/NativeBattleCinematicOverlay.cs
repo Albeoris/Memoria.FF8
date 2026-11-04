@@ -49,7 +49,7 @@ public static class NativeBattleCinematicOverlay
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, bytes.Length).Select(index => index < 3 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToImmutableArray();
-            NativeBattleGeometryPrimitive primitive = new(bucket, words, []) { PhysicalWriteMask = mask };
+            NativeBattleGeometryPrimitive primitive = new(bucket, words, []) { PhysicalWriteMask = mask, ScreenCoverage = offset == 0 ? NativeBattleScreenCoverage.Full : null };
             if (offset == 0)
             {
                 NativeBattlePilotVisualGeometry geometry = new(pilotIdentity ?? new(0, 0, 0, 0, 0x2A), new(0, 0, 0), new(320, 0, 0), new(0, 256, 0), new(320, 256, 0), 4, false) { ScreenSpace = true };

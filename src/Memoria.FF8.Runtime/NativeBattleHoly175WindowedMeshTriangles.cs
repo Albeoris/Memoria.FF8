@@ -52,7 +52,7 @@ public static partial class NativeBattleHoly175WindowedMeshPackets
         {
             packet.Word(screenOffsets[corner], vertices[corner].Screen);
         }
-        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 2560) || vertices.All(vertex => unchecked((ushort)(vertex.Screen >> 16)) > 1728))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return Rejected();
         }

@@ -32,7 +32,7 @@ public static class NativeBattleRinoa89FadeDrawing
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(22), 216);
         ImmutableArray<uint> words = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask, ScreenCoverage = NativeBattleScreenCoverage.Full };
         if (pilotIdentity is { } identity)
         {
             primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 } };

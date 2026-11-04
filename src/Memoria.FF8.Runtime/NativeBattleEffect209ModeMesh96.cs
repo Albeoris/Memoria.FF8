@@ -111,7 +111,7 @@ public static class NativeBattleEffect209ModeMesh96
                         packet.Word(36, fourth);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect209 mode mesh requires its current ZSF4."));
                         uint[] allScreens = [screens[0], screens[1], screens[2], fourth];
-                        if (!allScreens.All(screen => unchecked((short)screen) is < 0 or > 2560) && !allScreens.All(screen => unchecked((short)(screen >> 16)) is < 0 or > 1728))
+                        if (!BattleSceneVisibleArea.RejectPacked(allScreens))
                         {
                             uint depth = registers.Geometry.Otz!.Value;
                             context96 = Put(context96, 0x2C, depth);
@@ -206,7 +206,7 @@ public static class NativeBattleEffect209ModeMesh96
                         packet.Word(24, screens[3]);
                     }
                     registers = quad ? NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Mode mesh requires current ZSF4.")) : NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Mode mesh requires current ZSF3."));
-                    if (!screens.All(screen => unchecked((short)screen) is < 0 or > 2560) && !screens.All(screen => unchecked((short)(screen >> 16)) is < 0 or > 1728))
+                    if (!BattleSceneVisibleArea.RejectPacked(screens))
                     {
                         uint depth = registers.Geometry.Otz!.Value;
                         context96 = Put(context96, 0x2C, depth);

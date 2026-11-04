@@ -1,8 +1,11 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleSonic139Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleSonic139State State)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    public ImmutableDictionary<uint, BattleSceneScreenPoint>? WarpSamples { get; init; }
 }
 
 public sealed record NativeBattleSonic139PointStep(NativeBattleSonic139Frame Frame, NativeBattleEffectArena Point8);
@@ -22,6 +25,7 @@ public sealed record NativeBattleSonic139ContactForActor(uint ActorAddress) : Na
 public sealed record NativeBattleSonic139RequestCommonCompletion(uint SourceAddress, uint FlagAddress) : NativeBattleSonic139Operation;
 public sealed record NativeBattleSonic139AppendPacket(uint Address, int Allocation, int Written, int Bucket, ushort Flags, byte[] Data, bool[] Known) : NativeBattleSonic139Operation
 {
+    public NativeBattleSceneCapture? SceneCapture { get; init; } = NativeBattleSceneCapture.Current;
     public NativeBattleGfPacketByteState[] WriteMask { get; init; } = [];
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }

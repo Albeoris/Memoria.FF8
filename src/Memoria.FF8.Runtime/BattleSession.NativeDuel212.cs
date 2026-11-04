@@ -320,6 +320,7 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel212CaptureStep DrawGround(NativeBattleDuel212Frame current, NativeBattleThundaga105CaptureTransform transform, NativeBattleLogicalOrdering ordering)
         {
+            using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Burning Rave capture requires its actual stage groups.");
             NativeBattleStageGroup group = stage.Groups[1];
             if ((group.Flags & 1) == 0)

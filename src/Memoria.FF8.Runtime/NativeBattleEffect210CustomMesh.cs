@@ -113,9 +113,8 @@ public static class NativeBattleEffect210CustomMesh
             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Effect210 custom mesh requires current OTZ.");
             context = Put(context, 0x30, depth);
             uint[] allScreen = [screen[0], screen[1], screen[2], fourth];
-            bool outsideX = allScreen.All(value => unchecked((short)value) < 0 || unchecked((short)value) > 2560);
-            bool outsideY = allScreen.All(value => unchecked((short)(value >> 16)) < 0 || unchecked((short)(value >> 16)) > 1728);
-            if (outsideX || outsideY)
+            bool outside = BattleSceneVisibleArea.RejectPacked(allScreen);
+            if (outside)
             {
                 attempts.Add(packet.Attempt(null));
                 continue;

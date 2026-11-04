@@ -204,7 +204,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Sonic Wave packet commands require their actual written bytes.");
             }
             ImmutableArray<uint> words = Enumerable.Range(0, packet.Written / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
-            NativeBattleGeometryPrimitive polygon = new(packet.Bucket, words, packet.Flags == 0 ? [0, 0, 0, 0] : []) { PilotGeometry = packet.PilotGeometry };
+            NativeBattleGeometryPrimitive polygon = new(packet.Bucket, words, packet.Flags == 0 ? [0, 0, 0, 0] : []) { PilotGeometry = packet.PilotGeometry, SceneCapture = packet.SceneCapture };
             NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), polygon)], packet.Allocation);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Sonic Wave requires its pending ordering table.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, offset, primitive.Pending, batch, packet.Flags);

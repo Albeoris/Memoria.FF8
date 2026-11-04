@@ -87,7 +87,7 @@ public static partial class NativeBattleBadBreath300StripMesh
                 screen[3] = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Bad Breath strip drawing requires its actual fourth projected screen point.");
                 packet.Word(8 + 3 * screenStride, screen[3]);
                 registers = NativeBattleGeometry.Average45E610(registers, zsf4 ?? throw new NotSupportedException("Bad Breath strip drawing requires its reached ZSF4 owner."));
-                if (screen.All(value => Outside(unchecked((short)value), 2560)) || screen.All(value => Outside(unchecked((short)(value >> 16)), 1728)))
+                if (BattleSceneVisibleArea.RejectPacked(screen))
                 {
                     attempts.Add(packet.Attempt(null));
                     cursor = checked(cursor + sourceStride);
@@ -155,7 +155,6 @@ public static partial class NativeBattleBadBreath300StripMesh
         }
     }
 
-    private static bool Outside(short value, int maximum) => value < 0 || value > maximum;
     private static ushort U16(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));
     private static uint U32(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena arena, int offset, uint value) => arena.Write(offset, BitConverter.GetBytes(value));

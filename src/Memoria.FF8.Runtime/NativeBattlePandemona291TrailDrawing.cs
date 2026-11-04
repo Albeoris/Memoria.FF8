@@ -80,9 +80,7 @@ public static class NativeBattlePandemona291TrailDrawing
                 {
                     uint sum = unchecked((uint)(vertices[0].Depth + vertices[1].Depth + vertices[2].Depth));
                     uint average = unchecked(sum * (uint)(int)zsf3) >> 12;
-                    bool outsideX = vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00);
-                    bool outsideY = vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0);
-                    if (!outsideX && !outsideY)
+                    if (!BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
                     {
                         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                         primitive = new(checked(17 + (int)(average >> 2)), words, [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0]);

@@ -164,7 +164,7 @@ public static partial class NativeBattleEffect308Lower
         {
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGfGeometryAttempt attempt = new(0, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(), new(8, words.ToImmutableArray(), [0, 0, 0, 0]));
+        NativeBattleGfGeometryAttempt attempt = new(0, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray(), new(8, words.ToImmutableArray(), [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full });
         frame = inputs.Execute(frame, new NativeBattleEffect308DrawBatch(NativeBattleOffsetBodyVisuals.FixedQuad(new([attempt], 24), pilotIdentity), CursorGlobal));
         return (frame, checked(pc + 6));
     }

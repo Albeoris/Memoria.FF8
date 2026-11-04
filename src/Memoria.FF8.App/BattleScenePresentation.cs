@@ -139,6 +139,7 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, renderer.ProjectionBounds.X, renderer.ProjectionBounds.Y, renderer.ProjectionBounds.Width, renderer.ProjectionBounds.Height));
         renderer.PilotDiagnosticsEnabled = PilotDiagnosticsEnabled;
         NativeBattlePreparedPresentation? prepared = session.PreparedPresentation;
         NativeBattlePreparedPresentation? pilotNext = null;

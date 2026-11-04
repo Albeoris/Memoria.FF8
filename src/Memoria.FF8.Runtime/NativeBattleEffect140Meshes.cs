@@ -179,7 +179,7 @@ public static class NativeBattleEffect140Meshes
             Store(44, screens[3]);
             registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect140 requires its current AVSZ4 factor."));
             context = Put(context, 0x30, registers.Geometry.Otz!.Value);
-            if (screens.All(value => unchecked((short)value) is < 0 or > 2560) || screens.All(value => unchecked((short)(value >> 16)) is < 0 or > 1728))
+            if (BattleSceneVisibleArea.RejectPacked(screens))
             {
                 Reject();
                 return;

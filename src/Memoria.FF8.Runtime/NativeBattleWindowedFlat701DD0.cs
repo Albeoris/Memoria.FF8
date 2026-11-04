@@ -48,7 +48,7 @@ public static class NativeBattleWindowedFlat701DD0
             vertices[3] = readCorner(3);
             packet.Word(20, vertices[3].Screen);
         }
-        if (vertices.All(vertex => Outside(unchecked((short)vertex.Screen), 2560)) || vertices.All(vertex => Outside(unchecked((short)(vertex.Screen >> 16)), 1728)))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return Rejected();
         }
@@ -77,5 +77,4 @@ public static class NativeBattleWindowedFlat701DD0
         }
     }
 
-    private static bool Outside(short coordinate, int maximum) => coordinate < 0 || coordinate > maximum;
 }

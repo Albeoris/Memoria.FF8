@@ -106,7 +106,7 @@ public static class NativeBattleEffect107Geometry
                 any |= clip;
                 shared &= clip;
             }
-            if (any >= 16 || shared != 0 || NativeBattleModulePackets.Nclip(corners[0].Screen, corners[1].Screen, corners[2].Screen) < 0)
+            if (any >= 16 || (BattleSceneVisibleArea.Current == BattleSceneVisibleArea.Native ? shared != 0 : BattleSceneVisibleArea.RejectPacked(corners.Select(vertex => vertex.Screen))) || NativeBattleModulePackets.Nclip(corners[0].Screen, corners[1].Screen, corners[2].Screen) < 0)
             {
                 continue;
             }
@@ -181,7 +181,7 @@ public static class NativeBattleEffect107Geometry
                     {
                         writes.Dword(8 + corner * 8, vertices[corner].Screen);
                     }
-                    admitted = !vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) && !vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0);
+                    admitted = !BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen));
                 }
                 int depth = 0;
                 if (admitted)

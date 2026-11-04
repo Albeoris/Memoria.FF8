@@ -311,7 +311,7 @@ public static partial class NativeBattleClash26Controller
                     task = Add(task.WriteDword(0x34, entry), 0x38, 1);
                 }
                 uint color = task.ReadDword(0x34) & 0xFFFFFF;
-                NativeBattleGeometryPrimitive quad = new(7, ImmutableArray.Create(0x05000000u, color | 0x2A000000, 0u, 0x140u, 0xD80000u, 0xD80140u), [0, 0, 0, 0]);
+                NativeBattleGeometryPrimitive quad = new(7, ImmutableArray.Create(0x05000000u, color | 0x2A000000, 0u, 0x140u, 0xD80000u, 0xD80140u), [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
                 NativeBattleGeometryPrimitive mode = new(7, ImmutableArray.Create(0x02000000u, 0xE100002Au, 0u), [0, 0, 0, 0]);
                 Execute(new NativeBattleClash26Sprite(new([new(quad, 0, 0), new(mode, 0x18, 0)], 0x24)));
             }

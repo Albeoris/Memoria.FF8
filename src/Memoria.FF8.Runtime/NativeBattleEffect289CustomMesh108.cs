@@ -109,7 +109,7 @@ public static class NativeBattleEffect289CustomMesh108
                         packet.Word(gouraud ? 44 : 32, fourthScreen);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect289 custom mesh requires current ZSF4."));
                         uint[] allScreens = [screens[0], screens[1], screens[2], fourthScreen];
-                        if (!allScreens.All(screen => unchecked((short)screen) is < 0 or > 2560) && !allScreens.All(screen => unchecked((short)(screen >> 16)) is < 0 or > 1728))
+                        if (!BattleSceneVisibleArea.RejectPacked(allScreens))
                         {
                             uint depth = registers.Geometry.Otz!.Value;
                             context = Put(context, 0x40, depth);

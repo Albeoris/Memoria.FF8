@@ -80,7 +80,7 @@ public static class NativeBattleTornado146GroundPackets
             {
                 packet.Word(36, unchecked((uint)(BinaryPrimitives.ReadInt32LittleEndian(face[4..]) >> 16)));
             }
-            if (!deformed && (projected.All(point => unchecked((short)point.Screen) is < 0 or > 2560) || projected.All(point => unchecked((short)(point.Screen >> 16)) is < 0 or > 1728)))
+            if (!deformed && (BattleSceneVisibleArea.RejectPacked(projected.Select(point => point.Screen))))
             {
                 attempts.Add(packet.Attempt(null));
                 continue;

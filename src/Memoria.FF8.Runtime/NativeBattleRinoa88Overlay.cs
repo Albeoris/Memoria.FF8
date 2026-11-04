@@ -93,6 +93,10 @@ public static class NativeBattleRinoa88Overlay
             NativeBattleGeometryPrimitive primitive = new(7, words, readRetainedProxyDepth(attempts.Count)) { PhysicalWriteMask = mask };
             if (!retainLink)
             {
+                int quadrant = (offset - 12) / 24;
+                float left = (quadrant & 1) * 0.5f;
+                float top = (quadrant >> 1) * 0.5f;
+                primitive = primitive with { ScreenCoverage = new(left, top, left + 0.5f, top + 0.5f) };
                 System.Numerics.Vector3 Corner(int index)
                 {
                     uint screen = words[2 + index];

@@ -107,7 +107,7 @@ public static class NativeBattleXatmDeath276Body
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask, ScreenCoverage = NativeBattleScreenCoverage.Full };
         return new([new(0, bytes.ToImmutableArray(), mask, primitive)], 24);
     }
 }

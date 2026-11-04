@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleSonic139Controller;
 
 namespace Memoria.FF8.Runtime;
@@ -10,6 +11,7 @@ public static partial class NativeBattleSonic139Warp
 
     private static NativeBattleSonic139Frame DrawTriangles(NativeBattleSonic139Frame frame, uint temporary, bool textured, NativeBattleSonic139Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.ScreenSample, 576, 256);
         NativeBattleEffectArena context = Context(frame, temporary, 76);
         uint stream = Word32(context, 20);
         uint count = Dword(frame, stream);
@@ -24,16 +26,22 @@ public static partial class NativeBattleSonic139Warp
             NativeBattleEffectArena face = ReadBytes(frame, stream, 20);
             context = Context(frame, temporary, 76);
             uint records = Word32(context, 4);
+            BattleSceneScreenPoint[] samplePoints = new BattleSceneScreenPoint[3];
+            BattleSceneScreenPoint[] screenPoints = new BattleSceneScreenPoint[3];
             for (int corner = 0; corner < 3; corner++)
             {
                 ushort offset = BinaryPrimitives.ReadUInt16LittleEndian(face.Read(4 + corner * 2, 2));
-                NativeBattleEffectArena record = ReadBytes(frame, checked(records + (uint)offset * 4), 12);
+                uint recordAddress = checked(records + (uint)offset * 4);
+                NativeBattleEffectArena record = ReadBytes(frame, recordAddress, 12);
+                screenPoints[corner] = new(BinaryPrimitives.ReadInt16LittleEndian(record.Read(0, 2)) * 8, BinaryPrimitives.ReadInt16LittleEndian(record.Read(2, 2)) * 8);
+                samplePoints[corner] = frame.WarpSamples?.GetValueOrDefault(recordAddress) ?? new(BinaryPrimitives.ReadInt16LittleEndian(record.Read(4, 2)), BinaryPrimitives.ReadInt16LittleEndian(record.Read(6, 2)));
                 context = NativeBattleEffectNodeContextMemory.Copy(record, 0, context, 28 + corner * 12, 12);
             }
             stream = checked(stream + 20);
             context = context.Write(20, BitConverter.GetBytes(stream));
             frame = PublishContext(frame, temporary, context, 76);
-            if (textured && (context.Read(36, 1)[0] & context.Read(48, 1)[0] & context.Read(60, 1)[0]) != 0)
+            bool expanded = BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native;
+            if (textured && (expanded ? BattleSceneVisibleArea.Current.Reject(screenPoints) : (context.Read(36, 1)[0] & context.Read(48, 1)[0] & context.Read(60, 1)[0]) != 0))
             {
                 continue;
             }
@@ -85,7 +93,16 @@ public static partial class NativeBattleSonic139Warp
                 }
                 geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)(stream - 20)) }, Corner(0), Corner(1), Corner(2), default, 3) { ScreenSpace = true, ScreenScale = 8 };
             }
-            frame = Append(frame, cursor, allocation, allocation, checked((int)((table - baseTable) / 4)), 1, packet, inputs, pilotGeometry: geometry);
+            NativeBattleSceneCapture? capture = NativeBattleSceneCapture.Current;
+            if (textured && expanded && capture is not null)
+            {
+                ushort page = BinaryPrimitives.ReadUInt16LittleEndian(packet.Read(22, 2));
+                int depth = page >> 7 & 3;
+                int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Sonic scene sampling requires a supported native texture depth.");
+                int origin = samplePoints[0].X & ~63;
+                capture = capture with { SampleCoordinates = samplePoints.Select(point => new BattleSceneScreenPoint(origin * 8 + (point.X - origin) * 8 / pixelsPerWord, point.Y * 8)).ToImmutableArray() };
+            }
+            frame = Append(frame, cursor, allocation, allocation, checked((int)((table - baseTable) / 4)), 1, packet, inputs, pilotGeometry: geometry, sceneCapture: capture);
             cursor = checked(cursor + (uint)allocation);
         }
         frame = PublishContext(frame, temporary, Context(frame, temporary, 76).Write(20, BitConverter.GetBytes(stream)), 76);

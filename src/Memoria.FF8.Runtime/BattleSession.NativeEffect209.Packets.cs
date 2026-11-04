@@ -23,6 +23,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleEffect209Frame DeliverNativeEffect209Template(ref NativeBattleGraphicsState graphics, NativeBattleEffect209Frame frame, NativeBattleEffect209DrawAddressedTemplate draw)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Image, 576, 256);
         int offset = checked((int)(draw.Address - 0x209FAB8));
         NativeBattleGuardianWorkBuffer work = frame.Memory.GuardianWorkBuffer ?? throw new NotSupportedException("Effect209 requires its current screen template bank.");
         (byte[] bytes, _) = draw.Data40.ReadSnapshot(0, 40);

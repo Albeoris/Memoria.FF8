@@ -6,6 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleDuel216CaptureStep DrawNativeDuel216CaptureGround(NativeBattleDuel216Frame frame, NativeBattleDuel216CameraTransform transform, NativeBattleLogicalOrdering ordering)
     {
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native69A790 requires its actual stage rows.");
         NativeBattleStageGroup group = stage.Groups[1];
         if ((group.Flags & 1) == 0)

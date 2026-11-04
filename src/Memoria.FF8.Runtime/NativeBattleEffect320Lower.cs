@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect320Lower
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGeometryPrimitive primitive = new(8, words.ToImmutableArray(), [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(8, words.ToImmutableArray(), [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         if (pilotIdentity is { } identity)
         {
             primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 1, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };

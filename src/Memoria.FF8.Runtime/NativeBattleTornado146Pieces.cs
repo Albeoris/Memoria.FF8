@@ -111,7 +111,7 @@ public static class NativeBattleTornado146Pieces
                     }
                     if (airborne)
                     {
-                        accepted = !projected.All(vertex => unchecked((short)vertex.Screen) < 0 || unchecked((short)vertex.Screen) > 2560) && !projected.All(vertex => unchecked((short)(vertex.Screen >> 16)) < 0 || unchecked((short)(vertex.Screen >> 16)) > 1728);
+                        accepted = !BattleSceneVisibleArea.RejectPacked(projected.Select(vertex => vertex.Screen));
                     }
                     if (accepted && gouraud && airborne)
                     {

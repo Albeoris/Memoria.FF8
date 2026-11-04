@@ -266,7 +266,7 @@ public static partial class NativeBattleMagmaBreath48Controller
         }
         frame = Write(frame, address, task);
         uint color = (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000;
-        NativeBattleGeometryPrimitive quad = new(7, [0x05000000, color, 0, 320, 0xD80000, 0xD80140], []);
+        NativeBattleGeometryPrimitive quad = new(7, [0x05000000, color, 0, 320, 0xD80000, 0xD80140], []) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         System.Numerics.Vector3 ScreenCorner(int corner)
         {
             uint xy = quad.Words[2 + corner];

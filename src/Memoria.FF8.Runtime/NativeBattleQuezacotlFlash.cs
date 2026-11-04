@@ -47,7 +47,7 @@ public static class NativeBattleQuezacotlFlash
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { ScreenCoverage = flags20 == 1 ? NativeBattleScreenCoverage.Full : null };
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray(), primitive);
         return new(new([attempt], bytes.Length), flags20);
     }

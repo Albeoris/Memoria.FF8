@@ -99,6 +99,8 @@ internal static class BattlePreview
         {
             throw new InvalidDataException("Battle preview text scale requires 100, 125 or 150.");
         }
+        PixelBounds sceneProjection = ViewportLayout.Fit(320, 240, width, height);
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, sceneProjection.X, sceneProjection.Y, sceneProjection.Width, sceneProjection.Height));
         if (advanceTurn)
         {
             session.AdvanceTurn();

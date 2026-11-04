@@ -102,7 +102,7 @@ public sealed class BattlePilotPresentationTests
     [Fact]
     public void Explicit_fullviewport_flash_and_draw_state_are_held_without_disabling_world_motion()
     {
-        NativeBattleLogicalCommand flash = new(new("screen", 0, 0), 1, 0x28, [0x28000000, 0, 320, 216u << 16, 320 | 216u << 16], 1, [0, 0, 0, 0], null) { OrderingBucket = 0 };
+        NativeBattleLogicalCommand flash = new(new("screen", 0, 0), 1, 0x28, [0x28000000, 0, 320, 216u << 16, 320 | 216u << 16], 1, [0, 0, 0, 0], null) { OrderingBucket = 0, ScreenCoverage = NativeBattleScreenCoverage.Full };
         NativeBattleLogicalCommand state = new(new("screen", 0, 20), 1, 0xE1, [0xE1000000], 0, [], null);
         NativeBattlePreparedPresentation first = Frame(1, 0);
         first = first with { Primitives = first.Primitives with { LastCommands = first.Primitives.LastCommands.Add(new(flash, new(0), 1)).Add(new(state, new(0), 0)) } };

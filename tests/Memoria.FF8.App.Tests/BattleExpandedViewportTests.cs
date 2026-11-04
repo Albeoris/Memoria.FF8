@@ -185,11 +185,11 @@ public sealed class BattleExpandedViewportTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Full_screen_flat_quads_cover_the_expanded_raster_but_partial_and_projected_rectangles_keep_their_coordinates(bool normalViewport)
+    public void Explicit_screen_quads_cover_the_expanded_raster_and_unmarked_rectangles_keep_their_coordinates(bool normalViewport)
     {
-        foreach (var sample in new[] { (Flags: (ushort)1, Depth: 0, Width: 320), (Flags: (ushort)0, Depth: 0, Width: 320), (Flags: (ushort)1, Depth: 100, Width: 320), (Flags: (ushort)1, Depth: 0, Width: 160) })
+        foreach (var sample in new[] { (Flags: (ushort)1, Depth: 0, Width: 320, FullScreen: true), (Flags: (ushort)0, Depth: 0, Width: 320, FullScreen: true), (Flags: (ushort)1, Depth: 0, Width: 320, FullScreen: false), (Flags: (ushort)0, Depth: 0, Width: 320, FullScreen: false), (Flags: (ushort)1, Depth: 100, Width: 320, FullScreen: false), (Flags: (ushort)1, Depth: 0, Width: 160, FullScreen: false) })
         {
-            NativeBattleLogicalCommand command = new(new("screen-quad", 0, 0), 1, 0x28, [0x28808080, 0, (uint)sample.Width, 216u << 16, (216u << 16) | (uint)sample.Width], sample.Flags, [sample.Depth, sample.Depth, sample.Depth, sample.Depth], null) { OrderingBucket = 1 };
+            NativeBattleLogicalCommand command = new(new("screen-quad", 0, 0), 1, 0x28, [0x28808080, 0, (uint)sample.Width, 216u << 16, (216u << 16) | (uint)sample.Width], sample.Flags, [sample.Depth, sample.Depth, sample.Depth, sample.Depth], null) { OrderingBucket = 1, ScreenCoverage = sample.FullScreen ? NativeBattleScreenCoverage.Full : null };
             NativeBattlePrimitiveDrawMode mode = normalViewport ? new(0) { ViewportInputs = new(640, 480, 0, 0), NormalViewport = new(2, 480f / 216, 0.25f, 60f / 216, 0, -0.5f, -0.5f) } : new(0);
             NativeBattlePrimitiveFrame frame = new(NativeBattleLogicalOrdering.Clear(), [new(command, mode, 1)], [])
             {
@@ -201,7 +201,7 @@ public sealed class BattleExpandedViewportTests
             BattleRenderer renderer = new(480, 240, ViewportLayout.Fit(320, 240, 480, 240)) { TriangleRenderer = backend };
             renderer.RenderNativePrimitiveFrame(frame, null);
             Assert.Equal(2, backend.Triangles.Count);
-            bool fullScreen = sample.Flags == 1 && sample.Depth == 0 && sample.Width == 320;
+            bool fullScreen = sample.FullScreen;
             Assert.Equal(fullScreen ? Vector2.Zero : new Vector2(80, 0), backend.Triangles[0].A.Position);
             Vector2 expected = fullScreen ? new Vector2(480, 240) : new Vector2(80 + sample.Width * (sample.Flags == 0 ? 0.125f : 1), sample.Flags == 0 ? 30 : 240);
             Assert.InRange(Vector2.Distance(expected, backend.Triangles[1].B.Position), 0, 0.0001f);

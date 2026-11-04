@@ -149,9 +149,7 @@ public static partial class NativeBattleEffect290Lower
                 packet.Dword(8 + corner * 8, screen[corner]);
             }
             registers = NativeBattleGeometry.Average45E5C0(registers, frame.Memory.ScriptedGraphics.Zsf3 ?? throw new NotSupportedException("Effect290 chunk averaging requires current ZSF3."));
-            bool outsideX = screen.All(value => unchecked((short)value) < 0 || unchecked((short)value) > 2560);
-            bool outsideY = screen.All(value => unchecked((short)(value >> 16)) < 0 || unchecked((short)(value >> 16)) > 1728);
-            if (outsideX || outsideY)
+            if (BattleSceneVisibleArea.RejectPacked(screen))
             {
                 attempts.Add(packet.Attempt(null));
                 continue;

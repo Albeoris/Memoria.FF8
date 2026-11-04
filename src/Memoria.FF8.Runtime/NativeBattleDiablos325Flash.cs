@@ -21,7 +21,7 @@ public static class NativeBattleDiablos325Flash
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         return new([new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray(), primitive)], bytes.Length);
     }
 }

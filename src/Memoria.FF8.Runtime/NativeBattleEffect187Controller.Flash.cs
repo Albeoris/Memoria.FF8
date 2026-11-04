@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect187Controller
             {
                 packet.Word(index * 4, words[index]);
             }
-            NativeBattleGeometryPrimitive primitive = new(unchecked(17 + depth), words, [0, 0, 0, 0]);
+            NativeBattleGeometryPrimitive primitive = new(unchecked(17 + depth), words, [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
             if (inputs.CapturePresentation)
             {
                 NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(187, task, unchecked((int)(words[1] >> 24))) with { ResourceGeneration = task.Callback };

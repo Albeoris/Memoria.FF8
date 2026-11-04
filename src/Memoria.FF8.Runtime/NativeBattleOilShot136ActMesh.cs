@@ -68,7 +68,7 @@ public static class NativeBattleOilShot136ActMesh
                     screens[3] = registers.Geometry.Sxy[2] ?? throw new InvalidDataException("Oil Shot ACT projection lost fourth SXY.");
                     Store(32, screens[3]);
                     registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Oil Shot ACT requires its current ZSF4."));
-                    admitted = !screens.All(screen => Outside(unchecked((short)screen), 0xA00)) && !screens.All(screen => Outside(unchecked((short)(screen >> 16)), 0x6C0));
+                    admitted = !BattleSceneVisibleArea.RejectPacked(screens);
                 }
                 int depth = 0;
                 if (admitted)

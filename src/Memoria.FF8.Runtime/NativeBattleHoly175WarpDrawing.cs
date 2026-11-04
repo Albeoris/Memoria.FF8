@@ -160,7 +160,7 @@ public static class NativeBattleHoly175WarpDrawing
                 return;
             }
             ImmutableArray<uint> words = ReadPacket(packets, offset);
-            ordering.Prepend(bucket, new(PacketBank, 0, offset), words, 0, depths.ToImmutableArray(), pilotGeometry: Capture(words));
+            ordering.Prepend(bucket, new(PacketBank, 0, offset), words, 0, depths.ToImmutableArray(), pilotGeometry: Capture(words), sceneCapture: new(BattleSceneVisibleArea.Current, NativeBattleSceneCaptureKind.Image) { X = 576, Y = 256, Height = 232, PaddingTop = 8, PaddingBottom = 8, ProjectionOffsetY = 8 });
             packets = packets.Write(offset, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink));
         }
         void InsertPrivate(int offset)
@@ -169,7 +169,7 @@ public static class NativeBattleHoly175WarpDrawing
             {
                 return;
             }
-            ordering.Prepend(4121, new("20DFAB8", 0, offset), ReadPacket(privateArena, offset), 0, depths.ToImmutableArray(), pilotGeometry: Capture(ReadPacket(privateArena, offset)));
+            ordering.Prepend(4121, new("20DFAB8", 0, offset), ReadPacket(privateArena, offset), 0, depths.ToImmutableArray(), pilotGeometry: Capture(ReadPacket(privateArena, offset)), sceneCapture: new(BattleSceneVisibleArea.Current, NativeBattleSceneCaptureKind.Image) { X = 576, Y = 256, Height = 232, PaddingTop = 8, PaddingBottom = 8, ProjectionOffsetY = 8 });
             privateArena = privateArena.Write(offset, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink));
         }
     }

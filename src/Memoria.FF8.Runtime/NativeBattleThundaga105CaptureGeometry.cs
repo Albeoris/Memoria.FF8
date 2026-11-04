@@ -55,6 +55,7 @@ public static class NativeBattleThundaga105CaptureGeometry
 
     public static NativeBattleThundaga105CaptureStage DrawGroup6D5620(NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleThundaga105CaptureTransform capture, NativeBattleSummonColors colors)
     {
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         stage.Validate();
         NativeBattleStageGroup group = stage.Groups[1];
         if ((group.Flags & 1) == 0)

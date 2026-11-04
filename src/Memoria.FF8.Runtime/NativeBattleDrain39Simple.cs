@@ -69,7 +69,7 @@ public static class NativeBattleDrain39Simple
                 task = task.WriteDword(0x34, entry).WriteWord(0x38, unchecked((ushort)(index + 1)));
             }
             uint color = (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000;
-            NativeBattleGeometryPrimitive quad = new(7, [0x5000000, color, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]);
+            NativeBattleGeometryPrimitive quad = new(7, [0x5000000, color, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
             if (profile.Effect is 39 or 56)
             {
                 quad = quad with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(profile.Effect, task), new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 } };

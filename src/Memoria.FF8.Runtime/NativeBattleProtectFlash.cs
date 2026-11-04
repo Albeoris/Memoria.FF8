@@ -18,7 +18,7 @@ public static class NativeBattleProtectFlash
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
-        NativeBattleGeometryPrimitive primitive = new(7, words, [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(7, words, [0, 0, 0, 0]) { ScreenCoverage = flags == 1 ? NativeBattleScreenCoverage.Full : null };
         if (pilotIdentity is { } identity)
         {
             primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 } };

@@ -129,7 +129,7 @@ public static class NativeBattleUltraWavesGrid
                 }
                 geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + index), ResourceGeneration = quadsAddress }, Corner(0), Corner(1), Corner(2), Corner(3), 4) { ScreenSpace = true, ScreenScale = 1, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
             }
-            links.Prepend(0x101A, new(bank, 0, packet), words, 0, [0, 0, 0, 0], pilotGeometry: geometry);
+            links.Prepend(0x101A, new(bank, 0, packet), words, 0, [0, 0, 0, 0], pilotGeometry: geometry, sceneCapture: new(BattleSceneVisibleArea.Current, NativeBattleSceneCaptureKind.Image) { X = 384, Y = 256 });
             if (linked)
             {
                 quads = quads.Write(packet, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

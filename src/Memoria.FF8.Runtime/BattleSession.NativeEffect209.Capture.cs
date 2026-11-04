@@ -6,6 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleEffect209Frame CaptureNativeEffect209Stage(ref NativeBattleGraphicsState graphics, NativeBattleEffect209Frame frame, NativeBattleEffect209Resources resources, NativeBattleEffect209Inputs inputs)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source, 576, 256);
         frame = frame with { Memory = NativeBattleGravija214Environment.Clear45BEE0(frame.Memory, new(576, 256, 320, 216), 0, 0, 0) };
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect209 capture requires its current stage rows.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect209 capture requires its current camera.");

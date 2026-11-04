@@ -177,7 +177,7 @@ public static class NativeBattleEffect312Mesh
                         {
                             registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Effect312 mesh requires current ZSF3."));
                         }
-                        if (!screens.All(screen => unchecked((short)screen) is < 0 or > 2560) && !screens.All(screen => unchecked((short)(screen >> 16)) is < 0 or > 1728))
+                        if (!BattleSceneVisibleArea.RejectPacked(screens))
                         {
                             uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Effect312 mesh requires its current OTZ.");
                             context = Put(context, depthOffset, depth);

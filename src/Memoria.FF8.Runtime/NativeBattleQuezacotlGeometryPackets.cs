@@ -143,7 +143,7 @@ public static class NativeBattleQuezacotlGeometryPackets
         {
             packet.Word(8 + corner * 12, vertices[corner].Screen);
         }
-        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return new([packet.Attempt(null)], 0);
         }

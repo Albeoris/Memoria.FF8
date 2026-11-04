@@ -112,7 +112,7 @@ public sealed partial class BattleRenderer
                 {
                     continue;
                 }
-                bool screenFlash = (command.Opcode & 0xFC) == 0x28 && command.Words.Length == 5 && (command.Flags20 & 1) != 0 && command.VertexPayload4.All(value => value == 0) && NativeScreenQuadCoversProjection(command, resolved.DrawMode);
+                bool screenFlash = command.ScreenCoverage is not null;
                 if (!screenFlash)
                 {
                     LastPilotFallbackCount++;

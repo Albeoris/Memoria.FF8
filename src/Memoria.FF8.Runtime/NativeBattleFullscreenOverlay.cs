@@ -174,7 +174,15 @@ public static class NativeBattleFullscreenOverlay
                     int y = (quadrant >> 1) * 120;
                     visual = new(identity with { Primitive = quadrant }, new(x, y, 0), new(x + 160, y, 0), new(x, y + 120, 0), new(x + 160, y + 120, 0), 4, false) { ScreenSpace = true, ScreenScale = 1, SourceDepths = depth.Length == 4 ? new(depth[0], depth[1], depth[2], depth[3]) : null, UseSourceDepths = depth.Length == 4 };
                 }
-                links.Prepend(7, new(PacketBank, 0, offset), words, 0, depth, pilotGeometry: visual);
+                NativeBattleScreenCoverage? coverage = null;
+                if (offset < 96)
+                {
+                    int quadrant = offset / 24;
+                    float left = (quadrant & 1) * 0.5f;
+                    float top = (quadrant >> 1) * 0.5f;
+                    coverage = new(left, top, left + 0.5f, top + 0.5f);
+                }
+                links.Prepend(7, new(PacketBank, 0, offset), words, 0, depth, pilotGeometry: visual, screenCoverage: coverage);
                 if (linked)
                 {
                     bytes = bytes.Write(offset, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

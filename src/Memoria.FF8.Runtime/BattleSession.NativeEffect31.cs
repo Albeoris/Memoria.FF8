@@ -119,7 +119,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect31DrawOverlay overlay:
                     NativeBattlePrimitiveFrame overlayFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect31 overlay requires its current ordering table.");
                     int overlayCursor = NativeBattleEffect31PacketBank.Require(current, 36);
-                    NativeBattleGeometryPrimitive quad = new(7, [0x05000000, (overlay.Color & 0xFFFFFF) | 0x2A000000, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]);
+                    NativeBattleGeometryPrimitive quad = new(7, [0x05000000, (overlay.Color & 0xFFFFFF) | 0x2A000000, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
                     NativeBattleGeometryPrimitive mode = new(7, [0x02000000, 0xE100002A, 0], [0, 0, 0, 0]);
                     NativeBattleModulePacketBatch batch = new([new(quad, 0, 1), new(mode, 24, 0)], 36);
                     NativeBattleEffectPacketWrite overlayWritten = NativeBattleEffectPacketArena.Append(current.Memory, overlayCursor, overlayFrame.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);

@@ -34,7 +34,7 @@ public static class NativeBattleConfuse36Auxiliary
                 {
                     task = task.WriteDword(0x34, entry).WriteWord(0x38, unchecked((ushort)(index + 1)));
                 }
-                NativeBattleGeometryPrimitive quad = new(7, [0x05000000u, (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000, 0u, 0x140u, 0xD80000u, 0xD80140u], [0, 0, 0, 0]);
+                NativeBattleGeometryPrimitive quad = new(7, [0x05000000u, (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000, 0u, 0x140u, 0xD80000u, 0xD80140u], [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
                 NativeBattleGeometryPrimitive mode = new(7, [0x02000000u, 0xE100002Au, 0u], [0, 0, 0, 0]);
                 frame = append(frame, new([new(quad, 0, 0), new(mode, 0x18, 0)], 0x24));
             }

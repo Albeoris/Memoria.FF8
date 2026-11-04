@@ -142,6 +142,7 @@ public sealed partial class BattleRenderer
         }
         DrawnTriangles = 0;
         nativeTriangles.Clear();
+        sceneCaptureImages.Clear();
         for (int index = 3; TriangleRenderer is null && index < pixels.Length; index += 4)
         {
             pixels[index] = 255;
@@ -220,6 +221,10 @@ public sealed partial class BattleRenderer
                 continue;
             }
             int corners = quad ? 4 : 3;
+            if (command.SceneCapture?.SampleCoordinates is { } sampleCoordinates && (sampleCoordinates.IsDefault || sampleCoordinates.Length != corners))
+            {
+                throw new InvalidDataException("Scene sampling requires one retained coordinate per original corner.");
+            }
             if (command.ProjectedCoordinates is { } projectedPoints && (projectedPoints.IsDefault || projectedPoints.Length != corners))
             {
                 throw new InvalidDataException("Expanded polygon coordinates require one point per original corner.");
@@ -231,7 +236,11 @@ public sealed partial class BattleRenderer
                 throw new InvalidDataException("Native polygon command does not contain its original packed corner fields.");
             }
             bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native polygon rendering requires the executed OT descriptor DWORD8; migrate the named snapshot explicitly."));
-            bool fullViewport = quad && !textured && !gouraud && (command.Flags20 & 1) != 0 && command.VertexPayload4.All(value => value == 0) && NativeScreenQuadCoversProjection(command, resolved.DrawMode);
+            NativeBattleScreenCoverage? coverage = command.ScreenCoverage;
+            if (coverage is not null && (!quad || textured))
+            {
+                throw new InvalidDataException("Screen coverage requires an untextured overlay quad.");
+            }
             NativeBattlePrimitiveDepthState state = frame.LastDepthState ?? throw new NotSupportedException("Native polygon rendering requires its retained460B60 depth owner.");
             NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native polygon rendering requires its retained PC diffuse-color dispatch owner.");
             ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
@@ -244,7 +253,9 @@ public sealed partial class BattleRenderer
                 {
                     affine &= projected[corner].ReciprocalW == 1;
                 }
-                texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale);
+                texture = resolved.DrawMode.SceneCaptureSample is null
+                    ? ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
+                    : ResolveSceneCaptureTexture(frame, resolved, capabilities, colorState);
             }
             PrimitiveVertex At(int corner)
             {
@@ -255,7 +266,11 @@ public sealed partial class BattleRenderer
                 NativeBattlePrimitiveColor diffuse = textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? command.Words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
-                if (textured)
+                if (textured && resolved.DrawMode.SceneCaptureSample is { } sceneSample)
+                {
+                    coordinates = SceneCaptureUv(sceneSample, resolved.DrawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
+                }
+                else if (textured)
                 {
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
@@ -265,14 +280,20 @@ public sealed partial class BattleRenderer
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
                     : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
                 NativeBattlePrimitiveDepthVertex selectedDepth = projected[corner];
-                if (TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
                 {
                     position = sampledPosition;
                     selectedDepth = sampledDepth;
                 }
-                if (fullViewport)
+                if (command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image)
                 {
-                    position = new((corner & 1) == 0 ? 0 : Width, corner < 2 ? 0 : Height);
+                    position = command.ProjectedCoordinates is { } imagePoints
+                        ? NativeSceneCaptureImagePosition(imagePoints[corner].X, imagePoints[corner].Y, command.Flags20)
+                        : NativeSceneCaptureImagePosition(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)), command.Flags20);
+                }
+                if (coverage is not null)
+                {
+                    position = NativeScreenCoveragePosition(coverage, corner);
                 }
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
@@ -672,20 +693,15 @@ public sealed partial class BattleRenderer
         return samePixels && sameRegistrations;
     }
 
-    private bool NativeScreenQuadCoversProjection(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode)
+    private Vector2 NativeSceneCaptureImagePosition(int x, int y, uint flags)
     {
-        Vector2 origin = new(ProjectionBounds.X, ProjectionBounds.Y);
-        Vector2 extent = new(ProjectionBounds.Width, ProjectionBounds.Height);
-        Vector2 At(int word)
-        {
-            Vector2 position = NativePrimitivePosition(command.Words[word], command.Flags20, mode);
-            // Stored viewport scales can put an integer screen boundary a fraction of a pixel away from its edge.
-            return new(MathF.Round(position.X), MathF.Round(position.Y));
-        }
-        return At(1) == origin
-            && At(2) == origin + new Vector2(extent.X, 0)
-            && At(3) == origin + new Vector2(0, extent.Y)
-            && At(4) == origin + extent;
+        float unit = (flags & 1) != 0 ? 1 : 0.125f;
+        return new(x * unit * Width / 320, y * unit * Height / 216);
+    }
+
+    private Vector2 NativeScreenCoveragePosition(NativeBattleScreenCoverage coverage, int corner)
+    {
+        return new(((corner & 1) == 0 ? coverage.Left : coverage.Right) * Width, (corner < 2 ? coverage.Top : coverage.Bottom) * Height);
     }
 
     private void DrawNativePrimitiveTile(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
@@ -714,10 +730,18 @@ public sealed partial class BattleRenderer
         {
             Vector2 position = NativePrimitivePosition(px, py, command.Flags20, resolved.DrawMode);
             NativeBattlePrimitiveDepthVertex depth = vertices[0];
-            if (TrySamplePilotVertex(command, corner, resolved.DrawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;
                 depth = sampledDepth;
+            }
+            if (command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image)
+            {
+                position = NativeSceneCaptureImagePosition(px, py, command.Flags20);
+            }
+            if (command.ScreenCoverage is { } coverage)
+            {
+                position = NativeScreenCoveragePosition(coverage, corner);
             }
             return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }

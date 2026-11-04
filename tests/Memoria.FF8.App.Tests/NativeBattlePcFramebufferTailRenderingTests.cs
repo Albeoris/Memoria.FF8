@@ -39,7 +39,7 @@ public sealed class NativeBattlePcFramebufferTailRenderingTests
     }
 
     [Fact]
-    public void Expanded_target_captures_only_the_projection_crop_and_places_the_tail_in_that_same_crop()
+    public void Expanded_target_captures_and_displays_the_complete_visible_scene()
     {
         uint[] source = Enumerable.Repeat(0xFF0000FFu, 16 * 12).ToArray();
         for (int y = 2; y < 10; y++)
@@ -53,16 +53,17 @@ public sealed class NativeBattlePcFramebufferTailRenderingTests
         BattleRenderer renderer = new(16, 12, new PixelBounds(4, 2, 8, 8)) { TriangleRenderer = backend };
         renderer.RenderNativePrimitiveFrame(Frame(true), null, capabilities: Capabilities());
         var tail = backend.Draws[2];
-        Assert.Equal(new Vector2(3.5f, 1.5f), tail.Vertex.Position);
-        Assert.Equal(new Vector2(10.5f, 1.5f), backend.Draws[3].Vertex.Position);
-        Assert.Equal(new Vector2(3.5f, 8.5f), tail.ThirdVertex.Position);
-        Assert.Equal(new Vector2(10.5f, 8.5f), backend.Draws[3].SecondVertex.Position);
-        Assert.Equal((ushort)0x7C00, renderer.PcFramebufferCapture.RequirePixels()[0]);
-        Assert.Equal((ushort)0x03E0, renderer.PcFramebufferCapture.RequirePixels()[255]);
+        Assert.Equal(new Vector2(-1f, -0.75f), tail.Vertex.Position);
+        Assert.Equal(new Vector2(13f, -0.75f), backend.Draws[3].Vertex.Position);
+        Assert.Equal(new Vector2(-1f, 9.75f), tail.ThirdVertex.Position);
+        Assert.Equal(new Vector2(13f, 9.75f), backend.Draws[3].SecondVertex.Position);
+        Assert.Equal((ushort)0x001F, renderer.PcFramebufferCapture.RequirePixels()[0]);
+        Assert.Equal((ushort)0x001F, renderer.PcFramebufferCapture.RequirePixels()[255]);
+        Assert.Equal((ushort)0x7C00, renderer.PcFramebufferCapture.RequirePixels()[128 * 256 + 64]);
+        Assert.Equal((ushort)0x03E0, renderer.PcFramebufferCapture.RequirePixels()[128 * 256 + 128]);
         Assert.Equal(tail.Material.Texture![0, 0], tail.Material.Texture[0, 255]);
-        Assert.Equal((byte)255, tail.Material.Texture[0, 0].R);
-        Assert.Equal((byte)255, tail.Material.Texture[255, 255].G);
-        Assert.Equal((byte)0, tail.Material.Texture[255, 255].B);
+        Assert.Equal((byte)255, tail.Material.Texture[0, 0].B);
+        Assert.Equal((byte)255, tail.Material.Texture[255, 255].B);
     }
 
     [Fact]

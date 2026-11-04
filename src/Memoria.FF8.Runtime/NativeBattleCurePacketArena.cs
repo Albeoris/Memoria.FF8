@@ -117,7 +117,7 @@ public static partial class NativeBattleEffectPacketArena
             }
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             links.InvalidatePacketRange(new("20DFAB8", 0, address), primitive.Words.Length * 4);
-            links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry);
+            links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry, screenCoverage: primitive.ScreenCoverage, sceneCapture: primitive.SceneCapture);
             if (linked)
             {
                 arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

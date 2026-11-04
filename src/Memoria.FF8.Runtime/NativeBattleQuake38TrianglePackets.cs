@@ -24,7 +24,7 @@ public static class NativeBattleQuake38TrianglePackets
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8 + index * 8), vertices[index].Screen);
             Array.Fill(mask, NativeBattleGfPacketByteState.Known, 8 + index * 8, 4);
         }
-        bool rejected = rejectOutside && vertices.All(vertex => (ushort)vertex.Screen >= 0xA00) && vertices.All(vertex => (ushort)(vertex.Screen >> 16) >= 0x780);
+        bool rejected = rejectOutside && (BattleSceneVisibleArea.Current == BattleSceneVisibleArea.Native ? vertices.All(vertex => (ushort)vertex.Screen >= 0xA00) && vertices.All(vertex => (ushort)(vertex.Screen >> 16) >= 0x780) : BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)));
         NativeBattleGeometryPrimitive? primitive = null;
         if (!rejected)
         {

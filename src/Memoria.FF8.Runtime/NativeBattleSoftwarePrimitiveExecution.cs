@@ -14,6 +14,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     private NativeSoftwareDrawingEnvironmentState? normalEnvironment;
     private NativeSoftwareViewportInputs? normalViewportInputs;
     private NativeSoftwareNormalViewportDerived? normalViewport;
+    private readonly Dictionary<NativeBattleSceneCapture, (NativeBattleEffectTextureState Owner, NativeBattleSceneCaptureSample Sample)> sceneCaptureSamples = [];
+    private readonly Dictionary<(ushort Clut, int Length), (NativeBattleEffectTextureState Owner, ImmutableArray<ushort> Palette)> sceneCapturePalettes = [];
 
     public NativeBattleSoftwarePrimitiveExecution(NativeBattleSoftwarePrimitiveState state, NativeBattleEffectTextureState textures, NativeSoftwarePrimitiveTable table, bool hardwareEnabled, NativeBattlePcTextureWindowCache cache)
     {
@@ -50,7 +52,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     {
         NativeSoftwareDrawingEnvironmentBuffers buffers = State.EnvironmentBuffers ?? throw new NotSupportedException("Native environment publication requires its retained pair of initialized DRAWENV records.");
         NativeSoftwareDrawingEnvironmentApplication application = buffers.Apply45B660(buffer, State.Environment);
-        State = State with { EnvironmentBuffers = application.Buffers, Environment = application.Environment };
+        State = State with { EnvironmentBuffers = application.Buffers, Environment = application.Environment, SceneCapture = null };
         if (application.Invalidation is { } rectangle)
         {
             NativeBattleEffectTextureState priorTextures = Textures;
@@ -223,13 +225,76 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             }
             textureSnapshotIndices.Add(pixels, index);
         }
-        return command with { DrawMode = normal is null ? command.DrawMode with { TexturePixelSnapshot = index } : command.DrawMode with { TexturePixelSnapshot = index, NormalViewport = normal, ViewportInputs = inputs } };
+        NativeBattlePrimitiveDrawMode retainedMode = normal is null ? command.DrawMode with { TexturePixelSnapshot = index } : command.DrawMode with { TexturePixelSnapshot = index, NormalViewport = normal, ViewportInputs = inputs };
+        if (command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } capture && (command.Command.Opcode & 0xE4) == 0x24)
+        {
+            retainedMode = retainedMode with { SceneCaptureSample = RetainSceneCapture(capture, command) };
+        }
+        return command with { DrawMode = retainedMode };
+    }
+
+    private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalResolvedCommand command)
+    {
+        capture = capture with { SampleCoordinates = null };
+        capture.Validate();
+        PublishImage();
+        if (sceneCaptureSamples.TryGetValue(capture, out var retained) && ReferenceEquals(retained.Owner, Textures))
+        {
+            return RetainPalette(retained.Sample);
+        }
+        ImmutableArray<int>.Builder snapshots = ImmutableArray.CreateBuilder<int>();
+        for (int left = 0; left < capture.Width; left += 256)
+        {
+            int width = Math.Min(256, capture.Width - left);
+            byte[] data = new byte[checked(width * capture.Height * 2)];
+            for (int y = 0; y < capture.Height; y++)
+            {
+                Textures.ReadVramInto(2 * ((capture.Y + y) * 1024 + capture.X + left), data.AsSpan(y * width * 2, width * 2));
+            }
+            NativeBattlePcTextureWindowPixels pixels = new(capture.X + left, capture.Y, width, capture.Height, data.ToImmutableArray());
+            pixels.Validate();
+            snapshots.Add(textureSnapshots.Count);
+            textureSnapshots.Add(pixels);
+        }
+        NativeBattleSceneCaptureSample sample = new(capture, snapshots.ToImmutable());
+        sceneCaptureSamples[capture] = (Textures, sample);
+        return RetainPalette(sample);
+
+        NativeBattleSceneCaptureSample RetainPalette(NativeBattleSceneCaptureSample source)
+        {
+            ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
+            int depth = page >> 7 & 3;
+            if (depth == 3)
+            {
+                throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
+            }
+            int length = depth == 0 ? 16 : depth == 1 ? 256 : 0;
+            ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
+            int x = (clut & 63) * 16;
+            int y = (clut & 0x7FFF) >> 6;
+            if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, Textures))
+            {
+                return source with { Palette = priorPalette.Palette };
+            }
+            if (length > 0 && (x > 1024 - length || y >= 512))
+            {
+                throw new InvalidDataException("Scene sampling requires a complete native palette.");
+            }
+            ImmutableArray<ushort>.Builder palette = ImmutableArray.CreateBuilder<ushort>(length);
+            for (int index = 0; index < length; index++)
+            {
+                palette.Add(Textures.ReadVramWord(x + index, y));
+            }
+            ImmutableArray<ushort> retainedPalette = palette.MoveToImmutable();
+            sceneCapturePalettes[(clut, length)] = (Textures, retainedPalette);
+            return source with { Palette = retainedPalette };
+        }
     }
 
     public void EndBatch()
     {
         PublishImage();
-        State = State with { Environment = NativeSoftwareDrawingEnvironment.EndBatch45D080(State.Environment) };
+        State = State with { Environment = NativeSoftwareDrawingEnvironment.EndBatch45D080(State.Environment), SceneCapture = null };
     }
 
     private void ExecuteState(NativeBattleLogicalCommand command)
@@ -245,7 +310,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
                 State = State with { Texture = NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, unchecked((ushort)value)).State };
                 break;
             case 0xE3:
-                State = State with { Environment = NativeSoftwareDrawingEnvironment.WriteE345BA30(State.Environment, value) };
+                State = State with { Environment = NativeSoftwareDrawingEnvironment.WriteE345BA30(State.Environment, value), SceneCapture = command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.SourceEnvironment } capture ? capture : null };
                 PublishCurrentEnvironmentFields();
                 break;
             case 0xE4:

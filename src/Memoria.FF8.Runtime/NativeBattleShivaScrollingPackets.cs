@@ -69,7 +69,7 @@ public static class NativeBattleShivaScrollingPackets
             vertices[3] = readCorner(3);
             packet.Word(12 + 3 * stride, vertices[3].Screen);
         }
-        if (vertices.All(vertex => unchecked((short)vertex.Screen) is < 0 or > 2560) || vertices.All(vertex => unchecked((short)(vertex.Screen >> 16)) is < 0 or > 1728))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return Rejected();
         }

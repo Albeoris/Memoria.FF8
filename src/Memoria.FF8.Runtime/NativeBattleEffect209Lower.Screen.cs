@@ -77,6 +77,7 @@ public static partial class NativeBattleEffect209Lower
 
     public static NativeBattleEffect209Frame DrawTiling83B0(NativeBattleEffect209Frame frame, uint color, NativeBattleEffect209Inputs inputs)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Image, 576, 256);
         for (int column = 0; column < 10; column++)
         {
             ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

@@ -50,12 +50,12 @@ public sealed partial class BattleRenderer
                 int offset = index * 4;
                 source[index] = (uint)(pixels[offset + 3] << 24 | pixels[offset] << 16 | pixels[offset + 1] << 8 | pixels[offset + 2]);
             }
-            nativeSurface = IFramebufferCaptureRenderer.SampleArgbCentres(source, Width, Height, ProjectionBounds, profile.SurfaceWidth, profile.SurfaceHeight);
+            nativeSurface = IFramebufferCaptureRenderer.SampleArgbCentres(source, Width, Height, new PixelBounds(0, 0, Width, Height), profile.SurfaceWidth, profile.SurfaceHeight);
             locked = true;
         }
         else if (TriangleRenderer is IFramebufferCaptureRenderer capture)
         {
-            locked = capture.TryCaptureArgb(Width, Height, ProjectionBounds, profile.SurfaceWidth, profile.SurfaceHeight, out nativeSurface);
+            locked = capture.TryCaptureArgb(Width, Height, new PixelBounds(0, 0, Width, Height), profile.SurfaceWidth, profile.SurfaceHeight, out nativeSurface);
         }
         else
         {
@@ -83,7 +83,7 @@ public sealed partial class BattleRenderer
         }
         PixelImage image = new(256, 256, texels);
         ImmutableArray<NativeBattlePcRenderVertex> native = receipt.QuadVertices56D5F0();
-        TriangleVertex[] vertices = native.Select(vertex => new TriangleVertex(new(ProjectionBounds.X + (float)(((double)vertex.X + 0.5) * ProjectionBounds.Width / profile.SurfaceWidth), ProjectionBounds.Y + (float)(((double)vertex.Y + 0.5) * ProjectionBounds.Height / profile.SurfaceHeight)), vertex.Z, vertex.ReciprocalW, new(vertex.U, vertex.V), Vector4.One)).ToArray();
+        TriangleVertex[] vertices = native.Select(vertex => new TriangleVertex(new((float)(((double)vertex.X + 0.5) * Width / profile.SurfaceWidth), (float)(((double)vertex.Y + 0.5) * Height / profile.SurfaceHeight)), vertex.Z, vertex.ReciprocalW, new(vertex.U, vertex.V), Vector4.One)).ToArray();
         if (TriangleRenderer is { } renderer)
         {
             TriangleMaterial triangleMaterial = new(image, selectedBlend, TriangleDepthComparison.LessEqual, false, 0, TriangleSampler.PointClamp);

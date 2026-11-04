@@ -87,7 +87,7 @@ public static class NativeBattleEffect166Mesh108
                         {
                             registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Custom mesh requires current ZSF3."));
                         }
-                        if (!screens.All(value => unchecked((short)value) is < 0 or > 2560) && !screens.All(value => unchecked((short)(value >> 16)) is < 0 or > 1728))
+                        if (!BattleSceneVisibleArea.RejectPacked(screens))
                         {
                             if (quad)
                             {

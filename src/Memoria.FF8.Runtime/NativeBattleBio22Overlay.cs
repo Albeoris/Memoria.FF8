@@ -52,7 +52,7 @@ public static class NativeBattleBio22Overlay
                 {
                     throw new InvalidDataException("Native overlay requires actual retained proxy depth metadata or an explicit empty unknown value.");
                 }
-                NativeBattleGeometryPrimitive primitive = new(7, words, depths) { PhysicalWriteMask = mask };
+                NativeBattleGeometryPrimitive primitive = new(7, words, depths) { PhysicalWriteMask = mask, ScreenCoverage = retainLink ? null : NativeBattleScreenCoverage.Full };
                 if (!retainLink)
                 {
                     primitive = primitive with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(22, task), new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8, SourceDepths = depths.Length == 4 ? new(depths[0], depths[1], depths[2], depths[3]) : null, UseSourceDepths = depths.Length == 4 } };

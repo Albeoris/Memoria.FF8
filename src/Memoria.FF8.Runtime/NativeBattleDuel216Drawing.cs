@@ -21,7 +21,7 @@ public static class NativeBattleDuel216Drawing
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         if (pilotIdentity is { } identity)
         {
             primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };

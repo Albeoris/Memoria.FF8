@@ -80,7 +80,7 @@ public static class NativeBattleEffect166ModeMesh96
                             packet.Word(12 + corner * 8, screens[corner]);
                         }
                         registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Mode mesh requires current ZSF3."));
-                        if (!screens.All(value => unchecked((short)value) is < 0 or > 2560) && !screens.All(value => unchecked((short)(value >> 16)) is < 0 or > 1728))
+                        if (!BattleSceneVisibleArea.RejectPacked(screens))
                         {
                             uint depth = registers.Geometry.Otz!.Value;
                             context96 = Put(context96, 0x2C, depth);

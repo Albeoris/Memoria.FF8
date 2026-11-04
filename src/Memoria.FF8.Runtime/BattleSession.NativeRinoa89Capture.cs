@@ -7,6 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleRinoa89Frame Frame, NativeBattleGraphicsState Graphics) CaptureNativeRinoa89Scene(NativeBattleRinoa89Frame frame, NativeBattleGraphicsState graphics, NativeBattleRinoa89Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source);
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Wishing Star capture requires its initialized primitive frame.");
         NativeBattleRinoa89CaptureStep begun = NativeBattleRinoa89Capture.Begin6FBEE0(frame, primitive.Pending);
         frame = begun.Frame;

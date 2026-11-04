@@ -77,7 +77,7 @@ public static partial class NativeBattleEffect314Controller
                 registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Effect314 triangle requires its actual ZSF3."));
             }
             int all = (1 << count) - 1;
-            bool viewport = (clip & all) != all && ((clip >> 4) & all) != all;
+            bool viewport = BattleSceneVisibleArea.Current == BattleSceneVisibleArea.Native ? (clip & all) != all && ((clip >> 4) & all) != all : !BattleSceneVisibleArea.RejectPacked(screen.Take(count));
             NativeBattleGeometryPrimitive? primitive = null;
             uint otz = registers.Geometry.Otz ?? throw new NotSupportedException("Effect314 fragment requires its averaged OTZ.");
             if (viewport)

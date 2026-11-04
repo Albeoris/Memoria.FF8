@@ -82,9 +82,7 @@ public static class NativeBattleBreath129Mesh
                 registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 Store(44, BitConverter.GetBytes(registers.Geometry.Sxy[2]!.Value));
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Native Breath GT4 requires its current ZSF4."));
-                bool outsideX = Enumerable.Range(0, 4).All(corner => Outside(BinaryPrimitives.ReadInt16LittleEndian(packet.Read(8 + corner * 12, 2)), 2560));
-                bool outsideY = Enumerable.Range(0, 4).All(corner => Outside(BinaryPrimitives.ReadInt16LittleEndian(packet.Read(10 + corner * 12, 2)), 1728));
-                accepted = !outsideX && !outsideY;
+                accepted = !BattleSceneVisibleArea.RejectPacked(Enumerable.Range(0, 4).Select(corner => BinaryPrimitives.ReadUInt32LittleEndian(packet.Read(8 + corner * 12, 4))));
                 if (accepted)
                 {
                     uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("Native Breath GT4 lost its raw depth result.");
@@ -150,7 +148,6 @@ public static class NativeBattleBreath129Mesh
         return frame with { State = frame.State.WriteDword(0x252117C, cursor) };
     }
 
-    private static bool Outside(short value, int upper) => value < 0 || value > upper;
     private static NativeBattleBreath129Frame Publish(NativeBattleBreath129Frame frame, NativeBattleGeometryRegisterStep registers) => frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
     private static NativeBattleGeometryRegisterStep Load(NativeBattleGeometryRegisterStep registers, int slot, NativeBattleEffectArena context, int offset)
     {

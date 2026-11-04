@@ -49,12 +49,6 @@ public static partial class NativeBattleEffect69Particles
             {
                 Put32(8 + corner * 8, screens[corner]);
             }
-            int outsideX = 0;
-            int outsideY = 0;
-            for (int corner = 0; corner < 3; corner++)
-            {
-                ObserveScreen(corner);
-            }
             if (quad)
             {
                 temporary = DebrisPoint(record, 3, temporary);
@@ -64,13 +58,12 @@ public static partial class NativeBattleEffect69Particles
                 Put16(36, unchecked((ushort)I16(record, 54)));
                 Put32(32, screens[3]);
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect69 debris requires current ZSF4."));
-                ObserveScreen(3);
             }
             else
             {
                 registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Effect69 debris requires current ZSF3."));
             }
-            if (outsideX == (1 << corners) - 1 || outsideY == (1 << corners) - 1)
+            if (BattleSceneVisibleArea.RejectPacked(screens.Take(corners)))
             {
                 attempts.Add(Attempt(null));
                 continue;
@@ -109,19 +102,6 @@ public static partial class NativeBattleEffect69Particles
             attempts.Add(Attempt(primitive));
             allocated += packet.Length;
 
-            void ObserveScreen(int corner)
-            {
-                short x = unchecked((short)screens[corner]);
-                short y = unchecked((short)(screens[corner] >> 16));
-                if (x < 0 || x > 2560)
-                {
-                    outsideX |= 1 << corner;
-                }
-                if (y < 0 || y > 1728)
-                {
-                    outsideY |= 1 << corner;
-                }
-            }
             void Put16(int offset, ushort value)
             {
                 BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(offset), value);

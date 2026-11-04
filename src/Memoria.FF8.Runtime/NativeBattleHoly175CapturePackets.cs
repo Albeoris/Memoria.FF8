@@ -23,6 +23,7 @@ public static class NativeBattleHoly175CapturePackets
 {
     public static NativeBattleHoly175CaptureWrite Write5D29E0(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleHoly175Resources resources, NativeBattleHoly175CaptureMemory retained)
     {
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source, 576, 256, height: 232, paddingTop: 8, paddingBottom: 8, projectionOffsetY: 8);
         process.Validate();
         if (retained.BlackPackets.IsDefault || retained.BlackPackets.Length != 48)
         {

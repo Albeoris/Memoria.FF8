@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Retained software raster owners after the PC renderer's45B460 initialization; image words belong to the shared texture state.</summary>
 public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired] NativeSoftwareDrawingEnvironmentState Environment, [property: JsonRequired] NativeSoftwareTextureState Texture, [property: JsonRequired] NativeSoftwarePolygonRasterState Raster, [property: JsonRequired] NativeSoftwareReciprocalTable Reciprocals)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleSceneCapture? SceneCapture { get; init; }
     public NativeSoftwareDrawingEnvironmentBuffers? EnvironmentBuffers { get; init; }
     public NativeBattleSpriteFilterState? SpriteFilter { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -38,6 +40,7 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
         {
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan((index + 1) * 4), command.Words[index]);
         }
+        (command.SceneCapture ?? SceneCapture)?.MapSourcePacket(command, packet);
         NativeSoftwarePolygonPacketDraw draw = NativeSoftwarePolygonPackets.Draw(image, Raster, Texture, command.Opcode, packet, NativeSoftwarePolygonPackets.CoordinateShift45D080(command.Flags20), environment.DrawOffsetX, environment.DrawOffsetY, environment.ClipBounds, table, Reciprocals);
         return this with { Texture = draw.Texture, Raster = draw.Raster };
     }

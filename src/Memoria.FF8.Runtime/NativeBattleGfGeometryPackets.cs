@@ -268,7 +268,7 @@ public static class NativeBattleGfGeometryPackets
             writes.Word(ScreenWord(3), vertices[3].Screen);
             variant?.ObserveFourthScreen?.Invoke(vertices[3].Screen);
         }
-        if (variant?.SkipOffscreenRejection != true && (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0)))
+        if (variant?.SkipOffscreenRejection != true && (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen))))
         {
             return writes.Finish(null);
         }

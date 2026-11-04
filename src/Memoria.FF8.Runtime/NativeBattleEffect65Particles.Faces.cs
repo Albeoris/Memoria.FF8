@@ -91,9 +91,8 @@ public static partial class NativeBattleEffect65Particles
                     {
                         registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Effect65 triangle requires current ZSF3."));
                     }
-                    bool outsideX = screens.All(screen => unchecked((short)screen) < 0 || unchecked((short)screen) > 2560);
-                    bool outsideY = screens.All(screen => unchecked((short)(screen >> 16)) < 0 || unchecked((short)(screen >> 16)) > 1728);
-                    if (!outsideX && !outsideY)
+                    bool outside = BattleSceneVisibleArea.RejectPacked(screens);
+                    if (!outside)
                     {
                         uint depth = registers.Geometry.Otz!.Value;
                         temporary = temporary.Write(contextOffset + 0x10, BitConverter.GetBytes(depth));

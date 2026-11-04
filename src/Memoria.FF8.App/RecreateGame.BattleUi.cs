@@ -80,6 +80,9 @@ internal sealed partial class RecreateGame
 
     private bool UpdateBattleCore(TimeSpan elapsed, InputFrame input, TimeSpan presentationElapsed)
     {
+        PixelBounds sceneSize = ViewportLayout.WorldRenderTarget(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, options.WorldRenderLimit, false);
+        PixelBounds projection = ViewportLayout.Fit(320, 240, sceneSize.Width, sceneSize.Height);
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(sceneSize.Width, sceneSize.Height, projection.X, projection.Y, projection.Width, projection.Height));
         if (fieldFaulted && debugBattle is null)
         {
             return false;

@@ -77,7 +77,7 @@ public static class NativeBattleDuel274MeshPackets
             vertices[3] = readCorner(3);
             packet.Word(32, vertices[3].Screen);
         }
-        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 2560) || vertices.All(vertex => unchecked((ushort)(vertex.Screen >> 16)) > 1728))
+        if (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)))
         {
             return Rejected();
         }

@@ -8,6 +8,10 @@ public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<ui
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? PresentationActorId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleScreenCoverage? ScreenCoverage { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleSceneCapture? SceneCapture { get; init; } = NativeBattleSceneCapture.Current;
     public ImmutableArray<NativeBattleGfPacketByteState>? PhysicalWriteMask { get; init; }
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
@@ -63,9 +67,11 @@ public static class NativeBattleGeometryPackets
             minDepth = Math.Min(minDepth, vertex.Depth);
         }
         // Expanded scene coordinates retain their full precision; native packed-word consumers keep their original arithmetic.
-        uint screenMask = coordinates is null ? 0x3F00000u : 0xF00000u;
+        bool sceneViewport = BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native;
+        uint screenMask = sceneViewport ? 0 : coordinates is null ? 0x3F00000u : 0xF00000u;
+        bool outsideScene = sceneViewport && (coordinates is null ? BattleSceneVisibleArea.RejectPacked(corners[..count].ToArray().Select(vertex => vertex.Screen)) : BattleSceneVisibleArea.Current.Reject(coordinates));
         bool facing = coordinates is null ? Accept510680(corners[0].Screen, corners[1].Screen, corners[2].Screen) : AcceptExpanded(coordinates[0], coordinates[1], coordinates[2]);
-        if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0 || !facing)
+        if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0 || outsideScene || !facing)
         {
             return null;
         }

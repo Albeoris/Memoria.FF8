@@ -163,6 +163,7 @@ public sealed partial class BattleSession
 
         NativeBattleFatedCircle162CaptureStep DrawStage(NativeBattleFatedCircle162Frame current, NativeBattleThundaga105CaptureTransform capture, NativeBattleLogicalOrdering ordering)
         {
+            using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native5FC5E0 requires its actual stage group1 owner.");
             NativeBattleStageGroup group = stage.Groups[1];
             if ((group.Flags & 1) == 0)

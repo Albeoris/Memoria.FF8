@@ -144,7 +144,7 @@ public static class NativeBattleXatmDeath276DebrisDrawing
                 Write16(36, director.ReadWord(record + 0x46));
                 Write32(32, vertices[3].Screen);
             }
-            bool clipped = horizontal == count || vertical == count;
+            bool clipped = BattleSceneVisibleArea.Current == BattleSceneVisibleArea.Native ? horizontal == count || vertical == count : BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen));
             int depth = Math.Clamp(unchecked(vertices.Sum(vertex => (int)vertex.Depth) * (quad ? zsf4 : zsf3)) >> 12, 0, 65535);
             bool accepted = !clipped && unchecked((short)depth) > 0;
             if (!quad && !clipped)

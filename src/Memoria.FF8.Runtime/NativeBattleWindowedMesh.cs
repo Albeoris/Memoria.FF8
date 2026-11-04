@@ -94,7 +94,7 @@ public static class NativeBattleWindowedMesh
                     step = NativeBattleGeometry.Average45E5C0(step, controls.Zsf3 ?? throw new NotSupportedException("Windowed mesh requires its actual ZSF3."));
                 }
                 registers = step;
-                if (corners.All(corner => Outside(unchecked((short)corner.Screen), 0xA00)) || corners.All(corner => Outside(unchecked((short)(corner.Screen >> 16)), 0x6C0)))
+                if (BattleSceneVisibleArea.RejectPacked(corners.Select(corner => corner.Screen)))
                 {
                     attempts.Add(writes.Attempt(null));
                     cursor = checked(cursor + faceBytes);
@@ -171,7 +171,6 @@ public static class NativeBattleWindowedMesh
         }
     }
 
-    private static bool Outside(short value, int upper) => value < 0 || value > upper;
     private static int ScreenOffset(int group, int corner) => 8 + corner * (group == 7 ? 12 : 8);
     private static uint Dword(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));
     private static ushort Word(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(context.Read(offset, 2));

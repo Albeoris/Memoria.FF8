@@ -113,9 +113,8 @@ public static class NativeBattleEffect213Stream
                     screen[3] = registers.Geometry.Sxy[2]!.Value;
                     packet.Word(8 + 3 * screenStride, screen[3]);
                     registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("The stream requires actual ZSF4."));
-                    bool outsideX = screen.All(value => unchecked((short)value) < 0 || unchecked((short)value) > 2560);
-                    bool outsideY = screen.All(value => unchecked((short)(value >> 16)) < 0 || unchecked((short)(value >> 16)) > 1728);
-                    if (!outsideX && !outsideY)
+                    bool outside = BattleSceneVisibleArea.RejectPacked(screen);
+                    if (!outside)
                     {
                         uint depth = registers.Geometry.Otz ?? throw new NotSupportedException("The stream requires current OTZ.");
                         context = Put(context, 0x30, depth);
