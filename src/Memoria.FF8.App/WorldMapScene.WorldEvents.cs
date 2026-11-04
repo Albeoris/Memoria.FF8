@@ -60,11 +60,6 @@ internal sealed partial class WorldMapScene
         byte speed = session.State.InputConfiguration?.FieldMessageSpeedByte ?? throw new NotSupportedException("World text requires its saved native field-message speed; migrate the historical input configuration explicitly.");
         NativeWorldMessage binding = assets.ReadNativeWorldMessage(window, message);
         byte[] bytes = assets.ReadWorldMessageBytes(message);
-        // TODO(TD-003): world page waits require the native focused-channel input owner.
-        if (bytes.Any(value => value is 1 or 7))
-        {
-            throw new NotSupportedException("World message pages require their executed native channel focus and input owner.");
-        }
         return binding with { Text = NativeWorldTextState.Create(System.Collections.Immutable.ImmutableArray.CreateRange(bytes), assets.ReadWorldMessageSpeed(speed)) };
     }
 

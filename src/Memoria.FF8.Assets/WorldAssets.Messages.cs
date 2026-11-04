@@ -156,6 +156,11 @@ public sealed partial class WorldAssets
         return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
+    public string ReadWorldMessagePage(NativeWorldTextState text)
+    {
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(text.CurrentPageBytes().AsSpan());
+    }
+
     public short ReadWorldMessageSpeed(byte speed)
     {
         if (speed > 4)

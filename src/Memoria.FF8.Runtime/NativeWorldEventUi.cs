@@ -34,8 +34,27 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
     public ImmutableArray<NativeWorldMessage> AliasedWindows { get; init; } = [];
     public ImmutableArray<NativeWorldChannelReadiness> RetainedChannelReadiness { get; init; } = [];
 
+    /// <summary>The page-bearing physical channel that receives confirm input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? PageInputChannel { get; init; }
+
+    [JsonIgnore]
+    public NativeWorldMessage? FocusedPageMessage => Windows.FirstOrDefault(window => window.Channel == PageInputChannel);
+
+    private static byte? SelectPageInputChannel(ImmutableArray<NativeWorldMessage> windows, byte? preferred)
+    {
+        IEnumerable<NativeWorldMessage> candidates = windows.Where(window => window.Text is { HasPages: true, TextComplete: false });
+        return candidates.FirstOrDefault(window => window.Channel == preferred)?.Channel ?? candidates.LastOrDefault()?.Channel;
+    }
+
+    private static ImmutableArray<NativeWorldMessage> ResetPageReleaseOnFocusChange(ImmutableArray<NativeWorldMessage> windows, byte? previous, byte? focus)
+    {
+        return previous == focus ? windows : windows.Select(window => window.Channel == focus && window.Text is { Phase: 10 } text ? window with { Text = text with { Phase = 9 } } : window).ToImmutableArray();
+    }
+
     private NativeWorldEventUi(NativeWorldEventUi original)
     {
+        PageInputChannel = original.PageInputChannel;
         ScriptMode = original.ScriptMode;
         CloseSuppressedThisCallback = original.CloseSuppressedThisCallback;
         Windows = original.Windows;
@@ -59,6 +78,10 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
         {
             throw new InvalidDataException("World UI requires distinct executed native window bindings.");
         }
+        if (PageInputChannel is byte focused && !Windows.Any(window => window.Channel == focused && window.Text is { HasPages: true }))
+        {
+            throw new InvalidDataException("World page input requires an active page-bearing physical channel.");
+        }
         foreach (NativeWorldMessage window in Windows.Concat(AliasedWindows))
         {
             window.Validate();
@@ -71,7 +94,7 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
         return this with { CloseSuppressedThisCallback = false, Windows = Windows.Select(window => window.Text is null ? window with { TextComplete = null } : window).ToImmutableArray() };
     }
 
-    public NativeWorldEventUi AdvanceText(int ticks)
+    public NativeWorldEventUi AdvanceText(int ticks, uint currentButtons = 0)
     {
         Validate();
         if (ticks < 0)
@@ -82,13 +105,18 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
         {
             return this;
         }
+        byte? focus = SelectPageInputChannel(Windows, PageInputChannel);
         ImmutableArray<NativeWorldClosingChannel> closing = ClosingChannels.Where(channel => channel.TicksRemaining > ticks).Select(channel => channel with { TicksRemaining = checked((byte)(channel.TicksRemaining - ticks)), Openness = channel.Openness is short openness ? (short)(openness - 512 * ticks) : null }).ToImmutableArray();
-        return this with { ClosingChannels = closing, Windows = Windows.Select(window =>
+        return this with { PageInputChannel = focus, ClosingChannels = closing, Windows = Windows.Select(window =>
         {
             NativeWorldTextState? text = window.Text;
+            if ((window.Channel != focus || PageInputChannel != focus) && text is { Phase: 10 })
+            {
+                text = text with { Phase = 9 };
+            }
             for (int tick = 0; tick < ticks && text is not null; tick++)
             {
-                text = text.Advance();
+                text = text.Advance(currentButtons, window.Channel == focus);
             }
             return text is null ? window : window with { Text = text, TextComplete = text.TextComplete };
         }).ToImmutableArray() };
@@ -125,7 +153,10 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
         {
             aliases = aliases.Add(physical with { Text = null, TextComplete = null });
         }
-        return NativeWorldUiOccurrences.Open(this with { ClosingChannels = ClosingChannels.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), RetainedChannelReadiness = RetainedChannelReadiness.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = Windows.Where(window => window.WindowId != message.WindowId && window.Channel != message.Channel).Append(message with { TextComplete = false }).OrderBy(window => window.WindowId).ToImmutableArray() }, message.WindowId);
+        ImmutableArray<NativeWorldMessage> windows = Windows.Where(window => window.WindowId != message.WindowId && window.Channel != message.Channel).Append(message with { TextComplete = false }).OrderBy(window => window.WindowId).ToImmutableArray();
+        byte? focus = SelectPageInputChannel(windows, message.Text is { HasPages: true } ? message.Channel : PageInputChannel);
+        windows = ResetPageReleaseOnFocusChange(windows, PageInputChannel, focus);
+        return NativeWorldUiOccurrences.Open(this with { PageInputChannel = focus, ClosingChannels = ClosingChannels.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), RetainedChannelReadiness = RetainedChannelReadiness.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = windows }, message.WindowId);
     }
 
     public NativeWorldEventUi Close(ushort windowId)
@@ -157,7 +188,10 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
             //543A40 closes the channel without clearing4A06E0's cached text-complete byte.
             readiness = readiness.Where(channel => channel.Channel != message.Channel).Append(new NativeWorldChannelReadiness(message.Channel, message.TextComplete)).OrderBy(channel => channel.Channel).ToImmutableArray();
         }
-        return this with { ClosingChannels = closing, RetainedChannelReadiness = readiness, AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = Windows.Where(window => window.Channel != binding.Channel).ToImmutableArray() };
+        ImmutableArray<NativeWorldMessage> windows = Windows.Where(window => window.Channel != binding.Channel).ToImmutableArray();
+        byte? focus = SelectPageInputChannel(windows, PageInputChannel);
+        windows = ResetPageReleaseOnFocusChange(windows, PageInputChannel, focus);
+        return this with { PageInputChannel = focus, ClosingChannels = closing, RetainedChannelReadiness = readiness, AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = windows };
     }
 
     public bool? MatchesTextComplete(sbyte windowId, byte expected)

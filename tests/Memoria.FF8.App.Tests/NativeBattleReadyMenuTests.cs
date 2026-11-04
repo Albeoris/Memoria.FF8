@@ -82,10 +82,11 @@ public sealed class NativeBattleReadyMenuTests
         Assert.False(battle.CanChoosePlayerCommand("party-0"));
         battle.Tick();
         Assert.Equal("party-0", hud.SelectedActor!.Id);
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        BattleSnapshot snapshot = battle.Capture();
+        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
         NativeBattleUiServices ui = graphics.UiServices!;
         (NativeBattleUiCommands commands, uint mask, _) = ui.Commands.Enqueue(0, 18).Enqueue(0, 17).Dispatch(ui.ReadyMask);
-        battle = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { UiServices = ui with { Commands = commands, ReadyMask = mask } } });
+        battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics with { UiServices = ui with { Commands = commands, ReadyMask = mask } } });
         hud = Hud(battle);
         Assert.Equal(new[] { "party-3", "party-4", "party-0" }, battle.ReadyPlayerCommandOrder.Select(actor => actor.Id));
         Assert.Equal("party-3", hud.SelectedActor!.Id);
@@ -115,9 +116,10 @@ public sealed class NativeBattleReadyMenuTests
         battle = BattleSession.Restore(saved with { Combatants = actors });
         Assert.True(battle.CanChoosePlayerCommand("party-0"));
         Assert.Equal("party-0", Hud(battle).SelectedActor!.Id);
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        BattleSnapshot snapshot = battle.Capture();
+        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
         NativeBattleUiServices ui = graphics.UiServices!;
-        battle = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(0, 18) } } });
+        battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(0, 18) } } });
         battle.Tick();
         Assert.False(battle.CanChoosePlayerCommand("party-0"));
         Assert.Equal("party-3", Hud(battle).SelectedActor!.Id);

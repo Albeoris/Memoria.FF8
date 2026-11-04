@@ -29,7 +29,7 @@ internal sealed partial class WorldMapScene
     {
         get
         {
-            if (State.EventUi?.Windows.LastOrDefault() is { } nativeMessage)
+            if ((State.EventUi?.FocusedPageMessage ?? State.EventUi?.Windows.LastOrDefault()) is { } nativeMessage)
             {
                 NativeWorldMessage prepared = nativeMessage.FuelRemaining is byte remaining ? assets.ReadNativeFuelMessage(remaining) : assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
                 bool emptyFuel = nativeMessage.WindowId == 1 && nativeMessage.MessageId == 43;
@@ -39,7 +39,7 @@ internal sealed partial class WorldMapScene
                     throw new InvalidDataException("The saved world message differs from its installed source.");
                 }
                 // Confirm supplies a real digital pulse to authored world-event predicates; it does not assert native text completion or close the window itself.
-                string messageText = nativeMessage.FuelRemaining is byte count ? assets.ReadFuelMessage(count) : emptyFuel ? assets.ReadFuelMessage(0) : assets.ReadWorldMessage(nativeMessage.MessageId);
+                string messageText = nativeMessage.Text is { HasPages: true } pages ? assets.ReadWorldMessagePage(pages) : nativeMessage.FuelRemaining is byte count ? assets.ReadFuelMessage(count) : emptyFuel ? assets.ReadFuelMessage(0) : assets.ReadWorldMessage(nativeMessage.MessageId);
                 return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, messageText, nativeMessage.X, nativeMessage.Y, Operation: 0x543790);
             }
             if (State.NativeTrainRuntime is not { Primary.Pause: -1 } train)

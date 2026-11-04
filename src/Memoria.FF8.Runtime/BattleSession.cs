@@ -1498,7 +1498,8 @@ public sealed partial class BattleSession
         //Ordinary Attack/Magic resolve installed metadata through the actor/action catalog and legitimately leave nativeAction null.
         //48E620's successful GF branch queues its FE input without494A60; its already-grown gauge survives before48E830.
         //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
-        bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && actor.NativeAtb is not null;
+        //Graphicsless components preserve the same initialization/reaction gauge in their logical clock.
+        bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
         if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");

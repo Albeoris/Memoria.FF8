@@ -126,7 +126,8 @@ public sealed class BattleTurnBasedTimeTests
         // Header production commits the contact before this graphicsless command's presentation completes.
         Assert.Equal(550, battle.Combatants[1].CurrentHp);
         Assert.Equal(58, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
-        Assert.Equal(0, battle.Combatants[1].Atb);
+        // A passive Regen callback must not spend the actor's partially filled turn gauge.
+        Assert.Equal(ally.Speed, battle.Combatants[1].Atb);
         Assert.False(battle.Combatants[1].IsReady);
         Assert.Contains(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:") && item.Amount == 50);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -141,8 +142,7 @@ public sealed class BattleTurnBasedTimeTests
         Assert.False(battle.Combatants[0].IsAlive);
         Assert.True(battle.Combatants[1].IsReady);
         Assert.Equal(540, battle.Combatants[1].CurrentHp);
-        // The queued Regen command reset the first tick's partial gauge; twenty new admitted ticks fill it.
-        Assert.Equal(58 - 2 * readinessTicks, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
+        Assert.Equal(60 - 2 * readinessTicks, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
         Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.Message.StartsWith("Doom:"));
         Assert.Contains(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:"));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));

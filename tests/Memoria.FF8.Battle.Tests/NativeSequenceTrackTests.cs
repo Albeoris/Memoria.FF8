@@ -35,9 +35,9 @@ public sealed class NativeSequenceTrackTests
         if (gameplayWait)
         {
             BattleSnapshot waiting = battle.Capture();
-            battle = BattleSession.Restore(waiting with { NativeScriptState = waiting.NativeScriptState with { Tasks = waiting.NativeScriptState.Tasks.AppendWait(5) } });
+            battle = RestoreFromJson(waiting with { NativeScriptState = waiting.NativeScriptState with { Tasks = waiting.NativeScriptState.Tasks.AppendWait(5) } });
         }
-        BattleSession restored = BattleSession.Restore(battle.Capture());
+        BattleSession restored = RestoreFromJson(battle.Capture());
         for (int index = 0; index < 3; index++)
         {
             battle.Tick();
@@ -60,6 +60,8 @@ public sealed class NativeSequenceTrackTests
             Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "NativeText"));
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
+        ContinueThroughCompletion(battle, restored);
+        Assert.Equal(new[] { "First", "Second" }, restored.Events.Where(entry => entry.Kind == "NativeText").Select(entry => entry.Message));
     }
 
     [Fact]
@@ -85,7 +87,11 @@ public sealed class NativeSequenceTrackTests
         Assert.Equal((byte)143, packet.NativeGraphic!.MagicId);
         Assert.Equal((ushort)0x4000, packet.NativeTargetMask);
         Assert.Equal((ushort)0, queued.Combatants[1].NativeParticipant!.PreviousTargetMask);
-        BattleSession restored = BattleSession.Restore(queued);
+        Assert.True(queued.Combatants[1].Atb > 0);
+        Assert.Null(queued.Combatants[1].NativeAtb);
+        BattleAttackCommand[] missingHeader = queued.QueuedActions.Select(command => command == packet ? command with { NativeHeaderIndex = null, NativeEventOwner = null } : command).ToArray();
+        Assert.Throws<InvalidDataException>(() => RestoreFromJson(queued with { QueuedActions = missingHeader }));
+        BattleSession restored = RestoreFromJson(queued);
         string random = JsonSerializer.Serialize(queued.Random);
         for (int frame = 0; frame < 3; frame++)
         {
@@ -97,6 +103,11 @@ public sealed class NativeSequenceTrackTests
         Assert.Equal(random, JsonSerializer.Serialize(restored.Capture().Random));
         Assert.Equal(new NativeBattleLastAction(0, 0, 0, 0, 0, 0), restored.Capture().Combatants[0].NativeParticipant!.LastAction);
         Assert.Equal(new NativeBattleLastAction(0, 0, 0, 0, 0, 0), restored.Capture().Combatants[1].NativeParticipant!.LastAction);
+        for (int frame = 0; frame < 3; frame++)
+        {
+            battle.Tick();
+        }
+        ContinueThroughCompletion(battle, restored);
     }
 
     [Theory]
@@ -130,5 +141,27 @@ public sealed class NativeSequenceTrackTests
     private static BattleNativeAction Action(byte type)
     {
         return new(8, 0, 2, 0) { Name = "Control", MagicId = 0, AttackType = type, Power = 0, HitCount = 1, TargetFlags = 0x50, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
+    }
+
+    private static BattleSession RestoreFromJson(BattleSnapshot snapshot)
+    {
+        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+    }
+
+    private static void ContinueThroughCompletion(BattleSession battle, BattleSession restored)
+    {
+        for (int frame = 0; frame < 30 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Null(restored.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Empty(restored.QueuedActions);
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 }

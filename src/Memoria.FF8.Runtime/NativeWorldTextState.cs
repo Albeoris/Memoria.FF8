@@ -6,6 +6,66 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Native message-channel openness, glyph speed accumulator and text runner.</summary>
 public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] int Position, [property: JsonRequired] short Speed, [property: JsonRequired] short Accumulator, [property: JsonRequired] short Openness, [property: JsonRequired] int Phase, [property: JsonRequired] byte PauseTicks, [property: JsonRequired] byte PageCounter, [property: JsonRequired] bool TextComplete)
 {
+    [JsonIgnore]
+    public bool HasPages
+    {
+        get
+        {
+            for (int index = 0; index < Bytes.Length && Bytes[index] != 0; index++)
+            {
+                byte code = Bytes[index];
+                if (code is 1 or 7)
+                {
+                    return true;
+                }
+                if (code is 5 or 6 or 8 or 9)
+                {
+                    index++;
+                }
+            }
+            return false;
+        }
+    }
+
+    /// <summary>The current authored page, retaining its inherited color but excluding page waits.</summary>
+    public ImmutableArray<byte> CurrentPageBytes()
+    {
+        Validate();
+        int start = 0;
+        byte? inheritedColor = null;
+        byte? currentColor = null;
+        for (int index = 0; index < Position; index++)
+        {
+            byte code = Bytes[index];
+            if (code is 1 or 7)
+            {
+                start = index + 1;
+                inheritedColor = currentColor;
+            }
+            else if (code is 5 or 6 or 8 or 9)
+            {
+                if (code == 6)
+                {
+                    currentColor = Bytes[index + 1];
+                }
+                index++;
+            }
+        }
+        int end = start;
+        while (end < Bytes.Length && Bytes[end] is not (0 or 1 or 7))
+        {
+            end += Bytes[end] is 5 or 6 or 8 or 9 ? 2 : 1;
+        }
+        ImmutableArray<byte>.Builder page = ImmutableArray.CreateBuilder<byte>();
+        if (start != 0 && inheritedColor is byte color)
+        {
+            page.Add(6);
+            page.Add(color);
+        }
+        page.AddRange(Bytes.AsSpan(start, end - start));
+        return page.ToImmutable();
+    }
+
     public static NativeWorldTextState Create(ImmutableArray<byte> bytes, short speed)
     {
         NativeWorldTextState state = new(bytes, 0, speed, 0, 0, 0, 0, 0, false);
@@ -18,6 +78,10 @@ public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArra
         if (Bytes.IsDefaultOrEmpty || Bytes[^1] != 0 || Position < 0 || Position >= Bytes.Length || Openness is < 0 or > 4096 || Phase is not (0 or 1 or 7 or 9 or 10 or 15) || TextComplete != (Phase == 7) || TextComplete && Bytes[Position] != 0)
         {
             throw new InvalidDataException("World text requires its bounded native stream and channel runner state.");
+        }
+        if (Phase is 9 or 10 && (Bytes[Position] is not (1 or 7) || (PageCounter & 128) != (Bytes[Position] == 7 ? 128 : 0)))
+        {
+            throw new InvalidDataException("World page wait requires its current page boundary and wait kind.");
         }
         int lineBytes = 0;
         for (int index = 0; index < Bytes.Length; index++)
@@ -68,7 +132,7 @@ public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArra
         }
     }
 
-    public NativeWorldTextState Advance(uint currentButtons = 0)
+    public NativeWorldTextState Advance(uint currentButtons = 0, bool pageInputEnabled = true)
     {
         Validate();
         NativeWorldTextState state = this with { Openness = (short)Math.Min(4096, Openness + 512) };
@@ -144,14 +208,14 @@ public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArra
                     break;
                 case 9:
                     state = state with { PageCounter = unchecked((byte)((state.PageCounter & 128) | ((state.PageCounter + 1) & 127))) };
-                    if ((currentButtons & 0xFFFF0FFF) == 0)
+                    if (pageInputEnabled && (currentButtons & 0xFFFF0FFF) == 0)
                     {
                         state = state with { Phase = 10 };
                     }
                     return state;
                 case 10:
                     state = state with { PageCounter = unchecked((byte)((state.PageCounter & 128) | ((state.PageCounter + 1) & 127))) };
-                    if ((currentButtons & 192) != 0)
+                    if (pageInputEnabled && (currentButtons & 192) != 0)
                     {
                         state = state with { Phase = 1, PageCounter = (byte)(state.PageCounter & 127), Position = state.Position + 1 };
                     }
