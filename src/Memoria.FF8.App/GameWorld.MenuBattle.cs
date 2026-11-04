@@ -42,7 +42,7 @@ internal sealed partial class GameWorld
         Events.BeginNativeMenuBattle(action.Value, next.Encounter, sourceScene, sourceFrame, sourceHash, flags);
         session.SetNativePartyMenuOwners(next.Vitals, next.Economy, session.State.ShotAvailability!, session.State.SalaryPresentation!);
         session.SetPendingBattleEncounter(occurrence);
-        session.SetEventState(Events.Capture());
+        PublishEventProcess();
         return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.Battle, session.State.FieldId, sourceFrame, null, null), 0);
     }
 
@@ -84,7 +84,7 @@ internal sealed partial class GameWorld
         CompleteNativeDefeatIfReady();
         if (battle is null)
         {
-            session.SetEventState(Events.Capture());
+            PublishEventProcess();
         }
         return true;
     }

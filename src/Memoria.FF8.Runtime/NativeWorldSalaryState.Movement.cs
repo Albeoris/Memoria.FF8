@@ -15,7 +15,7 @@ public sealed partial record NativeWorldSalaryState
 
     private byte[]? FieldParty()
     {
-        JsonElement? snapshot = Departure.DepartingFieldState ?? Departure.EventState;
+        JsonElement? snapshot = Departure.DepartingFieldState ?? Departure.EventState ?? Departure.WorldEventState;
         if (snapshot is JsonElement state && state.TryGetProperty("Scene", out JsonElement scene) && scene.TryGetProperty("Party", out JsonElement party))
         {
             byte[] members = party.EnumerateArray().Select(value => value.GetByte()).ToArray();

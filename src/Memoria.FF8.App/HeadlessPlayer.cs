@@ -234,7 +234,7 @@ internal static class HeadlessPlayer
             failure ??= exception.ToString();
             Console.Error.WriteLine(exception);
         }
-        var report = new { Source = options.StatePath, Actions = issuedActions, Results = results, AttemptedAction = attempted, Failure = failure, StopReason = stopReason, Trigger = world.NextTrigger, RenderedFieldId = world.Field?.Id, World = session.State.World ?? session.State.DepartingWorldState, FieldVm = world.Events.Capture(), world.Events.Coverage, world.Events.Decisions, world.Events.DialogueOutcomes, world.Events.ActionLog };
+        var report = new { Source = options.StatePath, Actions = issuedActions, Results = results, AttemptedAction = attempted, Failure = failure, StopReason = stopReason, Trigger = world.NextTrigger, RenderedFieldId = world.Field?.Id, World = session.State.World ?? session.State.DepartingWorldState, FieldVm = world.Events.HasFieldProgram ? world.Events.Capture() : (JsonElement?)null, WorldEventState = world.Events.HasFieldProgram ? (JsonElement?)null : world.Events.CaptureWorldEventState(), world.Events.Coverage, world.Events.Decisions, world.Events.DialogueOutcomes, world.Events.ActionLog };
         File.WriteAllText(Path.Combine(outputDirectory, "report.json"), JsonSerializer.Serialize(report, JsonOptions));
         Console.WriteLine(JsonSerializer.Serialize(new { Output = outputDirectory, Accepted = results.Count(result => result.Accepted), world.NextTrigger, StopReason = stopReason, Failure = failure?.Split('\n')[0], World = session.State.World is WorldState state ? new { state.Frame, state.X, state.Z, state.NativeHeight } : null }));
         return failure is null ? 0 : 1;
@@ -250,7 +250,7 @@ internal static class HeadlessPlayer
         {
             session.SetEventState(world.Events.Capture());
         }
-        else
+        else if (world.Events.HasFieldProgram)
         {
             session.SetDepartingFieldState(world.Events.Capture());
         }

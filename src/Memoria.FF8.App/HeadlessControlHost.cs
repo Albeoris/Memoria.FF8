@@ -55,7 +55,7 @@ internal static class HeadlessControlHost
             {
                 session.SetEventState(world.Events.Capture());
             }
-            else
+            else if (world.Events.HasFieldProgram)
             {
                 session.SetDepartingFieldState(world.Events.Capture());
             }

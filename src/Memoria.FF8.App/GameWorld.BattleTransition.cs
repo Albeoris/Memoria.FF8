@@ -25,7 +25,7 @@ internal sealed partial class GameWorld
     {
         battle = CommitPreparedBattleEntry(entry);
         PublishBattleSnapshot(battle);
-        session.SetEventState(Events.Capture());
+        PublishEventProcess();
     }
 
     internal NativeBattleEntryTransition CreateBattleEntryTransition()

@@ -773,7 +773,7 @@ internal sealed partial class RecreateGame : Game
             DialogueState? dialogue = events.CurrentDialogue;
             session.SetDialogueDraft(dialogue is null ? null : new DialogueDraft(dialogue.Channel, dialogue.MessageId, selectedChoice, gameMenus?.IsNamePrompt == true ? gameMenus.NameDraft : enteredName));
         }
-        else if (events is not null)
+        else if (events?.HasFieldProgram == true)
         {
             session.SetDepartingFieldState(events.Capture());
         }

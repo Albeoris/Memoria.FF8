@@ -44,6 +44,7 @@ public sealed partial class EventEngine
 
     public const int SimulationFps = 30;
     public int FieldId { get; private set; }
+    public bool HasFieldProgram => program is not null;
     public long Frame { get; private set; }
     private bool userControlEnabled = true;
     private bool userControlSequenceDisabled;

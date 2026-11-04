@@ -603,7 +603,7 @@ public sealed partial class GameSession : IEventServices
 
     public void SetEventState(JsonElement? state)
     {
-        GameState candidate = State with { EventState = state?.Clone() };
+        GameState candidate = State with { EventState = state?.Clone(), WorldEventState = state is null ? State.WorldEventState : null };
         ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
         State = candidate;
     }
@@ -611,6 +611,13 @@ public sealed partial class GameSession : IEventServices
     public void SetDepartingFieldState(JsonElement? state)
     {
         GameState candidate = State with { DepartingFieldState = state?.Clone() };
+        ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
+        State = candidate;
+    }
+
+    public void SetWorldEventState(JsonElement? state)
+    {
+        GameState candidate = State with { WorldEventState = state?.Clone() };
         ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
         State = candidate;
     }

@@ -7,12 +7,15 @@ public enum NativeWorldMusicSelectionOrigin
 {
     ExecutedStore,
     ExecutedClear,
-    RetainedPhysicalByte
+    RetainedPhysicalByte,
+    ProcessInitialization
 }
 public sealed record NativeWorldMusicSelectionMigration(int Version, string Rule, string SourceSnapshotSha256);
 public sealed record NativeWorldMusicSelection(int? FieldId, int? ObjectId, int? ScriptId, int? Operation, long? Frame, int? RawOperand, byte Music, NativeWorldMusicSelectionOrigin Origin = NativeWorldMusicSelectionOrigin.ExecutedStore, NativeWorldMusicSelectionMigration? Migration = null)
 {
     public const string MigrationRule = "ff8-en-retained-exact-byte268-migration-v1";
+
+    public static NativeWorldMusicSelection InitialValue() => new(null, null, null, null, null, null, 0, NativeWorldMusicSelectionOrigin.ProcessInitialization);
 
     public static NativeWorldMusicSelection FromRetainedPhysicalByte(byte music, string sourceSnapshotSha256)
     {
@@ -23,7 +26,14 @@ public sealed record NativeWorldMusicSelection(int? FieldId, int? ObjectId, int?
 
     public void Validate()
     {
-        if (Origin == NativeWorldMusicSelectionOrigin.RetainedPhysicalByte)
+        if (Origin == NativeWorldMusicSelectionOrigin.ProcessInitialization)
+        {
+            if (FieldId is not null || ObjectId is not null || ScriptId is not null || Operation is not null || Frame is not null || RawOperand is not null || Migration is not null || Music != 0)
+            {
+                throw new InvalidDataException("Initial world music selection must retain the zero initial value without invented writer history.");
+            }
+        }
+        else if (Origin == NativeWorldMusicSelectionOrigin.RetainedPhysicalByte)
         {
             if (FieldId is not null || ObjectId is not null || ScriptId is not null || Operation is not null || Frame is not null || RawOperand is not null || Migration is not { Version: 1, Rule: MigrationRule, SourceSnapshotSha256: { Length: 64 } hash } || !hash.All(Uri.IsHexDigit))
             {
@@ -245,7 +255,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved world music selection lost its executed BYTE268 writer.");
             }
-            if (selection.Origin != NativeWorldMusicSelectionOrigin.RetainedPhysicalByte)
+            if (selection.Origin is NativeWorldMusicSelectionOrigin.ExecutedStore or NativeWorldMusicSelectionOrigin.ExecutedClear)
             {
                 Jsm.Opcode opcode = selection.Origin == NativeWorldMusicSelectionOrigin.ExecutedClear ? Jsm.Opcode.CLEAR : Jsm.Opcode.POPM_B;
                 ValidateMusicRequestSite(saved, selection.FieldId!.Value, selection.ObjectId!.Value, selection.ScriptId!.Value, selection.Operation!.Value, selection.Frame!.Value, opcode);
@@ -255,7 +265,12 @@ public sealed partial class EventEngine
                 }
             }
         }
-        if (saved.Scene.WorldMusicLoad is not NativeWorldMusicLoad load)
+        ValidateWorldMusicLoad(saved.Scene);
+    }
+
+    private static void ValidateWorldMusicLoad(SceneEventState scene)
+    {
+        if (scene.WorldMusicLoad is not NativeWorldMusicLoad load)
         {
             return;
         }
@@ -283,7 +298,7 @@ public sealed partial class EventEngine
         }
         bool immediateCross = mode2 && load.Resource is { File: null, MusicId: 41 };
         int expectedBank = play ? mode2 && !file ? (int?)load.BattleReturnBank ?? -1 : load.PriorBank ^ 1 : load.PriorBank;
-        if (load.Version != 1 || load.LoaderMode is not (0 or 2) || mode2 != (load.BattleReturnBank is not null) || load.BattleReturnBank > 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != expectedBank || saved.Scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && load.Bank != saved.Scene.MusicProcess.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != (immediateCross ? 127 : 0)) || load.DurationMilliseconds != (immediateCross ? 0 : 60)) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (mode2 || load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
+        if (load.Version != 1 || load.LoaderMode is not (0 or 2) || mode2 != (load.BattleReturnBank is not null) || load.BattleReturnBank > 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != expectedBank || scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && load.Bank != scene.MusicProcess.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != (immediateCross ? 127 : 0)) || load.DurationMilliseconds != (immediateCross ? 0 : 60)) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (mode2 || load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
         {
             throw new InvalidDataException("Saved world music load lost its native bank/resource/gain authority.");
         }

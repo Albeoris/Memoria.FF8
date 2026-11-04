@@ -49,6 +49,9 @@ internal static class SnapshotMigrations
                 case 6:
                     SnapshotFieldParticleMigration.Apply(saved);
                     break;
+                case 7:
+                    // Unallocated world process owners are initialized with installed resources by the host.
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }

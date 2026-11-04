@@ -50,7 +50,7 @@ internal sealed partial class GameWorld
                 names.Add(new PendingEntityName(subject, name, $"item:{itemId}"));
             }
         }
-        session.SetEventState(Events.Capture());
+        PublishEventProcess();
         session.EnqueueEntityNames(names);
     }
 
@@ -72,7 +72,7 @@ internal sealed partial class GameWorld
         string current = Events.Scene.Names.GetValueOrDefault(subject) ?? (subject == GameNames.BokoSubject ? NativePocketStationText.ChocoboName(session.State.PocketStation) ?? throw new NotSupportedException("Chocobo Tag requires its original saved Chocobo name buffer.") : GameNames.DefaultName(subject));
         PendingEntityName pending = new(subject, current, $"item:{action.Value}");
         session.BeginItemEntityName(consumed, pending);
-        session.SetEventState(Events.Capture());
+        PublishEventProcess();
         return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, Events.Frame, null, pending.DefaultName), 0);
     }
 }

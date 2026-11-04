@@ -40,7 +40,12 @@ public sealed partial class EventEngine
         }
         // 470560 executes52CA90(1): B201=0, B199/200/202=FF, DWORD108/112=-1;
         // the preceding248-byte clear proves B207/213/214 and bit400 zero.
-        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
+        InitializeColdMusicProcess(profile, "ff8-en-music-new-game-470560-52ca90-v1");
+    }
+
+    private void InitializeColdMusicProcess(NativeFieldRuntimeProfile profile, string rule)
+    {
+        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, rule, profile.ExecutableHash));
         Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
         Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
         Scene.NativeBattleMusic203 = 5;
@@ -265,30 +270,36 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private void ValidateMusicLoadCheckpoint(Checkpoint saved)
+    private static void ValidateMusicProcessScene(SceneEventState scene, NativeEventMemory memory)
     {
-        ValidateWorldMusicCheckpoint(saved);
-        NativeMusicProcessState? process = saved.Scene.MusicProcess;
+        NativeMusicProcessState? process = scene.MusicProcess;
         process?.Validate();
-        saved.Scene.NativeBattleMusicEntry?.Validate();
+        scene.NativeBattleMusicEntry?.Validate();
         process?.Buffer0?.Validate();
         process?.Buffer1?.Validate();
         if (process is not null && (process.Version != 1 || process.Pending == true && (process.Requested213 is null || process.Complete214 != 1)))
         {
             throw new InvalidDataException("Saved native music process lacks its pending load/completion authority.");
         }
-        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
+        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule or WorldEventInitializationRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
         {
             throw new InvalidDataException("Saved native music bootstrap is not the authenticated New Game reset.");
         }
-        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || process?.Pending is not null && saved.Scene.MusicLoadRequest is null && process.Bootstrap?.Rule != NativeMusicBootstrap.OriginalSaveRule || saved.Scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
+        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || process?.Pending is not null && scene.MusicLoadRequest is null && process.Bootstrap?.Rule != NativeMusicBootstrap.OriginalSaveRule || scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }
-        if (process is not null && UnsupportedNativeMusicAliases(saved.EventMemory) is string aliases)
+        if (process is not null && UnsupportedNativeMusicAliases(memory) is string aliases)
         {
             throw new InvalidDataException(aliases);
         }
+    }
+
+    private void ValidateMusicLoadCheckpoint(Checkpoint saved)
+    {
+        ValidateWorldMusicCheckpoint(saved);
+        ValidateMusicProcessScene(saved.Scene, saved.EventMemory);
+        NativeMusicProcessState? process = saved.Scene.MusicProcess;
         if (saved.Scene.MusicLoadRequest is NativeMusicLoadRequest load)
         {
             if (load.Version != 1 || load.Music != unchecked((byte)load.RawMusic) || load.Loaded != (load.PriorSecondChannel == -1) || load.BackendStatus != GlobalSoundBackendStatus.Muted)

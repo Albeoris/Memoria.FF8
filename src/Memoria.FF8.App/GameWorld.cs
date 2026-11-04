@@ -152,7 +152,17 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.Clear();
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
-        if (session.State.OriginalSave is not null && session.State.EventState is null && (session.State.Scene == SceneKind.WorldMap || session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave))
+        if (session.State.WorldEventState is { } retainedWorldEvents && session.State.EventState is null && session.State.DepartingFieldState is null)
+        {
+            Events.RestoreWorldEventState(retainedWorldEvents, assets.NativeRuntimeProfile ?? throw new NotSupportedException("World save restoration requires a supported installed native runtime profile."));
+        }
+        else if (session.State.Scene == SceneKind.WorldMap && session.State.EventState is null && session.State.DepartingFieldState is null)
+        {
+            NativeFieldRuntimeProfile profile = assets.NativeRuntimeProfile ?? throw new NotSupportedException("World save initialization requires a supported installed native runtime profile.");
+            Events.InitializeWorldSave(profile);
+            session.SetWorldEventState(Events.CaptureWorldEventState());
+        }
+        else if (session.State.OriginalSave is not null && session.State.EventState is null && session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave)
         {
             Events.InitializeOriginalSave(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Original PC save loading requires a supported installed native runtime profile."));
         }
@@ -182,12 +192,28 @@ internal sealed partial class GameWorld : IDisposable
         {
             throw new NotSupportedException("Diagnostic battle lifecycle persistence is unsupported; retain the declared recipe and restart a fresh process instead.");
         }
+        if (!Events.HasFieldProgram && state.WorldEventState is not null)
+        {
+            return state with { WorldEventState = Events.CaptureWorldEventState() };
+        }
         if (state.Scene is SceneKind.Field or SceneKind.Movie && HasCurrentFieldAllocation || state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
         {
             // Suspended exploration publishes its current shared owners and battle callbacks only for persistence.
-            return state with { EventState = Events.Capture() };
+            return state with { EventState = Events.Capture(), WorldEventState = null };
         }
         return state;
+    }
+
+    internal void PublishEventProcess()
+    {
+        if (Events.HasFieldProgram)
+        {
+            session.SetEventState(Events.Capture());
+        }
+        else
+        {
+            session.SetWorldEventState(Events.CaptureWorldEventState());
+        }
     }
 
     public EventEngine Events { get; }

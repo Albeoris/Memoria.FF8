@@ -26,6 +26,6 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Character naming requires the current field allocation to finish.");
         }
         Events.Scene.Names[subject] = name;
-        session.SetEventState(Events.Capture());
+        PublishEventProcess();
     }
 }

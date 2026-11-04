@@ -101,16 +101,16 @@ internal sealed partial class GameWorld
             ApplyBattleResult(occurrence, result, guardianForceLearning);
             publishWorld();
             Events.PublishNativeWorldBattleOutcome(physical);
-            session.SetEventState(Events.Capture());
-            if (session.State.DepartingFieldState is not null)
+            PublishEventProcess();
+            if (Events.HasFieldProgram && session.State.DepartingFieldState is not null)
             {
                 session.SetDepartingFieldState(Events.Capture());
             }
             if (menuBattle)
             {
                 Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () => { });
-                session.SetEventState(Events.Capture());
-                if (session.State.DepartingFieldState is not null)
+                PublishEventProcess();
+                if (Events.HasFieldProgram && session.State.DepartingFieldState is not null)
                 {
                     session.SetDepartingFieldState(Events.Capture());
                 }

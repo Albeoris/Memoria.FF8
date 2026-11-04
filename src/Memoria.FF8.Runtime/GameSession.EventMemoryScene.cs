@@ -22,6 +22,18 @@ public sealed partial class GameSession
     private static NativeEventSceneMemoryOwners SavedEventMemorySceneOwners(GameState state)
     {
         NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
+        if (state.WorldEventState is JsonElement world)
+        {
+            if (world.ValueKind != JsonValueKind.Object || !world.TryGetProperty("Version", out JsonElement version) || !version.TryGetInt32(out int versionValue) || versionValue != 1 || !world.TryGetProperty("FieldId", out JsonElement field) || !field.TryGetInt32(out int fieldId) || fieldId < 0 || !world.TryGetProperty("Scene", out JsonElement scene) || scene.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidDataException("World event process requires its version, field identity and unallocated Scene.");
+            }
+            NativeEventSceneMemoryOwners worldOwners = CapturedEventMemorySceneOwners(state, world);
+            if (state.EventState is null && state.DepartingFieldState is null)
+            {
+                owners |= worldOwners;
+            }
+        }
         if (state.EventState is JsonElement current)
         {
             owners |= CapturedEventMemorySceneOwners(state, current);
