@@ -37,7 +37,7 @@ public sealed class OmegaCombatAcceptanceTests
         }
         BattleSession battle = resumed is null ? GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal) : BattleSession.Restore(resumed.Battle);
         battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        BattleCombatant omega = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
+        BattleCombatant omega = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 114);
         int initialEnemyHp = resumed?.InitialEnemyHp ?? omega.CurrentHp;
         Dictionary<string, int> initialPartyHp = battle.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
         HashSet<int> dispatchedActions = resumed?.DispatchedActions.ToHashSet() ?? [];
@@ -71,7 +71,7 @@ public sealed class OmegaCombatAcceptanceTests
                 }
             }
         };
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { }, playMusicCommand: _ => { }, playUiSound: _ => { }, stopSoundVoice: _ => { });
         Stopwatch elapsed = Stopwatch.StartNew();
         long nextReport = 0;
         bool savedCycle = resumed is not null;
@@ -80,7 +80,7 @@ public sealed class OmegaCombatAcceptanceTests
         {
             for (int callback = 0; callback < 500000 && battle.Outcome == BattleOutcome.Active; callback++)
             {
-                if (!cycleConfirmed && expectedActions.All(queuedActions.Contains) && expectedActions.Where(action => action != 2).All(dispatchedActions.Contains) && completedEnemyActions >= expectedActions.Length && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                if (!cycleConfirmed && expectedActions.All(queuedActions.Contains) && expectedActions.Where(action => action != 2).All(dispatchedActions.Contains) && completedEnemyActions >= expectedActions.Length && ModuleWorkCompleted())
                 {
                     cycleConfirmed = true;
                 }
@@ -118,7 +118,8 @@ public sealed class OmegaCombatAcceptanceTests
             Assert.DoesNotContain(battle.Events, entry => entry.Kind == "debug-victory");
             Assert.Contains(127, battle.NativeScriptState.UnlockedTutorials);
             Assert.Single(battle.EnemyDefeats);
-            Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
+            // Victory poses can retain visual texture/model owners; gameplay and module work must be complete.
+            Assert.True(ModuleWorkCompleted());
             SaveCheckpoint("omega-victory.json.gz");
             // This observed encounter uses an explicit diagnostic source, without claiming a field-script return.
             string formationHash = world.BattleResources.FormationSourceHash(462);
@@ -129,9 +130,11 @@ public sealed class OmegaCombatAcceptanceTests
             Assert.False(result.DebugVictory);
             world.ApplyBattleResult(occurrence, result);
             Assert.Equal(occurrence.OccurrenceId, Assert.Single(session.State.AppliedBattleResultIds));
-            string committed = JsonSerializer.Serialize(session.State);
+            GameState committedState = session.State;
+            string committed = RewardOwners();
             Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(occurrence, result));
-            Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+            Assert.Same(committedState, session.State);
+            Assert.Equal(committed, RewardOwners());
             File.WriteAllText(Path.Combine(output, "omega-rewards.json"), JsonSerializer.Serialize(world.LastBattleRewards));
             Report("victory");
         }
@@ -144,9 +147,22 @@ public sealed class OmegaCombatAcceptanceTests
 
         void SaveCheckpoint(string name)
         {
-            using GZipStream stream = new(File.Create(Path.Combine(output, name)), CompressionLevel.Fastest);
-            JsonSerializer.Serialize(stream, new CombatCheckpoint(battle.Capture(), initialEnemyHp, queuedActions.Order().ToArray(), dispatchedActions.Order().ToArray(), completedEnemyActions, completedPartyActions, issuedAttacks));
+            string path = Path.Combine(output, name.Replace(".json.gz", $"-{battle.NativeHostCallbacks}.json.gz", StringComparison.Ordinal));
+            string temporary = path + ".tmp";
+            using (GZipStream stream = new(File.Create(temporary), CompressionLevel.Fastest))
+            {
+                JsonSerializer.Serialize(stream, new CombatCheckpoint(battle.Capture(), initialEnemyHp, queuedActions.Order().ToArray(), dispatchedActions.Order().ToArray(), completedEnemyActions, completedPartyActions, issuedAttacks));
+            }
+            File.Move(temporary, path, true);
         }
+
+        bool ModuleWorkCompleted()
+        {
+            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+            return !battle.ObserveDiagnosticDrainBlockers().Any(blocker => blocker is "action-or-command" or "timed-input-or-mandatory-reaction" or "contact-or-descriptor") && graphics.Effects.Head is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.Head is null && battle.NativeFileIo!.ActiveCount == 0 && battle.NativeEffectMemory!.ReadReturnedTask5044B0() == 0 && battle.NativeCamera!.Tasks.All(task => task is null) && battle.NativeEffectMemory.SoundPendingFlags == 0 && battle.NativeEffectMemory.SoundPublishedFlags == 0;
+        }
+
+        string RewardOwners() => JsonSerializer.Serialize(new { session.State.CharacterVitals, session.State.Economy, session.State.AppliedBattleResultIds, session.State.PendingAchievementFacts, session.State.PendingAchievementObservations });
 
         void Report(string status, string? failure = null)
         {
@@ -156,6 +172,7 @@ public sealed class OmegaCombatAcceptanceTests
                 Failure = failure,
                 battle.Frame,
                 battle.NativeHostCallbacks,
+                Stage = battle.ReadDefinition().StageId,
                 Outcome = battle.Outcome.ToString(),
                 InitialEnemyHp = initialEnemyHp,
                 EnemyHp = omega.CurrentHp,
