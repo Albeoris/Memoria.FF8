@@ -42,7 +42,7 @@ public sealed class AutoPlayScriptedInputPreparationTests
         }
         Assert.Equal(sceneChoices, run.Controller.State.SceneChoices);
         string checkpointPath = Assert.Single(Directory.GetFiles(run.Output, frame.Checkpoint, SearchOption.AllDirectories));
-        GameState checkpoint = GameSession.Load(checkpointPath);
+        GameState checkpoint = AutoPlayCheckpointStore.Load(checkpointPath);
         long preparedFrame = checkpoint.EventState!.Value.GetProperty("Frame").GetInt64();
         Assert.True(AutoPlayController.HasNeutralScriptedInput(checkpoint.FieldButtonInput, 235, preparedFrame));
         int sampledIndex = run.QueryTimeline.FindIndex(sample => sample.Command.FieldId == 235 && sample.Command.ObjectId == query.ObjectId && sample.Command.ScriptId == query.ScriptId && sample.Command.Operation == query.Operation && sample.Command.Name == query.Opcode && sample.Command.Arguments.Count == 1 && sample.Command.Arguments[0] == query.Mask && sample.Input.PhysicalHeld == trial.Mask && (sample.Command.Arguments[0] & (query.Opcode == "KEYSCAN2" ? sample.Input.RawHeld : query.Opcode == "KEYON" ? sample.Input.Pressed.GetValueOrDefault() : sample.Input.Held.GetValueOrDefault())) != 0);
@@ -145,7 +145,7 @@ public sealed class AutoPlayScriptedInputPreparationTests
         ScriptedInputMetadata scoped = run.Controller.State.ScriptedChoiceInputs[scopedKey];
         string checkpointPath = Assert.Single(Directory.GetFiles(run.Output, legacyChoice.BeforeCheckpoint!, SearchOption.AllDirectories));
         byte[] checkpointBytes = File.ReadAllBytes(checkpointPath);
-        GameState checkpoint = GameSession.Load(checkpointPath);
+        GameState checkpoint = AutoPlayCheckpointStore.Load(checkpointPath);
         long frame = checkpoint.EventState!.Value.GetProperty("Frame").GetInt64();
         ScriptedInputMetadata? discoveredLegacy = null;
         using (GameWorld before = new(new GameSession(checkpoint), TestResources.GameDirectory, validateWorldPresentation: false))

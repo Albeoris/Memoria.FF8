@@ -78,7 +78,7 @@ public sealed class AutoPlayChangedRouteIntegrationTests
         Assert.DoesNotContain(run.Queries, sample => sample.Input.PhysicalHeld == recordedInput.Masks[recordedSelections[prefix.Length].Selection]);
         Assert.Contains(run.Queries, sample => sample.Input.PhysicalHeld == 16 && sample.Input.SampledFrame == 302 && input.Queries.Any(query => query.ObjectId == sample.Command.ObjectId && query.ScriptId == sample.Command.ScriptId && query.Operation == sample.Command.Operation && query.Opcode == sample.Command.Name && query.Mask == sample.Command.Arguments[0]) && (sample.Command.Arguments[0] & sample.Input.Held.GetValueOrDefault()) != 0);
         string beforePath = Assert.Single(Directory.GetFiles(run.Output, choice.BeforeCheckpoint!, SearchOption.AllDirectories));
-        GameState before = GameSession.Load(beforePath);
+        GameState before = AutoPlayCheckpointStore.Load(beforePath);
         Assert.Equal(301, before.EventState!.Value.GetProperty("Frame").GetInt64());
         Assert.True(AutoPlayController.HasNeutralScriptedInput(before.FieldButtonInput, 177, 301));
         Assert.Equal(18, run.Session.State.EventMemory.KnownValues[434]);

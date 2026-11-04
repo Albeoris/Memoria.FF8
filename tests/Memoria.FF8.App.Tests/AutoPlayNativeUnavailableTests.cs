@@ -18,6 +18,8 @@ public sealed class AutoPlayNativeUnavailableTests
         byte[] originalSnapshot = File.ReadAllBytes(snapshot);
         GameState original = GameSession.Load(snapshot);
         string output = Path.Combine(Path.GetTempPath(), "ff8-native-unavailable-" + Guid.NewGuid().ToString("N"));
+        string retainedBoundary = output + "-boundary";
+        string? unavailableManifest = null;
         GameSession session = GameSession.CreateColdProcess();
         GameWorld? world = null;
         try
@@ -28,6 +30,30 @@ public sealed class AutoPlayNativeUnavailableTests
             }
             void Restore(GameState state)
             {
+                if (unavailableManifest is null && session.State.FieldId == 121)
+                {
+                    // Preserve the reached native boundary before rolling retention retires its diagnostic bundle.
+                    string reachedManifest = Assert.Single(Directory.GetFiles(output, "latest.run.json", SearchOption.AllDirectories));
+                    AutoPlayRunState reached = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(reachedManifest), AutoPlayController.JsonOptions)!;
+                    Assert.NotNull(reached.ActiveAbsenceGuardKey);
+                    Directory.CreateDirectory(retainedBoundary);
+                    string reachedDirectory = Path.GetDirectoryName(reachedManifest)!;
+                    foreach (string dependency in AutoPlayController.CaptureDependencies(reached))
+                    {
+                        string source = Path.Combine(reachedDirectory, dependency);
+                        string destination = Path.Combine(retainedBoundary, dependency);
+                        if (dependency == reached.Snapshot)
+                        {
+                            File.Copy(source, destination);
+                        }
+                        else
+                        {
+                            AutoPlayCheckpointStore.Write(source, destination);
+                        }
+                    }
+                    unavailableManifest = Path.Combine(retainedBoundary, "unavailable.run.json");
+                    File.Copy(reachedManifest, unavailableManifest);
+                }
                 world?.Dispose();
                 world = null;
                 session.Restore(state);
@@ -56,7 +82,7 @@ public sealed class AutoPlayNativeUnavailableTests
             Assert.Equal(original.FieldId, session.State.FieldId);
             Assert.True(JsonElement.DeepEquals(original.EventState!.Value, GetWorld().Events.Capture()));
             Assert.True(controller.State.LastProgressScore > initial.LastProgressScore);
-            string unavailableManifest = Assert.Single(Directory.GetFiles(output, "unavailable-*.run.json", SearchOption.AllDirectories), path => !Path.GetFileName(path).StartsWith("unavailable-return-", StringComparison.Ordinal));
+            Assert.NotNull(unavailableManifest);
             AutoPlayRunState unavailable = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(unavailableManifest), AutoPlayController.JsonOptions)!;
             Assert.NotNull(unavailable.ActiveBeforeCheckpoint);
             Assert.NotNull(unavailable.ActiveAbsenceGuardKey);
@@ -65,11 +91,12 @@ public sealed class AutoPlayNativeUnavailableTests
             byte[] beforeBytes = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(unavailableManifest)!, unavailable.ActiveBeforeCheckpoint));
             Assert.False(Attempt(controller).Completed);
 
+            string previousRunDirectory = Path.GetDirectoryName(Assert.Single(Directory.GetFiles(output, "latest.run.json", SearchOption.AllDirectories)))!;
             controller.Stop();
             AutoPlayController cold = new(session, GetWorld, Restore, output);
             cold.ResumeFrom(unavailableManifest);
             Assert.Equal(targetId, cold.State.ActiveTargetId);
-            string resumedManifest = Directory.GetFiles(output, "resume-start.run.json", SearchOption.AllDirectories).Single(path => Path.GetDirectoryName(path) != Path.GetDirectoryName(unavailableManifest));
+            string resumedManifest = Directory.GetFiles(output, "resume-start.run.json", SearchOption.AllDirectories).Single(path => Path.GetDirectoryName(path) != previousRunDirectory);
             Assert.False(Path.IsPathRooted(cold.State.ActiveBeforeCheckpoint!));
             Assert.Equal(beforeBytes, File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(resumedManifest)!, cold.State.ActiveBeforeCheckpoint!)));
             for (int tick = 0; tick < 4 && Attempt(cold).UnavailableAttempts.Count == 0 && cold.Error is null; tick++)
@@ -101,6 +128,10 @@ public sealed class AutoPlayNativeUnavailableTests
             if (Directory.Exists(output))
             {
                 Directory.Delete(output, true);
+            }
+            if (Directory.Exists(retainedBoundary))
+            {
+                Directory.Delete(retainedBoundary, true);
             }
         }
     }

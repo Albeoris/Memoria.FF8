@@ -266,7 +266,7 @@ public sealed class AutoPlayControllerTests
         {
             Assert.NotNull(imported);
             Assert.False(Path.IsPathRooted(imported));
-            Assert.Equal(originals[Path.Combine(sourceDirectory, original)], File.ReadAllBytes(Path.Combine(resumedDirectory, imported)));
+            Assert.Equal(JsonSerializer.Serialize(GameSession.Load(Path.Combine(sourceDirectory, original))), JsonSerializer.Serialize(AutoPlayCheckpointStore.Load(Path.Combine(resumedDirectory, imported))));
         }
         controller.Advance(1);
         Assert.False(controller.Running);

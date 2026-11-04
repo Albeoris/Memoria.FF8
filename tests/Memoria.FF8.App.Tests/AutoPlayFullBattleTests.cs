@@ -24,7 +24,7 @@ public sealed class AutoPlayBattlePolicyTests
         Assert.Null(session.State.PendingBattleEncounter);
         Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
         Assert.True(GameSession.Load(source).FullBattlePlaythrough);
-        string returned = Assert.Single(Directory.EnumerateFiles(output, "battle-return-*.run.json", SearchOption.AllDirectories));
+        string returned = Assert.Single(Directory.EnumerateFiles(output, "latest.run.json", SearchOption.AllDirectories));
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(returned));
         Assert.False(manifest.RootElement.GetProperty("FullBattlePlaythroughOverride").GetBoolean());
     }
@@ -84,10 +84,12 @@ public sealed class AutoPlayFullBattleTests
                 Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
                 Assert.Equal(1, session.State.AppliedBattleResultIds.Count(id => id == occurrence.OccurrenceId));
                 Assert.Equal(SceneKind.Field, session.State.Scene);
-                string outcome = Assert.Single(Directory.EnumerateFiles(output, "battle-outcome-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
-                Assert.Equal(BattleOutcome.Victory, GameSession.Load(outcome).Battle!.Outcome);
-                string returned = Assert.Single(Directory.EnumerateFiles(output, "battle-return-*.json", SearchOption.AllDirectories), path => !path.EndsWith(".run.json", StringComparison.Ordinal));
-                Assert.Null(GameSession.Load(returned).PendingBattleEncounter);
+                string returnedManifest = Assert.Single(Directory.EnumerateFiles(output, "latest.run.json", SearchOption.AllDirectories));
+                AutoPlayRunState returned = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(returnedManifest), AutoPlayController.JsonOptions)!;
+                GameState returnedState = GameSession.Load(Path.Combine(Path.GetDirectoryName(returnedManifest)!, returned.Snapshot!));
+                Assert.Null(returnedState.PendingBattleEncounter);
+                Assert.Equal(applied + 1, returnedState.AppliedBattleResultIds.Length);
+                Assert.Equal(1, returnedState.AppliedBattleResultIds.Count(id => id == occurrence.OccurrenceId));
                 Assert.Throws<InvalidOperationException>(() => world.ApplyBattleInput(new(BattleInputKind.Return)));
                 Assert.Equal(applied + 1, session.State.AppliedBattleResultIds.Length);
                 return;

@@ -82,6 +82,7 @@ internal sealed class AutoPlayInputSearch
     public HashSet<string> SampledPhysicalEdges { get; set; } = new(StringComparer.Ordinal);
     public int DistinctSampledPhysicalEdges { get; set; }
     public bool Closed { get; set; }
+    public bool SnapshotsRetired { get; set; }
 }
 
 internal sealed partial class AutoPlayController
@@ -405,7 +406,7 @@ internal sealed partial class AutoPlayController
         AutoPlayInputSearchTrial failed = frame.Trials[trialIndex];
         failed.Outcome = AutoPlayInputTrialOutcome.NativeLoss;
         failed.Loss = receipt;
-        failed.Diagnostic = diagnostic + ".run.json";
+        failed.Diagnostic = diagnostic;
         SaveBundle(diagnostic, CaptureState());
         if (beforeStep is not null && beforeController is not null)
         {
@@ -566,7 +567,7 @@ internal sealed partial class AutoPlayController
         {
             throw new InvalidDataException("A local input search checkpoint has a missing or changed byte identity.");
         }
-        GameState state = GameSession.Load(Path.Combine(directory, frame.Checkpoint));
+        GameState state = AutoPlayCheckpointStore.Load(Path.Combine(directory, frame.Checkpoint));
         ValidateInputSearchCheckpointMetadata(frame, state.FieldId, state.EventState?.GetProperty("ProgramHash").GetString(), state.EventState?.GetProperty("Frame").GetInt64() ?? -1, state.FieldButtonInput);
         return state;
     }
@@ -595,7 +596,7 @@ internal sealed partial class AutoPlayController
         }
         // Import validates immutable bytes and replay metadata; full owner validation
         // still runs through GameSession.Load whenever a retained state is restored.
-        InputSearchSnapshotHeader header = GameSession.ReadSnapshotProjection<InputSearchSnapshotHeader>(Path.Combine(directory, frame.Checkpoint));
+        InputSearchSnapshotHeader header = AutoPlayCheckpointStore.ReadProjection<InputSearchSnapshotHeader>(Path.Combine(directory, frame.Checkpoint));
         if (header.EventState is null)
         {
             throw new InvalidDataException("A local input search checkpoint requires its native VM header.");
@@ -605,7 +606,7 @@ internal sealed partial class AutoPlayController
 
     internal static void ValidateInputSearchLedger(AutoPlayInputSearch search)
     {
-        if (search.Version != 1 || search.DistinctSampledPhysicalEdges != search.SampledPhysicalEdges.Count || search.DistinctSampledPhysicalEdges > search.TrialCount || search.TrialCount != search.Frames.Sum(frame => frame.Trials.Count) || search.TrialCount > AutoPlayInputSearch.MaximumTrials || search.Frames.Count > AutoPlayInputSearch.MaximumTrials || search.Frames.Select(frame => frame.Id).Distinct(StringComparer.Ordinal).Count() != search.Frames.Count || search.ActiveFrameId is not null && !search.Frames.Any(frame => frame.Id == search.ActiveFrameId))
+        if (search.SnapshotsRetired && !search.Closed || search.Version != 1 || search.DistinctSampledPhysicalEdges != search.SampledPhysicalEdges.Count || search.DistinctSampledPhysicalEdges > search.TrialCount || search.TrialCount != search.Frames.Sum(frame => frame.Trials.Count) || search.TrialCount > AutoPlayInputSearch.MaximumTrials || search.Frames.Count > AutoPlayInputSearch.MaximumTrials || search.Frames.Select(frame => frame.Id).Distinct(StringComparer.Ordinal).Count() != search.Frames.Count || search.ActiveFrameId is not null && !search.Frames.Any(frame => frame.Id == search.ActiveFrameId))
         {
             throw new InvalidDataException("Unsupported or inconsistent local input search ledger.");
         }
@@ -678,7 +679,7 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    private static void ImportInputSearch(AutoPlayRunState saved, string directory, Func<string?, string?> import, JsonElement manifest)
+    private void ImportInputSearch(AutoPlayRunState saved, string directory, Func<string?, string?> import, JsonElement manifest)
     {
         IEnumerable<AutoPlayInputSearch> searches = saved.InputSearch is { } active ? saved.InputSearchHistory.Append(active) : saved.InputSearchHistory;
         int historyIndex = 0;
@@ -693,10 +694,22 @@ internal sealed partial class AutoPlayController
                 {
                     throw new InvalidDataException("A local input search frame lost its separate coverage ownership.");
                 }
+                if (search.Closed)
+                {
+                    frame.Checkpoint = string.Empty;
+                    frame.Context.BeforeCheckpoint = null;
+                    continue;
+                }
+                if (search.SnapshotsRetired)
+                {
+                    throw new InvalidDataException("An open input search cannot retire its replay snapshots.");
+                }
                 ValidateImportedInputSearchCheckpoint(frame, directory);
                 frame.Checkpoint = import(frame.Checkpoint)!;
+                frame.Sha256 = CheckpointHash(Path.Combine(runDirectory!, frame.Checkpoint));
                 frame.Context.BeforeCheckpoint = import(frame.Context.BeforeCheckpoint);
             }
+            search.SnapshotsRetired = search.Closed;
         }
     }
 }

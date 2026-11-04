@@ -82,7 +82,7 @@ public sealed class AutoPlayObservedInputTests
         Assert.Equal(physical, selectedTrial.Mask);
         Assert.Contains(run.Queries, sample => sample.Input.PhysicalHeld == physical && scoped.Queries.Any(query => Matches(query, sample.Command)) && IsPositiveQuery(sample));
         string beforePath = Assert.Single(Directory.GetFiles(run.Output, selected.BeforeCheckpoint!, SearchOption.AllDirectories));
-        GameState checkpoint = GameSession.Load(beforePath);
+        GameState checkpoint = AutoPlayCheckpointStore.Load(beforePath);
         long beforeFrame = checkpoint.EventState!.Value.GetProperty("Frame").GetInt64();
         Assert.True(AutoPlayController.HasNeutralScriptedInput(checkpoint.FieldButtonInput, 902, beforeFrame));
         Assert.Equal(beforeFrame + 1, firstPhysical.Input.SampledFrame);

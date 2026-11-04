@@ -87,7 +87,7 @@ public sealed class AutoPlayScriptedInputProbeTests
         Assert.Equal($"input:235:{observed.Fingerprint}", key);
         Assert.All(observed.Queries, query => Assert.Contains(query, input.Queries));
         string beforePath = Assert.Single(Directory.GetFiles(run.Output, choice.BeforeCheckpoint!, SearchOption.AllDirectories));
-        GameState before = GameSession.Load(beforePath);
+        GameState before = AutoPlayCheckpointStore.Load(beforePath);
         Assert.Equal(315, before.EventState!.Value.GetProperty("Frame").GetInt64());
         Assert.True(AutoPlayController.HasNeutralScriptedInput(before.FieldButtonInput, 235, 315));
         run.Controller.SaveAndStop();

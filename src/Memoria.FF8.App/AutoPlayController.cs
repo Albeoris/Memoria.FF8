@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 
 internal sealed class AutoPlayRunState
 {
+    public List<AutoPlayRecentAction> RecentActions { get; set; } = [];
     public int Version { get; set; } = 1;
     public int Seed { get; set; } = 1;
     public bool? FullBattlePlaythroughOverride { get; set; }
@@ -82,6 +83,8 @@ internal sealed partial class AutoPlayController
     private readonly AutoPlayIdleDeadline idleDeadline;
     private readonly AutoPlayPerformanceProfile performance = new();
     private long lastSave;
+    private string? latestBundleManifest;
+    private string? failureBeforeManifest;
     private AutoPlayRunState run = new();
     private AutoPlayPlanner planner = new();
     private GameState? beforeStep;
@@ -190,6 +193,11 @@ internal sealed partial class AutoPlayController
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
+        beforeController = null;
+        beforeStep = null;
+        failureBeforeManifest = null;
+        latestBundleManifest = null;
+        captureDirty = false;
         Running = true;
         Paused = false;
         Error = null;
@@ -230,8 +238,9 @@ internal sealed partial class AutoPlayController
 
     public void SaveAndStop()
     {
-        ReproductionPath = SaveBundle($"stopped-{run.Steps:D10}", CaptureState());
         Stop();
+        ReproductionPath = SaveBundle($"stopped-{run.Steps:D10}", CaptureState());
+        MaintainCapture();
     }
 
     public void ReplayFailure()
@@ -297,6 +306,11 @@ internal sealed partial class AutoPlayController
         string directory = Path.GetDirectoryName(manifest)!;
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
         Directory.CreateDirectory(runDirectory);
+        beforeController = null;
+        beforeStep = null;
+        failureBeforeManifest = null;
+        latestBundleManifest = null;
+        captureDirty = false;
         Dictionary<string, string> imported = new(StringComparer.OrdinalIgnoreCase);
         string? ImportCheckpoint(string? checkpoint)
         {
@@ -309,15 +323,9 @@ internal sealed partial class AutoPlayController
             {
                 return existing;
             }
-            using FileStream sourceStream = File.OpenRead(source);
-            string filename = "import-" + Convert.ToHexString(SHA256.HashData(sourceStream)).ToLowerInvariant() + ".json";
+            string filename = "import-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source))).ToLowerInvariant() + ".json";
             string destination = Path.Combine(runDirectory!, filename);
-            if (!File.Exists(destination))
-            {
-                sourceStream.Position = 0;
-                using FileStream destinationStream = File.Create(destination);
-                sourceStream.CopyTo(destinationStream);
-            }
+            AutoPlayCheckpointStore.Write(source, destination);
             imported.Add(source, filename);
             return filename;
         }
@@ -366,6 +374,7 @@ internal sealed partial class AutoPlayController
         Status = $"Resumed at step {run.Steps}.";
         ResetIdleDeadline();
         SaveBundle("resume-start", session.State);
+        MaintainCapture();
     }
 
     /// <summary>Runs immediately, bounded by wall time only for keeping the graphical host responsive.</summary>
@@ -390,6 +399,7 @@ internal sealed partial class AutoPlayController
                 Tick();
                 RecoverNativeInputSearchLoss();
                 run.Steps++;
+                MaintainCapture();
                 int score = ProgressScore(run);
                 if (score != run.LastProgressScore)
                 {
@@ -1832,6 +1842,7 @@ internal sealed partial class AutoPlayController
         {
             ApplyBattlePolicy(getWorld());
         }
+        RecordRecentAction(JsonSerializer.Serialize(action, BeforeSnapshotJsonOptions));
         PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : getWorld().Apply(action);
         if (!result.Accepted)
         {
@@ -1864,16 +1875,19 @@ internal sealed partial class AutoPlayController
         return state.Scene == SceneKind.Field && state.FieldId == 76 && state.MovieSource is { DiscIndex: 3, MovieIndex: 5 } && state.MoviePlayback is { Completed: true, IsPlaying: false } && vm.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1 && fiber.GetProperty("WaitReason").GetString() == "NativeHalt");
     }
 
-    private string SaveBundle(string name, GameState state)
+    internal string SaveBundle(string name, GameState state)
     {
         using IDisposable suspended = idleDeadline.Suspend();
         string snapshot = name + ".json";
-        SaveGame(Path.Combine(runDirectory!, snapshot), state);
+        SaveGame(Path.Combine(runDirectory!, snapshot), state, standalone: true);
         run.Snapshot = snapshot;
+        RetireClosedSearchSnapshots(run);
         string manifest = Path.Combine(runDirectory!, name + ".run.json");
         string content = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
         AtomicWrite(manifest, content);
         AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), content);
+        latestBundleManifest = manifest;
+        captureDirty = true;
         return manifest;
     }
 
@@ -1889,9 +1903,10 @@ internal sealed partial class AutoPlayController
             {
                 AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController.Value.Span, JsonOptions)!;
                 before.Snapshot = $"failure-{run.Steps:D10}-before.json";
-                SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
+                SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep, standalone: true);
                 ReproductionPath = Path.Combine(runDirectory!, $"failure-{run.Steps:D10}.run.json");
                 AtomicWrite(ReproductionPath, JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
+                failureBeforeManifest = ReproductionPath;
             }
             SaveBundle($"failure-{run.Steps:D10}-fault", CaptureState());
         }
@@ -1899,21 +1914,44 @@ internal sealed partial class AutoPlayController
         {
             Error += Environment.NewLine + "Failure snapshot: " + saveError;
         }
+        try
+        {
+            MaintainCapture();
+        }
+        catch (Exception cleanupError)
+        {
+            Error += Environment.NewLine + "Capture retention: " + cleanupError.Message;
+        }
     }
 
     private GameState ReadCheckpoint(string path)
     {
         using IDisposable suspended = idleDeadline.Suspend();
-        return GameSession.Load(path);
+        return AutoPlayCheckpointStore.Load(path);
     }
 
-    private void SaveGame(string path, GameState state)
+    private void SaveGame(string path, GameState state, bool standalone = false)
     {
         using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Write");
+        captureDirty = true;
         string temporary = path + ".tmp";
-        new GameSession(state).Save(temporary, compact: true);
-        CommitCheckpointFile(temporary, path);
+        try
+        {
+            new GameSession(state).Save(temporary, compact: true);
+            if (standalone)
+            {
+                CommitCheckpointFile(temporary, path);
+            }
+            else
+            {
+                AutoPlayCheckpointStore.Write(temporary, path);
+            }
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
     }
 
     // Consume this view before another successful capture; later captures reuse its backing storage.
