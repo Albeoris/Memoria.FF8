@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         {
             NativeSoftwareDrawingEnvironmentBuffers environments = Process().Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native cinematic capture requires its actual current draw environment.");
             return buffer == 0 ? environments.Buffer0 : environments.Buffer1;
-        }, Append);
+        }, Append) { ReadSceneCapture = (_, buffer, environment, x, y) => ReadNativeCinematicSceneCopy(graphics, buffer, environment, x, y) };
         frame = NativeBattleCinematicCapture96.Execute(frame, program, services);
         return (frame, graphics);
 
@@ -34,5 +34,37 @@ public sealed partial class BattleSession
             NativeEffectMemory = memory;
             return current with { Arena = memory.Arena!, Core = memory.ScriptedEffects! };
         }
+    }
+
+    private static NativeBattleSceneCapture? ReadNativeCinematicSceneCopy(NativeBattleGraphicsState graphics, byte buffer, ImmutableArray<byte> environment, int destinationX, int destinationY)
+    {
+        if (!BattleSceneVisibleArea.IsScoped)
+        {
+            return null;
+        }
+        long? sourceId = graphics.PrimitiveFrame?.SceneSources is { } sources && !sources.IsDefault && sources.Length == 2 ? sources[buffer] : null;
+        NativeBattleSceneReplaySource? source = null;
+        if (sourceId is long id && graphics.PrimitiveFrame?.SceneReplaySources is { } pool)
+        {
+            pool.TryGetValue(id, out source);
+        }
+        if (source is null || !source.DrawingEnvironment.AsSpan().SequenceEqual(environment.AsSpan()))
+        {
+            if (BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native)
+            {
+                throw new NotSupportedException("A widened display copy requires the completed source draw for its exact drawing environment.");
+            }
+            return null;
+        }
+        return new(source.VisibleArea, NativeBattleSceneCaptureKind.Copy)
+        {
+            X = destinationX,
+            Y = destinationY,
+            Height = 224,
+            PaddingBottom = 8,
+            ReplaySourceId = sourceId,
+            CopySourceX = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(environment.AsSpan()),
+            CopySourceY = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(environment.AsSpan().Slice(2))
+        };
     }
 }

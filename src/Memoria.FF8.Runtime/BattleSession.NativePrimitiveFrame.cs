@@ -264,6 +264,54 @@ public sealed partial class BattleSession
         return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color, LastTextureSnapshots = textureSnapshots } };
     }
 
+    private NativeBattleGraphicsState RetainNativeSceneReplaySource(NativeBattleGraphicsState graphics)
+    {
+        if (!BattleSceneVisibleArea.IsScoped || (graphics.Flags & 4) == 0 || graphics.PrimitiveFrame is not { } frame)
+        {
+            return graphics;
+        }
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("A completed scene source requires its retained graphics memory.");
+        NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("A completed scene source requires its retained draw-buffer owner.");
+        byte buffer = process.Buffer80 ?? throw new NotSupportedException("A completed scene source requires its selected draw buffer.");
+        NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("A completed scene source requires its retained drawing environments.");
+        int drawnBuffer = buffer ^ 1;
+        ImmutableArray<byte> environment = drawnBuffer == 0 ? environments.Buffer0 : environments.Buffer1;
+        NativeBattlePreparedPrimitiveFrame completed = PrepareNativePrimitiveFrame(frame) with { SceneReplaySources = null, LastCommands = frame.LastCommands.Where(command => command.Command.Opcode != 0x80).ToImmutableArray() };
+        NativeBattleEffectTextureState sourceTextures = memory.Textures ?? throw new NotSupportedException("A completed scene source requires its retained texture image.");
+        bool orderedTextures = completed.LastCommands.Where(command => command.Pass > 0 && ((command.Command.Opcode & 0xE4) == 0x24 || command.Command.Opcode is 0x64 or 0x66)).All(command => command.DrawMode.TexturePixelSnapshot is int index && completed.LastTextureSnapshots is { } snapshots && (uint)index < snapshots.Length);
+        if (orderedTextures)
+        {
+            sourceTextures = sourceTextures with { SceneCopies = null };
+        }
+        NativeBattleSceneReplaySource source = new(completed, sourceTextures, BattleSceneVisibleArea.Current)
+        {
+            Callback = graphics.Callback,
+            Buffer = checked((byte)drawnBuffer),
+            DrawingEnvironment = environment,
+            UiFrame = memory.UiImmediateFrame
+        };
+        ImmutableArray<long?> sources = frame.SceneSources ?? [null, null];
+        if (sources.IsDefault || sources.Length != 2)
+        {
+            throw new InvalidDataException("Scene source history requires exactly two draw-buffer slots.");
+        }
+        long sourceId = frame.NextSceneReplaySourceId ?? checked((frame.SceneReplaySources?.Keys.DefaultIfEmpty(0).Max() ?? 0) + 1);
+        if (sourceId <= 0 || frame.SceneReplaySources?.ContainsKey(sourceId) == true)
+        {
+            throw new InvalidDataException("Scene source identifiers must be positive and cannot reuse a retained source identifier.");
+        }
+        long nextSourceId = checked(sourceId + 1);
+        sources = sources.SetItem(drawnBuffer, sourceId);
+        if (environments.Buffer0.AsSpan().SequenceEqual(environments.Buffer1.AsSpan()))
+        {
+            sources = sources.SetItem(drawnBuffer ^ 1, sourceId);
+        }
+        ImmutableDictionary<long, NativeBattleSceneReplaySource> pool = (frame.SceneReplaySources ?? ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty).SetItem(sourceId, source);
+        NativeBattlePrimitiveFrame retained = frame with { SceneSources = sources, SceneReplaySources = pool, NextSceneReplaySourceId = nextSourceId };
+        retained = retained with { SceneReplaySources = NativeBattleSceneCopyProvenance.PruneSources(retained, memory.Textures!, process.TextureWindowCache) };
+        return graphics with { PrimitiveFrame = retained };
+    }
+
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native retained packet alias requires its process arena owners.");

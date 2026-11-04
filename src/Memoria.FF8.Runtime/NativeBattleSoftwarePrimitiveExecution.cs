@@ -230,6 +230,10 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         {
             retainedMode = retainedMode with { SceneCaptureSample = RetainSceneCapture(capture, command) };
         }
+        if (pixels.SceneCopies is not null)
+        {
+            retainedMode = retainedMode with { SceneCopyPalette = RetainScenePalette(command) };
+        }
         return command with { DrawMode = retainedMode };
     }
 
@@ -240,7 +244,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         PublishImage();
         if (sceneCaptureSamples.TryGetValue(capture, out var retained) && ReferenceEquals(retained.Owner, Textures))
         {
-            return RetainPalette(retained.Sample);
+            return retained.Sample with { Palette = RetainScenePalette(command) };
         }
         ImmutableArray<int>.Builder snapshots = ImmutableArray.CreateBuilder<int>();
         for (int left = 0; left < capture.Width; left += 256)
@@ -258,37 +262,38 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         NativeBattleSceneCaptureSample sample = new(capture, snapshots.ToImmutable());
         sceneCaptureSamples[capture] = (Textures, sample);
-        return RetainPalette(sample);
+        return sample with { Palette = RetainScenePalette(command) };
 
-        NativeBattleSceneCaptureSample RetainPalette(NativeBattleSceneCaptureSample source)
+    }
+
+    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalResolvedCommand command)
+    {
+        ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
+        int depth = page >> 7 & 3;
+        if (depth == 3)
         {
-            ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
-            int depth = page >> 7 & 3;
-            if (depth == 3)
-            {
-                throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
-            }
-            int length = depth == 0 ? 16 : depth == 1 ? 256 : 0;
-            ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
-            int x = (clut & 63) * 16;
-            int y = (clut & 0x7FFF) >> 6;
-            if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, Textures))
-            {
-                return source with { Palette = priorPalette.Palette };
-            }
-            if (length > 0 && (x > 1024 - length || y >= 512))
-            {
-                throw new InvalidDataException("Scene sampling requires a complete native palette.");
-            }
-            ImmutableArray<ushort>.Builder palette = ImmutableArray.CreateBuilder<ushort>(length);
-            for (int index = 0; index < length; index++)
-            {
-                palette.Add(Textures.ReadVramWord(x + index, y));
-            }
-            ImmutableArray<ushort> retainedPalette = palette.MoveToImmutable();
-            sceneCapturePalettes[(clut, length)] = (Textures, retainedPalette);
-            return source with { Palette = retainedPalette };
+            throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         }
+        int length = depth == 0 ? 16 : depth == 1 ? 256 : 0;
+        ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
+        int x = (clut & 63) * 16;
+        int y = (clut & 0x7FFF) >> 6;
+        if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, Textures))
+        {
+            return priorPalette.Palette;
+        }
+        if (length > 0 && (x > 1024 - length || y >= 512))
+        {
+            throw new InvalidDataException("Scene sampling requires a complete native palette.");
+        }
+        ImmutableArray<ushort>.Builder palette = ImmutableArray.CreateBuilder<ushort>(length);
+        for (int index = 0; index < length; index++)
+        {
+            palette.Add(Textures.ReadVramWord(x + index, y));
+        }
+        ImmutableArray<ushort> retainedPalette = palette.MoveToImmutable();
+        sceneCapturePalettes[(clut, length)] = (Textures, retainedPalette);
+        return retainedPalette;
     }
 
     public void EndBatch()
@@ -358,6 +363,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         PublishImage();
         NativeBattleEffectTextureState priorTextures = Textures;
+        ImmutableArray<NativeBattleSceneCopyRegion>? priorSceneCopies = Textures.SceneCopies;
         byte[] packet = new byte[20];
         for (int index = 0; index < command.Words.Length; index++)
         {
@@ -370,6 +376,22 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             PublishTransferredImage(left, top, right, bottom);
             Cache = (Cache ?? throw new NotSupportedException("Native image transfer requires its retained texture cache.")).Invalidate464850(left, top, right, bottom, priorTextures);
         });
+        int sourceX = (int)(command.Words[1] & 1023);
+        int sourceY = (int)(command.Words[1] >> 16 & 511);
+        int destinationX = (int)(command.Words[2] & 1023);
+        int destinationY = (int)(command.Words[2] >> 16 & 511);
+        int width = Math.Min(Math.Min((int)(command.Words[3] & 65535), 1024 - sourceX), 1024 - destinationX);
+        int height = Math.Min(Math.Min((int)(command.Words[3] >> 16), 512 - sourceY), 512 - destinationY);
+        NativeBattleEffectVramCopy copy = new((short)sourceX, (short)sourceY, (short)width, (short)height, (short)destinationX, (short)destinationY);
+        ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = NativeBattleSceneCopyProvenance.Copy(priorSceneCopies, copy);
+        if (width > 0 && height > 0 && command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Copy } capture)
+        {
+            NativeBattleSceneCopyRegion region = new(capture, destinationX, destinationY, width, height, sourceX - capture.CopySourceX, sourceY - capture.CopySourceY);
+            region.Validate();
+            sceneCopies = NativeBattleSceneCopyProvenance.Overwrite(sceneCopies, destinationX, destinationY, width, height);
+            sceneCopies = (sceneCopies ?? []).Add(region);
+        }
+        Textures = Textures with { SceneCopies = sceneCopies };
     }
 
     private void PublishTransferredImage(int left, int top, int right, int bottom)

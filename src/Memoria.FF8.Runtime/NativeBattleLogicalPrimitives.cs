@@ -1006,6 +1006,64 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             throw new ArgumentException("Native ordering has duplicate normalized packet identities.");
         }
     }
+    internal IEnumerable<long> ReferencedSceneReplaySources()
+    {
+        RequireReadAccess();
+        NativeBattleOrderingList<NativeBattleLogicalProxy> proxies = Proxies;
+        int allocated = ProxyCursor ?? proxies.Length;
+        if ((uint)allocated > (uint)proxies.Length)
+        {
+            throw new InvalidDataException("Scene replay references require a bounded ordering proxy cursor.");
+        }
+        HashSet<int> visited = [];
+        Queue<int> pending = new();
+        HashSet<long> sources = [];
+        foreach (NativeBattlePrimitiveLink link in Table)
+        {
+            Enqueue(link);
+        }
+        if (OtherTable is { } other)
+        {
+            foreach (NativeBattlePrimitiveLink link in other)
+            {
+                Enqueue(link);
+            }
+        }
+        for (int index = 0; index < allocated; index++)
+        {
+            Enqueue(new(true, index));
+        }
+        while (pending.TryDequeue(out int index))
+        {
+            if (!TryReadPacket(proxies[index].Packet, out NativeBattleLogicalPacket? packet))
+            {
+                continue;
+            }
+            if (packet.SceneCapture?.ReplaySourceId is long source)
+            {
+                sources.Add(source);
+            }
+            Enqueue(packet.Next);
+        }
+        return sources;
+
+        void Enqueue(NativeBattlePrimitiveLink link)
+        {
+            if (!link.Proxy)
+            {
+                return;
+            }
+            if ((uint)link.Index >= (uint)proxies.Length)
+            {
+                throw new InvalidDataException("Scene replay references reached a missing ordering proxy.");
+            }
+            if (visited.Add(link.Index))
+            {
+                pending.Enqueue(link.Index);
+            }
+        }
+    }
+
     private bool TryReadPacket(NativeBattlePrimitiveReference reference, [NotNullWhen(true)] out NativeBattleLogicalPacket? packet)
     {
         RequireReadAccess();
@@ -1387,6 +1445,6 @@ public static class NativeBattleLogicalPasses
 
     private static NativeBattlePrimitiveDrawMode ClearTextureSelection(NativeBattlePrimitiveDrawMode mode)
     {
-        return mode.TextureSelection is null && mode.TexturePixelSnapshot is null && mode.SceneCaptureSample is null ? mode : mode with { TextureSelection = null, TexturePixelSnapshot = null, SceneCaptureSample = null };
+        return mode.TextureSelection is null && mode.TexturePixelSnapshot is null && mode.SceneCaptureSample is null && mode.SceneCopyPalette is null ? mode : mode with { TextureSelection = null, TexturePixelSnapshot = null, SceneCaptureSample = null, SceneCopyPalette = null };
     }
 }

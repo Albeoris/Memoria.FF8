@@ -56,7 +56,7 @@ public static class NativeBattleCinematicFrameCopy26
             {
                 geometry = geometry with { Identity = identity with { Primitive = unchecked(identity.Primitive * 397 + strip) }, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
             }
-            NativeBattleGeometryPrimitive primitive = new(0, packet.Words(), []) { PilotGeometry = geometry };
+            NativeBattleGeometryPrimitive primitive = new(0, packet.Words(), []) { PilotGeometry = geometry, ScreenCoverage = new(left / 320f, top / 216f, right / 320f, bottom / 216f) };
             frame = services.Append(frame, output, ordering, new([packet.Attempt(primitive)], 24));
             output = unchecked(output + 24);
         }

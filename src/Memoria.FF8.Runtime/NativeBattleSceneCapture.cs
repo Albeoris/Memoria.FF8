@@ -9,7 +9,8 @@ public enum NativeBattleSceneCaptureKind
     Source,
     Image,
     SourceEnvironment,
-    ScreenSample
+    ScreenSample,
+    Copy
 }
 
 /// <summary>A scene copy and its screen image share a normalized domain independently of the native texture allocation.</summary>
@@ -23,6 +24,9 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
     public int PaddingBottom { get; init; }
     public int ProjectionOffsetY { get; init; }
     public ImmutableArray<BattleSceneScreenPoint>? SampleCoordinates { get; init; }
+    public long? ReplaySourceId { get; init; }
+    public int CopySourceX { get; init; }
+    public int CopySourceY { get; init; }
     private static readonly AsyncLocal<NativeBattleSceneCapture?> Active = new();
     public static NativeBattleSceneCapture? Current => Active.Value;
 
@@ -36,14 +40,20 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
 
     public static IDisposable Begin(NativeBattleSceneCaptureKind kind, int x = 0, int y = 0, int height = 216, int paddingTop = 0, int paddingBottom = 0, int projectionOffsetY = 0)
     {
+        return Begin(new(BattleSceneVisibleArea.Current, kind) { X = x, Y = y, Height = height, PaddingTop = paddingTop, PaddingBottom = paddingBottom, ProjectionOffsetY = projectionOffsetY });
+    }
+
+    public static IDisposable Begin(NativeBattleSceneCapture capture)
+    {
+        capture.Validate();
         NativeBattleSceneCapture? previous = Active.Value;
-        Active.Value = new(BattleSceneVisibleArea.Current, kind) { X = x, Y = y, Height = height, PaddingTop = paddingTop, PaddingBottom = paddingBottom, ProjectionOffsetY = projectionOffsetY };
+        Active.Value = capture;
         IDisposable? visibleArea = null;
-        if (kind == NativeBattleSceneCaptureKind.Source && (paddingTop != 0 || paddingBottom != 0 || projectionOffsetY != 0))
+        if (capture.Kind == NativeBattleSceneCaptureKind.Source && (capture.PaddingTop != 0 || capture.PaddingBottom != 0 || capture.ProjectionOffsetY != 0))
         {
             BattleSceneVisibleArea source = Active.Value.Source;
             double visibleHeight = source.Bottom - source.Top;
-            visibleArea = BattleSceneVisibleArea.Begin(source with { Top = source.Top + projectionOffsetY * 8 - paddingTop * visibleHeight / 216, Bottom = source.Bottom + projectionOffsetY * 8 + paddingBottom * visibleHeight / 216 });
+            visibleArea = BattleSceneVisibleArea.Begin(source with { Top = source.Top + capture.ProjectionOffsetY * 8 - capture.PaddingTop * visibleHeight / 216, Bottom = source.Bottom + capture.ProjectionOffsetY * 8 + capture.PaddingBottom * visibleHeight / 216 });
         }
         return new Scope(previous, visibleArea);
     }

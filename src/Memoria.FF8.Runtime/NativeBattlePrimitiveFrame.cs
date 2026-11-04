@@ -50,6 +50,12 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pending, ImmutableArray<NativeBattleLogicalResolvedCommand> LastCommands, ImmutableArray<int?> LastModuleBlendModes)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<long?>? SceneSources { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? NextSceneReplaySourceId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<long, NativeBattleSceneReplaySource>? SceneReplaySources { get; init; }
     public bool? LastDescriptorPerspective { get; init; }
     public NativeBattlePrimitiveDepthState? LastDepthState { get; init; }
     public NativeBattlePrimitiveColorState? LastColorState { get; init; }

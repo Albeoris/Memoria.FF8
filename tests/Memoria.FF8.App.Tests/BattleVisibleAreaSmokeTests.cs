@@ -23,6 +23,8 @@ public sealed class BattleVisibleAreaSmokeTests
         using IDisposable visible = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, projection.X, projection.Y, projection.Width, projection.Height));
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
+        Directory.CreateDirectory(output!);
+        File.WriteAllText(Path.Combine(output!, "run.json"), JsonSerializer.Serialize(new { width, height, selected, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), AudioOutput = false }));
         foreach (ushort effect in selected!.Split(',').Select(ushort.Parse))
         {
             string destination = Path.Combine(output!, effect.ToString());
@@ -41,6 +43,8 @@ public sealed class BattleVisibleAreaSmokeTests
             BattleScenePresentation scene = new(assets, source.Definition, true);
             bool entered = false;
             bool restored = false;
+            bool captureRendered = false;
+            bool captureRestored = false;
             int rendered = 0;
             int callbacks;
             for (callbacks = 0; callbacks < 4096; callbacks++)
@@ -50,7 +54,9 @@ public sealed class BattleVisibleAreaSmokeTests
                 if (current?.Binding.Effect == effect && current.ReturnedDescriptor != 0)
                 {
                     entered = true;
-                    if (callbacks % 90 == 0 && rendered < 4)
+                    bool captureVisible = battle.PreparedPresentation?.Primitives.LastCommands.Any(command => command.Command.SceneCapture?.Kind is NativeBattleSceneCaptureKind.Image or NativeBattleSceneCaptureKind.ScreenSample) == true
+                        || battle.PreparedPresentation?.Primitives.LastTextureSnapshots is { } snapshots && snapshots.Any(pixels => pixels.SceneCopies is { Length: > 0 });
+                    if (callbacks % 180 == 0 && rendered < 4 || captureVisible && !captureRendered)
                     {
                         byte[] rgba = scene.Render(battle, width, height);
                         Assert.Equal(width * height * 4, rgba.Length);
@@ -61,7 +67,8 @@ public sealed class BattleVisibleAreaSmokeTests
                         using FileStream stream = File.Create(Path.Combine(destination, $"frame-{callbacks}.png"));
                         png.SaveTo(stream);
                         rendered++;
-                        if (!restored)
+                        captureRendered |= captureVisible;
+                        if (!restored || captureVisible && !captureRestored)
                         {
                             BattleSnapshot snapshot = battle.Capture();
                             File.WriteAllText(Path.Combine(destination, "midpoint.battle.json"), JsonSerializer.Serialize(snapshot));
@@ -70,6 +77,7 @@ public sealed class BattleVisibleAreaSmokeTests
                             cold.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
                             scene.Render(cold, width, height);
                             restored = true;
+                            captureRestored |= captureVisible;
                         }
                     }
                 }
@@ -82,7 +90,11 @@ public sealed class BattleVisibleAreaSmokeTests
             Assert.True(entered, $"Effect {effect} did not initialize.");
             Assert.True(callbacks < 4096, $"Effect {effect} did not complete.");
             Assert.True(rendered > 0 && restored, $"Effect {effect} did not reach its sampled presentation boundary.");
-            File.WriteAllText(Path.Combine(destination, "smoke.json"), JsonSerializer.Serialize(new { effect, width, height, callbacks, rendered, restored, AudioOutput = false }));
+            if (effect is 89 or 139 or 175 or 206)
+            {
+                Assert.True(captureRendered && captureRestored, $"Effect {effect} did not render and restore its scene-capture consumer.");
+            }
+            File.WriteAllText(Path.Combine(destination, "smoke.json"), JsonSerializer.Serialize(new { effect, width, height, callbacks, rendered, restored, captureRendered, captureRestored, AudioOutput = false }));
         }
     }
 }

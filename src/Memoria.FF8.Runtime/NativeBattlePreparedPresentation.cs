@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Completed command payload. Pending ordering and physical packet storage are deliberately absent.</summary>
 public sealed record NativeBattlePreparedPrimitiveFrame(ImmutableArray<NativeBattleLogicalResolvedCommand> LastCommands, ImmutableArray<int?> LastModuleBlendModes)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<long, NativeBattleSceneReplaySource>? SceneReplaySources { get; init; }
     public bool? LastDescriptorPerspective { get; init; }
     public NativeBattlePrimitiveDepthState? LastDepthState { get; init; }
     public NativeBattlePrimitiveColorState? LastColorState { get; init; }
@@ -22,7 +24,7 @@ public sealed record NativeBattlePreparedPrimitiveFrame(ImmutableArray<NativeBat
         return opacity;
     }
 
-    public static NativeBattlePreparedPrimitiveFrame From(NativeBattlePrimitiveFrame frame) => new(frame.LastCommands, frame.LastModuleBlendModes) { LastDescriptorPerspective = frame.LastDescriptorPerspective, LastDepthState = frame.LastDepthState, LastColorState = frame.LastColorState, LastTextureSnapshots = frame.LastTextureSnapshots, LastPcRenderTail = frame.LastPcRenderTail };
+    public static NativeBattlePreparedPrimitiveFrame From(NativeBattlePrimitiveFrame frame) => new(frame.LastCommands, frame.LastModuleBlendModes) { LastDescriptorPerspective = frame.LastDescriptorPerspective, LastDepthState = frame.LastDepthState, LastColorState = frame.LastColorState, LastTextureSnapshots = frame.LastTextureSnapshots, LastPcRenderTail = frame.LastPcRenderTail, SceneReplaySources = frame.SceneReplaySources };
 }
 
 public sealed record NativeBattlePreparedActor(string Id, string Name, bool IsPlayer, int ModelId, int Costume, int? WeaponId, int? SceneSlot, int? GuardianFormVisual, NativeBattleModelTextureBinding BodyTextures, NativeBattleModelTextureBinding? LinkedTextures);

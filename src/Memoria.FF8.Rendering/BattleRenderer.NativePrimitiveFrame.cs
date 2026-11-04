@@ -143,6 +143,13 @@ public sealed partial class BattleRenderer
         DrawnTriangles = 0;
         nativeTriangles.Clear();
         sceneCaptureImages.Clear();
+        sceneCopyImages.Clear();
+        sceneCopyImageBytes = 0;
+        sceneCopyUiTexture = uiTexture;
+        if (!isSceneReplay)
+        {
+            sceneReplayContext = new();
+        }
         for (int index = 3; TriangleRenderer is null && index < pixels.Length; index += 4)
         {
             pixels[index] = 255;
@@ -369,6 +376,12 @@ public sealed partial class BattleRenderer
         => ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, 0, false, out _, firstSample);
 
     private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
+    {
+        PixelImage image = ResolveNativePrimitiveTextureCore(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, prefixCorners, affine, out prefixUvScale, firstSample);
+        return ApplySceneCopyTexture(frame, resolved, textures, capabilities, colorState, image);
+    }
+
+    private PixelImage ResolveNativePrimitiveTextureCore(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
         prefixUvScale = Vector2.One;
         NativeBattleLogicalCommand command = resolved.Command;

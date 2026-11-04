@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         {
             NativeSoftwareDrawingEnvironmentBuffers environments = Process().Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native cinematic frame copy requires its current drawing environments.");
             return buffer == 0 ? environments.Buffer0 : environments.Buffer1;
-        }, (current, output, ordering, batch) => Append(current, output, ordering, batch, 0));
+        }, (current, output, ordering, batch) => Append(current, output, ordering, batch, 0)) { ReadSceneCapture = (_, buffer, environment, x, y) => ReadNativeCinematicSceneCopy(graphics, buffer, environment, x, y) };
         NativeBattleCinematicFrameCopy26Services services = new(capture, (current, output, ordering, batch) => Append(current, output, ordering, batch, 1));
         NativeBattlePilotVisualIdentity? pilotIdentity = null;
         if (graphics.OriginalEffect?.Binding.Effect is 208 or 211 or 256 or 258)

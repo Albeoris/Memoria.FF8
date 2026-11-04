@@ -13,6 +13,8 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
     public ImmutableArray<NativeBattleTextureSourceRegion>? LiveTextureSources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleSceneCopyRegion>? SceneCopies { get; init; }
     private static readonly ConditionalWeakTable<object, CaptureBucket> Captures = new();
 
     private sealed class CaptureBucket
@@ -27,6 +29,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         private ImmutableArray<NativeBattleTextureSourceRegion>? sources;
         private ImmutableArray<NativeBattleTextureRegistration>? registrations;
         private ImmutableArray<byte>? tail;
+        private ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies;
         private bool initialized;
         private int bytes;
 
@@ -34,13 +37,14 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         {
             lock (gate)
             {
-                if (!initialized || !SameArray(sources, textures.LiveTextureSources) || !SameArray(registrations, textures.TextureRegistrations) || !SameArray(tail, textures.VramReadTail))
+                if (!initialized || !SameArray(sources, textures.LiveTextureSources) || !SameArray(registrations, textures.TextureRegistrations) || !SameArray(tail, textures.VramReadTail) || !SameArray(sceneCopies, textures.SceneCopies))
                 {
                     captures.Clear();
                     bytes = 0;
                     sources = textures.LiveTextureSources;
                     registrations = textures.TextureRegistrations;
                     tail = textures.VramReadTail;
+                    sceneCopies = textures.SceneCopies;
                     initialized = true;
                 }
                 object currentPublication = textures.VramPublicationIdentity;
@@ -199,7 +203,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
             int count = 2 * width;
             ReadRow(textures, address, data.AsSpan(2 * line * width, count));
         }
-        NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, ImmutableCollectionsMarshal.AsImmutableArray(data)) { LiveTextureSources = textures.LiveTextureSources, TextureRegistrations = textures.TextureRegistrations };
+        NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, ImmutableCollectionsMarshal.AsImmutableArray(data)) { LiveTextureSources = textures.LiveTextureSources, TextureRegistrations = textures.TextureRegistrations, SceneCopies = NativeBattleSceneCopyProvenance.Intersect(textures.SceneCopies, x, y, width, rectangle.Height) };
         result.Validate();
         return result;
     }

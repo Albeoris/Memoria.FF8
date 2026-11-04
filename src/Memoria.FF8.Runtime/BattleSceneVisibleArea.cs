@@ -8,6 +8,7 @@ public readonly record struct BattleSceneVisibleArea(double Left, double Top, do
     private static readonly AsyncLocal<BattleSceneVisibleArea?> Active = new();
     public static BattleSceneVisibleArea Native => new(0, 0, 2560, 1728);
     public static BattleSceneVisibleArea Current => Active.Value ?? Native;
+    public static bool IsScoped => Active.Value.HasValue;
 
     public static BattleSceneVisibleArea FromViewport(double width, double height, double projectionX, double projectionY, double projectionWidth, double projectionHeight)
     {

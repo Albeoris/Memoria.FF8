@@ -15,19 +15,7 @@ public sealed partial class BattleSession
             PreparedPresentation = null;
             return;
         }
-        NativeBattlePreparedPrimitiveFrame primitives = NativeBattlePreparedPrimitiveFrame.From(frame);
-        if (!encounterArrivals.IsEmpty || encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready })
-        {
-            ImmutableDictionary<string, float> opacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal);
-            if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready } batch)
-            {
-                foreach (string id in batch.ActorIds)
-                {
-                    opacities = opacities.SetItem(id, 0);
-                }
-            }
-            primitives = primitives with { ActorOpacities = opacities };
-        }
+        NativeBattlePreparedPrimitiveFrame primitives = PrepareNativePrimitiveFrame(frame);
         if (PreparedPresentation?.Primitives == primitives)
         {
             primitives = PreparedPresentation.Primitives;
@@ -44,6 +32,24 @@ public sealed partial class BattleSession
         NativeBattlePreparedScan? scan = PrepareScanPresentation(graphics);
         ushort? pilotEffect = graphics.OriginalEffect?.Binding.Effect is ushort effect && NativeBattleSmoothPresentation.Supports(effect) ? effect : null;
         PreparedPresentation = new(++preparedPresentationVersion, graphics.Callback, Frame, GuardianAnimationSkipPending, primitives, NativeEffectMemory?.Textures, NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache, NativeEffectMemory?.UiImmediateFrame, EncounterPresentationCamera, graphics.Effects.TextDraws, NativeStage?.ResourceStageId, NativeStage?.TextureAnimationStartCallback, actors.ToImmutable(), scan) { SceneMotion = graphics.OriginalEffect is null, PilotEffect = pilotEffect, PilotGeneration = pilotEffect.HasValue && graphics.OriginalEffect?.Pools is { Length: > 0 } pilotPools ? NativeBattlePilotVisualLifetimes.EpochFor(pilotPools[0].RequireOwner()) : 0, PilotCamera = nativePilotSourceCamera, PilotProjection = nativePilotSourceProjection };
+    }
+
+    private NativeBattlePreparedPrimitiveFrame PrepareNativePrimitiveFrame(NativeBattlePrimitiveFrame frame)
+    {
+        NativeBattlePreparedPrimitiveFrame primitives = NativeBattlePreparedPrimitiveFrame.From(frame);
+        if (!encounterArrivals.IsEmpty || encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready })
+        {
+            ImmutableDictionary<string, float> opacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal);
+            if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready } batch)
+            {
+                foreach (string id in batch.ActorIds)
+                {
+                    opacities = opacities.SetItem(id, 0);
+                }
+            }
+            primitives = primitives with { ActorOpacities = opacities };
+        }
+        return primitives;
     }
 
     private NativeBattlePreparedScan? PrepareScanPresentation(NativeBattleGraphicsState graphics)

@@ -53,6 +53,8 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
     public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleTextureFileContext? TextureFileContext { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleSceneCopyRegion>? SceneCopies { get; init; }
     public const int PcPageReadTailLength = 384;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<byte>? VramReadTail { get; init; }
@@ -70,7 +72,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
         {
             mutation.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
         }
-        return this with { vramVersion = mutation.Commit(), LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
+        return this with { vramVersion = mutation.Commit(), LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height), SceneCopies = NativeBattleSceneCopyProvenance.Overwrite(SceneCopies, x, y, width, height) };
     }
 
     public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []) { VramReadTail = new byte[PcPageReadTailLength].ToImmutableArray() };
@@ -400,6 +402,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
         using NativeBattleVramOwner.Mutation mutation = vramOwner.BeginMutation(VramVersion);
         NativeBattleEffectArena bank = mutation.Arena;
         ImmutableArray<NativeBattleTextureSourceRegion>? liveSources = LiveTextureSources;
+        ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = SceneCopies;
         ImmutableArray<NativeBattleTextureRegistration>? registrations = TextureRegistrations;
         NativeBattleTextureFileContext? fileContext = TextureFileContext;
         ImmutableArray<NativeBattleEffectVramUpload>.Builder uploads = ImmutableArray.CreateBuilder<NativeBattleEffectVramUpload>();
@@ -513,6 +516,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                     mutation.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
                 }
                 liveSources = NativeBattleTextureProvenance.Overwrite(liveSources, x, y, width, height, origin);
+                sceneCopies = NativeBattleSceneCopyProvenance.Overwrite(sceneCopies, x, y, width, height);
                 if (!palette)
                 {
                     registrations = NativeBattleTextureCopyHistory.Upload(registrations, x, y, width, height, origin);
@@ -520,7 +524,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 uploads.Add(new(x, y, width, height, bytes) { Origin = origin });
             }
         }
-        return new(this with { Count = 0, vramVersion = mutation.Commit(), LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
+        return new(this with { Count = 0, vramVersion = mutation.Commit(), LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext, SceneCopies = sceneCopies }, uploads.ToImmutable()) { Arena = arenaSource };
 
         NativeBattleEffectTextureRectangle? FollowingPaletteRectangle(int imageIndex)
         {
@@ -589,6 +593,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 bank.ReadInto(write, changed.AsSpan(row * bytesPerRow, bytesPerRow));
             }
             liveSources = NativeBattleTextureProvenance.Copy(liveSources, copy);
+            sceneCopies = NativeBattleSceneCopyProvenance.Copy(sceneCopies, copy);
             registrations = NativeBattleTextureCopyHistory.Copy(registrations, copy);
             // This private array is published once and is never mutated after the ownership transfer.
             uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, ImmutableCollectionsMarshal.AsImmutableArray(changed)) { Copied = true });

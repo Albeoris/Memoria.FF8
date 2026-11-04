@@ -421,6 +421,7 @@ public sealed partial class BattleSession
         }
         NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
         NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
+        NativeGraphics = RetainNativeSceneReplaySource(NativeGraphics);
         ObserveDiagnosticInvocationGraphicsFrameEnd();
         ObserveDiagnosticInvocationAftercareFrameEnd();
     }

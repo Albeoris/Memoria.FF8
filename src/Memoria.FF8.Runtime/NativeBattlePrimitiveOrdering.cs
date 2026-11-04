@@ -17,6 +17,8 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleSceneCaptureSample? SceneCaptureSample { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<ushort>? SceneCopyPalette { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoftwareNormalViewportDerived? NormalViewport { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoftwareViewportInputs? ViewportInputs { get; init; }
