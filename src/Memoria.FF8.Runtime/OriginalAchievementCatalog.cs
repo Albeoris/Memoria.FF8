@@ -39,7 +39,7 @@ public static class OriginalAchievementCatalog
         new(28, Id("salary.first"), "SEED_FIRST_SALARY", "First salary", true),
         // TODO(TD-018): Publish ChocoLoot and Boko-level facts from an implemented Chocobo World import transaction.
         new(29, Id("chocoworld.item"), "CHOCORPG_FIRST_ITEM", "Choco loot", false, "Chocobo World item import is not implemented."),
-        // TODO(TD-019): Validate complete Omega combat after the remaining original action effects are supported.
+        // TODO(TD-019): Validate complete Omega combat, once-only rewards and the field return from a compatible gameplay checkpoint.
         new(30, Id("omega"), "BEAT_OMEGA_WEAPON", "Omega Destroyed", true),
         new(31, Id("obel_lake"), "OBEL_LAKE_SECRET", "Obel Lake Secret", true),
         new(32, Id("ufo"), "UFO", "UFO", true),

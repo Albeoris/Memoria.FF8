@@ -9,7 +9,7 @@ public sealed class OmegaEncounterTests
     [Theory]
     [InlineData(7)]
     [InlineData(100)]
-    public void Installed_Omega_initialization_and_turn_enqueue_survive_independent_Json_continuation(int partyLevel)
+    public void Installed_Omega_initialization_and_turn_completion_survive_independent_Json_continuation(int partyLevel)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         using GameAssets game = new(TestResources.GameDirectory);
@@ -36,14 +36,13 @@ public sealed class OmegaEncounterTests
         HashSet<int> enqueuedIds = [action.ActionId];
         for (int turnIndex = 1; turnIndex < 64; turnIndex++)
         {
-            // Diagnostic callback sequence: explicitly discard the prior output packet without presenting or resolving its effect.
-            // Restore the declared party input for the next independent enqueue, retaining the actual enemy interpreter variables and random state.
+            CompleteComponentAction(original, restored);
+            // Restore the declared diagnostic party input between completed actions, retaining enemy interpreter variables and random state.
             BattleSnapshot current = original.Capture();
             BattleSnapshot next = QueueCallback(current with
             {
-                QueuedActions = [],
                 NativePresentationStatusMemory = current.NativePresentationStatusMemory!.Observe(initialized.Combatants.Single(actor => actor.Id == "party").NativeParticipant!.ActorIndex, initialized.Combatants.Single(actor => actor.Id == "party").NativeStatus!.Presentation!),
-                Combatants = current.Combatants.Select(actor => actor.Id == "party" ? actor with { CurrentHp = 9999, NativeStatus = initialized.Combatants.Single(source => source.Id == "party").NativeStatus, StatusEffects = [] } : actor).ToArray()
+                Combatants = current.Combatants.Select(actor => actor.Id == "party" ? actor with { CurrentHp = 1_000_000, NativeStatus = initialized.Combatants.Single(source => source.Id == "party").NativeStatus, StatusEffects = [] } : actor).ToArray()
             }, omega.Id, 1);
             original = BattleSession.Restore(next);
             restored = RestoreJson(next);
@@ -61,8 +60,9 @@ public sealed class OmegaEncounterTests
             Assert.NotNull(queued.NativeAction);
             enqueuedIds.Add(queued.ActionId);
         }
+        CompleteComponentAction(original, restored);
         Assert.Equal(new[] { 2, 16, 124, 308, 309, 310, 311, 378 }, enqueuedIds.Order().ToArray());
-        // Native enqueue includes logical formula production; no graphical effect dispatch or playable victory is asserted.
+        // This completes graphicsless action presentations; graphical dispatch and a playable victory need the live host.
     }
 
     [Fact]
@@ -101,6 +101,7 @@ public sealed class OmegaEncounterTests
             StageId = encounter.StageId,
             PersistentAiVariables = new uint[8],
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeStatusRules = assets.ReadNativeStatusRules(0),
@@ -110,7 +111,7 @@ public sealed class OmegaEncounterTests
             NativeActions = assets.NativeActions.ToArray(),
             Combatants =
             [
-                new() { Id = "party", Name = "Party", ModelId = 0, IsPlayer = true, NativeDeathCount = game.ReadNewGameCharacterVitals().Records[0].DeathCount, Level = partyLevel, MaximumHp = 9999, CurrentHp = 9999, NativeStatusResistances = Enumerable.Repeat((byte)100, 40).ToArray() },
+                new() { Id = "party", Name = "Party", ModelId = 0, IsPlayer = true, NativeDeathCount = game.ReadNewGameCharacterVitals().Records[0].DeathCount, Level = partyLevel, MaximumHp = 1_000_000, CurrentHp = 1_000_000, NativeStatusResistances = Enumerable.Repeat((byte)200, 40).ToArray() },
                 new() { Id = "omega", Name = assets.ReadEnemyName(114), ModelId = 114, SceneSlot = placement.Slot, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = stats.Speed, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeAi = assets.ReadEnemyAi(114, level), NativeTemplate = assets.ReadEnemyTemplate(114, (byte)placement.Level) }
             ]
         };
@@ -128,5 +129,18 @@ public sealed class OmegaEncounterTests
     private static BattleSession RestoreJson(BattleSnapshot saved)
     {
         return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
+    }
+
+    private static void CompleteComponentAction(BattleSession original, BattleSession restored)
+    {
+        for (int frame = 0; frame < 1200 && (original.ActiveAction is not null || original.QueuedActions.Count != 0); frame++)
+        {
+            original.Tick();
+            restored.Tick();
+        }
+        Assert.Null(original.ActiveAction);
+        Assert.Empty(original.QueuedActions);
+        Assert.Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(BattleOutcome.Active, original.Outcome);
     }
 }
