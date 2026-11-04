@@ -108,6 +108,45 @@ public sealed class ModelAssetExchangeTests
     }
 
     [Fact]
+    public void MixedResourceKindsUseTheirOwnAuthoringBasis()
+    {
+        ModelAssetSelection selection = Selection();
+        selection = selection with { Objects = selection.Objects.Select((item, index) => item with { Model = item.Model with { Kind = index == 0 ? "battle" : "field" } }).ToArray() };
+        EditableModel combined = ModelAssetExchange.Compose(selection);
+        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(combined, 0, 0.1f);
+        IReadOnlyList<Vector3[]> authored = ModelExchange.ToAuthoringSpace(combined, pose);
+        Assert.Equal(ModelExchange.ToAuthoringSpace(pose[0][0], "battle"), authored[0][0]);
+        Assert.Equal(ModelExchange.ToAuthoringSpace(pose[1][0], "field"), authored[1][0]);
+        ModelAssetImportInventory imported = ModelAssetExchange.InspectGlb(ModelExchange.ExportGlb(combined));
+        Assert.Empty(imported.Warnings);
+        for (int index = 0; index < selection.Objects.Count; index++)
+        {
+            EditableModel before = selection.Objects[index].Model with { Animations = [selection.Clips[index].Animation] };
+            EditableModel after = imported.Objects[index].Model with { Animations = [imported.Clips[index].Animation] };
+            Vector3[] expected = ModelExchange.Pose(before, 0, 0.1f).SelectMany(vertices => vertices).ToArray();
+            Vector3[] actual = ModelExchange.Pose(after, 0, 0.1f).SelectMany(vertices => vertices).ToArray();
+            Assert.Equal(expected.Length, actual.Length);
+            Assert.All(expected.Zip(actual), pair => Assert.True(Vector3.Distance(pair.First, pair.Second) < 0.0001f));
+        }
+    }
+
+    [Fact]
+    public void AuthoredActionsNeedAnExplicitReplacementSlot()
+    {
+        EditableModel combined = ModelAssetExchange.Compose(Selection());
+        EditableAnimation original = Assert.Single(combined.Animations);
+        EditableAnimation authored = original with { Name = "Sword fight" };
+        ModelAssetImportInventory unmapped = ModelAssetExchange.InspectGlb(ModelExchange.ExportGlb(combined with { Animations = [authored] }));
+        Assert.Empty(unmapped.Clips);
+        Assert.Contains(unmapped.Warnings, warning => warning.Contains("no replacement-slot identity", StringComparison.Ordinal));
+
+        EditableAnimation replacement = authored with { Name = original.Name + " Sword fight" };
+        ModelAssetImportInventory mapped = ModelAssetExchange.InspectGlb(ModelExchange.ExportGlb(combined with { Animations = [replacement] }));
+        Assert.Equal(2, mapped.Clips.Count);
+        Assert.DoesNotContain(mapped.Warnings, warning => warning.Contains("no replacement-slot identity", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void DuplicateTargetsAndMissingDependencyAreRejected()
     {
         ModelAssetSelection selection = Selection();

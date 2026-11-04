@@ -70,7 +70,7 @@ internal sealed partial class RecreateGame
             }
             modelBrowser.SetDiscoveryStatus(() => LocalizeAuthored("model-browser.import.inventory", "Import inventory: actual surviving objects and channels"));
             modelBrowser.OpenAssetPanel(CompleteBrowserImport, importing: true);
-            modelBrowser.SetHints(() => LocalizeAuthored("model-browser.import.hints", "Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nUnchecked leaves unchanged · Rigs are validation context · Back: cancel without installation"));
+            modelBrowser.SetHints(() => LocalizeAuthored("model-browser.import.hints", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\nTab: preview / list / Space: checkbox / Unchecked leaves unchanged / Back: cancel"));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {

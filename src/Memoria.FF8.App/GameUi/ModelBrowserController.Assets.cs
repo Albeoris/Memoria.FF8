@@ -98,7 +98,7 @@ public sealed partial class ModelBrowserController
         {
             beforeAssetHints = readHints;
         }
-        readHints = () => SystemText("model.hints.selection", "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection");
+        readHints = () => SystemText("model.hints.selection", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\nTab: preview / list / Arrows: navigate / Confirm or Space: checkbox / Back: cancel");
         AssetsOpen = true;
         ImportSelection = importing;
         assetContinue = continueAction;
@@ -224,9 +224,7 @@ public sealed partial class ModelBrowserController
     public void CyclePlaybackSpeed() => PlaybackSpeed = PlaybackSpeed >= 2 ? 0.25f : PlaybackSpeed * 2;
     public void ResetView()
     {
-        RotationX = 0;
-        RotationY = 0;
-        Zoom = 1;
+        Camera.Reset();
     }
     public void SetClipTiming(float duration, float frameSeconds)
     {

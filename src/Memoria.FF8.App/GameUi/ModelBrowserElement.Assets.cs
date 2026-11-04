@@ -6,6 +6,7 @@ internal sealed partial class ModelBrowserElement
 {
     private static UiRect AssetButton(int index) => new(514 + index * 139, 455, 133, 28);
     private static UiRect PlaybackButton(int index) => new(18 + index * 79, 466, 74, 27);
+    private static UiRect CameraButton(int index) => new(18 + index * 98, 580, 92, 30);
     private static readonly UiRect AssetSearchBounds = new(514, 129, 416, 30);
     private static readonly UiRect AssetContinueBounds = new(514, 490, 416, 30);
     private const int AssetPageSize = 7;
@@ -39,6 +40,11 @@ internal sealed partial class ModelBrowserElement
         {
             Button(canvas, theme, PlaybackButton(index), controls[index]);
         }
+        string[] cameraLabels = CameraLabels();
+        for (int index = 0; index < cameraLabels.Length; index++)
+        {
+            Button(canvas, theme, CameraButton(index), cameraLabels[index]);
+        }
         float fraction = controller.ClipDuration > 0 ? Math.Clamp(controller.PlaybackSeconds / controller.ClipDuration, 0, 1) : 0;
         canvas.Fill(new UiRect(18, 505, 474, 9), theme.BorderLight);
         canvas.Fill(new UiRect(18, 505, 474 * fraction, 9), theme.Highlight);
@@ -50,6 +56,14 @@ internal sealed partial class ModelBrowserElement
 
     private void AssetsPointer(float x, float y)
     {
+        for (int index = 0; index < 4; index++)
+        {
+            if (CameraButton(index).Contains(x, y))
+            {
+                controller.SetCameraView((ModelPreviewView)index);
+                return;
+            }
+        }
         if (BackBounds.Contains(x, y))
         {
             controller.Cancel();

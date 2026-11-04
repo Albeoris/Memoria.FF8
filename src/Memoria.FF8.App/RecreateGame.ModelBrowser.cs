@@ -146,8 +146,8 @@ internal sealed partial class RecreateGame
         }
         string directions = $"{keyboard.BindingPrompt(ControlAction.MoveUp)} / {keyboard.BindingPrompt(ControlAction.MoveDown)} / {keyboard.BindingPrompt(ControlAction.MoveLeft)} / {keyboard.BindingPrompt(ControlAction.MoveRight)}";
         modelBrowser.SetHints(() => modelBrowser.AssetsOpen
-            ? FormatAuthored("model-browser.assets.hints", "{0}: preview / list · {1}: navigate · {2} / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · {3}: cancel selection", keyboard.BindingPrompt(ControlAction.UiTab), directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel))
-            : FormatAuthored("model-browser.preview.hints", "{0}: select / rotate · {1}: view / commands · {2}: back\n{3} / {4}: model · {5} / {6}: zoom · {7}: variant · {8}: search", directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel), keyboard.BindingPrompt(ControlAction.CameraLeft), keyboard.BindingPrompt(ControlAction.CameraRight), keyboard.BindingPrompt(ControlAction.RotateLeft), keyboard.BindingPrompt(ControlAction.RotateRight), keyboard.BindingPrompt(ControlAction.Card), keyboard.BindingPrompt(ControlAction.UiTab)));
+            ? FormatAuthored("model-browser.assets.hints", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\n{0}: preview / list / {1}: navigate / {2} or Space: checkbox / {3}: back", keyboard.BindingPrompt(ControlAction.UiTab), directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel))
+            : FormatAuthored("model-browser.preview.hints", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\n{0}: select / rotate / {1}: view / commands / {2}: back / {7}: variant / {8}: search", directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel), keyboard.BindingPrompt(ControlAction.CameraLeft), keyboard.BindingPrompt(ControlAction.CameraRight), keyboard.BindingPrompt(ControlAction.RotateLeft), keyboard.BindingPrompt(ControlAction.RotateRight), keyboard.BindingPrompt(ControlAction.Card), keyboard.BindingPrompt(ControlAction.UiTab)));
     }
 
     private bool UpdateModelBrowserUi(InputFrame input, TimeSpan elapsed)
@@ -235,9 +235,17 @@ internal sealed partial class RecreateGame
         MouseState mouse = physicalInput.ReadMouse();
         int wheel = mouse.ScrollWheelValue - previousModelBrowserWheel;
         previousModelBrowserWheel = mouse.ScrollWheelValue;
+        float pointerScale = Math.Min(GraphicsDevice.Viewport.Width / 960f, GraphicsDevice.Viewport.Height / 672f);
+        float pointerX = (mouse.X - (GraphicsDevice.Viewport.Width - 960 * pointerScale) / 2) / pointerScale;
+        float pointerY = (mouse.Y - (GraphicsDevice.Viewport.Height - 672 * pointerScale) / 2) / pointerScale;
+        bool overPreview = browser.PreviewBounds.Contains(pointerX, pointerY);
         if (IsActive && wheel != 0)
         {
-            if (browser.AssetsOpen && !browser.PreviewFocused)
+            if (browser.Mode == ModelBrowserMode.Viewer && overPreview)
+            {
+                browser.ZoomBy(MathF.Pow(1.1f, wheel / 120f));
+            }
+            else if (browser.AssetsOpen && pointerX >= 504 && pointerY >= 84 && pointerY <= 524)
             {
                 browser.SelectAssetRow(browser.AssetIndex - Math.Sign(wheel) * 3, true);
             }
@@ -245,15 +253,12 @@ internal sealed partial class RecreateGame
             {
                 browser.Select(browser.SelectedIndex - Math.Sign(wheel) * 3);
             }
-            else
-            {
-                browser.ZoomBy(MathF.Pow(1.1f, Math.Sign(wheel)));
-            }
         }
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         UiView view = browser.BuildView();
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         view.Pointer(mouse.X, mouse.Y, mousePressed && !previousModelBrowserMouse);
+        browser.UpdatePreviewPointer(pointerX, pointerY, mousePressed, mouse.MiddleButton == ButtonState.Pressed, mouse.RightButton == ButtonState.Pressed, keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift), IsActive);
         previousModelBrowserMouse = mousePressed;
         return true;
     }
@@ -292,7 +297,7 @@ internal sealed partial class RecreateGame
             Rectangle rectangle = ModelBrowserPreviewBounds(GraphicsDevice.Viewport.Bounds);
             modelPreviewGpu ??= new GpuTriangleRenderer(GraphicsDevice);
             UpdateBrowserAssemblyPreview();
-            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.RotationY, modelBrowser.RotationX, modelBrowser.Zoom, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen);
+            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.Camera, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen);
             modelPreviewRendered = true;
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
@@ -334,7 +339,7 @@ internal sealed partial class RecreateGame
             ResetBrowserAssets(entry, variant);
         }
         modelBrowser!.OpenAssetPanel(CompleteBrowserExport);
-        modelBrowser.SetHints(() => LocalizeAuthored("model-browser.selection.hints", "Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · Back: cancel selection"));
+        modelBrowser.SetHints(() => LocalizeAuthored("model-browser.selection.hints", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\nTab: preview / list / Arrows: navigate / Space: checkbox / Back: cancel selection"));
     }
 
     private void ImportBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)

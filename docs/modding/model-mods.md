@@ -11,7 +11,12 @@ In the viewer:
 | Control | Action |
 | --- | --- |
 | Arrows / movement stick | Rotate the model. |
+| Left mouse drag | Orbit the preview freely. |
+| Shift + left mouse drag | Pan the preview. |
+| Right mouse drag | Roll horizontally; dolly vertically. |
 | World camera rotation buttons | Zoom. The mouse wheel also zooms. |
+| Front / Side / Top | Select a camera direction while keeping pan and zoom. |
+| Reset camera | Restore front view, centered framing and default zoom. |
 | Battle escape left / right buttons | Previous / next model in the filtered list. |
 | Card / Alternate or the Variant button | Cycle Original, Resolved and individual installed providers, including disabled packages. |
 | Confirm or Commands | Open the command menu. |
@@ -30,6 +35,8 @@ Click a row label to preview an object or clip group, and its checkbox to select
 The result is one self-contained GLB with standard meshes, skins, embedded textures and editable skeletal animations. Body and standard weapon retain independent rigs and synchronized clip components with their own durations. Reduced weapons share the owner's rig and retain the replaced body-part relationship. Selected weapon alternatives can overlap in Blender; hide unused alternatives while editing.
 
 Use the verified [Blender settings and round-trip helper](../developers/model-linked-glb.md). Enable Custom Properties, preserve the metadata root, native joint identifiers and qualified action/NLA tokens, and use NLA Tracks without merging separate clips. Set the native sample rate before importing: field/battle clips use 30 samples per second; world character clips use 30.5. The helper derives this rate from exported timing. Blender is not required to run Memoria.
+
+To create entirely new motion, author new keys in an exported slot's action or replace its NLA strip with your own action while keeping the qualified track identity. Follow the [authored-motion workflow](../developers/model-linked-glb.md#author-a-new-motion-for-an-existing-slot). This replaces an existing animation slot; it does not add a gameplay action or automatically coordinate a multi-character fight's events.
 
 ## Import as a mod
 

@@ -266,6 +266,7 @@ public static partial class ModelExchange
             string kind = original?.Kind ?? "model";
             JsonElement metadata = original?.NativeMetadata ?? default;
             float nativeFramesPerSecond = original?.NativeFramesPerSecond ?? FramesPerSecond;
+            int authoringBasis = 1;
             for (int index = 0; index < nodes.GetArrayLength(); index++)
             {
                 JsonElement node = nodes[index];
@@ -294,6 +295,11 @@ public static partial class ModelExchange
                     metadata = native.RootElement.Clone();
                     kind = String(extras, "FF8_kind", kind);
                     nativeFramesPerSecond = extras.TryGetProperty("memoria_fps", out JsonElement fps) ? fps.GetSingle() : nativeFramesPerSecond;
+                    authoringBasis = extras.TryGetProperty("memoria_basis", out JsonElement basis) ? basis.GetInt32() : 1;
+                    if (authoringBasis is not (1 or 2))
+                    {
+                        throw new InvalidDataException("Unsupported model authoring coordinate basis.");
+                    }
                     name = String(node, "name", name);
                 }
             }
@@ -497,6 +503,10 @@ public static partial class ModelExchange
             }
             string? manifest = nodes.EnumerateArray().Select(node => Property(node, "memoria_ff8")).FirstOrDefault(value => value is not null);
             EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata) { ExchangeManifest = manifest, NativeFramesPerSecond = nativeFramesPerSecond };
+            if (authoringBasis == 2)
+            {
+                result = ChangeAuthoringBasis(result, importing: true);
+            }
             if (meshes.Count == 0 && animations.Count == 0)
             {
                 throw new InvalidDataException("The GLB contains no triangle meshes or animation channels.");

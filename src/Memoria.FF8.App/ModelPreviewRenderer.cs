@@ -1,5 +1,6 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
@@ -9,7 +10,15 @@ internal static class ModelPreviewRenderer
 {
     public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, float yaw, float pitch, float zoom, float seconds, int animation = 0, bool loop = true)
     {
-        IReadOnlyList<Vector3[]> rest = ModelExchange.Pose(model, 0, 0);
+        ModelPreviewCamera camera = new();
+        camera.Rotate(yaw, pitch);
+        camera.ZoomBy(zoom);
+        Render(renderer, model, width, height, camera, seconds, animation, loop);
+    }
+
+    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, ModelPreviewCamera camera, float seconds, int animation = 0, bool loop = true)
+    {
+        IReadOnlyList<Vector3[]> rest = ModelExchange.ToAuthoringSpace(model, ModelExchange.Pose(model, 0, 0));
         Vector3 minimum = new(float.PositiveInfinity);
         Vector3 maximum = new(float.NegativeInfinity);
         foreach (Vector3 point in rest.SelectMany(mesh => mesh))
@@ -23,10 +32,10 @@ internal static class ModelPreviewRenderer
         {
             throw new InvalidDataException("The model has no finite visible geometry.");
         }
-        float size = Math.Min(width, height) * 0.43f * zoom / radius;
-        Matrix4x4 rotation = Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateRotationX(pitch);
+        float size = Math.Min(width, height) * 0.43f * camera.Zoom / radius;
+        Matrix4x4 rotation = Matrix4x4.CreateFromQuaternion(camera.Orientation);
         float duration = (uint)animation < model.Animations.Count ? model.Animations[animation].Duration : 0;
-        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(model, animation, duration > 0 ? loop ? seconds % (duration + 1 / model.NativeFramesPerSecond) : Math.Clamp(seconds, 0, duration) : 0);
+        IReadOnlyList<Vector3[]> pose = ModelExchange.ToAuthoringSpace(model, ModelExchange.Pose(model, animation, duration > 0 ? loop ? seconds % (duration + 1 / model.NativeFramesPerSecond) : Math.Clamp(seconds, 0, duration) : 0));
         renderer.Begin(width, height, new Vector4(0.055f, 0.065f, 0.09f, 1));
         try
         {
@@ -41,7 +50,7 @@ internal static class ModelPreviewRenderer
                         EditableVertex vertex = mesh.Vertices[vertexIndex];
                         Vector3 position = Vector3.Transform(pose[meshIndex][vertexIndex] - center, rotation);
                         float depth = Math.Clamp(0.5f - position.Z / (radius * 8), 0, 1);
-                        return new(new Vector2(width * 0.5f + position.X * size, height * 0.5f - position.Y * size), depth, 1, vertex.Uv, vertex.Color);
+                        return new(new Vector2(width * 0.5f + position.X * size + camera.Pan.X * Math.Min(width, height), height * 0.5f - position.Y * size + camera.Pan.Y * Math.Min(width, height)), depth, 1, vertex.Uv, vertex.Color);
                     }
                     renderer.Draw(Vertex(mesh.Indices[index]), Vertex(mesh.Indices[index + 1]), Vertex(mesh.Indices[index + 2]), material);
                 }

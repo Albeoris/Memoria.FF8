@@ -9,6 +9,51 @@ namespace Memoria.FF8.Mods.Tests;
 
 public sealed class ModelModNativeTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void AuthoredBattleRotationAtEulerPoleRetainsFullNativeJointOrientation(int sign)
+    {
+        BattleModel original = Model();
+        Vector3 angles = new(sign * MathF.PI / 2, 0.7f, -0.4f);
+        BattlePose pose = new(Vector3.Zero, [angles], [Vector3.One]);
+        EditableModel authored = ModelExchange.FromBattle(original with { Animations = [new([pose])] });
+        EditableModel target = ModelExchange.FromBattle(original);
+        ModelMods mods = Prepare(ModelModInstaller.Plan([new("battle/test.dat", target, false, [new("embedded", 0, authored.Animations[0])])]));
+        BattleModel result = mods.Apply("battle/test.dat", original);
+        NativeBattleVector encoded = result.NativePoseSource!.Sample(0, 1, 0).Bones[0].Rotation;
+        Vector3 decoded = new Vector3(encoded.X, encoded.Y, encoded.Z) * (MathF.Tau / 4096);
+        AssertBasis(BattleRotation(angles), BattleRotation(decoded), 0.003f);
+        Assert.Equal(original.NativePoseSource!.Sample(1, 2, 0).Translation, result.NativePoseSource!.Sample(1, 2, 0).Translation);
+        Assert.Equal(original.NativePoseSource.Sample(1, 2, 0).Bones.ToArray(), result.NativePoseSource.Sample(1, 2, 0).Bones.ToArray());
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void AuthoredFieldRotationAtEulerPoleRetainsFullNativeJointOrientation(int sign)
+    {
+        FieldModel original = new("field", [new(-1, 0)], [], [], [], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        Vector3 angles = new(0.7f, sign * MathF.PI / 2, -0.4f);
+        EditableModel authored = ModelExchange.FromField(original with { Animations = [new([new(Vector3.Zero, [angles])])] });
+        EditableModel target = ModelExchange.FromField(original);
+        ModelMods mods = Prepare(ModelModInstaller.Plan([new("field/sample/0", target, false, [new("embedded", 0, authored.Animations[0])])]));
+        FieldModel result = mods.Apply("field/sample/0", original);
+        AssertBasis(FieldRotation(angles), FieldRotation(result.Animations[0].Frames[0].Rotations[0]), 0.00001f);
+    }
+
+    private static Matrix4x4 BattleRotation(Vector3 angles) => Matrix4x4.CreateRotationZ(angles.Z) * Matrix4x4.CreateRotationX(-angles.X) * Matrix4x4.CreateRotationY(-angles.Y);
+
+    private static Matrix4x4 FieldRotation(Vector3 angles) => Matrix4x4.CreateRotationZ(angles.Z) * Matrix4x4.CreateRotationY(angles.Y) * Matrix4x4.CreateRotationX(angles.X);
+
+    private static void AssertBasis(Matrix4x4 expected, Matrix4x4 actual, float tolerance)
+    {
+        foreach (Vector3 axis in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
+        {
+            Assert.InRange(Vector3.Distance(Vector3.TransformNormal(axis, expected), Vector3.TransformNormal(axis, actual)), 0, tolerance);
+        }
+    }
+
     [Fact]
     public void ConstantCubicNativeFieldTracksValidateKeyValuesWithoutMistakingTangentsForPoses()
     {

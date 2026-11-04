@@ -54,9 +54,10 @@ public sealed partial class ModelBrowserController
     public int CommandIndex { get; private set; }
     public string Search { get; private set; } = "";
     public bool SearchFocused { get; private set; }
-    public float RotationX { get; private set; }
-    public float RotationY { get; private set; }
-    public float Zoom { get; private set; } = 1;
+    public ModelPreviewCamera Camera { get; } = new();
+    public float RotationX => Camera.Pitch;
+    public float RotationY => Camera.Yaw;
+    public float Zoom => Camera.Zoom;
     private Func<string>? readMessage;
     public string Message
     {
@@ -66,7 +67,7 @@ public sealed partial class ModelBrowserController
     private Func<string>? readHints;
     public string Hints
     {
-        get => readHints?.Invoke() ?? SystemText("model.hints.default", "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant");
+        get => readHints?.Invoke() ?? SystemText("model.hints.default", "LMB / MMB: orbit / Shift-drag: pan / RMB: roll + zoom / Wheel: zoom\nArrows: select / rotate / Confirm: view / commands / Cancel: back");
         private set => readHints = () => value;
     }
     public UiRect PreviewBounds => AssetsOpen ? new UiRect(18, 92, 480, 360) : Mode == ModelBrowserMode.Catalog ? new UiRect(18, 134, 390, 390) : new UiRect(18, 92, 924, 432);
@@ -209,9 +210,7 @@ public sealed partial class ModelBrowserController
     {
         CloseAssetPanel();
         VariantIndex = 0;
-        RotationX = 0;
-        RotationY = 0;
-        Zoom = 1;
+        Camera.Reset();
         Message = "";
     }
 
@@ -233,8 +232,7 @@ public sealed partial class ModelBrowserController
     {
         if (Mode == ModelBrowserMode.Viewer && float.IsFinite(horizontal) && float.IsFinite(vertical))
         {
-            RotationY = MathF.IEEERemainder(RotationY + horizontal, MathF.Tau);
-            RotationX = Math.Clamp(RotationX + vertical, -MathF.PI / 2, MathF.PI / 2);
+            Camera.Rotate(horizontal, vertical);
         }
     }
 
@@ -242,7 +240,84 @@ public sealed partial class ModelBrowserController
     {
         if (Mode == ModelBrowserMode.Viewer && float.IsFinite(factor) && factor > 0)
         {
-            Zoom = Math.Clamp(Zoom * factor, 0.1f, 10f);
+            Camera.ZoomBy(factor);
+        }
+    }
+
+    private enum PreviewDrag
+    {
+        None,
+        Orbit,
+        Pan,
+        RollZoom
+    }
+
+    private PreviewDrag previewDrag;
+    private float previewPointerX;
+    private float previewPointerY;
+    private bool previewButtonsHeld;
+
+    public bool PreviewDragging => previewDrag != PreviewDrag.None;
+
+    public void UpdatePreviewPointer(float x, float y, bool left, bool middle, bool right, bool shift, bool active)
+    {
+        bool held = left || middle || right;
+        if (!active || Mode != ModelBrowserMode.Viewer)
+        {
+            previewDrag = PreviewDrag.None;
+            previewButtonsHeld = held;
+            return;
+        }
+        if (previewDrag == PreviewDrag.None && held && !previewButtonsHeld && PreviewBounds.Contains(x, y))
+        {
+            previewDrag = shift && (left || middle) ? PreviewDrag.Pan : right ? PreviewDrag.RollZoom : PreviewDrag.Orbit;
+            SetPreviewFocused();
+        }
+        else if (previewDrag != PreviewDrag.None && held)
+        {
+            float dx = x - previewPointerX;
+            float dy = y - previewPointerY;
+            if (previewDrag == PreviewDrag.Orbit)
+            {
+                Camera.Rotate(dx * 0.01f, dy * 0.01f);
+            }
+            else if (previewDrag == PreviewDrag.Pan)
+            {
+                float size = Math.Min(PreviewBounds.Width, PreviewBounds.Height);
+                Camera.PanBy(dx / size, dy / size);
+            }
+            else
+            {
+                Camera.Rotate(0, 0, -dx * 0.01f);
+                Camera.ZoomBy(MathF.Exp(-dy * 0.01f));
+            }
+        }
+        if (!held)
+        {
+            previewDrag = PreviewDrag.None;
+        }
+        previewPointerX = x;
+        previewPointerY = y;
+        previewButtonsHeld = held;
+    }
+
+    public void SetCameraView(ModelPreviewView view)
+    {
+        if (view == ModelPreviewView.Side)
+        {
+            Camera.SetView(MathF.PI / 2);
+        }
+        else if (view == ModelPreviewView.Top)
+        {
+            Camera.SetView(0, MathF.PI / 2);
+        }
+        else if (view == ModelPreviewView.Front)
+        {
+            Camera.SetView();
+        }
+        else
+        {
+            Camera.Reset();
         }
     }
 

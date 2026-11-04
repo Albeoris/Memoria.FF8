@@ -128,6 +128,10 @@ public static class ModelAssetExchange
         List<ModelAssetObject> objects = [];
         List<ModelAssetClip> clips = [];
         List<string> warnings = imported.Warnings.ToList();
+        foreach (EditableAnimation animation in combined.Animations.Where(animation => !manifest.Clips.Any(clip => animation.Name.Contains(clip.AnimationToken, StringComparison.Ordinal))))
+        {
+            warnings.Add($"Animation '{animation.Name}' has no replacement-slot identity and needs explicit slot mapping; it was not imported. Put the authored action in the exported slot's qualified NLA track; new gameplay slots are unsupported.");
+        }
         foreach (ObjectInfo info in manifest.Objects)
         {
             int[] indices = Enumerable.Range(0, combined.Bones.Count).Where(index => combined.Bones[index].RigId == info.RigId || combined.Bones[index].RigId is null && combined.Bones[index].Name.StartsWith(Token(info.RigId) + "_bone_", StringComparison.Ordinal)).ToArray();

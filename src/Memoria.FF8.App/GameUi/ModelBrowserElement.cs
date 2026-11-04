@@ -32,7 +32,10 @@ internal sealed partial class ModelBrowserElement : UiElement
             Button(canvas, theme, VariantBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawself.variant", "Variant: ") + (controller.CurrentVariant?.DisplayName ?? controller.SystemText("inspector.ui.modelbrowserelement.drawself.unavailable", "Unavailable")));
         }
         Button(canvas, theme, BackBounds, controller.Mode == ModelBrowserMode.Catalog ? controller.SystemText("inspector.ui.modelbrowserelement.drawself.close", "Close") : controller.SystemText("inspector.ui.modelbrowserelement.drawself.back", "Back"));
-        Label(canvas, controller.Message, 13, new UiRect(24, 578, 384, 32), theme.Foreground);
+        if (!controller.AssetsOpen)
+        {
+            Label(canvas, controller.Message, 13, new UiRect(24, 578, 384, 32), theme.Foreground);
+        }
         Label(canvas, controller.Hints, 12, new UiRect(24, 619, 790, 36), theme.Muted);
         if (controller.Mode == ModelBrowserMode.Catalog)
         {
@@ -89,7 +92,7 @@ internal sealed partial class ModelBrowserElement : UiElement
         Button(canvas, theme, new UiRect(730, 540, 92, 30), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.next", "Next"));
         Button(canvas, theme, new UiRect(832, 540, 46, 30), "+");
         Button(canvas, theme, new UiRect(886, 540, 44, 30), "-");
-        string[] labels = ["<", ">", controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.up", "Up"), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.down", "Down")];
+        string[] labels = CameraLabels();
         for (int index = 0; index < labels.Length; index++)
         {
             Button(canvas, theme, RotateBounds(index), labels[index]);
@@ -218,16 +221,20 @@ internal sealed partial class ModelBrowserElement : UiElement
         }
         else
         {
-            MenuInput[] rotations = [MenuInput.Left, MenuInput.Right, MenuInput.Up, MenuInput.Down];
-            for (int index = 0; index < rotations.Length; index++)
+            for (int index = 0; index < 4; index++)
             {
                 if (RotateBounds(index).Contains(x, y))
                 {
-                    controller.Navigate(rotations[index]);
+                    controller.SetCameraView((ModelPreviewView)index);
                     return;
                 }
             }
         }
+    }
+
+    private string[] CameraLabels()
+    {
+        return [controller.SystemText("model.camera.front", "Front"), controller.SystemText("model.camera.side", "Side"), controller.SystemText("model.camera.top", "Top"), controller.SystemText("model.camera.reset", "Reset")];
     }
 
     private static UiRect CommandBounds(int index)

@@ -39,6 +39,24 @@ public sealed class ModelBrowserDialogTests
     }
 
     [Fact]
+    public void Preview_uses_authoring_up_and_front_and_applies_screen_space_pan()
+    {
+        EditableModel model = Triangle();
+        RecordingRenderer original = new();
+        ModelPreviewRenderer.Render(original, model, 800, 400, 0, 0, 1, 0);
+        Assert.True(original.Vertices[2].Position.Y < original.Vertices[0].Position.Y);
+        Assert.True(original.Vertices[2].Depth > original.Vertices[0].Depth);
+        GameUi.ModelPreviewCamera camera = new();
+        camera.PanBy(0.25f, -0.1f);
+        RecordingRenderer panned = new();
+        ModelPreviewRenderer.Render(panned, model, 800, 400, camera, 0);
+        for (int index = 0; index < original.Vertices.Count; index++)
+        {
+            Assert.True(Vector2.Distance(original.Vertices[index].Position + new Vector2(100, -40), panned.Vertices[index].Position) < 0.001f);
+        }
+    }
+
+    [Fact]
     public void Preview_rejects_empty_geometry_before_begin_and_balances_end_after_draw_failure()
     {
         EditableModel model = Triangle();
@@ -57,7 +75,7 @@ public sealed class ModelBrowserDialogTests
         [
             new(new Vector3(10, 20, 0), Vector3.UnitZ, new Vector2(0, 0), Vector4.Zero, Vector4.Zero, new Vector4(1, 0, 0, 1)),
             new(new Vector3(12, 20, 0), Vector3.UnitZ, new Vector2(1, 0), Vector4.Zero, Vector4.Zero, new Vector4(0, 1, 0, 1)),
-            new(new Vector3(10, 22, 1), Vector3.UnitZ, new Vector2(0, 1), Vector4.Zero, Vector4.Zero, new Vector4(0, 0, 1, 1))
+            new(new Vector3(10, 18, 1), Vector3.UnitZ, new Vector2(0, 1), Vector4.Zero, Vector4.Zero, new Vector4(0, 0, 1, 1))
         ];
         EditableMesh mesh = new("triangle", vertices, [0, 1, 2], -1, Matrix4x4.CreateTranslation(7, -4, 2));
         return new EditableModel("synthetic", "field", [], [mesh], [], [], JsonSerializer.SerializeToElement(new { }));

@@ -12,6 +12,40 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ModelExchangeTests
 {
     [Fact]
+    public void UprightAuthoringBasisIsVersionedAndLegacyFilesRemainReadable()
+    {
+        EditableModel source = CreateModel();
+        byte[] current = ModelExchange.ExportGlb(source);
+        using JsonDocument json = JsonDocument.Parse(current.AsMemory(20, BinaryPrimitives.ReadInt32LittleEndian(current.AsSpan(12))));
+        Assert.Contains(json.RootElement.GetProperty("nodes").EnumerateArray(), node => node.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty("memoria_basis", out JsonElement basis) && basis.GetInt32() == 2);
+        Assert.Equal(Vector3.UnitY, ModelExchange.ToAuthoringSpace(-Vector3.UnitY, source.Kind));
+        Assert.Equal(Vector3.UnitY, ModelExchange.ToAuthoringSpace(-Vector3.UnitZ, "battle"));
+        Assert.Equal(Vector3.UnitZ, ModelExchange.ToAuthoringSpace(-Vector3.UnitY, "battle"));
+        AssertPoseEqual(ModelExchange.Pose(source, 0, 0.5f), ModelExchange.Pose(ModelExchange.ImportGlb(current).Model, 0, 0.5f));
+
+        byte[] legacy = ChangeJson(current, root =>
+        {
+            foreach (JsonNode? node in root["nodes"]!.AsArray())
+            {
+                (node?["extras"] as JsonObject)?.Remove("memoria_basis");
+            }
+        });
+        EditableModel legacyResult = ModelExchange.ImportGlb(legacy).Model;
+        AssertPoseEqual(ModelExchange.Pose(source, 0, 0.5f).Select(mesh => mesh.Select(position => ModelExchange.ToAuthoringSpace(position, source.Kind)).ToArray()).ToArray(), ModelExchange.Pose(legacyResult, 0, 0.5f));
+        byte[] future = ChangeJson(current, root =>
+        {
+            foreach (JsonNode? node in root["nodes"]!.AsArray())
+            {
+                if (node?["extras"]?["memoria_basis"] is not null)
+                {
+                    node["extras"]!["memoria_basis"] = 999;
+                }
+            }
+        });
+        Assert.Throws<InvalidDataException>(() => ModelExchange.ImportGlb(future));
+    }
+
+    [Fact]
     public void NativeBattleMaterialGroupingRetainsPageClutAndDepthFlagTemplates()
     {
         BattleVertex[] vertices = [new(Vector3.Zero, 0), new(Vector3.UnitX, 0), new(Vector3.UnitY, 0)];

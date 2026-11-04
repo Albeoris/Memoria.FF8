@@ -14,6 +14,7 @@ public static partial class ModelExchange
     public static byte[] ExportGlb(EditableModel model)
     {
         Validate(model);
+        model = ChangeAuthoringBasis(model);
         using MemoryStream binary = new();
         using BinaryWriter writer = new(binary, Encoding.UTF8, true);
         JsonArray views = [];
@@ -179,7 +180,7 @@ public static partial class ModelExchange
         // A string custom property survives Blender's import/export custom-property option.
         string metadata = model.NativeMetadata.ValueKind == JsonValueKind.Undefined ? "{}" : model.NativeMetadata.GetRawText();
         int metadataNode = nodes.Count;
-        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1, ["memoria_fps"] = model.NativeFramesPerSecond, ["memoria_ff8"] = model.ExchangeManifest } });
+        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1, ["memoria_basis"] = 2, ["memoria_fps"] = model.NativeFramesPerSecond, ["memoria_ff8"] = model.ExchangeManifest } });
         roots.Add(metadataNode);
         while (binary.Position % 4 != 0)
         {

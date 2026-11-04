@@ -68,7 +68,11 @@ internal static class ModelModAnimationConverter
                         throw new NotSupportedException("An animation transform cannot be decomposed into native joint tracks.");
                     }
                     Matrix4x4 matrix = Matrix4x4.CreateFromQuaternion(rotation);
-                    rotations[bone] = new(MathF.Asin(Math.Clamp(matrix.M32, -1, 1)), -MathF.Atan2(matrix.M31, matrix.M33), MathF.Atan2(matrix.M12, matrix.M22));
+                    float cosine = MathF.Sqrt(matrix.M31 * matrix.M31 + matrix.M33 * matrix.M33);
+                    // At the X pole, fold the coupled Y rotation into Z instead of taking atan2(0, 0).
+                    rotations[bone] = cosine > 0.000001f
+                        ? new(MathF.Atan2(matrix.M32, cosine), -MathF.Atan2(matrix.M31, matrix.M33), MathF.Atan2(matrix.M12, matrix.M22))
+                        : new(MathF.CopySign(MathF.PI / 2, matrix.M32), 0, MathF.Atan2(-matrix.M21, matrix.M11));
                     if (model.Bones[bone].Parent < 0)
                     {
                         translation = new Vector3(-position.X, -position.Y, position.Z) / model.Scale;
@@ -119,7 +123,11 @@ internal static class ModelModAnimationConverter
                         throw new NotSupportedException("Native field clips cannot represent animated scale or shear.");
                     }
                     Matrix4x4 matrix = Matrix4x4.CreateFromQuaternion(rotation);
-                    rotations[bone] = new(MathF.Atan2(-matrix.M32, matrix.M33), MathF.Asin(Math.Clamp(matrix.M31, -1, 1)), MathF.Atan2(-matrix.M21, matrix.M11));
+                    float cosine = MathF.Sqrt(matrix.M32 * matrix.M32 + matrix.M33 * matrix.M33);
+                    // The field rotation order couples X and Z at the Y pole.
+                    rotations[bone] = cosine > 0.000001f
+                        ? new(MathF.Atan2(-matrix.M32, matrix.M33), MathF.Atan2(matrix.M31, cosine), MathF.Atan2(-matrix.M21, matrix.M11))
+                        : new(0, MathF.CopySign(MathF.PI / 2, matrix.M31), MathF.Atan2(matrix.M12, matrix.M22));
                 }
                 frames.Add(new(translation, rotations));
             }
