@@ -8,7 +8,7 @@ internal static class HeadlessControlHost
 {
     public static int Run(string[] args)
     {
-        LaunchOptions options = LaunchOptions.Parse(args);
+        LaunchOptions options = PlayerStateLoader.Parse(args);
         if (options.StatePath is null || options.ControlDirectory is null || options.InitialState.Scene is not (SceneKind.Field or SceneKind.WorldMap or SceneKind.Movie))
         {
             throw new ArgumentException("Headless control requires --state <standalone.json> and --control-dir <queue-directory> for a field, world or movie checkpoint.");

@@ -73,9 +73,9 @@ internal static class SnapshotStorage
         stream.Position = end;
     }
 
-    internal static GameState Read(FileStream stream, JsonSerializerOptions options)
+    internal static GameState Read(FileStream stream, JsonSerializerOptions options, Func<NativeLimitProgress>? initializeLegacyAngelo = null)
     {
-        return ReadPayload(stream, options, payload => SnapshotDefaults.Deserialize(payload, options));
+        return ReadPayload(stream, options, payload => SnapshotDefaults.Deserialize(payload, options, initializeLegacyAngelo));
     }
 
     internal static T ReadProjection<T>(FileStream stream, JsonSerializerOptions options) where T : class

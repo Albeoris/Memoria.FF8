@@ -108,13 +108,13 @@ internal static class MenuPreview
             throw new ArgumentException("Menu preview requires --output <PNG>, optional --ui <vector|classic>, --screen <screen-id|battle-debug>, --state <standalone.json>, --character <menu-id>, --expanded, --resolution WxH, --text-scale <100|125|150>, --font-size <6..48> and --time <0..86400 seconds>.");
         }
         UiView view;
-        using GameWorld? tutorialWorld = screen == "native-tutorial" && statePath is not null ? new(new GameSession(GameSession.Load(statePath)), gameDirectory) : null;
+        using GameWorld? tutorialWorld = screen == "native-tutorial" && statePath is not null ? new(new GameSession(PlayerStateLoader.Load(statePath, gameDirectory)), gameDirectory) : null;
         using var mods = new Memoria.FF8.Mods.ModRuntime(applicationBaseDirectory: Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, watch: false, additionalBaseDirectories: [gameDirectory]);
         mods.PreparePending(true);
         mods.CommitPending();
         if (screen.StartsWith("player-save", StringComparison.Ordinal))
         {
-            view = BuildPlayerSavePreview(screen, statePath, fontSize / 24f * textScale / 100f);
+            view = BuildPlayerSavePreview(screen, statePath, fontSize / 24f * textScale / 100f, gameDirectory);
         }
         else if (screen == "party-selection")
         {
@@ -122,7 +122,7 @@ internal static class MenuPreview
             MenuData data;
             if (statePath is not null)
             {
-                GameState state = GameSession.Load(statePath);
+                GameState state = PlayerStateLoader.Load(statePath, gameDirectory);
                 menu = state.EventState?.GetProperty("PartyMenu").Deserialize<NativePartyMenuState>() ?? throw new ArgumentException("Party selection preview requires an active party menu.");
                 if (menu is not { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
                 {
@@ -170,7 +170,7 @@ internal static class MenuPreview
             {
                 throw new ArgumentException("Triple Triad preview requires a standalone --state with a pending CARDGAME.");
             }
-            GameSession session = new(GameSession.Load(statePath));
+            GameSession session = new(PlayerStateLoader.Load(statePath, gameDirectory));
             using GameWorld world = new(session, gameDirectory);
             world.EnsureField();
             view = world.EnsureTripleTriad()?.BuildView() ?? throw new InvalidOperationException("No CARDGAME is active in this snapshot.");
@@ -195,7 +195,7 @@ internal static class MenuPreview
             GameState? previewState = null;
             if (statePath is not null)
             {
-                previewState = GameSession.Load(statePath);
+                previewState = PlayerStateLoader.Load(statePath, gameDirectory);
                 using GameAssets assets = new(gameDirectory);
                 liveData = LiveMenuData.Build(previewState, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
@@ -285,14 +285,14 @@ internal static class MenuPreview
         return 0;
     }
 
-    private static UiView BuildPlayerSavePreview(string screen, string? statePath, float textScale)
+    private static UiView BuildPlayerSavePreview(string screen, string? statePath, float textScale, string gameDirectory)
     {
         string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-preview-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
             PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), Path.Combine(directory, "memoria"), _ => "Balamb Garden", directory);
-            GameState state = statePath is null ? new GameState { Scene = SceneKind.Field, FieldId = 165, Playtime = new NativePlaytimeState(3723, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() } : GameSession.Load(statePath);
+            GameState state = statePath is null ? new GameState { Scene = SceneKind.Field, FieldId = 165, Playtime = new NativePlaytimeState(3723, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() } : PlayerStateLoader.Load(statePath, gameDirectory);
             store.Save(1, new GameSession(state));
             if (screen is "player-save-quick-load" or "player-save-mixed")
             {

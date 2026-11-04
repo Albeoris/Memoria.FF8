@@ -646,8 +646,20 @@ public sealed partial class GameSession : IEventServices
 
     public static GameState Load(string path)
     {
+        return LoadCore(path, null);
+    }
+
+    /// <summary>Reads a checkpoint and completes absent historical Angelo fields from the selected initial template when needed.</summary>
+    public static GameState Load(string path, Func<NativeLimitProgress> initializeLegacyAngelo)
+    {
+        ArgumentNullException.ThrowIfNull(initializeLegacyAngelo);
+        return LoadCore(path, initializeLegacyAngelo);
+    }
+
+    private static GameState LoadCore(string path, Func<NativeLimitProgress>? initializeLegacyAngelo)
+    {
         using FileStream stream = File.OpenRead(path);
-        GameState state = NormalizeGuardianForceCompatibilityState(SnapshotStorage.Read(stream, CompactJsonOptions));
+        GameState state = NormalizeGuardianForceCompatibilityState(SnapshotStorage.Read(stream, CompactJsonOptions, initializeLegacyAngelo));
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
         if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)

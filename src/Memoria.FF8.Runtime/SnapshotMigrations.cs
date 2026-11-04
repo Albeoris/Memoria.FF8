@@ -52,6 +52,9 @@ internal static class SnapshotMigrations
                 case 7:
                     // Unallocated world process owners are initialized with installed resources by the host.
                     break;
+                case 8:
+                    // Historical Angelo omissions may be completed by a resource-aware reader.
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }

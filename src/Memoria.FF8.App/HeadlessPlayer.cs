@@ -87,7 +87,7 @@ internal static class HeadlessPlayer
         {
             throw new ArgumentException("Headless play requires --state, --actions <JSON array> and --output <new directory>.");
         }
-        LaunchOptions options = LaunchOptions.Parse(launchArguments.ToArray());
+        LaunchOptions options = PlayerStateLoader.Parse(launchArguments.ToArray());
         if (options.StatePath is null || options.InitialState.Scene is not (SceneKind.Field or SceneKind.WorldMap or SceneKind.Movie))
         {
             throw new NotSupportedException("Headless play requires an exact field, world or movie checkpoint.");

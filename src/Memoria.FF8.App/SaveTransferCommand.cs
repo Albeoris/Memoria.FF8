@@ -48,7 +48,7 @@ internal static class SaveTransferCommand
         }
         else
         {
-            GameState state = GameSession.Load(options.SourcePath);
+            GameState state = PlayerStateLoader.Load(options.SourcePath, options.GameDirectory);
             byte[] original;
             if (options.GameDirectory is { } gameDirectory)
             {

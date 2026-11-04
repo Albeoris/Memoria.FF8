@@ -36,15 +36,17 @@ internal sealed partial class PlayerSaveStore
     private readonly string researchCheckpoint;
     private readonly Func<GameState, string?>? locationName;
     private readonly Func<string, GameState>? loadOriginal;
+    private readonly Func<string, GameState>? loadMemoria;
     private readonly Dictionary<string, CachedSaveEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int quickSaveCount = DefaultQuickSaveCount;
 
-    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null, bool discoverOriginalSaves = true)
+    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null, bool discoverOriginalSaves = true, Func<string, GameState>? loadMemoria = null)
     {
         this.directory = Path.GetFullPath(directory ?? DefaultDirectory);
         this.researchCheckpoint = Path.GetFullPath(researchCheckpoint);
         this.locationName = locationName;
         this.loadOriginal = loadOriginal;
+        this.loadMemoria = loadMemoria;
         OriginalDirectoryCandidates = discoverOriginalSaves ? OriginalSaveLocation.FindCandidates() : [];
         OriginalDirectory = originalDirectory is not null ? OriginalSaveLocation.ValidateDirectory(originalDirectory) : OriginalDirectoryCandidates.Count == 1 ? OriginalDirectoryCandidates[0] : null;
     }
@@ -308,9 +310,9 @@ internal sealed partial class PlayerSaveStore
         }
     }
 
-    private static GameState LoadPath(string path)
+    private GameState LoadPath(string path)
     {
-        GameState state = GameSession.Load(path);
+        GameState state = loadMemoria is null ? GameSession.Load(path) : loadMemoria(path);
         if (state.Scene == SceneKind.Title)
         {
             throw new InvalidDataException("This save contains no active game.");

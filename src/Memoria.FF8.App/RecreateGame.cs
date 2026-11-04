@@ -83,7 +83,7 @@ internal sealed partial class RecreateGame : Game
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
-        }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive);
+        }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive, loadMemoria: path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources));
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);

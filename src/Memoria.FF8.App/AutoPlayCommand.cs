@@ -47,7 +47,7 @@ internal static class AutoPlayCommand
                 launch.Add(argument);
             }
         }
-        LaunchOptions options = LaunchOptions.Parse(launch.ToArray());
+        LaunchOptions options = PlayerStateLoader.Parse(launch.ToArray());
         if (options.StatePath is not null && resume is not null)
         {
             throw new ArgumentException("Choose --state for fresh exploration coverage or --resume for an existing exploration run.");

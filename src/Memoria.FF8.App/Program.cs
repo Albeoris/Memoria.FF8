@@ -51,7 +51,7 @@ internal static class Program
             {
                 return HeadlessControlHost.Run(args[1..]);
             }
-            LaunchOptions options = LaunchOptions.Parse(args);
+            LaunchOptions options = PlayerStateLoader.Parse(args);
             if (options.RequestedGraphicsBackend is Memoria.FF8.Platform.GraphicsBackend requested && requested != Memoria.FF8.Platform.GraphicsBackend.Auto && requested.ToString() != GraphicsHostReadiness.Backend)
             {
                 throw new ArgumentException($"This executable is the {GraphicsHostReadiness.Backend} host, but {requested} was requested. Start Data/Memoria.FF8.exe to select a backend, or try Auto.");

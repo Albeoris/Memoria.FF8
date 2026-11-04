@@ -13,7 +13,7 @@ internal static class SteamAchievementProbe
             Console.Error.WriteLine("Steam achievement probing is unavailable on this platform; local achievement tracking remains available.");
             return 2;
         }
-        LaunchOptions options = LaunchOptions.Parse(args);
+        LaunchOptions options = PlayerStateLoader.Parse(args);
         GamePlatformContext context = GamePlatformContextResolver.Resolve(options.GameDirectory, options.AchievementsLocalOnly);
         if (!context.CanInitializeExternalBackend || context.Provider != GameDistributionProvider.Steam)
         {

@@ -113,7 +113,7 @@ internal static class TripleTriadPractice
         }
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(gameDirectory);
         SavedMatch? saved = load is null ? null : Read(load, catalog);
-        GameState? sourceState = source is null ? null : GameSession.Load(source);
+        GameState? sourceState = source is null ? null : PlayerStateLoader.Load(source, gameDirectory);
         options = saved?.Options ?? (saved is null ? sourceState?.GameplayPreferences.TripleTriad ?? options.NormalizeForDifficulty(BattleDifficulty.Normal) : new TripleTriadSettings { Width = saved.Match.Width, Height = saved.Match.Height, HandSize = saved.Match.InitialHands[0].Length, UseModifiedSamePlus = saved.Match.UseModifiedSamePlus, BlockedCellCount = saved.Match.BlockedCells.Length });
         options.Validate();
         NativeCardInventory? inventory = source is null ? null : sourceState!.CardInventory ?? throw new InvalidDataException("The story snapshot has no native card collection.");
