@@ -18,46 +18,57 @@ internal sealed partial class RecreateGame
         return DispatchControl(request);
     }
 
+    private SaveBoundaryState ReadSaveBoundaryState()
+    {
+        SaveBoundaryState state = new()
+        {
+            Faulted = fieldFaulted || fieldRenderFaulted || events?.LastFault is not null,
+            Scene = session.State.Scene,
+            StartupActive = startup.Active,
+            WorldLoaded = world is not null,
+            InterfaceOpen = gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || modelBrowser is not null || capturingControls || drainUiButtons,
+            AutomaticPlayActive = autoPlay?.Running == true || autoPlayFailureHeld,
+            BattleOrCardPending = ActiveBattle is not null || battleEntryTransition is not null || battleDebug is not null || world?.HasPendingBattle == true || world?.ActiveTripleTriad is not null,
+            InteractionPending = world?.PendingEntityName is not null || world?.CurrentDialogue is not null || world?.Tutorial is not null
+        };
+        if (state.Assess() is not (SaveBoundaryStatus.FieldNotReady or SaveBoundaryStatus.WorldNotReady))
+        {
+            return state;
+        }
+        if (state.Scene == SceneKind.WorldMap)
+        {
+            return state with
+            {
+                WorldReady = world?.WorldScene is not null && session.State.World is { NativeScriptedRuntime: null, NativeTrainRuntime: null } && !world.WorldScene.IsPresentationDeferred
+            };
+        }
+        bool fieldReady = world?.HasCurrentFieldAllocation == true && events?.NextTrigger.Kind == PlayerTriggerKind.Playable && events.CanAcceptMovementInput && !events.IsDialogueOpen && !FieldPresentationReadiness.HasPendingInitialization(events.Scene.NativeFieldInitialization);
+        return state with
+        {
+            FieldReady = fieldReady,
+            ScriptedMovementActive = fieldReady && events?.PlayerActor is { } player && (player.MovementTarget is not null || player.MovementActorId is not null || player.NativeScriptMovement is { Active: true } || player.NativeJump is { Active: true } || player.NativeLadder is { Active: true } || player.NativeLadderMode3 is { Active: true })
+        };
+    }
+
     private void EnsureUpdateSaveIsSafe()
     {
-        if (fieldFaulted || fieldRenderFaulted || events?.LastFault is not null)
+        string? failure = ReadSaveBoundaryState().Assess() switch
         {
-            throw new InvalidOperationException("The game stopped at a script or rendering fault. Load a running save before updating.");
-        }
-        if (startup.Active || session.State.Scene is not (SceneKind.Field or SceneKind.WorldMap) || world is null)
+            SaveBoundaryStatus.Faulted => "The game stopped at a script or rendering fault. Load a running save before updating.",
+            SaveBoundaryStatus.NotPlaying => "Start or load a game and wait for a playable field or world boundary before updating.",
+            SaveBoundaryStatus.InterfaceOpen => "Close the current menu or editor before updating so all changes belong to the saved game.",
+            SaveBoundaryStatus.AutomaticPlayActive => "Stop automatic play before preparing an update save.",
+            SaveBoundaryStatus.BattleOrCardPending => "Finish the current battle or card game before updating.",
+            SaveBoundaryStatus.InteractionPending => "Finish the current dialogue, naming prompt or tutorial before updating.",
+            SaveBoundaryStatus.FieldNotReady => "Wait until the current field event or transition returns player control before updating.",
+            SaveBoundaryStatus.ScriptedMovementActive => "Finish the current scripted movement before updating.",
+            SaveBoundaryStatus.WorldNotReady => "Wait until the current world event or transition finishes before updating.",
+            SaveBoundaryStatus.Ready => null,
+            _ => throw new InvalidOperationException("Unknown save boundary status.")
+        };
+        if (failure is not null)
         {
-            throw new InvalidOperationException("Start or load a game and wait for a playable field or world boundary before updating.");
-        }
-        if (gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || modelBrowser is not null || capturingControls || drainUiButtons)
-        {
-            throw new InvalidOperationException("Close the current menu or editor before updating so all changes belong to the saved game.");
-        }
-        if (autoPlay?.Running == true || autoPlayFailureHeld)
-        {
-            throw new InvalidOperationException("Stop automatic play before preparing an update save.");
-        }
-        if (ActiveBattle is not null || battleEntryTransition is not null || battleDebug is not null || world.HasPendingBattle || world.ActiveTripleTriad is not null)
-        {
-            throw new InvalidOperationException("Finish the current battle or card game before updating.");
-        }
-        if (world.PendingEntityName is not null || world.CurrentDialogue is not null || world.Tutorial is not null)
-        {
-            throw new InvalidOperationException("Finish the current dialogue, naming prompt or tutorial before updating.");
-        }
-        if (session.State.Scene == SceneKind.Field)
-        {
-            if (!world.HasCurrentFieldAllocation || events?.NextTrigger.Kind != PlayerTriggerKind.Playable || !events.CanAcceptMovementInput || events.IsDialogueOpen || FieldPresentationReadiness.HasPendingInitialization(events.Scene.NativeFieldInitialization))
-            {
-                throw new InvalidOperationException("Wait until the current field event or transition returns player control before updating.");
-            }
-            if (events.PlayerActor is { } player && (player.MovementTarget is not null || player.MovementActorId is not null || player.NativeScriptMovement is { Active: true } || player.NativeJump is { Active: true } || player.NativeLadder is { Active: true } || player.NativeLadderMode3 is { Active: true }))
-            {
-                throw new InvalidOperationException("Finish the current scripted movement before updating.");
-            }
-        }
-        else if (world.WorldScene is null || session.State.World is not { } currentWorld || currentWorld.NativeScriptedRuntime is not null || currentWorld.NativeTrainRuntime is not null || world.WorldScene.IsPresentationDeferred)
-        {
-            throw new InvalidOperationException("Wait until the current world event or transition finishes before updating.");
+            throw new InvalidOperationException(failure);
         }
     }
 
