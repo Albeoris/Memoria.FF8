@@ -10,6 +10,84 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNativeWaitTests
 {
     [Fact]
+    public void RetainedControlledInteractionBatchesItsNativeWaitWithoutChangingSeparateCallbackResults()
+    {
+        string? manifest = Environment.GetEnvironmentVariable("MEMORIA_FF8_AUTOPLAY_PENDING_MANIFEST");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(manifest) && File.Exists(manifest), "Set MEMORIA_FF8_AUTOPLAY_PENDING_MANIFEST to an optional retained controlled-interaction manifest.");
+        string directory = TestResources.GameDirectory;
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(manifest!), AutoPlayController.JsonOptions)!;
+        Assert.NotNull(saved.Snapshot);
+        Assert.NotNull(saved.ActiveEvent);
+        Assert.NotNull(saved.ActiveBeforeCheckpoint);
+        Assert.False(saved.ObservedControlLoss);
+        string snapshot = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(manifest!))!, saved.Snapshot);
+        GameSession ordinarySession = new(GameSession.Load(snapshot));
+        using GameWorld ordinary = new(ordinarySession, directory, validateWorldPresentation: false);
+        ordinary.EnsureField();
+        Assert.True(ordinary.Events.IsUserControlEnabled);
+        Assert.Equal(saved.ActiveField, ordinarySession.State.FieldId);
+        Assert.Equal(PlayerTriggerKind.Playable, ordinary.NextTrigger.Kind);
+        Assert.True(ordinary.Events.HasPendingPlayerInteraction(saved.ActiveObjectId));
+        Assert.Equal(1, ordinary.Apply(new(PlayerActionKind.Wait, Frames: 300)).FramesAdvanced);
+
+        GameSession separateSession = new(GameSession.Load(snapshot));
+        using GameWorld separate = new(separateSession, directory, validateWorldPresentation: false);
+        separate.EnsureField();
+        GameSession session = GameSession.CreateColdProcess();
+        GameWorld? world = null;
+        string output = Path.Combine(Path.GetTempPath(), "autoplay-pending-wait-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            GameWorld GetWorld() => world ??= new(session, directory, validateWorldPresentation: false);
+            void Restore(GameState state)
+            {
+                world?.Dispose();
+                world = null;
+                session.Restore(state);
+            }
+            AutoPlayController controller = new(session, GetWorld, Restore, output);
+            controller.ResumeFrom(manifest!);
+            GameWorld current = GetWorld();
+            current.EnsureField();
+            Assert.True(current.Events.IsUserControlEnabled);
+            Assert.Equal(PlayerTriggerKind.Playable, current.NextTrigger.Kind);
+            Assert.True(current.Events.HasPendingPlayerInteraction(saved.ActiveObjectId));
+            Assert.True(JsonElement.DeepEquals(current.Events.Capture(), separate.Events.Capture()));
+            long frame = current.Events.Frame;
+
+            controller.Advance(1);
+
+            Assert.Null(controller.Error);
+            int callbacks = checked((int)(current.Events.Frame - frame));
+            Assert.InRange(callbacks, 2, 300);
+            Assert.Equal(saved.SceneFrames + callbacks, controller.State.SceneFrames);
+            Assert.Equal(saved.ActiveEvent, controller.State.ActiveEvent);
+            Assert.NotNull(controller.State.ActiveBeforeCheckpoint);
+            for (int callback = 0; callback < callbacks; callback++)
+            {
+                Assert.Equal(1, separate.Apply(new(PlayerActionKind.Wait)).FramesAdvanced);
+            }
+            Assert.Equal(separate.Events.HasPendingPlayerInteraction(saved.ActiveObjectId), current.Events.HasPendingPlayerInteraction(saved.ActiveObjectId));
+            Assert.Equal(separate.Events.IsUserControlEnabled, current.Events.IsUserControlEnabled);
+            Assert.Equal(separate.NextTrigger.Kind, current.NextTrigger.Kind);
+            Assert.True(JsonElement.DeepEquals(separate.Events.Capture(), current.Events.Capture()));
+            session.SetDialogueDraft(null);
+            separateSession.SetDialogueDraft(null);
+            JsonElement expected = JsonSerializer.SerializeToElement(separateSession.PrepareSnapshot() with { EventState = separate.Events.Capture() });
+            JsonElement actual = JsonSerializer.SerializeToElement(session.PrepareSnapshot() with { EventState = current.Events.Capture() });
+            Assert.True(JsonElement.DeepEquals(expected, actual));
+        }
+        finally
+        {
+            world?.Dispose();
+            if (Directory.Exists(output))
+            {
+                Directory.Delete(output, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void OrdinaryPlayableWaitRemainsOneCallbackAndOptInMatchesSeparateCallbacks()
     {
         EventEngine batched = Create([(Jsm.Opcode.HALT, 0)]);

@@ -695,7 +695,7 @@ internal sealed partial class AutoPlayController
             {
                 throw new TimeoutException("No control-return boundary within 180000 simulation frames. Inspect the saved wait/input contract.");
             }
-            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: 300)).FramesAdvanced;
+            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: 300, WaitWhilePlayable: true)).FramesAdvanced;
             return;
         }
         if (run.SettleFrames < 4)
