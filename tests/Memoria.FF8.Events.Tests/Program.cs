@@ -17,6 +17,7 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
                     ["jsm-resource-validation"] = JsmResourceValidationContract,
                     ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
                     ["native-refinement-input"] = NativeRefinementInputContract,

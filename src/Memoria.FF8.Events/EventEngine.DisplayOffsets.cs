@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
@@ -110,6 +111,10 @@ public sealed partial class EventEngine
             }
             if (state.Command is not NativeDisplayOffsetCommand command)
             {
+                if (ValidGameplayActorReconstruction(actor, saved.Frame) && actor.GameplayReconstruction!.Offset is { } semantic && semantic == new GameplaySaveActorOffset(state.X, state.Y, state.Z, state.StartX, state.StartY, state.StartZ, state.TargetX, state.TargetY, state.TargetZ, state.Duration, state.Counter, state.Mode))
+                {
+                    continue;
+                }
                 if (state != NativeDisplayOffsetState.AllocatedZero)
                 {
                     throw new InvalidDataException("Saved nonzero display offset has no executed command.");

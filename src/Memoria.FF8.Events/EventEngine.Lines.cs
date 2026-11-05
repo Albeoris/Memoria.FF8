@@ -76,6 +76,10 @@ public sealed partial class EventEngine
 
     private bool ValidNativeLineOwner(ActorState line)
     {
+        if (line.GameplayReconstruction is { } origin && ValidGameplayActorReconstruction(line, long.MaxValue) && line.LineStart == origin.Line.Start?.ToVector3() && line.LineEnd == origin.Line.End?.ToVector3() && program!.Objects[line.ObjectId].IsDoor && line.NativeSetLineReceipt is null)
+        {
+            return true;
+        }
         if (program is null || (uint)line.ObjectId >= program.Objects.Count || (uint)line.LineOperation >= program.Operations.Count || program.Operations[line.LineOperation].Opcode != Albeoris.Games.FF8.Jsm.Jsm.Opcode.SETLINE)
         {
             return false;

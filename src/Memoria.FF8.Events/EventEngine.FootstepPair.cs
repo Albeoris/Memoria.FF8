@@ -95,6 +95,13 @@ public sealed partial class EventEngine
                     throw new InvalidDataException("Saved footstep allocation disagrees with original52BC00 FF/FF.");
                 }
             }
+            else if (source.Kind == "GameplaySave")
+            {
+                if (!ValidGameplayActorReconstruction(saved.Actors[source.ObjectId], saved.Frame) || saved.Actors[source.ObjectId].GameplayReconstruction is not { } semantic || source.ScriptId != -1 || source.Operation != -1 || source.Frame != semantic.Frame || source.RawValue is not null || source.RawParameter is not null || pair.First392 != semantic.Footsteps.First || pair.Second393 != semantic.Footsteps.Second)
+                {
+                    throw new InvalidDataException("Saved semantic footstep values lack their normal-load actor origin.");
+                }
+            }
             else if (source.Kind == nameof(Jsm.Opcode.FOOTSTEP))
             {
                 if (source.RawValue is not int raw || source.RawParameter is not int parameter || pair.First392 != unchecked((byte)raw) || pair.Second393 != unchecked((byte)parameter))

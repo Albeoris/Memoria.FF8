@@ -60,6 +60,6 @@ public sealed partial class EventEngine
             EventScript? script = program!.Objects[line.ObjectId].Scripts.SingleOrDefault(script => script.Id == receipt.ScriptId);
             return receipt.Version == 1 && receipt.FieldId == FieldId && receipt.ProgramHash == programHash && receipt.ObjectId == line.ObjectId && receipt.NativeDoorOrdinal == NativeDoorOrdinal(line.ObjectId) && receipt.Operation == line.LineOperation && receipt.Frame > 0 && receipt.Frame <= frame && receipt.Start is not null && receipt.End is not null && receipt.Start.Position == start && receipt.End.Position == end && script is not null && script.ContainsOperation(receipt.Operation);
         }
-        return false;
+        return ValidGameplayActorReconstruction(line, frame) && line.GameplayReconstruction!.Line.Start?.ToVector3() == start && line.GameplayReconstruction.Line.End?.ToVector3() == end;
     }
 }

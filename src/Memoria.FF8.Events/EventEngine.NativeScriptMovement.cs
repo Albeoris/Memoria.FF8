@@ -169,6 +169,10 @@ public sealed partial class EventEngine
         {
             return new FieldFixedPosition(copied.FixedX, copied.FixedY, copied.FixedZ);
         }
+        if (ValidGameplayActorReconstruction(actor, Frame) && actor.GameplayReconstruction!.Position is { } semantic && actor.X == semantic.X / 4096f && actor.Y == semantic.Y / 4096f && actor.Z == semantic.Z / 4096f)
+        {
+            return semantic;
+        }
         if (!float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || actor.X != MathF.Truncate(actor.X) || actor.Y != MathF.Truncate(actor.Y) || actor.Z != MathF.Truncate(actor.Z) || actor.X is < short.MinValue or > short.MaxValue || actor.Y is < short.MinValue or > short.MaxValue || actor.Z is < short.MinValue or > short.MaxValue)
         {
             return null;

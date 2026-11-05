@@ -18,6 +18,13 @@ public sealed class ActorState
 
     public int ObjectId { get; }
     public int Label { get; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplayFieldActorReconstruction? GameplayReconstruction { get; internal set; }
+    [JsonIgnore]
+    public IReadOnlyList<byte>? ResolvedShadowRadii => NativeShadowForm?.Radii601To608 ?? (NativeShadowSet is null ? GameplayReconstruction?.Appearance.ShadowRadii : null);
+    [JsonIgnore]
+    public byte? ResolvedShadowLevel => NativeShadowLevel?.Level609 ?? NativeShadowAllocation?.Level609 ?? (GameplayReconstruction is not null ? checked((byte)ShadeLevel) : null);
     [JsonIgnore]
     public long PresentationPositionRevision { get; internal set; }
     [JsonIgnore]

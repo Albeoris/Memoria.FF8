@@ -24,7 +24,7 @@ public sealed partial class EventEngine
             return $"Native {operation.Opcode} requires its authenticated actor-radius contract and {count} original operands";
         }
         ActorState actor = actors[fiber.ObjectId];
-        return fiber.Stack.Take(count).Any(value => unchecked((byte)(value / 4)) != 0) && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null ? $"Nonzero native {operation.Opcode} requires executed or authenticated allocated BYTE609 authority; original PC and operands preserved" : null;
+        return fiber.Stack.Take(count).Any(value => unchecked((byte)(value / 4)) != 0) && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null && !ValidGameplayActorReconstruction(actor, Frame) ? $"Nonzero native {operation.Opcode} requires executed or authenticated allocated BYTE609 authority; original PC and operands preserved" : null;
     }
 
     private int[] ExecuteActorShadowSet(Fiber fiber, ActorState actor)
@@ -71,7 +71,7 @@ public sealed partial class EventEngine
             }
             if (actor.NativeShadowSet is NativeActorShadowSet set)
             {
-                if (set.Version != 1 || set.ObjectId != actor.ObjectId || set.Radius601To608 != unchecked((byte)(set.RawSize / 4)) || set.Radius601To608 != 0 && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null || set.FieldId != saved.FieldId || set.Frame < 0 || set.Frame > saved.Frame)
+                if (set.Version != 1 || set.ObjectId != actor.ObjectId || set.Radius601To608 != unchecked((byte)(set.RawSize / 4)) || set.Radius601To608 != 0 && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null && !ValidGameplayActorReconstruction(actor, saved.Frame) || set.FieldId != saved.FieldId || set.Frame < 0 || set.Frame > saved.Frame)
                 {
                     throw new InvalidDataException("Saved native actor shadow lacks its executed radius-byte or shade-level authority.");
                 }
@@ -90,7 +90,7 @@ public sealed partial class EventEngine
                         throw new InvalidDataException("Saved native actor shadow form disagrees with its original signed division and BYTE order.");
                     }
                 }
-                if (form.Radii601To608.Any(radius => radius != 0) && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null)
+                if (form.Radii601To608.Any(radius => radius != 0) && actor.NativeShadowLevel is null && actor.NativeShadowAllocation is null && !ValidGameplayActorReconstruction(actor, saved.Frame))
                 {
                     throw new InvalidDataException("Saved nonzero native actor shadow form lacks shade-level authority.");
                 }

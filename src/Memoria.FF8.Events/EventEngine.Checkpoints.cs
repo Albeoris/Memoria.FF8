@@ -186,6 +186,7 @@ public sealed partial class EventEngine
         JsonElement savedActorJson = snapshot.GetProperty("Actors");
         for (int index = 0; index < saved.Actors.Length; index++)
         {
+            ValidateGameplayActorReconstruction(saved.Actors[index], saved.Frame, saved.Scene.NativeFieldInitialization);
             Vector3? color = saved.Actors[index].PolygonColor;
             if (color is Vector3 rgb && !ValidNativePolygonColor(rgb) || NativeRuntimeProfile is { IsVerified: true } && program.NativeObjects.Take(program.NativeActorCount).Contains(index) && color is null)
             {
