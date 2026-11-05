@@ -109,7 +109,7 @@ public sealed partial class BattleSession
         if (completed.AnimationCopy is { } animation)
         {
             int header = task.PhysicalIndex * 32 + animation.HeaderPointerField;
-            cpu = cpu with { AnimationFrames = cpu.AnimationFrames.Write(animation.DestinationOffset, animation.Bytes.AsSpan()), AnimationPointers = cpu.AnimationPointers.SetItem(header, animation.Bytes.IsEmpty ? null : animation.DestinationOffset) };
+            cpu = cpu with { AnimationFrames = animation.BindTo(cpu.AnimationFrames), AnimationPointers = cpu.AnimationPointers.SetItem(header, animation.Length == 0 ? null : animation.DestinationOffset) };
         }
         if (completed.ScratchCandidate is int candidate)
         {

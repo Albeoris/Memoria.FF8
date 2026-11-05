@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -14,7 +15,28 @@ public sealed record NativeBattleModelCpuResourceRow(ImmutableDictionary<int, Na
     public NativeBattleModelCpuReference Require(int field) => Fields.TryGetValue(field, out NativeBattleModelCpuReference? value) && value is not null ? value : throw new NotSupportedException($"Native resource row DWORD{field} has no observed CPU-bank reference.");
     public NativeBattleModelCpuResourceRow Set(int field, NativeBattleModelCpuReference? value) => this with { Fields = Fields.SetItem(field, value) };
 }
-public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, ImmutableArray<byte> Bytes, int HeaderPointerField);
+public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, ImmutableArray<byte> Bytes, int HeaderPointerField)
+{
+    private readonly NativeBattleModelResourceSegment content = new(0, Bytes, 0, Bytes.Length);
+
+    public ImmutableArray<byte> Bytes
+    {
+        get => content.SourceOffset == 0 && content.Length == content.Source.Length ? content.Source : ImmutableCollectionsMarshal.AsImmutableArray(content.Data.ToArray());
+        init => content = new(0, value, 0, value.Length);
+    }
+
+    internal int Length => content.Length;
+
+    internal NativeBattleModelAnimationCopy(int destinationOffset, ImmutableArray<byte> source, int sourceOffset, int length, int headerPointerField) : this(destinationOffset, [], headerPointerField)
+    {
+        content = new(0, source, sourceOffset, length);
+    }
+
+    internal NativeBattleModelCpuBank BindTo(NativeBattleModelCpuBank bank)
+    {
+        return bank.BindResource(DestinationOffset, content.Source, content.SourceOffset, content.Length);
+    }
+}
 public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows)
 {
     public const uint EnemyAddress = 0x1939018;
@@ -126,7 +148,7 @@ public static class NativeBattleModelResourceCopies
             int animationSection = special ? 9 : 6;
             int start = source.Section(animationSection);
             int end = source.Section(animationSection + 1);
-            animation = new(task.PhysicalIndex * 0x3020 + 0x20, source.Bytes.Slice(start, end - start), 8);
+            animation = new(task.PhysicalIndex * 0x3020 + 0x20, source.Bytes, start, end - start, 8);
             scratch = ReadScratch();
             rows = rows.SetItem(bodyRow, body);
         }
@@ -147,7 +169,7 @@ public static class NativeBattleModelResourceCopies
             rows = rows.SetItem(row, linked).SetItem(bodyRow, body);
             int start = source.Section(7);
             int end = source.Section(8);
-            animation = new(task.PhysicalIndex * 0x3020 + 0x2020, source.Bytes.Slice(start, end - start), 24);
+            animation = new(task.PhysicalIndex * 0x3020 + 0x2020, source.Bytes, start, end - start, 24);
             scratch = ReadScratch();
         }
         else if (task.Callback == 0x507E20)
@@ -171,7 +193,7 @@ public static class NativeBattleModelResourceCopies
         {
             throw new InvalidDataException("Native resource row aliases an absent party CPU bank.");
         }
-        NativeBattleModelCpuBank changed = cpu.Banks[bank].Write(origin, source.Bytes.AsSpan().Slice(first, length));
+        NativeBattleModelCpuBank changed = cpu.Banks[bank].BindResource(origin, source.Bytes, first, length);
         if (task.Callback == 0x507E20)
         {
             NativeBattleModelCpuReference geometry = body.Require(16);

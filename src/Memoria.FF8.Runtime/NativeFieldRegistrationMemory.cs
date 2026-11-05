@@ -64,9 +64,9 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             int first = Index(checked(layout.BaseAddress + (uint)bank * (uint)layout.BankLength), layout.BankLength);
             observedCpuRanges.Add((first, checked(first + layout.BankLength)));
             SetKnown(first, layout.BankLength, false, true);
-            foreach (NativeBattleEffectMemoryRegion range in cpu.Cpu.Banks[bank].KnownRanges)
+            foreach (NativeBattleModelResourceSegment range in cpu.Cpu.Banks[bank].ResourceSegments)
             {
-                Store(first + range.Offset, range.Data.AsSpan(), false);
+                Store(first + range.Offset, range.Data.Span, false);
             }
         }
     }
@@ -86,9 +86,9 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             }
             byte[] data = new byte[layout.BankLength];
             bool[] observed = new bool[data.Length];
-            foreach (NativeBattleEffectMemoryRegion range in banks[bank].KnownRanges)
+            foreach (NativeBattleModelResourceSegment range in banks[bank].ResourceSegments)
             {
-                range.Data.AsSpan().CopyTo(data.AsSpan(range.Offset));
+                range.Data.Span.CopyTo(data.AsSpan(range.Offset));
                 Array.Fill(observed, true, range.Offset, range.Data.Length);
             }
             for (int offset = 0; offset < data.Length;)

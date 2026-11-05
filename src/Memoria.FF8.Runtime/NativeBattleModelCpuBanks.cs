@@ -64,18 +64,41 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
 /// <summary>One bounded sparse CPU bank. Unwritten heap bytes retain their unknown owner.</summary>
 public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
 {
+    private readonly NativeBattleModelResourceStorage storage = NativeBattleModelResourceStorage.FromKnownRanges(KnownRanges);
+
+    /// <summary>Compatible diagnostic materialization; ordinary resource reads do not construct or retain this image.</summary>
+    public ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges
+    {
+        get => storage.CaptureKnownRanges(Capacity);
+        init => storage = NativeBattleModelResourceStorage.FromKnownRanges(value);
+    }
+
     public const int Length = 0x10000;
     public int Capacity { get; init; } = Length;
+    internal ImmutableArray<NativeBattleModelResourceSegment> ResourceSegments => storage.Segments;
     public static NativeBattleModelCpuBank Unknown(int capacity = Length) => new([]) { Capacity = capacity };
 
     public byte[] Read(int offset, int length)
     {
-        return NativeKnownByteRanges.Read(KnownRanges, offset, length, Capacity);
+        return storage.Read(offset, length, Capacity);
     }
 
     public NativeBattleModelCpuBank Write(int offset, ReadOnlySpan<byte> bytes)
     {
-        return this with { KnownRanges = NativeKnownByteRanges.Write(KnownRanges, offset, bytes, Capacity) };
+        NativeBattleModelResourceStorage updated = storage.Write(offset, bytes, Capacity);
+        return ReferenceEquals(updated, storage) ? this : new(updated, Capacity);
+    }
+
+    internal NativeBattleModelCpuBank BindResource(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
+    {
+        NativeBattleModelResourceStorage updated = storage.Bind(offset, source, sourceOffset, length, Capacity);
+        return ReferenceEquals(updated, storage) ? this : new(updated, Capacity);
+    }
+
+    private NativeBattleModelCpuBank(NativeBattleModelResourceStorage storage, int capacity) : this([])
+    {
+        this.storage = storage;
+        Capacity = capacity;
     }
 }
 
@@ -116,6 +139,6 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
             throw new InvalidDataException("Native50B2A0 CPU copy requires its three physical party banks.");
         }
         // memcpy transports unknown retained bytes as unknown too, erasing prior destination knowledge.
-        return this with { Banks = Banks.SetItem(destination, Banks[destination] with { KnownRanges = Banks[source].KnownRanges }) };
+        return this with { Banks = Banks.SetItem(destination, Banks[source]) };
     }
 }

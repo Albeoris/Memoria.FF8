@@ -152,7 +152,10 @@ public sealed class NativeBattleModelResourceViewTests
         Assert.Null(loaded.State.Task);
         Assert.Equal(0, loaded.Remaining);
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, bodyRow, linkedRow);
-        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows }, loaded.Staging);
+        Assert.Contains(completed.Cpu.Banks[1].ResourceSegments, segment => segment.Source.Equals(loaded.Bind!.PreparedDat.Bytes));
+        NativeBattleModelCpuBank animations = completed.AnimationCopy!.BindTo(cpu.AnimationFrames);
+        Assert.Contains(animations.ResourceSegments, segment => segment.Source.Equals(loaded.Bind!.PreparedDat.Bytes));
+        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows, AnimationFrames = animations }, loaded.Staging);
     }
 
     private static NativeBattleModelDatSource Source(bool linked, byte selector, byte scale)
