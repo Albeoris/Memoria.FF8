@@ -1,4 +1,4 @@
-﻿using Albeoris.Games.FF8.Jsm;
+using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -107,30 +107,34 @@ public sealed partial class EventEngine
     {
         foreach (FiberCheckpoint fiber in saved.Fibers)
         {
-            NativeGlobalJumpFrame[] frames = fiber.NativeGlobalJumps ?? [];
-            if (frames.Length == 0)
+            ValidateNativeGlobalJumpFrames(fiber.Position, fiber.Complete, fiber.NativeGlobalJumps ?? [], fiber.Stack);
+        }
+    }
+
+    private void ValidateNativeGlobalJumpFrames(int position, bool complete, NativeGlobalJumpFrame[] frames, NativeScalarValue[] stack)
+    {
+        if (frames.Length == 0)
+        {
+            return;
+        }
+        if (complete || NativeRuntimeProfile is not { IsVerified: true } || frames.Length > 8)
+        {
+            throw new InvalidDataException("Saved global calls require a live original request and bounded physical frames.");
+        }
+        int previousBase = -9;
+        for (int index = 0; index < frames.Length; index++)
+        {
+            NativeGlobalJumpFrame frame = frames[index];
+            if ((uint)frame.CallOperation >= program!.Operations.Count || program.Operations[frame.CallOperation] is not { Opcode: Jsm.Opcode.GJMP } call || (uint)call.Parameter >= program.NativeScriptPointers.Count || program.NativeScriptPointers[call.Parameter].Script.Start != frame.TargetOperation || frame.ReturnOperation != unchecked((ushort)(frame.CallOperation + 1)) || frame.OperandBase < previousBase + 9 || frame.OperandBase < 0 || !frame.Entered && (index != frames.Length - 1 || position != frame.TargetOperation || stack.Length != frame.OperandBase + 1) || stack.Length < frame.OperandBase + (frame.Entered ? 9 : 1))
             {
-                continue;
+                throw new InvalidDataException("Saved global call lost its original instruction, pointer, frame depth or entry boundary.");
             }
-            if (fiber.Complete || NativeRuntimeProfile is not { IsVerified: true } || frames.Length > 8)
+            NativeScalarValue value = stack[stack.Length - frame.OperandBase - 1];
+            if (!value.IsExact || unchecked((ushort)value.RequireExact()) != frame.ReturnOperation)
             {
-                throw new InvalidDataException("Saved global calls require a live original request and bounded physical frames.");
+                throw new InvalidDataException("Saved global call return operand disagrees with its original WORD instruction pointer.");
             }
-            int previousBase = -9;
-            for (int index = 0; index < frames.Length; index++)
-            {
-                NativeGlobalJumpFrame frame = frames[index];
-                if ((uint)frame.CallOperation >= program!.Operations.Count || program.Operations[frame.CallOperation] is not { Opcode: Jsm.Opcode.GJMP } call || (uint)call.Parameter >= program.NativeScriptPointers.Count || program.NativeScriptPointers[call.Parameter].Script.Start != frame.TargetOperation || frame.ReturnOperation != unchecked((ushort)(frame.CallOperation + 1)) || frame.OperandBase < previousBase + 9 || frame.OperandBase < 0 || !frame.Entered && (index != frames.Length - 1 || fiber.Position != frame.TargetOperation || fiber.Stack.Length != frame.OperandBase + 1) || fiber.Stack.Length < frame.OperandBase + (frame.Entered ? 9 : 1))
-                {
-                    throw new InvalidDataException("Saved global call lost its original instruction, pointer, frame depth or entry boundary.");
-                }
-                NativeScalarValue value = fiber.Stack[fiber.Stack.Length - frame.OperandBase - 1];
-                if (!value.IsExact || unchecked((ushort)value.RequireExact()) != frame.ReturnOperation)
-                {
-                    throw new InvalidDataException("Saved global call return operand disagrees with its original WORD instruction pointer.");
-                }
-                previousBase = frame.OperandBase;
-            }
+            previousBase = frame.OperandBase;
         }
     }
 }

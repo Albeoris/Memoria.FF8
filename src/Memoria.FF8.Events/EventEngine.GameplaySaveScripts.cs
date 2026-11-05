@@ -75,11 +75,11 @@ public sealed partial class EventEngine
             WaitReason.NativeMovementFlush => GameplaySaveScriptWait.NativeMovementFlush,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
-        if (fiber.NativeGlobalJumps.Count != 0 || fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
+        if (fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
         {
             throw new NotSupportedException("Gameplay script continuation requires a represented logical scheduler without live external request owners.");
         }
-        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber) };
+        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber), GlobalCalls = CaptureGameplayGlobalCalls(fiber) };
     }
 
     /// <summary>Installs only script execution owners. The caller must separately reconstruct current scene/actor/resource owners before input.</summary>
@@ -133,6 +133,7 @@ public sealed partial class EventEngine
                 fiber.Stack.Push(value);
                 fiber.StackExpressions.Push("saved operand");
             }
+            RestoreGameplayGlobalCalls(fiber, source.GlobalCalls);
             foreach ((int key, int value) in source.Results)
             {
                 fiber.Results.Add(key, NativeScalarValue.Exact(value));
