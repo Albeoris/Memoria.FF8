@@ -166,7 +166,7 @@ public sealed class NativeBattleModelResourceCapacityTests
         NativeBattleModelLoadStep loaded = prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging);
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, 0, linkedRow);
         NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, Loading());
-        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows, AnimationFrames = completed.AnimationCopy!.BindTo(cpu.AnimationFrames) }, loaded.Staging);
+        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(1, completed.AnimationCopy!), loaded.Staging);
     }
 
     private static NativeBattleGraphicsState Loading()

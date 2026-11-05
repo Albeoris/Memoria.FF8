@@ -26,15 +26,29 @@ public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, Immut
     }
 
     internal int Length => content.Length;
+    internal ReadOnlyMemory<byte> Data => content.Data;
+
+    internal void Validate()
+    {
+        if (content.Source.IsDefault || content.SourceOffset < 0 || content.Length < 0 || content.SourceOffset > content.Source.Length - content.Length || HeaderPointerField is not (8 or 24))
+        {
+            throw new InvalidDataException("Native auxiliary animation section exceeds its immutable resource owner.");
+        }
+    }
+
+    internal byte[] Read(int offset, int length)
+    {
+        Validate();
+        if (offset < 0 || length < 0 || offset > content.Length - length)
+        {
+            throw new InvalidDataException("Native auxiliary animation read exceeds its retained resource section.");
+        }
+        return content.Data.Span.Slice(offset, length).ToArray();
+    }
 
     internal NativeBattleModelAnimationCopy(int destinationOffset, ImmutableArray<byte> source, int sourceOffset, int length, int headerPointerField) : this(destinationOffset, [], headerPointerField)
     {
         content = new(0, source, sourceOffset, length);
-    }
-
-    internal NativeBattleModelCpuBank BindTo(NativeBattleModelCpuBank bank)
-    {
-        return bank.BindResource(DestinationOffset, content.Source, content.SourceOffset, content.Length);
     }
 }
 public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows)
@@ -46,7 +60,36 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     public NativeBattleModelCpuBank Palettes { get; init; } = NativeBattleModelCpuBank.Unknown();
     public NativeBattleModelCpuBank AnimationFrames { get; init; } = NativeBattleModelCpuBank.Unknown();
     public ImmutableDictionary<int, int?> AnimationPointers { get; init; } = ImmutableDictionary<int, int?>.Empty;
+    /// <summary>Current auxiliary sections retain their source slices independently of the legacy diagnostic guest image.</summary>
+    public ImmutableDictionary<int, NativeBattleModelAnimationCopy> AnimationSources { get; init; } = ImmutableDictionary<int, NativeBattleModelAnimationCopy>.Empty;
     public ushort? ScratchMaximum { get; init; }
+
+    internal NativeBattleModelCpuResources BindAnimation(int physicalIndex, NativeBattleModelAnimationCopy animation)
+    {
+        animation.Validate();
+        if ((uint)physicalIndex >= 3)
+        {
+            throw new InvalidDataException("Native auxiliary animation requires its actual party header owner.");
+        }
+        return this with { AnimationSources = AnimationSources.SetItem(physicalIndex * 32 + animation.HeaderPointerField, animation) };
+    }
+
+    internal byte[] ReadAnimationHeader(int header, int offset, int length)
+    {
+        if (AnimationSources.TryGetValue(header, out NativeBattleModelAnimationCopy? source))
+        {
+            if (source.Length == 0)
+            {
+                throw new NotSupportedException("Native auxiliary animation header has an explicitly absent section.");
+            }
+            return source.Read(offset, length);
+        }
+        if (offset < 0 || length < 0 || !AnimationPointers.TryGetValue(header, out int? pointer) || pointer is not int start)
+        {
+            throw new NotSupportedException("Native auxiliary animation header has no observed section owner.");
+        }
+        return AnimationFrames.ReadGuest(checked(start + offset), length);
+    }
     public static NativeBattleModelCpuResources Unknown() => new(NativeBattleModelCpuBanks.Unknown(), Enumerable.Range(0, 11).Select(_ => NativeBattleModelCpuResourceRow.Unknown()).ToImmutableArray());
     public static NativeBattleModelCpuResources FromColdProcess(string executableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash)
     {
@@ -66,11 +109,19 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         Cpu.Validate();
         if (Palettes.Capacity != NativeBattleModelCpuBank.Length || AnimationFrames.Capacity != NativeBattleModelCpuBank.Length || Palettes.HasResourceStorage || AnimationFrames.HasResourceStorage)
         {
-            throw new InvalidDataException("Native palette and animation storage requires its fixed physical capacity.");
+            throw new InvalidDataException("Native palette and legacy diagnostic animation storage requires its fixed physical capacity.");
         }
         if (Cpu.Banks.IsDefault || Cpu.Banks.Length != 3 || Rows.IsDefault || Rows.Length != 11 || Rows.Any(row => row is null) || AnimationPointers.Any(item => item.Key < 0 || item.Key >= 96 || item.Value is < 0 || item.Value >= AnimationFrames.Capacity))
         {
             throw new InvalidDataException("Native model CPU resources require their three banks and eleven physical row aliases.");
+        }
+        foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
+        {
+            if (header < 0 || header >= 96 || header % 32 != source.HeaderPointerField)
+            {
+                throw new InvalidDataException("Native auxiliary animation source requires its body or linked header field.");
+            }
+            source.Validate();
         }
         foreach (NativeBattleModelCpuBank bank in Cpu.Banks.Append(Palettes).Append(AnimationFrames))
         {

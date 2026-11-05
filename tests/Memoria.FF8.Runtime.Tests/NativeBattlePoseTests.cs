@@ -117,6 +117,35 @@ public sealed class NativeBattlePoseTests
         Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.TransformCameraPoint(model with { Flags0 = 2 }, null, 0, new(10, 20, 30), false));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0x10010)]
+    public void Decoder_borrows_large_compressed_sections_only_for_the_call_and_keeps_packed_progress(int clipPadding)
+    {
+        NativeBattlePoseSource source = Source();
+        byte[] large = new byte[2 * NativeBattleModelCpuBank.Length];
+        source.Animations.AsSpan(0, 8).CopyTo(large);
+        BinaryPrimitives.WriteInt32LittleEndian(large.AsSpan(4), 8 + clipPadding);
+        source.Animations.AsSpan()[8..].CopyTo(large.AsSpan(8 + clipPadding));
+        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(large, 2, 0);
+        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(large, 2, 0, first.Pose, first.ByteOffset, first.BitOffset);
+        Assert.Equal(source.Sample(0, 2, 0).Translation, next.Pose.Translation);
+        Assert.Equal(source.Sample(0, 2, 0).Bones, next.Pose.Bones);
+        NativeBattlePoseFirstFrame small = NativeBattlePoseDecoder.DecodeFirst509440(source.Animations.AsSpan(), 2, 0);
+        Assert.Equal(small.ByteOffset, first.ByteOffset);
+        Assert.Equal(small.BitOffset, first.BitOffset);
+        Assert.Equal(source.Sample(0, 2, 1).Translation, NativeBattlePoseDecoder.Sample(large, 2, 0, 2, true).Translation);
+        NativeBattlePoseDecoder.DecodeFirst509440(large, 2, 0);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattlePoseDecoder.DecodeFirst509440(large, 2, 0);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < NativeBattleModelCpuBank.Length, $"Single-frame decode allocated {allocated} bytes for a borrowed source.");
+        large.AsSpan().Clear();
+        Assert.Equal(small.Pose.Translation, first.Pose.Translation);
+        Assert.Equal(small.Pose.Bones, first.Pose.Bones);
+        Assert.Throws<InvalidDataException>(() => NativeBattlePoseDecoder.DecodeFirst509440(large, 2, 0));
+    }
+
     private static NativeBattlePoseSource Source()
     {
         byte[] skeleton = new byte[112];

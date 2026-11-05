@@ -109,8 +109,7 @@ public sealed partial class BattleSession
         cpu = cpu with { Cpu = completed.Cpu, Rows = completed.Rows };
         if (completed.AnimationCopy is { } animation)
         {
-            int header = task.PhysicalIndex * 32 + animation.HeaderPointerField;
-            cpu = cpu with { AnimationFrames = animation.BindTo(cpu.AnimationFrames), AnimationPointers = cpu.AnimationPointers.SetItem(header, animation.Length == 0 ? null : animation.DestinationOffset) };
+            cpu = cpu.BindAnimation(task.PhysicalIndex, animation);
         }
         if (completed.ScratchCandidate is int candidate)
         {

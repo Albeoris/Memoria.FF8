@@ -153,9 +153,10 @@ public sealed class NativeBattleModelResourceViewTests
         Assert.Equal(0, loaded.Remaining);
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, bodyRow, linkedRow);
         Assert.Contains(completed.Cpu.Banks[1].ResourceSegments, segment => segment.Source.Equals(loaded.Bind!.PreparedDat.Bytes));
-        NativeBattleModelCpuBank animations = completed.AnimationCopy!.BindTo(cpu.AnimationFrames);
-        Assert.Contains(animations.ResourceSegments, segment => segment.Source.Equals(loaded.Bind!.PreparedDat.Bytes));
-        return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows, AnimationFrames = animations }, loaded.Staging);
+        NativeBattleModelAnimationCopy animation = completed.AnimationCopy!;
+        int section = source.Linked ? 7 : 6;
+        Assert.Equal(loaded.Bind!.PreparedDat.Bytes.AsMemory().Slice(loaded.Bind.PreparedDat.Section(section), animation.Length), animation.Data);
+        return ((cpu with { Cpu = completed.Cpu, Rows = completed.Rows }).BindAnimation(1, animation), loaded.Staging);
     }
 
     private static NativeBattleModelDatSource Source(bool linked, byte selector, byte scale)

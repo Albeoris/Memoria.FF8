@@ -160,7 +160,7 @@ public static class NativeBattlePoseDecoder
         }
         int pointer = FramePointer(section, animation);
         frames = section[pointer];
-        return new(section[(pointer + 1)..].ToArray(), bones);
+        return new(section[(pointer + 1)..], bones);
     }
 
     private static int FramePointer(ReadOnlySpan<byte> section, int animation)
@@ -185,9 +185,18 @@ public static class NativeBattlePoseDecoder
         return new(Add(current.Translation, delta.Translation), current.Bones.Select((bone, index) => new NativeBattleBonePose(Add(bone.Rotation, delta.Bones[index].Rotation), delta.Bones[index].Scale)).ToImmutableArray(), delta.HasScale);
     }
 
-    private sealed class FrameReader(byte[] data, int bones)
+    private ref struct FrameReader
     {
+        private readonly ReadOnlySpan<byte> data;
+        private readonly int bones;
         private int position;
+
+        public FrameReader(ReadOnlySpan<byte> data, int bones)
+        {
+            this.data = data;
+            this.bones = bones;
+        }
+
         public int BitPosition => position;
 
         public void SetBitPosition(int value)
