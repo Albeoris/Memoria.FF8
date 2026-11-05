@@ -9,6 +9,16 @@ public static partial class NativeBattleLionHeart165Controller
 {
     public static NativeBattleLionHeart165EchoDraw DrawEchoMesh5EF0C0(NativeBattleLionHeart165Frame frame, uint temporary, uint verticesAddress, uint polygonAddress, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, uint color, uint orderingTable, uint packetCursor, short zsf3, short zsf4, short dqa, int dqb, NativeBattleModelTextureBinding? textureBinding = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawEchoMesh5EF0C0(frame, temporary, verticesAddress, new NativeBattleResourcePointer(null, polygonAddress), mesh, bones, view, projection, plane, selectors, color, orderingTable, packetCursor, zsf3, zsf4, dqa, dqb, textureBinding, observeDepth, pilotIdentity);
+    }
+
+    internal static NativeBattleLionHeart165EchoDraw DrawEchoMesh5EF0C0(NativeBattleLionHeart165Frame frame, uint temporary, uint verticesAddress, NativeBattleResourcePointer polygonSource, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, uint color, uint orderingTable, uint packetCursor, short zsf3, short zsf4, short dqa, int dqb, NativeBattleModelTextureBinding? textureBinding = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        ArgumentNullException.ThrowIfNull(polygonSource);
+        if (!polygonSource.HasValidOwner() || polygonSource.CpuRow is not null)
+        {
+            throw new InvalidDataException("Native Lion Heart echo requires its selected polygon source owner.");
+        }
         mesh.Validate();
         if (selectors.IsDefault || selectors.Length != 56 || selectors.Any(value => value is < 0 or > 5))
         {
@@ -33,7 +43,14 @@ public static partial class NativeBattleLionHeart165Controller
         int plainQuads = mesh.Polygons.Count(polygon => polygon.Quad && polygon.Bytes.Length == 20);
         int coloredTriangles = mesh.Polygons.Count(polygon => !polygon.Quad && polygon.Bytes.Length == 20);
         int coloredQuads = mesh.Polygons.Count(polygon => polygon.Quad && polygon.Bytes.Length == 24);
-        staging = WriteDword(staging, temporary, polygonAddress);
+        if (polygonSource.Cpu is not null)
+        {
+            staging = polygonSource.Cpu.TryPhysicalAddress() is uint numeric ? WriteDword(staging, temporary, numeric).SetResourcePointerMetadata(temporary, polygonSource) : staging.WriteResourcePointer(temporary, polygonSource);
+        }
+        else
+        {
+            staging = WriteDword(staging, temporary, polygonSource.StagingAddress!.Value);
+        }
         staging = WriteWord(WriteWord(WriteWord(WriteWord(staging, temporary + 8, checked((ushort)plainTriangles)), temporary + 10, checked((ushort)plainQuads)), temporary + 12, checked((ushort)coloredTriangles)), temporary + 14, checked((ushort)coloredQuads));
         frame = frame with { Staging = staging };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

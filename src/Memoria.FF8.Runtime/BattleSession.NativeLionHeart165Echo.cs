@@ -53,9 +53,10 @@ public sealed partial class BattleSession
 
         void SubmitSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices, int boneCount, uint selectedMask, NativeBattleModelTextureBinding? binding)
         {
-            uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Native Lion Heart echo geometry requires its actual physical source address.");
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, frame.Staging, pointer.Pin(cpu), Read);
+            long sourceIdentity = geometrySource.PresentationIdentity;
             List<int> polygons = [];
-            ImmutableArray<NativeBattleRawMesh> objects = NativeBattleRawGeometryReader.Read(Read, boneCount, (_, _, first, _) => polygons.Add(first));
+            ImmutableArray<NativeBattleRawMesh> objects = NativeBattleRawGeometryReader.Read(geometrySource.Read, boneCount, (_, _, first, _) => polygons.Add(first));
             ImmutableArray<int> selectors = Enumerable.Range(0, 56).Select(index => ReadInt(frame.Staging, 0xD88850u + (uint)index * 4)).ToImmutableArray();
             NativeBattleFileStaging staging = Dword(Dword(Dword(frame.Staging, temporary + 4, vertices), temporary + 16, color), temporary + 20, selectedMask);
             for (int index = 0; index < selectors.Length; index++)
@@ -79,7 +80,7 @@ public sealed partial class BattleSession
                 uint table = checked(0x1D8E058u + (uint)(process.Buffer80 ?? throw new NotSupportedException("Native Lion Heart echo requires its current OT buffer.")) * 17544 + 68);
                 NativeBattleScriptedGraphicsMemory registers = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Lion Heart echo requires its GTE registers.");
                 NativeBattleShivaPlane plane = new(ReadShort(frame.Staging, temporary + 184), ReadShort(frame.Staging, temporary + 186), ReadShort(frame.Staging, temporary + 188), ReadShort(frame.Staging, temporary + 190));
-                NativeBattleLionHeart165EchoDraw drawn = NativeBattleLionHeart165Controller.DrawEchoMesh5EF0C0(frame, temporary, vertices, checked(address + (uint)polygons[index]), mesh, matrices, view, projection, plane, selectors, color, table, packetAddress, registers.Zsf3 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF4."), registers.Dqa, registers.Dqb, binding, pilotIdentity: pilotIdentity with { Primitive = unchecked((int)address * 397 + index) });
+                NativeBattleLionHeart165EchoDraw drawn = NativeBattleLionHeart165Controller.DrawEchoMesh5EF0C0(frame, temporary, vertices, geometrySource.Cursor(polygons[index]), mesh, matrices, view, projection, plane, selectors, color, table, packetAddress, registers.Zsf3 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF4."), registers.Dqa, registers.Dqb, binding, pilotIdentity: pilotIdentity with { Primitive = unchecked((int)sourceIdentity * 397 + index) });
                 frame = drawn.Frame;
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Lion Heart echo requires its initialized ordering table.");
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Batch);
