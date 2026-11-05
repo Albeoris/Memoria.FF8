@@ -21,6 +21,9 @@ public sealed record GameplaySaveFieldScene
     public GameplaySaveFieldAmbient? Ambient { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<int, byte>? ParticleControls { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMovieSource? PreparedMovieSource { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -107,6 +110,10 @@ public sealed record GameplaySaveFieldScene
 
     public void Validate()
     {
+        if (ParticleControls?.Any(pair => pair.Key is < 0 or >= 16 || pair.Value is > 1 and < 0x80) == true)
+        {
+            throw new InvalidDataException("Gameplay particle controls require valid slot indices and emitter bytes.");
+        }
         if (CameraIndex < 0 || BackgroundStates is null || BackgroundAnimations is null || BackgroundAnimations.Any(item => item is null || item.Speed is < short.MinValue or > short.MaxValue || item.Counter is < short.MinValue or > short.MaxValue || item.Position is < short.MinValue or > short.MaxValue) || LockedTriangles is null || LockedTriangles.Any(value => value < 0) || ScrollLayers is null || ScrollLayers.Any(pair => pair.Key is < 0 or >= 8 || pair.Value is null) || ScrollCurrents?.Any(pair => pair.Key is < 1 or >= 8 || pair.Value is null) == true || PartyBindings is not { Length: 3 } || PartyBindings.Any(value => value is < 0 or > 255) || PartyTraceVersion is < 0 or > 1 || PlayerMovementVersion is < 0 or > 1 || FieldLoadVersion != 1 || DoorDriverVersion is not (null or 2) || DoorInitializationFrame < 0 || DoorPendingEvents?.Any(pair => pair.Key < 0 || pair.Value != 0) == true || LoadedSounds is null || LoadedSounds.Any(item => item is null || item.Index < 0) || PreparedField is < -1 or > ushort.MaxValue || MessageStyles is null || MessageStyles.Any(pair => pair.Key is < 0 or > 7 || pair.Value is null) || MessageTiming is null || MessageTiming.Any(pair => pair.Key is < 0 or > 7 || pair.Value is null) || MessageWindows is null || MessageWindows.Any(pair => pair.Key is < 0 or > 7 || pair.Value is null || pair.Value.Channel != pair.Key))
         {
             throw new InvalidDataException("Gameplay field scene contains malformed or unsupported logical owners.");

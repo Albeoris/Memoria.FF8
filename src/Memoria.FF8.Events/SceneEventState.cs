@@ -4,6 +4,12 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
+public enum NativeParticleControlOrigin
+{
+    Opcode,
+    GameplayContinuation
+}
+
 public sealed record NativeDialogueWindowState([property: JsonRequired] int Version, int Progress, int Delta)
 {
     [JsonRequired]
@@ -312,7 +318,6 @@ public sealed class SceneEventState
     public List<SoundRequest> SoundRequests { get; } = [];
     public List<GlobalSoundRequest> GlobalSoundRequests { get; } = [];
     public List<NativeFieldSoundRequest> NativeFieldSoundRequests { get; } = [];
-    /// <summary>Only executed ON/OFF/SET bytes are known, including SET's dense-instance attachment. Missing slots do not imply disabled emitters or an absent-PMD reset.</summary>
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldParticlesState? NativeFieldParticles { get; internal set; }
@@ -325,7 +330,11 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? PendingNativeFieldParticleMigrationVersion { get; internal set; }
+    /// <summary>Known ON/OFF/SET control bytes, including explicit semantic reconstruction. Missing slots do not imply disabled emitters or an absent-PMD reset.</summary>
     public Dictionary<int, byte> NativeParticleSlots { get; } = [];
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NativeParticleControlOrigin NativeParticleSlotOrigin { get; internal set; }
     public List<NativeParticleRequest> NativeParticleRequests { get; } = [];
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

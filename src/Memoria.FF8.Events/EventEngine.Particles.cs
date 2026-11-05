@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
@@ -51,9 +52,18 @@ public sealed partial class EventEngine
 
     private void ValidateParticleCheckpoint(Checkpoint saved)
     {
+        bool reconstructed = saved.Scene.NativeParticleSlotOrigin == NativeParticleControlOrigin.GameplayContinuation;
+        if (!Enum.IsDefined(saved.Scene.NativeParticleSlotOrigin) || reconstructed && (NativeRuntimeProfile is not { IsVerified: true } || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed, Origin: NativeFieldInitializationOrigin.GameplayContinuation } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash)))
+        {
+            throw new InvalidDataException("Saved semantic particle controls require their explicit current field reconstruction origin.");
+        }
         if (saved.Scene.NativeParticleSlots.Any(pair => (uint)pair.Key >= 16 || pair.Value is > 1 and < 0x80))
         {
             throw new InvalidDataException("Saved known particle slots have invalid indices or unimplemented emitter values.");
+        }
+        if (reconstructed && saved.Scene.NativeParticleSlots.Values.Any(value => (value & 0x80) != 0 && (value & 0x7F) >= saved.Scene.NativeActorObjectIds.Count))
+        {
+            throw new InvalidDataException("Saved semantic particle attachment names an absent retained actor ordinal.");
         }
         saved.Scene.NativeFieldParticles?.Validate();
         if (saved.Scene.NativeFieldParticles is { } particleState)
@@ -96,7 +106,7 @@ public sealed partial class EventEngine
         foreach ((int slot, byte value) in saved.Scene.NativeParticleSlots)
         {
             NativeParticleRequest? latest = saved.Scene.NativeParticleRequests.Skip(saved.Scene.NativeMediaHistoryBoundary!.ParticleRequests).LastOrDefault(request => request.Slot == slot);
-            if (latest is null || latest.Value != value)
+            if (latest is null ? !reconstructed : latest.Value != value)
             {
                 throw new InvalidDataException("Saved known particle flag has no matching executed slot write.");
             }
