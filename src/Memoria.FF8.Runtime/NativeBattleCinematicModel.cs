@@ -3,7 +3,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicModelServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, uint, byte[]> ReadAnimations);
+public sealed record NativeBattleCinematicModelServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, uint, byte[]> ReadAnimations)
+{
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleResourcePointer, ReadOnlyMemory<byte>>? ReadAnimationResource { get; init; }
+}
 
 /// <summary>Sparse embedded model construction and first pose selection over the current arena.</summary>
 public static partial class NativeBattleCinematicModel
@@ -57,18 +60,17 @@ public static partial class NativeBattleCinematicModel
     {
         uint table = ReadDword(unchecked(model + 0x14));
         uint skeleton = ReadDword(table);
-        uint animations = ReadDword(unchecked(table + 8));
         byte flags = frame.Arena.Read(ArenaOffset(unchecked(model + 0x21), 1), 1)[0];
         if ((flags & 3) != 0)
         {
             throw new NotSupportedException($"Native embedded model pose speed flags 0x{flags:X2} require their selected cursor contract.");
         }
-        byte[] section = services.ReadAnimations(frame, animations) ?? throw new InvalidDataException("Native embedded model requires its current bounded animation section.");
+        ReadOnlyMemory<byte> section = ReadAnimationSection(frame, table, services);
         int skeletonOffset = ArenaOffset(skeleton, 1);
         int count = frame.Arena.Read(skeletonOffset, 1)[0];
-        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(section, count, animation);
-        int entry = BinaryPrimitives.ReadInt32LittleEndian(section.AsSpan(4 + 4 * animation, 4));
-        byte limit = section[entry];
+        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(section.Span, count, animation);
+        int entry = BinaryPrimitives.ReadInt32LittleEndian(section.Span.Slice(4 + 4 * animation, 4));
+        byte limit = section.Span[entry];
         byte[] control = new byte[8];
         control[0] = animation;
         control[1] = (byte)((flags & 0xF3) | 4);
@@ -83,4 +85,19 @@ public static partial class NativeBattleCinematicModel
 
         uint ReadDword(uint pointer) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(pointer, 4), 4));
     }
+    private static ReadOnlyMemory<byte> ReadAnimationSection(NativeBattleWaterExecutionFrame frame, uint table, NativeBattleCinematicModelServices services)
+    {
+        NativeBattleResourcePointer pointer = frame.Arena.ReadResourcePointer(ArenaOffset(checked(table + 8), 4)) ?? throw new NotSupportedException("Native embedded model animation descriptor has no retained owner.");
+        if (services.ReadAnimationResource is { } read)
+        {
+            return read(frame, pointer);
+        }
+        if (pointer.CpuPublication is not null)
+        {
+            throw new NotSupportedException("Native retained animation publication requires its typed resource reader.");
+        }
+        uint address = pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new NotSupportedException("Native animation requires its selected source reader.");
+        return services.ReadAnimations(frame, address) ?? throw new InvalidDataException("Native embedded model requires its bounded animation section.");
+    }
+
 }

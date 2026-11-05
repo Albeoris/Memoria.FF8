@@ -99,6 +99,55 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
     internal ImmutableArray<NativeBattleModelResourceSegment> GuestSegments => storage.Segments;
     public static NativeBattleModelCpuBank Unknown(int capacity = Length) => new([]) { Capacity = capacity };
 
+    // Diagnostic restoration may coalesce slice boundaries; immutable equivalence follows bytes and knownness, never a host address.
+    internal static bool SamePublication(NativeBattleModelCpuBank? first, NativeBattleModelCpuBank? second)
+    {
+        if (ReferenceEquals(first, second))
+        {
+            return true;
+        }
+        if (first is null || second is null || first.Capacity != second.Capacity || first.HasResourceStorage != second.HasResourceStorage)
+        {
+            return false;
+        }
+        return Equal(first.GuestSegments, second.GuestSegments) && (!first.HasResourceStorage || Equal(first.ResourceSegments, second.ResourceSegments));
+
+        static bool Equal(ImmutableArray<NativeBattleModelResourceSegment> left, ImmutableArray<NativeBattleModelResourceSegment> right)
+        {
+            int a = 0;
+            int b = 0;
+            int aOffset = 0;
+            int bOffset = 0;
+            while (a < left.Length && b < right.Length)
+            {
+                NativeBattleModelResourceSegment x = left[a];
+                NativeBattleModelResourceSegment y = right[b];
+                if (x.Offset + aOffset != y.Offset + bOffset)
+                {
+                    return false;
+                }
+                int count = Math.Min(x.Length - aOffset, y.Length - bOffset);
+                if (!x.Source.AsSpan(x.SourceOffset + aOffset, count).SequenceEqual(y.Source.AsSpan(y.SourceOffset + bOffset, count)))
+                {
+                    return false;
+                }
+                aOffset += count;
+                bOffset += count;
+                if (aOffset == x.Length)
+                {
+                    a++;
+                    aOffset = 0;
+                }
+                if (bOffset == y.Length)
+                {
+                    b++;
+                    bOffset = 0;
+                }
+            }
+            return a == left.Length && b == right.Length;
+        }
+    }
+
     public byte[] Read(int offset, int length)
     {
         return (resourceStorage ?? storage).Read(offset, length, ResourceCapacity);

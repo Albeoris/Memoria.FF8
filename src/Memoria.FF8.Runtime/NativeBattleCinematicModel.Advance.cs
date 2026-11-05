@@ -77,12 +77,11 @@ public static partial class NativeBattleCinematicModel
         }
         uint table = ReadDword(unchecked(model + 0x14));
         uint skeleton = ReadDword(table);
-        uint animations = ReadDword(unchecked(table + 8));
-        byte[] section = services.ReadAnimations(frame, animations) ?? throw new InvalidDataException("Native embedded model requires its current bounded animation section.");
+        ReadOnlyMemory<byte> section = ReadAnimationSection(frame, table, services);
         int offset = ArenaOffset(skeleton, 1);
         int count = frame.Arena.Read(offset, 1)[0];
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(frame.Arena, offset, count);
-        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(section, count, ReadByte(sequence), pose, ReadWord(unchecked(sequence + 2)), ReadWord(unchecked(sequence + 4)));
+        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(section.Span, count, ReadByte(sequence), pose, ReadWord(unchecked(sequence + 2)), ReadWord(unchecked(sequence + 4)));
         byte[] control = frame.Arena.Read(ArenaOffset(sequence, 8), 8);
         control[1] = (byte)((flags & 0xF3) | ((((flags >> 2) + 1) & 1) << 2));
         BinaryPrimitives.WriteUInt16LittleEndian(control.AsSpan(2), next.ByteOffset);

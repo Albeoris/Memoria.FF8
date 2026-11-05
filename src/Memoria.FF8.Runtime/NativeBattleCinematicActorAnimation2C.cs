@@ -71,17 +71,7 @@ public static class NativeBattleCinematicActorAnimation2C
         void StoreWord(uint address, ushort value) => frame = frame with { Arena = frame.Arena.Write(ArenaOffset(address, 2), BitConverter.GetBytes(value)) };
         void CopySnapshot(NativeBattleEffectArena source, int offset, uint destination, int length)
         {
-            (byte[] data, bool[] known) = source.ReadSnapshot(offset, length);
-            int target = ArenaOffset(destination, length);
-            NativeBattleEffectArena arena = frame.Arena.Write(target, data);
-            for (int index = 0; index < length; index++)
-            {
-                if (!known[index])
-                {
-                    arena = arena.MarkUnknown(target + index, 1);
-                }
-            }
-            frame = frame with { Arena = arena };
+            frame = frame with { Arena = frame.Arena.CopyResourceSnapshot(source, offset, ArenaOffset(destination, length), length) };
         }
     }
 

@@ -6,9 +6,25 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicPackedProjectionStep(NativeBattleWaterExecutionFrame Frame, NativeBattleGeometryRegisterStep Registers, uint SourceCursor, uint ScratchCursor);
 
+internal sealed record NativeBattleCinematicPackedResourceProjectionStep(NativeBattleWaterExecutionFrame Frame, NativeBattleGeometryRegisterStep Registers, NativeBattleModelGeometryCursor SourceCursor, uint ScratchCursor);
+
 public static class NativeBattleCinematicPackedProjection50FD40
 {
     public static NativeBattleCinematicPackedProjectionStep Execute(NativeBattleWaterExecutionFrame frame, uint sourceCursor, uint scratchCursor, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, Func<uint, int, (byte[] Data, bool[] Known)> readSource, Action<uint, NativeBattleVector, NativeBattleActionMatrix>? observeSource = null)
+    {
+        ProjectionStep<uint> result = ExecuteCore(frame, sourceCursor, scratchCursor, registers, projection, dqa, dqb, readSource, (cursor, count) => unchecked(cursor + (uint)count), observeSource);
+        return new(result.Frame, result.Registers, result.SourceCursor, result.ScratchCursor);
+    }
+
+    internal static NativeBattleCinematicPackedResourceProjectionStep Execute(NativeBattleWaterExecutionFrame frame, NativeBattleModelGeometryCursor sourceCursor, uint scratchCursor, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, Func<NativeBattleModelGeometryCursor, int, (byte[] Data, bool[] Known)> readSource, Action<uint, NativeBattleVector, NativeBattleActionMatrix>? observeSource = null)
+    {
+        ProjectionStep<NativeBattleModelGeometryCursor> result = ExecuteCore(frame, sourceCursor, scratchCursor, registers, projection, dqa, dqb, readSource, (cursor, count) => cursor + count, observeSource);
+        return new(result.Frame, result.Registers, result.SourceCursor, result.ScratchCursor);
+    }
+
+    private readonly record struct ProjectionStep<TCursor>(NativeBattleWaterExecutionFrame Frame, NativeBattleGeometryRegisterStep Registers, TCursor SourceCursor, uint ScratchCursor);
+
+    private static ProjectionStep<TCursor> ExecuteCore<TCursor>(NativeBattleWaterExecutionFrame frame, TCursor sourceCursor, uint scratchCursor, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, Func<TCursor, int, (byte[] Data, bool[] Known)> readSource, Func<TCursor, int, TCursor> advance, Action<uint, NativeBattleVector, NativeBattleActionMatrix>? observeSource)
     {
         ArgumentNullException.ThrowIfNull(readSource);
         var countBytes = Read(sourceCursor, 2);
@@ -18,7 +34,7 @@ public static class NativeBattleCinematicPackedProjection50FD40
         {
             return new(frame, registers, sourceCursor, scratchCursor);
         }
-        sourceCursor = unchecked(sourceCursor + 2);
+        sourceCursor = advance(sourceCursor, 2);
         for (int index = 0; index < count; index++)
         {
             var input = Read(sourceCursor, 8);
@@ -37,12 +53,12 @@ public static class NativeBattleCinematicPackedProjection50FD40
             {
                 observeSource(scratchCursor, new(BinaryPrimitives.ReadInt16LittleEndian(input.Data), BinaryPrimitives.ReadInt16LittleEndian(input.Data.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(input.Data.AsSpan(4))), sourceMatrix!);
             }
-            sourceCursor = unchecked(sourceCursor + 6);
+            sourceCursor = advance(sourceCursor, 6);
             scratchCursor = unchecked(scratchCursor + 8);
         }
         return new(frame, registers, sourceCursor, scratchCursor);
 
-        (byte[] Data, bool[] Known) Read(uint address, int length)
+        (byte[] Data, bool[] Known) Read(TCursor address, int length)
         {
             var value = readSource(address, length);
             if (value.Data is null || value.Known is null || value.Data.Length != length || value.Known.Length != length)

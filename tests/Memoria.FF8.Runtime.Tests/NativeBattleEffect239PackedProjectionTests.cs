@@ -163,6 +163,33 @@ public sealed class NativeBattleEffect239PackedProjectionTests
         }, observeSource: observeSource);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_cursor_runs_the_same_projection_and_retains_unknown_input_padding(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        byte[] bytes = Bytes(2, 10, 20, 100, 20, -10, 200, 0x1234);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        int offset = layout.BankLength + 3;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(offset, bytes.ToImmutableArray(), 0, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), new(new(0, offset) { Layout = layout, ResourceOnly = true }, null, bytes.Length), null!);
+        NativeBattleCinematicPackedProjectionStep numeric = Run(WaterSchedulerFixture.Create(), Registers(), bytes, unknownAbsoluteOffset: 14);
+        NativeBattleCinematicPackedResourceProjectionStep logical = NativeBattleCinematicPackedProjection50FD40.Execute(WaterSchedulerFixture.Create(), new NativeBattleModelGeometryCursor(source), Scratch, Registers(), Projection, 2, 4096, (cursor, length) =>
+        {
+            byte[] data = source.Read(cursor.Offset, length);
+            bool[] known = Enumerable.Range(cursor.Offset, length).Select(index => index != 14).ToArray();
+            return (data, known);
+        });
+        Assert.Equal(14, logical.SourceCursor.Offset);
+        Assert.Null(logical.SourceCursor.NumericAddress);
+        Assert.Equal(numeric.ScratchCursor, logical.ScratchCursor);
+        Assert.Equal(Words(numeric.Frame, 16), Words(logical.Frame, 16));
+        Assert.Equal(JsonSerializer.Serialize(numeric.Registers), JsonSerializer.Serialize(logical.Registers));
+        Assert.Equal(numeric.Frame.Random, logical.Frame.Random);
+    }
+
     private static byte[] Bytes(short count, params short[] words)
     {
         byte[] bytes = new byte[2 + words.Length * 2];

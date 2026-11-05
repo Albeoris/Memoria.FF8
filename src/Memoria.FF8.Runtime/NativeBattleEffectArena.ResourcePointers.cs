@@ -40,6 +40,25 @@ public partial record NativeBattleEffectArena
     public NativeBattleResourcePointer? ReadResourcePointer(int offset)
         => TryGetResourcePointer(offset, out NativeBattleResourcePointer? pointer) ? pointer : new(null, ReadUInt32(offset));
 
+    internal NativeBattleEffectArena CopyResourceSnapshot(NativeBattleEffectArena source, int sourceOffset, int destinationOffset, int length)
+    {
+        (byte[] data, bool[] known) = source.ReadSnapshot(sourceOffset, length);
+        KeyValuePair<int, NativeBattleResourcePointer?>[] pointers = source.MayHaveResourcePointers() ? source.EnumerateResourcePointers().Where(entry => entry.Key >= sourceOffset && entry.Key - sourceOffset <= length - 4).ToArray() : [];
+        NativeBattleEffectArena result = Write(destinationOffset, data);
+        for (int index = 0; index < length; index++)
+        {
+            if (!known[index])
+            {
+                result = result.MarkUnknown(destinationOffset + index, 1);
+            }
+        }
+        foreach ((int offset, NativeBattleResourcePointer? pointer) in pointers)
+        {
+            result = result.WriteResourcePointer(checked(destinationOffset + offset - sourceOffset), pointer);
+        }
+        return result;
+    }
+
     public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers() => EnumerateResourcePointers(false);
 
     internal bool MayHaveResourcePointers()

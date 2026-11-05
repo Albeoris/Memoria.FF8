@@ -10,19 +10,28 @@ public sealed partial class BattleSession
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor animation requires its current CPU resource owner.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor animation requires its current staging owner.");
-        Dictionary<uint, NativeBattleResourcePointer> pointers = [];
         uint existing = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
         uint actorAddress = existing == 0 ? CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + 4u * ReadSlot(frame, 0x1B, 1)[0]) : Dword(frame, existing + 0xC);
         int actorIndex = NativeEffect301Actor(graphics, actorAddress);
         NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-        NativeBattleResourcePointer[] fields = Enumerable.Range(0, 4).Select(ReadResource).ToArray();
+        NativeBattleResourcePointer[]? fields = null;
         NativeBattleCinematicModelServices modelServices = new((_, _) => throw new NotSupportedException("Native actor animation uses its copied physical resource row, not an embedded shape."), (_, address) =>
         {
-            NativeBattleResourcePointer pointer = RequirePointer(address);
+            NativeBattleResourcePointer pointer = RequirePointer(new(null, address));
             return Read(pointer, pointer.Length ?? throw new NotSupportedException("Native actor animation section has no retained extent."));
-        });
+        })
+        {
+            ReadAnimationResource = (_, receipt) =>
+            {
+                NativeBattleResourcePointer pointer = RequirePointer(receipt);
+                int length = pointer.Length ?? throw new NotSupportedException("Native actor animation section has no retained extent.");
+                return NativeBattleModelResourceView.Open(cpu, staging, pointer, length).ReadMemory(0, length);
+            }
+        };
         NativeBattleCinematicActorAnimation2CServices services = new(CaptureActor, PrepareBasis, modelServices, DrawBody);
         return (NativeBattleCinematicActorAnimation2C.Draw(frame, services), graphics);
+
+        NativeBattleResourcePointer[] ActorFields() => fields ??= Enumerable.Range(0, 4).Select(ReadResource).ToArray();
 
         NativeBattleResourcePointer ReadResource(int field)
         {
@@ -42,7 +51,6 @@ public sealed partial class BattleSession
                 }
                 pointer = reference is null ? new(null, 0) : new(reference, null, cpuRow.Lengths.TryGetValue(offset, out int length) ? length : null);
             }
-            pointers[Address(pointer)] = pointer;
             return pointer;
         }
 
@@ -53,12 +61,13 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native actor animation changed physical actor during clone construction.");
             }
             NativeBattleEffectArena resources = NativeBattleEffectArena.Clear();
-            for (int index = 0; index < fields.Length; index++)
+            NativeBattleResourcePointer[] selected = ActorFields();
+            for (int index = 0; index < selected.Length; index++)
             {
-                resources = resources.Write(index * 4, BitConverter.GetBytes(Address(fields[index])));
+                resources = resources.WriteResourcePointer(index * 4, selected[index].Pin(cpu));
             }
-            int count = Read(fields[0], 1)[0];
-            byte[] skeleton = Read(fields[0], checked(16 + count * 48));
+            int count = Read(selected[0], 1)[0];
+            byte[] skeleton = Read(selected[0], checked(16 + count * 48));
             NativeBattleEffectArena input = NativeBattleEffectArena.Clear().MarkUnknown(0, 12);
             return new(input, resources, skeleton, actor.Color40 ?? throw new NotSupportedException("Native actor animation requires current actor color DWORD40."), actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor animation requires its current object mask."));
         }
@@ -108,8 +117,8 @@ public sealed partial class BattleSession
             uint skeleton = Dword(current, clone + 0x30);
             int boneCount = current.Arena.Read(ArenaOffset(skeleton, 1), 1)[0];
             ImmutableArray<NativeBattleActionMatrix> bones = Enumerable.Range(0, boneCount).Select(index => NativeBattleArenaPose.ReadMatrix(current.Arena, ArenaOffset(skeleton + 0x20u + 0x30u * (uint)index, 32))).ToImmutableArray();
-            uint geometry = Dword(current, clone + 0x34);
-            NativeBattleResourcePointer geometryPointer = RequirePointer(geometry);
+            NativeBattleResourcePointer geometryPointer = RequirePointer(current.Arena.ReadResourcePointer(ArenaOffset(clone + 0x34, 4)) ?? throw new NotSupportedException("Native actor animation has no current clone geometry descriptor."));
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, staging, geometryPointer, (offset, count) => ReadAt(geometryPointer, offset, count));
             if (geometryPointer.Length is null)
             {
                 throw new NotSupportedException("Native actor animation geometry has no retained source extent.");
@@ -129,7 +138,7 @@ public sealed partial class BattleSession
             NativeBattleGeometryViewport viewport = new(Word(current, clone + 0x54), Word(current, clone + 0x56), Word(current, clone + 0x58), Word(current, clone + 0x5A));
             int length = meshes.Where((_, index) => (mask & (1u << (index & 31))) != 0).Select(mesh => mesh.Vertices.Length * 8).DefaultIfEmpty().Max();
             NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank)) with { ResourceGeneration = geometry };
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank)) with { ResourceGeneration = geometry.PresentationIdentity };
             NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), Word(current, clone + 0x64), visualIdentity);
             NativeEffectMemory = NativeBattleCinematicActorAnimation2C.PublishProjectionRegisters(RequireWaterMemory(), current.Arena, skeleton, meshes, mask);
             if (draw.ProjectedBytesWritten != 0)
@@ -144,7 +153,7 @@ public sealed partial class BattleSession
                 {
                     BinaryPrimitives.WriteUInt16LittleEndian(counts.AsSpan(index * 2), lastCounts[index]);
                 }
-                current = current with { Arena = current.Arena.Write(ArenaOffset(clone + 0x40, 4), BitConverter.GetBytes(geometry + (uint)lastPayload)).Write(ArenaOffset(clone + 0x48, 8), counts) };
+                current = current with { Arena = geometry.WriteCursor(current.Arena, ArenaOffset(clone + 0x40, 4), lastPayload).Write(ArenaOffset(clone + 0x48, 8), counts) };
             }
             var written = AppendNativeCinematicPackets(current, output, null, draw.Packets, graphics);
             graphics = written.Graphics;
@@ -152,12 +161,20 @@ public sealed partial class BattleSession
             if (!lastCounts.IsDefault)
             {
                 NativeBattleEffectMemory completed = RequireWaterMemory();
-                NativeEffectMemory = completed with { PrimitiveProcess = (completed.PrimitiveProcess ?? throw new NotSupportedException("Native actor animation lost its renderer process.")).Publish50FDF0(cursor, geometry + (uint)lastEnd) };
+                NativeEffectMemory = completed with { PrimitiveProcess = (completed.PrimitiveProcess ?? throw new NotSupportedException("Native actor animation lost its renderer process.")).PublishModelSource50FDF0(cursor, geometry.Cursor(lastEnd)) };
             }
             return new(written.Frame, cursor);
         }
 
-        NativeBattleResourcePointer RequirePointer(uint address) => pointers.TryGetValue(address, out NativeBattleResourcePointer? pointer) ? pointer : throw new NotSupportedException("Native actor animation pointer has no current retained resource owner.");
+        NativeBattleResourcePointer RequirePointer(NativeBattleResourcePointer pointer)
+        {
+            if (pointer.Cpu is not null || pointer.Length is not null)
+            {
+                return pointer;
+            }
+            uint address = pointer.StagingAddress ?? throw new NotSupportedException("Native actor animation descriptor has no observed owner.");
+            return ActorFields().FirstOrDefault(field => (field.Cpu?.TryPhysicalAddress() ?? field.StagingAddress) == address) ?? throw new NotSupportedException("Native actor animation legacy descriptor has no current retained resource owner.");
+        }
         byte[] Read(NativeBattleResourcePointer pointer, int length) => ReadAt(pointer, 0, length);
         byte[] ReadAt(NativeBattleResourcePointer pointer, int offset, int length)
         {
@@ -165,9 +182,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native actor animation read leaves its proved current resource extent.");
             }
-            return pointer.Cpu is { } reference ? NativeBattleModelEnemyHeap.Read(cpu, staging, reference with { Offset = checked(reference.Offset + offset) }, length) : staging.Read(checked((pointer.StagingAddress ?? throw new NotSupportedException("Native actor animation resource pointer has no physical backing.")) + (uint)offset), length);
+            return NativeBattleModelResourceView.Open(cpu, staging, pointer, checked(offset + length)).Read(offset, length);
         }
-        static uint Address(NativeBattleResourcePointer pointer) => pointer.Cpu is { } reference ? reference.PhysicalAddress : pointer.StagingAddress ?? throw new NotSupportedException("Native actor animation cannot invent a numeric resource-table address.");
         static uint Dword(NativeBattleWaterExecutionFrame current, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(current.Arena.Read(ArenaOffset(address, 4), 4));
         static short Word(NativeBattleWaterExecutionFrame current, uint address) => BinaryPrimitives.ReadInt16LittleEndian(current.Arena.Read(ArenaOffset(address, 2), 2));
     }

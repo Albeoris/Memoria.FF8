@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A bounded, nonserialized section view over one published CPU bank or the current shared staging authority.</summary>
-/// <remarks>CPU banks are immutable publications. Staging views observe current writes and retain their transaction's lifetime checks. Reopen a view after its row is rebound or relocated. Reads return copies, never borrowed backing spans.</remarks>
+/// <remarks>CPU banks are immutable publications. Staging views observe current writes and retain their transaction's lifetime checks. Reopen a view after its row is rebound or relocated. Public reads return copies; synchronous internal animation readers may borrow immutable CPU slices.</remarks>
 public readonly struct NativeBattleModelResourceView
 {
     private readonly NativeBattleModelCpuBank? bank;
@@ -37,7 +37,7 @@ public readonly struct NativeBattleModelResourceView
         }
         if (pointer.Cpu is { } reference)
         {
-            return OpenCpu(cpu, staging, reference, length);
+            return OpenCpu(cpu, staging, reference, length, pointer.CpuPublication);
         }
         return OpenStaging(staging, pointer.StagingAddress!.Value, length);
     }
@@ -78,13 +78,79 @@ public readonly struct NativeBattleModelResourceView
         return staging!.Read((uint)selected, length);
     }
 
+    internal ReadOnlyMemory<byte> ReadMemory(int offset, int length)
+    {
+        RequireOwner();
+        RequireRange(offset, length, Length);
+        if (bank is not null)
+        {
+            _ = resourceOnly ? bank.Read(0, 0) : bank.ReadGuest(0, 0);
+            int first = checked(bankOffset + offset);
+            foreach (NativeBattleModelResourceSegment segment in resourceOnly ? bank.ResourceSegments : bank.GuestSegments)
+            {
+                if (first >= segment.Offset && first - segment.Offset <= segment.Length - length)
+                {
+                    return segment.Source.AsMemory().Slice(segment.SourceOffset + first - segment.Offset, length);
+                }
+            }
+        }
+        return Read(offset, length);
+    }
+
+    public (byte[] Data, bool[] Known) ReadSnapshot(int offset, int length)
+    {
+        RequireOwner();
+        RequireRange(offset, length, Length);
+        if (bank is null)
+        {
+            ulong selected = address + (uint)offset;
+            if (selected > uint.MaxValue)
+            {
+                staging!.Validate();
+                return ([], []);
+            }
+            return staging!.ReadSnapshot((uint)selected, length);
+        }
+        _ = resourceOnly ? bank.Read(0, 0) : bank.ReadGuest(0, 0);
+        byte[] data = new byte[length];
+        bool[] known = new bool[length];
+        int first = checked(bankOffset + offset);
+        foreach (NativeBattleModelResourceSegment segment in resourceOnly ? bank.ResourceSegments : bank.GuestSegments)
+        {
+            int start = Math.Max(first, segment.Offset);
+            int end = Math.Min(first + length, segment.Offset + segment.Length);
+            if (end > start)
+            {
+                segment.Source.AsSpan(segment.SourceOffset + start - segment.Offset, end - start).CopyTo(data.AsSpan(start - first));
+                Array.Fill(known, true, start - first, end - start);
+            }
+        }
+        return (data, known);
+    }
+
+    internal static NativeBattleModelCpuResources WritePartySection(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, int offset, ReadOnlySpan<byte> bytes)
+    {
+        if (pointer.CpuPublication is not null || pointer.Cpu is not { Bank: < 3 } reference)
+        {
+            throw new InvalidDataException("CPU section writes require their actual party resource owner.");
+        }
+        int available = checked((reference.ResourceOnly ? cpu.Cpu.Banks[reference.Bank].ResourceCapacity : cpu.Cpu.Banks[reference.Bank].Capacity) - reference.Offset);
+        int extent = Math.Min(pointer.Length ?? available, available);
+        NativeBattleModelResourceView view = Open(cpu, staging, pointer, extent);
+        RequireRange(offset, bytes.Length, view.Length);
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
+        int destination = checked(reference.Offset + offset);
+        bank = reference.ResourceOnly ? bank.Write(destination, bytes) : bank.WriteGuest(destination, bytes);
+        return cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
+    }
+
     private static NativeBattleModelResourceView OpenStaging(NativeBattleFileStaging staging, uint address, int length)
     {
         NativeBattleFileStaging.RequirePhysicalRange(address, length);
         return new(null, staging, 0, address, length);
     }
 
-    private static NativeBattleModelResourceView OpenCpu(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelCpuReference reference, int length)
+    private static NativeBattleModelResourceView OpenCpu(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelCpuReference reference, int length, NativeBattleModelCpuBank? publication = null)
     {
         if (reference.Bank >= 3)
         {
@@ -94,7 +160,7 @@ public readonly struct NativeBattleModelResourceView
         {
             throw new InvalidDataException("Native model section selects an absent CPU bank.");
         }
-        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
+        NativeBattleModelCpuBank bank = publication ?? cpu.Cpu.Banks[reference.Bank];
         if (reference.ResourceOnly && !bank.HasResourceStorage)
         {
             throw new InvalidDataException("A logical model section requires its retained resource owner.");

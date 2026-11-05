@@ -136,6 +136,156 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorAnimation2C.RequireSelectedPrimitiveGroups([7, 11, triangles, quads]));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Clone_retains_CPU_source_publication_and_independent_live_skeleton_after_same_bank_rebind_and_restore(bool remastered, bool logical)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        int captures = 0;
+        NativeBattleCinematicActorAnimation2CServices initial = Services(Skeleton(), () => captures++, (frame, clone) =>
+        {
+            NativeBattleResourcePointer retained = frame.Arena.ReadResourcePointer(0x4034)!;
+            Assert.NotNull(retained.CpuPublication);
+            Assert.NotNull(frame.Arena.ReadResourcePointer(0x4038)!.CpuPublication);
+            if (logical)
+            {
+                Assert.Throws<NotSupportedException>(() => frame.Arena.ReadUInt32(0x4034));
+            }
+            else
+            {
+                Assert.Equal(retained.Cpu!.PhysicalAddress, frame.Arena.ReadUInt32(0x4034));
+            }
+            return new(frame, 0x12345678);
+        });
+        byte[] animations = initial.Model.ReadAnimations(Fixture(), AnimationAddress);
+        ImmutableArray<byte> data = animations.ToImmutableArray();
+        int offset = logical ? layout.BankLength + 4 : 4;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(offset, data, 0, data.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer pointer = new(new(0, offset) { ResourceOnly = logical, Layout = layout }, null, data.Length);
+        NativeBattleCinematicActorAnimation2CServices services = initial with
+        {
+            CaptureActor = actor =>
+            {
+                NativeBattleCinematicActorAnimation2CSource source = initial.CaptureActor(actor);
+                NativeBattleEffectArena descriptors = NativeBattleEffectArena.CreateUnknown(16);
+                for (int field = 0; field < 4; field++)
+                {
+                    descriptors = descriptors.WriteResourcePointer(field * 4, pointer.Pin(cpu));
+                }
+                return source with { Resources = descriptors };
+            },
+            Model = initial.Model with
+            {
+                ReadAnimationResource = (_, receipt) => NativeBattleModelResourceView.Open(cpu, staging, receipt, receipt.Length!.Value).ReadMemory(0, receipt.Length.Value)
+            }
+        };
+        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank.BindPartyResource(offset, Enumerable.Repeat((byte)0xFF, data.Length).ToImmutableArray(), 0, data.Length)) } };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first));
+        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services);
+        Assert.Equal(1, captures);
+        Assert.Equal((ushort)2, Word(second, 0x4000));
+        Assert.Equal((byte)2, second.Arena.Read(0x4026, 1)[0]);
+        Assert.Equal((byte)2, second.Arena.Read(0x4080, 1)[0]);
+        Assert.Equal((byte)0x5A, second.Arena.Read(0x4086, 1)[0]);
+        Assert.Equal(data.AsSpan().ToArray(), NativeBattleModelResourceView.Open(cpu, staging, second.Arena.ReadResourcePointer(0x4038)!, data.Length).Read(0, data.Length));
+        Assert.Equal(animations, data.AsSpan().ToArray());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Clone_draws_geometry_beyond_its_edition_guest_capacity_from_the_retained_source_after_restore(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        byte[] skeleton = Skeleton();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        int draws = 0;
+        NativeBattleCinematicActorAnimation2CServices initial = Services(skeleton, () => { }, (frame, clone) =>
+        {
+            NativeBattleResourcePointer pointer = frame.Arena.ReadResourcePointer(0x4034)!;
+            NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, null!);
+            int end = 0;
+            ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(source.Read, 2, (_, _, _, after) => end = after);
+            ImmutableArray<NativeBattleActionMatrix> bones = Enumerable.Range(0, 2).Select(index => NativeBattleArenaPose.ReadMatrix(frame.Arena, 0x40A0 + index * 48)).ToImmutableArray();
+            NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 1000, 160, 108);
+            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, 0x808080, uint.MaxValue, new byte[24].ToImmutableArray(), new(0, 0, 1f / 4096, 6755401588539392d));
+            Assert.Contains(draw.Packets.Attempts, attempt => attempt.Primitive is not null);
+            Assert.Equal(24, draw.ProjectedBytesWritten);
+            NativeBattlePrimitiveProcess renderer = NativeBattlePrimitiveProcess.FromColdProcess().PublishModelSource50FDF0(0x12345678, source.Cursor(end));
+            Assert.NotNull(renderer.ModelRendererRegisters!.ReadSourceCursor()!.CpuPublication);
+            draws++;
+            return new(frame with { Arena = source.WriteCursor(frame.Arena, 0x4040, end) }, 0x12345678);
+        });
+        byte[] geometry = LargeGeometry(layout.BankLength + 4);
+        byte[] animations = initial.Model.ReadAnimations(Fixture(), AnimationAddress);
+        byte[] payload = new byte[skeleton.Length + geometry.Length + animations.Length];
+        skeleton.CopyTo(payload, 0);
+        geometry.CopyTo(payload, skeleton.Length);
+        animations.CopyTo(payload, skeleton.Length + geometry.Length);
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(0, payload.ToImmutableArray(), 0, payload.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer[] fields =
+        [
+            new(new(0, 0) { Layout = layout, ResourceOnly = true }, null, skeleton.Length),
+            new(new(0, skeleton.Length) { Layout = layout, ResourceOnly = true }, null, geometry.Length),
+            new(new(0, skeleton.Length + geometry.Length) { Layout = layout, ResourceOnly = true }, null, animations.Length),
+            new(null, 0)
+        ];
+        NativeBattleCinematicActorAnimation2CServices services = initial with
+        {
+            CaptureActor = actor =>
+            {
+                NativeBattleCinematicActorAnimation2CSource source = initial.CaptureActor(actor);
+                NativeBattleEffectArena descriptors = NativeBattleEffectArena.CreateUnknown(16);
+                for (int field = 0; field < fields.Length; field++)
+                {
+                    descriptors = descriptors.WriteResourcePointer(field * 4, fields[field].Pin(cpu));
+                }
+                return source with { Resources = descriptors };
+            },
+            Model = initial.Model with
+            {
+                ReadAnimationResource = (_, pointer) => NativeBattleModelResourceView.Open(cpu, staging, pointer, pointer.Length!.Value).ReadMemory(0, pointer.Length.Value)
+            }
+        };
+        NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
+        Assert.True(bank.ResourceCapacity > layout.BankLength);
+        cpu = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first));
+        NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(restored, services);
+        Assert.Equal(2, draws);
+        Assert.NotNull(second.Arena.ReadResourcePointer(0x4040)!.CpuPublication);
+        Assert.Equal((ushort)2, Word(second, 0x4000));
+    }
+
+    private static byte[] LargeGeometry(int meshOffset)
+    {
+        byte[] geometry = new byte[meshOffset + 64];
+        BinaryPrimitives.WriteInt32LittleEndian(geometry, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(geometry.AsSpan(4), meshOffset);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset + 4), 3);
+        short[] vertices = [-10, -10, 1000, 10, -10, 1000, 0, 10, 1000];
+        for (int index = 0; index < vertices.Length; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(meshOffset + 6 + index * 2), vertices[index]);
+        }
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset + 24), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset + 36), 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset + 38), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(meshOffset + 40), 2);
+        return geometry;
+    }
+
     private static NativeBattleCinematicActorAnimation2CServices Services(byte[] skeleton, Action capture, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicActorCloneDraw> draw)
     {
         byte[] animations = new byte[4 + 29 * 4 + 65];

@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer[] fields = Enumerable.Range(0, 4).Select(ReadResource).ToArray();
         NativeBattleResourcePointer skeleton = fields[0];
         NativeBattleResourcePointer geometry = fields[1];
-        uint geometryAddress = Address(geometry);
+        NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, geometry, (offset, length) => ReadKnown(geometry, offset, length));
         Dictionary<int, (ImmutableArray<ushort> Counts, int Payload)> objectMetadata = [];
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => ReadKnown(geometry, offset, length), pose.BoneCount, (index, counts, payload, _) => objectMetadata.Add(index, (counts, payload)));
         uint clone = SlotDword(0xBC);
@@ -86,16 +86,16 @@ public sealed partial class BattleSession
             }
             int objectOffset = BinaryPrimitives.ReadInt32LittleEndian(ReadKnown(geometry, 4 + objectIndex * 4, 4));
             int groups = BinaryPrimitives.ReadInt16LittleEndian(ReadKnown(geometry, objectOffset, 2));
-            uint sourceCursor = geometryAddress + (uint)objectOffset + 2;
+            NativeBattleModelGeometryCursor sourceCursor = new(geometrySource, checked(objectOffset + 2));
             uint scratchCursor = projectedWork;
             System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[meshes[objectIndex].Vertices.Length];
             for (int group = 0; group < groups; group++)
             {
-                ushort bone = BinaryPrimitives.ReadUInt16LittleEndian(ReadKnown(geometry, checked((int)(sourceCursor - geometryAddress)), 2));
+                ushort bone = BinaryPrimitives.ReadUInt16LittleEndian(ReadKnown(geometry, sourceCursor.Offset, 2));
                 sourceCursor += 2;
                 LoadBone(bone);
                 NativeBattleScriptedGraphicsMemory controls = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native actor glow requires its depth cue controls.");
-                NativeBattleCinematicPackedProjectionStep step = NativeBattleCinematicPackedProjection50FD40.Execute(frame, sourceCursor, scratchCursor, Registers(), projection, controls.Dqa, controls.Dqb, ReadGeometry, observeSource: (output, vertex, loadedMatrix) =>
+                NativeBattleCinematicPackedResourceProjectionStep step = NativeBattleCinematicPackedProjection50FD40.Execute(frame, sourceCursor, scratchCursor, Registers(), projection, controls.Dqa, controls.Dqb, ReadGeometry, observeSource: (output, vertex, loadedMatrix) =>
                 {
                     int index = checked((int)((output - projectedWork) / 8));
                     worldVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(loadedMatrix, vertex), projection);
@@ -105,13 +105,13 @@ public sealed partial class BattleSession
                 sourceCursor = step.SourceCursor;
                 scratchCursor = step.ScratchCursor;
             }
-            int countsOffset = checked((int)(((sourceCursor + 3) & ~3u) - geometryAddress));
+            int countsOffset = sourceCursor.Align4().Offset;
             byte[] counts = ReadKnown(geometry, countsOffset, 8);
             for (int index = 0; index < 4; index++)
             {
                 StoreWord(clone + 0x48u + 2u * (uint)index, BinaryPrimitives.ReadUInt16LittleEndian(counts.AsSpan(index * 2)));
             }
-            StoreDword(clone + 0x40, geometryAddress + (uint)countsOffset + 12);
+            frame = frame with { Arena = geometrySource.WriteCursor(frame.Arena, ArenaOffset(clone + 0x40, 4), checked(countsOffset + 12)) };
             var metadata = objectMetadata[objectIndex];
             if (metadata.Payload != countsOffset + 12 || !metadata.Counts.SequenceEqual(Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(counts.AsSpan(index * 2)))))
             {
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                 return new NativeBattleProjectedVertex(Dword(address), Dword(address + 4));
             }).ToArray();
             NativeBattleCinematicVertexColors colors = NativeBattleCinematicActorVertexColor20.ReadObjectColors(frame, state, colorBase, objectIndex, mesh.Vertices.Length);
-            Append(NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown, worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, objectIndex, false, geometryAddress)));
+            Append(NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown, worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, objectIndex, false, geometrySource.PresentationIdentity)));
         }
         Shadow();
         NativeModelCpuResources = cpu;
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < fields.Length; index++)
             {
                 uint address = clone + 0x30u + 4u * (uint)index;
-                if (Address(fields[index]) == 0)
+                if (fields[index].Cpu is null && fields[index].StagingAddress == 0)
                 {
                     StoreDword(address, 0);
                 }
@@ -261,7 +261,7 @@ public sealed partial class BattleSession
             }
             NativeBattleGraphicsDefinition native = definition.NativeGraphics ?? throw new NotSupportedException("Native actor glow shadow requires its current graphics definition.");
             NativeBattleEffectMemory memory = RequireWaterMemory();
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(), actor, projection, memory.ScriptedGraphics ?? throw new NotSupportedException("Native actor glow shadow requires depth controls."), native.Rules.ShadowSource ?? throw new NotSupportedException("Native actor glow shadow requires its original vector source."), native.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Native actor glow shadow requires its current primitive capability."), 0x4064 / 4, 31, pilotIdentity: visualIdentity with { Primitive = unchecked((int)0x80000000), ResourceGeneration = geometryAddress });
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(), actor, projection, memory.ScriptedGraphics ?? throw new NotSupportedException("Native actor glow shadow requires depth controls."), native.Rules.ShadowSource ?? throw new NotSupportedException("Native actor glow shadow requires its original vector source."), native.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Native actor glow shadow requires its current primitive capability."), 0x4064 / 4, 31, pilotIdentity: visualIdentity with { Primitive = unchecked((int)0x80000000), ResourceGeneration = geometrySource.PresentationIdentity });
             staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x78);
             PublishRegisters(shadow.Registers);
@@ -294,7 +294,7 @@ public sealed partial class BattleSession
             return reference is null ? new(null, 0) : new(reference, null, current.Lengths.TryGetValue(field, out int length) ? length : null);
         }
 
-        (byte[] Data, bool[] Known) ReadGeometry(uint address, int length) => ReadSnapshot(geometry, checked((int)(address - geometryAddress)), length);
+        (byte[] Data, bool[] Known) ReadGeometry(NativeBattleModelGeometryCursor cursor, int length) => ReadSnapshot(geometry, cursor.Offset, length);
 
         (byte[] Data, bool[] Known) ReadSnapshot(NativeBattleResourcePointer pointer, int offset, int length)
         {
@@ -304,20 +304,7 @@ public sealed partial class BattleSession
             }
             if (pointer.Cpu is { Bank: < 3 } reference)
             {
-                byte[] data = new byte[length];
-                bool[] known = new bool[length];
-                int first = checked(reference.Offset + offset);
-                foreach (NativeBattleEffectMemoryRegion region in cpu.Cpu.Banks[reference.Bank].KnownRanges)
-                {
-                    int start = Math.Max(first, region.Offset);
-                    int end = Math.Min(first + length, region.Offset + region.Data.Length);
-                    if (end > start)
-                    {
-                        region.Data.AsSpan().Slice(start - region.Offset, end - start).CopyTo(data.AsSpan(start - first));
-                        Array.Fill(known, true, start - first, end - start);
-                    }
-                }
-                return (data, known);
+                return NativeBattleModelResourceView.Open(cpu, staging, pointer, checked(offset + length)).ReadSnapshot(offset, length);
             }
             uint address = checked(Address(pointer) + (uint)offset);
             return IsNativeEffectArenaAddress(address) ? frame.Arena.ReadSnapshot(ArenaOffset(address, length), length) : staging.ReadSnapshot(address, length);
@@ -337,8 +324,7 @@ public sealed partial class BattleSession
         {
             if (pointer.Cpu is { Bank: < 3 } reference)
             {
-                NativeBattleModelCpuBank current = cpu.Cpu.Banks[reference.Bank].Write(checked(reference.Offset + offset), bytes);
-                cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, current) } };
+                cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, pointer, offset, bytes);
             }
             else
             {

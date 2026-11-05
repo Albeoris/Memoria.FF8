@@ -53,7 +53,7 @@ public readonly struct NativeBattleModelGeometrySource
         ArgumentNullException.ThrowIfNull(pointer);
         if (pointer.Cpu is { Bank: < 3 } reference)
         {
-            NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
+            NativeBattleModelCpuBank bank = pointer.CpuPublication ?? cpu.Cpu.Banks[reference.Bank];
             int available = checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.Offset);
             int length = Math.Min(pointer.Length ?? available, available);
             NativeBattleModelResourceView view = NativeBattleModelResourceView.Open(cpu, staging, pointer, length);
@@ -95,7 +95,7 @@ public readonly struct NativeBattleModelGeometrySource
     internal NativeBattleEffectArena WriteCursor(NativeBattleEffectArena destination, int field, int offset)
     {
         // Native callers can publish a cursor before a masked object is skipped; reads remain section-bounded.
-        return NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
+        return Owner.CpuPublication is null && NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
     }
 
     public NativeBattleResourcePointer Cursor(int offset)

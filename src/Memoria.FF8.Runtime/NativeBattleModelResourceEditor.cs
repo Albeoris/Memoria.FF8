@@ -10,7 +10,7 @@ internal sealed class NativeBattleModelResourceEditor
 
     internal NativeBattleModelResourceEditor(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer)
     {
-        if (pointer.Cpu is not { Bank: < 3 })
+        if (pointer.CpuPublication is not null || pointer.Cpu is not { Bank: < 3 })
         {
             throw new InvalidDataException("CPU resource editing requires its selected party bank and address domain.");
         }
@@ -29,11 +29,7 @@ internal sealed class NativeBattleModelResourceEditor
     internal void Write(int offset, ReadOnlySpan<byte> bytes)
     {
         Require(offset, bytes.Length);
-        NativeBattleModelCpuReference reference = pointer.Cpu!;
-        NativeBattleModelCpuBank bank = Current.Cpu.Banks[reference.Bank];
-        int destination = checked(reference.Offset + offset);
-        bank = reference.ResourceOnly ? bank.Write(destination, bytes) : bank.WriteGuest(destination, bytes);
-        Current = Current with { Cpu = Current.Cpu with { Banks = Current.Cpu.Banks.SetItem(reference.Bank, bank) } };
+        Current = NativeBattleModelResourceView.WritePartySection(Current, staging, pointer, offset, bytes);
     }
 
     private void Require(int offset, int length)

@@ -8,7 +8,7 @@ public sealed record NativeBattleModelRendererRegisters(uint? FarRed, uint? FarG
 
     internal void ValidateSourceCursor()
     {
-        if (SourceResourceCursor is { } pointer && (!pointer.HasValidOwner() || pointer.Cpu is not { ResourceOnly: true } || SourceCursor is not null))
+        if (SourceResourceCursor is { } pointer && (!pointer.HasValidOwner() || pointer.Cpu is not { ResourceOnly: true } && pointer.CpuPublication is null || SourceCursor is not null))
         {
             throw new InvalidDataException("Model renderer cursor has inconsistent resource and numeric domains.");
         }
@@ -66,7 +66,7 @@ public sealed partial record NativeBattlePrimitiveProcess
         {
             throw new InvalidDataException("Model renderer cursor requires a selected resource section.");
         }
-        if (source.Cpu is not { ResourceOnly: true })
+        if (source.Cpu is not { ResourceOnly: true } && source.CpuPublication is null)
         {
             return Publish50FDF0(packetCursor, source.Cpu?.PhysicalAddress ?? source.StagingAddress);
         }
