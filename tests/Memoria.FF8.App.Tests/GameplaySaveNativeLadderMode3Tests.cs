@@ -15,13 +15,13 @@ public sealed class GameplaySaveNativeLadderMode3Tests
     [InlineData(true, true, 2)]
     [InlineData(false, true, 3)]
     [InlineData(true, false, 1)]
-    public void Logical_mode3_rebuilds_current_resources_and_preserves_distinct_body_renderer_phases(bool up, bool controlled, int ticks)
+    public void Logical_mode3_rebuilds_current_resources_and_preserves_body_progress_after_presentation_restart(bool up, bool controlled, int ticks)
     {
         CheckResume(up, controlled, ticks, false);
     }
 
     [Fact]
-    public void Shorter_current_visual_clip_normalizes_renderer_phase_without_changing_traversal()
+    public void Shorter_current_visual_clip_restarts_presentation_without_changing_traversal()
     {
         CheckResume(true, false, 2, true);
     }
@@ -57,11 +57,7 @@ public sealed class GameplaySaveNativeLadderMode3Tests
         GameplaySaveActorLadderMode3 ladder = continuation.Actors.Actors[objectId].LadderMode3!;
         Assert.NotNull(ladder);
         Assert.Equal(4, ladder.Duration);
-        Assert.Equal((ushort)(sourceActor.AnimationFrame * 16), ladder.RendererFrame);
-        if (!controlled && ticks is 2 or 3)
-        {
-            Assert.True(continuation.Actors.Actors[objectId].Animation.Frame != ladder.RendererFrame, $"Mode3 phases did not separate: frames={source.Events.AnimationFrameCount!(sourceActor.RenderModelId, sourceActor.AnimationId)}, increment={sourceActor.NativeAnimationHeader!.Increment}, renderer={ladder.RendererFrame}, header={sourceActor.NativeAnimationHeader.Frame}.");
-        }
+        Assert.Null(ladder.RendererFrame);
         Assert.Contains(continuation.Scripts.Fibers, fiber => fiber.ObjectId == objectId && fiber.Position == ladder.Operation && fiber.Wait == GameplaySaveScriptWait.NativeLadderMode3);
         GameState prepared = sourceSession.PrepareSnapshot();
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(prepared, initial.Resume with { Field = continuation.GetLeaderPosition() });
@@ -80,6 +76,8 @@ public sealed class GameplaySaveNativeLadderMode3Tests
         Assert.Throws<InvalidDataException>(() => GameplaySaveSessionLoader.Restore(malformed, directory, sharedAssets: assets));
         actors[objectId] = valid.Actors.Actors[objectId] with { Control = valid.Actors.Actors[objectId].Control with { LandingTriangle = (ushort)(triangle + 1) } };
         Assert.Throws<InvalidDataException>(() => GameplaySaveSessionLoader.Restore(malformed, directory, sharedAssets: assets));
+        actors[objectId] = valid.Actors.Actors[objectId] with { LadderMode3 = ladder with { RendererFrame = 123 } };
+        Assert.Equal(prepared.CrtRandom, GameplaySaveSessionLoader.Restore(malformed, directory, sharedAssets: assets).CrtRandom);
         if (shorterClip)
         {
             GameplaySaveSceneFacts facts = decoded.Progression.SceneFacts!;
@@ -97,7 +95,7 @@ public sealed class GameplaySaveNativeLadderMode3Tests
             Func<int, int, int> frameCount = candidate.Events.AnimationFrameCount!;
             candidate.Events.AnimationFrameCount = (model, animation) => animation == 1 ? 1 : frameCount(model, animation);
             candidate.Events.RestoreGameplaySaveFieldContinuation(valid, facts);
-            Assert.Equal(ladder.RendererFrame % 16 / 16f, candidate.Events.Actors[objectId].AnimationFrame);
+            Assert.Equal(0f, candidate.Events.Actors[objectId].AnimationFrame);
             Assert.Equal(sourceActor.NativeLadderMode3, candidate.Events.Actors[objectId].NativeLadderMode3);
             Assert.Equal(sourceActor.NativeTurnAccumulator474, candidate.Events.Actors[objectId].NativeTurnAccumulator474);
             Assert.Equal(prepared.CrtRandom, selectedSession.State.CrtRandom);
@@ -120,7 +118,7 @@ public sealed class GameplaySaveNativeLadderMode3Tests
         GameSession restoredSession = new(restoredState);
         using GameWorld restored = new(restoredSession, directory, sharedAssets: assets);
         restored.EnsureField();
-        Assert.Equal(sourceActor.AnimationFrame, restored.Events.Actors[objectId].AnimationFrame);
+        Assert.Equal(0f, restored.Events.Actors[objectId].AnimationFrame);
         Assert.Equal(sourceActor.NativeAnimationHeader!.Frame, restored.Events.Actors[objectId].NativeAnimationHeader!.Frame);
         for (int tick = 0; tick < 9; tick++)
         {
@@ -130,7 +128,7 @@ public sealed class GameplaySaveNativeLadderMode3Tests
             Assert.Equal(source.Apply(new(PlayerActionKind.Wait)), restored.Apply(new(PlayerActionKind.Wait)));
             ActorState expected = source.Events.Actors[objectId];
             ActorState actual = restored.Events.Actors[objectId];
-            Assert.Equal((expected.X, expected.Y, expected.Z, expected.WalkmeshTriangle, expected.AnimationFrame), (actual.X, actual.Y, actual.Z, actual.WalkmeshTriangle, actual.AnimationFrame));
+            Assert.Equal((expected.X, expected.Y, expected.Z, expected.WalkmeshTriangle), (actual.X, actual.Y, actual.Z, actual.WalkmeshTriangle));
             Assert.Equal(expected.NativeMovementCompletion542, actual.NativeMovementCompletion542);
             Assert.Equal(expected.NativeLadderMode3, actual.NativeLadderMode3);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source.Events.CaptureGameplaySaveScripts()), JsonSerializer.SerializeToElement(restored.Events.CaptureGameplaySaveScripts())));

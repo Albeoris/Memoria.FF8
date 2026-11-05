@@ -10,11 +10,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (!float.IsFinite(actor.AnimationFrame) || actor.AnimationFrame * 16 != MathF.Truncate(actor.AnimationFrame * 16) || actor.AnimationFrame * 16 is < 0 or > ushort.MaxValue)
-        {
-            throw new InvalidDataException("Gameplay mode3 ladder requires its exact independent renderer phase.");
-        }
-        GameplaySaveActorLadderMode3 result = new(ladder.FiberSequence, ladder.ScriptId, ladder.Operation, ladder.Up, new(ladder.Entry.X, ladder.Entry.Y, ladder.Entry.Z), new(ladder.Target.X, ladder.Target.Y, ladder.Target.Z), ladder.Duration, ladder.InitializationSpeed, (ushort)(actor.AnimationFrame * 16));
+        GameplaySaveActorLadderMode3 result = new(ladder.FiberSequence, ladder.ScriptId, ladder.Operation, ladder.Up, new(ladder.Entry.X, ladder.Entry.Y, ladder.Entry.Z), new(ladder.Target.X, ladder.Target.Y, ladder.Target.Z), ladder.Duration, ladder.InitializationSpeed);
         result.Validate();
         return result;
     }
@@ -32,17 +28,29 @@ public sealed partial class EventEngine
 
     private void RestoreGameplayLadderRenderer(ActorState actor, GameplaySaveFieldActor saved)
     {
-        if (saved.LadderMode3 is not { } ladder)
+        if (saved.LadderMode3 is null && !IsGameplayLadderPartyBody(actor))
         {
             return;
         }
-        int terminal = NativeAnimationTerminal(actor, actor.AnimationId);
-        if (terminal <= 0)
+        int selector = saved.Animation.Selector;
+        if (actor.NativeLadder is { } ladder)
         {
-            throw new NotSupportedException("Gameplay mode3 ladder requires a nonempty selected current animation clip.");
+            int stage = actor.NativeMovementCompletion542!.Value;
+            selector = stage switch
+            {
+                3 or 5 => LadderAnimationFor(actor, ladder.Up ? 3 : 5),
+                4 => LadderAnimationFor(actor, ladder.Up ? 5 : 3),
+                1 => actor.NativeLadderAnimation!.Loop595,
+                6 when actor.NativeTurnAccumulator474 == 0 && ladder.GameplayTiming is { } timing => ladder.Duration == timing.StartDuration ? timing.StartSelector : timing.EndSelector,
+                _ => actor.BaseAnimationId
+            };
         }
-        // The renderer phase is independent of the physical header phase. Only presentation loops normalize to a changed clip length.
-        actor.AnimationFrame = (ladder.RendererFrame < terminal ? ladder.RendererFrame : ladder.RendererFrame % terminal) / 16f;
+        else if (saved.LadderMode3 is null)
+        {
+            selector = actor.BaseAnimationId;
+        }
+        // Renderer phase and footstep crossings restart. Physical header waits and logical traversal timing remain independent.
+        SelectFullNativeAnimation(actor, selector, true, false);
     }
 
     private void ValidateGameplayLaddersMode3(IReadOnlyList<Fiber> current)

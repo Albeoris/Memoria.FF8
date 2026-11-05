@@ -4,7 +4,14 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Native mode4 owns DWORD400..456 and shared WORD472/474/508/538/542 until its issuing instruction returns2.</summary>
-public sealed record NativeLadderState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, bool Up, int FixedX, int FixedY, int FixedZ, int Triangle, FieldFixedPosition Entry, FieldFixedPosition Approach, FieldFixedPosition ClimbingEnd, FieldFixedPosition Exit, short Duration, [property: System.Text.Json.Serialization.JsonRequired] bool AutomaticCompletion = false);
+public sealed record NativeLadderState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, bool Up, int FixedX, int FixedY, int FixedZ, int Triangle, FieldFixedPosition Entry, FieldFixedPosition Approach, FieldFixedPosition ClimbingEnd, FieldFixedPosition Exit, short Duration, [property: System.Text.Json.Serialization.JsonRequired] bool AutomaticCompletion = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public GameplayLadderTiming? GameplayTiming { get; init; }
+}
+
+/// <summary>Logical transition durations retained by semantic continuation, independently of current visual clip length.</summary>
+public sealed record GameplayLadderTiming([property: System.Text.Json.Serialization.JsonRequired] byte StartSelector, [property: System.Text.Json.Serialization.JsonRequired] short StartDuration, [property: System.Text.Json.Serialization.JsonRequired] byte EndSelector, [property: System.Text.Json.Serialization.JsonRequired] short EndDuration);
 
 public sealed partial class EventEngine
 {
@@ -337,7 +344,7 @@ public sealed partial class EventEngine
                 kind = stage == 4 ? current.Up ? 5 : 3 : current.Up ? 3 : 5;
                 step = stage == 5 ? current.Up ? -1 : 1 : current.Up ? 1 : -1;
                 StepLadderAnimation(actor, LadderAnimationFor(actor, kind), step, true);
-                current = current with { Duration = unchecked((short)(AnimationFrameCount!(actor.RenderModelId, actor.AnimationId) - 2)) };
+                current = current with { Duration = NativeLadderTransitionDuration(actor, current, actor.AnimationId) };
                 RecordLadderTrace(actor, current, kind, step, true, false, true, 1, 31, 62);
                 start = stage == 3 ? current.Entry : stage == 4 ? current.ClimbingEnd : current.Approach;
                 target = stage == 3 ? current.Approach : stage == 4 ? current.Exit : current.Entry;
@@ -398,13 +405,19 @@ public sealed partial class EventEngine
 
     private void ValidateNativeLadders(Checkpoint saved, IReadOnlyList<Fiber> restored)
     {
-        if (NativeRuntimeProfile is { IsVerified: true } && saved.Scene.NativeLadderSpeed490E is null)
+        ValidateNativeLadders(saved.Actors, saved.Scene, restored, saved.UserControlEnabled, saved.FieldButtonInput);
+    }
+
+    private void ValidateNativeLadders(IReadOnlyList<ActorState> savedActors, SceneEventState savedScene, IReadOnlyList<Fiber> restored, bool savedUserControlEnabled, NativeFieldButtonInput? savedFieldButtonInput)
+    {
+        if (NativeRuntimeProfile is { IsVerified: true } && savedScene.NativeLadderSpeed490E is null)
         {
             throw new InvalidDataException("Saved field lacks executed ladder speed490E; the snapshot is missing required native state");
         }
-        foreach (ActorState actor in saved.Actors.Where(body => body.NativeLadder is not null))
+        foreach (ActorState actor in savedActors.Where(body => body.NativeLadder is not null))
         {
             NativeLadderState ladder = actor.NativeLadder!;
+            ValidateGameplayLadderTiming(actor, savedScene, ladder);
             Fiber? owner = restored.SingleOrDefault(fiber => fiber.Sequence == ladder.FiberSequence);
             EventScript? script = program!.Objects[actor.ObjectId].Scripts.SingleOrDefault(item => item.Id == ladder.ScriptId);
             if (ladder.Version != 1 || ladder.Entry is null || ladder.Approach is null || ladder.ClimbingEnd is null || ladder.Exit is null || script is null || !script.ContainsOperation(ladder.Operation) || program.Operations[ladder.Operation].Opcode != (ladder.Up ? Jsm.Opcode.LADDERUP2 : Jsm.Opcode.LADDERDOWN2) || actor.NativeMovementCompletion542 is null or > 6 || actor.NativeMovementCompletion542 == 0 || actor.NativeTurnAccumulator474 is null or < 0 || ladder.AutomaticCompletion && actor.NativeMovementCompletion542 != 2 || ladder.Duration < -1 || actor.NativeTurnAccumulator474 > Math.Max(0, (int)ladder.Duration) || ladder.Duration <= 0 && (actor.NativeMovementCompletion542 != 6 || actor.NativeTurnAccumulator474 != 0) || !MatchesNativeLadderPlacement(actor, ladder) || actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeMovementRequest is not null || ladder.Active && (owner is null || owner.Complete || owner.ObjectId != actor.ObjectId || owner.Script.Id != ladder.ScriptId || owner.Position != ladder.Operation || owner.WaitReason != WaitReason.NativeLadder) || !ladder.Active && actor.NativeMovementCompletion542 != 2)
@@ -413,13 +426,13 @@ public sealed partial class EventEngine
             }
             if (ladder.Active)
             {
-                if (!NativeFieldPartyBinding.TryGetObjectId(saved.Scene, 0, out int leader) || leader != actor.ObjectId || saved.Scene.PartyTrace is null || saved.Scene.NativePlayerPosition != new FieldFixedPosition(ladder.FixedX, ladder.FixedY, ladder.FixedZ) || saved.Scene.NativeLadderSpeed490E is null or 0 || new[] { ladder.Approach.X, ladder.Approach.Y, ladder.Approach.Z, ladder.ClimbingEnd.X, ladder.ClimbingEnd.Y, ladder.ClimbingEnd.Z, ladder.Exit.X, ladder.Exit.Y, ladder.Exit.Z }.Any(value => (value & 4095) != 0))
+                if (!NativeFieldPartyBinding.TryGetObjectId(savedScene, 0, out int leader) || leader != actor.ObjectId || savedScene.PartyTrace is null || savedScene.NativePlayerPosition != new FieldFixedPosition(ladder.FixedX, ladder.FixedY, ladder.FixedZ) || savedScene.NativeLadderSpeed490E is null or 0 || new[] { ladder.Approach.X, ladder.Approach.Y, ladder.Approach.Z, ladder.ClimbingEnd.X, ladder.ClimbingEnd.Y, ladder.ClimbingEnd.Z, ladder.Exit.X, ladder.Exit.Y, ladder.Exit.Z }.Any(value => (value & 4095) != 0))
                 {
                     throw new InvalidDataException("Saved native mode4 lacks its controlled leader and physical trace owner");
                 }
                 for (int slot = 0; slot < 3; slot++)
                 {
-                    ActorState? member = NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, slot);
+                    ActorState? member = NativeFieldPartyBinding.ResolveActor(savedScene, savedActors, slot);
                     if (member is null)
                     {
                         continue;
@@ -428,33 +441,33 @@ public sealed partial class EventEngine
                     {
                         throw new InvalidDataException("Saved native mode4 cannot place a party body owned by active mode3.");
                     }
-                    if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || saved.UserControlEnabled && !member.NativePartyFlags.AutoAnimation4) || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
+                    if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || savedUserControlEnabled && !member.NativePartyFlags.AutoAnimation4) || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
                     {
                         throw new InvalidDataException("Saved native mode4 has inconsistent physical animation ownership or metadata");
                     }
                 }
                 int stage = actor.NativeMovementCompletion542!.Value;
                 int counter = actor.NativeTurnAccumulator474!.Value;
-                if (!saved.UserControlEnabled && stage == 1 && counter != ladder.Duration && AnimationFrameCount?.Invoke(actor.RenderModelId, actor.AnimationId) is not (> 0 and <= 4095))
+                if (!savedUserControlEnabled && stage == 1 && counter != ladder.Duration && AnimationFrameCount?.Invoke(actor.RenderModelId, actor.AnimationId) is not (> 0 and <= 4095))
                 {
                     throw new InvalidDataException("Saved automatic mode4 lacks its current model animation's complete frame metadata");
                 }
                 int kind = stage == 4 ? ladder.Up ? 5 : 3 : ladder.Up ? 3 : 5;
-                if (stage == 6 && counter == 0 && (actor.AnimationId != actor.NativeLadderAnimation!.Start594 && actor.AnimationId != actor.NativeLadderAnimation.End596 || ladder.Duration != AnimationFrameCount!(actor.RenderModelId, actor.AnimationId) - 2))
+                if (stage == 6 && counter == 0 && (actor.AnimationId != actor.NativeLadderAnimation!.Start594 && actor.AnimationId != actor.NativeLadderAnimation.End596 || ladder.Duration != NativeLadderTransitionDuration(actor, ladder, actor.AnimationId)))
                 {
                     throw new InvalidDataException("Saved native mode4 drain entry lost its selected transition clip and signed duration");
                 }
-                if ((stage == 3 || stage is 4 or 5 && counter > 0) && ladder.Duration != AnimationFrameCount!(actor.RenderModelId, LadderAnimationFor(actor, kind)) - 2 || (stage == 2 && !ladder.AutomaticCompletion || stage == 6 && counter > 0) && ladder.Duration != (NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 2) is not null ? 32 : NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 1) is not null ? 16 : 1))
+                if ((stage == 3 || stage is 4 or 5 && counter > 0) && ladder.Duration != NativeLadderTransitionDuration(actor, ladder, LadderAnimationFor(actor, kind)) || (stage == 2 && !ladder.AutomaticCompletion || stage == 6 && counter > 0) && ladder.Duration != (NativeFieldPartyBinding.ResolveActor(savedScene, savedActors, 2) is not null ? 32 : NativeFieldPartyBinding.ResolveActor(savedScene, savedActors, 1) is not null ? 16 : 1))
                 {
                     throw new InvalidDataException("Saved native mode4 duration disagrees with its selected phase animation or follower drain");
                 }
-                if ((stage == 1 || ladder.AutomaticCompletion) && ladder.Duration != NativeLadderDuration(ladder.Approach, ladder.ClimbingEnd, saved.Scene.NativeLadderSpeed490E!.Value) || ladder.AutomaticCompletion && (counter != ladder.Duration || actor.NativeMovementGroundContact600 != 0))
+                if ((stage == 1 || ladder.AutomaticCompletion) && ladder.Duration != NativeLadderDuration(ladder.Approach, ladder.ClimbingEnd, savedScene.NativeLadderSpeed490E!.Value) || ladder.AutomaticCompletion && (counter != ladder.Duration || actor.NativeMovementGroundContact600 != 0))
                 {
                     throw new InvalidDataException("Saved automatic mode4 completion lost its climbing duration, final counter or native contact byte.");
                 }
                 try
                 {
-                    ValidateLadderTraceSamples(saved.Scene.PartyTrace, ProspectiveLadderTraceKind(ladder.Up, stage, saved.UserControlEnabled, saved.FieldButtonInput?.Held), NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 1) is not null, NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 2) is not null);
+                    ValidateLadderTraceSamples(savedScene.PartyTrace, ProspectiveLadderTraceKind(ladder.Up, stage, savedUserControlEnabled, savedFieldButtonInput?.Held), NativeFieldPartyBinding.ResolveActor(savedScene, savedActors, 1) is not null, NativeFieldPartyBinding.ResolveActor(savedScene, savedActors, 2) is not null);
                 }
                 catch (NotSupportedException exception)
                 {
@@ -462,7 +475,7 @@ public sealed partial class EventEngine
                 }
             }
         }
-        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeLadder && saved.Actors[fiber.ObjectId].NativeLadder is not { Active: true }))
+        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeLadder && savedActors[fiber.ObjectId].NativeLadder is not { Active: true }))
         {
             throw new InvalidDataException("Saved native ladder wait has no preserved mode4 owner");
         }

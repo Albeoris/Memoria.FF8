@@ -13,6 +13,11 @@ public sealed partial class EventEngine
         // the opcode immediately and permits the next instruction this frame.
         int[] args = Pop(fiber, 2);
         actor.NativeLadderAnimation = new NativeLadderAnimationState(unchecked((byte)parameter), unchecked((byte)args[1]), unchecked((byte)args[0]));
+        if (actor.NativeLadder is { GameplayTiming: not null } ladder)
+        {
+            // A new script selection establishes timing from the current animation resources.
+            actor.NativeLadder = ladder with { GameplayTiming = null };
+        }
         return args;
     }
 }
