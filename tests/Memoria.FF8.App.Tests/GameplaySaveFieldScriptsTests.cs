@@ -90,6 +90,29 @@ public sealed class GameplaySaveFieldScriptsTests
         Assert.Equal(before, JsonSerializer.Serialize(target.Capture()));
     }
 
+    [Fact]
+    public void Prepared_movie_selection_and_input_axis_phase_are_logical_script_owners()
+    {
+        byte[] program = Program(false);
+        var (session, source) = Create(program);
+        source.Step();
+        void Set(string name, object value) => typeof(EventEngine).GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(source, value);
+        Set("preparedMovie", 3);
+        Set("axisStart", 10);
+        Set("axisTarget", 20);
+        Set("axisDuration", 4);
+        Set("axisElapsed", 2);
+        typeof(EventEngine).GetProperty(nameof(EventEngine.InputAxisDirection))!.SetValue(source, 15);
+        session.SetMovieSource(new(0, 3));
+        GameplaySaveFieldScripts saved = source.CaptureGameplaySaveScripts();
+        Assert.Equal(3, saved.PreparedMovie);
+        Assert.Equal(new GameplaySaveFieldInputAxis(10, 20, 4, 2, 15), saved.InputAxis);
+        var (_, target) = Create(program, session.State);
+        target.RestoreGameplaySaveScripts(saved);
+        Assert.Equal(saved.PreparedMovie, target.CaptureGameplaySaveScripts().PreparedMovie);
+        Assert.Equal(saved.InputAxis, target.CaptureGameplaySaveScripts().InputAxis);
+    }
+
     private static (GameSession, EventEngine) Create(byte[] program, GameState? saved = null)
     {
         GameSession session;
@@ -141,7 +164,7 @@ public sealed class GameplaySaveFieldScriptsTests
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(scriptOffset + index * 2), (ushort)operation);
             foreach ((Jsm.Opcode opcode, int parameter) in scripts[index])
             {
-                int encoded = parameter != 0 || opcode == Jsm.Opcode.PSHN_L ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.SETMODEL ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(operationsOffset + 4 * operation++), encoded);
             }
         }

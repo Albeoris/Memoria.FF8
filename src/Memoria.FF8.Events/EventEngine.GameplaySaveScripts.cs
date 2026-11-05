@@ -7,7 +7,7 @@ public sealed partial class EventEngine
     /// <summary>Captures logical execution without native resources, receipt histories or replaying completed initialization.</summary>
     public GameplaySaveFieldScripts CaptureGameplaySaveScripts()
     {
-        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || partyMenu is not null || dialogues.Count != 0 || CurrentMoviePlayback is not null || partyJoin is not null || partySplit is not null || pendingArrival is not null)
+        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || partyMenu is not null || dialogues.Count != 0 || services.IsMoviePlaying || CurrentMoviePlayback?.IsPlaying == true || movieProgressExpected || partyJoin is not null || partySplit is not null || pendingArrival is not null)
         {
             throw new NotSupportedException("Gameplay script capture requires completed stable field initialization with no transition or modal operation.");
         }
@@ -21,7 +21,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Gameplay script capture cannot split a cross-owner local event cell.");
         }
-        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals);
+        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals) { PreparedMovie = preparedMovie >= 0 ? preparedMovie : null, InputAxis = new(axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection) };
         result.Validate();
         return result;
     }
@@ -146,6 +146,14 @@ public sealed partial class EventEngine
         userControlSequenceDisabled = saved.SequenceControlDisabled;
         backgroundFps = saved.BackgroundFps;
         nameEntity = saved.NameEntity;
+        axisStart = saved.InputAxis?.Start ?? 0;
+        axisTarget = saved.InputAxis?.Target ?? 0;
+        axisDuration = saved.InputAxis?.Duration ?? 0;
+        axisElapsed = saved.InputAxis?.Elapsed ?? 0;
+        InputAxisDirection = saved.InputAxis?.Direction ?? 0;
+        preparedMovie = saved.PreparedMovie ?? -1;
+        CurrentMoviePlayback = null;
+        movieProgressExpected = false;
         Scene.FieldCallbackClock = clock;
         defaultsStarted = true;
     }

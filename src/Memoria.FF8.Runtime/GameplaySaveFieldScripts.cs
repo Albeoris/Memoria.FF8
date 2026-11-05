@@ -20,19 +20,30 @@ public sealed record GameplaySaveScriptFiber([property: JsonRequired] int Object
 public sealed record GameplaySaveScriptOperands([property: JsonRequired] int ObjectId, [property: JsonRequired] int?[] Words, [property: JsonRequired] byte?[] SavedDepths, [property: JsonRequired] int? LiveDepth, [property: JsonRequired] ushort? ActorWord398);
 public sealed record GameplaySaveDoorSchedule([property: JsonRequired] int ObjectId, [property: JsonRequired] byte CurrentSlot, [property: JsonRequired] long CurrentSequence, [property: JsonRequired] long DefaultSequence, [property: JsonRequired] long InitializationSequence, [property: JsonRequired] int? RetiredOperation);
 public sealed record GameplaySaveFieldClock([property: JsonRequired] long Ordinary, [property: JsonRequired] long Movie, [property: JsonRequired] long Menu, [property: JsonRequired] long Loader, [property: JsonRequired] long? Battle, [property: JsonRequired] long Initialization, [property: JsonRequired] long RandomBattle, [property: JsonRequired] long MenuBattle);
+public sealed record GameplaySaveFieldInputAxis([property: JsonRequired] int Start, [property: JsonRequired] int Target, [property: JsonRequired] int Duration, [property: JsonRequired] int Elapsed, [property: JsonRequired] int Direction);
 
 /// <summary>Logical cooperative script state only; scene/actor reconstruction must complete independently before input resumes.</summary>
 public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Version, [property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramSha256, [property: JsonRequired] long Frame, [property: JsonRequired] double FractionalSeconds, [property: JsonRequired] long Sequence, [property: JsonRequired] bool UserControl, [property: JsonRequired] bool SequenceControlDisabled, [property: JsonRequired] int BackgroundFps, [property: JsonRequired] int NameEntity, [property: JsonRequired] GameplaySaveFieldClock Clock, [property: JsonRequired] GameplaySaveScriptFiber[] Fibers, [property: JsonRequired] GameplaySaveScriptOperands[] Operands, [property: JsonRequired] GameplaySaveDoorSchedule[] Doors, [property: JsonRequired] GameplaySaveEventCell[] Locals)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PreparedMovie { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldInputAxis? InputAxis { get; init; }
+
     public void Validate()
     {
-        if (Version != 1 || FieldId is < 0 or > ushort.MaxValue || ProgramSha256 is not { Length: 64 } || !ProgramSha256.All(Uri.IsHexDigit) || Frame < 1 || !double.IsFinite(FractionalSeconds) || FractionalSeconds is < 0 or > 10 || Sequence < 0 || BackgroundFps is < 1 or > 60 || Clock is null || Fibers is null || Operands is null || Doors is null || Locals is null)
+        if (Version != 1 || FieldId is < 0 or > ushort.MaxValue || ProgramSha256 is not { Length: 64 } || !ProgramSha256.All(Uri.IsHexDigit) || Frame < 1 || !double.IsFinite(FractionalSeconds) || FractionalSeconds is < 0 or > 10 || Sequence < 0 || BackgroundFps is < 1 or > 60 || PreparedMovie is < 0 or > byte.MaxValue || Clock is null || Fibers is null || Operands is null || Doors is null || Locals is null)
         {
             throw new InvalidDataException("Gameplay field scripts have an unsupported identity or timebase.");
         }
         if (Clock.Initialization != 1 || Clock.Ordinary < 0 || Clock.Movie < 0 || Clock.Menu < 0 || Clock.Loader < 0 || Clock.Battle < 0 || Clock.RandomBattle < 0 || Clock.MenuBattle < 0 || Clock.Ordinary > Frame - 1 || Clock.Movie != Frame - 1 - Clock.Ordinary)
         {
             throw new InvalidDataException("Gameplay field script callback counts disagree with their saved timebase.");
+        }
+        if (InputAxis is { } axis && (axis.Duration < 0 || axis.Elapsed < 0 || axis.Elapsed > axis.Duration))
+        {
+            throw new InvalidDataException("Gameplay field input-axis interpolation has an invalid logical phase.");
         }
         HashSet<long> sequences = [];
         foreach (GameplaySaveScriptFiber fiber in Fibers)

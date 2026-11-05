@@ -26,6 +26,8 @@ public sealed class GameplaySaveFieldContinuationTests
         source.EnsureField();
         sourceSession.SetEventMemory(sourceSession.EventMemory.Write(500, 4, NativeScalarValue.Exact(99)).Write(1100, 2, NativeScalarValue.Exact(0x1234)).Write(1104, 1, NativeScalarValue.Exact(0x91)));
         Assert.True(source.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.Null(source.Events.LastFault);
+        Assert.False(source.Events.IsDialogueOpen);
         GameplaySaveFieldContinuation continuation = source.Events.CaptureGameplaySaveFieldContinuation();
         Assert.Contains(continuation.Scripts.Fibers, fiber => fiber.Wait == GameplaySaveScriptWait.Frames);
         GameState prepared = sourceSession.PrepareSnapshot();
@@ -48,6 +50,7 @@ public sealed class GameplaySaveFieldContinuationTests
         Assert.Equal(prepared.ExamTimer!.ClockCalls, restored.ExamTimer!.ClockCalls);
         Assert.Equal(prepared.Playtime, restored.Playtime);
         Assert.Equal(NativeFieldLoadOrigin.GameplayContinuation, restored.FieldLoadContext!.Origin);
+        Assert.Equal(NativeFieldInputOrigin.GameplayContinuationReset, restored.FieldButtonInput!.Origin);
         GameSession resumedSession = new(restored);
         using GameWorld resumed = new(resumedSession, directory, sharedAssets: assets);
         resumed.EnsureField();
@@ -57,6 +60,7 @@ public sealed class GameplaySaveFieldContinuationTests
         {
             PlayerAction wait = new(PlayerActionKind.Wait);
             Assert.Equal(source.Apply(wait), resumed.Apply(wait));
+            Assert.Equal(NativeFieldInputOrigin.Sampled, resumedSession.FieldButtonInput!.Origin);
             Assert.Equal(prepared.Economy.Gil, resumedSession.State.Economy!.Gil);
             Assert.Equal(99, resumedSession.EventMemory.Read(500, 4).RequireExact());
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source.Events.CaptureGameplaySaveScripts()), JsonSerializer.SerializeToElement(resumed.Events.CaptureGameplaySaveScripts())));
@@ -95,6 +99,9 @@ public sealed class GameplaySaveFieldContinuationTests
         Assert.Throws<InvalidDataException>(() => (duplicate with { Story = duplicate.Story with { Cells = corrupt } }).NormalizeFieldContinuation());
         GameState restored = GameplaySaveSessionLoader.Restore(document with { Progression = duplicate }, directory, sharedAssets: assets);
         Assert.Equal(1234, restored.EventMemory.Read(1100, 4).RequireExact());
+        Assert.Null(canonical.FieldLocation);
+        GameplaySaveComponentDocument contradictory = document with { Progression = canonical, Resume = document.Resume with { Field = document.Resume.Field! with { X = document.Resume.Field.X + 1 } } };
+        Assert.Throws<InvalidDataException>(() => GameplaySaveSessionLoader.Restore(contradictory, "missing-selected-installation"));
     }
 
     private static byte[] Program()

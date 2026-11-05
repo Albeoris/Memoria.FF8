@@ -13,6 +13,8 @@ public sealed partial class EventEngine
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
+            PreparedMovieSource = preparedMovie >= 0 ? services.MovieSource : null,
+            MovieMask = Scene.NativeMovieMask?.Value,
             CameraIndex = Scene.CameraIndex,
             BackgroundClear = Scene.BackgroundClearValue,
             BackgroundStates = new(backgroundStates),
@@ -75,7 +77,12 @@ public sealed partial class EventEngine
         }
         Scene.NativeFieldInitialization = new(1, profile.ExecutableHash, FieldId, programHash, profile.FieldClock, NativeFieldInitializationStage.Completed, logicalAllocationClock) { Origin = NativeFieldInitializationOrigin.GameplayContinuation };
         Scene.FieldCallbackClock = clock;
+        if (session.FieldButtonInput is not null)
+        {
+            session.SetFieldButtonInput(NativeFieldButtonInput.FromGameplayContinuation(FieldId, scripts.Frame, session.InputConfiguration));
+        }
         Scene.CameraIndex = saved.CameraIndex;
+        Scene.NativeMovieMask = saved.MovieMask is byte movieMask ? new(1, movieMask, null) : null;
         Scene.BackgroundClearValue = saved.BackgroundClear;
         backgroundStates.Clear();
         foreach ((int key, int value) in saved.BackgroundStates)
@@ -129,6 +136,10 @@ public sealed partial class EventEngine
             Scene.NativeFieldParticleSprites = [];
         }
         Scene.NativeFieldSoundStopMask = saved.SoundStopMask;
+        if (saved.PreparedMovieSource is { } movieSource)
+        {
+            session.SetMovieSource(movieSource);
+        }
         Scene.NativeLadderSpeed490E = saved.LadderSpeed;
         Scene.PreparedField = saved.PreparedField;
         Scene.NativeBattleResult = saved.BattleResult;

@@ -17,6 +17,12 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 /// <summary>Current logical field owners only. Resource memory, loader receipts and historical opcode attempts are reconstructed separately.</summary>
 public sealed record GameplaySaveFieldScene
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMovieSource? PreparedMovieSource { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? MovieMask { get; init; }
+
     [JsonRequired]
     public required int CameraIndex { get; init; }
     [JsonRequired]
@@ -114,5 +120,6 @@ public sealed record GameplaySaveFieldScene
                 throw new NotSupportedException("Gameplay field continuation does not yet preserve pending music I/O.");
             }
         }
+        PreparedMovieSource?.Validate();
     }
 }
