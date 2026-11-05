@@ -134,6 +134,12 @@ public sealed partial record NativeCharacterVitals
 
     private GuardianForceProgression ImportGuardianForceProgression(int id, ImmutableArray<GuardianForceAbilityTemplate> templates)
     {
+        ImmutableArray<NativeGuardianForceLearningRule> rules = (MenuDefinitions with { Templates = MenuDefinitions.Templates.SetItem(id, templates) }).ResolveLearning(id);
+        return ImportGuardianForceProgression(id, templates, rules);
+    }
+
+    internal GuardianForceProgression ImportGuardianForceProgression(int id, ImmutableArray<GuardianForceAbilityTemplate> templates, ImmutableArray<NativeGuardianForceLearningRule> rules)
+    {
         NativeGuardianForceVital gf = GuardianForces[id];
         bool exceptional;
         if (!MenuDefinitions.InitialStates.IsDefault)
@@ -147,7 +153,6 @@ public sealed partial record NativeCharacterVitals
             exceptional = true;
         }
         bool initialized = (gf.Flags & 1) != 0 || exceptional;
-        ImmutableArray<NativeGuardianForceLearningRule> rules = (MenuDefinitions with { Templates = MenuDefinitions.Templates.SetItem(id, templates) }).ResolveLearning(id);
         List<GuardianForceAbilityProgress> entries = [];
         if (initialized)
         {

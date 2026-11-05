@@ -8,15 +8,8 @@ internal static class GameplaySaveGuardianForceAdapter
     internal static NativeCharacterVitals PrepareCapture(NativeCharacterVitals source, out GameplaySaveGuardianForceRecovery? recovery)
     {
         recovery = GameplaySaveGuardianForceRecovery.Capture(source);
-        for (int id = 0; id < source.GuardianForces.Length; id++)
-        {
-            NativeGuardianForceVital gf = source.GuardianForces[id];
-            if (gf.Progression is null && gf.LastProjection is { } projection && !projection.LearningRules.SequenceEqual(source.MenuDefinitions.ResolveLearning(id)))
-            {
-                throw new NotSupportedException("Gameplay GF projection requires a resolved ability mapping for orphaned compatibility history; preserve the execution snapshot.");
-            }
-        }
-        NativeCharacterVitals normalized = source.NormalizeGuardianForceCompatibility();
+        NativeCharacterVitals converted = ImportOrphanedBindings(source);
+        NativeCharacterVitals normalized = converted.NormalizeGuardianForceCompatibility();
         RequireResolved(normalized);
         NativeCharacterVitals mapped = normalized.ApplyGuardianForceTemplates(normalized.ResolveGuardianForceTemplates());
         NativeCharacterVitals result = source.DeepCopy();
@@ -38,6 +31,33 @@ internal static class GameplaySaveGuardianForceAdapter
             }
             NativeGuardianForceVital gf = normalized.GuardianForces[id] with { HitPoints = source.GuardianForces[id].HitPoints, Progression = progression };
             result.GuardianForces[id] = PreserveUnmappedFlags(gf, source.GuardianForces[id], source.MenuDefinitions.ResolveLearning(id));
+        }
+        return result;
+    }
+
+    private static NativeCharacterVitals ImportOrphanedBindings(NativeCharacterVitals source)
+    {
+        NativeCharacterVitals result = source.DeepCopy();
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = source.ResolveGuardianForceTemplates();
+        for (int id = 0; id < source.GuardianForces.Length; id++)
+        {
+            NativeGuardianForceVital gf = source.GuardianForces[id];
+            ImmutableArray<NativeGuardianForceLearningRule> current = source.MenuDefinitions.ResolveLearning(id);
+            if (gf.Progression is not null || gf.LastProjection is not { } projection || projection.LearningRules.SequenceEqual(current))
+            {
+                continue;
+            }
+            ImmutableArray<NativeGuardianForceLearningRule> previous = projection.LearningRules;
+            if (previous.IsDefault || previous.Length != 21 || previous.Any(rule => rule is null || rule.Ability >= source.MenuDefinitions.AbilityPoints.Length) || previous.Where(rule => rule.Ability != 0).Select(rule => rule.Ability).Distinct().Count() != previous.Count(rule => rule.Ability != 0))
+            {
+                throw new NotSupportedException("Gameplay GF orphan recovery requires a complete unambiguous retained ability mapping; preserve the execution snapshot.");
+            }
+            GuardianForceProgression progression = source.ImportGuardianForceProgression(id, templates[id], previous);
+            GameplaySaveGuardianForce saved = GameplaySaveGuardianForce.Capture(gf) with { Progression = progression, AbilityBindings = previous.Select(rule => rule.Ability).ToImmutableArray() };
+            NativeCharacterVitals isolated = source.DeepCopy();
+            isolated.GuardianForces[id] = RebindSavedSlots(gf with { Progression = progression }, saved, current);
+            NativeGuardianForceVital mapped = isolated.ApplyGuardianForceTemplates(templates).GuardianForces[id];
+            result.GuardianForces[id] = mapped with { HitPoints = gf.HitPoints };
         }
         return result;
     }
