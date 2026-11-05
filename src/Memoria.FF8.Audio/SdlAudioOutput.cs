@@ -5,6 +5,8 @@ namespace Memoria.FF8.Audio;
 /// <summary>SDL3 owns device conversion and hot-plug routing; one background task supplies 10 ms PCM blocks.</summary>
 public sealed class SdlAudioOutput : IDisposable
 {
+    private readonly object deviceGate = new();
+    private nint deviceStream;
     private readonly CancellationTokenSource stopping = new();
     private readonly Task worker;
     private Exception? error;
@@ -15,6 +17,7 @@ public sealed class SdlAudioOutput : IDisposable
     public SdlAudioOutput()
     {
         nint stream = OpenDevice(Mixer.SampleRate);
+        deviceStream = stream;
         worker = Task.Run(() => Run(stream));
     }
 
@@ -84,6 +87,21 @@ public sealed class SdlAudioOutput : IDisposable
         }
     }
 
+    public T CapturePlaybackPosition<T>(Func<int, T> capture)
+    {
+        lock (deviceGate)
+        {
+            ThrowIfFailed();
+            ObjectDisposedException.ThrowIf(deviceStream == 0, this);
+            int bytes = SDL_GetAudioStreamQueued(deviceStream);
+            if (bytes < 0)
+            {
+                throw Failure("Query audio stream");
+            }
+            return capture((bytes + 3) / 4);
+        }
+    }
+
     private async Task Run(nint stream)
     {
         short[] block = new short[882];
@@ -95,20 +113,24 @@ public sealed class SdlAudioOutput : IDisposable
             }
             while (!stopping.IsCancellationRequested)
             {
-                int queued = SDL_GetAudioStreamQueued(stream);
-                if (queued < 0)
+                int queued;
+                lock (deviceGate)
                 {
-                    throw Failure("Query audio stream");
-                }
-                if (queued < 4410)
-                {
-                    Mixer.Render(block);
-                    if (!SDL_PutAudioStreamData(stream, block, block.Length * 2))
+                    queued = SDL_GetAudioStreamQueued(stream);
+                    if (queued < 0)
                     {
-                        throw Failure("Queue audio samples");
+                        throw Failure("Query audio stream");
+                    }
+                    if (queued < 4410)
+                    {
+                        Mixer.Render(block);
+                        if (!SDL_PutAudioStreamData(stream, block, block.Length * 2))
+                        {
+                            throw Failure("Queue audio samples");
+                        }
                     }
                 }
-                else
+                if (queued >= 4410)
                 {
                     await Task.Delay(5, stopping.Token);
                 }
@@ -125,7 +147,11 @@ public sealed class SdlAudioOutput : IDisposable
         {
             try
             {
-                SDL_DestroyAudioStream(stream);
+                lock (deviceGate)
+                {
+                    deviceStream = 0;
+                    SDL_DestroyAudioStream(stream);
+                }
             }
             catch (Exception exception)
             {

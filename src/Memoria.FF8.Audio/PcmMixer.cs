@@ -61,6 +61,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
                 foreach (Voice voice in voices)
                 {
                     voice.Mix(ref left, ref right);
+                    voice.RecordPosition();
                 }
                 foreach (IAudioSource source in sources)
                 {
@@ -84,9 +85,12 @@ public sealed class PcmMixer(int sampleRate = 44100)
         private readonly object tempoGate = new();
         private byte[] playbackPcm;
         private double cursor;
+        internal readonly AudioPlaybackTimeline timeline = new();
         private double volume = 1;
         private double leftPan = 1;
         private double rightPan = 1;
+        private readonly AudioPlaybackTimeline startedTimeline = new();
+        private bool hasStarted;
         private bool playing;
         private bool paused;
         private bool loop;
@@ -123,6 +127,22 @@ public sealed class PcmMixer(int sampleRate = 44100)
             }
         }
 
+        public bool HasStartedBeforeQueuedFrames(int queuedFrames)
+        {
+            lock (owner.gate)
+            {
+                return startedTimeline.PositionBeforeQueuedFrames(queuedFrames) != 0;
+            }
+        }
+
+        public int PositionBytesBeforeQueuedFrames(int queuedFrames)
+        {
+            lock (owner.gate)
+            {
+                return checked((int)timeline.PositionBeforeQueuedFrames(queuedFrames) * channels * 2);
+            }
+        }
+
         public void Play(bool repeat)
         {
             lock (owner.gate)
@@ -134,6 +154,11 @@ public sealed class PcmMixer(int sampleRate = 44100)
                 }
                 loop = repeat;
                 playing = true;
+                hasStarted = true;
+                if (startedTimeline.RecordedFrames == 0)
+                {
+                    startedTimeline.Reset(1);
+                }
                 paused = false;
             }
         }
@@ -189,6 +214,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
             lock (owner.gate)
             {
                 cursor = pcmByteOffset / (channels * 2);
+                timeline.Reset((long)cursor);
             }
         }
 
@@ -213,6 +239,12 @@ public sealed class PcmMixer(int sampleRate = 44100)
                     playbackPcm = prepared;
                 }
             }
+        }
+
+        internal void RecordPosition()
+        {
+            timeline.Record((long)cursor);
+            startedTimeline.Record(hasStarted ? 1 : 0);
         }
 
         internal void Mix(ref double left, ref double right)

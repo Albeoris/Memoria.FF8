@@ -17,6 +17,9 @@ public sealed record GameState
 {
     public const int CurrentSnapshotSchemaVersion = 9;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveAudioPresentation? AudioPresentation { get; init; }
+
     public int SnapshotSchemaVersion { get; init; } = CurrentSnapshotSchemaVersion;
 
     [JsonIgnore]

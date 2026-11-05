@@ -543,6 +543,11 @@ public sealed partial class GameSession : IEventServices
         State = State with { EventMemory = memory };
     }
 
+    public void SetAudioPresentation(GameplaySaveAudioPresentation? presentation)
+    {
+        State = State with { AudioPresentation = presentation };
+    }
+
     public void ShowDialog(string text)
     {
         Dialog = text;

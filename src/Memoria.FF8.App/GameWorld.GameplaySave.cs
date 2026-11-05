@@ -7,7 +7,12 @@ internal sealed partial class GameWorld
 {
     internal GameState WriteGameplaySave(string path, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
     {
-        GameplaySaveComponentDocument document = CaptureGameplaySave();
+        return WriteGameplaySave(path, validateContinuation, savedAtUtc, null);
+    }
+
+    internal GameState WriteGameplaySave(string path, Action<GameState>? validateContinuation, DateTime? savedAtUtc, GameplaySaveAudioPresentation? audioPresentation)
+    {
+        GameplaySaveComponentDocument document = CaptureGameplaySave() with { AudioPresentation = audioPresentation ?? session.State.AudioPresentation };
         GuardianForceAbilityProfile? profile = session.State.CharacterVitals?.GuardianForceProfile;
         Func<NativeCharacterVitals, NativeCharacterVitals>? prepareDefinitions;
         if (modelOverrides is GameResourceHost selected)

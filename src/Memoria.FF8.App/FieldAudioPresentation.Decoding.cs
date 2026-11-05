@@ -1,4 +1,5 @@
 using Memoria.FF8.Audio;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -46,7 +47,14 @@ internal sealed partial class FieldAudioPresentation
                 try
                 {
                     buffer.Volume(OutputGain(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)), musicPreference));
+                    string fingerprint = PcmFingerprint(pcm, 0, pcm.Bytes.Length);
+                    GameplaySaveAudioPosition? savedPosition = ResumeMusicPosition(slot, track, 0, "pcm16-v1", fingerprint);
+                    if (ValidPcmPosition(savedPosition, pcm, 0, pcm.Bytes.Length))
+                    {
+                        buffer.Position(checked((int)(savedPosition!.Position * pcm.Channels * 2)));
+                    }
                     buffer.Play(true);
+                    musicPositionCaptures[slot] = queued => [CapturePcmPosition(buffer, null, false, pcm, fingerprint, 0, pcm.Bytes.Length, queued)];
                     if (nativeMidiPaused)
                     {
                         buffer.Stop();
@@ -63,6 +71,7 @@ internal sealed partial class FieldAudioPresentation
                     throw;
                 }
                 streamedMusic = buffer;
+                DiscardMusicResumePosition(slot);
                 Console.WriteLine($"field-music=Playing track={track} slot={slot} file={Path.GetFileName(path)}");
             }, exception => MusicDecodeFailed(slot, exception));
         }

@@ -47,7 +47,7 @@ public sealed class ExternalMusicPcmTests
         Assert.Throws<InvalidDataException>(() => ExternalMusicLoop.Read(Ogg(44100, "LOOPSTART=100"), new PcmAudio(new byte[400], 44100, 2)));
     }
 
-    private static byte[] Ogg(int sourceRate, params string[] tags)
+    internal static byte[] Ogg(int sourceRate, params string[] tags)
     {
         byte[] identity = new byte[30];
         "\x01vorbis"u8.CopyTo(identity);

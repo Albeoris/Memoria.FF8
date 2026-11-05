@@ -31,6 +31,9 @@ public sealed record GameplaySaveComponentDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? SavedLocalAt { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveAudioPresentation? AudioPresentation { get; init; }
+
     /// <summary>Captures only the named component owners. The coordinator must separately preserve all remaining gameplay owners.</summary>
     public static GameplaySaveComponentDocument Capture(GameplaySaveResumeDescriptor resume, NativeCharacterVitals characters, NativeEconomy economy, NativeLimitProgress limits)
     {
@@ -58,7 +61,7 @@ public sealed record GameplaySaveComponentDocument
         {
             throw new NotSupportedException("Gameplay progression document requires its character, economy, Limit and matching scene owners.");
         }
-        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state) };
+        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state), AudioPresentation = state.AudioPresentation };
         result.Validate();
         return result;
     }

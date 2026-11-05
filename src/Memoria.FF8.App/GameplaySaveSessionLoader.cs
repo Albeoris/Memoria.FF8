@@ -74,7 +74,7 @@ internal static class GameplaySaveSessionLoader
         }
         GameState snapshot = candidateSession.PrepareSnapshot();
         _ = new GameSession(snapshot);
-        return snapshot;
+        return snapshot with { AudioPresentation = document.AudioPresentation };
     }
 
     private static GameplaySaveSceneFacts RequireSupportedReconstruction(GameplaySaveComponentDocument document)

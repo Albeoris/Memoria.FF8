@@ -90,7 +90,17 @@ internal sealed partial class FieldAudioPresentation
         string[] paths = tracks.Select(track => gameFiles.ResolveDataFile($"music/dmusic/{track}")).ToArray();
         CancelMusicDecode(MusicKind.Midi);
         StopExternalMusic(MusicKind.Midi);
-        Music.PlayConcert(paths, OutputGain(Catalog.MusicVolume(gain), musicPreference));
+        int outputGain = OutputGain(Catalog.MusicVolume(gain), musicPreference);
+        if (ResumeSegmentPosition(0, 43) is { } position)
+        {
+            Music.PlayConcertAtPosition(paths, outputGain, position);
+        }
+        else
+        {
+            Music.PlayConcert(paths, outputGain);
+        }
+        RegisterSegmentPosition(0);
+        DiscardMusicResumePosition(0);
         if (focusPaused)
         {
             Music.Pause();

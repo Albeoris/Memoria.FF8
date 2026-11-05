@@ -27,6 +27,7 @@ internal static class GameplaySaveRootOwnership
                 members.Add(name, new(component, requirement));
             }
         }
+        Add("AudioPresentation", GameplaySavePersistenceRequirement.Split, nameof(GameState.AudioPresentation));
         Add("Characters", GameplaySavePersistenceRequirement.Durable, nameof(GameState.CharacterVitals));
         Add("Economy", GameplaySavePersistenceRequirement.Durable, nameof(GameState.Economy));
         Add("Limits", GameplaySavePersistenceRequirement.Durable, nameof(GameState.LimitProgress));

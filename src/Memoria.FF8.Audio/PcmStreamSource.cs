@@ -14,6 +14,8 @@ public sealed class PcmStreamSource : IAudioSource, IDisposable
     private readonly CancellationTokenSource stopping = new();
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task worker;
+    private readonly object positionGate = new();
+    private readonly AudioPlaybackTimeline timeline = new();
     private long writtenFrames;
     private long readFrames;
     private readonly long offsetFrames;
@@ -28,6 +30,7 @@ public sealed class PcmStreamSource : IAudioSource, IDisposable
         this.pcm = pcm;
         this.amplitude = amplitude;
         this.offsetFrames = offsetFrames;
+        timeline.Reset(offsetFrames);
         worker = Task.Run(ProduceAsync);
     }
 
@@ -43,7 +46,22 @@ public sealed class PcmStreamSource : IAudioSource, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(amplitude));
         }
-        var source = new PcmStreamSource(pcm, (long)(offsetSeconds * SampleRate), amplitude);
+        return await CreateAtFrameAsync(pcm, (long)(offsetSeconds * SampleRate), cancellationToken, amplitude).ConfigureAwait(false);
+    }
+
+    /// <summary>Seeks by an exact decoded PCM frame count without floating-point position conversion.</summary>
+    public static async Task<PcmStreamSource> CreateAtFrameAsync(Stream pcm, long offsetFrames, CancellationToken cancellationToken = default, double amplitude = 1)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        if (offsetFrames < 0 || offsetFrames > long.MaxValue / FrameBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetFrames));
+        }
+        if (!double.IsFinite(amplitude) || amplitude < 0 || amplitude > 16)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amplitude));
+        }
+        var source = new PcmStreamSource(pcm, offsetFrames, amplitude);
         try
         {
             await source.ready.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -88,6 +106,31 @@ public sealed class PcmStreamSource : IAudioSource, IDisposable
 
     // Called by one audio render thread. The producer publishes only complete frames.
     public void RenderFrame(out double left, out double right)
+    {
+        lock (positionGate)
+        {
+            RenderCurrentFrame(out left, out right);
+            timeline.Record(PositionFrames);
+        }
+    }
+
+    public void RecordSilentFrame()
+    {
+        lock (positionGate)
+        {
+            timeline.Record(PositionFrames);
+        }
+    }
+
+    public long PositionBeforeQueuedFrames(int queuedFrames)
+    {
+        lock (positionGate)
+        {
+            return timeline.PositionBeforeQueuedFrames(queuedFrames);
+        }
+    }
+
+    private void RenderCurrentFrame(out double left, out double right)
     {
         left = 0;
         right = 0;

@@ -1,4 +1,7 @@
 using Memoria.FF8.Audio;
+using Memoria.FF8.Runtime;
+using System.Security.Cryptography;
+using System.Text;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Mods;
 
@@ -53,22 +56,64 @@ internal sealed partial class FieldAudioPresentation
         Decoder.Queue(kind, async token =>
         {
             List<PcmStreamSource> sources = [];
+            List<string> fingerprints = [];
             try
             {
                 foreach (ExternalMusicSelection selection in selections)
                 {
-                    Stream stream;
-                    if (PsfStreamOverride is { } open)
+                    using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                    hash.AppendData(Encoding.UTF8.GetBytes($"psf-pcm16-v1:{selection.OffsetSeconds:R}:{suppressOpeningSilence}:"));
+                    byte[] root = selection.File.ReadBytes();
+                    hash.AppendData(SHA256.HashData(root));
+                    byte[]? bios = selection.BiosFile?.ReadBytes();
+                    if (bios is not null)
                     {
-                        stream = await open(selection, token).ConfigureAwait(false);
+                        hash.AppendData(SHA256.HashData(bios));
                     }
-                    else
+                    string decoder = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Memoria.PsfDecoder.exe" : "Memoria.PsfDecoder");
+                    if (File.Exists(decoder))
                     {
-                        byte[] bios = selection.BiosFile?.ReadBytes() ?? throw new InvalidDataException("PSF music requires an explicitly selected BIOS resource.");
-                        stream = await PsfDecoder.OpenAsync(selection.File.RelativePath, selection.File.ReadBytes(), (requester, dependency) => selection.ResolveDependency(requester, dependency).ReadBytes(), bios, repeat: true, token, suppressOpeningSilence: suppressOpeningSilence).ConfigureAwait(false);
+                        hash.AppendData(SHA256.HashData(File.ReadAllBytes(decoder)));
                     }
+                    bool fingerprinting = true;
+                    async Task<Stream> Open(CancellationToken cancellation)
+                    {
+                        if (PsfStreamOverride is { } open)
+                        {
+                            return await open(selection, cancellation).ConfigureAwait(false);
+                        }
+                        return await PsfDecoder.OpenAsync(selection.File.RelativePath, root, (requester, dependency) =>
+                        {
+                            byte[] bytes = selection.ResolveDependency(requester, dependency).ReadBytes();
+                            if (fingerprinting)
+                            {
+                                hash.AppendData(SHA256.HashData(bytes));
+                            }
+                            return bytes;
+                        }, bios ?? throw new InvalidDataException("PSF music requires an explicitly selected BIOS resource."), repeat: true, cancellation, suppressOpeningSilence: suppressOpeningSilence).ConfigureAwait(false);
+                    }
+                    Stream stream = await Open(token).ConfigureAwait(false);
+                    string fingerprint = Convert.ToHexString(hash.GetHashAndReset());
+                    fingerprinting = false;
+                    fingerprints.Add(fingerprint);
+                    GameplaySaveAudioPosition? saved = ResumeMusicPosition(slot, track, sources.Count, "psf-pcm16-v1", fingerprint);
+                    bool resume = saved is { SampleRate: 44100, Channels: 2, LoopStart: 0, LoopEnd: 0 } && saved.Position <= long.MaxValue / 4;
+                    double offset = resume ? saved!.Position / 44100d : selection.OffsetSeconds;
                     try
                     {
+                        using CancellationTokenSource seekBudget = CancellationTokenSource.CreateLinkedTokenSource(token);
+                        if (resume)
+                        {
+                            seekBudget.CancelAfter(TimeSpan.FromSeconds(5));
+                        }
+                        sources.Add(resume
+                            ? await PcmStreamSource.CreateAtFrameAsync(stream, saved!.Position, seekBudget.Token, amplitude: 3.2).ConfigureAwait(false)
+                            : await PcmStreamSource.CreateAsync(stream, offset, seekBudget.Token, amplitude: 3.2).ConfigureAwait(false));
+                    }
+                    catch (Exception exception) when (resume && !token.IsCancellationRequested && exception is OperationCanceledException or EndOfStreamException or ArgumentOutOfRangeException)
+                    {
+                        stream.Dispose();
+                        stream = await Open(token).ConfigureAwait(false);
                         sources.Add(await PcmStreamSource.CreateAsync(stream, selection.OffsetSeconds, token, amplitude: 3.2).ConfigureAwait(false));
                     }
                     catch
@@ -77,7 +122,7 @@ internal sealed partial class FieldAudioPresentation
                         throw;
                     }
                 }
-                return new PreparedPsfMusic(selections, sources.ToArray());
+                return new PreparedPsfMusic(selections, sources.ToArray(), fingerprints.ToArray());
             }
             catch
             {
@@ -116,12 +161,14 @@ internal sealed partial class FieldAudioPresentation
         }
         externalMusic[(int)kind]?.Dispose();
         externalMusic[(int)kind] = output;
+        DiscardMusicResumePosition(slot);
+        musicPositionCaptures[slot] = queued => prepared.Sources.Select((source, index) => new GameplaySaveAudioPosition("psf-pcm16-v1", prepared.Fingerprints[index], "source-frames", source.PositionBeforeQueuedFrames(queued), 44100, 2, 0, 0)).ToArray();
         musicKinds[slot] = kind;
         musicIds[slot] = track;
         Console.WriteLine($"field-music=Playing track={track} slot={slot} format=PSF resources={string.Join(',', prepared.Selections.Select(selection => selection.File.PackageId + ':' + selection.File.RelativePath))}");
     }
 
-    private sealed record PreparedPsfMusic(ExternalMusicSelection[] Selections, PcmStreamSource[] Sources) : IAudioSource, IDisposable
+    private sealed record PreparedPsfMusic(ExternalMusicSelection[] Selections, PcmStreamSource[] Sources, string[] Fingerprints) : IAudioSource, IDisposable
     {
         private bool paused;
 
@@ -136,6 +183,10 @@ internal sealed partial class FieldAudioPresentation
             right = 0;
             if (Volatile.Read(ref paused) || Sources.Any(source => !source.HasBufferedFrame && !source.IsCompleted))
             {
+                foreach (PcmStreamSource source in Sources)
+                {
+                    source.RecordSilentFrame();
+                }
                 return;
             }
             foreach (PcmStreamSource source in Sources)

@@ -19,6 +19,8 @@ internal sealed class PcmAudioOutput : IDisposable
         this.mixer = mixer;
     }
 
+    internal T CapturePlaybackPosition<T>(Func<int, T> capture) => output is null ? capture(0) : output.CapturePlaybackPosition(capture);
+
     public Exception? Error => output?.Error;
 
     public Buffer Create(byte[] pcm, int rate, int channels)
@@ -51,6 +53,8 @@ internal sealed class PcmAudioOutput : IDisposable
     internal sealed class Buffer(PcmMixer.Voice voice) : IDisposable
     {
         public bool IsPlaying => voice.IsPlaying;
+        internal bool HasStartedBeforeQueuedFrames(int queuedFrames) => voice.HasStartedBeforeQueuedFrames(queuedFrames);
+        internal int PositionBytesBeforeQueuedFrames(int queuedFrames) => voice.PositionBytesBeforeQueuedFrames(queuedFrames);
         internal int PositionBytes => voice.PositionBytes;
         internal int PanValue { get; private set; }
         internal int GainValue { get; private set; }

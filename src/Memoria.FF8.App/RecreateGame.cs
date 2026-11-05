@@ -445,8 +445,10 @@ internal sealed partial class RecreateGame : Game
         }
         if (resumeFieldMusic && world?.Field is not null)
         {
+            fieldAudio?.SetPlaybackResumePositions(session.State.AudioPresentation);
             fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
             world.Events.ResumeGameplayLoopSounds();
+            session.SetAudioPresentation(null);
             resumeFieldMusic = false;
         }
         fieldAudio?.Update();
@@ -889,7 +891,7 @@ internal sealed partial class RecreateGame : Game
         {
             throw new InvalidOperationException("Start or load a game before saving.");
         }
-        return world.WriteGameplaySave(path, validateContinuation, savedAtUtc);
+        return world.WriteGameplaySave(path, validateContinuation, savedAtUtc, fieldAudio?.CapturePlaybackPositions());
     }
 
     private void LoadPlayerSlot(int slot)

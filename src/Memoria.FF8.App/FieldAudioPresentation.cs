@@ -1,4 +1,5 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Audio;
 using Memoria.FF8.Events;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
@@ -276,7 +277,30 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             var voice = new Voice(primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider);
             voice.Clock.SetSpeed(soundSpeed);
             voices.Add(voiceId, voice);
-            primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
+            int loopStart = checked((int)policy.LoopStartPcmByte);
+            int loopEnd = loop is null ? pcm.Bytes.Length : checked((int)policy.LoopEndPcmByte);
+            string fingerprint = PcmFingerprint(pcm, loopStart, loopEnd);
+            GameplaySaveAudioPosition? saved = ResumeAmbientPosition(voiceId, fingerprint);
+            if (ValidPcmPosition(saved, pcm, loopStart, loopEnd))
+            {
+                voice.Clock.SetPosition(TimeSpan.FromSeconds(saved!.Position / (double)pcm.SampleRate));
+                if (saved!.StartPoint == 1 && loop is not null)
+                {
+                    loop.Position(checked((int)(saved.Position * pcm.Channels * 2) - loopStart));
+                    loop.Play(true);
+                    voice.LoopStarted = true;
+                }
+                else
+                {
+                    primary.Position(checked((int)(saved.Position * pcm.Channels * 2)));
+                }
+            }
+            if (!voice.LoopStarted)
+            {
+                primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
+            }
+            DiscardAmbientResumePosition(voiceId);
+            voice.PlaybackPosition = queued => CapturePcmPosition(primary, loop, voice.LoopStarted, pcm, fingerprint, loopStart, loopEnd, queued);
         }
         catch
         {
@@ -405,7 +429,17 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
             CancelMusicDecode(MusicKind.Midi);
-            Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
+            int gain = OutputGain(Catalog.MusicVolume(volume.Value), musicPreference);
+            if (ResumeSegmentPosition(slot, track) is { } savedPosition)
+            {
+                Music.PlayAtPosition(path, gain, savedPosition, startPoint);
+            }
+            else
+            {
+                Music.Play(path, gain, startPoint);
+            }
+            RegisterSegmentPosition(slot);
+            DiscardMusicResumePosition(slot);
             nativeMidiPaused = false;
             musicKinds[slot] = MusicKind.Midi;
             midiVolume = volume.Value;
@@ -607,6 +641,8 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     private void StopMusicSlot(int slot)
     {
+        musicPositionCaptures.Remove(slot);
+        segmentPositionSlots.Remove(slot);
         MusicKind kind = musicKinds[slot];
         CancelMusicDecode(kind);
         try
@@ -692,6 +728,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     private sealed class Voice(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider)
     {
+        public Func<int, GameplaySaveAudioPosition>? PlaybackPosition { get; set; }
         public PcmAudioOutput.Buffer Primary { get; } = primary;
         public PcmAudioOutput.Buffer? Loop { get; } = loop;
         public SoundClock Clock { get; } = new(timeProvider);
@@ -731,6 +768,12 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         private bool paused;
         private double speed = 1;
         public TimeSpan Elapsed => elapsed + (paused ? TimeSpan.Zero : time.GetElapsedTime(started) * speed);
+
+        public void SetPosition(TimeSpan value)
+        {
+            elapsed = value;
+            started = time.GetTimestamp();
+        }
 
         public void SetSpeed(double value)
         {
