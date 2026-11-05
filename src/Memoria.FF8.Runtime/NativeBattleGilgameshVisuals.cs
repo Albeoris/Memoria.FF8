@@ -23,7 +23,7 @@ internal static class NativeBattleGilgameshVisuals
         }
         NativeBattleModelCpuReference? cpu = resource.PilotGeometryResource;
         object geometry = cpu is not null ? cpu : System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(resource.Geometry!.Value)!;
-        NativeBattlePilotVisualIdentity identity = Resource(parent, geometry, cpu is { ResourceOnly: true } ? cpu.Offset : cpu?.TryPhysicalAddress() ?? 0, actor)!.Value;
+        NativeBattlePilotVisualIdentity identity = Resource(parent, geometry, cpu is { } owner && (owner.ResourceOnly || owner.EnemyResourceId is not null) ? owner.ResourceStorageOffset : cpu?.TryPhysicalAddress() ?? 0, actor)!.Value;
         if (resource.LinkedGeometry is { } linked && !linked.IsEmpty && resource.LinkedGeometryUsesBodySkeleton == true)
         {
             identity = Resource(identity, System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(linked)!, 0, 1)!.Value;

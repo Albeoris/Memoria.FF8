@@ -20,7 +20,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
     [InlineData(316, 3, true, true)]
     [InlineData(316, 4, true, true)]
     [InlineData(314, 5, false, false)]
-    [InlineData(314, 6, true, true)]
+    [InlineData(314, 6, true, false)]
     [InlineData(316, 5, true, false)]
     [InlineData(316, 6, false, true)]
     public void Private_body_walk_keeps_packets_and_context_receipts_for_pinned_or_oversized_sources(int family, int domain, bool quad, bool expanded)

@@ -24,6 +24,12 @@ public sealed class NativeBattleDuelEchoResourceTests
     [InlineData(274, 2)]
     [InlineData(274, 3)]
     [InlineData(274, 4)]
+    [InlineData(212, 5)]
+    [InlineData(212, 6)]
+    [InlineData(216, 5)]
+    [InlineData(216, 6)]
+    [InlineData(274, 5)]
+    [InlineData(274, 6)]
     public void Typed_echo_preserves_numeric_packets_current_shared_frame_and_pinned_context_cursor_after_restore(int family, int domain)
     {
         ImmutableArray<byte> geometry = Geometry();
@@ -46,6 +52,14 @@ public sealed class NativeBattleDuelEchoResourceTests
             pointer = new NativeBattleResourcePointer(new(0, origin) { ResourceOnly = domain >= 3, Layout = layout }, null, geometry.Length).Pin(cpu);
             section = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), pointer, null!);
         }
+        if (domain is 5 or 6)
+        {
+            NativeBattlePartyCpuLayout layout = domain == 6 ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+            NativeBattleModelCpuBank bank = NativeBattleModelCpuBank.Unknown(geometry.Length + 4).BindResource(4, geometry, 0, geometry.Length);
+            cpu = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(layout), EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank) };
+            pointer = new NativeBattleResourcePointer(new(3, 1024) { Layout = layout, EnemyResourceId = 7, ResourceOffset = 4 }, null, geometry.Length).Pin(cpu);
+            section = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), pointer, null!);
+        }
         Frame expected = Draw(Fixture(), null, family, shared);
         Frame actual = Draw(Fixture(), section, family, shared);
         Assert.Equal(expected.Writes, actual.Writes);
@@ -64,6 +78,11 @@ public sealed class NativeBattleDuelEchoResourceTests
         {
             Assert.Same(pointer.CpuPublication, cursor.CpuPublication);
             Assert.Equal(pointer.Cpu!.Offset + 52, cursor.Cpu!.Offset);
+            Assert.Equal(pointer.Cpu.EnemyResourceId, cursor.Cpu.EnemyResourceId);
+            if (pointer.Cpu.EnemyResourceId is not null)
+            {
+                Assert.Equal(pointer.Cpu.ResourceOffset + 52, cursor.Cpu.ResourceOffset);
+            }
             if (domain == 2)
             {
                 Assert.Equal(pointer.Cpu.PhysicalAddress + 52, actual.Staging.ReadUInt32(NativeBattleTemporaryMemory.Address + 32));
@@ -72,7 +91,7 @@ public sealed class NativeBattleDuelEchoResourceTests
             {
                 Assert.Throws<NotSupportedException>(() => actual.Staging.ReadUInt32(NativeBattleTemporaryMemory.Address + 32));
             }
-            NativeBattleModelCpuResources changed = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(cpu.Cpu.EffectiveLayout) };
+            NativeBattleModelCpuResources changed = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(cpu.Cpu.EffectiveLayout), EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty };
             NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(actual.Staging));
             NativeBattleResourcePointer held = restored.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 32)!;
             Assert.Equal(geometry.AsSpan(52, 16).ToArray(), NativeBattleModelResourceView.Open(changed, restored, held, 16).Read(0, 16));

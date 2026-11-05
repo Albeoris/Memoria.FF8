@@ -131,8 +131,12 @@ public sealed class NativeBattleCinematicHeldResourceTests
         Assert.Equal((ushort)0, a.LiveCount);
         Assert.Empty(a.ResourcePointers);
         Assert.False(NativeBattleControl18ResourceRecords.Active(a.Records.AsSpan(), 0, a.ResourcePointers));
-        NativeBattleModelCpuBank next = bank.BindPartyResource(origin, Enumerable.Repeat((byte)0xCC, polygon.Length).ToImmutableArray(), 0, polygon.Length);
+        NativeBattleModelCpuBank next = owned ? bank.BindResource(0, Enumerable.Repeat((byte)0xCC, polygon.Length).ToImmutableArray(), 0, polygon.Length) : bank.BindPartyResource(origin, Enumerable.Repeat((byte)0xCC, polygon.Length).ToImmutableArray(), 0, polygon.Length);
         NativeBattleModelCpuResources nextCpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, next) } };
+        if (owned)
+        {
+            nextCpu = nextCpu with { EnemyResources = nextCpu.EnemyResources!.SetItem(7, next) };
+        }
         NativeBattleResourcePointer nextPointer = new NativeBattleResourcePointer(pointer.Cpu, null, pointer.Length).Pin(nextCpu);
         NativeBattleControl18SpawnStep reused = NativeBattleControl18Spawn.Advance(a.Records.AsSpan(), new byte[2], 0, Controls(2), [new NativeBattleControl18ResourceFace(nextPointer, quad, vertices)], 0, actual.Random, services, a.ResourcePointers);
         Assert.Equal((ushort)1, reused.LiveCount);

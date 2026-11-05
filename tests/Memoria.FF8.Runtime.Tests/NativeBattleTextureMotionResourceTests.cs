@@ -63,7 +63,7 @@ public sealed class NativeBattleTextureMotionResourceTests
         NativeBattleGraphicsModel model = new(0, 16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
         typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
-        Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, new(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
+        Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, new NativeBattleResourcePointer(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
         Assert.Equal(5, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, pin, bytes.Length).Read(9, 1)[0]);
         Assert.Equal(bytes, session.NativeFileStaging!.Read(target.NativePlacementAddress, bytes.Length));
     }

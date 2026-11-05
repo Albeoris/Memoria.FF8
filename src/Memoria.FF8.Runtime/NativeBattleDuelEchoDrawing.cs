@@ -80,7 +80,7 @@ public static class NativeBattleDuelEchoDrawing
                 writes.Add((destination + 20 - echoOffset, 12));
             }
             frame = storeEcho(frame, echo, writes);
-            liveSection ??= section is { } selected ? selected.Owner.Cpu is { Bank: < 3 } ? selected : NativeBattleModelGeometrySource.OpenShared(selected.Owner, (offset, length) => readSection(frame, offset, length)) : NativeBattleModelGeometrySource.FromNumeric(sectionAddress ?? throw new InvalidDataException("Native Duel echo requires its selected geometry source."), (offset, length) => readSection(frame, offset, length));
+            liveSection ??= section is { } selected ? selected.Owner.Cpu is { IsOwnedResource: true } ? selected : NativeBattleModelGeometrySource.OpenShared(selected.Owner, (offset, length) => readSection(frame, offset, length)) : NativeBattleModelGeometrySource.FromNumeric(sectionAddress ?? throw new InvalidDataException("Native Duel echo requires its selected geometry source."), (offset, length) => readSection(frame, offset, length));
             context = NativeBattleDuelEchoWalker.Draw(context, 44, liveSection.Value, echo, echoOffset, history, projection, (offset, bytes) =>
             {
                 if (offset < 0 || bytes.Length > scratchMaximum * 8 - offset)

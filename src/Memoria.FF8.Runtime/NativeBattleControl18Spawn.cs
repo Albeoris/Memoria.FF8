@@ -110,7 +110,7 @@ public static class NativeBattleControl18Spawn
             }
             if (face.Source is { } pointer)
             {
-                if (!pointer.HasValidOwner() || pointer.CpuRow is not null || pointer.Cpu is { Bank: < 3 } && pointer.CpuPublication is null)
+                if (!pointer.HasValidOwner() || pointer.CpuRow is not null || pointer.Cpu is { IsOwnedResource: true } && pointer.CpuPublication is null)
                 {
                     throw new InvalidDataException("Native breakup spawning requires its selected polygon source.");
                 }
