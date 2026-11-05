@@ -110,14 +110,11 @@ public sealed partial class WorldAssets : IDisposable
     public FieldModel GetFootModel(byte entityType)
     {
         //546E10 maps foot entity identity to the stored character shape.
-        int shape = entityType switch
+        if (!NativeWorldEntityTypes.IsOrdinaryFoot(entityType))
         {
-            0 or 3 or 4 or 5 or 7 or 8 or 9 => 0,
-            1 => 4,
-            2 => 5,
-            6 => 6,
-            _ => throw new NotSupportedException($"Native foot entity type {entityType} has no implemented original model path.")
-        };
+            throw new NotSupportedException($"Native foot entity type {entityType} has no implemented original model path.");
+        }
+        int shape = NativeGardenEntityShape(entityType);
         if (!footModels.TryGetValue(entityType, out FieldModel? model))
         {
             model = WorldAssetReader.ReadWorldCharacter(Read("chara.one"), shape);
@@ -193,7 +190,7 @@ public sealed partial class WorldAssets : IDisposable
         WorldGround? selected = null;
         foreach (WorldTriangle triangle in GetSegment(mapId, replacements).Triangles)
         {
-            byte permission = entityType is 0 or 1 or 2 || NativeCarWorldRuntimeState.IsSupportedEntity(entityType) ? Memoria.FF8.Runtime.NativeWorldTerrain.PermissionMask(entityType) : throw new NotSupportedException("Original advisory world terrain selection for this entity is unrepresented.");
+            byte permission = NativeWorldEntityTypes.IsOrdinaryFoot(entityType) || NativeCarWorldRuntimeState.IsSupportedEntity(entityType) ? Memoria.FF8.Runtime.NativeWorldTerrain.PermissionMask(entityType) : throw new NotSupportedException("Original advisory world terrain selection for this entity is unrepresented.");
             if ((triangle.VertexFlags & permission) == 0 || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && !triangle.Forest && previousGroundType is not <= 5 && Math.Abs(height - previousHeight.Value) >= 200)
             {
                 continue;

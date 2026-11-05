@@ -200,9 +200,9 @@ public sealed partial class WorldAssets
 
     public WorldNativeTerrainOcclusionResult CertifyNativeTerrainCameraOcclusion(NativeWorldFootCameraState camera, short groundHeight, IReadOnlyDictionary<int, int> replacements, int entityType = 48, int? nativeCurveThreshold = null)
     {
-        if (entityType is not (0 or 1 or 2 or 48 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(entityType))
+        if (!NativeWorldEntityTypes.IsOrdinaryFoot(entityType) && entityType is not (48 or 49 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(entityType))
         {
-            throw new NotSupportedException("Native terrain camera occlusion requires the reached ordinary foot/car/Garden renderer.");
+            throw new NotSupportedException($"Native terrain camera occlusion has no represented renderer for entity type {entityType}.");
         }
         //5519B0 (ordinary50 fast blocks) never writes203FDC4.552380's
         //scripted50 fast blocks also exclude50. The shared direct5513A0
@@ -245,7 +245,7 @@ public sealed partial class WorldAssets
                 bool direct = NativeTerrainVertexCounts(segment.SourceId)[block] > 90;
                 //552380 sets203FDC4 only for native foot0..9/128; car/Garden
                 //can acquire it only in the direct5513A0 path (>90 vertices).
-                if (!direct && entityType is not (0 or 1 or 2))
+                if (!direct && !NativeWorldEntityTypes.IsOrdinaryFoot(entityType))
                 {
                     continue;
                 }

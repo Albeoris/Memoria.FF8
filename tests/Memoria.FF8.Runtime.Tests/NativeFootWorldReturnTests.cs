@@ -98,7 +98,8 @@ public sealed class NativeFootWorldReturnTests
         Assert.Equal(-128, receipt.MapLocationId);
         Assert.Throws<InvalidDataException>(() => (receipt with { MapDisplayMode110 = 3 }).Validate());
         Assert.Throws<InvalidDataException>(() => (receipt with { MapLocationId = 128 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (receipt with { EntityType105 = 6 }).Validate());
+        (receipt with { EntityType105 = 6 }).Validate();
+        Assert.Throws<InvalidDataException>(() => (receipt with { EntityType105 = 3 }).Validate());
         Assert.Throws<InvalidDataException>(() => (receipt with { Channel106 = 0 }).Validate());
         Assert.Throws<InvalidDataException>(() => (receipt with { SourceWorldFrame = -1 }).Validate());
         Assert.Throws<InvalidDataException>(() => (receipt with { Rule = "unproved" }).Validate());

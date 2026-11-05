@@ -6,6 +6,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeFootWorldRuntimeStateTests
 {
     [Fact]
+    public void Type6RetainsItsOwnPlayableIdentityAcrossRuntimeSerialization()
+    {
+        NativeFootWorldRuntimeState runtime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame(), 6);
+        runtime.RequireSupportedNormalFoot();
+        NativeFootWorldRuntimeState restored = JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(runtime))!;
+        restored.RequireSupportedNormalFoot();
+        Assert.Equal((byte)6, restored.EntityType);
+        WorldState world = new() { Frame = 1, NativeFootRuntime = restored };
+        NativeWorldConfiguration configuration = NativeWorldConfiguration.FromWorldReturn(world, 106);
+        configuration.Validate();
+        Assert.Equal((byte)6, configuration.EntityByte);
+        NativeSavedWorldFootReturn departure = NativeSavedWorldFootReturn.RecordFootDeparture(world, 106, 455, 0);
+        NativeFootWorldRuntimeState reloaded = NativeFootWorldRuntimeState.CreateSavedReload(departure);
+        reloaded.RequireSupportedNormalFoot();
+        Assert.Equal((byte)6, reloaded.EntityType);
+    }
+
+    [Fact]
     public void ExecutedFirstLoaderRequiresCurrentNativeInitialization()
     {
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame();

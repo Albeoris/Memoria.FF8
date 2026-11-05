@@ -5,6 +5,84 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeWorldFootAnimationTests
 {
     [Theory]
+    [InlineData(0, 4)]
+    [InlineData(200, 4)]
+    [InlineData(201, 2)]
+    [InlineData(255, 2)]
+    public void Type6RandomIdleEntryDrawsItsIndependentStrictThreshold(byte choice, int expectedAnimation)
+    {
+        byte[] random = new byte[256];
+        random[1] = 1;
+        random[2] = choice;
+        NativeWorldForestState forest = NativeWorldForestState.Create(0, 0);
+        NativeWorldFootAnimationResult result = NativeWorldFootAnimation.Step(6, 0, 0, 320, false, -1, forest, random);
+        Assert.Equal((expectedAnimation, (ushort)0, 0, (byte)2), (result.Animation, result.Counter, result.SharedCounter, result.Forest.RandomCursor));
+        Assert.Equal((byte)0, forest.RandomCursor);
+    }
+
+    [Theory]
+    [InlineData(200, 4)]
+    [InlineData(201, 2)]
+    public void Type6ForcedIdleEntrySkipsTheInitialIdleRandomDraw(byte choice, int expectedAnimation)
+    {
+        byte[] random = new byte[256];
+        random[1] = choice;
+        NativeWorldFootAnimationResult result = NativeWorldFootAnimation.Step(6, 0, 31, 320, false, 128, NativeWorldForestState.Create(0, 0), random);
+        Assert.Equal((expectedAnimation, (ushort)0, (byte)1), (result.Animation, result.Counter, result.Forest.RandomCursor));
+    }
+
+    [Fact]
+    public void Type6IdleWithoutAdmissionConsumesOnlyTheInitialRandomDraw()
+    {
+        byte[] random = new byte[256];
+        random[1] = 2;
+        random[2] = 201;
+        NativeWorldFootAnimationResult result = NativeWorldFootAnimation.Step(6, 0, 0, 320, false, -1, NativeWorldForestState.Create(0, 0), random);
+        Assert.Equal((0, (ushort)0, (byte)1), (result.Animation, result.Counter, result.Forest.RandomCursor));
+    }
+
+    [Theory]
+    [InlineData(0, 3, 0)]
+    [InlineData(3, 3, 0)]
+    [InlineData(4, 2, 319)]
+    [InlineData(255, 2, 319)]
+    public void Type6IdleTwoCompletionUsesMaskAndHoldsAtTheLoadedTerminalFrame(byte choice, int expectedAnimation, int expectedCounter)
+    {
+        byte[] random = new byte[256];
+        random[1] = choice;
+        NativeWorldFootAnimationResult result = NativeWorldFootAnimation.Step(6, 2, 304, 320, false, -1, NativeWorldForestState.Create(0, 0), random);
+        Assert.Equal((expectedAnimation, (ushort)expectedCounter, expectedCounter, (byte)1), (result.Animation, result.Counter, result.SharedCounter, result.Forest.RandomCursor));
+        NativeWorldForestState restored = JsonSerializer.Deserialize<NativeWorldForestState>(JsonSerializer.Serialize(result.Forest))!;
+        Assert.Equal(JsonSerializer.Serialize(NativeWorldFootAnimation.Step(6, result.Animation, result.Counter, 320, false, -1, result.Forest, random)), JsonSerializer.Serialize(NativeWorldFootAnimation.Step(6, result.Animation, result.Counter, 320, false, -1, restored, random)));
+    }
+
+    [Theory]
+    [InlineData(3, 304, false, 0, 0)]
+    [InlineData(4, 304, false, 0, 0)]
+    [InlineData(2, 100, false, 2, 116)]
+    [InlineData(0, 0, true, 1, 0)]
+    [InlineData(1, 304, true, 1, 0)]
+    [InlineData(1, 100, false, 0, 0)]
+    public void Type6MovementAndIdleCompletionPreserveCounterTimingWithoutRandomDraws(int priorAnimation, int counter, bool moving, int expectedAnimation, int expectedCounter)
+    {
+        NativeWorldForestState forest = NativeWorldForestState.Create(7, -5);
+        NativeWorldFootAnimationResult result = NativeWorldFootAnimation.Step(6, priorAnimation, (ushort)counter, 320, moving, -1, forest, new byte[256]);
+        Assert.Equal((expectedAnimation, (ushort)expectedCounter, expectedCounter), (result.Animation, result.Counter, result.SharedCounter));
+        Assert.Same(forest, result.Forest);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(9)]
+    [InlineData(128)]
+    public void BroadNativeFootCategoryDoesNotInventAnAnimationIdentity(int entityType)
+    {
+        Assert.True(NativeWorldEntityTypes.IsOrdinaryFoot(entityType));
+        Assert.False(NativeWorldEntityTypes.IsSupportedFoot(entityType));
+        Assert.Throws<InvalidDataException>(() => NativeWorldFootAnimation.Step(entityType, 0, 0, 320, false, -1, NativeWorldForestState.Create(0, 0), new byte[256]));
+    }
+
+    [Theory]
     [InlineData(0, 0, true, -1, 16, 1, 0)]
     [InlineData(1, 304, true, 4, 320, 1, 0)]
     [InlineData(1, 16, false, 4, 320, 0, 0)]

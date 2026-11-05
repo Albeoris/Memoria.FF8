@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -11,13 +12,7 @@ internal sealed partial class WorldMapScene
         List<NativeWorldShadowDraw> result = [];
         if (frame.AvatarVisible && state.NativeFootRuntime is { } foot)
         {
-            byte shape = foot.EntityType switch
-            {
-                0 => 0,
-                1 => 4,
-                2 => 5,
-                _ => throw new NotSupportedException("World shadow requires the controlled actor's original shape.")
-            };
+            byte shape = WorldAssets.NativeGardenEntityShape(foot.EntityType);
             result.Add(new(shape, frame.Position, checked((short)state.BodyYaw), -unchecked((short)(state.NativeHeight - (state.GroundType is <= 5 ? 320 : 0)))));
         }
         else if (frame.AvatarVisible && state.NativeRagnarokRuntime is { } ship)

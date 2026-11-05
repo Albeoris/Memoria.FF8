@@ -4,6 +4,55 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeGardenTerrainOcclusionTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(128)]
+    public void EveryNativeFootClassCanPublishFastTerrainOcclusion(int entityType)
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState camera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, 0, WorldTerrainSelection.Replacements(285), entityType);
+        Assert.True(result.Occluded == true, result.Reason);
+    }
+
+    [Theory]
+    [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(34)]
+    [InlineData(35)]
+    [InlineData(36)]
+    [InlineData(37)]
+    [InlineData(38)]
+    [InlineData(39)]
+    [InlineData(40)]
+    [InlineData(48)]
+    [InlineData(49)]
+    public void GroundVehiclesCannotPublishTheFootOnlyFastTerrainLatch(int entityType)
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState camera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, 0, WorldTerrainSelection.Replacements(285), entityType);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
+    public void UnsupportedRendererReportsItsActualEntityType()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState camera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => assets.CertifyNativeTerrainCameraOcclusion(camera, 0, WorldTerrainSelection.Replacements(285), 127));
+        Assert.Contains("127", error.Message);
+    }
+
     [Fact]
     public void ForestFootCameraRejectsFastTerrainAtTheHalfThresholdBoundary()
     {

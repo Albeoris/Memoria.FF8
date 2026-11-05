@@ -61,8 +61,8 @@ public static class GameplaySaveWorldResume
     {
         return entity switch
         {
-            0 or 1 or 2 => GameplaySaveWorldReturnKind.Foot,
-            32 or 33 or 35 => GameplaySaveWorldReturnKind.Car,
+            _ when NativeWorldEntityTypes.IsSupportedFoot(entity) => GameplaySaveWorldReturnKind.Foot,
+            _ when NativeCarWorldRuntimeState.IsSupportedEntity(entity) => GameplaySaveWorldReturnKind.Car,
             48 => GameplaySaveWorldReturnKind.Garden,
             50 => GameplaySaveWorldReturnKind.Ragnarok,
             _ => throw new NotSupportedException($"Gameplay normal world reload for entity {entity} has no supported semantic adapter.")

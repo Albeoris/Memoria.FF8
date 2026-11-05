@@ -334,7 +334,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule or CarDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule or CarDismountRule) || !NativeWorldEntityTypes.IsSupportedFoot(EntityType) || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

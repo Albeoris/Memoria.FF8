@@ -30,7 +30,7 @@ public sealed record NativeWorldCarBoardingReceipt([property: JsonRequired] stri
         int expectedFoot = car.FootEntityType;
         int originalEntity = OriginalPacket is null ? -1 : unchecked((byte)OriginalPacket.Mode);
         bool validOriginalEntity = originalEntity == FootEntity || originalEntity == car.EntityType || originalEntity is >= 16 and <= 22 || originalEntity == 48 && car.GardenObjects?.Allocation.Packet == OriginalPacket || originalEntity == 50 && car.RagnarokObjects?.Allocation.Packet == OriginalPacket;
-        if (Rule != BoardingRule || OriginalPacket is null || !validOriginalEntity || SourceWorldFrame < 0 || FootEntity > 2 || FootEntity != expectedFoot || VehicleShape != car.ShapeId || ParkedPose is null || ParkedPose.X is < -131072 or >= 131072 || ParkedPose.RawZ is < -98304 or >= 98304 || ParkedPose.Yaw >= 4096)
+        if (Rule != BoardingRule || OriginalPacket is null || !validOriginalEntity || SourceWorldFrame < 0 || !NativeWorldEntityTypes.IsSupportedFoot(FootEntity) || FootEntity != expectedFoot || VehicleShape != car.ShapeId || ParkedPose is null || ParkedPose.X is < -131072 or >= 131072 || ParkedPose.RawZ is < -98304 or >= 98304 || ParkedPose.Yaw >= 4096)
         {
             throw new InvalidDataException("Native car boarding lost its original packet, selected foot object or actual parked vehicle identity.");
         }

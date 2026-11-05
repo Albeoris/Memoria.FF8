@@ -55,7 +55,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
             }
         }
-        if (footEntityType is not (0 or 1 or 2) && !car && !garden && !ragnarok && !scripted)
+        if (!NativeWorldEntityTypes.IsSupportedFoot(footEntityType) && !car && !garden && !ragnarok && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }

@@ -106,7 +106,7 @@ public sealed record NativeSavedWorldFootReturn
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule || Rule == GameplaySaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule || Rule == GameplaySaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || !NativeWorldEntityTypes.IsSupportedFoot(EntityType105) || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }

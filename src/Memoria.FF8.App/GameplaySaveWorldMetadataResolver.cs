@@ -37,7 +37,7 @@ internal static class GameplaySaveWorldMetadataResolver
         {
             throw new InvalidOperationException("World resume metadata requires a current world position.");
         }
-        if (current.EntityType is not (0 or 1 or 2 or 32 or 33 or 35 or 48 or 50) || saved.UnresolvedEntry is not null)
+        if (!NativeWorldEntityTypes.IsSupportedFoot(current.EntityType) && !NativeCarWorldRuntimeState.IsSupportedEntity(current.EntityType) && current.EntityType is not (48 or 50) || saved.UnresolvedEntry is not null)
         {
             throw new NotSupportedException("World resume metadata requires a supported normal-load transport and resolved saved values.");
         }

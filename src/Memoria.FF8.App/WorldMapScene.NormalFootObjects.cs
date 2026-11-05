@@ -205,7 +205,7 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < process.Allocation.Objects.Length; index++)
         {
             NativeTrainWorldObject item = process.Allocation.Objects[index];
-            if (item.EntityType is 0 or 1 or 2 || !context.IsNear(item.Position))
+            if (NativeWorldEntityTypes.IsOrdinaryFoot(item.EntityType) || !context.IsNear(item.Position))
             {
                 continue;
             }

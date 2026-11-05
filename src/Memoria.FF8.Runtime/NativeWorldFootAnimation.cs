@@ -8,7 +8,7 @@ public static class NativeWorldFootAnimation
     public static NativeWorldFootAnimationResult Step(int entityType, int priorAnimation, ushort priorCounter, int loadedAnimationLength, bool moving, int? forcedAnimation, NativeWorldForestState forest, ReadOnlySpan<byte> random)
     {
         forest.Validate();
-        if (entityType is < 0 or > 2 || priorAnimation is < 0 or > 4 || loadedAnimationLength is < 1 or > ushort.MaxValue || random.Length != 256)
+        if (!NativeWorldEntityTypes.IsSupportedFoot(entityType) || priorAnimation is < 0 or > 4 || loadedAnimationLength is < 1 or > ushort.MaxValue || random.Length != 256)
         {
             throw new InvalidDataException("Native foot animation requires its retained animation, loaded native length and original random table.");
         }
@@ -45,7 +45,15 @@ public static class NativeWorldFootAnimation
             }
             if (animation == 128 && priorAnimation == 0)
             {
-                animation = entityType <= 1 ? 2 : 3;
+                if (entityType == 6)
+                {
+                    forest = forest.DrawRandom(random, out byte value);
+                    animation = value > 0xC8 ? 2 : 4;
+                }
+                else
+                {
+                    animation = entityType <= 1 ? 2 : 3;
+                }
                 counter = 0;
             }
         }
@@ -77,6 +85,20 @@ public static class NativeWorldFootAnimation
                 if (entityType <= 1)
                 {
                     if (priorAnimation == 3)
+                    {
+                        animation = 0;
+                        counter = 0;
+                    }
+                    else
+                    {
+                        forest = forest.DrawRandom(random, out byte value);
+                        animation = (value & 0xFC) == 0 ? 3 : animation;
+                        counter = animation == 3 ? 0 : loadedAnimationLength - 1;
+                    }
+                }
+                else if (entityType == 6)
+                {
+                    if (animation is 3 or 4)
                     {
                         animation = 0;
                         counter = 0;
