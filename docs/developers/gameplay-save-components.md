@@ -14,6 +14,8 @@ Update handoff uses the same publisher. Its outer staging boundary still checks 
 
 Startup passes the completed launch configuration to the player loader before reconstruction, including selected mods, resource language and model source. Installed GF layers compose over fresh definitions before saved local intent, AP and learning targets are overlaid. Complete legacy snapshots keep lazy initialization and do not require opening an installation merely to deserialize their represented state. These are load-time definition choices, not saved compiled profiles or renderer caches.
 
+Publication validation uses the current selected resource host's GF layers too. An older live snapshot's retained applied layer cannot substitute for the installed definitions that the next player load will select. The running session remains unchanged while the isolated candidate is rebuilt and checked.
+
 ## Ownership and absence
 
 | Component | Saved authority | Reconstructed or excluded | Read and absence policy |

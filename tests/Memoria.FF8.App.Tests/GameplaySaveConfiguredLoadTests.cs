@@ -10,6 +10,50 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GameplaySaveConfiguredLoadTests
 {
     [Fact]
+    public void Publication_validates_current_selected_GF_layers_when_a_legacy_session_retains_an_older_layer()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets originals = new(directory);
+        NativeCharacterVitals definitions = originals.ReadNewGameCharacterVitals();
+        int original = definitions.ResolveGuardianForceTemplates()[0].First(entry => entry.RequiredPoints > 7).Ability;
+        int[] replacements = Enumerable.Range(1, definitions.MenuDefinitions.AbilityPoints.Length - 1).Where(ability => definitions.ResolveGuardianForceTemplates()[0].All(entry => entry.Ability != ability) && definitions.MenuDefinitions.AbilityPoints[ability] > 7).Take(2).ToArray();
+        GuardianForceAbilityPatchDocument Patch(string id, int replacement) => new()
+        {
+            DocumentId = id,
+            Operations = [new() { Id = "replace", GuardianForce = 0, Kind = GuardianForceAbilityOperationKind.ReplaceAbility, Ability = original, Replacement = replacement }]
+        };
+        GuardianForceAbilityPatchDocument old = Patch("selected.previous", replacements[0]);
+        GuardianForceAbilityPatchDocument current = Patch("selected.current", replacements[1]);
+        string folder = Path.Combine(Path.GetTempPath(), "Memoria.FF8-current-gf-publication-" + Guid.NewGuid().ToString("N"));
+        string mods = Path.Combine(folder, "mods");
+        string package = Path.Combine(mods, "Memoria", "Selected");
+        string payload = Path.Combine(package, GuardianForceAbilityMods.PayloadPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(payload)!);
+        try
+        {
+            File.WriteAllText(Path.Combine(package, "mod.ini"), "enabled=1\n");
+            File.WriteAllBytes(payload, GuardianForceAbilityMods.Serialize(current));
+            using GameResourceHost selected = new(directory, watch: false, modsDirectory: mods);
+            using GameAssets assets = new(directory, resources: selected.Resources, modelOverrides: selected);
+            GameState state = GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, true), directory, assets, selected.Resources, selected, () => selected.GameplayPolicy, initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, [new("Previous", old)]));
+            Assert.Equal(old.DocumentId, Assert.Single(state.CharacterVitals!.GuardianForceProfile!.AppliedLayers).Document.DocumentId);
+            GameSession session = new(state);
+            using GameWorld world = new(session, directory, resources: selected.Resources, sharedAssets: assets, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy);
+            world.EnsureField();
+            string path = Path.Combine(folder, "slot.sav");
+            GameState validated = world.WriteGameplaySave(path, candidate => Assert.Equal(current.DocumentId, Assert.Single(candidate.CharacterVitals!.GuardianForceProfile!.AppliedLayers).Document.DocumentId));
+            GameState loaded = PlayerStateLoader.Parse(["--state", path, "--game-dir", directory, "--mods-dir", mods]).InitialState;
+            Assert.Equal(current.DocumentId, Assert.Single(loaded.CharacterVitals!.GuardianForceProfile!.AppliedLayers).Document.DocumentId);
+            Assert.Equal(JsonSerializer.Serialize(validated.CharacterVitals), JsonSerializer.Serialize(loaded.CharacterVitals));
+            Assert.Equal(old.DocumentId, Assert.Single(session.CharacterVitals!.GuardianForceProfile!.AppliedLayers).Document.DocumentId);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Pending_GF_history_survives_live_publication_player_loading_and_a_second_cold_save()
     {
         string directory = TestResources.GameDirectory;

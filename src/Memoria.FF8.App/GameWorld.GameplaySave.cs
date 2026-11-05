@@ -9,7 +9,15 @@ internal sealed partial class GameWorld
     {
         GameplaySaveComponentDocument document = CaptureGameplaySave();
         GuardianForceAbilityProfile? profile = session.State.CharacterVitals?.GuardianForceProfile;
-        Func<NativeCharacterVitals, NativeCharacterVitals>? prepareDefinitions = profile is null ? null : initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, profile.AppliedLayers);
+        Func<NativeCharacterVitals, NativeCharacterVitals>? prepareDefinitions;
+        if (modelOverrides is GameResourceHost selected)
+        {
+            prepareDefinitions = initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected);
+        }
+        else
+        {
+            prepareDefinitions = profile is null ? null : initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, profile.AppliedLayers);
+        }
         return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc, prepareDefinitions);
     }
 
