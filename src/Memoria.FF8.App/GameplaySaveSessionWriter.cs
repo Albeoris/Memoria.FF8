@@ -7,27 +7,33 @@ namespace Memoria.FF8;
 /// <summary>Publishes an explicitly selected gameplay document only after normal-load validation succeeds.</summary>
 internal static class GameplaySaveSessionWriter
 {
-    internal static GameState Write(string path, GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null)
+    internal static GameState Write(string path, GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Action<GameState>? validateContinuation = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
         string destination = Path.GetFullPath(path);
         string temporary = Path.Combine(Path.GetDirectoryName(destination)!, "." + Path.GetFileName(destination) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+        bool temporaryCreated = false;
         try
         {
             using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
+                temporaryCreated = true;
                 GameplaySaveCodec.Write(stream, document);
                 stream.Flush(flushToDisk: true);
             }
             GameState restored = GameplaySaveSessionLoader.Load(temporary, gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy);
+            validateContinuation?.Invoke(restored);
             File.Move(temporary, destination, overwrite: true);
             return restored;
         }
         finally
         {
-            File.Delete(temporary);
+            if (temporaryCreated)
+            {
+                File.Delete(temporary);
+            }
         }
     }
 }
