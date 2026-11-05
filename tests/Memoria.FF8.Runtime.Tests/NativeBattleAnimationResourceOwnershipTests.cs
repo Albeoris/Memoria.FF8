@@ -68,6 +68,18 @@ public sealed class NativeBattleAnimationResourceOwnershipTests
         Assert.Throws<InvalidDataException>(() => old.BindAnimation(0, new(0, [], 12)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Malformed_animation_source_map_or_owner_fails_validation_and_reads_explicitly(bool nullEntry)
+    {
+        JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleModelCpuResources.Unknown()))!.AsObject();
+        json[nameof(NativeBattleModelCpuResources.AnimationSources)] = nullEntry ? new JsonObject { ["8"] = null } : null;
+        NativeBattleModelCpuResources malformed = JsonSerializer.Deserialize<NativeBattleModelCpuResources>(json.ToJsonString())!;
+        Assert.Throws<InvalidDataException>(() => malformed.Validate());
+        Assert.Throws<InvalidDataException>(() => malformed.ReadAnimationHeader(8, 0, 1));
+    }
+
     private const int AuxiliaryLength = NativeBattleModelCpuBank.Length + 37;
 
     private static NativeBattleModelCpuResources Complete(NativeBattleModelCpuResources cpu, NativeBattleModelDatSource source)

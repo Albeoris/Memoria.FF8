@@ -66,6 +66,11 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     internal NativeBattleModelCpuResources BindAnimation(int physicalIndex, NativeBattleModelAnimationCopy animation)
     {
+        RequireAnimationSourceOwners();
+        if (animation is null)
+        {
+            throw new InvalidDataException("Native auxiliary animation binding requires its section owner.");
+        }
         animation.Validate();
         if ((uint)physicalIndex >= 3)
         {
@@ -76,6 +81,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     internal byte[] ReadAnimationHeader(int header, int offset, int length)
     {
+        RequireAnimationSourceOwners();
         if (AnimationSources.TryGetValue(header, out NativeBattleModelAnimationCopy? source))
         {
             if (source.Length == 0)
@@ -115,6 +121,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             throw new InvalidDataException("Native model CPU resources require their three banks and eleven physical row aliases.");
         }
+        RequireAnimationSourceOwners();
         foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
         {
             if (header < 0 || header >= 96 || header % 32 != source.HeaderPointerField)
@@ -130,6 +137,14 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
+        }
+    }
+
+    private void RequireAnimationSourceOwners()
+    {
+        if (AnimationSources is null || AnimationSources.Any(item => item.Value is null))
+        {
+            throw new InvalidDataException("Native auxiliary animation sources require an explicit map and section owners.");
         }
     }
 
