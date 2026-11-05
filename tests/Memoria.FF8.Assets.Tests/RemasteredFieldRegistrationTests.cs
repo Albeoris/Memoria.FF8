@@ -41,7 +41,10 @@ public sealed class RemasteredFieldRegistrationTests
         Assert.Equal(bindings.Select(binding => binding.Model), registered.State.Resources.Select(resource => resource.ModelId));
         Assert.InRange(registered.State.PreModelAddress, registered.State.MemoryLayout.ArenaAddress, registered.State.MemoryLayout.Limit);
         Assert.InRange(registered.State.EndAddress, registered.State.PreModelAddress, registered.State.MemoryLayout.Limit);
-        Assert.InRange((ulong)registered.State.RelocatedSourceAddress + (uint)registered.State.RelocatedSourceLength, (ulong)registered.State.PreModelAddress, registered.State.MemoryLayout.Limit);
+        Assert.True(registered.State.InputsOwned);
+        Assert.Null(registered.State.RelocatedSourceAddress);
+        Assert.Null(registered.State.RelocatedSourceLength);
+        Assert.All(registered.State.Resources, resource => Assert.NotNull(resource.Input));
         Assert.NotEmpty(registered.Uploads);
         if (remastered)
         {

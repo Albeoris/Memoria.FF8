@@ -187,7 +187,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         {
             return this;
         }
-        resource.Validate();
+        if (resource.Storage is null)
+        {
+            throw new InvalidDataException("Field cursor has no resource storage authority.");
+        }
         object identity = resource.Storage.OwnerIdentity;
         if (!resources.TryGetValue(identity, out NativeFieldRegistrationMemory? memory))
         {
@@ -212,6 +215,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     internal uint Read32(NativeFieldResourceCursor cursor) => Select(cursor.Owner).Read32(cursor.Offset);
     internal byte[] Read(NativeFieldResourceCursor cursor, int length) => Select(cursor.Owner).Read(cursor.Offset, length);
     internal NativeFieldResourceCursor ReadPointer(NativeFieldResourceCursor cursor) => new(cursor.Owner, Read32(cursor));
+    internal void Write(NativeFieldResourceCursor cursor, ReadOnlySpan<byte> bytes) => Select(cursor.Owner).Write(cursor.Offset, bytes);
     internal void Write8(NativeFieldResourceCursor cursor, byte value) => Select(cursor.Owner).Write8(cursor.Offset, value);
     internal void Write16(NativeFieldResourceCursor cursor, ushort value) => Select(cursor.Owner).Write16(cursor.Offset, value);
     internal void Write32(NativeFieldResourceCursor cursor, uint value) => Select(cursor.Owner).Write32(cursor.Offset, value);
@@ -271,6 +275,18 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             from.Load(first + offset, data[..count], known[..count]);
             to.StoreKnownness(target + offset, data[..count], known[..count]);
             copied += count;
+        }
+    }
+
+    internal void ProjectInputPointer(uint address, NativeFieldResourceCursor cursor)
+    {
+        if (cursor.Owner is null)
+        {
+            Write32(address, cursor.Offset);
+        }
+        else
+        {
+            Forget(address, 4);
         }
     }
 

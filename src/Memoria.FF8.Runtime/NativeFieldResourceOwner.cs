@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -19,6 +20,17 @@ public sealed record NativeFieldResourceOwner([property: JsonRequired] NativeBat
     }
 
     internal static NativeFieldResourceOwner Create(int length) => new(new([]) { BaseAddress = 0 }, length);
+
+    internal static NativeFieldResourceOwner Borrow(ImmutableArray<byte> source, int offset, int length)
+    {
+        if (source.IsDefault || length <= 0 || offset < 0 || offset > source.Length - length)
+        {
+            throw new InvalidDataException("Field input requires a nonempty immutable member slice.");
+        }
+        NativeFieldResourceOwner owner = Create(length);
+        owner.Storage.BindResource(0, source, offset, length);
+        return owner;
+    }
 }
 
 /// <summary>Selects the bounded mutable animation-cursor sidecar for one instance.</summary>

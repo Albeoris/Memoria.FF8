@@ -65,7 +65,10 @@ public sealed class NativeFieldPalettePolicyTests
         absent.Memory.EffectMemory!.Textures!.ReadVramInto(2 * (240 * 1024 + 512), actualPalette);
         Assert.Equal(palette, actualPalette);
         NativeFieldRegisteredResource resource = Assert.Single(absent.State.Resources);
-        Assert.Equal(palette, absent.Memory.FileStaging!.Read(resource.GeometryAddress + 76 + 20, 512));
+        Assert.Null(resource.GeometryAddress);
+        Assert.NotNull(resource.Input);
+        Assert.Equal(source.One.Sha256, resource.SourceHash);
+        Assert.Equal(palette, source.One.Data.AsSpan(4 + 76 + 20, 512).ToArray());
         NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, cold);
         NativeFieldRegistrationStep absentSnapshot = absent with { Memory = new NativeFieldEyeProcess(1, absent.Memory, null).CaptureSnapshot().Memory };
         NativeFieldRegistrationStep restoredSnapshot = restored with { Memory = new NativeFieldEyeProcess(1, restored.Memory, null).CaptureSnapshot().Memory };

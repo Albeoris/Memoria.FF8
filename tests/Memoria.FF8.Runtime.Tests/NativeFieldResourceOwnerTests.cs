@@ -311,7 +311,7 @@ public sealed class NativeFieldResourceOwnerTests
 
     private static NativeFieldRegistrationStep Register(string image) => NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, Fixture(image), [new(0, 0, 0, 1), new(1, 0, 0, 1)], NativeBattleRetainedMemory.FromColdProcess(image));
 
-    private static NativeFieldRegistrationResources Fixture(string image)
+    internal static NativeFieldRegistrationResources Fixture(string image)
     {
         byte[] program = new byte[20];
         BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(4), 8);
@@ -388,7 +388,13 @@ public sealed class NativeFieldResourceOwnerTests
             instances.Add(instance with { Address = address, ResourceReference = null });
             end = checked(address + (uint)bytes.Length);
         }
-        NativeFieldRegistrationState state = owned.State with { Resources = [resource with { ResourceLength = null }], Instances = instances.ToImmutable(), EndAddress = end };
+        NativeFieldRegistrationResources original = Fixture(owned.State.MemoryLayout.ExecutableHash);
+        uint relocated = checked(owned.State.MemoryLayout.Limit - (uint)original.One.Data.Length);
+        staging.BindResource(relocated, original.One.Data);
+        uint geometry = relocated + 4;
+        uint animation = geometry + 88;
+        staging.WriteUInt32(geometry + 56, animation);
+        NativeFieldRegistrationState state = owned.State with { Resources = [resource with { ResourceLength = null, Input = null, GeometryAddress = geometry, AnimationAddress = animation }], Instances = instances.ToImmutable(), EndAddress = end, InputsOwned = null, RelocatedSourceAddress = relocated, RelocatedSourceLength = original.One.Data.Length };
         state.Validate(memory);
         return new(state, memory, []);
     }

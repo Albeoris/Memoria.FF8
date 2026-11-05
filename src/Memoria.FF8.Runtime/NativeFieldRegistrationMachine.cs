@@ -15,10 +15,13 @@ public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, s
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? PlaneIdentity { get; init; }
 }
-public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint GeometryAddress, uint AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures)
+public sealed record NativeFieldRegisteredInputSource([property: System.Text.Json.Serialization.JsonRequired] int GeometryLength, [property: System.Text.Json.Serialization.JsonRequired] string AnimationSourceHash, [property: System.Text.Json.Serialization.JsonRequired] int AnimationSourceOffset, [property: System.Text.Json.Serialization.JsonRequired] int AnimationLength);
+public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint? GeometryAddress, uint? AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? ResourceLength { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldRegisteredInputSource? Input { get; init; }
 
     internal NativeFieldResourceCursor Resolve(NativeBattleResourcePointer? receipt)
     {
@@ -42,10 +45,12 @@ public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, ui
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldInstanceResourceReference? ResourceReference { get; init; }
 }
-public sealed record NativeFieldRegistrationState(int Version, int FieldId, string ProgramHash, string OneHash, uint PreModelAddress, uint RelocatedSourceAddress, int RelocatedSourceLength, uint EndAddress, ImmutableArray<NativeFieldRegisteredResource> Resources, ImmutableArray<NativeFieldRegisteredInstance> Instances)
+public sealed record NativeFieldRegistrationState(int Version, int FieldId, string ProgramHash, string OneHash, uint PreModelAddress, uint? RelocatedSourceAddress, int? RelocatedSourceLength, uint EndAddress, ImmutableArray<NativeFieldRegisteredResource> Resources, ImmutableArray<NativeFieldRegisteredInstance> Instances)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldRegistrationLayout? Layout { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? InputsOwned { get; init; }
 
     // An omitted layout describes the allocation actually used by the original snapshot schema.
     [System.Text.Json.Serialization.JsonIgnore]
@@ -69,9 +74,20 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
         layout.Validate();
         retained.Validate();
         NativeBattleFileStaging memory = retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its physical shared memory.");
-        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < layout.ArenaAddress || EndAddress < PreModelAddress || EndAddress > layout.Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > layout.Limit || Resources.IsDefault || Instances.IsDefault || Resources.Any(resource => resource is null) || Instances.Any(instance => instance is null) || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
+        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < layout.ArenaAddress || EndAddress < PreModelAddress || EndAddress > layout.Limit || Resources.IsDefault || Instances.IsDefault || Resources.Any(resource => resource is null) || Instances.Any(instance => instance is null) || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
         {
             throw new InvalidDataException("Native field registration has invalid source identities, allocation layout or retained bindings.");
+        }
+        if (InputsOwned == true)
+        {
+            if (RelocatedSourceAddress is not null || RelocatedSourceLength is not null || Resources.Any(resource => resource.Input is null || resource.GeometryAddress is not null || resource.AnimationAddress is not null))
+            {
+                throw new InvalidDataException("Owned field inputs cannot claim a guest source placement.");
+            }
+        }
+        else if (RelocatedSourceAddress is not uint relocated || RelocatedSourceLength is not int length || relocated < PreModelAddress || length < 4 || (ulong)relocated + (uint)length > layout.Limit || Resources.Any(resource => resource.Input is not null || resource.GeometryAddress is null || resource.AnimationAddress is null))
+        {
+            throw new InvalidDataException("Guest field input metadata has an invalid retained source placement.");
         }
         if (retained.FieldTextureAnimations is { } animations && (animations.OneHash != OneHash || !animations.Textures.Select(animation => animation.Texture).SequenceEqual(Resources.SelectMany(resource => resource.Textures).DistinctBy(texture => (texture.X, texture.Y)))))
         {
@@ -79,6 +95,10 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
         }
         foreach (NativeFieldRegisteredResource resource in Resources)
         {
+            if (resource.Input is { } input && (input.GeometryLength < 64 || input.AnimationLength < 2 || input.AnimationSourceOffset < 0 || input.AnimationSourceHash is not { Length: 64 } || !input.AnimationSourceHash.All(Uri.IsHexDigit) || resource.SourceHash is not { Length: 64 } || !resource.SourceHash.All(Uri.IsHexDigit) || resource.SourceOffset < 0))
+            {
+                throw new InvalidDataException("Field resource input coordinates exceed their explicit source spans.");
+            }
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0x1DCB0F0 + (uint)resource.Index * 4), 4));
             uint tableAddress = checked(0x1DCB0F0 + (uint)resource.Index * 4);
             NativeBattleResourcePointer? receipt = scope is null ? memory.ReadResourcePointer(tableAddress) : scope.ReadResourcePointer(tableAddress);
@@ -150,15 +170,19 @@ public static partial class NativeFieldRegistrationMachine
         internal readonly int ModelId = modelId;
         internal readonly int Index = index;
         internal readonly NativeFieldOneModelEntry Entry = entry;
-        internal readonly List<uint> Textures = [];
+        internal readonly List<SelectedTexture> Textures = [];
         internal readonly List<NativeFieldRegisteredTexture> RegisteredTextures = [];
         internal int UploadedTextures;
-        internal uint Geometry;
-        internal uint Animation;
+        internal NativeFieldResourceCursor Geometry;
+        internal NativeFieldResourceCursor Animation;
+        internal string AnimationSourceHash = string.Empty;
+        internal int AnimationSourceOffset;
         internal string SourceHash = string.Empty;
         internal int SourceOffset;
         internal byte Scale = (entry.Flag >> 28) == 0xD ? (byte)(entry.Flag >> 16) : (byte)16;
     }
+
+    private readonly record struct SelectedTexture(NativeFieldResourceCursor? Source, uint? AliasFlag);
 
     private sealed class Context(NativeFieldRegistrationMemory memory, NativeBattleEffectMemory effects, NativeFieldTextureAnimations? animations = null)
     {
@@ -218,8 +242,6 @@ public static partial class NativeFieldRegistrationMachine
             cursor = checked(cursor + (uint)colors.Data.Length);
         }
         uint preModel = cursor;
-        uint temporary = checked(cursor + 0x20000);
-        uint inputEnd = checked(temporary + 4);
         List<SelectedModel> selected = [];
         foreach (int model in actors.Where(actor => actor.ModelId >= 0).Select(actor => actor.ModelId).Distinct())
         {
@@ -235,25 +257,29 @@ public static partial class NativeFieldRegistrationMachine
             SelectedModel item = new(model, selected.Count, entry);
             item.SourceHash = source.One.Sha256;
             item.SourceOffset = checked(entry.Offset + entry.ModelOffset);
-            memory.BindResource(inputEnd, source.One.Data, entry.Offset, entry.Size);
+            NativeFieldResourceOwner inputOwner = NativeFieldResourceOwner.Borrow(source.One.Data, entry.Offset, entry.Size);
+            NativeFieldResourceCursor beginning = new(inputOwner, 0);
             if ((entry.Flag >> 28) == 0xD)
             {
-                item.Animation = inputEnd;
+                item.Animation = beginning;
+                item.AnimationSourceHash = source.One.Sha256;
+                item.AnimationSourceOffset = entry.Offset;
                 memory.Write8(0x1DC308C + (uint)item.Index, 13);
             }
             else
             {
-                item.Geometry = checked(inputEnd + (uint)entry.ModelOffset);
-                item.Animation = checked(item.Geometry + memory.Read32(item.Geometry + 56));
-                memory.Write32(item.Geometry + 56, item.Animation);
+                item.Geometry = beginning + entry.ModelOffset;
+                item.Animation = item.Geometry + memory.Read32(item.Geometry + 56);
+                item.AnimationSourceHash = source.One.Sha256;
+                item.AnimationSourceOffset = checked(entry.Offset + (int)item.Animation.Offset);
                 memory.Write8(0x1DC308C + (uint)item.Index, 255);
                 if ((entry.Flag >> 28) == 0xA)
                 {
-                    item.Textures.Add(entry.Flag);
+                    item.Textures.Add(new(null, entry.Flag));
                 }
                 else
                 {
-                    item.Textures.AddRange(entry.RawTextureWords.Select(word => checked(inputEnd + (word & 0x0FFFFFFF))));
+                    item.Textures.AddRange(entry.RawTextureWords.Select(word => new SelectedTexture(beginning + (word & 0x0FFFFFFF), null)));
                 }
             }
             selected.Add(item);
@@ -261,50 +287,26 @@ public static partial class NativeFieldRegistrationMachine
             {
                 throw new NotSupportedException("Native model registration exceeds its six texture slots.");
             }
-            inputEnd = checked(inputEnd + (uint)entry.Size);
         }
         foreach (SelectedModel item in selected.Where(item => (item.Entry.Flag >> 28) == 0xD))
         {
             string member = "/" + item.Entry.Name[..4] + ".mch";
             NativeFieldModelSource main = source.MainCharacters.Single(model => model.Member.EndsWith(member, StringComparison.OrdinalIgnoreCase));
-            uint beginning = inputEnd;
-            memory.BindResource(beginning, main.Data, 0, main.Data.Length);
-            uint pointer = beginning;
+            NativeFieldResourceOwner inputOwner = NativeFieldResourceOwner.Borrow(main.Data, 0, main.Data.Length);
+            NativeFieldResourceCursor beginning = new(inputOwner, 0);
+            NativeFieldResourceCursor pointer = beginning;
             while (unchecked((int)memory.Read32(pointer)) >= 0)
             {
                 if (item.Textures.Count == 6)
                 {
                     throw new NotSupportedException("Native model registration exceeds its six texture slots.");
                 }
-                item.Textures.Add(checked(beginning + (memory.Read32(pointer) & 0x0FFFFFFF)));
+                item.Textures.Add(new(beginning + (memory.Read32(pointer) & 0x0FFFFFFF), null));
                 pointer += 4;
             }
             item.Geometry = checked(beginning + (memory.Read32(pointer + 4) & 0x0FFFFFFF));
             item.SourceHash = main.Sha256;
-            item.SourceOffset = checked((int)(item.Geometry - beginning));
-            memory.Write32(item.Geometry + 56, item.Animation);
-            inputEnd = checked(inputEnd + (uint)main.Data.Length);
-        }
-        int sourceLength = checked((int)(inputEnd - temporary));
-        NativeFieldSourceRelocation relocation = NativeFieldSourceRelocation.ToLimit(inputEnd, layout.Limit);
-        uint relocated = relocation.Apply(temporary);
-        if (relocated < preModel)
-        {
-            throw new NotSupportedException("Field model source relocation would overwrite the retained program allocation.");
-        }
-        memory.Copy(temporary, relocated, sourceLength);
-        foreach (SelectedModel item in selected)
-        {
-            item.Geometry = relocation.Apply(item.Geometry);
-            item.Animation = relocation.Apply(item.Animation);
-            memory.Write32(item.Geometry + 56, item.Animation);
-            for (int texture = 0; texture < item.Textures.Count; texture++)
-            {
-                if ((item.Textures[texture] >> 28) != 0xA)
-                {
-                    item.Textures[texture] = relocation.Apply(item.Textures[texture]);
-                }
-            }
+            item.SourceOffset = checked((int)item.Geometry.Offset);
         }
         int uploadIndex = 0;
         short?[] lastX = new short?[6];
@@ -318,17 +320,17 @@ public static partial class NativeFieldRegistrationMachine
             memory.Write32(row + 8, item.Entry.SourceWord8!.Value);
             memory.Write32(row + 12, (item.Entry.Flag >> 28) == 0xD ? item.Entry.Flag & 0xFFFF : uint.MaxValue);
             memory.Fill(row + 16, 24, 255);
-            memory.Write32(row + 40, item.Geometry);
-            memory.Write32(row + 44, item.Animation);
+            memory.ProjectInputPointer(row + 40, item.Geometry);
+            memory.ProjectInputPointer(row + 44, item.Animation);
             memory.Write8(ModelMap + (uint)item.ModelId, (byte)item.Index);
             for (int ordinal = 0; ordinal < item.Textures.Count; ordinal++)
             {
-                uint texture = item.Textures[ordinal];
-                memory.Write32(row + 16 + (uint)ordinal * 4, texture);
+                SelectedTexture texture = item.Textures[ordinal];
                 NativeFieldRegisteredTexture registration;
-                if ((texture >> 28) == 0xA)
+                if (texture.AliasFlag is uint aliasFlag)
                 {
-                    int alias = (byte)(texture >> 20);
+                    memory.Write32(row + 16 + (uint)ordinal * 4, aliasFlag);
+                    int alias = (byte)(aliasFlag >> 20);
                     SelectedModel prior = selected.Take(item.Index).SingleOrDefault(model => model.ModelId == alias) ?? throw new NotSupportedException("Native texture alias requires an already registered original model.");
                     if (ordinal >= prior.RegisteredTextures.Count)
                     {
@@ -338,7 +340,9 @@ public static partial class NativeFieldRegistrationMachine
                 }
                 else
                 {
-                    registration = RegisterTexture(context, loader, item.Entry, texture, uploadIndex++);
+                    NativeFieldResourceCursor textureSource = texture.Source ?? throw new InvalidDataException("Field texture has no selected input owner.");
+                    memory.ProjectInputPointer(row + 16 + (uint)ordinal * 4, textureSource);
+                    registration = RegisterTexture(context, loader, item.Entry, textureSource, uploadIndex++);
                     item.UploadedTextures++;
                     if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
                     {
@@ -370,7 +374,11 @@ public static partial class NativeFieldRegistrationMachine
             memory.ProjectResourceHeader(resourceCursor, address);
             memory.WriteResourcePointer(ResourcePointers + (uint)item.Index * 4, new(null, address) { FieldStorage = new(item.Index) { Resource = owner } });
             cursor = checked(cursor + 96);
-            resources.Add(new(item.ModelId, item.Index, address, item.Geometry, item.Animation, item.Scale == 0 ? (byte)16 : item.Scale, item.SourceHash, item.SourceOffset, item.RegisteredTextures.ToImmutableArray()) { ResourceLength = owner.Length });
+            resources.Add(new(item.ModelId, item.Index, address, null, null, item.Scale == 0 ? (byte)16 : item.Scale, item.SourceHash, item.SourceOffset, item.RegisteredTextures.ToImmutableArray())
+            {
+                ResourceLength = owner.Length,
+                Input = new(checked(item.Geometry.Owner!.Length - (int)item.Geometry.Offset), item.AnimationSourceHash, item.AnimationSourceOffset, checked(item.Animation.Owner!.Length - (int)item.Animation.Offset))
+            });
         }
         List<NativeFieldRegisteredInstance> instances = [];
         for (int index = 0; index < actors.Count; index++)
@@ -397,7 +405,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Constructed field resources exceed the selected native allocation.");
         }
-        NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray()) { Layout = layout };
+        NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, null, null, cursor, resources.ToImmutableArray(), instances.ToImmutableArray()) { Layout = layout, InputsOwned = true };
         NativeBattleRetainedMemory result = retained with { FileStaging = memory.Prepare(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
         if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
         {
@@ -455,7 +463,7 @@ public static partial class NativeFieldRegistrationMachine
         return checked(operations + (uint)copied * 4);
     }
 
-    private static NativeFieldRegisteredTexture RegisterTexture(Context context, NativeFieldRegistrationLoaderInputs loader, NativeFieldOneModelEntry entry, uint texture, int index)
+    private static NativeFieldRegisteredTexture RegisterTexture(Context context, NativeFieldRegistrationLoaderInputs loader, NativeFieldOneModelEntry entry, NativeFieldResourceCursor texture, int index)
     {
         NativeFieldRegistrationMemory memory = context.Memory;
         if ((uint)index >= loader.ImageCoordinates.Length || (uint)index >= loader.PaletteCoordinates.Length || memory.Read32(texture) != 0x10)
@@ -467,8 +475,8 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Native field registration requires its original indexed TIM palette contract.");
         }
-        uint paletteBlock = texture + 8;
-        uint imageBlock = checked(paletteBlock + memory.Read32(paletteBlock));
+        NativeFieldResourceCursor paletteBlock = texture + 8;
+        NativeFieldResourceCursor imageBlock = paletteBlock + memory.Read32(paletteBlock);
         short width = memory.ReadSigned16(imageBlock + 8);
         short height = memory.ReadSigned16(imageBlock + 10);
         uint imagePosition = loader.ImageCoordinates[index];

@@ -68,27 +68,8 @@ public sealed class NativeFieldRegistrationLayoutTests
         Assert.Throws<InvalidDataException>(() => (restored with { EndAddress = 0x019EF019 }).Validate(NativeBattleRetainedMemory.FromColdProcess()));
     }
 
-    [Theory]
-    [InlineData(0x1003u, 0x2000u, 0xFFCL, 0x1FFFu)]
-    [InlineData(0x2003u, 0x1000u, -0x1004L, 0x0FFFu)]
-    [InlineData(0x2000u, 0x1000u, -0x1000L, 0x1000u)]
-    public void Relocation_aligns_signed_displacement_before_moving_sources(uint sourceEnd, uint limit, long expectedDisplacement, uint expectedEnd)
-    {
-        NativeFieldSourceRelocation relocation = NativeFieldSourceRelocation.ToLimit(sourceEnd, limit);
-        Assert.Equal(expectedDisplacement, relocation.Displacement);
-        Assert.Equal(expectedEnd, relocation.Apply(sourceEnd));
-        Assert.InRange(limit - relocation.Apply(sourceEnd), 0u, 3u);
-    }
-
     [Fact]
-    public void Relocation_rejects_addresses_that_underflow_or_overflow_instead_of_wrapping()
-    {
-        Assert.Throws<OverflowException>(() => NativeFieldSourceRelocation.ToLimit(8, 0).Apply(4));
-        Assert.Throws<OverflowException>(() => NativeFieldSourceRelocation.ToLimit(0, 8).Apply(uint.MaxValue - 3));
-    }
-
-    [Fact]
-    public void Battle_return_moves_overlapping_model_input_down_from_the_reserved_tail()
+    public void Battle_return_reads_owned_input_without_publishing_or_relocating_raw_member_bytes()
     {
         byte[] program = new byte[20];
         BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(4), 8);
@@ -127,12 +108,14 @@ public sealed class NativeFieldRegistrationLayoutTests
         NativeFieldRegistrationStep result = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, [new(0, 0, 0, 1)], NativeBattleRetainedMemory.FromColdProcess(source.ExecutableHash));
         result.State.Validate(result.Memory);
         Assert.Equal(preModel, result.State.PreModelAddress);
-        Assert.Equal(temporary - 16, result.State.RelocatedSourceAddress);
-        Assert.Equal(limit, result.State.RelocatedSourceAddress + (uint)result.State.RelocatedSourceLength);
-        Assert.Equal(marker, result.Memory.FileStaging!.Read(limit - 4, 4));
-        Assert.True(result.Memory.FileStaging.TryBorrowResource(limit - 8192, 8192, out ImmutableArray<byte> retained, out int sourceOffset));
-        Assert.Equal(source.One.Data, retained);
-        Assert.Equal(source.One.Data.Length - 8192, sourceOffset);
+        Assert.True(result.State.InputsOwned);
+        Assert.Null(result.State.RelocatedSourceAddress);
+        Assert.Null(result.State.RelocatedSourceLength);
+        NativeFieldRegisteredResource resource = Assert.Single(result.State.Resources);
+        Assert.Null(resource.GeometryAddress);
+        Assert.Null(resource.AnimationAddress);
+        Assert.Equal(one.Length - 4, resource.Input!.GeometryLength);
+        Assert.Equal(new byte[4], result.Memory.FileStaging!.Read(limit - 4, 4));
         Assert.Equal(new byte[] { 0x34, 0x12 }, result.Uploads[0].Bytes.ToArray());
         Assert.Equal(marker, source.One.Data.AsSpan()[(source.One.Data.Length - 4)..].ToArray());
         const uint untouched = arena + 16;

@@ -4,8 +4,8 @@ public static partial class NativeFieldRegistrationMachine
 {
     private static uint RegisterResource5318D0(NativeFieldRegistrationMemory memory, SelectedModel item, NativeFieldResourceCursor address)
     {
-        uint geometry = item.Geometry;
-        memory.Write32(0x1DC3CDC, geometry);
+        NativeFieldResourceCursor geometry = item.Geometry;
+        memory.ProjectInputPointer(0x1DC3CDC, geometry);
         uint scale = item.Scale == 0 ? 16u : item.Scale;
         uint bones = memory.Read32(geometry);
         uint vertices = memory.Read32(geometry + 4);
@@ -49,8 +49,8 @@ public static partial class NativeFieldRegistrationMachine
         cursor = checked(cursor + 32 * parts);
         memory.WritePointer(address + 32, cursor);
         cursor = checked(cursor + 8 * skins);
-        uint sourceBones = checked(geometry + memory.Read32(geometry + 32));
-        memory.Write32(0x1DC3CD8, sourceBones);
+        NativeFieldResourceCursor sourceBones = geometry + memory.Read32(geometry + 32);
+        memory.ProjectInputPointer(0x1DC3CD8, sourceBones);
         memory.Copy(sourceBones, memory.ReadPointer(address) + 64, checked((int)bones * 64));
         for (uint bone = 0; bone < bones; bone++)
         {
@@ -59,8 +59,8 @@ public static partial class NativeFieldRegistrationMachine
             memory.Write16(target + 8, unchecked((ushort)(length >> 4)));
             memory.Write32(target + 52, 0);
         }
-        uint sourceVertices = checked(geometry + memory.Read32(geometry + 36));
-        memory.Write32(0x1DC3CE8, sourceVertices);
+        NativeFieldResourceCursor sourceVertices = geometry + memory.Read32(geometry + 36);
+        memory.ProjectInputPointer(0x1DC3CE8, sourceVertices);
         for (uint vertex = 0; vertex < vertices; vertex++)
         {
             NativeFieldResourceCursor target = checked(memory.ReadPointer(address + 24) + vertex * 8);
@@ -73,14 +73,14 @@ public static partial class NativeFieldRegistrationMachine
         memory.Copy(checked(geometry + memory.Read32(geometry + 40)), memory.ReadPointer(address + 20), checked((int)eyes));
         memory.Copy(checked(geometry + memory.Read32(geometry + 48)), memory.ReadPointer(address + 28), checked((int)parts * 32));
         memory.Copy(checked(geometry + memory.Read32(geometry + 52)), memory.ReadPointer(address + 32), checked((int)skins * 8));
-        uint animation = memory.Read32(geometry + 56);
+        NativeFieldResourceCursor animation = item.Animation;
         ushort clips = memory.Read16(animation);
         memory.Write16(address + 82, clips);
         memory.WritePointer(address + 84, cursor);
         NativeFieldResourceCursor stream = cursor + (uint)clips * 4;
         memory.WritePointer(address + 88, stream);
         memory.WritePointer(address + 64, stream);
-        uint input = animation + 2;
+        NativeFieldResourceCursor input = animation + 2;
         for (uint clip = 0; clip < clips; clip++)
         {
             ushort frames = memory.Read16(input);
@@ -101,12 +101,12 @@ public static partial class NativeFieldRegistrationMachine
         uint control = memory.Read32(geometry + 60);
         memory.Write16(address + 92, (ushort)control);
         memory.Write8(address + 94, (byte)(control >> 16));
-        uint sourceFaces = checked(geometry + memory.Read32(geometry + 44));
+        NativeFieldResourceCursor sourceFaces = geometry + memory.Read32(geometry + 44);
         uint triangle = 0;
         uint quad = 0;
         for (uint face = 0; face < faces; face++)
         {
-            uint original = checked(sourceFaces + face * 64);
+            NativeFieldResourceCursor original = sourceFaces + face * 64;
             uint opcode = memory.Read32(original);
             bool isQuad = opcode == 0x2D010709;
             if (!isQuad && opcode != 0x25010607)
@@ -165,13 +165,13 @@ public static partial class NativeFieldRegistrationMachine
 
     private static int ResourceLength(NativeFieldRegistrationMemory memory, SelectedModel item)
     {
-        uint geometry = item.Geometry;
+        NativeFieldResourceCursor geometry = item.Geometry;
         ulong length = 96 + ((ulong)memory.Read32(geometry) + 1) * 64;
         uint untextured = memory.Read32(geometry + 24);
         uint textured = memory.Read32(geometry + 28);
         length += (ulong)(ushort)untextured * 24 + (ulong)(untextured >> 16) * 32 + (ulong)(ushort)textured * 24 + (ulong)(textured >> 16) * 28;
         length += (ulong)memory.Read32(geometry + 8) * 8 + (ulong)memory.Read32(geometry + 4) * 8 + (ulong)memory.Read32(geometry + 16) * 32 + (ulong)memory.Read32(geometry + 20) * 8;
-        uint input = memory.Read32(geometry + 56);
+        NativeFieldResourceCursor input = item.Animation;
         ushort clips = memory.Read16(input);
         length += (uint)clips * 4;
         input = checked(input + 2);

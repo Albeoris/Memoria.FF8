@@ -53,17 +53,3 @@ public sealed record NativeFieldRegistrationLayout([property: JsonRequired] stri
         _ => throw new InvalidDataException("Unknown field registration allocation profile.")
     };
 }
-
-/// <summary>Aligned source movement with checked addresses in either direction.</summary>
-internal readonly record struct NativeFieldSourceRelocation(long Displacement)
-{
-    internal static NativeFieldSourceRelocation ToLimit(uint sourceEnd, uint limit)
-    {
-        return new(((long)limit - sourceEnd) & ~3L);
-    }
-
-    internal uint Apply(uint address)
-    {
-        return checked((uint)(address + Displacement));
-    }
-}
