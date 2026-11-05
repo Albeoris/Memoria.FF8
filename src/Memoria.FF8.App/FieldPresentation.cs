@@ -2,12 +2,13 @@ using System.Numerics;
 using System.Runtime.ExceptionServices;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 internal sealed record FieldActorSample(object Owner, long PositionRevision, long AnimationRevision, ActorVisual Visual, int FirstFrame, int TerminalFrame, bool Loop, int AnimationStep);
-internal sealed record FieldPresentationFrame(object Owner, long Frame, int CameraIndex, IReadOnlyList<FieldActorSample> Actors, BackgroundScrollFrame Scroll, long CameraRevision = 0, int? CameraActorId = null);
-internal sealed record FieldPresentationSample(IReadOnlyList<ActorVisual> Actors, FieldBackgroundBlend? Background);
+internal sealed record FieldPresentationFrame(object Owner, long Frame, int CameraIndex, IReadOnlyList<FieldActorSample> Actors, BackgroundScrollFrame Scroll, long CameraRevision = 0, int? CameraActorId = null, NativeDrawPointParticles? DrawPointParticles = null);
+internal sealed record FieldPresentationSample(IReadOnlyList<ActorVisual> Actors, FieldBackgroundBlend? Background, DrawPointParticleBlend? DrawPointBlend = null);
 
 /// <summary>Render-only history of completed field callbacks. Drawing never advances the VM or writes actors.</summary>
 internal sealed class FieldPresentation
@@ -65,7 +66,8 @@ internal sealed class FieldPresentation
         Dictionary<int, FieldActorSample> oldActors = before?.Actors.ToDictionary(actor => actor.Visual.ObjectId) ?? [];
         ActorVisual[] actors = latest.Actors.Select(actor => Interpolate(oldActors.GetValueOrDefault(actor.Visual.ObjectId), actor, fraction, smoothAnimation)).ToArray();
         FieldBackgroundBlend? background = before is null ? null : new(ToBackground(before.Scroll), ToBackground(latest.Scroll), fraction);
-        return new FieldPresentationSample(actors, background);
+        DrawPointParticleBlend? particles = before?.DrawPointParticles is { } oldParticles && latest.DrawPointParticles is not null ? new(oldParticles, fraction) : null;
+        return new FieldPresentationSample(actors, background, particles);
     }
 
     private static FieldBackgroundSample ToBackground(BackgroundScrollFrame frame) => new(frame.LayerOffsets, frame.ActorOffset, frame.NativeWrap, frame.LayerScales);
@@ -78,7 +80,7 @@ internal sealed class FieldPresentation
 
     private static bool SameSnapshot(FieldPresentationFrame first, FieldPresentationFrame second)
     {
-        if (!ReferenceEquals(first.Owner, second.Owner) || first.Frame != second.Frame || first.CameraIndex != second.CameraIndex || first.CameraRevision != second.CameraRevision || first.CameraActorId != second.CameraActorId || first.Actors.Count != second.Actors.Count || first.Scroll.ActorOffset != second.Scroll.ActorOffset || !SameDictionary(first.Scroll.LayerOffsets, second.Scroll.LayerOffsets) || !SameDictionary(first.Scroll.LayerScales, second.Scroll.LayerScales) || !SameWrap(first.Scroll.NativeWrap, second.Scroll.NativeWrap))
+        if (!ReferenceEquals(first.Owner, second.Owner) || first.Frame != second.Frame || first.CameraIndex != second.CameraIndex || first.CameraRevision != second.CameraRevision || first.CameraActorId != second.CameraActorId || first.Actors.Count != second.Actors.Count || !ReferenceEquals(first.DrawPointParticles, second.DrawPointParticles) || first.Scroll.ActorOffset != second.Scroll.ActorOffset || !SameDictionary(first.Scroll.LayerOffsets, second.Scroll.LayerOffsets) || !SameDictionary(first.Scroll.LayerScales, second.Scroll.LayerScales) || !SameWrap(first.Scroll.NativeWrap, second.Scroll.NativeWrap))
         {
             return false;
         }

@@ -8,13 +8,14 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
-    private void PrepareDrawPointParticles(NativeDrawPointParticles? particles, NativeDrawPointParticleTables? tables, ushort? displayMask, List<(float Depth, Action Draw)> translucent, List<Action> revealedPoints, bool revealHiddenPoint)
+    private void PrepareDrawPointParticles(NativeDrawPointParticles? particles, NativeDrawPointParticleTables? tables, ushort? displayMask, List<(float Depth, Action Draw)> translucent, List<Action> revealedPoints, bool revealHiddenPoint, DrawPointParticleBlend? blend)
     {
         if (particles is null)
         {
             return;
         }
         particles.Validate();
+        blend?.Validate();
         foreach (NativeDrawPointSpark spark in particles.Drawings)
         {
             if (spark.RenderStatus == 1 && displayMask is null)
@@ -31,12 +32,11 @@ public sealed partial class FieldRenderer
             }
             for (int age = 0; age < 5; age++)
             {
-                int current = (spark.RenderCounter - age) & 7;
-                int previous = (current - 1) & 7;
-                ProjectedPoint a = ToViewport(camera.Project(spark.FirstEdge[current].Vector));
-                ProjectedPoint b = ToViewport(camera.Project(spark.SecondEdge[current].Vector));
-                ProjectedPoint c = ToViewport(camera.Project(spark.FirstEdge[previous].Vector));
-                ProjectedPoint d = ToViewport(camera.Project(spark.SecondEdge[previous].Vector));
+                Vector3 Point(int trailAge, bool secondEdge) => blend?.Point(particles, spark, trailAge, secondEdge) ?? (secondEdge ? spark.SecondEdge : spark.FirstEdge)[(spark.RenderCounter - trailAge) & 7].Vector;
+                ProjectedPoint a = ToViewport(camera.Project(Point(age, false)));
+                ProjectedPoint b = ToViewport(camera.Project(Point(age, true)));
+                ProjectedPoint c = ToViewport(camera.Project(Point(age + 1, false)));
+                ProjectedPoint d = ToViewport(camera.Project(Point(age + 1, true)));
                 float orderingDepth = MathF.Truncate((age == 0 ? c.Depth : d.Depth) / 4) * 4;
                 if (orderingDepth >= 4096 * 4 || a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1 || d.Depth <= 1)
                 {
