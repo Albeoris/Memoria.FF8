@@ -35,16 +35,20 @@ public sealed class ErrorReportTests : IDisposable
     }
 
     [Fact]
-    public async Task Compact_snapshot_is_excluded_from_public_report()
+    public async Task Compact_snapshot_is_attached_without_changing_bytes()
     {
         byte[] snapshot = "MFF8SAVE"u8.ToArray();
         ErrorIncident incident = ErrorIncident.Capture(new Exception("failed"), "test", save: new ReportSave(snapshot, "earlier validated player save", DateTimeOffset.UtcNow.AddDays(-2), "synthetic validated"));
 
         using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
         using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
-        Assert.Null(archive.GetEntry("repro/state.ff8save"));
+        ZipArchiveEntry save = Assert.IsType<ZipArchiveEntry>(archive.GetEntry("repro/state.ff8save"));
+        using Stream source = save.Open();
+        using MemoryStream copy = new();
+        source.CopyTo(copy);
+        Assert.Equal(snapshot, copy.ToArray());
         Assert.Null(archive.GetEntry("repro/state.json"));
-        Assert.Contains("cannot be safely sanitized", report.Description);
+        Assert.Contains("earlier validated player save", report.Description);
     }
 
     [Fact]
@@ -60,7 +64,7 @@ public sealed class ErrorReportTests : IDisposable
 
         Assert.Contains(reason, report.Description);
         Assert.Contains(manifest.RootElement.GetProperty("omissions").EnumerateArray(), omission => omission.GetString() == reason);
-        Assert.Null(archive.GetEntry("repro/state.json"));
+        Assert.NotNull(archive.GetEntry("repro/state.json"));
     }
 
     private sealed class SourceStackException(string path) : Exception("failure")
@@ -69,7 +73,7 @@ public sealed class ErrorReportTests : IDisposable
     }
 
     [Fact]
-    public async Task PackagingCoalescesReusesAndOmitsPrivateSave()
+    public async Task PackagingCoalescesReusesAndPreservesDetachedSave()
     {
         byte[] save = Encoding.UTF8.GetBytes("{\"validated\":true}");
         ErrorIncident incident = ErrorIncident.Capture(new IOException("original failure"), "test", save: new ReportSave(save, "current", DateTimeOffset.UtcNow, "synthetic continuation passed"));
@@ -83,7 +87,8 @@ public sealed class ErrorReportTests : IDisposable
         Assert.True(first.Size < ErrorReport.MaximumArchiveBytes);
         using (ZipArchive archive = ZipFile.OpenRead(first.ArchivePath))
         {
-            Assert.Null(archive.GetEntry("repro/state.json"));
+            using StreamReader saveReader = new(archive.GetEntry("repro/state.json")!.Open());
+            Assert.Equal("{\"validated\":true}", saveReader.ReadToEnd());
             Assert.NotNull(archive.GetEntry("manifest.json"));
             Assert.NotNull(archive.GetEntry("exception.txt"));
             using Stream metadata = archive.GetEntry("completed.json")!.Open();
@@ -113,33 +118,89 @@ public sealed class ErrorReportTests : IDisposable
             Assert.True(File.Exists(initial.ArchivePath));
         }
         string log = Path.Combine(root, "launcher.log");
-        File.WriteAllText(log, "PrivateUnlabelledAccountIdentity");
+        File.WriteAllText(log, "process output ../fixtures process output");
         using PreparedErrorReport enriched = await ErrorReport.PrepareAsync(incident.WithLogPaths([log]), root);
         using ZipArchive archive = ZipFile.OpenRead(enriched.ArchivePath);
-        Assert.DoesNotContain(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
-        Assert.Contains("Excluded 1 raw log file", enriched.Description);
-        foreach (ZipArchiveEntry entry in archive.Entries)
-        {
-            using StreamReader reader = new(entry.Open());
-            string content = reader.ReadToEnd();
-            Assert.DoesNotContain("launcher.log", content);
-            Assert.DoesNotContain("PrivateUnlabelledAccountIdentity", content);
-        }
+        using StreamReader reader = new(archive.GetEntry("logs/00.log")!.Open());
+        string content = reader.ReadToEnd();
+        Assert.Contains("process output", content);
+        Assert.DoesNotContain("ReportFixture", content);
+        Assert.DoesNotContain("launcher.log", enriched.Description);
+        Assert.Equal("process output ../fixtures process output", File.ReadAllText(log));
     }
 
     [Fact]
-    public async Task OversizedIncompressibleSaveIsOmittedWithoutLooseCopies()
+    public async Task RecoveredReportPreservesAndResanitizesArchivedLogsWithoutDuplicates()
+    {
+        string inputs = Path.Combine(root, "inputs");
+        Directory.CreateDirectory(inputs);
+        string originalLog = Path.Combine(inputs, "original.log");
+        string additionalLog = Path.Combine(inputs, "additional.log");
+        string originalText = @"original marker ../fixtures/external-fixture.log" + Environment.NewLine + "password=ArchiveSecret";
+        string additionalText = @"additional marker ../fixtures/external-fixture.log";
+        File.WriteAllText(originalLog, originalText);
+        File.WriteAllText(additionalLog, additionalText);
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("recovered logs"), "test", logPaths: [originalLog]);
+        string archivePath;
+        using (PreparedErrorReport initial = await ErrorReport.PrepareAsync(incident, root))
+        {
+            archivePath = initial.ArchivePath;
+        }
+        using (ZipArchive archive = ZipFile.Open(archivePath, ZipArchiveMode.Update))
+        {
+            archive.GetEntry("logs/00.log")!.Delete();
+            using StreamWriter writer = new(archive.CreateEntry("logs/UnknownArchivedIdentity.log").Open());
+            writer.Write(originalText);
+        }
+        ErrorIncident recovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root));
+        ErrorIncident enriched = recovered.WithLogPaths([additionalLog]);
+        using (PreparedErrorReport report = await ErrorReport.PrepareAsync(enriched, root))
+        using (ZipArchive archive = ZipFile.OpenRead(report.ArchivePath))
+        {
+            Assert.Equal(2, archive.Entries.Count(entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal)));
+            using StreamReader originalReader = new(archive.GetEntry("logs/00.log")!.Open());
+            string archivedOriginal = originalReader.ReadToEnd();
+            Assert.Contains("original marker", archivedOriginal);
+            Assert.DoesNotContain("ArchiveFixture", archivedOriginal);
+            Assert.DoesNotContain("ArchiveSecret", archivedOriginal);
+            using StreamReader additionalReader = new(archive.GetEntry("logs/01.log")!.Open());
+            string archivedAdditional = additionalReader.ReadToEnd();
+            Assert.Contains("additional marker", archivedAdditional);
+            Assert.DoesNotContain("AdditionalFixture", archivedAdditional);
+            Assert.DoesNotContain(archive.Entries, entry => entry.FullName.Contains("UnknownArchivedIdentity", StringComparison.Ordinal));
+            using Stream manifestStream = archive.GetEntry("manifest.json")!.Open();
+            using JsonDocument manifest = JsonDocument.Parse(manifestStream);
+            foreach (JsonElement entry in manifest.RootElement.GetProperty("files").EnumerateArray())
+            {
+                Assert.Equal(entry.GetProperty("bytes").GetInt64(), archive.GetEntry(entry.GetProperty("name").GetString()!)!.Length);
+            }
+        }
+        DateTime modified = File.GetLastWriteTimeUtc(archivePath);
+        using (PreparedErrorReport repeated = await ErrorReport.PrepareAsync(enriched, root))
+        using (ZipArchive archive = ZipFile.OpenRead(repeated.ArchivePath))
+        {
+            Assert.Equal(2, archive.Entries.Count(entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal)));
+            Assert.Equal(modified, File.GetLastWriteTimeUtc(archivePath));
+        }
+        Assert.Equal(originalText, File.ReadAllText(originalLog));
+        Assert.Equal(additionalText, File.ReadAllText(additionalLog));
+    }
+
+    [Fact]
+    public async Task OversizedIncompressibleSaveFailsWithoutPublishingAndPreservesPendingEvidence()
     {
         byte[] bytes = new byte[21 * 1024 * 1024];
         new Random(713).NextBytes(bytes);
+        "MFF8SAVE"u8.CopyTo(bytes);
         ErrorIncident incident = ErrorIncident.Capture(new Exception("save too large"), "test", save: new ReportSave(bytes, "earlier checkpoint", DateTimeOffset.UtcNow.AddMinutes(-2), "synthetic validated"));
-        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
-        Assert.True(report.Size <= ErrorReport.MaximumArchiveBytes);
-        Assert.Contains("Excluded from ZIP", report.Description);
-        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
-        Assert.Null(archive.GetEntry("repro/state.json"));
-        Assert.Equal([report.ArchivePath], Directory.GetFiles(Path.Combine(root, incident.Id)));
-        Assert.False(Directory.Exists(root + ".pending/" + incident.Id));
+        string pending = incident.Persist(root);
+        IOException failure = await Assert.ThrowsAsync<IOException>(() => ErrorReport.PrepareAsync(incident, root));
+        Assert.Contains("validated reproduction save cannot fit", failure.Message);
+        Assert.Empty(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories));
+        Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(pending, "state.ff8save")));
+        ErrorIncident recovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root));
+        Assert.Equal(incident.Id, recovered.Id);
+        Assert.Equal(bytes.Length, recovered.Save!.Length);
     }
 
     [Fact]
@@ -207,15 +268,62 @@ public sealed class ErrorReportTests : IDisposable
         }
         Directory.CreateDirectory(root);
         string log = Path.Combine(root, "game.log");
-        File.WriteAllText(log, new string('a', 2 * 1024 * 1024) + "end");
+        File.WriteAllText(log, new string('a', 2 * 1024 * 1024) + "\nend\n");
         ErrorIncident incident = ErrorIncident.Capture(new IOException("primary"), "test", new BrokenContributor(), logPaths: [log, Path.Combine(root, "missing.log")], breadcrumbs: breadcrumbs);
         Assert.Equal(1000, incident.Events.Count);
         Assert.Single(incident.CollectionErrors);
         using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
         Assert.Contains("primary", report.Description);
-        Assert.Contains("Excluded 2 raw log file", report.Description);
+        Assert.Contains("older bytes", report.Description);
+        Assert.Contains("Log 02 unavailable", report.Description);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using StreamReader reader = new(archive.GetEntry("logs/00.log")!.Open());
+        Assert.Equal("end\n", reader.ReadToEnd());
+    }
+
+    [Theory]
+    [InlineData("password=\"", "QuotedSecretSuffix\"")]
+    [InlineData(@"../fixtures", "PrivatePathSuffix")]
+    public async Task BoundedLogTailDiscardsPartialPrivateRecord(string prefix, string suffix)
+    {
+        Directory.CreateDirectory(root);
+        string log = Path.Combine(root, "private-tail.log");
+        File.WriteAllText(log, prefix + new string('q', 2 * 1024 * 1024) + suffix + "\ncomplete diagnostic record\n");
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("log tail"), "test", logPaths: [log]);
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using StreamReader reader = new(archive.GetEntry("logs/00.log")!.Open());
+        string content = reader.ReadToEnd();
+        Assert.Equal("complete diagnostic record\n", content);
+        Assert.DoesNotContain(suffix, content);
+        Assert.Contains("older bytes", report.Description);
+    }
+
+    [Fact]
+    public async Task OversizedSingleLogRecordIsExplicitlyOmitted()
+    {
+        Directory.CreateDirectory(root);
+        string log = Path.Combine(root, "single-record.log");
+        File.WriteAllText(log, "password=\"" + new string('q', 2 * 1024 * 1024) + "PrivateSuffix\"");
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("single log record"), "test", logPaths: [log]);
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
         using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
         Assert.DoesNotContain(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
+        Assert.Contains("oversized incomplete record", report.Description);
+    }
+
+    [Fact]
+    public async Task BoundedLogTailPreservesRecordBeginningExactlyAtLimit()
+    {
+        Directory.CreateDirectory(root);
+        string log = Path.Combine(root, "record-boundary.log");
+        string tail = new string('a', 1024 * 1024 - 1) + "\n";
+        File.WriteAllText(log, "older record\n" + tail);
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("record boundary"), "test", logPaths: [log]);
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using StreamReader reader = new(archive.GetEntry("logs/00.log")!.Open());
+        Assert.Equal(tail, reader.ReadToEnd());
     }
 
     [Fact]
@@ -229,7 +337,9 @@ public sealed class ErrorReportTests : IDisposable
         Assert.False(Directory.Exists(pending));
         ErrorIncident recovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root, "archive-launch", true));
         Assert.Equal(incident.Id, recovered.Id);
-        Assert.Null(recovered.Save);
+        Assert.NotNull(recovered.Save);
+        Assert.Equal(incident.LaunchId, recovered.LaunchId);
+        Assert.Equal(incident.Timestamp, recovered.Timestamp);
         recovered.MarkPresented(root);
         Assert.Null(ErrorIncident.DiscoverLatest(root, "archive-launch", true));
         Assert.NotNull(ErrorIncident.DiscoverLatest(root, "archive-launch"));
@@ -237,15 +347,62 @@ public sealed class ErrorReportTests : IDisposable
     }
 
     [Fact]
-    public async Task UnsupportedBinarySaveIsOmittedWithoutLooseCopies()
+    public async Task CompactSaveIsRecoveredWithoutLooseCopies()
     {
-        ErrorIncident incident = ErrorIncident.Capture(new Exception("unsupported save"), "test", save: new ReportSave([0, 1, 2, 255], "current", DateTimeOffset.UtcNow, "synthetic validated"));
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("unsupported save"), "test", save: new ReportSave("MFF8SAVE"u8.ToArray().Concat(new byte[] { 0, 1, 2, 255 }).ToArray(), "current", DateTimeOffset.UtcNow, "synthetic validated"));
         using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
         using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        Assert.NotNull(archive.GetEntry("repro/state.ff8save"));
         Assert.Null(archive.GetEntry("repro/state.json"));
-        Assert.Contains("cannot be safely sanitized", report.Description);
+        Assert.NotNull(ErrorIncident.DiscoverLatest(root)?.Save);
         Assert.Equal([report.ArchivePath], Directory.GetFiles(Path.Combine(root, incident.Id)));
         Assert.False(Directory.Exists(root + ".pending/" + incident.Id));
+    }
+
+    [Theory]
+    [InlineData("76561198012345678")]
+    [InlineData("username=OriginalLaunch")]
+    public async Task PublishedMetadataPreservesLaunchIdentityAndExactCaptureTimes(string launchId)
+    {
+        DateTimeOffset captured = DateTimeOffset.Parse("2024-02-03T04:05:06.1234567+02:00");
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("metadata"), "test", launchId: launchId, save: new ReportSave("MFF8SAVE"u8.ToArray(), "current", captured, "synthetic validated"));
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using Stream evidence = archive.GetEntry("incident.json")!.Open();
+        using JsonDocument metadata = JsonDocument.Parse(evidence);
+        Assert.Equal(launchId, metadata.RootElement.GetProperty("LaunchId").GetString());
+        Assert.Equal(incident.Timestamp, metadata.RootElement.GetProperty("Timestamp").GetDateTimeOffset());
+        Assert.Equal(captured, metadata.RootElement.GetProperty("Save").GetProperty("CapturedUtc").GetDateTimeOffset());
+        Assert.Contains("Launch: " + launchId + "\n", report.Description);
+        ErrorIncident restored = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root, launchId));
+        Assert.Equal(launchId, restored.LaunchId);
+        Assert.Equal(incident.Timestamp, restored.Timestamp);
+        Assert.Equal(captured, restored.Save!.CapturedUtc);
+    }
+
+    [Fact]
+    public async Task LogsRetainLatestEightWithoutChangingOriginalInputs()
+    {
+        string inputs = Path.Combine(root, "inputs");
+        Directory.CreateDirectory(inputs);
+        string[] paths = Enumerable.Range(0, 10).Select(index => Path.Combine(inputs, $"original-{index}.log")).ToArray();
+        for (int index = 0; index < paths.Length; index++)
+        {
+            File.WriteAllText(paths[index], $"log marker {index}");
+        }
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("logs"), "test", logPaths: paths);
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        Assert.Equal(8, archive.Entries.Count(entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal)));
+        using StreamReader first = new(archive.GetEntry("logs/00.log")!.Open());
+        Assert.Equal("log marker 2", first.ReadToEnd());
+        using StreamReader last = new(archive.GetEntry("logs/07.log")!.Open());
+        Assert.Equal("log marker 9", last.ReadToEnd());
+        Assert.Contains("Omitted 2 older log files", report.Description);
+        for (int index = 0; index < paths.Length; index++)
+        {
+            Assert.Equal($"log marker {index}", File.ReadAllText(paths[index]));
+        }
     }
 
     private sealed class BrokenContributor

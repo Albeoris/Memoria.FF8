@@ -41,7 +41,7 @@ public sealed record GameplaySaveTransactions
         {
             abandoned.Validate();
         }
-        return new()
+        return SaveAccountPrivacy.Detach(new GameplaySaveTransactions()
         {
             AppliedBattleResults = state.AppliedBattleResultIds,
             BattleStatistics = state.BattleStatistics,
@@ -56,7 +56,7 @@ public sealed record GameplaySaveTransactions
             MutationSequence = state.OriginalAchievementMutationSequence,
             LastOriginalObservation = state.LastOriginalAchievementObservation,
             BattleCursor = state.AchievementCursor
-        };
+        });
     }
 
     public void Validate()

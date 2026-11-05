@@ -86,7 +86,7 @@ public sealed class ReportSave
     public int Length => bytes.Length;
     internal string ArchiveFileName => bytes.AsSpan().StartsWith("MFF8SAVE"u8) ? "state.ff8save" : "state.json";
 
-    // Callers supply existing-format bytes only after independent storage/continuation validation.
+    // Trusted callers must normalize existing saves through the current save writer before supplying bytes; storage validation alone does not establish privacy.
     public ReportSave(byte[] bytes, string kind, DateTimeOffset capturedUtc, string validation)
     {
         ArgumentNullException.ThrowIfNull(bytes);
@@ -97,7 +97,7 @@ public sealed class ReportSave
         Validation = validation;
     }
 
-    internal byte[] CopyBytes() => (byte[])bytes.Clone();
+    public byte[] CopyBytes() => (byte[])bytes.Clone();
 }
 
 public sealed class ErrorIncident
@@ -167,18 +167,10 @@ public sealed class ErrorIncident
 
     internal static string PendingRoot(string reportsDirectory) => Path.GetFullPath(reportsDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".pending";
 
-    internal string PublicLaunchId => Guid.TryParseExact(LaunchId, "N", out _) ? LaunchId : PublicLaunchIdentity(Id, LaunchId);
-
-    private static string PublicLaunchIdentity(string incidentId, string launchId)
-    {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(incidentId + ":" + launchId)))[..32].ToLowerInvariant();
-    }
-
     internal byte[] EvidenceBytes(bool includeSave, bool published = false)
     {
-        object evidence = new { schemaVersion = 1, Id, LaunchId = published ? PublicLaunchId : LaunchId, Timestamp, Subsystem, Exception, Runtime, Environment, SaveUnavailableReason = published && Save is not null && !includeSave ? "Automatic reproduction save excluded because complete snapshots cannot be safely sanitized." : SaveUnavailableReason, Events, CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Save.Kind, Save.CapturedUtc, Save.Validation } };
-        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(evidence, JsonOptions);
-        return published ? ReportPrivacy.JsonBytes(bytes) : bytes;
+        object evidence = new { schemaVersion = 1, Id, LaunchId, Timestamp, Subsystem = published ? ReportPrivacy.Text(Subsystem) : Subsystem, Exception = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Exception)) : JsonSerializer.SerializeToElement(Exception), Runtime = published ? ReportPrivacy.Json(Runtime) : Runtime, Environment = published ? ReportPrivacy.Json(Environment) : Environment, SaveUnavailableReason = published ? ReportPrivacy.Text(SaveUnavailableReason) : SaveUnavailableReason, Events = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Events)) : JsonSerializer.SerializeToElement(Events), CollectionErrors = published ? CollectionErrors.Select(ReportPrivacy.Text).ToArray() : CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Kind = published ? ReportPrivacy.Text(Save.Kind) : Save.Kind, Save.CapturedUtc, Validation = published ? ReportPrivacy.Text(Save.Validation) : Save.Validation } };
+        return JsonSerializer.SerializeToUtf8Bytes(evidence, JsonOptions);
     }
 
     public string Persist(string? reportsDirectory = null)
@@ -187,7 +179,7 @@ public sealed class ErrorIncident
         Directory.CreateDirectory(directory);
         if (Save is not null)
         {
-            AtomicWrite(Path.Combine(directory, "state.json"), Save.CopyBytes());
+            AtomicWrite(Path.Combine(directory, Save.ArchiveFileName), Save.CopyBytes());
         }
         AtomicWrite(Path.Combine(directory, "incident.json"), EvidenceBytes(Save is not null));
         return directory;
@@ -226,12 +218,16 @@ public sealed class ErrorIncident
                     continue;
                 }
                 string capturedLaunch = data.GetProperty("LaunchId").GetString()!;
-                if (launchId is not null && capturedLaunch != launchId && capturedLaunch != PublicLaunchIdentity(id, launchId))
+                if (launchId is not null && capturedLaunch != launchId)
                 {
                     continue;
                 }
                 JsonElement saveData = data.GetProperty("Save");
-                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.json");
+                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.ff8save");
+                if (!File.Exists(saveFile))
+                {
+                    saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.json");
+                }
                 byte[]? saveBytes = null;
                 if (saveData.ValueKind != JsonValueKind.Null)
                 {

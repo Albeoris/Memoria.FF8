@@ -11,6 +11,7 @@ internal sealed partial class RecreateGame
 {
     private ErrorIncident? errorIncident;
     private BattleInput? lastReportBattleInput;
+    private Task<ErrorIncident>? reportEvidence;
     private Task<PreparedErrorReport>? reportPreparation;
     private PreparedErrorReport? preparedReport;
     private readonly ErrorBreadcrumbs reportBreadcrumbs = new();
@@ -49,10 +50,12 @@ internal sealed partial class RecreateGame
         }
         originalErrorDetails = ReportPrivacy.Text(exception.ToString());
         ReleasePreparedErrorReport();
+        reportEvidence = null;
         reportStatus = "";
         reportDetails = false;
         object? runtime = null;
         object? environment = null;
+        string? collectionFailure = null;
         try
         {
             BattleSession? battle = ActiveBattle;
@@ -80,11 +83,11 @@ internal sealed partial class RecreateGame
         }
         catch (Exception contributor)
         {
-            runtime = new { unavailable = "Runtime contributor failed: " + ReportPrivacy.Text(contributor.Message) };
+            collectionFailure = "Runtime contributor failed: " + ReportPrivacy.Text(contributor.Message);
         }
         try
         {
-            errorIncident = ErrorIncident.Capture(exception, subsystem, runtime, environment, logPaths: Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LOG_PATH") is { } logPath ? [logPath] : [], breadcrumbs: reportBreadcrumbs, saveUnavailableReason: "Automatic reproduction saves are excluded because complete snapshots may contain private data.");
+            errorIncident = ErrorIncident.Capture(exception, subsystem, runtime, environment, logPaths: Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LOG_PATH") is { } logPath ? [logPath] : [], breadcrumbs: reportBreadcrumbs, saveUnavailableReason: "Save collection pending; no validated reproduction save has been preserved yet.");
             // The small incident must survive a renderer exit even if no worker gets time to run.
             errorIncident.Persist();
             exception.Data["Memoria.ErrorIncidentCaptured"] = true;
@@ -95,6 +98,39 @@ internal sealed partial class RecreateGame
             Console.Error.WriteLine(reportStatus);
             return;
         }
+        ErrorReportSnapshot snapshot;
+        try
+        {
+            snapshot = ErrorReportSnapshotCapture.Capture(ReadSaveBoundaryState().Assess(), CaptureUpdateState, ReadEarlierReportSnapshots, ValidatePlayerState, DateTimeOffset.UtcNow);
+        }
+        catch (Exception snapshotFailure)
+        {
+            snapshot = new(null, "unavailable", DateTimeOffset.UtcNow, "Save collection failed: " + snapshotFailure.Message);
+        }
+        string saveReason = string.Join(" ", new[] { collectionFailure, snapshot.UnavailableReason }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        ErrorIncident captured = errorIncident.WithSaveUnavailableReason(saveReason);
+        errorIncident = captured;
+        reportEvidence = Task.Run(() =>
+        {
+            if (snapshot.State is not null)
+            {
+                return CompleteReportSave(captured, snapshot.State, snapshot.Kind, snapshot.CapturedUtc);
+            }
+            try
+            {
+                captured.Persist();
+            }
+            catch (Exception persistenceFailure)
+            {
+                Console.Error.WriteLine("Report evidence update failed: " + persistenceFailure.Message);
+            }
+            return captured;
+        });
+    }
+
+    private IEnumerable<(GameState State, DateTimeOffset CapturedUtc)> ReadEarlierReportSnapshots()
+    {
+        return ErrorReportSnapshotCapture.ReadEarlierPlayerSnapshots(playerSaves, options.StatePath, path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources, resourceHost, () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, initialized => resourceHost is null ? initialized : GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost)), failure => Console.Error.WriteLine("Earlier report save could not be loaded: " + failure.Message));
     }
 
     private void ReleasePreparedErrorReport()
@@ -118,6 +154,45 @@ internal sealed partial class RecreateGame
         reportPreparation = null;
     }
 
+    private static ErrorIncident CompleteReportSave(ErrorIncident incident, GameState detached, string kind, DateTimeOffset capturedUtc)
+    {
+        string path = Path.Combine(ApplicationPaths.Current.Cache, "report-save-" + Guid.NewGuid().ToString("N") + ".ff8save");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            // Only the independent session is serialized here. Resource continuation was validated on the owner thread.
+            new GameSession(detached).Save(path, compact: true);
+            _ = GameSession.Load(path);
+            ErrorIncident completed = incident.WithSave(new ReportSave(File.ReadAllBytes(path), kind, capturedUtc, "Storage integrity and owner-thread resource continuation validated. Captured UTC identifies the source state; the container display timestamp identifies report serialization, not gameplay progress."));
+            completed.Persist();
+            return completed;
+        }
+        catch (Exception failure)
+        {
+            Console.Error.WriteLine("Report save unavailable: " + failure.Message);
+            ErrorIncident partial = incident.WithSaveUnavailableReason("Save serialization or publication failed: " + failure.Message);
+            try
+            {
+                partial.Persist();
+            }
+            catch (Exception persistenceFailure)
+            {
+                Console.Error.WriteLine("Report evidence update failed: " + persistenceFailure.Message);
+            }
+            return partial;
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception cleanupFailure) when (cleanupFailure is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
     private void BeginErrorReport()
     {
         if (preparedReport is not null)
@@ -131,7 +206,13 @@ internal sealed partial class RecreateGame
             return;
         }
         reportStatus = "Preparing report files...";
-        reportPreparation = ErrorReport.PrepareAsync(errorIncident);
+        Task<ErrorIncident> evidence = reportEvidence ?? Task.FromResult(errorIncident);
+        reportPreparation = PrepareErrorReport(evidence);
+    }
+
+    private static async Task<PreparedErrorReport> PrepareErrorReport(Task<ErrorIncident> evidence)
+    {
+        return await RuntimeErrorReport.PrepareAsync(await evidence.ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     private void CopyReportText(string value)

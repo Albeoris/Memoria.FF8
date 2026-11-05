@@ -596,6 +596,31 @@ public sealed class AchievementTests
         Assert.NotNull(second.Diagnostic);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Portable_pending_facts_preserve_local_progress_without_remote_attribution(bool anotherAccount)
+    {
+        MemoryRepository repository = new();
+        FakeBackend backend = new() { Identity = anotherAccount ? OwnerB : OwnerA };
+        GameState live = new() { PendingAchievementFacts = [Fact("portable", 100, OwnerA)] };
+        EnemyDefeatedEvent portable = Assert.Single(SaveAccountPrivacy.Detach(live).PendingAchievementFacts);
+        using (AchievementService local = new(Registry(AchievementScope.LocalProfile), repository, backend))
+        {
+            local.Record(portable);
+            Assert.Equal(1, local.Get(Official).Counter);
+            local.Flush();
+            Assert.Empty(backend.Submitted);
+            Assert.All(repository.Profile.Destinations.Values, destination => Assert.Empty(destination.Contributions));
+        }
+        using AchievementService remote = new(Registry(), new MemoryRepository(), backend, Bindings);
+        remote.Record(portable);
+        remote.Flush();
+        Assert.Equal(0, remote.Get(Official).Counter);
+        Assert.Empty(backend.Submitted);
+        Assert.Equal(OwnerA, live.PendingAchievementFacts[0].Owner);
+    }
+
     private static AchievementRegistry Registry(AchievementScope scope = AchievementScope.SaveHighWater)
     {
         AchievementRegistry registry = new();

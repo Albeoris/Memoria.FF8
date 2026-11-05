@@ -8,7 +8,7 @@ public sealed class ErrorReportingTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.ReportLauncher.Tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task ProcessFailureRetainsOriginalIncidentAndOmitsRawLaunchLog()
+    public async Task ProcessFailureRetainsOriginalIncidentAndSanitizedLaunchLog()
     {
         string reports = Path.Combine(directory, "reports");
         ErrorIncident original = ErrorIncident.Capture(new AggregateException(new IOException("first cause"), new InvalidOperationException("second cause")), "Field", runtime: new { Field = 42 }, launchId: "matching-launch");
@@ -17,7 +17,7 @@ public sealed class ErrorReportingTests : IDisposable
         using GameProcessDiagnostics diagnostics = new(Path.Combine(directory, "logs"));
         string path = diagnostics.LogPath!;
         diagnostics.Complete(1);
-        string logText = "early evidence " + new string('x', 10000) + " final evidence";
+        string logText = "early evidence ../fixtures" + new string('x', 10000) + " final evidence";
         await File.WriteAllTextAsync(path, logText, TestContext.Current.CancellationToken);
         ErrorIncident recovered = diagnostics.CaptureFailure(1, "matching-launch", reports);
         Assert.Equal(original.Id, recovered.Id);
@@ -25,8 +25,14 @@ public sealed class ErrorReportingTests : IDisposable
         Assert.Contains("second cause", recovered.ExceptionText);
         using PreparedErrorReport report = await ErrorReport.PrepareAsync(recovered, reports);
         using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
-        Assert.DoesNotContain(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
-        Assert.Contains("Excluded 1 raw log file", report.Description);
+        ZipArchiveEntry log = Assert.Single(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
+        Assert.Equal("logs/00.log", log.FullName);
+        using StreamReader logReader = new(log.Open());
+        string sharedLog = await logReader.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("early evidence", sharedLog);
+        Assert.Contains("final evidence", sharedLog);
+        Assert.DoesNotContain("ReportFixture", sharedLog);
+        Assert.Equal(logText, await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
         using StreamReader reader = new(archive.GetEntry("exception.txt")!.Open());
         string exceptionText = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
         Assert.Contains("first cause", exceptionText);

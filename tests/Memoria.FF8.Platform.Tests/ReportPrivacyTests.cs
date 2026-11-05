@@ -35,13 +35,13 @@ public sealed class ReportPrivacyTests
             ["version"] = "1.0.0.0"
         });
         string result = ReportPrivacy.Json(data).GetRawText();
-        Assert.DoesNotContain("personal", result);
+        Assert.DoesNotContain("personal-profile", result);
         Assert.DoesNotContain("account-alias", result);
         Assert.DoesNotContain("12345678901234567", result);
         Assert.DoesNotContain("private", result);
         Assert.Contains("1.0.0.0", result);
         using JsonDocument parsed = JsonDocument.Parse(result);
-        Assert.Equal("Player", parsed.RootElement.EnumerateObject().First().Value.GetProperty("Names").GetProperty("0").GetString());
+        Assert.Equal("personal-name", parsed.RootElement.EnumerateObject().First().Value.GetProperty("Names").GetProperty("0").GetString());
     }
 
     [Fact]
@@ -51,6 +51,52 @@ public sealed class ReportPrivacyTests
         Assert.DoesNotContain("example.invalid", result);
         Assert.DoesNotContain("hidden", result);
         Assert.DoesNotContain("12345678901234567", result);
+    }
+
+    [Theory]
+    [InlineData("password=\"hidden words\"; frame=42")]
+    [InlineData("Authorization: Basic hidden-auth")]
+    [InlineData("User=hidden-user MachineName=hidden-host")]
+    [InlineData("path=C:\\Game\\file failed token=\"hidden-token\"")]
+    [InlineData("{\"token\":\"hidden-token\",\"User\":\"hidden-user\",\"path\":\"C:\\\\private\\\\hidden-file.txt\"}")]
+    [InlineData("[stdout] {\"token\":\"hidden-token\",\"User\":\"hidden-user\"}")]
+    [InlineData("{\"account\":\"hidden-account\",\"host\":\"hidden-host\",\"ip\":\"hidden-ip\",\"secret\":\"hidden-secret\",\"api_key\":\"hidden-key\"}")]
+    [InlineData("user_domain=hidden-domain access_token=hidden-token profile-id=hidden-profile")]
+    public void LogsUseTheSameBoundaryForPlainTextAndStructuredRecords(string input)
+    {
+        string result = ReportPrivacy.LogText(input);
+        Assert.DoesNotContain("hidden", result);
+        Assert.DoesNotContain(@"C:\", result);
+    }
+
+    [Fact]
+    public void GameInputAndTimingMetadataArePreserved()
+    {
+        const string launch = "12345678901234567";
+        const string time = "2026-11-05T12:34:56.1234567+01:00";
+        JsonElement source = JsonSerializer.SerializeToElement(new
+        {
+            LaunchId = launch,
+            Timestamp = time,
+            CapturedUtc = time,
+            SavedLocalAt = time,
+            Names = new Dictionary<string, string> { ["0"] = "mail@example.invalid" },
+            EnteredName = "token=game-input",
+            ChocoboName = "Qm9rbwAAAAAA",
+            NativeChocoboName = Environment.UserName,
+            Key = "resource-key",
+            Owner = new { User = "hidden-account", Profile = "hidden-profile", Key = "hidden-owner-key" }
+        });
+        JsonElement result = ReportPrivacy.Json(source);
+        foreach (string property in new[] { "LaunchId", "Timestamp", "CapturedUtc", "SavedLocalAt", "Names", "EnteredName", "ChocoboName", "NativeChocoboName", "Key" })
+        {
+            Assert.Equal(source.GetProperty(property).GetRawText(), result.GetProperty(property).GetRawText());
+        }
+        Assert.DoesNotContain("hidden", result.GetRawText());
+        Assert.Equal("LaunchId=" + launch, ReportPrivacy.LogText("LaunchId=" + launch));
+        string prefixed = ReportPrivacy.LogText("[stdout] " + source.GetRawText());
+        using JsonDocument record = JsonDocument.Parse(prefixed["[stdout] ".Length..]);
+        Assert.Equal(source.GetProperty("Names").GetRawText(), record.RootElement.GetProperty("Names").GetRawText());
     }
 
     [Fact]
@@ -81,7 +127,7 @@ public sealed class ReportPrivacyTests
                 Assert.DoesNotContain("private-file", content);
                 Assert.DoesNotContain("private-server", content);
                 Assert.DoesNotContain("private-account", content);
-                Assert.DoesNotContain("private-launch-alias", content);
+
             }
             using JsonDocument completed = JsonDocument.Parse(zip.GetEntry("completed.json")!.Open());
             Assert.Equal(report.IssueUrl, completed.RootElement.GetProperty("issueUrl").GetString());

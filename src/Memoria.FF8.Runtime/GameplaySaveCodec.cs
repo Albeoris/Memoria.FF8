@@ -52,6 +52,7 @@ public static class GameplaySaveCodec
         ArgumentNullException.ThrowIfNull(destination);
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
+        document = SaveAccountPrivacy.Detach(document);
         byte[] payload = Serialize(document);
         using BinaryWriter writer = new(destination, Encoding.UTF8, leaveOpen: true);
         writer.Write(Signature);
@@ -88,7 +89,7 @@ public static class GameplaySaveCodec
             }
             GameplaySaveComponentDocument document = JsonSerializer.Deserialize<GameplaySaveComponentDocument>(payload, Options) ?? throw new InvalidDataException("Empty gameplay component document.");
             document.Validate();
-            return document;
+            return SaveAccountPrivacy.Detach(document);
         }
         catch (EndOfStreamException exception)
         {

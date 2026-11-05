@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Memoria.FF8.Platform;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.Launcher;
 
@@ -81,7 +82,7 @@ internal sealed class ErrorReportDialog : Window
         progress.Text = "Preparing…";
         try
         {
-            report = await ErrorReport.PrepareAsync(incident);
+            report = await RuntimeErrorReport.PrepareAsync(incident);
             location.Text = $"{report.ArchivePath}{Environment.NewLine}{new FileInfo(report.ArchivePath).Length:N0} bytes";
             url.Text = report.IssueUrl;
             recovery.IsVisible = true;

@@ -575,11 +575,21 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path, bool compact, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
     {
+        SaveCore(path, compact, validateContinuation, savedAtUtc, null, false);
+    }
+
+    internal void SaveReportSnapshot(string path, bool compact, DateTimeOffset? savedLocalAt)
+    {
+        SaveCore(path, compact, null, null, savedLocalAt, true);
+    }
+
+    private void SaveCore(string path, bool compact, Action<GameState>? validateContinuation, DateTime? savedAtUtc, DateTimeOffset? savedLocalAt, bool preserveSavedLocalAt)
+    {
         if (State.RequiresLegacyLimitInitialization)
         {
             throw new InvalidOperationException("This historical save requires loading with the selected game's initial Limit definitions before it can be saved in the current format.");
         }
-        GameState snapshot = SnapshotOwnership.Prepare(PrepareSnapshot());
+        GameState snapshot = SaveAccountPrivacy.Detach(SnapshotOwnership.Prepare(PrepareSnapshot()));
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -591,7 +601,7 @@ public sealed partial class GameSession : IEventServices
                 ownsTemporary = true;
                 if (compact)
                 {
-                    SnapshotStorage.Write(stream, snapshot, CompactJsonOptions);
+                    SnapshotStorage.Write(stream, snapshot, CompactJsonOptions, savedLocalAt, preserveSavedLocalAt);
                 }
                 else
                 {
@@ -674,7 +684,7 @@ public sealed partial class GameSession : IEventServices
     private static GameState LoadCore(string path, Func<NativeLimitProgress>? initializeLegacyAngelo)
     {
         using FileStream stream = File.OpenRead(path);
-        GameState state = NormalizeGuardianForceCompatibilityState(SnapshotStorage.Read(stream, CompactJsonOptions, initializeLegacyAngelo));
+        GameState state = SaveAccountPrivacy.Detach(NormalizeGuardianForceCompatibilityState(SnapshotStorage.Read(stream, CompactJsonOptions, initializeLegacyAngelo)));
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
         if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)

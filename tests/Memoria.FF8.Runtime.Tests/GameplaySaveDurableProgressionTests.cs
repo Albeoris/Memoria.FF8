@@ -8,6 +8,41 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class GameplaySaveDurableProgressionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Component_boundary_detaches_account_observations_including_legacy_documents(bool legacy)
+    {
+        GameState source = State();
+        OriginalAchievementObservedEvent observation = Assert.Single(source.PendingOriginalAchievementObservations);
+        GameplaySaveComponentDocument captured = GameplaySaveComponentDocument.CaptureProgression(source, Resume());
+        GameplaySaveProgression progression = captured.Progression!;
+        GameplaySaveComponentDocument document = captured with { Progression = progression with { Transactions = progression.Transactions with { LastOriginalObservation = observation, PendingOriginalObservations = [observation] } } };
+        using MemoryStream stream = new();
+        if (legacy)
+        {
+            byte[] payload = JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } });
+            using BinaryWriter writer = new(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            writer.Write("MFF8GPC1"u8.ToArray());
+            writer.Write(1);
+            writer.Write(payload.Length);
+            writer.Write(System.Security.Cryptography.SHA256.HashData(payload));
+            writer.Write(payload);
+        }
+        else
+        {
+            GameplaySaveCodec.Write(stream, document);
+            Assert.DoesNotContain("test-user", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+            Assert.DoesNotContain(observation.ContextId.Value, System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+        }
+        stream.Position = 0;
+        GameplaySaveTransactions loaded = GameplaySaveCodec.Read(stream).Progression!.Transactions;
+        OriginalAchievementObservedEvent expected = OriginalAchievementObservedEvent.Create(observation.Progress, null);
+        Assert.Equal(expected, loaded.LastOriginalObservation);
+        Assert.Equal(expected, Assert.Single(loaded.PendingOriginalObservations));
+        Assert.NotNull(observation.Owner);
+    }
+
     [Fact]
     public void Every_root_member_has_an_explicit_persistence_authority()
     {
@@ -76,10 +111,12 @@ public sealed class GameplaySaveDurableProgressionTests
         Assert.True(restored.Rules.PendingPreferences!.WeaponMagazineRequired);
         Assert.Equal(new NativeBattleStatistics(123, 4, 5), restored.Transactions.BattleStatistics);
         Assert.Equal(source.AppliedBattleResultIds, restored.Transactions.AppliedBattleResults);
-        Assert.Equal(source.PendingOriginalAchievementActions, restored.Transactions.PendingOriginalActions);
-        Assert.Equal(source.PendingOriginalAchievementObservations, restored.Transactions.PendingOriginalObservations);
-        Assert.Equal(source.PendingAchievementObservations, restored.Transactions.PendingKillObservations);
-        Assert.Equal(source.PendingAchievementFacts, restored.Transactions.PendingDefeats);
+        Assert.Equal(source.PendingOriginalAchievementActions.Select(fact => fact with { Owner = null }), restored.Transactions.PendingOriginalActions);
+        Assert.Equal(source.PendingOriginalAchievementObservations.Select(fact => OriginalAchievementObservedEvent.Create(fact.Progress, null)), restored.Transactions.PendingOriginalObservations);
+        Assert.Equal(source.PendingAchievementObservations.Select(fact => fact with { Owner = null }), restored.Transactions.PendingKillObservations);
+        Assert.Equal(source.PendingAchievementFacts.Select(fact => fact with { Owner = null }), restored.Transactions.PendingDefeats);
+        Assert.DoesNotContain("test-user", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+        Assert.DoesNotContain("test-profile", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
         Assert.Equal(47, restored.Transactions.MutationSequence);
         Assert.Null(restored.OriginalResidue);
         byte[] exported = new byte[NativePcSaveData.BlockSize];

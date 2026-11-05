@@ -11,20 +11,78 @@ public static class ReportPrivacy
 
     public static string Text(string text)
     {
-        string result = Replace(text, @"(?i)\b(?:https?|ftp)://[^\s\""<>]+", _ => "<url>");
-        result = Replace(result, @"(?i)(?:[a-z]:[\\/]|\\\\|//)[^\r\n\""<>|]*", match => PathLabel(match.Value));
-        result = Replace(result, @"(?<![\w:/>])/(?!/)[^\s\""<>|][^\r\n\""<>|]*", match => PathLabel(match.Value));
-        result = Replace(result, @"(?<![\w\\])\\(?!\\)[^\r\n\""<>|]+", match => PathLabel(match.Value));
-        result = Replace(result, @"(?<![\w])(?:\.\.[\\/]|~/)[^\r\n\""<>|]+", _ => "<external>/<path>");
-        result = Replace(result, @"(?i)\b(?:username|hostname|machine|profile|account|steamid)\s*[:=]\s*[^\s,;]+", _ => "<identity>");
+        List<string> metadata = new();
+        string result = Replace(text, """(?i)\b(?:Launch[_-]?Id|Launch)\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", match =>
+        {
+            metadata.Add(match.Value);
+            return "<preservedLaunch" + (metadata.Count - 1) + ">";
+        });
+        // Remove whole quoted values before path matching can consume their labels.
+        result = Replace(result, """(?i)\b(?:authorization|cookie)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)""", _ => "<credential>");
+        result = Replace(result, """(?i)\b(?:password|passwd|(?:(?:access|refresh)[_-]?)?token|secret|api[_-]?key)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)|\bbearer\s+[^\s,;]+""", _ => "<credential>");
+        result = Replace(result, """(?i)\b(?:user(?:(?:[_-]?(?:name|id|domain(?:name)?)))?|host(?:[_-]?name)?|machine(?:[_-]?name)?|profile(?:[_-]?id)?|account(?:[_-]?id)?|steam[_-]?id(?:64)?|ip(?:[_-]?address)?)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", _ => "<identity>");
+        result = Replace(result, @"(?i)\b(?:https?|ftp)://[^\s\""<>]+", _ => "<url>");
+        result = Replace(result, """(?i)(?:[a-z]:[\\/]|\\\\|//)[^\r\n"'<>|;]*""", match => PathLabel(match.Value));
+        result = Replace(result, """(?<![\w:/>])/(?!/)[^\s"'<>|][^\r\n"'<>|;]*""", match => PathLabel(match.Value));
+        result = Replace(result, """(?<![\w\\])\\(?!\\)[^\r\n"'<>|;]+""", match => PathLabel(match.Value));
+        result = Replace(result, """(?<![\w])(?:\.\.[\\/]|~/)[^\r\n"'<>|;]+""", _ => "<external>/<path>");
         result = Replace(result, @"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", _ => "<email>");
-        result = Replace(result, @"(?i)\b(?:bearer\s+\S+|(?:password|passwd|token|secret|api[_-]?key|authorization|cookie)\s*[:=]\s*[^\s,;]+)", _ => "<credential>");
         result = Replace(result, @"\b\d{17}\b", _ => "<account>");
         foreach (string identity in new[] { Environment.UserName, Environment.MachineName }.Where(value => value.Length > 1).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             result = Replace(result, @"(?i)(?<![\w])" + Regex.Escape(identity) + @"(?![\w])", _ => "<user>");
         }
+        for (int index = 0; index < metadata.Count; index++)
+        {
+            result = result.Replace("<preservedLaunch" + index + ">", metadata[index], StringComparison.Ordinal);
+        }
         return result;
+    }
+
+    public static string LogText(string text)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(text);
+            if (document.RootElement.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+            {
+                return Json(document.RootElement).GetRawText();
+            }
+        }
+        catch (JsonException)
+        {
+            // Console output commonly mixes individual records and ordinary text.
+        }
+        return string.Join('\n', text.Split('\n').Select(SanitizeLogLine));
+    }
+
+    private static string SanitizeLogLine(string line)
+    {
+        int offset = 0;
+        for (int attempt = 0; attempt < 8 && offset < line.Length; attempt++)
+        {
+            int relative = line.AsSpan(offset).IndexOfAny('{', '[');
+            if (relative < 0)
+            {
+                break;
+            }
+            int first = offset + relative;
+            offset = first + 1;
+            int last = Math.Max(line.LastIndexOf('}'), line.LastIndexOf(']'));
+            if (last >= first)
+            {
+                try
+                {
+                    using JsonDocument document = JsonDocument.Parse(line[first..(last + 1)]);
+                    return Text(line[..first]) + Json(document.RootElement).GetRawText() + Text(line[(last + 1)..]);
+                }
+                catch (JsonException)
+                {
+                    // Exception text and partial console records use the same text boundary.
+                }
+            }
+        }
+        return Text(line);
     }
 
     private static string Replace(string text, string pattern, MatchEvaluator replacement)
@@ -93,15 +151,11 @@ public static class ReportPrivacy
                 foreach (JsonProperty property in value.EnumerateObject())
                 {
                     writer.WritePropertyName(Text(property.Name));
-                    if (property.Name is "LastOriginalAchievementObservation" or "SavedLocalAt")
+                    if (IsGameInput(property.Name) || IsMetadata(property.Name))
                     {
-                        writer.WriteNullValue();
+                        property.Value.WriteTo(writer);
                     }
-                    else if (property.Name == "Names")
-                    {
-                        WriteNames(writer, property.Value);
-                    }
-                    else if (IsIdentity(property.Name))
+                    else if (IsIdentity(property.Name) || parent.Equals("Owner", StringComparison.OrdinalIgnoreCase) && property.Name.Equals("Key", StringComparison.OrdinalIgnoreCase))
                     {
                         WriteAnonymous(writer, property.Value);
                     }
@@ -131,25 +185,22 @@ public static class ReportPrivacy
 
     private static bool IsIdentity(string name)
     {
-        return name.Equals("User", StringComparison.OrdinalIgnoreCase) || name.Equals("UserName", StringComparison.OrdinalIgnoreCase) || name.Equals("MachineName", StringComparison.OrdinalIgnoreCase) || name.Equals("Profile", StringComparison.OrdinalIgnoreCase) || name.Equals("SteamId", StringComparison.OrdinalIgnoreCase) || name.Equals("Email", StringComparison.OrdinalIgnoreCase) || name.Equals("Password", StringComparison.OrdinalIgnoreCase) || name.Equals("Token", StringComparison.OrdinalIgnoreCase) || name.Equals("Key", StringComparison.OrdinalIgnoreCase) || name.Equals("HostName", StringComparison.OrdinalIgnoreCase) || name.Equals("ApiKey", StringComparison.OrdinalIgnoreCase) || name.Equals("Authorization", StringComparison.OrdinalIgnoreCase) || name.Equals("Cookie", StringComparison.OrdinalIgnoreCase) || name is "EnteredName" or "ChocoboName" or "NativeChocoboName";
+        return NormalizeLabel(name) is "user" or "username" or "userid" or "userdomain" or "userdomainname" or "machine" or "machinename" or "profile" or "profileid" or "account" or "accountid" or "steamid" or "steamid64" or "host" or "hostname" or "ip" or "ipaddress" or "email" or "password" or "passwd" or "token" or "accesstoken" or "refreshtoken" or "secret" or "apikey" or "authorization" or "cookie";
     }
 
-    private static void WriteNames(Utf8JsonWriter writer, JsonElement value)
+    private static bool IsGameInput(string name)
     {
-        if (value.ValueKind == JsonValueKind.Object)
-        {
-            writer.WriteStartObject();
-            foreach (JsonProperty property in value.EnumerateObject())
-            {
-                writer.WritePropertyName(Text(property.Name));
-                WriteNames(writer, property.Value);
-            }
-            writer.WriteEndObject();
-        }
-        else
-        {
-            WriteAnonymous(writer, value);
-        }
+        return name is "Names" or "EnteredName" or "ChocoboName" or "NativeChocoboName";
+    }
+
+    private static bool IsMetadata(string name)
+    {
+        return NormalizeLabel(name) is "launchid" or "timestamp" or "capturedutc" or "savedlocalat";
+    }
+
+    private static string NormalizeLabel(string name)
+    {
+        return name.Replace("_", "", StringComparison.Ordinal).Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
     }
 
     private static void WriteAnonymous(Utf8JsonWriter writer, JsonElement value)

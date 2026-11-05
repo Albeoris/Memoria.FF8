@@ -41,9 +41,9 @@ internal static class SnapshotStorage
     private const int HeaderSize = 88;
     private const int MaximumSummarySize = 65536;
 
-    internal static void Write(FileStream stream, GameState state, JsonSerializerOptions options)
+    internal static void Write(FileStream stream, GameState state, JsonSerializerOptions options, DateTimeOffset? savedLocalAt = null, bool preserveSavedLocalAt = false)
     {
-        byte[] summary = JsonSerializer.SerializeToUtf8Bytes(SaveSummary.Capture(state) with { SavedLocalAt = DateTimeOffset.Now }, options);
+        byte[] summary = JsonSerializer.SerializeToUtf8Bytes(SaveSummary.Capture(state) with { SavedLocalAt = preserveSavedLocalAt ? savedLocalAt : DateTimeOffset.Now }, options);
         if (summary.Length > MaximumSummarySize)
         {
             throw new InvalidDataException("Save display data exceeds its supported size.");
