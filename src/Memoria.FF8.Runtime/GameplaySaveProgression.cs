@@ -60,6 +60,10 @@ public sealed record GameplaySaveProgression
         {
             throw new NotSupportedException("Gameplay progression projection requires a field or world with no active battle, card match, pending encounter or game-over request.");
         }
+        if (state.Scene == SceneKind.WorldMap && state.EventMemory.Cells.Any(pair => pair.Key < 1024 && (long)pair.Key + pair.Value.Width > 1024 || pair.Key < 2304 && (long)pair.Key + pair.Value.Width > 2304))
+        {
+            throw new NotSupportedException("Gameplay world projection cannot split a cross-owner field-local event cell.");
+        }
         GameplaySaveProgression result = new()
         {
             Story = GameplaySaveStory.Capture(state),
