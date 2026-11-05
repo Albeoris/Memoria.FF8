@@ -70,16 +70,17 @@ public sealed class GameplaySaveWorldDialogueTests
             Assert.Equal(beforeIdle + 30, secondSession.State.World!.Frame);
             Assert.NotNull(second.CurrentDialogue);
             Assert.Equal(3, secondSession.WorldProcess!.FuelMessageMovementCallbacks2045C78);
-            WorldState beforeMovement = secondSession.State.World!;
             for (int callback = 0; callback < 40 && second.CurrentDialogue is not null; callback++)
             {
                 PlayerAction move = new(PlayerActionKind.Move, Horizontal: 1);
                 Assert.True(source.Apply(move).Accepted);
                 Assert.True(second.Apply(move).Accepted);
                 Assert.Equal(sourceSession.WorldProcess!.FuelMessageMovementCallbacks2045C78, secondSession.WorldProcess!.FuelMessageMovementCallbacks2045C78);
+                Assert.Equal(sourceSession.State.World!.Frame, secondSession.State.World!.Frame);
+                Assert.Equal(sourceSession.State.World.X, secondSession.State.World.X);
+                Assert.Equal(sourceSession.State.World.Z, secondSession.State.World.Z);
             }
-            WorldState afterMovement = secondSession.State.World!;
-            Assert.True(afterMovement.X != beforeMovement.X || afterMovement.Z != beforeMovement.Z, JsonSerializer.Serialize(new { Source = new { sourceSession.State.World!.Frame, sourceSession.State.World.X, sourceSession.State.World.Z, sourceSession.State.World.GroundType }, Restored = new { afterMovement.Frame, afterMovement.X, afterMovement.Z, afterMovement.GroundType, afterMovement.EventUi!.ScriptMode }, beforeMovement.X, beforeMovement.Z, Controls = secondSession.State.WorldControls }));
+            Assert.Equal(beforeIdle + 34, secondSession.State.World.Frame);
             Assert.Equal(0, secondSession.WorldProcess.FuelMessageMovementCallbacks2045C78);
             Assert.Null(second.CurrentDialogue);
             Assert.DoesNotContain(secondSession.State.World!.EventUi!.Windows, message => message.WindowId == 1);

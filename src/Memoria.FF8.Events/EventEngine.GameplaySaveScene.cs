@@ -13,6 +13,7 @@ public sealed partial class EventEngine
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
+            FadeEndpoint = CaptureGameplayFadeEndpoint(),
             LoopSounds = CaptureGameplayLoopSounds(),
             Ambient = CaptureGameplaySaveAmbient(),
             ParticleControls = CaptureGameplaySaveParticleControls(),

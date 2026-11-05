@@ -32,7 +32,7 @@ public sealed partial class EventEngine
         RestoreGameplaySaveFieldScene(saved.Scene, saved.Scripts, facts);
         if (saved.ScriptMenu is null)
         {
-            RestoreGameplayPresentationFade();
+            RestoreGameplayPresentationFade(saved.Scene.FadeEndpoint);
         }
         RestoreGameplaySaveFieldActors(saved.Actors, saved.ScriptMenu?.PendingPartyRefresh == true);
         RestoreGameplayPartyMovement(saved.PartyMovement);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -31,7 +32,9 @@ public sealed class GameplaySavePendingContactTests
         }
         Assert.Null(source.Events.LastFault);
         Assert.True(source.Events.CanAcceptMovementInput);
+        Assert.Equal(0, source.Events.FieldFade!.Physical.Mode);
         uint gil = session.Economy!.Gil;
+        string beforeMove = ContactState(source);
         Assert.True(source.Apply(new(PlayerActionKind.Move, Vertical: -1)).Accepted);
         Assert.Null(source.Events.LastFault);
         Assert.True(source.Events.CanAcceptMovementInput);
@@ -40,11 +43,11 @@ public sealed class GameplaySavePendingContactTests
         {
             Assert.Equal(2, source.Events.Scene.NativeDoorDriverVersion);
             pendingDoorEvents = source.Events.Scene.NativeDoorPendingEvents!.GetValueOrDefault(1);
-            Assert.NotEqual((byte)0, pendingDoorEvents);
+            Assert.True(pendingDoorEvents != 0, beforeMove + " -> " + ContactState(source));
         }
         else
         {
-            Assert.True(source.Events.Actors[1].NativePushContactPending);
+            Assert.True(source.Events.Actors[1].NativePushContactPending, beforeMove + " -> " + ContactState(source));
         }
         Assert.Equal(gil, session.Economy.Gil);
         string sourceBefore = source.Events.Capture().GetRawText();
@@ -109,12 +112,12 @@ public sealed class GameplaySavePendingContactTests
     private static byte[] Program(bool door, int triangle)
     {
         (Jsm.Opcode, int)[] Empty(int label) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)];
-        (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, -700), (Jsm.Opcode.PSHN_L, -8593), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.SET3, triangle), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] idle = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] reward = [(Jsm.Opcode.LBL, door ? 23 : 19), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.RET, 8)];
         if (!door)
         {
-            (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHON, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, -700), (Jsm.Opcode.PSHN_L, -8583), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.SET3, triangle), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHON, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, -700), (Jsm.Opcode.PSHN_L, -8543), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.SET3, triangle), (Jsm.Opcode.RET, 8)];
             return GameplaySaveFieldScriptsTests.Encode([1, (16 << 7) | 3], [player, idle, actor, [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Empty(18), reward]);
         }
         (Jsm.Opcode, int)[] line = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, -750), (Jsm.Opcode.PSHN_L, -8580), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.PSHN_L, -650), (Jsm.Opcode.PSHN_L, -8580), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)];
@@ -123,6 +126,8 @@ public sealed class GameplaySavePendingContactTests
         program[3] = 1;
         return program;
     }
+
+    private static string ContactState(GameWorld world) => JsonSerializer.Serialize(new { world.Events.Frame, world.Events.IsUserControlEnabled, Actors = world.Events.Actors.Take(2).Select(actor => new { actor.ObjectId, actor.X, actor.Y, actor.Z, actor.WalkmeshTriangle, actor.Direction, actor.PushRadius, actor.PushEnabled, actor.CollisionEnabled, actor.NativePushContactPending, actor.LineEnabled, actor.LineStart, actor.LineEnd }), world.Events.Scene.NativePlayerPosition, world.Events.Scene.NativeDoorPendingEvents });
 
     private sealed class ScriptOverride(string fieldName, byte[] script) : IAssetOverrideSource
     {

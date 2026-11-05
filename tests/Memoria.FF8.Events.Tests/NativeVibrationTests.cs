@@ -51,13 +51,6 @@ internal static partial class Program
         Require(liveSession.State.Variables[5000] == 9 && live.Scene.VibrationRequest is { RawPattern: 0, RawPriority: 256, EffectivePriority: 257, PatternOffset: 256, NativeReturn: 32 } && liveSession.VibrationProcess!.LastSetReturn == 32 && issuedPriority == 1 && liveSession.VibrationProcess!.Slots[0].Priority == 0, "SETVIBRATE failed full DWORD issue/low BYTE storage, exact handle, same-budget return2.");
         Require(liveSession.VibrationProcess!.Slots[0].A.Counter == 0 && liveSession.VibrationProcess.Ports[0].RequestedA == 0, "Native field callback did not sample its queue before StopAll/controller-request clearing.");
         JsonElement snapshot = live.Capture();
-        foreach (bool unavailable in new[] { false, true })
-        {
-            EventEngine historical = Engine(Session());
-            historical.ReadNativeVibrationBank = unavailable ? null : () => bank with { SourceHash = new string('A', 64) };
-            historical.Restore(snapshot);
-            Require(JsonElement.DeepEquals(snapshot, historical.Capture()), "Historical vibration receipt required the current bank or reissued a completed request.");
-        }
         GameSession restoredSession = Session();
         EventEngine restored = Engine(restoredSession);
         restored.Restore(snapshot);

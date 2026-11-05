@@ -28,39 +28,43 @@ public sealed partial class EventEngine
         return fiber.WaitReason is WaitReason.Color or WaitReason.Fade ? checked(fiber.Position + 1) : fiber.Position;
     }
 
-    private void RestoreGameplayPresentationFade()
+    private GameplaySaveFieldFadeEndpoint? CaptureGameplayFadeEndpoint()
     {
         if (services.FieldFade is not { } fade)
         {
+            return null;
+        }
+        NativeFadeWords words = fade.Physical;
+        GameplaySaveFieldFadeEndpoint endpoint = words.Mode switch
+        {
+            2 => new(0, 0, 0, 0, fade.SyncMode),
+            5 or 6 => new(words.Mode == 5 ? (short)7 : (short)8, words.TargetRed, words.TargetGreen, words.TargetBlue, fade.SyncMode),
+            _ => new(words.Mode, words.Red, words.Green, words.Blue, fade.SyncMode)
+        };
+        endpoint.Validate();
+        return endpoint;
+    }
+
+    private void RestoreGameplayPresentationFade(GameplaySaveFieldFadeEndpoint? endpoint)
+    {
+        if (endpoint is null || services.FieldFade is not { } fade)
+        {
+            // Older gameplay documents did not own physical presentation. Keep their
+            // existing fresh-allocation interpretation rather than inventing a phase.
             return;
         }
-        NativeFadeWords words = fade.Saved;
-        byte sync = words.Mode == 3 ? (byte)3 : (byte)2;
-        NativeFadeDraw draw = new(NativeFadeDrawMode.None, 0, 0, 0);
-        switch (words.Mode)
+        endpoint.Validate();
+        short counter = endpoint.Mode == 3 ? (short)255 : (short)0;
+        NativeFadeWords words = new(endpoint.Mode, counter, counter, endpoint.Red, endpoint.Green, endpoint.Blue, endpoint.Red, endpoint.Green, endpoint.Blue, endpoint.Red, endpoint.Green, endpoint.Blue);
+        NativeFadeDraw draw = endpoint.Mode switch
         {
-            case 2:
-                words = words with { Mode = 0, Counter = 0 };
-                break;
-            case 3:
-                words = words with { Counter = 255 };
-                draw = new(NativeFadeDrawMode.Subtract, unchecked((byte)(words.Red * 255 / 256)), unchecked((byte)(words.Green * 255 / 256)), unchecked((byte)(words.Blue * 255 / 256)));
-                break;
-            case 4:
-                draw = new(NativeFadeDrawMode.Black, 0, 0, 0);
-                break;
-            case 5:
-            case 6:
-                words = words with { Counter = words.Rate, Red = words.TargetRed, Green = words.TargetGreen, Blue = words.TargetBlue, StartRed = words.TargetRed, StartGreen = words.TargetGreen, StartBlue = words.TargetBlue };
-                draw = new(words.Mode == 5 ? NativeFadeDrawMode.Add : NativeFadeDrawMode.Subtract, unchecked((byte)words.Red), unchecked((byte)words.Green), unchecked((byte)words.Blue));
-                break;
-            case 7:
-            case 8:
-                draw = new(words.Mode == 7 ? NativeFadeDrawMode.Add : NativeFadeDrawMode.Subtract, unchecked((byte)words.Red), unchecked((byte)words.Green), unchecked((byte)words.Blue));
-                break;
-        }
-        // Saved words remain script-visible facts. Only the disposable physical presentation
-        // and completion state are reconstructed; no callback, timer or reward is advanced.
-        services.SetFieldFade(fade with { Physical = words, SyncMode = sync, Draw = draw });
+            3 => new(NativeFadeDrawMode.Subtract, unchecked((byte)(words.Red * 255 / 256)), unchecked((byte)(words.Green * 255 / 256)), unchecked((byte)(words.Blue * 255 / 256))),
+            4 => new(NativeFadeDrawMode.Black, 0, 0, 0),
+            7 or 8 => new(endpoint.Mode == 7 ? NativeFadeDrawMode.Add : NativeFadeDrawMode.Subtract, unchecked((byte)words.Red), unchecked((byte)words.Green), unchecked((byte)words.Blue)),
+            _ => new(NativeFadeDrawMode.None, 0, 0, 0)
+        };
+        // Saved words remain script-visible facts; only disposable physical presentation
+        // and completion are reconstructed. Black mode remains observable to movement.
+        services.SetFieldFade(fade with { Physical = words, SyncMode = endpoint.SyncMode, Draw = draw });
     }
 }

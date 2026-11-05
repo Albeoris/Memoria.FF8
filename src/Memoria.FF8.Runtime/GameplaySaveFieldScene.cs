@@ -18,6 +18,8 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 public sealed record GameplaySaveFieldScene
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldFadeEndpoint? FadeEndpoint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int[]? SavedPartyBindings { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -119,6 +121,7 @@ public sealed record GameplaySaveFieldScene
 
     public void Validate()
     {
+        FadeEndpoint?.Validate();
         if (SavedPartyBindings is not null && (SavedPartyBindings.Length != 3 || SavedPartyBindings.Any(value => value is < 0 or > 255)))
         {
             throw new InvalidDataException("Gameplay saved party bindings are malformed.");
