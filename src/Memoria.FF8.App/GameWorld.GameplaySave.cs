@@ -46,9 +46,10 @@ internal sealed partial class GameWorld
 
     private GameplaySaveComponentDocument CaptureCurrentGameplayField()
     {
-        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || CurrentDialogue is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || Events.NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput)
+        bool supportedBoundary = Events.NextTrigger.Kind == PlayerTriggerKind.Playable && Events.CanAcceptMovementInput || Events.HasSupportedGameplayScriptMenu;
+        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || CurrentDialogue is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || !supportedBoundary)
         {
-            throw new InvalidOperationException("Gameplay field capture requires a playable exploration boundary without a pending interaction, battle or fault.");
+            throw new InvalidOperationException("Gameplay field capture requires a playable exploration boundary or supported script menu without a pending interaction, battle or fault.");
         }
         GameplaySaveFieldContinuation continuation = Events.CaptureGameplaySaveFieldContinuation();
         GameState state = session.PrepareSnapshot();

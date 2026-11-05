@@ -8,6 +8,63 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class GameplaySaveFieldContinuationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Script_menu_publication_reopens_the_panel_and_returns_without_replaying_initialization(bool save)
+    {
+        string directory = TestResources.GameDirectory;
+        string fieldName;
+        using (GameAssets original = new(directory))
+        {
+            fieldName = original.LoadField(165).Name;
+        }
+        (Jsm.Opcode, int)[] initialize = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] ordinary = [(Jsm.Opcode.LBL, 1), (save ? Jsm.Opcode.MENUSAVE : Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        byte[] script = GameplaySaveFieldScriptsTests.Encode([1], [initialize, ordinary]);
+        using GameAssets assets = new(directory, overrides: new ScriptOverride(fieldName, script));
+        GameSession session = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, false), directory, sharedAssets: assets));
+        using GameWorld source = new(session, directory, sharedAssets: assets);
+        source.EnsureField();
+        session.SetEventMemory(session.EventMemory.Write(1100, 4, NativeScalarValue.Exact(0)));
+        for (int tick = 0; source.Events.PartyMenu?.Phase != NativePartyMenuPhase.Active && tick < 30; tick++)
+        {
+            source.Events.Step();
+        }
+        Assert.Equal(NativePartyMenuPhase.Active, source.Events.PartyMenu?.Phase);
+        Assert.False(source.Events.CanAcceptMovementInput);
+        GameState before = session.State;
+        string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-script-menu-save-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            GameState restored = source.WriteGameplaySave(path);
+            Assert.Same(before, session.State);
+            Assert.Equal(before.Economy!.Gil, restored.Economy!.Gil);
+            GameSession resumedSession = new(PlayerStateLoader.Load(path, directory, sharedAssets: assets));
+            using GameWorld resumed = new(resumedSession, directory, sharedAssets: assets);
+            resumed.EnsureField();
+            Assert.Equal(source.Events.PartyMenu!.Kind, resumed.Events.PartyMenu!.Kind);
+            Assert.Equal(NativePartyMenuPhase.Active, resumed.Events.PartyMenu.Phase);
+            Assert.Equal(0, resumedSession.EventMemory.Read(1100, 4).RequireExact());
+            Assert.True(source.Events.Apply(new(PlayerActionKind.Cancel)).Accepted);
+            Assert.True(resumed.Events.Apply(new(PlayerActionKind.Cancel)).Accepted);
+            for (int tick = 0; tick < 30; tick++)
+            {
+                source.Events.Step();
+                resumed.Events.Step();
+                Assert.Equal(source.Events.PartyMenu?.Phase, resumed.Events.PartyMenu?.Phase);
+                Assert.Equal(session.EventMemory.Read(1100, 4).RequireExact(), resumedSession.EventMemory.Read(1100, 4).RequireExact());
+            }
+            Assert.Null(resumed.Events.PartyMenu);
+            Assert.Equal(9, resumedSession.EventMemory.Read(1100, 4).RequireExact());
+            Assert.Equal(before.Economy.Gil, resumedSession.Economy!.Gil);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void Selected_resource_field_continuation_restores_wait_locals_and_reward_once_without_initialization_replay()
     {
