@@ -9,7 +9,13 @@ public enum GameplaySaveResumeKind
 }
 
 public sealed record GameplaySaveFieldPosition([property: JsonRequired] float X, [property: JsonRequired] float Y, [property: JsonRequired] int Triangle, [property: JsonRequired] byte Direction);
-public sealed record GameplaySaveWorldPosition([property: JsonRequired] int X, [property: JsonRequired] int Z, [property: JsonRequired] short Height, [property: JsonRequired] ushort BodyYaw, [property: JsonRequired] byte EntityType);
+public sealed record GameplaySaveWorldPosition([property: JsonRequired] int X, [property: JsonRequired] int Z, [property: JsonRequired] short Height, [property: JsonRequired] ushort BodyYaw, [property: JsonRequired] byte EntityType)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? AnimationVariant { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? MapDisplayMode { get; init; }
+}
 
 /// <summary>Logical destination only. Eligibility and a registered semantic reconstruction handler are separate prerequisites.</summary>
 public sealed record GameplaySaveResumeDescriptor([property: JsonRequired] int Version, [property: JsonRequired] GameplaySaveResumeKind Kind, [property: JsonRequired] int FieldId, [property: JsonRequired] int? PreviousFieldId, [property: JsonRequired] GameplaySaveFieldPosition? Field, [property: JsonRequired] GameplaySaveWorldPosition? World)
@@ -24,7 +30,7 @@ public sealed record GameplaySaveResumeDescriptor([property: JsonRequired] int V
         {
             throw new InvalidDataException("Gameplay resume descriptor requires exactly the position matching its kind.");
         }
-        if (Field is { } field && (!float.IsFinite(field.X) || !float.IsFinite(field.Y) || field.Triangle is < 0 or > ushort.MaxValue) || World is { BodyYaw: >= 4096 })
+        if (Field is { } field && (!float.IsFinite(field.X) || !float.IsFinite(field.Y) || field.Triangle is < 0 or > ushort.MaxValue) || World is { } world && (world.BodyYaw >= 4096 || world.AnimationVariant > 1 || world.MapDisplayMode > 2))
         {
             throw new InvalidDataException("Gameplay resume position is invalid.");
         }
