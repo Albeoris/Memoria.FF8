@@ -34,10 +34,6 @@ public sealed partial class EventEngine
             case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
                 loops = IsLoopingSound(request.Resource) ? loops.SetItem(request.Voice, new(request.Voice, request.OriginalEffectId, checked((byte)request.Volume), checked((byte)request.EffectivePan))) : loops.Remove(request.Voice);
                 break;
-            case NativeFootstepSound footstep:
-                NativeGlobalSoundProcess.FromBufferlessColdProcess().SelectVoice(footstep.Flags, out NativeGlobalSoundAllocation allocation);
-                loops = loops.Remove(allocation.Voice);
-                break;
             case NativeSoundStop stop:
                 loops = loops.RemoveRange(stop.Voices);
                 break;
@@ -76,6 +72,11 @@ public sealed partial class EventEngine
                 break;
         }
         Scene.GameplayLoopSounds = loops;
+    }
+
+    private void ForgetGameplayLoopSound(int voice)
+    {
+        Scene.GameplayLoopSounds = (Scene.GameplayLoopSounds ?? ImmutableDictionary<int, GameplaySaveFieldLoopSound>.Empty).Remove(voice);
     }
 
     private GameplaySaveFieldLoopSound[] CaptureGameplayLoopSounds()

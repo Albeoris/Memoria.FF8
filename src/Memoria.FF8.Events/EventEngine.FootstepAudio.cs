@@ -48,7 +48,8 @@ public sealed partial class EventEngine
                 NativeGlobalSoundProcess process = services.GlobalSoundProcess ?? throw new NotSupportedException("Native footstep contact requires the persistent global sound process.");
                 //46B2A0 stores the original effect ID even with no native audio buffers.
                 //The explicit footstep masks preserve rotation and replace IDs23/24.
-                services.SetGlobalSoundProcess(process.RecordEffect(sound.EffectId, sound.Flags, out _));
+                services.SetGlobalSoundProcess(process.RecordEffect(sound.EffectId, sound.Flags, out NativeGlobalSoundAllocation allocation));
+                ForgetGameplayLoopSound(allocation.Voice);
                 AudioCommandExecuted?.Invoke(sound);
             }
         }
