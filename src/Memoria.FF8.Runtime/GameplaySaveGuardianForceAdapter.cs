@@ -7,7 +7,6 @@ internal static class GameplaySaveGuardianForceAdapter
 {
     internal static NativeCharacterVitals PrepareCapture(NativeCharacterVitals source)
     {
-        RejectLocalAuthoring(source.GuardianForceProfile);
         for (int id = 0; id < source.GuardianForces.Length; id++)
         {
             NativeGuardianForceVital gf = source.GuardianForces[id];
@@ -18,7 +17,6 @@ internal static class GameplaySaveGuardianForceAdapter
         }
         NativeCharacterVitals normalized = source.NormalizeGuardianForceCompatibility();
         RequireResolved(normalized);
-        RejectLocalAuthoring(normalized.GuardianForceProfile);
         NativeCharacterVitals mapped = normalized.ApplyGuardianForceTemplates(normalized.ResolveGuardianForceTemplates());
         NativeCharacterVitals result = source.DeepCopy();
         if (!normalized.GuardianForceRecoveryProgression.IsDefaultOrEmpty && normalized.GuardianForceRecoveryProgression.Length != 16)
@@ -135,14 +133,6 @@ internal static class GameplaySaveGuardianForceAdapter
         if (source.GuardianForceProfile is null && (source.GuardianForceOpaqueBaseline || source.GuardianForceRecoveryProfile is not null || !source.GuardianForceRecoveryProgression.IsDefaultOrEmpty || !source.GuardianForceRecoveryTemplates.IsDefaultOrEmpty))
         {
             throw new NotSupportedException("Gameplay GF projection requires resolving the observed compatibility baseline before replacing its pending profile attribution; preserve the execution snapshot.");
-        }
-    }
-
-    private static void RejectLocalAuthoring(GuardianForceAbilityProfile? profile)
-    {
-        if (profile is not null && (!profile.LocalDocuments.IsEmpty || !profile.ExcludedDocuments.IsEmpty || !profile.LocalOwnershipAliases.IsEmpty))
-        {
-            throw new NotSupportedException("Gameplay GF projection cannot yet preserve save-local authoring documents, exclusions or ownership choices; preserve the execution snapshot.");
         }
     }
 

@@ -20,6 +20,8 @@ public sealed record GameplaySaveCharacters
     public required byte[] JunctionPartyBackup { get; init; }
     [JsonRequired]
     public required GameplaySaveMagic Magic { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveGuardianForceIntent? GuardianForceIntent { get; init; }
 
     public static GameplaySaveCharacters Capture(NativeCharacterVitals source)
     {
@@ -34,7 +36,8 @@ public sealed record GameplaySaveCharacters
             GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.Learning[id].Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
             JunctionPartyBackup = source.JunctionPartyBackup,
-            Magic = GameplaySaveMagic.Capture(source.MagicSystem)
+            Magic = GameplaySaveMagic.Capture(source.MagicSystem),
+            GuardianForceIntent = GameplaySaveGuardianForceIntent.Capture(source)
         };
         result.Validate();
         return GameplaySaveCodec.Detach(result);
@@ -47,6 +50,7 @@ public sealed record GameplaySaveCharacters
         installed.Validate();
         Validate();
         GameplaySaveCharacters detached = GameplaySaveCodec.Detach(this);
+        installed = detached.GuardianForceIntent?.RestoreDefinitions(installed) ?? installed;
         NativeGuardianForceVital[] guardianForces = detached.GuardianForces.Select(gf => gf.Restore()).ToArray();
         NativeCharacterVitals result = installed with
         {
@@ -88,6 +92,7 @@ public sealed record GameplaySaveCharacters
             gf.Validate();
         }
         Magic.Validate();
+        GuardianForceIntent?.Validate();
     }
 }
 

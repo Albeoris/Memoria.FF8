@@ -168,24 +168,16 @@ public sealed class GameplaySaveGuardianForceTests
     }
 
     [Fact]
-    public void UnresolvedRecoveryAndSaveLocalIntentRefuseWithoutChangingSources()
+    public void UnresolvedRecoveryAndUnappliedLocalEditsRefuseWithoutChangingSources()
     {
         NativeCharacterVitals source = Progressed();
         GuardianForceAbilityPatchDocument local = new() { DocumentId = "local", Operations = [new() { Id = "add", GuardianForce = 0, Kind = GuardianForceAbilityOperationKind.EnsureAbility, Ability = 104 }] };
         NativeCharacterVitals pending = source with { GuardianForceProfile = null, GuardianForceOpaqueBaseline = true, GuardianForceRecoveryProfile = source.GuardianForceProfile };
         Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(pending));
-        foreach (GuardianForceAbilityProfile profile in new[]
-        {
-            source.GuardianForceProfile! with { LocalDocuments = [local] },
-            source.GuardianForceProfile! with { ExcludedDocuments = ["package-choice"] },
-            source.GuardianForceProfile! with { LocalOwnershipAliases = ImmutableDictionary<string, string>.Empty.Add("exported", "local") }
-        })
-        {
-            NativeCharacterVitals authored = source with { GuardianForceProfile = profile };
-            string original = JsonSerializer.Serialize(authored);
-            Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(authored));
-            Assert.Equal(original, JsonSerializer.Serialize(authored));
-        }
+        NativeCharacterVitals authored = source with { GuardianForceProfile = source.GuardianForceProfile! with { LocalDocuments = [local] } };
+        string original = JsonSerializer.Serialize(authored);
+        Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(authored));
+        Assert.Equal(original, JsonSerializer.Serialize(authored));
         GameplaySaveCharacters saved = GameplaySaveCharacters.Capture(source);
         Assert.Throws<NotSupportedException>(() => saved.Restore(pending));
     }
