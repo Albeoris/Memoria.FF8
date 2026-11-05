@@ -82,7 +82,7 @@ public static class NativeBattleTemporaryMemory
         staging = PublishView(staging, address, view, length);
         foreach (var entry in pointers)
         {
-            staging.WriteResourcePointer(checked(address + (uint)entry.Key), entry.Value);
+            staging = staging.SetResourcePointerMetadata(checked(address + (uint)entry.Key), entry.Value);
         }
         return staging;
     }

@@ -31,6 +31,10 @@ public sealed class NativeBattlePinnedModelResourceTests
         }
         cursor = NativeBattleEffectArena.CreateUnknown(8).CopyResourceSnapshot(cursor, 0, 4, 4);
         staging = NativeBattleTemporaryMemory.PublishResourceView(staging, NativeBattleTemporaryMemory.Address, cursor, 8);
+        if (!logical)
+        {
+            Assert.Equal(live.Cpu!.PhysicalAddress + 7, staging.ReadUInt32(NativeBattleTemporaryMemory.Address + 4));
+        }
         NativeBattlePrimitiveProcess renderer = NativeBattlePrimitiveProcess.FromColdProcess().PublishModelSource50FDF0(123, source.Cursor(7));
         Assert.Same(original, renderer.ModelRendererRegisters!.ReadSourceCursor()!.CpuPublication);
         NativeBattleModelCpuBank replacement = original.BindPartyResource(offset, Enumerable.Repeat((byte)99, 32).ToImmutableArray(), 0, 32);

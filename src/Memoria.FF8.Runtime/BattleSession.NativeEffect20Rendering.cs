@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         current = current with { Memory = prepared.Memory };
         retained = prepared.Temporary8C;
         actor = actor with { CurrentBodyBoneMatrices = actor.CurrentBodyBoneMatrices! with { Matrices = matrices.SetItem(0, prepared.FirstBone) } };
-        NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging!, temporary, retained, 140);
+        NativeFileStaging = NativeBattleTemporaryMemory.PublishResourceView(NativeFileStaging!, temporary, retained, 140);
         DrawBody();
         PublishBones();
         actor = actor with { SequenceState = actor.SequenceState! with { MeshMask124 = savedMask } };
@@ -102,10 +102,10 @@ public sealed partial class BattleSession
                 return;
             }
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect20 body requires its actual CPU resource bank.");
-            NativeBattleResourcePointer pointer = GeometryPointer();
-            uint physical = pointer.Cpu is { } cpuPointer ? cpuPointer.PhysicalAddress : pointer.StagingAddress ?? throw new NotSupportedException("Effect20 body requires its physical model source.");
+            NativeBattleResourcePointer pointer = GeometryPointer().Pin(cpu);
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, NativeFileStaging!, pointer, Read);
             Dictionary<int, (ImmutableArray<ushort> Counts, int First, int End)> metadata = [];
-            ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(Read, source.BoneCount, (mesh, counts, first, end) => metadata.Add(mesh, (counts, first, end)));
+            ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(geometry.Read, source.BoneCount, (mesh, counts, first, end) => metadata.Add(mesh, (counts, first, end)));
             process = process.PublishModelColor(inputs.ModelColor28);
             current = current with { Memory = current.Memory with { PrimitiveProcess = process } };
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect20 body requires its original geometry constants.");
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                 }
                 current = current with { Memory = current.Memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors } };
                 var data = metadata[meshIndex];
-                retained = WriteDword(retained, 0x60, checked(physical + (uint)data.First));
+                retained = new NativeBattleModelGeometryCursor(geometry, data.First).Write(retained, 0x60);
                 for (int group = 0; group < 4; group++)
                 {
                     byte[] count = new byte[2];
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                     retained = retained.Write(0x68 + group * 2, count);
                 }
                 (byte[] previous, _) = NativeFileStaging!.ReadSnapshot(scratch, maximum * 8);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, projection, inputs.ModelColor28, 1, previous.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0, NativeBattlePilotVisualLifetimes.Identity(20, task) with { Primitive = meshIndex, ResourceGeneration = physical });
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, projection, inputs.ModelColor28, 1, previous.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0, NativeBattlePilotVisualLifetimes.Identity(20, task) with { Primitive = meshIndex, ResourceGeneration = geometry.PresentationIdentity });
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     NativeFileStaging = NativeFileStaging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
@@ -143,7 +143,7 @@ public sealed partial class BattleSession
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect20 body requires its ordering table.");
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess!, primitive.Pending, drawn.Packets);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-                current = current with { Memory = current.Memory with { PrimitiveProcess = written.Process.Publish50FDF0(NativeEffect20CommonAddress(written.Process), checked(physical + (uint)data.End)) } };
+                current = current with { Memory = current.Memory with { PrimitiveProcess = written.Process.PublishModelSource50FDF0(NativeEffect20CommonAddress(written.Process), geometry.Cursor(data.End)) } };
             }
 
             NativeBattleResourcePointer GeometryPointer()
@@ -171,7 +171,8 @@ public sealed partial class BattleSession
                 {
                     return NativeBattleModelEnemyHeap.Read(cpu, NativeFileStaging!, selected with { Offset = checked(selected.Offset + offset) }, length);
                 }
-                uint selectedAddress = checked(physical + (uint)offset);
+                uint shared = pointer.StagingAddress ?? throw new NotSupportedException("Effect20 body requires its selected shared model source.");
+                uint selectedAddress = checked(shared + (uint)offset);
                 if (NativeBattleEffectTaskMemory.TryRead(current.Effect.Pools, selectedAddress, length, out byte[] taskBytes))
                 {
                     return taskBytes;
@@ -203,13 +204,13 @@ public sealed partial class BattleSession
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Effect20 requires its retained physical temporary memory."), length);
         NativeFileStaging = allocation.Staging;
-        NativeBattleEffectArena physical = NativeBattleTemporaryMemory.ReadView(NativeFileStaging, allocation.Address, length);
-        return (allocation.Address, NativeBattleEffectNodeContextMemory.Copy(physical, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length));
+        NativeBattleEffectArena physical = NativeBattleOffsetBodyContextMemory.Read(NativeFileStaging, allocation.Address, length);
+        return (allocation.Address, NativeBattleOffsetBodyContextMemory.Copy(physical, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length));
     }
 
     private void ReleaseNativeEffect20Temporary(uint address, NativeBattleEffectArena arena, int length)
     {
-        NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging!, address, arena, length);
+        NativeFileStaging = NativeBattleTemporaryMemory.PublishResourceView(NativeFileStaging!, address, arena, length);
         NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging, length);
     }
 
