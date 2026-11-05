@@ -246,8 +246,7 @@ internal sealed partial class GameWorld
         }
         BattleSnapshot saved = battle.Capture();
         BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, saved.Definition.NativeSeed, request.Flags, saved.Definition), saved, session.ExamTimer);
-        long allocationClock = Events.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation!.Value;
-        long completedCallbacks = Events.Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
+        long completedCallbacks = Events.GetCompletedBattleCallbackCount();
         long executedCallbacks = battle.NativeGraphics is null ? battle.Frame : battle.NativeHostCallbacks ?? throw new InvalidDataException("Saved native battle lacks its executed callback clock.");
         if (Events.Scene.FieldCallbackClock!.BattleCallbacks != completedCallbacks + executedCallbacks)
         {

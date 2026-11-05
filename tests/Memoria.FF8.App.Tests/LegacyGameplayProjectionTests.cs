@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -67,9 +68,10 @@ public sealed class LegacyGameplayProjectionTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Semantic_last_result_survives_exact_cold_load_and_is_replaced_only_by_a_new_completed_battle(bool requestBattle)
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(true, 7)]
+    public void Semantic_last_result_survives_exact_cold_load_and_is_replaced_only_by_a_new_completed_battle(bool requestBattle, long callbackBase)
     {
         string directory = TestResources.GameDirectory;
         string fieldName;
@@ -84,6 +86,12 @@ public sealed class LegacyGameplayProjectionTests
         source.Apply(new(PlayerActionKind.Wait));
         GameplaySaveFieldContinuation continuation = source.Events.CaptureGameplaySaveFieldContinuation();
         GameState prepared = initial.PrepareSnapshot();
+        if (callbackBase != 0)
+        {
+            continuation = continuation with { Scripts = continuation.Scripts with { Clock = continuation.Scripts.Clock with { Battle = callbackBase } } };
+            NativeExamTimerState timer = prepared.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.Battle, checked((int)callbackBase));
+            prepared = prepared with { ExamTimer = timer, Playtime = prepared.Playtime!.AdvanceTo(timer.ClockCalls), WorldProcess = prepared.WorldProcess!.AdvanceMainLoopCallbacks(checked((int)callbackBase)) };
+        }
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(prepared, new(1, GameplaySaveResumeKind.Field, 165, 164, continuation.GetLeaderPosition(), null));
         document = document with { Progression = document.Progression!.WithFieldContinuation(continuation with { Scene = continuation.Scene with { BattleResult = 2 } }) };
         GameSession restored = new(GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets));
@@ -94,8 +102,18 @@ public sealed class LegacyGameplayProjectionTests
         GameSession coldSession = new(restored.PrepareSnapshot());
         using GameWorld cold = new(coldSession, directory, sharedAssets: assets);
         cold.EnsureField();
-        EventEngine engine = RestoreEngine(coldSession, assets, cold.Events.Capture(), cold.Events);
-        engine.UseInteractiveBattle = (_, _) => false;
+        JsonElement clockCheckpoint = cold.Events.Capture();
+        if (callbackBase != 0)
+        {
+            JsonObject historical = JsonNode.Parse(clockCheckpoint.GetRawText())!.AsObject();
+            historical["Scene"]!.AsObject().Remove(nameof(SceneEventState.GameplayBattleCallbackBase));
+            EventEngine historicalRestored = RestoreEngine(new GameSession(coldSession.State), assets, JsonSerializer.SerializeToElement(historical), cold.Events);
+            Assert.Equal(callbackBase, historicalRestored.Scene.GameplayBattleCallbackBase);
+            historical["Scene"]![nameof(SceneEventState.GameplayBattleCallbackBase)] = 0;
+            Assert.Throws<InvalidDataException>(() => RestoreEngine(new GameSession(coldSession.State), assets, JsonSerializer.SerializeToElement(historical), cold.Events));
+        }
+        EventEngine engine = RestoreEngine(coldSession, assets, clockCheckpoint, cold.Events);
+        engine.UseInteractiveBattle = (_, _) => callbackBase != 0;
         engine.HostAutomaticBattles = true;
         coldSession.SetWorldControls(coldSession.State.WorldControls! with { EventFlags104 = coldSession.State.WorldControls!.EventFlags104 & ~0x20u });
         uint gil = coldSession.State.Economy!.Gil;
@@ -109,7 +127,17 @@ public sealed class LegacyGameplayProjectionTests
                 Assert.Equal((byte)2, engine.Scene.NativeBattleResult);
                 EventEngine exactPending = RestoreEngine(new GameSession(coldSession.State), assets, engine.Capture(), cold.Events);
                 Assert.Equal(GameplayBattleResultOrigin.RetainedWhilePending, exactPending.Scene.GameplayBattleResultOrigin);
-                engine.ReturnFromHostedBattle(0);
+                if (callbackBase != 0)
+                {
+                    Assert.NotNull(engine.PendingInteractiveBattle);
+                    Assert.Equal(callbackBase, engine.GetCompletedBattleCallbackCount());
+                    engine.AdvanceInteractiveBattleCallbacks(3);
+                    engine.ReturnFromInteractiveBattle(3);
+                }
+                else
+                {
+                    engine.ReturnFromHostedBattle(0);
+                }
             }
         }
         Assert.Equal(requestBattle, observedPending);
@@ -118,6 +146,19 @@ public sealed class LegacyGameplayProjectionTests
         Assert.Equal(requestBattle ? GameplayBattleResultOrigin.None : GameplayBattleResultOrigin.RestoredLastResult, engine.Scene.GameplayBattleResultOrigin);
         JsonElement fiber = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0 && item.GetProperty("ScriptId").GetInt32() == 1);
         Assert.Equal(requestBattle ? 4 : 2, fiber.GetProperty("Results").GetProperty("0").GetInt32());
+        EventEngine secondCold = RestoreEngine(new GameSession(coldSession.State), assets, engine.Capture(), cold.Events);
+        Assert.Equal(engine.Scene.NativeBattleResult, secondCold.Scene.NativeBattleResult);
+        Assert.Equal(callbackBase, secondCold.Scene.GameplayBattleCallbackBase);
+        if (callbackBase != 0)
+        {
+            Assert.Equal(callbackBase + 3, secondCold.Scene.FieldCallbackClock!.BattleCallbacks);
+            Assert.Equal(callbackBase + 3, secondCold.GetCompletedBattleCallbackCount());
+            JsonObject historical = JsonNode.Parse(engine.Capture().GetRawText())!.AsObject();
+            historical["Scene"]!.AsObject().Remove(nameof(SceneEventState.GameplayBattleCallbackBase));
+            EventEngine historicalRestored = RestoreEngine(new GameSession(coldSession.State), assets, JsonSerializer.SerializeToElement(historical), cold.Events);
+            Assert.Equal(callbackBase, historicalRestored.Scene.GameplayBattleCallbackBase);
+            Assert.Equal(callbackBase + 3, historicalRestored.GetCompletedBattleCallbackCount());
+        }
     }
 
     [Fact]

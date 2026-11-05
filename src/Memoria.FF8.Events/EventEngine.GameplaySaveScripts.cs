@@ -57,6 +57,7 @@ public sealed partial class EventEngine
         GameplaySaveScriptWait wait = fiber.WaitReason switch
         {
             WaitReason.None or WaitReason.Color or WaitReason.Fade => GameplaySaveScriptWait.None,
+            WaitReason.MinimalBattle when completedGameplayBattleFiber == fiber.Sequence => GameplaySaveScriptWait.Frames,
             WaitReason.Dialogue => GameplaySaveScriptWait.Dialogue,
             WaitReason.SoundResource => GameplaySaveScriptWait.SoundResource,
             WaitReason.Movement => GameplaySaveScriptWait.Movement,
@@ -220,6 +221,7 @@ public sealed partial class EventEngine
         CurrentMoviePlayback = null;
         movieProgressExpected = false;
         Scene.FieldCallbackClock = clock;
+        Scene.GameplayBattleCallbackBase = clock.BattleCallbacks ?? 0;
         defaultsStarted = true;
         RestoreGameplayDialogues(saved.Dialogues);
     }

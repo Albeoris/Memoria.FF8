@@ -76,6 +76,7 @@ public sealed partial class EventEngine
     private void RestoreCore(JsonElement snapshot, bool restoreSharedState = true)
     {
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
+        RestoreMissingGameplayBattleCallbackBase(saved, snapshot);
         saved.SavedBattleFlags?.Validate();
         if (restoreSharedState && saved.NativeFieldDebugRequested == true && !services.CanStoreNativeFieldDebugRequested)
         {

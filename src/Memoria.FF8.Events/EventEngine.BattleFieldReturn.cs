@@ -28,6 +28,16 @@ public sealed partial class EventEngine
 
         public required NativeBattleFieldReturnOwners Owners { get; init; }
         public required NativeBattleFieldReloadCompletion Reload { get; init; }
+        internal PreparedBattleFieldReturnTransport Transport { get; init; } = null!;
+    }
+
+    internal sealed class PreparedBattleFieldReturnTransport
+    {
+        internal PreparedBattleFieldReturnTransport()
+        {
+        }
+
+        public required NativeBattleFieldReturnOwners Owners { get; init; }
         internal SceneEventState SourceScene { get; init; } = null!;
         internal long SourceFrame { get; init; }
         internal NativeMusicProcessState SourceBuffers { get; init; } = null!;
@@ -75,6 +85,12 @@ public sealed partial class EventEngine
     public PreparedNativeBattleFieldReturn PrepareNativeBattleFieldReturn(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources, NativeBattleRetainedMemory? reloadedMemory = null, NativeCrtRandomState? crtRandomBefore = null, NativeCrtRandomState? crtRandomAfter = null)
     {
         NativeBattleFieldReloadCompletion reload = RequireNativeBattleFieldReload(nativeResult);
+        PreparedBattleFieldReturnTransport transport = PrepareBattleFieldReturnTransport(process, flags, nativeResult, resources, reloadedMemory, crtRandomBefore, crtRandomAfter);
+        return new() { Owners = transport.Owners, Reload = reload, Transport = transport };
+    }
+
+    private PreparedBattleFieldReturnTransport PrepareBattleFieldReturnTransport(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources, NativeBattleRetainedMemory? reloadedMemory = null, NativeCrtRandomState? crtRandomBefore = null, NativeCrtRandomState? crtRandomAfter = null)
+    {
         if (!services.CanStoreNativeBattleFieldReturn || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(process.Buffers), JsonSerializer.SerializeToElement(Scene.MusicProcess)))
         {
             throw new NotSupportedException("Native field return requires atomic battle/global/tail transport and the same live physical music buffers.");
@@ -91,7 +107,7 @@ public sealed partial class EventEngine
         NativeFieldActorAnimation[] animations = PrepareNativeFieldAnimations(Scene.NativeActorObjectIds.Where(objectId => (actors[objectId].NativePartyFlags ?? throw new NotSupportedException("Native52B9F0 animation restore requires actual actor DWORD352.")).AutoAnimation4).ToArray());
         return new()
         {
-            Owners = new(music, tail.Controls, tail.SeeD, tail.Timer, tail.Salary, tail.Vibration, tail.Fade, tail.Memory) { ReloadedMemory = reloadedMemory, CrtRandomBefore = crtRandomBefore, CrtRandomAfter = crtRandomAfter }, Reload = reload,
+            Owners = new(music, tail.Controls, tail.SeeD, tail.Timer, tail.Salary, tail.Vibration, tail.Fade, tail.Memory) { ReloadedMemory = reloadedMemory, CrtRandomBefore = crtRandomBefore, CrtRandomAfter = crtRandomAfter },
             SourceScene = Scene, SourceFrame = Frame, SourceBuffers = Scene.MusicProcess!, SourceSound = sound, Tail = tail,
             Battle = battle, PersistentFlags = persistent, SourceChannel = Scene.MusicChannel108, SourceGain = Scene.SoundMusicVolume197,
             SourceControls = services.WorldControls!, SourceSeeD = services.SeeD!, SourceTimer = services.ExamTimer!, SourceSalary = services.SalaryPresentation!, SourceVibration = vibration, SourceFade = fade, SourceVitals = services.CharacterVitals!, SourceMemory = EventMemory,
@@ -116,8 +132,39 @@ public sealed partial class EventEngine
     public void CommitNativeBattleFieldReturn(PreparedNativeBattleFieldReturn prepared)
     {
         ArgumentNullException.ThrowIfNull(prepared);
+        if (Scene.NativeBattleFieldReload != prepared.Reload || !ReferenceEquals(prepared.Owners, prepared.Transport.Owners))
+        {
+            throw new InvalidOperationException("Prepared native field return lost its actual resource reload owner.");
+        }
+        CommitBattleFieldReturnTransport(prepared.Transport);
+        Scene.NativeBattleFieldReturn = new(prepared.Reload, prepared.Owners.Music.Receipt);
+        Scene.NativeBattleFieldReload = null;
+        AudioCommandExecuted?.Invoke(prepared.Owners.Music.Receipt);
+    }
+
+    public NativeBattleMusicReturnReceipt CommitGameplayBattleFieldReturnTransport(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources)
+    {
+        if (nativeResult is not (2 or 4) || Scene.NativeBattleFieldReload is not null || Scene.NativeBattleFieldReloadState is not null)
+        {
+            throw new InvalidOperationException("Gameplay battle return transport requires a completed ordinary outcome before physical cache reload.");
+        }
+        PreparedBattleFieldReturnTransport prepared = PrepareBattleFieldReturnTransport(process, flags, nativeResult, resources);
+        CommitBattleFieldReturnTransport(prepared);
+        return prepared.Owners.Music.Receipt;
+    }
+
+    public void PublishGameplayBattleFieldReturnAudio(NativeBattleMusicReturnReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        receipt.Validate();
+        AudioCommandExecuted?.Invoke(receipt);
+    }
+
+    private void CommitBattleFieldReturnTransport(PreparedBattleFieldReturnTransport prepared)
+    {
+        ArgumentNullException.ThrowIfNull(prepared);
         bool keep = prepared.Owners.Music.Receipt.KeptMusic;
-        if (!ReferenceEquals(Scene, prepared.SourceScene) || Frame != prepared.SourceFrame || !ReferenceEquals(Scene.MusicProcess, prepared.SourceBuffers) || !ReferenceEquals(services.GlobalSoundProcess, prepared.SourceSound) || !ReferenceEquals(services.WorldControls, prepared.SourceControls) || !ReferenceEquals(services.SeeD, prepared.SourceSeeD) || !ReferenceEquals(services.ExamTimer, prepared.SourceTimer) || !ReferenceEquals(services.SalaryPresentation, prepared.SourceSalary) || !ReferenceEquals(services.VibrationProcess, prepared.SourceVibration) || !ReferenceEquals(services.FieldFade, prepared.SourceFade) || !ReferenceEquals(services.CharacterVitals, prepared.SourceVitals) || !ReferenceEquals(EventMemory, prepared.SourceMemory) || !keep && (Scene.MusicChannel108 != prepared.SourceChannel || Scene.SoundMusicVolume197 != prepared.SourceGain) || Scene.NativeBattleFieldReload != prepared.Reload)
+        if (!ReferenceEquals(Scene, prepared.SourceScene) || Frame != prepared.SourceFrame || !ReferenceEquals(Scene.MusicProcess, prepared.SourceBuffers) || !ReferenceEquals(services.GlobalSoundProcess, prepared.SourceSound) || !ReferenceEquals(services.WorldControls, prepared.SourceControls) || !ReferenceEquals(services.SeeD, prepared.SourceSeeD) || !ReferenceEquals(services.ExamTimer, prepared.SourceTimer) || !ReferenceEquals(services.SalaryPresentation, prepared.SourceSalary) || !ReferenceEquals(services.VibrationProcess, prepared.SourceVibration) || !ReferenceEquals(services.FieldFade, prepared.SourceFade) || !ReferenceEquals(services.CharacterVitals, prepared.SourceVitals) || !ReferenceEquals(EventMemory, prepared.SourceMemory) || !keep && (Scene.MusicChannel108 != prepared.SourceChannel || Scene.SoundMusicVolume197 != prepared.SourceGain))
         {
             throw new InvalidOperationException("Prepared native field return no longer matches its current physical owners.");
         }
@@ -130,8 +177,6 @@ public sealed partial class EventEngine
         NativeBattleCompletion? source = prepared.Battle;
         Scene.NativeBattleFlagWrites!.Add(new(1, source is null ? PendingMenuBattle is not null ? NativeBattleFlagWriter.MenuFieldBattleReturn : NativeBattleFlagWriter.RandomFieldBattleReturn : NativeBattleFlagWriter.FieldBattleReturn, FieldId, programHash, Frame, source?.ObjectId ?? -1, source?.ScriptId ?? -1, source?.Operation ?? -1, null, prepared.PersistentFlags, prepared.PersistentFlags));
         prepared.PublishAnimations();
-        Scene.NativeBattleFieldReturn = new(prepared.Reload, prepared.Owners.Music.Receipt);
-        Scene.NativeBattleFieldReload = null;
-        AudioCommandExecuted?.Invoke(prepared.Owners.Music.Receipt);
     }
+
 }

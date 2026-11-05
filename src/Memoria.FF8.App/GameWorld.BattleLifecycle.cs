@@ -74,6 +74,11 @@ internal sealed partial class GameWorld
         PublishBattleSnapshot(active);
         BattleSnapshot completed = session.CompleteLiveBattle();
         BattleResult result = CaptureBattleOutcome(active, occurrence, completed);
+        if (occurrence.SourceScene == SceneKind.Field && Events.PendingMenuBattle is null && active.NativeResult is 2 or 4 && Events.NativeRuntimeProfile?.ExecutableHash != assets.NativeRuntimeProfile?.ExecutableHash)
+        {
+            CompleteBattleProfileHandoff(active, occurrence, result, guardianForceLearning);
+            return;
+        }
         if (active.NativeResult == 1 && !Events.ReadNativeDefeatReturnBranch4706B0().ResumePreviousScene)
         {
             int callbacks = checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value));
@@ -199,5 +204,28 @@ internal sealed partial class GameWorld
     {
         Field = field;
         renderer = new FieldRenderer(field, renderWidth, renderHeight);
+    }
+
+    private void CompleteBattleProfileHandoff(BattleSession active, BattleEncounterOccurrence occurrence, BattleResult result, IReadOnlyDictionary<int, int>? guardianForceLearning)
+    {
+        GameSession sourceSession = new(session.PrepareSnapshot());
+        using GameWorld source = new(sourceSession, assets.GameDirectory, resources: resources, sharedAssets: assets, readSceneMods: readSceneMods, modelOverrides: modelOverrides, readGameplayPolicy: readGameplayPolicy, applyEncounterMods: applyEncounterMods, legacyGameplayProjection: true);
+        source.EnsureField();
+        _ = sourceSession.CompleteLiveBattle();
+        source.battle = null;
+        source.ApplyBattleResult(occurrence, result, guardianForceLearning);
+        if (occurrence.ScriptedOwner is null)
+        {
+            RandomEncounterSessionState encounters = sourceSession.State.RandomEncounters ?? throw new InvalidOperationException("Random outcome lost its playthrough owner.");
+            sourceSession.SetRandomEncounters(encounters with { Pending = null });
+        }
+        NativeBattleMusicReturnReceipt music = source.Events.CommitGameplayBattleFieldReturnTransport(active.NativeMusicProcess ?? throw new NotSupportedException("Gameplay battle return requires its live music transport."), active.EntryFlags, active.NativeResult!.Value, source.BattleMusicEntryResources);
+        int callbacks = checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value));
+        PreparedBattleProfileHandoff prepared = PrepareBattleProfileHandoff(source, callbacks, active.NativeResult.Value);
+        BattleRewardSummary? rewards = source.LastBattleRewards;
+        PublishBattleProfileHandoff(prepared);
+        LastBattleRewards = rewards;
+        Events.PublishGameplayBattleFieldReturnAudio(music);
+        Events.Step();
     }
 }

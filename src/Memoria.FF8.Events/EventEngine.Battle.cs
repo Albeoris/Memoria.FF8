@@ -67,7 +67,7 @@ public sealed partial class EventEngine
         ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome, nativeResult);
     }
 
-    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 4)
+    private (NativeBattleCompletion Request, NativeBattleDefeatReturnBranch? Defeat) ValidateHostedBattleReturn(int combatCallbacks, byte nativeResult)
     {
         NativeBattleCompletion request = PendingHostedBattle ?? throw new InvalidOperationException("No hosted battle owns the suspended field VM.");
         if (combatCallbacks < 0)
@@ -80,8 +80,7 @@ public sealed partial class EventEngine
             {
                 throw new ArgumentOutOfRangeException(nameof(nativeResult), "Completed native battle results use BYTE1..5; zero is the battle bootstrap state.");
             }
-            long allocationClock = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Battle return requires its actual allocation clock.");
-            long completedCallbacks = Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
+            long completedCallbacks = GetCompletedBattleCallbackCount();
             if (Scene.FieldCallbackClock?.BattleCallbacks != completedCallbacks + combatCallbacks)
             {
                 throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
@@ -96,6 +95,12 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Native result1 with saved183 bit2 clear abandons this VM for fresh field75.");
         }
+        return (request, defeat);
+    }
+
+    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 4)
+    {
+        (NativeBattleCompletion request, NativeBattleDefeatReturnBranch? defeat) = ValidateHostedBattleReturn(combatCallbacks, nativeResult);
         publishCombatOutcome?.Invoke();
         int index = Scene.NativeBattleCompletions!.IndexOf(request);
         Scene.NativeBattleCompletions[index] = request with { Result = nativeResult, EmulatedCombatCallbacks = combatCallbacks, DefeatBranch = defeat };
@@ -302,6 +307,7 @@ public sealed partial class EventEngine
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
         ValidateGameplayBattleResultOrigin(saved.Scene);
+        ValidateGameplayBattleCallbackBase(saved.Scene);
         ValidateNativeRandomFieldBattleCheckpoint(saved);
         ValidateNativeMenuBattleCheckpoint(saved);
         saved.Scene.NativeBattleFieldReload?.Validate();
@@ -346,9 +352,10 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved battle history contains a missing completion.");
         }
         NativeBattleCompletion[] currentBattles = saved.Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation is long allocationClock ? saved.Scene.NativeBattleCompletions.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.Abandonment is null && completion.BattleClockCallsAtEntry >= allocationClock).ToArray() : [];
-        long completedBattleCallbacks = currentBattles.Where(completion => completion.ReturnFrame is not null).Sum(completion => (long)completion.EmulatedCombatCallbacks);
+        long completedBattleCallbacks = GetCompletedBattleCallbackCount(saved.Scene, saved.Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? long.MaxValue);
         bool pendingInteractive = currentBattles.Any(completion => completion.ReturnFrame is null);
-        if (currentBattles.Length > 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not long callbacks || callbacks < completedBattleCallbacks || !pendingInteractive && callbacks != completedBattleCallbacks) || currentBattles.Length == 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not null || saved.Scene.NativeBattleCompletions.Any(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Abandonment is null)))
+        bool reconstructedClock = saved.Scene.NativeFieldInitialization?.Origin == NativeFieldInitializationOrigin.GameplayContinuation && saved.Scene.FieldCallbackClock?.BattleCallbacks == saved.Scene.GameplayBattleCallbackBase;
+        if (currentBattles.Length > 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not long callbacks || callbacks < completedBattleCallbacks || !pendingInteractive && callbacks != completedBattleCallbacks) || currentBattles.Length == 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not null && !reconstructedClock || saved.Scene.NativeBattleCompletions.Any(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Abandonment is null)))
         {
             throw new InvalidDataException("Interactive battle history lacks its executed native callback clock provenance.");
         }

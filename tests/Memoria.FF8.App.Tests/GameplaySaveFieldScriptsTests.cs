@@ -69,8 +69,10 @@ public sealed class GameplaySaveFieldScriptsTests
         Assert.DoesNotContain("SourceFrame", JsonSerializer.Serialize(saved));
     }
 
-    [Fact]
-    public void Malformed_program_pc_request_or_wait_fails_before_installation()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0L)]
+    public void Malformed_program_pc_request_or_wait_fails_before_installation(long? initialBattleCallbackBase)
     {
         byte[] program = Program(false);
         var (_, source) = Create(program);
@@ -78,6 +80,8 @@ public sealed class GameplaySaveFieldScriptsTests
         source.Step();
         GameplaySaveFieldScripts saved = source.CaptureGameplaySaveScripts();
         var (_, target) = Create(program);
+        typeof(SceneEventState).GetProperty(nameof(SceneEventState.GameplayBattleCallbackBase))!.SetValue(target.Scene, initialBattleCallbackBase);
+        saved = saved with { Clock = saved.Clock with { Battle = 7 } };
         string before = JsonSerializer.Serialize(target.Capture());
         Assert.Throws<InvalidOperationException>(() => target.RestoreGameplaySaveScripts(saved with { ProgramSha256 = new('A', 64) }));
         GameplaySaveScriptFiber[] invalid = saved.Fibers.ToArray();
@@ -87,6 +91,7 @@ public sealed class GameplaySaveFieldScriptsTests
         Assert.Throws<InvalidDataException>(() => target.RestoreGameplaySaveScripts(saved with { Fibers = invalid }));
         invalid[0] = saved.Fibers[0] with { Wait = (GameplaySaveScriptWait)255 };
         Assert.Throws<InvalidDataException>(() => target.RestoreGameplaySaveScripts(saved with { Fibers = invalid }));
+        Assert.Equal(initialBattleCallbackBase, target.Scene.GameplayBattleCallbackBase);
         Assert.Equal(before, JsonSerializer.Serialize(target.Capture()));
     }
 

@@ -305,6 +305,10 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public GameplayBattleResultOrigin GameplayBattleResultOrigin { get; internal set; }
+    /// <summary>Completed callback time restored without inventing native battle history for this allocation.</summary>
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? GameplayBattleCallbackBase { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment? NativeAbandonedBattleOutcome { get; internal set; }
