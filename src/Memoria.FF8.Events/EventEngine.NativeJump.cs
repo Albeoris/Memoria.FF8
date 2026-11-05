@@ -209,7 +209,12 @@ public sealed partial class EventEngine
 
     private void ValidateNativeJumps(Checkpoint saved, IReadOnlyList<Fiber> restored)
     {
-        foreach (ActorState actor in saved.Actors)
+        ValidateNativeJumps(saved.Actors, saved.Scene, restored);
+    }
+
+    private void ValidateNativeJumps(IReadOnlyList<ActorState> savedActors, SceneEventState savedScene, IReadOnlyList<Fiber> restored)
+    {
+        foreach (ActorState actor in savedActors)
         {
             if (actor.NativeJump is not NativeJumpState jump)
             {
@@ -224,13 +229,13 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native JUMP lost its inherited physical motion flags or the higher request slot's original owner.");
             }
-            bool invalid = jump.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || actor.NativeTurnAccumulator474 is null or < 0 || actor.NativeTurnAccumulator474 > jump.Duration || actor.NativeMovementCompletion542 is null or > 2 || issuingScript is null || !issuingScript.ContainsOperation(jump.Operation) || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.PJUMPA) || !boundedTarget || landingHeight is null or < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, actor.NativeTurnAccumulator474!.Value) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
+            bool invalid = jump.Version != 1 || savedScene.NativeActorLayoutVersion != 1 || !savedScene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || actor.NativeTurnAccumulator474 is null or < 0 || actor.NativeTurnAccumulator474 > jump.Duration || actor.NativeMovementCompletion542 is null or > 2 || issuingScript is null || !issuingScript.ContainsOperation(jump.Operation) || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.PJUMPA) || !boundedTarget || landingHeight is null or < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, actor.NativeTurnAccumulator474!.Value) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
             if (invalid)
             {
                 throw new InvalidDataException("Saved native JUMP has inconsistent raw body, ballistic phase, landing plane or held original instruction.");
             }
         }
-        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeJump && saved.Actors[fiber.ObjectId].NativeJump is not { Active: true }))
+        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeJump && savedActors[fiber.ObjectId].NativeJump is not { Active: true }))
         {
             throw new InvalidDataException("Saved native JUMP wait has no preserved mode2 body.");
         }

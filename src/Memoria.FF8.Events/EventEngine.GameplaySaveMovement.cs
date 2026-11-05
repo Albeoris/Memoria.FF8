@@ -7,6 +7,13 @@ public sealed partial class EventEngine
 {
     public Func<ActorState, FieldFixedPosition, bool>? CanRestoreNativeScriptMovementPlacement { get; set; }
 
+    private bool IsGameplayMovementBackupPlacement(ActorState actor, SceneEventState scene, NativeScriptMovementState backup)
+    {
+        // RET8 replaces every backed-up position/triangle before resuming the lower worker.
+        // Semantic reconstruction uses its current actor pose, which may be airborne.
+        return scene.NativeFieldInitialization is { Origin: NativeFieldInitializationOrigin.GameplayContinuation } && actor.GameplayReconstruction is { Position: { } raw } origin && origin.Version == 1 && origin.FieldId == FieldId && origin.ProgramHash == programHash && origin.ObjectId == actor.ObjectId && raw.X == backup.FixedX && raw.Y == backup.FixedY && raw.Z == backup.FixedZ;
+    }
+
     private int GameplayMovementObject(int nativeIndex)
     {
         if (program is null || (uint)nativeIndex >= program.NativeObjects.Count)

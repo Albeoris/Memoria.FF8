@@ -25,7 +25,7 @@ public sealed partial class EventEngine
 
     private GameplaySaveFieldActor CaptureGameplayActor(ActorState actor)
     {
-        if (actor.NativeJump is { Active: true } || actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.MovementTarget is not null && actor.NativeScriptMovement is null || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
+        if (actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.MovementTarget is not null && actor.NativeScriptMovement is null || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
         {
             throw new NotSupportedException($"Gameplay actor {actor.ObjectId} has an unfinished movement, rotation, offset or contact operation.");
         }
@@ -61,6 +61,7 @@ public sealed partial class EventEngine
         {
             Turn = CaptureGameplaySaveTurn(actor),
             Movement = CaptureGameplayMovement(actor),
+            Jump = CaptureGameplayJump(actor),
             LadderAnimations = actor.NativeLadderAnimation is { } ladder ? new(ladder.Start594, ladder.Loop595, ladder.End596) : null
         };
     }
@@ -196,6 +197,7 @@ public sealed partial class EventEngine
         actor.NativeFootstepPair = saved.Footsteps.First is byte first && saved.Footsteps.Second is byte second ? new(1, first, second, new(1, "GameplaySave", FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, actor.ObjectId, -1, -1, Frame)) : null;
         RestoreGameplaySaveTurn(actor, saved.Turn);
         RestoreGameplayMovement(actor, saved);
+        RestoreGameplayJump(actor, saved);
         actor.NativeDisplayOffset = saved.Offset is { } offset ? new(1, offset.X, offset.Y, offset.Z, offset.StartX, offset.StartY, offset.StartZ, offset.TargetX, offset.TargetY, offset.TargetZ, offset.Duration, offset.Counter, offset.Mode) : null;
         actor.GameplayReconstruction = new(1, FieldId, programHash, actor.ObjectId, Frame, saved.Pose.FixedPosition is { } raw ? new(raw.X, raw.Y, raw.Z) : null, saved.Line, saved.Appearance, saved.Footsteps, saved.Offset);
     }
