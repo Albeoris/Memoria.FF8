@@ -35,8 +35,11 @@ public sealed partial class EventEngine
         NativeFieldParticlesState? particles = null;
         if (definition is not null)
         {
-            byte phase = saved.ParticleRandomPhase ?? throw new InvalidDataException("Gameplay particle reconstruction requires its saved local random phase.");
-            particles = NativeFieldParticlesState.Create(definition) with { RandomPhase = phase };
+            particles = NativeFieldParticlesState.Create(definition);
+            if (saved.ParticleRandomPhase is byte phase)
+            {
+                particles = particles with { RandomPhase = phase };
+            }
             foreach ((int slot, byte value) in controls)
             {
                 particles = particles.WithEmitter(slot, value);
@@ -44,7 +47,7 @@ public sealed partial class EventEngine
         }
         // Restart presentation from current resources without a warmup callback or random draw.
         Scene.NativeFieldParticles = particles;
-        Scene.NativeFieldParticleRandomPhase = saved.ParticleRandomPhase;
+        Scene.NativeFieldParticleRandomPhase = particles?.RandomPhase ?? saved.ParticleRandomPhase;
         Scene.NativeFieldParticleSprites = [];
         Scene.NativeParticleSlots.Clear();
         foreach ((int slot, byte value) in controls)

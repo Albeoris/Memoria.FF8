@@ -16,16 +16,28 @@ public sealed class GameplaySaveFieldParticleControlTests
     [InlineData(true)]
     public void Particle_controls_restart_current_visual_pool_without_advancing_gameplay_or_replaying_commands(bool changedResource)
     {
+        VerifyParticleRestart(changedResource, false);
+    }
+
+    internal static void VerifyParticleRestart(bool changedResource, bool missingSavedPhase)
+    {
         string directory = TestResources.GameDirectory;
         string fieldName;
         using (GameAssets original = new(directory))
         {
             fieldName = original.LoadField(165).Name;
         }
-        byte[] definition = Definition(32);
+        byte[] definition = missingSavedPhase ? new byte[4] : Definition(32);
         using GameAssets sourceAssets = new(directory, overrides: new ScriptOverride(fieldName));
         InstallParticles(sourceAssets, fieldName, definition);
-        Assert.Equal(definition, sourceAssets.ReadNativeFieldParticleResources(165)!.Definition);
+        if (missingSavedPhase)
+        {
+            Assert.Null(sourceAssets.ReadNativeFieldParticleResources(165));
+        }
+        else
+        {
+            Assert.Equal(definition, sourceAssets.ReadNativeFieldParticleResources(165)!.Definition);
+        }
         GameplaySaveComponentDocument initial = GameplaySaveSessionLoaderTests.Document(sourceAssets, false);
         GameSession sourceSession = new(GameplaySaveSessionLoader.Restore(initial, directory, sharedAssets: sourceAssets));
         using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets);
@@ -34,8 +46,15 @@ public sealed class GameplaySaveFieldParticleControlTests
         {
             Assert.True(source.Apply(new(PlayerActionKind.Wait)).Accepted);
         }
-        Assert.NotEmpty(source.Events.FieldParticleSprites);
+        if (!missingSavedPhase)
+        {
+            Assert.NotEmpty(source.Events.FieldParticleSprites);
+        }
         GameplaySaveFieldContinuation continuation = source.Events.CaptureGameplaySaveFieldContinuation();
+        if (missingSavedPhase)
+        {
+            continuation = continuation with { Scene = continuation.Scene with { ParticleRandomPhase = null } };
+        }
         Assert.Equal((byte)0x80, continuation.Scene.ParticleControls![0]);
         Assert.Equal((byte)1, continuation.Scene.ParticleControls[1]);
         Assert.Equal((byte)0, continuation.Scene.ParticleControls[2]);
@@ -72,7 +91,8 @@ public sealed class GameplaySaveFieldParticleControlTests
         Assert.Empty(restored.Events.Scene.NativeParticleRequests);
         Assert.Empty(restored.Events.FieldParticleSprites);
         NativeFieldParticlesState restarted = restored.Events.Scene.NativeFieldParticles!;
-        Assert.Equal(continuation.Scene.ParticleRandomPhase, restarted.RandomPhase);
+        Assert.Equal(continuation.Scene.ParticleRandomPhase ?? NativeFieldParticlesState.Create(currentDefinition).RandomPhase, restarted.RandomPhase);
+        Assert.Equal(restarted.RandomPhase, restored.Events.Scene.NativeFieldParticleRandomPhase);
         Assert.Equal(NativeFieldParticlesState.Create(currentDefinition).Memory, restarted.Memory);
         Assert.Equal((byte)0x80, restarted.Emitters[0]);
         Assert.Equal((byte)1, restarted.Emitters[1]);
