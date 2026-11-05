@@ -78,6 +78,14 @@ Hold the mapped **Camera left** control while choosing an Attack target to force
 
 Confirmation latches the displayed choice and reserves its resource for stocked spells. Two actors cannot reserve the same final use. Before execution, the engine rechecks the actor, confirmed target, ownership, status, reserved resource and any Draw source. An invalid automatic spell releases its reservation and falls back to a legal physical action or cancels; it does not silently upgrade to a different spell. Ordinary physical attacks retain gunblade timing, while automatic spells create no gunblade trigger window.
 
+## Battle magic sections and recovery shortcut
+
+The battle Magic menu groups spells in this order: multi-target attacks, single-target attacks, buffs, recovery, debuffs, and other magic such as Scan. Empty sections are skipped. The section name appears at the top of the window. Left and Right, or the arrows beside the window, switch sections; Up and Down move through every spell in the current section. The window grows into columns and scales like Draw/Cast. Page Left/Right still select the number of casts for Double/Triple.
+
+Press the mapped **Card** button while browsing Magic to move to a useful recovery spell. Revival takes priority, followed by the spell that removes the most negative statuses from one ally. Otherwise, the shortcut considers the ally with the largest missing HP and chooses the weakest available heal with at least an 80% chance of restoring all missing HP. If no heal reaches that threshold, it chooses the strongest useful heal. Spell availability, valid targets, reflection and native recovery restrictions are respected.
+
+If the cursor already points at the recommended spell, pressing **Card** selects one cast and moves the target cursor to the recommended ally. Confirm the target normally to cast; the shortcut itself spends no stock and does not advance battle randomness.
+
 ## Save compatibility
 
 Use a **Memoria** save slot whenever these rules, personal Attack choices, extra inventory entries or initialized allowance histories must be retained. Saving such a game offers the Memoria bank and keeps original FF8 files intact. Quick saves also use Memoria format.

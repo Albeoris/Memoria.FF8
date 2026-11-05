@@ -93,6 +93,7 @@ public sealed partial class BattleHudController
     {
         drawingPresentation = false;
         presentationActionChoices = null;
+        presentationMagicStockChoices = null;
     }
 
     // Share live choices only within one draw. Input and subsequent frames must see current stocks and reservations.
@@ -113,14 +114,16 @@ public sealed partial class BattleHudController
         {
             return DrawActionChoices();
         }
+        if (command == BattleAbility.Magic)
+        {
+            return MagicActionChoices();
+        }
         if (command is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
         {
             return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak);
         }
-        IReadOnlyList<BattleStock> magicStocks = command == BattleAbility.Magic ? actor.MagicStocks : [];
         return session.ActionDefinitions.Where(action => command switch
         {
-            BattleAbility.Magic => action.Ability == BattleAbility.Magic && magicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0) && session.QuoteMagic(actor.Id, action.Id).Capacity > 0,
             BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
             BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
             _ => false
@@ -333,6 +336,10 @@ public sealed partial class BattleHudController
         {
             return;
         }
+        if (NavigateMagicList(input))
+        {
+            return;
+        }
         if (input == MenuInput.Cancel)
         {
             CancelTarget();
@@ -480,7 +487,7 @@ public sealed partial class BattleHudController
                 session.OpenNativeActionMenu();
             }
             RestoreActionCursor();
-            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? SystemText("battle.ui.attack.choose.magic.page.left.right.number.of", "Choose magic. Page Left/Right: number of casts.") : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
+            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? FormatSystemText("battle.ui.magic.choose.sections.and.recovery", "Choose magic. Left/Right: sections. Page Left/Right: casts. {0}: recovery.", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 SetSystemMessage(() => SystemText("battle.ui.attack.do.over.to.change.magic.or.cast", "Do over to change magic, or Cast to accept."));

@@ -248,6 +248,10 @@ internal sealed partial class RecreateGame
         {
             navigate(keyboard.UiCharacterPage < 0 ? MenuInput.PageLeft : MenuInput.PageRight);
         }
+        if (keyboard.UiDetailRequested)
+        {
+            navigate(MenuInput.Alternate);
+        }
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
             navigate(MenuInput.Confirm);

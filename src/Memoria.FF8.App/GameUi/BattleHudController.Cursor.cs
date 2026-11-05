@@ -64,6 +64,11 @@ public sealed partial class BattleHudController
     private void RestoreActionCursor()
     {
         CursorSelection? memory = RememberedAction();
+        if (SelectedCommand == BattleAbility.Magic)
+        {
+            BattleActionDefinition? action = MagicStockChoices().FirstOrDefault(action => action.Id == memory?.ActionId && action.Available);
+            magicSection = action is null ? MagicSections.FirstOrDefault() : ClassifyMagic(action);
+        }
         actionIndex = memory is null ? 0 : Math.Max(0, ActionChoices.ToList().FindIndex(action => action.Id == memory.ActionId && action.Ability == memory.ActionAbility && action.Available));
     }
 
