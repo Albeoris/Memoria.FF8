@@ -15,16 +15,28 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     private bool disposed;
     private readonly uint origin;
     private readonly int length;
-    private const int PageLength = 0x4000;
+    private const int PageLength = NativeBattleFileStagingWorkingOwner.PageLength;
     private readonly Dictionary<int, Page> pages = [];
 
-    private sealed class Page(int length)
+    private sealed class Page(int length, NativeBattleStagingPage content)
     {
-        internal readonly byte[] Bytes = new byte[length];
-        internal readonly bool[] Known = new bool[length];
+        internal readonly int Length = length;
+        internal NativeBattleStagingPage Content = content;
         internal readonly bool[] Changed = new bool[length];
         internal readonly bool[] Publish = new bool[length];
+
+        internal NativeBattleWorkingMemory Writable()
+        {
+            if (Content.Working is null)
+            {
+                Content = new(Content.Materialize());
+            }
+            return Content.Working!;
+        }
     }
+
+    internal int MaterializedPageCount => pages.Values.Count(page => page.Content.Working is not null);
+
     private readonly List<(int First, int End)> observedCpuRanges = [];
 
     internal NativeFieldRegistrationMemory(NativeBattleFileStaging source, uint first, uint end)
@@ -66,7 +78,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             SetKnown(first, layout.BankLength, false, true);
             foreach (NativeBattleModelResourceSegment range in cpu.Cpu.Banks[bank].GuestSegments)
             {
-                Store(first + range.Offset, range.Data.Span, false);
+                Bind(first + range.Offset, range.Source, range.SourceOffset, range.Length, false);
             }
         }
     }
@@ -77,6 +89,8 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         current.Validate();
         NativeBattlePartyCpuLayout layout = current.Cpu.EffectiveLayout;
         ImmutableArray<NativeBattleModelCpuBank> banks = current.Cpu.Banks;
+        Span<byte> currentBytes = stackalloc byte[PageLength];
+        Span<bool> currentKnown = stackalloc bool[PageLength];
         for (int bank = 0; bank < 3; bank++)
         {
             int first = Index(checked(layout.BaseAddress + (uint)bank * (uint)layout.BankLength), layout.BankLength);
@@ -97,13 +111,13 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
                 int count = Math.Min(data.Length - offset, PageLength - index % PageLength);
                 if (pages.TryGetValue(index / PageLength, out Page? page))
                 {
+                    page.Content.ReadWithKnownness(index % PageLength, currentBytes[..count], currentKnown[..count]);
                     for (int item = 0; item < count; item++)
                     {
-                        int local = index % PageLength + item;
-                        if (page.Changed[local])
+                        if (page.Changed[index % PageLength + item])
                         {
-                            observed[offset + item] = page.Known[local];
-                            data[offset + item] = page.Bytes[local];
+                            observed[offset + item] = currentKnown[item];
+                            data[offset + item] = currentBytes[item];
                         }
                     }
                 }
@@ -172,19 +186,30 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     private void ReadKnown(uint address, Span<byte> data)
     {
         int index = Index(address, data.Length);
+        Span<bool> observed = stackalloc bool[PageLength];
         for (int offset = 0; offset < data.Length;)
         {
             int position = index + offset;
             Page page = GetPage(position);
             int local = position % PageLength;
-            int count = Math.Min(data.Length - offset, page.Bytes.Length - local);
-            if (page.Known.AsSpan(local, count).Contains(false))
+            int count = Math.Min(data.Length - offset, page.Length - local);
+            page.Content.ReadWithKnownness(local, data.Slice(offset, count), observed[..count]);
+            if (observed[..count].Contains(false))
             {
                 throw new NotSupportedException($"Native field registration requires unresolved physical bytes at0x{address:X}.");
             }
-            page.Bytes.AsSpan(local, count).CopyTo(data[offset..]);
             offset += count;
         }
+    }
+
+    internal void BindResource(uint address, ImmutableArray<byte> data, int sourceOffset, int length)
+    {
+        RequireMutable();
+        if (data.IsDefault || sourceOffset < 0 || length < 0 || sourceOffset > data.Length - length)
+        {
+            throw new InvalidDataException("Field resource binding exceeds its immutable source section.");
+        }
+        Bind(Index(address, length), data, sourceOffset, length, true);
     }
 
     internal void Write(uint address, ReadOnlySpan<byte> data)
@@ -213,16 +238,16 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     {
         RequireMutable();
         int index = Index(address, length);
+        Span<byte> bytes = stackalloc byte[PageLength];
+        bytes.Fill(value);
         for (int offset = 0; offset < length;)
         {
             int position = index + offset;
             Page page = GetPage(position);
             int local = position % PageLength;
-            int count = Math.Min(length - offset, page.Bytes.Length - local);
-            page.Bytes.AsSpan(local, count).Fill(value);
-            page.Known.AsSpan(local, count).Fill(true);
-            page.Changed.AsSpan(local, count).Fill(true);
-            page.Publish.AsSpan(local, count).Fill(true);
+            int count = Math.Min(length - offset, page.Length - local);
+            page.Writable().Write(local, bytes[..count]);
+            Mark(page, local, count, true);
             offset += count;
         }
     }
@@ -239,24 +264,28 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         RequireMutable();
         int from = Index(sourceAddress, length);
         int to = Index(destination, length);
-        // Copy toward the source when ranges overlap, preserving both bytes and unknownness.
-        Span<byte> data = stackalloc byte[Math.Min(length, PageLength)];
-        Span<bool> observed = stackalloc bool[data.Length];
         bool backward = to > from && to - from < length;
         for (int copied = 0; copied < length;)
         {
-            int count = Math.Min(length - copied, data.Length);
+            int count = Math.Min(length - copied, PageLength);
             int offset = backward ? length - copied - count : copied;
-            Load(from + offset, data[..count], observed[..count]);
-            Store(to + offset, data[..count], true);
-            for (int item = 0; item < count;)
+            int sourceIndex = from + offset;
+            Page first = GetPage(sourceIndex);
+            int local = sourceIndex % PageLength;
+            int firstCount = Math.Min(count, first.Length - local);
+            first.Content = first.Content.Freeze();
+            NativeBattleStagingPage firstSource = first.Content;
+            NativeBattleStagingPage? secondSource = null;
+            if (firstCount < count)
             {
-                int position = to + offset + item;
-                Page page = GetPage(position);
-                int local = position % PageLength;
-                int take = Math.Min(count - item, page.Bytes.Length - local);
-                observed.Slice(item, take).CopyTo(page.Known.AsSpan(local, take));
-                item += take;
+                Page second = GetPage(sourceIndex + firstCount);
+                second.Content = second.Content.Freeze();
+                secondSource = second.Content;
+            }
+            CopyImmutable(to + offset, firstSource, local, firstCount);
+            if (secondSource is not null)
+            {
+                CopyImmutable(to + offset + firstCount, secondSource, 0, count - firstCount);
             }
             copied += count;
         }
@@ -317,7 +346,8 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             int end = publish[range].End;
             Page page = GetPage(first);
             int local = first % PageLength;
-            source.WriteWithKnownness(checked(origin + (uint)first), page.Bytes.AsSpan(local, end - first), page.Known.AsSpan(local, end - first));
+            page.Content = page.Content.Freeze();
+            page.Content.Publish(source, checked(origin + (uint)first), local, end - first);
         }
         foreach ((uint address, NativeBattleResourcePointer? pointer) in receipts)
         {
@@ -394,8 +424,19 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         if (!pages.TryGetValue(number, out Page? page))
         {
             int first = number * PageLength;
-            page = new(Math.Min(PageLength, length - first));
-            source.ReadWithKnownness(checked(origin + (uint)first), page.Bytes, page.Known);
+            int count = Math.Min(PageLength, length - first);
+            uint address = checked(origin + (uint)first);
+            NativeBattleStagingPage content;
+            if (source.TryBorrowResource(address, count, out ImmutableArray<byte> resource, out int offset))
+            {
+                content = NativeBattleStagingPage.Bind(null, 0, resource, offset, count);
+            }
+            else
+            {
+                (byte[] bytes, bool[] known) = source.ReadSnapshot(address, count);
+                content = NativeBattleStagingPage.FromOwnedSnapshot(bytes, known);
+            }
+            page = new(count, content);
             pages.Add(number, page);
         }
         return page;
@@ -408,9 +449,49 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             int position = index + offset;
             Page page = GetPage(position);
             int local = position % PageLength;
-            int count = Math.Min(data.Length - offset, page.Bytes.Length - local);
-            page.Bytes.AsSpan(local, count).CopyTo(data[offset..]);
-            page.Known.AsSpan(local, count).CopyTo(observed[offset..]);
+            int count = Math.Min(data.Length - offset, page.Length - local);
+            page.Content.ReadWithKnownness(local, data.Slice(offset, count), observed.Slice(offset, count));
+            offset += count;
+        }
+    }
+
+    private static void Mark(Page page, int offset, int length, bool changed)
+    {
+        page.Publish.AsSpan(offset, length).Fill(true);
+        if (changed)
+        {
+            page.Changed.AsSpan(offset, length).Fill(true);
+        }
+    }
+
+    private void Bind(int index, ImmutableArray<byte> resource, int sourceOffset, int length, bool changed)
+    {
+        for (int offset = 0; offset < length;)
+        {
+            int position = index + offset;
+            Page page = GetPage(position);
+            int local = position % PageLength;
+            int count = Math.Min(length - offset, page.Length - local);
+            page.Content = NativeBattleStagingPage.Bind(page.Content, local, resource, sourceOffset + offset, count);
+            Mark(page, local, count, changed);
+            offset += count;
+        }
+    }
+
+    private void CopyImmutable(int index, NativeBattleStagingPage resource, int sourceOffset, int length)
+    {
+        for (int offset = 0; offset < length;)
+        {
+            int position = index + offset;
+            Page page = GetPage(position);
+            int local = position % PageLength;
+            int count = Math.Min(length - offset, page.Length - local);
+            if (local != 0 || count != page.Length)
+            {
+                page.Content = page.Content.Freeze();
+            }
+            page.Content = NativeBattleStagingPage.Copy(page.Content, local, resource, sourceOffset + offset, count);
+            Mark(page, local, count, true);
             offset += count;
         }
     }
@@ -422,32 +503,35 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             int position = index + offset;
             Page page = GetPage(position);
             int local = position % PageLength;
-            int count = Math.Min(data.Length - offset, page.Bytes.Length - local);
-            data.Slice(offset, count).CopyTo(page.Bytes.AsSpan(local, count));
-            page.Known.AsSpan(local, count).Fill(true);
-            page.Publish.AsSpan(local, count).Fill(true);
-            if (changed)
-            {
-                page.Changed.AsSpan(local, count).Fill(true);
-            }
+            int count = Math.Min(data.Length - offset, page.Length - local);
+            page.Writable().Write(local, data.Slice(offset, count));
+            Mark(page, local, count, changed);
             offset += count;
         }
     }
 
     private void SetKnown(int index, int count, bool value, bool observedCpu)
     {
+        Span<byte> bytes = stackalloc byte[PageLength];
+        Span<bool> known = stackalloc bool[PageLength];
+        known.Fill(value);
         for (int offset = 0; offset < count;)
         {
             int position = index + offset;
             Page page = GetPage(position);
             int local = position % PageLength;
-            int take = Math.Min(count - offset, page.Bytes.Length - local);
-            page.Known.AsSpan(local, take).Fill(value);
-            page.Publish.AsSpan(local, take).Fill(true);
-            if (!observedCpu)
+            int take = Math.Min(count - offset, page.Length - local);
+            if (value)
             {
-                page.Changed.AsSpan(local, take).Fill(true);
+                page.Content.ReadWithKnownness(local, bytes[..take], known[..take]);
+                known[..take].Fill(true);
+                page.Writable().WriteWithKnownness(local, bytes[..take], known[..take]);
             }
+            else
+            {
+                page.Writable().MarkUnknown(local, take);
+            }
+            Mark(page, local, take, !observedCpu);
             offset += take;
         }
     }

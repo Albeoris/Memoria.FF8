@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -257,6 +258,92 @@ public sealed class NativeFieldRegistrationMemoryTests
         Assert.False(source.TryGetResourcePointerMetadata(bankAddress + 16, out _));
         Assert.False(AllKnown(source, bankAddress + 24, 1));
         Assert.Equal((byte)99, source.ReadSnapshot(bankAddress + 24, 1).Data[0]);
+    }
+
+    [Theory]
+    [InlineData(-33)]
+    [InlineData(257)]
+    public void Immutable_source_relocation_retains_original_slices_and_memmove_order(int displacement)
+    {
+        ImmutableArray<byte> original = Enumerable.Range(0, 18000).Select(index => (byte)(index % 251)).ToImmutableArray();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Rebase(Address);
+        uint first = Address + 4096;
+        uint destination = checked((uint)((long)first + displacement));
+        byte[] expected = original.AsSpan(17, 16000).ToArray();
+        expected.AsSpan(1000, 12000).CopyTo(expected.AsSpan(1000 + displacement, 12000));
+        using (NativeFieldRegistrationMemory memory = new(staging, Address, Address + 24000))
+        {
+            memory.BindResource(first, original, 17, 16000);
+            memory.Copy(first + 1000, destination + 1000, 12000);
+            Assert.Equal(0, memory.MaterializedPageCount);
+            Assert.Equal(expected, memory.Read(first, 16000));
+            NativeBattleFileStaging prepared = memory.Prepare();
+            Assert.True(prepared.TryBorrowResource(destination + 1000, 12000, out ImmutableArray<byte> retained, out int offset));
+            Assert.Equal(original, retained);
+            Assert.Equal(1017, offset);
+            Assert.Equal(0, memory.MaterializedPageCount);
+            Assert.Equal(0, prepared.MaterializedPageCount);
+            Assert.False(AllKnown(staging, first, 1));
+            memory.Finish();
+        }
+        Assert.Equal(expected, staging.Read(first, 16000));
+        Assert.Equal(0, staging.MaterializedPageCount);
+        Assert.Equal((byte)(1017 % 251), original[1017]);
+    }
+
+    [Fact]
+    public void Scalar_conversion_freezes_only_its_page_and_preserves_source_and_historical_readers()
+    {
+        ImmutableArray<byte> original = Enumerable.Range(0, 18000).Select(index => (byte)(index % 251)).ToImmutableArray();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Rebase(Address).BindResource(Address, original, 17, 16000);
+        using NativeBattleStagingReadWindow history = staging.OpenReadWindow(Address, 16000, maximumRetainedBytes: 0);
+        using (NativeFieldRegistrationMemory memory = new(staging, Address, Address + 20000))
+        {
+            Assert.Equal(original[5017], memory.Read8(Address + 5000));
+            Assert.Equal(0, memory.MaterializedPageCount);
+            memory.Write8(Address + 5000, 0xFE);
+            memory.Write8(Address + 5001, 0xFD);
+            Assert.Equal(1, memory.MaterializedPageCount);
+            NativeBattleFileStaging prepared = memory.Prepare();
+            Assert.Equal(0, memory.MaterializedPageCount);
+            Assert.True(prepared.TryBorrowResource(Address + 8192, 4096, out ImmutableArray<byte> untouched, out int offset));
+            Assert.Equal(original, untouched);
+            Assert.Equal(8209, offset);
+            Assert.True(prepared.TryBorrowResource(Address + 5000, 2, out ImmutableArray<byte> converted, out offset));
+            Assert.NotEqual(original, converted);
+            Assert.Equal(4096, converted.Length);
+            Assert.Equal((byte)0xFE, converted[5000 - 4096]);
+            Assert.Equal(5000 - 4096, offset);
+            memory.Finish();
+        }
+        Assert.Equal(original[5017], history.ReadByte(5000));
+        Assert.Equal(0, history.RetainedByteCount);
+        Assert.Equal((byte)(5017 % 251), original[5017]);
+        Assert.Equal((byte)0xFE, staging.ReadByte(Address + 5000));
+        Assert.Equal(0, staging.MaterializedPageCount);
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(staging))!);
+        Assert.Equal(staging.ReadSnapshot(Address, 20000).Data, restored.ReadSnapshot(Address, 20000).Data);
+        Assert.Equal(staging.ReadSnapshot(Address, 20000).Known, restored.ReadSnapshot(Address, 20000).Known);
+    }
+
+    [Fact]
+    public void Partial_source_binding_preserves_unknown_neighbors_and_abandoned_publication()
+    {
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Rebase(Address).Write(Address, [0xA1, 0xB2, 0xC3, 0xD4]).MarkUnknown(Address, 4);
+        ImmutableArray<byte> original = Enumerable.Range(0, 9000).Select(index => (byte)(index % 251)).ToImmutableArray();
+        string before = SnapshotJson(staging);
+        using (NativeFieldRegistrationMemory memory = new(staging, Address, Address + 14000))
+        {
+            memory.BindResource(Address + 3, original, 19, 8000);
+            NativeBattleFileStaging prepared = memory.Prepare();
+            Assert.Equal(new byte[] { 0xA1, 0xB2, 0xC3, original[19] }, prepared.ReadSnapshot(Address, 4).Data);
+            Assert.Equal(new[] { false, false, false, true }, prepared.ReadSnapshot(Address, 4).Known);
+            Assert.True(prepared.TryBorrowResource(Address + 3, 8000, out ImmutableArray<byte> retained, out int offset));
+            Assert.Equal(original, retained);
+            Assert.Equal(19, offset);
+            Assert.Equal(0, memory.MaterializedPageCount);
+        }
+        Assert.Equal(before, SnapshotJson(staging));
     }
 
     private static bool AllKnown(NativeBattleFileStaging memory, uint address, int length) => memory.ReadSnapshot(address, length).Known.All(value => value);

@@ -155,7 +155,7 @@ public static partial class NativeFieldRegistrationMachine
         uint cursor = RebindProgram(memory, loader, actors, layout.ArenaAddress);
         if (loader.Colors is { } colors)
         {
-            memory.Write(cursor, colors.Data.AsSpan());
+            memory.BindResource(cursor, colors.Data, 0, colors.Data.Length);
             cursor = checked(cursor + (uint)colors.Data.Length);
         }
         uint preModel = cursor;
@@ -176,7 +176,7 @@ public static partial class NativeFieldRegistrationMachine
             SelectedModel item = new(model, selected.Count, entry);
             item.SourceHash = source.One.Sha256;
             item.SourceOffset = checked(entry.Offset + entry.ModelOffset);
-            memory.Write(inputEnd, source.One.Data.AsSpan().Slice(entry.Offset, entry.Size));
+            memory.BindResource(inputEnd, source.One.Data, entry.Offset, entry.Size);
             if ((entry.Flag >> 28) == 0xD)
             {
                 item.Animation = inputEnd;
@@ -209,7 +209,7 @@ public static partial class NativeFieldRegistrationMachine
             string member = "/" + item.Entry.Name[..4] + ".mch";
             NativeFieldModelSource main = source.MainCharacters.Single(model => model.Member.EndsWith(member, StringComparison.OrdinalIgnoreCase));
             uint beginning = inputEnd;
-            memory.Write(beginning, main.Data.AsSpan());
+            memory.BindResource(beginning, main.Data, 0, main.Data.Length);
             uint pointer = beginning;
             while (unchecked((int)memory.Read32(pointer)) >= 0)
             {
@@ -345,7 +345,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Native retained JSM pointer table is outside its original signed offset domain.");
         }
-        memory.Write(ProgramSource, program);
+        memory.BindResource(ProgramSource, loader.Program.Data, 0, loader.Program.Data.Length);
         uint tableAddress = checked(arenaAddress + (uint)loader.AllocationPrefixBytes);
         int pointers = (code - table) / 2;
         uint operations = checked((tableAddress + (uint)pointers * 2 + 3) & ~3u);

@@ -23,11 +23,13 @@ internal sealed class NativeBattleStagingPage : INativeBattleReadWindowSource
         this.regions = regions;
     }
 
-    internal static NativeBattleStagingPage Bind(NativeBattleStagingPage? previous, int first, ImmutableArray<byte> source, int sourceOffset, int length)
+    internal static NativeBattleStagingPage Bind(NativeBattleStagingPage? previous, int first, ImmutableArray<byte> source, int sourceOffset, int length) => Bind(previous, first, source, sourceOffset, length, default);
+
+    private static NativeBattleStagingPage Bind(NativeBattleStagingPage? previous, int first, ImmutableArray<byte> source, int sourceOffset, int length, ImmutableArray<bool> known)
     {
         ImmutableArray<Region>.Builder regions = ImmutableArray.CreateBuilder<Region>();
         Preserve(0, Math.Min(first, previous?.StoredLength ?? 0));
-        Append(new(first, source, sourceOffset, length, default));
+        Append(new(first, source, sourceOffset, length, known));
         int end = first + length;
         Preserve(end, Math.Max(0, (previous?.StoredLength ?? 0) - end));
         return new(regions.ToImmutable());
@@ -67,6 +69,107 @@ internal sealed class NativeBattleStagingPage : INativeBattleReadWindowSource
             bool[] known = new bool[count];
             previous.ReadWithKnownness(offset, bytes, known);
             Append(new(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), 0, count, known.All(value => value) ? default : ImmutableCollectionsMarshal.AsImmutableArray(known)));
+        }
+    }
+
+    internal static NativeBattleStagingPage FromOwnedSnapshot(byte[] data, bool[] known)
+    {
+        if (data.Length != known.Length || data.Length > NativeBattleFileStagingWorkingOwner.PageLength)
+        {
+            throw new InvalidDataException("Native source-backed page snapshot requires matching bounded data and knownness.");
+        }
+        return new([new(0, ImmutableCollectionsMarshal.AsImmutableArray(data), 0, data.Length, known.All(value => value) ? default : ImmutableCollectionsMarshal.AsImmutableArray(known))]);
+    }
+
+    internal NativeBattleStagingPage Freeze()
+    {
+        if (Working is null)
+        {
+            return this;
+        }
+        byte[] data = new byte[StoredLength];
+        bool[] known = new bool[data.Length];
+        Working.ReadWithKnownness(0, data, known);
+        return FromOwnedSnapshot(data, known);
+    }
+
+    internal static NativeBattleStagingPage Copy(NativeBattleStagingPage? previous, int first, NativeBattleStagingPage source, int sourceOffset, int length)
+    {
+        NativeBattleStagingPage frozen = source.Freeze();
+        NativeBattleStagingPage? result = previous;
+        int observed = 0;
+        foreach (Region region in frozen.regions)
+        {
+            int start = Math.Max(sourceOffset, region.Offset);
+            int end = Math.Min(sourceOffset + length, region.Offset + region.Length);
+            if (end <= start)
+            {
+                continue;
+            }
+            int destination = start - sourceOffset;
+            Gap(destination);
+            result = Bind(result, first + destination, region.Source, region.SourceOffset + start - region.Offset, end - start, region.Known.IsDefaultOrEmpty ? default : region.Known.Slice(start - region.Offset, end - start));
+            observed = end - sourceOffset;
+        }
+        Gap(length);
+        return result ?? throw new InvalidDataException("Native page copy requires an explicit destination or nonempty source.");
+
+        void Gap(int end)
+        {
+            if (end > observed)
+            {
+                int count = end - observed;
+                result = Bind(result, first + observed, new byte[count].ToImmutableArray(), 0, count, new bool[count].ToImmutableArray());
+                observed = end;
+            }
+        }
+    }
+
+    internal void Publish(NativeBattleFileStaging destination, uint address, int offset, int length)
+    {
+        if (Working is not null)
+        {
+            throw new InvalidOperationException("Native source publication requires its frozen page owner.");
+        }
+        int observed = offset;
+        foreach (Region region in regions)
+        {
+            int first = Math.Max(offset, region.Offset);
+            int end = Math.Min(offset + length, region.Offset + region.Length);
+            if (end <= first)
+            {
+                continue;
+            }
+            if (first != observed)
+            {
+                throw new InvalidDataException("Native published page range requires explicit retained data and knownness.");
+            }
+            for (int cursor = first; cursor < end;)
+            {
+                int local = cursor - region.Offset;
+                bool known = region.Known.IsDefaultOrEmpty || region.Known[local];
+                int next = cursor + 1;
+                while (next < end && (region.Known.IsDefaultOrEmpty || region.Known[next - region.Offset]) == known)
+                {
+                    next++;
+                }
+                uint target = checked(address + (uint)(cursor - offset));
+                int source = region.SourceOffset + local;
+                if (known)
+                {
+                    destination.BindResource(target, region.Source, source, next - cursor);
+                }
+                else
+                {
+                    destination.WriteWithKnownness(target, region.Source.AsSpan(source, next - cursor), region.Known.AsSpan(local, next - cursor));
+                }
+                cursor = next;
+            }
+            observed = end;
+        }
+        if (observed != offset + length)
+        {
+            throw new InvalidDataException("Native published page range exceeds its retained source sections.");
         }
     }
 

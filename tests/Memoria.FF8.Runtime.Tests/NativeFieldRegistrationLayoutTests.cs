@@ -130,6 +130,9 @@ public sealed class NativeFieldRegistrationLayoutTests
         Assert.Equal(temporary - 16, result.State.RelocatedSourceAddress);
         Assert.Equal(limit, result.State.RelocatedSourceAddress + (uint)result.State.RelocatedSourceLength);
         Assert.Equal(marker, result.Memory.FileStaging!.Read(limit - 4, 4));
+        Assert.True(result.Memory.FileStaging.TryBorrowResource(limit - 8192, 8192, out ImmutableArray<byte> retained, out int sourceOffset));
+        Assert.Equal(source.One.Data, retained);
+        Assert.Equal(source.One.Data.Length - 8192, sourceOffset);
         Assert.Equal(new byte[] { 0x34, 0x12 }, result.Uploads[0].Bytes.ToArray());
         Assert.Equal(marker, source.One.Data.AsSpan()[(source.One.Data.Length - 4)..].ToArray());
         const uint untouched = arena + 16;
