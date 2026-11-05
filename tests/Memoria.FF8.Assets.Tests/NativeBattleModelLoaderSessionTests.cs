@@ -61,6 +61,8 @@ public sealed class NativeBattleModelLoaderSessionTests
         }
         Assert.True(first.NativeEntryReady);
         Assert.True(second.NativeEntryReady);
+        NativeBattleGraphicsEntryTests.AssertOwnedEnemyResources(first);
+        NativeBattleGraphicsEntryTests.AssertOwnedEnemyResources(second);
         NativeBattleGraphicsModel model = first.NativeGraphics!.Models[0];
         Assert.Equal((byte?)2, model.EffectCounter97);
         Assert.Equal(model.ActiveResourceRow100, model.OriginalResourceRow104);

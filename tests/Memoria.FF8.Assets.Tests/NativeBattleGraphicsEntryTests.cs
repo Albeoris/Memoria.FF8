@@ -27,6 +27,8 @@ public sealed class NativeBattleGraphicsEntryTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
         Assert.True(battle.NativeEntryReady);
+        AssertOwnedEnemyResources(battle);
+        AssertOwnedEnemyResources(restored);
         Assert.Equal(0, battle.NativeCameraTaskMask);
         Assert.Equal(0, battle.Frame);
     }
@@ -333,6 +335,35 @@ public sealed class NativeBattleGraphicsEntryTests
         battle.Tick();
         Assert.Equal(callback + 1, battle.NativeGraphics.Callback);
         Assert.Equal(texts, battle.Events.Count(item => item.Kind == "NativeText"));
+    }
+
+    internal static void AssertOwnedEnemyResources(BattleSession session)
+    {
+        NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
+        Assert.NotNull(cpu);
+        Assert.NotNull(cpu.EnemyResources);
+        Assert.NotEmpty(cpu.EnemyResources);
+        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        foreach (NativeBattleGraphicsBinding binding in session.Capture().Definition.NativeGraphics!.Bindings.Where(binding => binding.ModelId >= 16))
+        {
+            int actor = graphics.ActorIds.IndexOf(binding.ActorId);
+            Assert.True(actor >= 0);
+            int rowIndex = graphics.Models[actor].ActiveResourceRow100!.Value;
+            NativeBattleModelCpuResourceRow row = cpu.Rows[rowIndex];
+            foreach (int field in new[] { 12, 16 })
+            {
+                NativeBattleModelCpuReference reference = row.Require(field);
+                int owner = Assert.IsType<int>(reference.EnemyResourceId);
+                Assert.Same(cpu.EnemyResources[owner], cpu.GetResourceBank(reference));
+                Assert.Null(reference.TryPhysicalAddress());
+                Assert.Throws<NotSupportedException>(() => reference.SharedAddress);
+            }
+            NativeBattleGraphicsResource resolved = NativeBattleEnemyResourceView.Resolve(cpu, session.NativeFileStaging!, rowIndex, binding.Resource);
+            Assert.NotNull(resolved.PoseSource);
+            Assert.True(resolved.PoseSource.BoneCount > 0);
+            Assert.NotEmpty(resolved.Geometry!.Value);
+        }
+        Assert.Equal(0, session.Frame);
     }
 
     internal static BattleSession Create(GameAssets game, BattleAssets assets, int model, bool ready = true, NativeBattleAiDefinition? ai = null, BattleEncounter? formation = null)
