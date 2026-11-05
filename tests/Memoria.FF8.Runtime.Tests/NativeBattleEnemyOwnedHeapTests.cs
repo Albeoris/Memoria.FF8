@@ -59,18 +59,39 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, pin, pin.Length!.Value + 1));
     }
 
-    [Fact]
-    public void Fresh_enemy_io_retains_DAT_without_changing_guest()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Enemy_io_publication_keeps_legacy_default_and_owned_mode_through_phase_snapshots(bool owned)
     {
         NativeBattleModelDatSource source = Source(0x70004);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         staging.WriteByte(NativeBattleFileStaging.Address, 0xA7);
         NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080(16, 0, 0, 0, 0);
-        NativeBattleModelLoadStep step = loader.Poll507070(-1, [source], staging);
-        Assert.Equal(source, step.State.Task!.ResourceSource);
-        Assert.Equal(0xA7, step.Staging.ReadByte(NativeBattleFileStaging.Address));
-        NativeBattleModelLoadTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoadTask>(NativeBattleTestSnapshots.Json(step.State.Task));
-        Assert.Equal(source.Bytes, restored.ResourceSource!.Bytes);
+        NativeBattleModelLoadStep requested = owned ? loader.Poll507070(-1, [source], staging, ownedEnemySource: true) : loader.Poll507070(-1, [source], staging);
+        Assert.Equal(owned, requested.State.Task!.ResourceSource is not null);
+        Assert.Equal(owned ? 0xA7 : source.Bytes[0], requested.Staging.ReadByte(NativeBattleFileStaging.Address));
+        if (!owned)
+        {
+            Assert.Equal(source.Bytes, requested.Staging.ReadDat(NativeBattleFileStaging.Address));
+        }
+        Loading phase1 = NativeBattleTestSnapshots.RestoreJson<Loading>(NativeBattleTestSnapshots.Json(new Loading(requested.State, requested.Staging)));
+        NativeBattleModelLoadStep prepared = phase1.Loader.Poll507070(source.Bytes.Length, [source], phase1.Staging);
+        Assert.Equal(owned, prepared.State.Task!.ResourceSource is not null);
+        Assert.Equal(owned ? 0xA7 : source.Bytes[0], prepared.Staging.ReadByte(NativeBattleFileStaging.Address));
+        Loading phase2 = NativeBattleTestSnapshots.RestoreJson<Loading>(NativeBattleTestSnapshots.Json(new Loading(prepared.State, prepared.Staging)));
+        NativeBattleModelLoadStep completed = phase2.Loader.Poll507070(source.Bytes.Length, [source], phase2.Staging);
+        Assert.Null(completed.State.Task);
+        Assert.Equal(source.ModelId, completed.Bind!.PreparedDat.ModelId);
+        Assert.Equal(source.Bytes.Length, completed.Bind.PreparedDat.Bytes.Length);
+        if (!owned)
+        {
+            Assert.Equal(completed.Bind.PreparedDat.Bytes, completed.Staging.ReadDat(NativeBattleFileStaging.Address));
+        }
+        else
+        {
+            Assert.Equal(0xA7, completed.Staging.ReadByte(NativeBattleFileStaging.Address));
+        }
     }
 
     [Fact]
@@ -139,6 +160,8 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4 + sections.Length * 4), cursor);
         return new(16, false, 0, 166, "model.dat", bytes.ToImmutableArray());
     }
+
+    private sealed record Loading(NativeBattleModelLoader Loader, NativeBattleFileStaging Staging);
 
     private sealed record Saved(NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging, NativeBattleResourcePointer Pin);
 }

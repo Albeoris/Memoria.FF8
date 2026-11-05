@@ -88,7 +88,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         return new(Task: linked && model == 7 ? null : new((byte)model, physicalIndex, argument, linked ? linkedSelector128 : bodySelector129, callback, 0));
     }
 
-    public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging, ushort enemyBlockedSlots = 63)
+    public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging, ushort enemyBlockedSlots = 63, bool ownedEnemySource = false)
     {
         Validate();
         staging.Validate();
@@ -101,7 +101,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             NativeBattleModelDatSource source = SelectSource(task, sources);
             PartyPlan?.RequireSource(task, source, true);
             _ = source.Section(0);
-            bool ownedSource = task.Callback is 0x507120 or 0x507F80;
+            bool ownedSource = ownedEnemySource && task.Callback is 0x507120 or 0x507F80;
             NativeBattleModelLoadTask next = task with { Phase = 1, File = new(source.FileId, source.Name), ResourceSource = ownedSource ? source : null };
             if (!ownedSource)
             {

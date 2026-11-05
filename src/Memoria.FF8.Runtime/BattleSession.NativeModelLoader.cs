@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native model callback requires its retained shared199B018 staging bytes; migrate an older active load explicitly.");
         }
-        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), NativeModelTextureCache?.BlockedSlots ?? 63);
+        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), NativeModelTextureCache?.BlockedSlots ?? 63, ownedEnemySource: NativeModelCpuResources?.EnemyResources is not null);
         if (step.FileRequest is not null)
         {
             //508480 writes the result gate before482610's synchronous read and delayed508470 callback.
