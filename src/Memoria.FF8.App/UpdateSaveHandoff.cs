@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 internal sealed record UpdateSaveResult(bool Saved, string Path);
 
 /// <summary>Publishes a validated standalone continuation without replacing any existing save.</summary>
-internal sealed class UpdateSaveHandoff(Func<GameState> capture, Action<GameState> validateContinuation, Action ensureSafe, TimeProvider? timeProvider = null)
+internal sealed class UpdateSaveHandoff(Func<GameState> capture, Action<GameState> validateContinuation, Action ensureSafe, TimeProvider? timeProvider = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     public bool Paused { get; private set; }
@@ -39,7 +39,14 @@ internal sealed class UpdateSaveHandoff(Func<GameState> capture, Action<GameStat
         string staging = fullPath + "." + Guid.NewGuid().ToString("N") + ".pending";
         try
         {
-            new GameSession(state).Save(staging, compact: true, validateContinuation);
+            if (writeGameplay is not null)
+            {
+                _ = writeGameplay(staging, validateContinuation, null);
+            }
+            else
+            {
+                new GameSession(state).Save(staging, compact: true, validateContinuation);
+            }
             EnsureNotExpired(expiresAt.Value);
             File.Move(staging, fullPath);
             Paused = true;

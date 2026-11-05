@@ -8,6 +8,8 @@ The opt-in component codec is separate from the existing execution snapshot and 
 
 The player store can use this host writer for both manual slots and rotating quicksaves. It supplies monotonic quicksave file timestamps to the publisher and retires older files only after successful publication. The optional document `SavedLocalAt` records display metadata independently of filesystem copy times; older documents without it remain readable.
 
+Update handoff can use the same publisher. Its outer staging boundary still checks expiry and publishes without replacement; a destination created during validation is preserved, staging is retired, and the running host is not paused on failure. Production UI/update routing remains on execution snapshots until the live field continuation boundary is complete.
+
 ## Ownership and absence
 
 | Component | Saved authority | Reconstructed or excluded | Version 1 absence policy |
