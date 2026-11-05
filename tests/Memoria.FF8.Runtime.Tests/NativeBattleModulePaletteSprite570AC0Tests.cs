@@ -49,7 +49,9 @@ public sealed class NativeBattleModulePaletteSprite570AC0Tests
         NativeBattleModuleDraw draw = Assert.Single(paused.Draws);
         Assert.Equal((ushort)1, draw.Phase);
         Assert.Equal(123, draw.DepthOffset);
-        Assert.Equal(state.Slots[0], paused.State.Slots[0]);
+        Assert.Equal(JsonSerializer.Serialize(state.Slots[0]), JsonSerializer.Serialize(paused.State.Slots[0]));
+        Assert.NotNull(draw.PilotIdentity);
+        Assert.Equal(draw.Resource!.Address, draw.PilotIdentity!.Value.ResourceGeneration);
         Assert.Equal(inputs.CrtRandom, paused.CrtRandomAfter);
         NativeBattleModuleStep completed = paused.State.Advance(inputs with { GraphicsFlags = 0 });
         Assert.Single(completed.Draws);

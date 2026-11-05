@@ -35,7 +35,7 @@ public static class NativeBattleModuleImpactPackets
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
             staging = allocation.Staging;
             NativeBattleEffectArena context = Read(staging, allocation.Address, 88).Write(0, BitConverter.GetBytes(source.Address)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(unchecked(1365 * phase))).Write(28, BitConverter.GetBytes(0xF3u));
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(memory, source, projection, context, colors, 17, 2);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(memory, source, projection, context, colors, 17, 2, pilotIdentity: draw.PilotIdentity is { } meshIdentity ? meshIdentity with { Primitive = unchecked(meshIdentity.Primitive * 397), ResourceGeneration = source.Address } : null);
             memory = drawn.Memory;
             staging = NativeBattleTemporaryMemory.PublishView(staging, allocation.Address, drawn.Context, 88);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
@@ -54,7 +54,7 @@ public static class NativeBattleModuleImpactPackets
         NativeBattleTemporaryAllocation spriteAllocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 180);
         staging = spriteAllocation.Staging;
         NativeBattleEffectArena spriteContext = Read(staging, spriteAllocation.Address, 180).Write(0, BitConverter.GetBytes(selected.Address)).Write(4, BitConverter.GetBytes(draw.Phase)).Write(36, BitConverter.GetBytes((ushort)8));
-        NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(memory, spriteContext, address => resources.FirstOrDefault(resource => resource.Address == address) ?? throw new NotSupportedException("Native570860 selected an unbound current sprite resource."), projection, cameraRoll, 17, 2);
+        NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(memory, spriteContext, address => resources.FirstOrDefault(resource => resource.Address == address) ?? throw new NotSupportedException("Native570860 selected an unbound current sprite resource."), projection, cameraRoll, 17, 2, pilotIdentity: draw.PilotIdentity is { } spriteIdentity ? spriteIdentity with { Primitive = unchecked(spriteIdentity.Primitive * 397 + 1), ResourceGeneration = selected.Address } : null);
         memory = spriteDraw.Memory;
         staging = NativeBattleTemporaryMemory.PublishView(staging, spriteAllocation.Address, spriteDraw.Temporary180, 180);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 180);

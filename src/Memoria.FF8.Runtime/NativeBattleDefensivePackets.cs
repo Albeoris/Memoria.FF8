@@ -26,7 +26,7 @@ public static class NativeBattleDefensivePackets
             fade = (phase - 4) << 10;
         }
         short scale = unchecked((short)draw.Scale);
-        NativeBattleModuleDraw mesh = draw with { MeshRotation = new(0, draw.Rotation, draw.Orientation), MeshScale = new(scale, scale, scale), MeshFlags = flags, MeshFade = fade };
+        NativeBattleModuleDraw mesh = draw with { MeshRotation = new(0, draw.Rotation, draw.Orientation), MeshScale = new(scale, scale, scale), MeshFlags = flags, MeshFade = fade, PilotIdentity = draw.PilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null };
         return NativeBattleModulePackets.EmitMesh572200(mesh, new(checked((byte)(8 + resource.Variant)), resource.Address, resource.Bytes), projection, 17, 2, colors);
     }
 }

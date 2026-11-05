@@ -165,9 +165,9 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         for (int? next = Head; next is int index;)
         {
             NativeBattleModuleTask motionTask = state.Slots[index];
-            if (motionTask.PilotIdentity is null && motionTask.Kind is NativeBattleModuleKind.CastingRing5753A0 or NativeBattleModuleKind.CastingGround575250 or NativeBattleModuleKind.CastingParticle574F50 or NativeBattleModuleKind.CastingTrail5751A0)
+            if (motionTask.PilotIdentity is null && HasCommonMotion(motionTask.Kind))
             {
-                // Ordinary casting belongs to scene motion; cinematic casting retains its explicit owner.
+                // Shared module geometry belongs to scene motion; explicit effect owners take precedence.
                 NativeBattlePilotVisualIdentity identity = new(0, DescriptorAddress, index, NativeBattlePilotVisualLifetimes.EpochFor(motionTask), 0);
                 state = state with { Slots = state.Slots.SetItem(index, motionTask with { PilotIdentity = identity }) };
             }
@@ -213,6 +213,10 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
             }
             NativeBattleModuleTask producer = state.Slots[index];
             ImmutableArray<NativeBattleModuleDraw> produced = producer.PresentationOwnerEffect == 18 ? callback.Draws.Select(draw => draw with { PresentationOwnerEffect = producer.PresentationOwnerEffect, PresentationSourceSlot = index, PresentationSourceKind = producer.Kind, PresentationSource = state.CastingPresentation!.Tasks[index] }).ToImmutableArray() : callback.Draws;
+            if (producer.PilotIdentity is { } motionIdentity)
+            {
+                produced = produced.Select((draw, drawIndex) => draw.PilotIdentity is null && draw.Kind is NativeBattleModuleDrawKind.Mesh or NativeBattleModuleDrawKind.Sprite or NativeBattleModuleDrawKind.Defensive or NativeBattleModuleDrawKind.Impact570860 ? draw with { PilotIdentity = motionIdentity with { Primitive = drawIndex, ResourceGeneration = draw.Resource?.Address ?? motionIdentity.ResourceGeneration } } : draw).ToImmutableArray();
+            }
             draws.AddRange(state.BindGilgameshPresentationDraws(index, produced));
             NativeBattleModuleTask task = state.Slots[index];
             //508420 reads Next after the callback, including any task appended by that callback.
@@ -236,6 +240,14 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
             }
         }
         return new(state with { Tail = previous, PublishedCount = unchecked((byte)survivors) }, draws.ToImmutable()) { CrtRandomAfter = inputs.CrtRandom };
+    }
+
+    private static bool HasCommonMotion(NativeBattleModuleKind kind)
+    {
+        return kind is NativeBattleModuleKind.CastingRing5753A0 or NativeBattleModuleKind.CastingGround575250 or NativeBattleModuleKind.CastingParticle574F50 or NativeBattleModuleKind.CastingTrail5751A0
+            or NativeBattleModuleKind.GuardianCastingRing574AE0 or NativeBattleModuleKind.GuardianCastingGround574990 or NativeBattleModuleKind.GuardianCastingParticle574670 or NativeBattleModuleKind.GuardianCastingTrail574580
+            or NativeBattleModuleKind.SpectralCastingParticle573C40 or NativeBattleModuleKind.SpectralCastingGround573DF0 or NativeBattleModuleKind.SpectralCastingColumn573F40 or NativeBattleModuleKind.SpectralCastingRing5740D0
+            or NativeBattleModuleKind.BoneSprite573640 or NativeBattleModuleKind.Sprite570BC0 or NativeBattleModuleKind.PaletteSprite570AC0 or NativeBattleModuleKind.DefensiveDraw570650 or NativeBattleModuleKind.Impact570860;
     }
 
     private NativeBattleModuleCallback AdvanceFlash(int slot, NativeBattleModuleInputs inputs)
