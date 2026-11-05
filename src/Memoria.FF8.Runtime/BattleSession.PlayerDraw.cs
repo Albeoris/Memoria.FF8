@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                 {
                     added = actor.AddMagic(command.ActionId, quantity);
                 }
-                if (!failed && definition.DrawOncePerSpell)
+                if (!failed && (command.DrawCast || added > 0) && definition.DrawOncePerSpell)
                 {
                     source.ConsumeDrawMagic(checked((byte)command.ActionId));
                 }

@@ -235,12 +235,51 @@ public sealed class NativePlayerDrawTests
         Assert.Equal(0, battle.ActiveAction.NativeDraw.Quantity);
         Assert.Empty(source.DrawnMagicIds);
         Assert.Equal(2, source.NativeDrawSlots[0].Id);
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         Complete(battle);
+        source = battle.Combatants.Single(actor => actor.Id == "source");
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 2);
         source.RestoreDrawSlots([new(2, 0), new(0, 0), new(0, 0), new(0, 0)]);
         battle.QueueAction("ally", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "party" : null);
         battle.Tick();
         Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
         Assert.Equal(new byte[] { 2 }, source.DrawnMagicIds);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StockWithoutInventoryCapacityLeavesSpellAvailableAfterJsonRestore(bool fullInventory)
+    {
+        BattleDefinition definition = CreateWithSecondCaster().Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        NativeMagicStock[] stocks = fullInventory ? Enumerable.Range(2, 32).Select(id => new NativeMagicStock((byte)id, 1)).ToArray() : Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+        if (!fullInventory)
+        {
+            stocks[7] = new(1, 100);
+        }
+        actors[0] = actors[0] with { NativeMagicInventory = stocks };
+        BattleSession battle = new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        Assert.True(battle.ActiveAction!.NativeDraw!.Quantity > 0);
+        Assert.Equal(0, battle.ActiveAction.NativeDraw.Added);
+        Assert.Equal(stocks, battle.Combatants[0].NativeMagicSlots);
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 1);
+
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(restored);
+        source = restored.Combatants.Single(actor => actor.Id == "source");
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 1);
+        restored.QueueAction("ally", "source", BattleAbility.Draw, 1);
+        restored.Tick();
+        Assert.True(restored.ActiveAction!.NativeDraw!.Added > 0);
+        Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 1);
     }
 
     [Theory]
