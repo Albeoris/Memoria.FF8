@@ -12,7 +12,7 @@ public enum NativeFieldLoadOrigin
     GameplaySave
 }
 
-/// <summary>The executed request whose native loader copies its module-entry reason into event BYTE87.</summary>
+/// <summary>The request or normal-save restoration whose loader supplies the module-entry reason in event BYTE87.</summary>
 public sealed record NativeFieldLoadContext(int Version, int FieldId, NativeFieldLoadOrigin Origin)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

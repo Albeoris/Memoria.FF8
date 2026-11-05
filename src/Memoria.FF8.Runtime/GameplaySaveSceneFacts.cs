@@ -26,6 +26,7 @@ public sealed record GameplaySaveSceneFacts([property: JsonRequired] GameplaySav
     /// <summary>Projects the current field process after the host has published its fresh snapshot, including world callbacks.</summary>
     public static GameplaySaveSceneFacts? FromPreparedState(GameState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
         return Capture(state, true);
     }
 

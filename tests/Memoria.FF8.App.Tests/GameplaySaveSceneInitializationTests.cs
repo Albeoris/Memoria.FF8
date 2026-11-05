@@ -108,4 +108,3 @@ public sealed class GameplaySaveSceneInitializationTests
         Assert.Null(contradictory.Scene.MusicProcess);
     }
 }
-
