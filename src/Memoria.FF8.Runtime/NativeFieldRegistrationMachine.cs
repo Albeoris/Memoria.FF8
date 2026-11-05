@@ -246,11 +246,6 @@ public static partial class NativeFieldRegistrationMachine
         memory.Fill(0x1DC308C, 64, 0);
         memory.Fill(ModelMap, 64, 255);
         uint cursor = RebindProgram(memory, loader, actors, layout.ArenaAddress);
-        if (loader.Colors is { } colors)
-        {
-            memory.BindResource(cursor, colors.Data, 0, colors.Data.Length);
-            cursor = checked(cursor + (uint)colors.Data.Length);
-        }
         uint preModel = cursor;
         List<SelectedModel> selected = [];
         foreach (int model in actors.Where(actor => actor.ModelId >= 0).Select(actor => actor.ModelId).Distinct())

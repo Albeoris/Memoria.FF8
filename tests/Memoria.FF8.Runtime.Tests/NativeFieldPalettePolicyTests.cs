@@ -76,9 +76,39 @@ public sealed class NativeFieldPalettePolicyTests
 
         NativeFieldModelSource neutral = Source("sample.pcb", [0, 0, 0, 0, 0, 128, 128, 128]);
         NativeFieldRegistrationStep present = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, Fixture(neutral), actors, cold);
-        Assert.Equal(absent.State.PreModelAddress + 8, present.State.PreModelAddress);
+        Assert.Equal(absent.State.PreModelAddress, present.State.PreModelAddress);
         Assert.Equal(NativeFieldRegistrationMachine.ProjectPalette532A40(palette, "unit"u8, neutral), present.Uploads[1].Bytes.ToArray());
         Assert.Equal(palette, source.One.Data.AsSpan().Slice(4 + 76 + 20, 512).ToArray());
+    }
+
+    [Theory]
+    [InlineData(NativeFieldRuntimeProfile.FF8EnExecutableHash)]
+    [InlineData(NativeFieldRuntimeProfile.RemasteredEnImageHash)]
+    public void Oversized_PCB_uses_the_same_managed_record_without_guest_storage_or_allocation_pressure(string image)
+    {
+        byte[] record = [110, 48, 48, 48, 0, 136, 120, 144];
+        byte[] bytes = new byte[3 * 1024 * 1024 + 8];
+        record.CopyTo(bytes, 0);
+        NativeFieldModelSource small = Source("sample.pcb", record);
+        NativeFieldModelSource large = Source("sample.pcb", bytes);
+        NativeFieldRegistrationResources source = NativeFieldInputOwnerTests.Fixture(image, false, 0);
+        NativeFieldRegistrationResources a = source with { Loader = source.Loader! with { Colors = small } };
+        NativeFieldRegistrationResources b = source with { Loader = source.Loader! with { Colors = large } };
+        NativeFieldRetainedActor[] actors = [new(0, 0, 0, 1)];
+        NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess(image);
+        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, a, actors, cold);
+        NativeFieldRegistrationStep second = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, b, actors, cold);
+        first.State.Validate(first.Memory);
+        second.State.Validate(second.Memory);
+        Assert.Equal(first.State.PreModelAddress, second.State.PreModelAddress);
+        Assert.Equal(first.State.EndAddress, second.State.EndAddress);
+        Assert.Equal(first.State.MemoryLayout.Limit, second.State.MemoryLayout.Limit);
+        Assert.True(second.State.EndAddress - second.State.PreModelAddress < 1024);
+        Assert.Equal(first.Uploads.Select(upload => upload.Bytes.ToArray()), second.Uploads.Select(upload => upload.Bytes.ToArray()));
+        byte[] expected = NativeFieldRegistrationMachine.ProjectPalette532A40(source.One.Data.AsSpan(4 + 292 + 20, 512), "n000"u8, small);
+        Assert.Equal(expected, second.Uploads[1].Bytes.ToArray());
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Memory)));
+        Assert.Equal(record, large.Data.AsSpan(0, 8).ToArray());
     }
 
     [Fact]
