@@ -27,7 +27,7 @@ public sealed partial class EventEngine
         result.Validate();
         int elapsed = Math.Max(0, result.Duration - result.Remaining);
         byte direction = unchecked((byte)(result.Kind == 1 ? NativeJumpMath.Interpolate(result.Start, result.Target, result.Duration, (short)elapsed) : NativeCosineInterpolation.Interpolate(result.Start, result.Target, result.Duration, elapsed)));
-        if (actor.Direction != direction)
+        if (actor.Direction != direction && !NativeMovementOwnsFacing(actor))
         {
             throw new InvalidDataException("Gameplay native turn visible direction disagrees with its logical phase.");
         }

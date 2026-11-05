@@ -12,6 +12,17 @@ public static class NativeScriptMovementAdapter
         return SupportsGenericBinding(field, scene, actor);
     }
 
+    public static bool CanRestorePlacement(FieldAssets field, SceneEventState scene, ActorState actor, FieldFixedPosition position)
+    {
+        if (!SupportsGenericBinding(field, scene, actor))
+        {
+            return false;
+        }
+        // Probe existing placement without a movement step, collision mutation or clock callback.
+        FieldNativeGroundProbe probe = FieldNativeMovementProbe.Probe(field.Walkmesh, actor.WalkmeshTriangle, position.X, position.Y, 0, 0);
+        return probe.Supported && probe.NativeHeight is not null;
+    }
+
     public static NativeScriptDirectionResult? ResolveDirection(FieldAssets field, SceneEventState scene, NativeScriptDirectionQuery query, ActorState? actor = null)
     {
         bool generic = actor is not null && actor.ObjectId == query.ObjectId && SupportsGenericBinding(field, scene, actor) && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);

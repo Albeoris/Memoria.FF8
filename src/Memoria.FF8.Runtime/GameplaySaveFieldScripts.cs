@@ -19,7 +19,9 @@ public enum GameplaySaveScriptWait
     NativeFaceSync,
     BackgroundAnimation,
     Rotation,
-    NativeTurnCompletion
+    NativeTurnCompletion,
+    NativeScriptMovement,
+    NativeMovementFlush
 }
 
 public sealed record GameplaySaveScriptFiber([property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Priority, [property: JsonRequired] long Sequence, [property: JsonRequired] bool Initialization, [property: JsonRequired] int Position, [property: JsonRequired] bool Complete, [property: JsonRequired] bool Started, [property: JsonRequired] bool ResultFrameEntered, [property: JsonRequired] int[] Stack, [property: JsonRequired] Dictionary<int, int> Results, [property: JsonRequired] GameplaySaveScriptWait Wait, [property: JsonRequired] long WaitUntil, [property: JsonRequired] long? RequestSequence, [property: JsonRequired] byte? DoorSlot, [property: JsonRequired] byte? ActorSlot, [property: JsonRequired] bool DefaultResultFrame, [property: JsonRequired] int[]? SavedResults)
@@ -27,6 +29,9 @@ public sealed record GameplaySaveScriptFiber([property: JsonRequired] int Object
     /// <summary>Retained BGSHADE instruction whose operands were already consumed; completion must poll without issuing it again.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ShadeOperation { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveMovementIssue? MovementIssue { get; init; }
 }
 
 /// <summary>Physical script operands remain observable after pop through native RET result frames; they are not resource memory.</summary>
