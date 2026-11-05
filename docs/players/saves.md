@@ -1,6 +1,10 @@
 # Saves and standalone snapshots
 
-Memoria saves its current state as a standalone snapshot. Player saves use a compact compressed format and retain their `.json` filenames; the loader detects the format and also reads older plain JSON snapshots. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
+Memoria player saves retain progress and the logical state needed to continue, using a compact compressed format with `.json` filenames. Graphics resources are loaded from the selected installation and mods. The loader also reads older compressed execution snapshots and plain JSON snapshots. Loading does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
+
+Quick Save supports ordinary player-controlled exploration and issued field dialogues or choices. Color changes, animation, scrolling backgrounds, music transitions and pending sound loading do not by themselves prevent saving. Actual location transitions, active battles, movies and unsupported gameplay transactions still require a supported boundary. Older battle execution snapshots retain their reader.
+
+Compatible music and ambient-loop playback positions are restored when available. Changing the resource or using a backend that cannot seek drops the position and keeps the selected track. One-shot sounds and audio device buffers are not saved.
 
 Older snapshot schemas are migrated automatically in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application requires an application update. If historical data is insufficient to recover a required running state, loading reports the migration boundary instead of resetting that state.
 
