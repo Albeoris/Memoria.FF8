@@ -20,7 +20,7 @@ public static partial class NativeFieldRegistrationMachine
             byte animation = actor.AutoAnimation ? actor.BaseAnimation : actor.Animation;
             if (instance.ModelId >= 0)
             {
-                SelectAnimation532890(memory, address, animation);
+                SelectAnimation532890(memory, instance, state.Resources.Single(resource => resource.ModelId == instance.ModelId), animation);
             }
             if (actor.AutoAnimation)
             {
@@ -36,7 +36,7 @@ public static partial class NativeFieldRegistrationMachine
             }
             if (instance.ModelId >= 0 && actor.EyeMode != 0)
             {
-                RestoreEyes(context, address, actor.EyeMode, actor.EyeBlinkParameter611, ref random);
+                RestoreEyes(context, address, ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId)), actor.EyeMode, actor.EyeBlinkParameter611, ref random);
             }
             memory.Write8(address + 96, actor.Visible ? (byte)0 : (byte)1);
             memory.Write16(address + 98, unchecked((ushort)actor.RootTranslationZ));
@@ -45,7 +45,7 @@ public static partial class NativeFieldRegistrationMachine
             {
                 continue;
             }
-            uint resource = memory.Read32(address);
+            NativeFieldResourceCursor resource = ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId));
             for (uint buffer = 0; buffer < 2; buffer++)
             {
                 uint packet = memory.Read32(address + 88 + buffer * 4);
@@ -85,13 +85,16 @@ public static partial class NativeFieldRegistrationMachine
         return new(retained with { EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations, FileStaging = memory.Finish() }, crtRandom, random);
     }
 
-    private static void SelectAnimation532890(NativeFieldRegistrationMemory memory, uint instance, byte animation)
+    private static void SelectAnimation532890(NativeFieldRegistrationMemory memory, NativeFieldRegisteredInstance registered, NativeFieldRegisteredResource resource, byte animation)
     {
+        uint instance = registered.Address;
+        NativeFieldResourceCursor selected = ResolveResource(memory, resource);
+        NativeFieldResourceOwner? bindings = ResolveInstanceBindings(memory, registered, resource);
         if (animation >= memory.Read16(instance + 100))
         {
             throw new InvalidDataException("Native retained animation exceeds its reloaded clip bank.");
         }
-        uint clips = memory.Read32(instance + 104);
+        NativeFieldResourceCursor clips = ReadInstanceResourcePointer(memory, selected, bindings, instance, 104);
         uint units = 0;
         for (uint clip = 0; clip < animation; clip++)
         {
@@ -100,21 +103,20 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write16(instance + 126, animation);
         memory.Write16(instance + 12, unchecked((ushort)(16 * memory.Read16(clips + (uint)animation * 4))));
         memory.Write16(instance + 14, memory.Read16(clips + (uint)animation * 4 + 2));
-        memory.Write32(instance + 8, checked(memory.Read32(instance + 108) + units * 4));
+        WriteInstanceResourcePointer(memory, selected, bindings, instance, 8, ReadInstanceResourcePointer(memory, selected, bindings, instance, 108) + checked(units * 4));
         memory.Write16(instance + 80, 0);
         memory.Write32(instance + 120, uint.MaxValue);
         memory.Write16(instance + 124, ushort.MaxValue);
     }
 
-    private static void RestoreEyes(Context context, uint instance, uint mode, byte? blinkParameter, ref NativeCrtRandomState? random)
+    private static void RestoreEyes(Context context, uint instance, NativeFieldResourceCursor resource, uint mode, byte? blinkParameter, ref NativeCrtRandomState? random)
     {
         NativeFieldRegistrationMemory memory = context.Memory;
-        uint resource = memory.Read32(instance);
         if ((memory.Read8(resource + 95) & 1) == 0)
         {
             return;
         }
-        uint eyes = memory.Read32(resource + 20);
+        NativeFieldResourceCursor eyes = memory.ReadPointer(resource + 20);
         if (mode == 0x80000)
         {
             if (memory.ReadSigned16(eyes + 10) < 0)
@@ -141,7 +143,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new InvalidDataException("Native retained eye mode is outside its implemented physical mask.");
         }
-        uint source = mode == 0x200000 ? eyes + 12 : checked(eyes + 8 + 4u * memory.Read8(eyes + 5));
+        NativeFieldResourceCursor source = mode == 0x200000 ? eyes + 12 : eyes + 8 + 4u * memory.Read8(eyes + 5);
         CopyEyeRectangle(context, eyes, source, mode == 0x200000, retain: true);
         memory.Write8(instance + 114, (byte)(memory.Read8(instance + 114) & 15 | (mode == 0x200000 ? 0x20 : 0x40)));
     }

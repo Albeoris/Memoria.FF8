@@ -129,7 +129,7 @@ public sealed partial record NativeBattleFileStaging
         Span<bool> known = stackalloc bool[4];
         foreach (var entry in data.ResourcePointers)
         {
-            if (entry.Key < data.BaseAddress || (ulong)entry.Key - data.BaseAddress + 4 > int.MaxValue || (ulong)entry.Key + 4 > (ulong)uint.MaxValue + 1 || entry.Value is { } pointer && !pointer.HasValidOwner())
+            if (entry.Key < data.BaseAddress || (ulong)entry.Key - data.BaseAddress + 4 > int.MaxValue || (ulong)entry.Key + 4 > (ulong)uint.MaxValue + 1 || entry.Value is { } pointer && (!pointer.HasValidOwner() || pointer.FieldStorage is { } field && !field.IsValidAt(entry.Key)))
             {
                 throw new InvalidDataException("Native resource pointer field has an invalid physical address or source reference.");
             }

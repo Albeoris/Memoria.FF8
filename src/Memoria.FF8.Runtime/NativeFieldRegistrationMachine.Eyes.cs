@@ -13,7 +13,7 @@ public static partial class NativeFieldRegistrationMachine
         using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, state.MemoryLayout.MemoryStart, state.MemoryLayout.MemoryEnd);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eyes require their current shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
-        RestoreEyes(context, instance.Address, mode, blinkParameter, ref random);
+        RestoreEyes(context, instance.Address, ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId)), mode, blinkParameter, ref random);
         return new(retained with { EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations, FileStaging = memory.Finish() }, crtRandom, random);
     }
 
@@ -34,12 +34,12 @@ public static partial class NativeFieldRegistrationMachine
                 continue;
             }
             uint address = instance.Address;
-            uint resource = memory.Read32(address);
+            NativeFieldResourceCursor resource = ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId));
             if ((memory.Read8(resource + 95) & 1) == 0)
             {
                 continue;
             }
-            uint eyes = memory.Read32(resource + 20);
+            NativeFieldResourceCursor eyes = memory.ReadPointer(resource + 20);
             short period = memory.ReadSigned16(eyes + 10);
             byte mode = memory.Read8(address + 114);
             if ((mode & 0x80) != 0)
@@ -80,7 +80,7 @@ public static partial class NativeFieldRegistrationMachine
         return new(retained with { EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations, FileStaging = memory.Finish() }, crtRandom, random);
     }
 
-    private static void CopyEyeRectangle(Context context, uint eyes, uint source, bool closed, bool retain = false)
+    private static void CopyEyeRectangle(Context context, NativeFieldResourceCursor eyes, NativeFieldResourceCursor source, bool closed, bool retain = false)
     {
         NativeFieldRegistrationMemory memory = context.Memory;
         short sourceX = unchecked((short)memory.Read16(source));

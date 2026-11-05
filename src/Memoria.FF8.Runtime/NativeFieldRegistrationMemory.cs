@@ -16,7 +16,11 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     private readonly uint origin;
     private readonly int length;
     private const int PageLength = NativeBattleFileStagingWorkingOwner.PageLength;
+    private static readonly NativeBattleStagingPage KnownZeroPage = NativeBattleStagingPage.FromOwnedSnapshot(new byte[PageLength], Enumerable.Repeat(true, PageLength).ToArray());
+    private static readonly NativeBattleStagingPage UnknownZeroPage = NativeBattleStagingPage.FromOwnedSnapshot(new byte[PageLength], new bool[PageLength]);
     private readonly Dictionary<int, Page> pages = [];
+    private readonly Dictionary<uint, NativeBattleResourcePointer?> producedPointers = [];
+    private readonly Dictionary<object, NativeFieldRegistrationMemory> resources = new(ReferenceEqualityComparer.Instance);
 
     private sealed class Page(int length, NativeBattleStagingPage content)
     {
@@ -143,6 +147,142 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         return banks.Equals(current.Cpu.Banks) ? cpu : current with { Cpu = current.Cpu with { Banks = banks } };
     }
 
+    internal NativeBattleResourcePointer? ReadResourcePointer(uint address)
+    {
+        int index = Index(address, 4);
+        if (producedPointers.TryGetValue(address, out NativeBattleResourcePointer? pointer))
+        {
+            return pointer;
+        }
+        return AnyChanged(index, 4) ? new(null, Read32(address)) : source.ReadResourcePointer(address);
+    }
+
+    internal void WriteResourcePointer(uint address, NativeBattleResourcePointer pointer)
+    {
+        if (pointer.StagingAddress is not uint numeric || pointer.Cpu is not null || pointer.CpuRow is not null || (!pointer.HasValidOwner() || pointer.FieldStorage is { } field && !field.IsValidAt(address)))
+        {
+            throw new InvalidDataException("Field registration table receipts require their actual numeric projection.");
+        }
+        Write32(address, numeric);
+        producedPointers[address] = pointer;
+    }
+
+    private void InvalidateProducedPointers(int index, int count)
+    {
+        if (count == 0 || producedPointers.Count == 0)
+        {
+            return;
+        }
+        uint first = checked(origin + (uint)index);
+        foreach (uint address in producedPointers.Keys.Where(address => address < (ulong)first + (uint)count && (ulong)address + 4 > first).ToArray())
+        {
+            producedPointers.Remove(address);
+        }
+    }
+
+    private NativeFieldRegistrationMemory Select(NativeFieldResourceOwner? resource)
+    {
+        RequireActive();
+        if (resource is null)
+        {
+            return this;
+        }
+        resource.Validate();
+        object identity = resource.Storage.OwnerIdentity;
+        if (!resources.TryGetValue(identity, out NativeFieldRegistrationMemory? memory))
+        {
+            if (prepared)
+            {
+                throw new InvalidOperationException("Prepared field registration cannot acquire another resource owner.");
+            }
+            resource.Validate();
+            memory = new(transaction.EnlistFieldResource(resource), 0, checked((uint)resource.Length));
+            resources.Add(identity, memory);
+        }
+        if (memory.length != resource.Length)
+        {
+            throw new InvalidDataException("Aliased field resource views disagree with their owner bounds.");
+        }
+        return memory;
+    }
+
+    internal byte Read8(NativeFieldResourceCursor cursor) => Select(cursor.Owner).Read8(cursor.Offset);
+    internal ushort Read16(NativeFieldResourceCursor cursor) => Select(cursor.Owner).Read16(cursor.Offset);
+    internal short ReadSigned16(NativeFieldResourceCursor cursor) => unchecked((short)Read16(cursor));
+    internal uint Read32(NativeFieldResourceCursor cursor) => Select(cursor.Owner).Read32(cursor.Offset);
+    internal byte[] Read(NativeFieldResourceCursor cursor, int length) => Select(cursor.Owner).Read(cursor.Offset, length);
+    internal NativeFieldResourceCursor ReadPointer(NativeFieldResourceCursor cursor) => new(cursor.Owner, Read32(cursor));
+    internal void Write8(NativeFieldResourceCursor cursor, byte value) => Select(cursor.Owner).Write8(cursor.Offset, value);
+    internal void Write16(NativeFieldResourceCursor cursor, ushort value) => Select(cursor.Owner).Write16(cursor.Offset, value);
+    internal void Write32(NativeFieldResourceCursor cursor, uint value) => Select(cursor.Owner).Write32(cursor.Offset, value);
+    internal void Fill(NativeFieldResourceCursor cursor, int length, byte value) => Select(cursor.Owner).Fill(cursor.Offset, length, value);
+
+    internal void WritePointer(NativeFieldResourceCursor cursor, NativeFieldResourceCursor target)
+    {
+        if (!ReferenceEquals(cursor.Owner, target.Owner))
+        {
+            throw new InvalidDataException("A local field pointer cannot cross its selected owner.");
+        }
+        Write32(cursor, target.Offset);
+    }
+
+    internal void Copy(uint source, NativeFieldResourceCursor destination, int length) => Copy(NativeFieldResourceCursor.Guest(source), destination, length);
+    internal void Copy(NativeFieldResourceCursor source, uint destination, int length) => Copy(source, NativeFieldResourceCursor.Guest(destination), length);
+
+    internal void Copy(NativeFieldResourceCursor source, NativeFieldResourceCursor destination, int length)
+    {
+        NativeFieldRegistrationMemory from = Select(source.Owner);
+        NativeFieldRegistrationMemory to = Select(destination.Owner);
+        if (ReferenceEquals(from, to))
+        {
+            from.Copy(source.Offset, destination.Offset, length);
+            return;
+        }
+        int first = from.Index(source.Offset, length);
+        int target = to.Index(destination.Offset, length);
+        for (int copied = 0; copied < length;)
+        {
+            int position = first + copied;
+            Page page = from.GetPage(position);
+            int local = position % PageLength;
+            int count = Math.Min(length - copied, page.Length - local);
+            page.Content = page.Content.Freeze();
+            to.CopyImmutable(target + copied, page.Content, local, count);
+            copied += count;
+        }
+    }
+
+    internal void CopyConverted(uint source, NativeFieldResourceCursor destination, int length) => CopyConverted(NativeFieldResourceCursor.Guest(source), destination, length);
+
+    internal void CopyConverted(NativeFieldResourceCursor source, NativeFieldResourceCursor destination, int length)
+    {
+        NativeFieldRegistrationMemory from = Select(source.Owner);
+        NativeFieldRegistrationMemory to = Select(destination.Owner);
+        to.RequireMutable();
+        int first = from.Index(source.Offset, length);
+        int target = to.Index(destination.Offset, length);
+        Span<byte> data = stackalloc byte[Math.Min(length, PageLength)];
+        Span<bool> known = stackalloc bool[data.Length];
+        bool backward = ReferenceEquals(from, to) && target > first && target - first < length;
+        for (int copied = 0; copied < length;)
+        {
+            int count = Math.Min(length - copied, data.Length);
+            int offset = backward ? length - copied - count : copied;
+            from.Load(first + offset, data[..count], known[..count]);
+            to.StoreKnownness(target + offset, data[..count], known[..count]);
+            copied += count;
+        }
+    }
+
+    internal void ProjectResourceHeader(NativeFieldResourceCursor resource, uint address)
+    {
+        Copy(resource, address, 96);
+        foreach (int offset in new[] { 0, 4, 8, 12, 16, 20, 24, 28, 32, 64, 84, 88 })
+        {
+            Forget(address + (uint)offset, 4);
+        }
+    }
+
     internal byte Read8(uint address)
     {
         Span<byte> data = stackalloc byte[1];
@@ -238,6 +378,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     {
         RequireMutable();
         int index = Index(address, length);
+        InvalidateProducedPointers(index, length);
         Span<byte> bytes = stackalloc byte[PageLength];
         bytes.Fill(value);
         for (int offset = 0; offset < length;)
@@ -298,6 +439,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         {
             return source;
         }
+        foreach (NativeFieldRegistrationMemory resource in resources.Values)
+        {
+            resource.Prepare();
+        }
         List<(int First, int End)> publish = [];
         foreach ((int number, Page page) in pages)
         {
@@ -349,6 +494,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             page.Content = page.Content.Freeze();
             page.Content.Publish(source, checked(origin + (uint)first), local, end - first);
         }
+        foreach ((uint address, NativeBattleResourcePointer? pointer) in producedPointers)
+        {
+            source.SetResourcePointerMetadata(address, pointer);
+        }
         foreach ((uint address, NativeBattleResourcePointer? pointer) in receipts)
         {
             source.SetResourcePointerMetadata(address, pointer);
@@ -360,6 +509,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
     internal NativeBattleFileStaging Finish()
     {
         Prepare();
+        foreach (NativeFieldRegistrationMemory resource in resources.Values)
+        {
+            resource.Finish();
+        }
         NativeBattleFileStaging result;
         if (ownsTransaction)
         {
@@ -397,6 +550,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         if (!disposed)
         {
             disposed = true;
+            foreach (NativeFieldRegistrationMemory resource in resources.Values)
+            {
+                resource.Dispose();
+            }
             if (ownsTransaction)
             {
                 transaction.Dispose();
@@ -434,7 +591,18 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             else
             {
                 (byte[] bytes, bool[] known) = source.ReadSnapshot(address, count);
-                content = NativeBattleStagingPage.FromOwnedSnapshot(bytes, known);
+                if (bytes.AsSpan().IndexOfAnyExcept((byte)0) < 0 && !known.AsSpan().Contains(false))
+                {
+                    content = KnownZeroPage;
+                }
+                else if (bytes.AsSpan().IndexOfAnyExcept((byte)0) < 0 && !known.AsSpan().Contains(true))
+                {
+                    content = UnknownZeroPage;
+                }
+                else
+                {
+                    content = NativeBattleStagingPage.FromOwnedSnapshot(bytes, known);
+                }
             }
             page = new(count, content);
             pages.Add(number, page);
@@ -466,6 +634,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
 
     private void Bind(int index, ImmutableArray<byte> resource, int sourceOffset, int length, bool changed)
     {
+        if (changed)
+        {
+            InvalidateProducedPointers(index, length);
+        }
         for (int offset = 0; offset < length;)
         {
             int position = index + offset;
@@ -480,6 +652,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
 
     private void CopyImmutable(int index, NativeBattleStagingPage resource, int sourceOffset, int length)
     {
+        InvalidateProducedPointers(index, length);
         for (int offset = 0; offset < length;)
         {
             int position = index + offset;
@@ -498,6 +671,10 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
 
     private void Store(int index, ReadOnlySpan<byte> data, bool changed)
     {
+        if (changed)
+        {
+            InvalidateProducedPointers(index, data.Length);
+        }
         for (int offset = 0; offset < data.Length;)
         {
             int position = index + offset;
@@ -506,6 +683,21 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
             int count = Math.Min(data.Length - offset, page.Length - local);
             page.Writable().Write(local, data.Slice(offset, count));
             Mark(page, local, count, changed);
+            offset += count;
+        }
+    }
+
+    private void StoreKnownness(int index, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
+    {
+        InvalidateProducedPointers(index, data.Length);
+        for (int offset = 0; offset < data.Length;)
+        {
+            int position = index + offset;
+            Page page = GetPage(position);
+            int local = position % PageLength;
+            int count = Math.Min(data.Length - offset, page.Length - local);
+            page.Writable().WriteWithKnownness(local, data.Slice(offset, count), known.Slice(offset, count));
+            Mark(page, local, count, true);
             offset += count;
         }
     }

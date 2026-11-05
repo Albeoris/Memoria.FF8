@@ -9,6 +9,9 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     private readonly NativeBattleFileStagingWorkingOwner owner;
     private readonly NativeBattleFileStagingOverlay overlay;
     private bool disposed;
+    private readonly NativeBattleFileStagingTransaction? privateParent;
+    private Dictionary<object, NativeBattleFileStagingTransaction>? fieldResources;
+    private bool publicationFailed;
 
     public NativeBattleFileStagingTransaction(NativeBattleFileStaging source) : this(source, false)
     {
@@ -24,6 +27,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         this.source = source;
         owner = source.WorkingOwner;
         NativeBattleFileStagingOverlay? parent = privateLayer ? source.Transaction?.ActiveOverlay ?? owner.EffectivePublicOverlay() : null;
+        privateParent = parent?.TransactionOwner;
         overlay = owner.LeaseOverlay();
         overlay.TransactionOwner = this;
         if (privateLayer)
@@ -41,6 +45,32 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             RequireActive();
             return overlay;
         }
+    }
+
+    internal NativeBattleFileStaging EnlistFieldResource(NativeFieldResourceOwner resource)
+    {
+        RequireActive();
+        resource.Validate();
+        object identity = resource.Storage.OwnerIdentity;
+        fieldResources ??= new(ReferenceEqualityComparer.Instance);
+        if (!fieldResources.TryGetValue(identity, out NativeBattleFileStagingTransaction? transaction))
+        {
+            transaction = privateParent is null ? new(resource.Storage) : CreatePrivateChild(privateParent.EnlistFieldResource(resource));
+            try
+            {
+                for (int depth = 0; depth < CheckpointDepth; depth++)
+                {
+                    transaction.BeginNestedCheckpoint();
+                }
+                fieldResources.Add(identity, transaction);
+            }
+            catch
+            {
+                transaction.Dispose();
+                throw;
+            }
+        }
+        return transaction.View;
     }
 
     internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease)
@@ -219,18 +249,54 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     public int BeginNestedCheckpoint()
     {
         RequireActive();
-        return overlay.BeginNestedCheckpoint();
+        if (fieldResources is null)
+        {
+            return overlay.BeginNestedCheckpoint();
+        }
+        foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+        {
+            if (resource.CheckpointDepth != CheckpointDepth)
+            {
+                throw new InvalidOperationException("Parent checkpoint cannot interrupt an active field resource scope.");
+            }
+        }
+        int depth = overlay.BeginNestedCheckpoint();
+        foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+        {
+            resource.BeginNestedCheckpoint();
+        }
+        return depth;
     }
 
     public void CommitNestedCheckpoint(int depth)
     {
         RequireActive();
+        if (fieldResources is null)
+        {
+            overlay.CommitNestedCheckpoint(depth);
+            return;
+        }
+        RequireFieldCheckpoint(depth);
+        foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+        {
+            resource.CommitNestedCheckpoint(depth);
+        }
         overlay.CommitNestedCheckpoint(depth);
     }
 
     public void RollbackNestedCheckpoint(int depth)
     {
         RequireActive();
+        if (fieldResources is null)
+        {
+            overlay.RollbackNestedCheckpoint(depth);
+            return;
+        }
+        RequireFieldCheckpoint(depth);
+        foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+        {
+            resource.RollbackNestedCheckpoint(depth);
+        }
         overlay.RollbackNestedCheckpoint(depth);
     }
 
@@ -249,19 +315,23 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     public void BeginCheckpoint()
     {
         RequireActive();
-        overlay.BeginCheckpoint();
+        if (CheckpointDepth != 0)
+        {
+            throw new InvalidOperationException("Native staging checkpoint is already active.");
+        }
+        BeginNestedCheckpoint();
     }
 
     public void CommitCheckpoint()
     {
         RequireActive();
-        overlay.CommitCheckpoint();
+        CommitNestedCheckpoint(1);
     }
 
     public void RollbackCheckpoint()
     {
         RequireActive();
-        overlay.RollbackCheckpoint();
+        RollbackNestedCheckpoint(1);
     }
 
     public NativeBattleFileStaging Freeze(NativeBattleFileStaging current)
@@ -272,8 +342,67 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             throw new InvalidOperationException("Native staging publication requires its current transaction view.");
         }
         owner.RequireReadWindowMutation();
-        overlay.Publish();
+        if (CheckpointDepth != 0)
+        {
+            throw new InvalidOperationException("Native staging publication requires committed field resource checkpoints.");
+        }
+        if (fieldResources is null)
+        {
+            overlay.Publish();
+            return source;
+        }
+        List<(NativeBattleFileStagingTransaction Resource, int Depth)> publications = [];
+        try
+        {
+            foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+            {
+                resource.owner.RequireReadWindowMutation();
+                int depth = resource.privateParent is { } parent ? parent.BeginNestedCheckpoint() : resource.owner.BeginPublicationCheckpoint();
+                publications.Add((resource, depth));
+            }
+            foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+            {
+                resource.Freeze(resource.View);
+            }
+            overlay.Publish();
+            foreach ((NativeBattleFileStagingTransaction resource, int depth) in publications)
+            {
+                if (resource.privateParent is { } parent)
+                {
+                    parent.CommitNestedCheckpoint(depth);
+                }
+                else
+                {
+                    resource.owner.CommitPublicationCheckpoint(depth);
+                }
+            }
+        }
+        catch
+        {
+            publicationFailed = true;
+            for (int index = publications.Count - 1; index >= 0; index--)
+            {
+                (NativeBattleFileStagingTransaction resource, int depth) = publications[index];
+                if (resource.privateParent is { } parent)
+                {
+                    parent.RollbackNestedCheckpoint(depth);
+                }
+                else
+                {
+                    resource.owner.RollbackPublicationCheckpoint(depth);
+                }
+            }
+            throw;
+        }
         return source;
+    }
+
+    private void RequireFieldCheckpoint(int depth)
+    {
+        if (depth <= 0 || CheckpointDepth != depth || fieldResources!.Values.Any(resource => resource.CheckpointDepth != depth))
+        {
+            throw new InvalidOperationException("Field resource checkpoint completion requires the current matching parent depth.");
+        }
     }
 
     private void RequireRange(uint address, int length)
@@ -285,6 +414,10 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     internal void RequireActive()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (publicationFailed)
+        {
+            throw new InvalidOperationException("Rejected composite staging publication must be disposed before rebuilding its resource scopes.");
+        }
         overlay.RequireLayerActive();
     }
 
@@ -292,6 +425,13 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     {
         if (!disposed)
         {
+            if (fieldResources is not null)
+            {
+                foreach (NativeBattleFileStagingTransaction resource in fieldResources.Values)
+                {
+                    resource.Dispose();
+                }
+            }
             owner.CloseReadWindows(this);
             disposed = true;
             owner.ReturnOverlay(overlay);

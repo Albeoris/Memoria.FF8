@@ -26,11 +26,11 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write16(address + 82, 0);
     }
 
-    private static uint RegisterInstance531980(NativeFieldRegistrationMemory memory, int index, int resourceIndex, uint address)
+    private static uint RegisterInstance531980(NativeFieldRegistrationMemory memory, int index, NativeFieldRegisteredResource registered, NativeFieldResourceOwner bindings, uint address)
     {
-        uint resource = memory.Read32(ResourcePointers + (uint)resourceIndex * 4);
+        NativeFieldResourceCursor resource = ResolveResource(memory, registered);
         memory.Write32(InstancePointers + (uint)index * 4, address);
-        memory.Write32(address, resource);
+        memory.Write32(address, registered.Address);
         memory.Write8(address + 96, 0);
         memory.Write8(address + 114, 0);
         memory.Write8(address + 97, 17);
@@ -43,10 +43,10 @@ public static partial class NativeFieldRegistrationMachine
         uint bones = memory.Read32(resource + 44);
         uint transformed = checked(address + 152);
         memory.Write32(address + 4, transformed);
-        memory.Copy(memory.Read32(resource), transformed, checked((int)(bones + 1) * 64));
+        memory.Copy(memory.ReadPointer(resource), transformed, checked((int)(bones + 1) * 64));
         memory.Write16(address + 100, memory.Read16(resource + 82));
-        memory.Copy(resource + 84, address + 104, 4);
-        memory.Copy(resource + 88, address + 8, 4);
+        WriteInstanceResourcePointer(memory, resource, bindings, address, 104, memory.ReadPointer(resource + 84));
+        WriteInstanceResourcePointer(memory, resource, bindings, address, 8, memory.ReadPointer(resource + 88));
         memory.Write16(transformed + 4, 0);
         memory.Write16(transformed + 6, 0);
         memory.Write16(transformed + 8, 0);
@@ -62,11 +62,11 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write32(address + 128, masks);
         memory.Fill(masks, checked((int)faces * 2), 0);
         uint cursor = checked((masks + faces * 2 + 3) & ~3u);
-        uint clips = memory.Read32(address + 104);
+        NativeFieldResourceCursor clips = ReadInstanceResourcePointer(memory, resource, bindings, address, 104);
         memory.Write16(address + 12, unchecked((ushort)(16 * memory.Read16(clips))));
         memory.Write16(address + 14, memory.Read16(clips + 2));
-        memory.Copy(address + 8, address + 108, 4);
-        memory.Copy(address + 8, address + 148, 4);
+        WriteInstanceResourcePointer(memory, resource, bindings, address, 108, ReadInstanceResourcePointer(memory, resource, bindings, address, 8));
+        WriteInstanceResourcePointer(memory, resource, bindings, address, 148, ReadInstanceResourcePointer(memory, resource, bindings, address, 8));
         memory.Write32(address + 84, cursor);
         for (uint buffer = 0; buffer < 2; buffer++)
         {
@@ -75,10 +75,10 @@ public static partial class NativeFieldRegistrationMachine
             memory.Write32(0x1DC4004 + buffer * 4, cursor);
             memory.Write32(0x1DCA320 + buffer * 4, cursor);
             uint triangles = memory.Read32(resource + 56);
-            uint triangleSource = memory.Read32(resource + 12);
+            NativeFieldResourceCursor triangleSource = memory.ReadPointer(resource + 12);
             for (uint triangle = 0; triangle < triangles; triangle++)
             {
-                uint source = checked(triangleSource + triangle * 24);
+                NativeFieldResourceCursor source = triangleSource + triangle * 24;
                 memory.Write32(cursor, 0x07000000);
                 memory.Copy(source + 16, cursor + 4, 3);
                 memory.Write8(cursor + 7, (memory.Read8(source + 20) & 4) != 0 ? (byte)38 : (byte)36);
@@ -92,10 +92,10 @@ public static partial class NativeFieldRegistrationMachine
             }
             memory.Write32(0x1DC3FEC + buffer * 4, cursor);
             uint quads = memory.Read32(resource + 60);
-            uint quadSource = memory.Read32(resource + 16);
+            NativeFieldResourceCursor quadSource = memory.ReadPointer(resource + 16);
             for (uint quad = 0; quad < quads; quad++)
             {
-                uint source = checked(quadSource + quad * 28);
+                NativeFieldResourceCursor source = quadSource + quad * 28;
                 memory.Write32(cursor, 0x09000000);
                 memory.Copy(source + 20, cursor + 4, 3);
                 memory.Write8(cursor + 7, (memory.Read8(source + 24) & 4) != 0 ? (byte)46 : (byte)44);
@@ -111,5 +111,57 @@ public static partial class NativeFieldRegistrationMachine
         }
         InitializeInstanceTransform(memory, address);
         return cursor;
+    }
+
+    private static NativeFieldResourceCursor ReadInstanceResourcePointer(NativeFieldRegistrationMemory memory, NativeFieldResourceCursor resource, NativeFieldResourceOwner? bindings, uint instance, uint field)
+    {
+        if (bindings is null)
+        {
+            if (resource.Owner is not null)
+            {
+                throw new InvalidDataException("Logical field resources require explicit instance cursor bindings.");
+            }
+            return NativeFieldResourceCursor.Guest(memory.Read32(instance + field));
+        }
+        if (resource.Owner is null)
+        {
+            throw new InvalidDataException("Instance cursor binding belongs to another field resource.");
+        }
+        return new(resource.Owner, memory.Read32(new NativeFieldResourceCursor(bindings, field)));
+    }
+
+    private static void WriteInstanceResourcePointer(NativeFieldRegistrationMemory memory, NativeFieldResourceCursor resource, NativeFieldResourceOwner? bindings, uint instance, uint field, NativeFieldResourceCursor target)
+    {
+        if (bindings is null)
+        {
+            if (resource.Owner is not null || target.Owner is not null)
+            {
+                throw new InvalidDataException("Guest field cursor storage cannot encode a resource-local offset.");
+            }
+            memory.Write32(instance + field, target.Offset);
+            return;
+        }
+        if (resource.Owner is null || !ReferenceEquals(resource.Owner, target.Owner) || target.Offset > resource.Owner.Length)
+        {
+            throw new InvalidDataException("Instance cursor exceeds its selected shared field resource.");
+        }
+        memory.Write32(new NativeFieldResourceCursor(bindings, field), target.Offset);
+        memory.Forget(instance + field, 4);
+    }
+
+    private static NativeFieldResourceCursor ResolveResource(NativeFieldRegistrationMemory memory, NativeFieldRegisteredResource resource) => resource.Resolve(memory.ReadResourcePointer(checked(ResourcePointers + (uint)resource.Index * 4)));
+
+    private static NativeFieldResourceOwner? ResolveInstanceBindings(NativeFieldRegistrationMemory memory, NativeFieldRegisteredInstance instance, NativeFieldRegisteredResource resource)
+    {
+        if (instance.ResourceReference is not { } reference)
+        {
+            return null;
+        }
+        NativeBattleResourcePointer? pointer = memory.ReadResourcePointer(checked(InstancePointers + (uint)reference.InstanceIndex * 4));
+        if (reference.ResourceIndex != resource.Index || pointer?.StagingAddress != instance.Address || pointer.FieldStorage is not { InstanceBindings: { } bindings } field || field.ResourceIndex != resource.Index || !pointer.HasValidOwner())
+        {
+            throw new InvalidDataException("Current instance resource cursors disagree with their retained table receipt.");
+        }
+        return bindings;
     }
 }

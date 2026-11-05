@@ -15,8 +15,33 @@ public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, s
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? PlaneIdentity { get; init; }
 }
-public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint GeometryAddress, uint AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures);
-public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, uint Address, ushort? EmptyTerminal);
+public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint GeometryAddress, uint AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ResourceLength { get; init; }
+
+    internal NativeFieldResourceCursor Resolve(NativeBattleResourcePointer? receipt)
+    {
+        if (ResourceLength is null)
+        {
+            if (receipt?.FieldStorage is not null)
+            {
+                throw new InvalidDataException("Guest field descriptor cannot select a logical resource receipt.");
+            }
+            return NativeFieldResourceCursor.Guest(Address);
+        }
+        if (ResourceLength < 96 || receipt?.StagingAddress != Address || receipt.FieldStorage is not { Resource: { } owner } field || field.ResourceIndex != Index || owner.Length != ResourceLength || !receipt.HasValidOwner())
+        {
+            throw new InvalidDataException("Field resource descriptor disagrees with its numeric table receipt and local owner.");
+        }
+        return new(owner, 0);
+    }
+}
+public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, uint Address, ushort? EmptyTerminal)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldInstanceResourceReference? ResourceReference { get; init; }
+}
 public sealed record NativeFieldRegistrationState(int Version, int FieldId, string ProgramHash, string OneHash, uint PreModelAddress, uint RelocatedSourceAddress, int RelocatedSourceLength, uint EndAddress, ImmutableArray<NativeFieldRegisteredResource> Resources, ImmutableArray<NativeFieldRegisteredInstance> Instances)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -36,13 +61,15 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
         }
     }
 
-    public void Validate(NativeBattleRetainedMemory retained)
+    public void Validate(NativeBattleRetainedMemory retained) => Validate(retained, null);
+
+    internal void Validate(NativeBattleRetainedMemory retained, NativeFieldRegistrationMemory? scope)
     {
         NativeFieldRegistrationLayout layout = MemoryLayout;
         layout.Validate();
         retained.Validate();
         NativeBattleFileStaging memory = retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its physical shared memory.");
-        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < layout.ArenaAddress || EndAddress < PreModelAddress || EndAddress > layout.Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > layout.Limit || Resources.IsDefault || Instances.IsDefault || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
+        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < layout.ArenaAddress || EndAddress < PreModelAddress || EndAddress > layout.Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > layout.Limit || Resources.IsDefault || Instances.IsDefault || Resources.Any(resource => resource is null) || Instances.Any(instance => instance is null) || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
         {
             throw new InvalidDataException("Native field registration has invalid source identities, allocation layout or retained bindings.");
         }
@@ -53,7 +80,9 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
         foreach (NativeFieldRegisteredResource resource in Resources)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0x1DCB0F0 + (uint)resource.Index * 4), 4));
-            uint marker = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(resource.Address + 76, 4));
+            uint tableAddress = checked(0x1DCB0F0 + (uint)resource.Index * 4);
+            NativeBattleResourcePointer? receipt = scope is null ? memory.ReadResourcePointer(tableAddress) : scope.ReadResourcePointer(tableAddress);
+            uint marker = Read32(resource.Resolve(receipt) + 76);
             if (resource.ModelId is < 0 or >= 64 || resource.Index < 0 || resource.Index >= Resources.Length || resource.Address < PreModelAddress || resource.Address >= EndAddress || pointer != resource.Address || marker != 0x12345678 || memory.Read(0x1DCAF28 + (uint)resource.ModelId, 1)[0] != resource.Index)
             {
                 throw new InvalidDataException("Native field resource registration disagrees with its actual physical pointer/header.");
@@ -65,10 +94,40 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0x1DCB340 + (uint)index * 4), 4));
             uint resource = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(instance.Address, 4));
             uint expected = instance.ModelId < 0 ? uint.MaxValue : Resources.Single(item => item.ModelId == instance.ModelId).Address;
+            NativeFieldRegisteredResource? selected = instance.ModelId < 0 ? null : Resources.Single(item => item.ModelId == instance.ModelId);
+            if ((selected?.ResourceLength is not null) != (instance.ResourceReference is not null))
+            {
+                throw new InvalidDataException("Field instance and resource must retain the same cursor domain.");
+            }
+            if (instance.ResourceReference is { } reference)
+            {
+                NativeBattleResourcePointer? receipt = scope is null ? memory.ReadResourcePointer(checked(0x1DCB340 + (uint)index * 4)) : scope.ReadResourcePointer(checked(0x1DCB340 + (uint)index * 4));
+                if (reference.InstanceIndex != index || reference.ResourceIndex != selected!.Index || receipt?.StagingAddress != instance.Address || receipt.FieldStorage is not { InstanceBindings: { } bindings } field || field.ResourceIndex != selected.Index || !receipt.HasValidOwner())
+                {
+                    throw new InvalidDataException("Field instance has invalid selected resource cursor storage.");
+                }
+                foreach (uint offset in new uint[] { 8, 104, 108, 148 })
+                {
+                    if (Read32(new(bindings, offset)) > selected.ResourceLength || memory.ReadSnapshot(instance.Address + offset, 4).Known.Any(value => value))
+                    {
+                        throw new InvalidDataException("Field instance logical cursor is out of bounds or has conflicting guest bytes.");
+                    }
+                }
+            }
             if (instance.Address < PreModelAddress || instance.Address >= EndAddress || pointer != instance.Address || resource != expected)
             {
                 throw new InvalidDataException("Native field instance registration disagrees with its actual retained model pointer.");
             }
+        }
+
+        uint Read32(NativeFieldResourceCursor cursor)
+        {
+            if (scope is not null)
+            {
+                return scope.Read32(cursor);
+            }
+            NativeBattleFileStaging selected = cursor.Owner?.Storage ?? memory;
+            return BinaryPrimitives.ReadUInt32LittleEndian(selected.Read(cursor.Offset, 4));
         }
     }
 }
@@ -295,15 +354,30 @@ public static partial class NativeFieldRegistrationMachine
                 memory.Write16(Cluts + (uint)(item.Index * 6 + ordinal) * 2, registration.Clut);
             }
             uint address = cursor;
-            cursor = RegisterResource5318D0(memory, item, cursor);
-            RebaseEyes(memory, address, lastX[0], lastY[0]);
-            resources.Add(new(item.ModelId, item.Index, address, item.Geometry, item.Animation, item.Scale == 0 ? (byte)16 : item.Scale, item.SourceHash, item.SourceOffset, item.RegisteredTextures.ToImmutableArray()));
+            if (address > layout.Limit || layout.Limit - address < 96)
+            {
+                throw new NotSupportedException("Field resource header projection exceeds the selected native allocation.");
+            }
+            NativeFieldResourceOwner owner = NativeFieldResourceOwner.Create(ResourceLength(memory, item));
+            NativeFieldResourceCursor resourceCursor = new(owner, 0);
+            int seedLength = checked((int)Math.Min((uint)owner.Length, layout.Limit - address));
+            memory.Copy(address, resourceCursor, seedLength);
+            if (RegisterResource5318D0(memory, item, resourceCursor) != owner.Length)
+            {
+                throw new InvalidDataException("Converted field resource length disagrees with its bounded owner.");
+            }
+            RebaseEyes(memory, resourceCursor, lastX[0], lastY[0]);
+            memory.ProjectResourceHeader(resourceCursor, address);
+            memory.WriteResourcePointer(ResourcePointers + (uint)item.Index * 4, new(null, address) { FieldStorage = new(item.Index) { Resource = owner } });
+            cursor = checked(cursor + 96);
+            resources.Add(new(item.ModelId, item.Index, address, item.Geometry, item.Animation, item.Scale == 0 ? (byte)16 : item.Scale, item.SourceHash, item.SourceOffset, item.RegisteredTextures.ToImmutableArray()) { ResourceLength = owner.Length });
         }
         List<NativeFieldRegisteredInstance> instances = [];
         for (int index = 0; index < actors.Count; index++)
         {
             NativeFieldRetainedActor actor = actors[index];
             uint address = cursor;
+            NativeFieldInstanceResourceReference? reference = null;
             if (actor.ModelId < 0)
             {
                 cursor = RegisterEmpty531D40(memory, index, actor.ModelId, cursor);
@@ -311,9 +385,12 @@ public static partial class NativeFieldRegistrationMachine
             else
             {
                 NativeFieldRegisteredResource resource = resources.Single(resource => resource.ModelId == actor.ModelId);
-                cursor = RegisterInstance531980(memory, index, resource.Index, cursor);
+                NativeFieldResourceOwner bindings = NativeFieldResourceOwner.Create(152);
+                cursor = RegisterInstance531980(memory, index, resource, bindings, cursor);
+                memory.WriteResourcePointer(InstancePointers + (uint)index * 4, new(null, address) { FieldStorage = new(resource.Index) { InstanceBindings = bindings } });
+                reference = new(resource.Index, index);
             }
-            instances.Add(new(actor.ObjectId, actor.ModelId, address, actor.ModelId < 0 ? memory.ReadOptional16(address + 12) : null));
+            instances.Add(new(actor.ObjectId, actor.ModelId, address, actor.ModelId < 0 ? memory.ReadOptional16(address + 12) : null) { ResourceReference = reference });
         }
         //532A40 constructs into the same arena after relocating its input. Consumed source bytes can be reused.
         if (cursor > layout.Limit)
@@ -326,7 +403,7 @@ public static partial class NativeFieldRegistrationMachine
         {
             result = result with { FieldTexturePlaneCacheFresh = false, FieldTextureAnimations = result.FieldTextureAnimations! with { Planes = retained.FieldTextureAnimations?.Planes ?? result.FieldTextureAnimations!.Planes } };
         }
-        state.Validate(result);
+        state.Validate(result, memory);
         ImmutableArray<NativeBattleEffectVramUpload> uploads = context.Uploads.ToImmutableArray();
         result = result with { FileStaging = memory.Finish() };
         return new(state, result, uploads);
@@ -409,7 +486,7 @@ public static partial class NativeFieldRegistrationMachine
         return new((byte)(mode & 3), x, y, width, height, paletteX, paletteY, tpage, clut);
     }
 
-    private static void RebaseEyes(NativeFieldRegistrationMemory memory, uint resource, short? x, short? y)
+    private static void RebaseEyes(NativeFieldRegistrationMemory memory, NativeFieldResourceCursor resource, short? x, short? y)
     {
         if ((memory.Read8(resource + 95) & 1) == 0)
         {
@@ -419,14 +496,14 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Native eye rebasing requires texture0's actual reached image placement.");
         }
-        uint eyes = memory.Read32(resource + 20);
+        NativeFieldResourceCursor eyes = memory.ReadPointer(resource + 20);
         int divisor = 16 / memory.Read8(eyes + 2);
         memory.Write16(eyes + 6, unchecked((ushort)(imageX + memory.Read16(eyes + 6) / divisor)));
         memory.Write16(eyes + 8, unchecked((ushort)(imageY + memory.Read16(eyes + 8))));
         memory.Write8(eyes + 3, unchecked((byte)(memory.Read8(eyes + 3) / divisor)));
         for (int frame = 0; frame < memory.Read8(eyes + 5); frame++)
         {
-            uint position = checked(eyes + 12 + (uint)frame * 4);
+            NativeFieldResourceCursor position = eyes + 12 + (uint)frame * 4;
             memory.Write16(position, unchecked((ushort)(imageX + memory.Read16(position) / divisor)));
             memory.Write16(position + 2, unchecked((ushort)(imageY + memory.Read16(position + 2))));
         }

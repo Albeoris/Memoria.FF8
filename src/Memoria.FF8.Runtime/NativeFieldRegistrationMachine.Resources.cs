@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeFieldRegistrationMachine
 {
-    private static uint RegisterResource5318D0(NativeFieldRegistrationMemory memory, SelectedModel item, uint address)
+    private static uint RegisterResource5318D0(NativeFieldRegistrationMemory memory, SelectedModel item, NativeFieldResourceCursor address)
     {
         uint geometry = item.Geometry;
         memory.Write32(0x1DC3CDC, geometry);
@@ -22,7 +22,6 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new InvalidDataException("Native field geometry requires matching primitive counts and six bounded texture slots.");
         }
-        memory.Write32(ResourcePointers + (uint)item.Index * 4, address);
         memory.Write8(address + 95, eyes == 0 ? (byte)0 : (byte)1);
         memory.Write32(address + 76, 0x12345678);
         memory.Copy(UvOffsets, address + 80, 2);
@@ -33,29 +32,29 @@ public static partial class NativeFieldRegistrationMachine
         {
             memory.Write32(address + 48 + (uint)type * 4, counts[type]);
         }
-        uint cursor = checked(address + 96);
-        memory.Write32(address, cursor);
+        NativeFieldResourceCursor cursor = address + 96;
+        memory.WritePointer(address, cursor);
         cursor = checked(cursor + (bones + 1) * 64);
         int[] strides = [24, 32, 24, 28];
         for (int type = 0; type < 4; type++)
         {
-            memory.Write32(address + 4 + (uint)type * 4, cursor);
+            memory.WritePointer(address + 4 + (uint)type * 4, cursor);
             cursor = checked(cursor + (uint)strides[type] * counts[type]);
         }
-        memory.Write32(address + 20, cursor);
+        memory.WritePointer(address + 20, cursor);
         cursor = checked(cursor + 8 * eyes);
-        memory.Write32(address + 24, cursor);
+        memory.WritePointer(address + 24, cursor);
         cursor = checked(cursor + 8 * vertices);
-        memory.Write32(address + 28, cursor);
+        memory.WritePointer(address + 28, cursor);
         cursor = checked(cursor + 32 * parts);
-        memory.Write32(address + 32, cursor);
+        memory.WritePointer(address + 32, cursor);
         cursor = checked(cursor + 8 * skins);
         uint sourceBones = checked(geometry + memory.Read32(geometry + 32));
         memory.Write32(0x1DC3CD8, sourceBones);
-        memory.Copy(sourceBones, memory.Read32(address) + 64, checked((int)bones * 64));
+        memory.Copy(sourceBones, memory.ReadPointer(address) + 64, checked((int)bones * 64));
         for (uint bone = 0; bone < bones; bone++)
         {
-            uint target = checked(memory.Read32(address) + (bone + 1) * 64);
+            NativeFieldResourceCursor target = checked(memory.ReadPointer(address) + (bone + 1) * 64);
             int length = checked((int)scale) * memory.ReadSigned16(sourceBones + bone * 64 + 8);
             memory.Write16(target + 8, unchecked((ushort)(length >> 4)));
             memory.Write32(target + 52, 0);
@@ -64,23 +63,23 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write32(0x1DC3CE8, sourceVertices);
         for (uint vertex = 0; vertex < vertices; vertex++)
         {
-            uint target = checked(memory.Read32(address + 24) + vertex * 8);
+            NativeFieldResourceCursor target = checked(memory.ReadPointer(address + 24) + vertex * 8);
             for (uint axis = 0; axis < 3; axis++)
             {
                 int value = checked((int)scale) * memory.ReadSigned16(sourceVertices + vertex * 8 + axis * 2);
                 memory.Write16(target + axis * 2, unchecked((ushort)(value >> 4)));
             }
         }
-        memory.Copy(checked(geometry + memory.Read32(geometry + 40)), memory.Read32(address + 20), checked((int)eyes));
-        memory.Copy(checked(geometry + memory.Read32(geometry + 48)), memory.Read32(address + 28), checked((int)parts * 32));
-        memory.Copy(checked(geometry + memory.Read32(geometry + 52)), memory.Read32(address + 32), checked((int)skins * 8));
+        memory.Copy(checked(geometry + memory.Read32(geometry + 40)), memory.ReadPointer(address + 20), checked((int)eyes));
+        memory.Copy(checked(geometry + memory.Read32(geometry + 48)), memory.ReadPointer(address + 28), checked((int)parts * 32));
+        memory.Copy(checked(geometry + memory.Read32(geometry + 52)), memory.ReadPointer(address + 32), checked((int)skins * 8));
         uint animation = memory.Read32(geometry + 56);
         ushort clips = memory.Read16(animation);
         memory.Write16(address + 82, clips);
-        memory.Write32(address + 84, cursor);
-        uint stream = checked(cursor + (uint)clips * 4);
-        memory.Write32(address + 88, stream);
-        memory.Write32(address + 64, stream);
+        memory.WritePointer(address + 84, cursor);
+        NativeFieldResourceCursor stream = cursor + (uint)clips * 4;
+        memory.WritePointer(address + 88, stream);
+        memory.WritePointer(address + 64, stream);
         uint input = animation + 2;
         for (uint clip = 0; clip < clips; clip++)
         {
@@ -91,10 +90,10 @@ public static partial class NativeFieldRegistrationMachine
             input += 4;
             for (int frame = 0; frame < frames; frame++)
             {
-                memory.Copy(input, stream, 6);
+                memory.CopyConverted(input, stream, 6);
                 input += 6;
                 stream += 8;
-                memory.Copy(input, stream, checked(animationBones * 4));
+                memory.CopyConverted(input, stream, checked(animationBones * 4));
                 input += (uint)animationBones * 4;
                 stream += (uint)animationBones * 4;
             }
@@ -120,7 +119,7 @@ public static partial class NativeFieldRegistrationMachine
             {
                 throw new InvalidDataException("Native face header exceeds its original primitive category count.");
             }
-            uint target = checked(memory.Read32(address + 4 + type * 4) + index * (uint)strides[type]);
+            NativeFieldResourceCursor target = checked(memory.ReadPointer(address + 4 + type * 4) + index * (uint)strides[type]);
             memory.Copy(original + 12, target, isQuad ? 8 : 6);
             int texture = memory.ReadSigned16(original + 54);
             if (texture is < 0 or >= 6)
@@ -144,11 +143,11 @@ public static partial class NativeFieldRegistrationMachine
         {
             throw new NotSupportedException("Native field resource requires its reached textured primitive layout; unused untextured source tables remain unimplemented.");
         }
-        uint partTable = memory.Read32(address + 28);
-        uint skinTable = memory.Read32(address + 32);
+        NativeFieldResourceCursor partTable = memory.ReadPointer(address + 28);
+        NativeFieldResourceCursor skinTable = memory.ReadPointer(address + 32);
         for (uint part = 0; part < parts; part++)
         {
-            uint row = checked(partTable + part * 32);
+            NativeFieldResourceCursor row = partTable + part * 32;
             memory.Write16(row + 14, 0);
             int first = memory.ReadSigned16(row);
             int count = memory.ReadSigned16(row + 2);
@@ -161,6 +160,28 @@ public static partial class NativeFieldRegistrationMachine
                 memory.Write16(checked(skinTable + (uint)skin * 8 + 6), 0);
             }
         }
-        return stream;
+        return stream.Offset;
+    }
+
+    private static int ResourceLength(NativeFieldRegistrationMemory memory, SelectedModel item)
+    {
+        uint geometry = item.Geometry;
+        ulong length = 96 + ((ulong)memory.Read32(geometry) + 1) * 64;
+        uint untextured = memory.Read32(geometry + 24);
+        uint textured = memory.Read32(geometry + 28);
+        length += (ulong)(ushort)untextured * 24 + (ulong)(untextured >> 16) * 32 + (ulong)(ushort)textured * 24 + (ulong)(textured >> 16) * 28;
+        length += (ulong)memory.Read32(geometry + 8) * 8 + (ulong)memory.Read32(geometry + 4) * 8 + (ulong)memory.Read32(geometry + 16) * 32 + (ulong)memory.Read32(geometry + 20) * 8;
+        uint input = memory.Read32(geometry + 56);
+        ushort clips = memory.Read16(input);
+        length += (uint)clips * 4;
+        input = checked(input + 2);
+        for (int clip = 0; clip < clips; clip++)
+        {
+            ushort frames = memory.Read16(input);
+            ushort bones = memory.Read16(input + 2);
+            length += (ulong)frames * (8u + (uint)bones * 4);
+            input = checked(input + 4 + (uint)frames * (6u + (uint)bones * 4));
+        }
+        return checked((int)length);
     }
 }

@@ -265,7 +265,11 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
             throw new InvalidOperationException("Native staging snapshot requires its published transaction boundary.");
         }
         NativeBattleFileStagingWorkingOwner current = RequireOwner();
-        return context.GetOrAddOwner(current, () => new NativeBattleFileStaging(current.Capture(), true));
+        return context.GetOrAddOwner(current, () =>
+        {
+            NativeBattleFileStagingData data = current.Capture();
+            return new NativeBattleFileStaging(data with { ResourcePointers = context.Map(data.ResourcePointers) }, true);
+        });
     }
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
@@ -275,7 +279,11 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
             throw new InvalidOperationException("Native staging restore requires detached snapshot storage.");
         }
         ValidateData(ImportData());
-        NativeBattleFileStagingWorkingOwner restored = context.GetOrAddOwner(this, () => new NativeBattleFileStagingWorkingOwner(ImportData()));
+        NativeBattleFileStagingWorkingOwner restored = context.GetOrAddOwner(this, () =>
+        {
+            NativeBattleFileStagingData data = ImportData();
+            return new NativeBattleFileStagingWorkingOwner(data with { ResourcePointers = context.Map(data.ResourcePointers) });
+        });
         return new NativeBattleFileStaging(restored);
     }
 

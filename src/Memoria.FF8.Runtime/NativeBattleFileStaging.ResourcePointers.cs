@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? Cpu, uint? StagingAddress, int? Length = null)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldResourcePointerStorage? FieldStorage { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? CpuRow { get; init; }
 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -20,7 +23,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
         return Cpu is { Bank: < 3 } reference ? this with { CpuPublication = CpuPublication ?? cpu.Cpu.Banks[reference.Bank] } : this;
     }
 
-    internal bool HasValidOwner() => (CpuPublication is null || Cpu is { Bank: < 3 }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && cpu.Offset >= 0 && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
+    internal bool HasValidOwner() => (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { Bank: < 3 }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && cpu.Offset >= 0 && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
 }
 public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? StagingAddress);
 
@@ -72,7 +75,7 @@ public sealed partial record NativeBattleFileStaging
     internal NativeBattleFileStaging SetResourcePointerMetadata(uint address, NativeBattleResourcePointer? pointer)
     {
         RequireWritableRange(address, 4);
-        if (pointer is not null && !pointer.HasValidOwner())
+        if (pointer is not null && (!pointer.HasValidOwner() || pointer.FieldStorage is { } field && !field.IsValidAt(address)))
         {
             throw new InvalidDataException("Native staging pointer has an invalid source owner.");
         }
@@ -116,7 +119,7 @@ public sealed partial record NativeBattleFileStaging
     public NativeBattleFileStaging WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer)
     {
         RequireWritableRange(address, 4);
-        if (pointer is not null && !pointer.HasValidOwner())
+        if (pointer is not null && (!pointer.HasValidOwner() || pointer.FieldStorage is { } field && !field.IsValidAt(address)))
         {
             throw new InvalidDataException("Native staging pointer has an invalid source owner.");
         }
