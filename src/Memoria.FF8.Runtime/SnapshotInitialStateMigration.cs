@@ -8,7 +8,7 @@ internal static class SnapshotInitialStateMigration
 {
     internal static void Apply(JsonObject saved, JsonSerializerOptions options)
     {
-        // Embedded event checkpoints read byte arrays as JSON arrays. The root reader accepts both encodings.
+        // Preserve historical arrays for buffers without a property-specific byte encoding.
         JsonSerializerOptions initialOptions = new(options);
         foreach (var converter in initialOptions.Converters.OfType<ImmutableBytesJsonConverter>().ToArray())
         {

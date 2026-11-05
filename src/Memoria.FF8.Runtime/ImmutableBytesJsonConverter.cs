@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Stores physical byte buffers as base64 while accepting historical numeric arrays.</summary>
-internal sealed class ImmutableBytesJsonConverter : JsonConverter<ImmutableArray<byte>>
+public sealed class ImmutableBytesJsonConverter : JsonConverter<ImmutableArray<byte>>
 {
     public override ImmutableArray<byte> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {

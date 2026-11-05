@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffectMemoryRegion([property: JsonRequired] int Offset, [property: JsonRequired] ImmutableArray<byte> Data);
+public sealed record NativeBattleEffectMemoryRegion([property: JsonRequired] int Offset, [property: JsonRequired, JsonConverter(typeof(ImmutableBytesJsonConverter))] ImmutableArray<byte> Data);
 public sealed record NativeBattleEffectUnknownRegion([property: JsonRequired] int Offset, [property: JsonRequired] int Length);
 
 /// <summary>One retained working authority, or an explicitly detached frozen arena snapshot.</summary>

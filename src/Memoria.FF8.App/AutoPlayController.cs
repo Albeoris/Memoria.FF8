@@ -198,6 +198,7 @@ internal sealed partial class AutoPlayController
         failureBeforeManifest = null;
         latestBundleManifest = null;
         captureDirty = false;
+        ResetCaptureRoots();
         Running = true;
         Paused = false;
         Error = null;
@@ -311,6 +312,7 @@ internal sealed partial class AutoPlayController
         failureBeforeManifest = null;
         latestBundleManifest = null;
         captureDirty = false;
+        ResetCaptureRoots();
         Dictionary<string, string> imported = new(StringComparer.OrdinalIgnoreCase);
         string? ImportCheckpoint(string? checkpoint)
         {
@@ -1903,9 +1905,11 @@ internal sealed partial class AutoPlayController
         RetireClosedSearchSnapshots(run);
         string manifest = Path.Combine(runDirectory!, name + ".run.json");
         string content = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
+        CaptureRootSet roots = FreezeCaptureRoots(run);
         AtomicWrite(manifest, content);
         AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), content);
         latestBundleManifest = manifest;
+        bundleCaptureRoots = roots;
         captureDirty = true;
         return manifest;
     }
@@ -1924,8 +1928,10 @@ internal sealed partial class AutoPlayController
                 before.Snapshot = $"failure-{run.Steps:D10}-before.json";
                 SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep, standalone: true);
                 ReproductionPath = Path.Combine(runDirectory!, $"failure-{run.Steps:D10}.run.json");
+                CaptureRootSet roots = FreezeCaptureRoots(before);
                 AtomicWrite(ReproductionPath, JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
                 failureBeforeManifest = ReproductionPath;
+                failureCaptureRoots = roots;
             }
             SaveBundle($"failure-{run.Steps:D10}-fault", CaptureState());
         }
@@ -1981,8 +1987,10 @@ internal sealed partial class AutoPlayController
         controllerRollbackScratch.SetLength(0);
         controllerRollbackScratch.Position = 0;
         JsonSerializer.Serialize(controllerRollbackScratch, run, BeforeSnapshotJsonOptions);
+        CaptureRootSet roots = FreezeCaptureRoots(run);
         // Keep the last completed rollback intact until its replacement is fully written.
         (controllerRollbackBuffer, controllerRollbackScratch) = (controllerRollbackScratch, controllerRollbackBuffer);
+        rollbackCaptureRoots = roots;
         return controllerRollbackBuffer.GetBuffer().AsMemory(0, checked((int)controllerRollbackBuffer.Length));
     }
 

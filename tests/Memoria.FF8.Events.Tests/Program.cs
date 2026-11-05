@@ -26,6 +26,7 @@ internal static partial class Program
                     ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
                     ["native-blocking-dialogue"] = NativeBlockingDialogueContract,
                     ["native-blink-eyes"] = () => NativeBlinkEyesContract(selectedGameDirectory),
+                    ["native-checkpoint-byte-encoding"] = () => NativeCheckpointByteEncodingContract(selectedGameDirectory),
                     ["native-global-jump"] = () => NativeGlobalJumpContract(selectedGameDirectory),
                     ["remaining-scroll-codes"] = RemainingLayerScrollContracts,
                     ["remaining-character-codes"] = () => RemainingCharacterCodeContract(selectedGameDirectory),

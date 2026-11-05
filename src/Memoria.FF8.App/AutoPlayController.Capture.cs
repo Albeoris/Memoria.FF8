@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Memoria.FF8;
 
 internal sealed record AutoPlayRecentAction(long Step, int Field, string Scene, string Action);
@@ -8,6 +6,19 @@ internal sealed partial class AutoPlayController
 {
     private bool captureDirty;
     private const long MaximumCaptureBytes = 128L * 1024 * 1024;
+    private sealed record CaptureRootSet(string[] Dependencies, string? Snapshot);
+    private CaptureRootSet? rollbackCaptureRoots;
+    private CaptureRootSet? bundleCaptureRoots;
+    private CaptureRootSet? failureCaptureRoots;
+
+    private static CaptureRootSet FreezeCaptureRoots(AutoPlayRunState state) => new(CaptureDependencies(state).ToArray(), state.Snapshot);
+
+    private void ResetCaptureRoots()
+    {
+        rollbackCaptureRoots = null;
+        bundleCaptureRoots = null;
+        failureCaptureRoots = null;
+    }
 
     private void RecordRecentAction(string action)
     {
@@ -55,36 +66,35 @@ internal sealed partial class AutoPlayController
             return;
         }
         using IDisposable suspended = idleDeadline.Suspend();
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Capture.Maintain");
         RetireClosedSearchSnapshots(run);
         HashSet<string> retained = new(CaptureDependencies(run), StringComparer.OrdinalIgnoreCase);
         HashSet<string> standalone = new(StringComparer.OrdinalIgnoreCase);
-        void KeepStandalone(AutoPlayRunState state)
+        void KeepStandalone(CaptureRootSet? roots)
         {
-            retained.UnionWith(CaptureDependencies(state));
-            if (state.Snapshot is not null)
+            if (roots is null)
             {
-                standalone.Add(state.Snapshot);
+                return;
+            }
+            retained.UnionWith(roots.Dependencies);
+            if (roots.Snapshot is not null)
+            {
+                standalone.Add(roots.Snapshot);
             }
         }
-        KeepStandalone(run);
-        if (beforeController is { } rollback)
+        if (run.Snapshot is not null)
         {
-            KeepStandalone(JsonSerializer.Deserialize<AutoPlayRunState>(rollback.Span, JsonOptions)!);
+            standalone.Add(run.Snapshot);
         }
+        KeepStandalone(rollbackCaptureRoots);
+        KeepStandalone(bundleCaptureRoots);
+        KeepStandalone(failureCaptureRoots);
         HashSet<string> manifests = new(StringComparer.OrdinalIgnoreCase) { "latest.run.json" };
         foreach (string? manifest in new[] { latestBundleManifest, failureBeforeManifest })
         {
             if (manifest is not null)
             {
                 manifests.Add(Path.GetFileName(manifest));
-            }
-        }
-        foreach (string manifest in manifests)
-        {
-            string path = Path.Combine(runDirectory, manifest);
-            if (File.Exists(path))
-            {
-                KeepStandalone(JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(path), JsonOptions)!);
             }
         }
         foreach (string reference in retained)

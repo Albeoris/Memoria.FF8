@@ -122,6 +122,22 @@ public sealed class SnapshotStorageTests : IDisposable
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ImmutableArray<byte>>("[256]", options));
     }
 
+    [Fact]
+    public void Physical_region_encoding_round_trips_with_default_options_and_legacy_numeric_arrays()
+    {
+        NativeBattleEffectMemoryRegion original = new(17, ImmutableArray.Create<byte>(0, 128, 255));
+        string encoded = JsonSerializer.Serialize(original);
+        using JsonDocument document = JsonDocument.Parse(encoded);
+        Assert.Equal(JsonValueKind.String, document.RootElement.GetProperty("Data").ValueKind);
+        NativeBattleEffectMemoryRegion restored = JsonSerializer.Deserialize<NativeBattleEffectMemoryRegion>(encoded)!;
+        Assert.Equal(original.Offset, restored.Offset);
+        Assert.Equal(original.Data.ToArray(), restored.Data.ToArray());
+        NativeBattleEffectMemoryRegion legacy = JsonSerializer.Deserialize<NativeBattleEffectMemoryRegion>("{\"Offset\":17,\"Data\":[0,128,255]}")!;
+        Assert.Equal(original.Data.ToArray(), legacy.Data.ToArray());
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffectMemoryRegion>("{\"Offset\":17,\"Data\":[256]}"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Serialize(new NativeBattleEffectMemoryRegion(0, default)));
+    }
+
     private string CreateSave()
     {
         string path = Path.Combine(directory, "snapshot.json");
