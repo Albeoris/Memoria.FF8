@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -8,6 +9,53 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class GameplaySaveConfiguredLoadTests
 {
+    [Fact]
+    public void Pending_GF_history_survives_live_publication_player_loading_and_a_second_cold_save()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameState initial = GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, true), directory, sharedAssets: assets);
+        NativeCharacterVitals characters = initial.CharacterVitals!;
+        int ability = characters.MenuDefinitions.ResolveLearning(0).Select(rule => (int)rule.Ability).First(ability => ability > 0 && !characters.GuardianForces[0].HasLearnedAbility(ability));
+        GuardianForceProgression?[] history = new GuardianForceProgression?[16];
+        history[0] = new(true, [new(ability, true, 17, ItemTaught: true, Active: false)]);
+        characters = characters with { GuardianForceRecoveryProgression = history.ToImmutableArray() };
+        string expected = JsonSerializer.Serialize(characters.GuardianForceRecoveryProgression);
+        string folder = Path.Combine(Path.GetTempPath(), "Memoria.FF8-pending-gf-host-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string first = Path.Combine(folder, "first.sav");
+            string second = Path.Combine(folder, "second.sav");
+            GameSession session = new(initial with { CharacterVitals = characters });
+            using (GameWorld source = new(session, directory, sharedAssets: assets))
+            {
+                source.EnsureField();
+                _ = source.WriteGameplaySave(first);
+            }
+            byte[] original = File.ReadAllBytes(first);
+            GameState loaded = PlayerStateLoader.Load(first, directory, sharedAssets: assets);
+            Assert.Equal(expected, JsonSerializer.Serialize(loaded.CharacterVitals!.GuardianForceRecoveryProgression));
+            Assert.False(loaded.CharacterVitals.GuardianForces[0].HasLearnedAbility(ability));
+            GameSession resumed = new(loaded);
+            using (GameWorld source = new(resumed, directory, sharedAssets: assets))
+            {
+                source.EnsureField();
+                _ = source.WriteGameplaySave(second);
+            }
+            GameState again = PlayerStateLoader.Load(second, directory, sharedAssets: assets);
+            Assert.Equal(expected, JsonSerializer.Serialize(again.CharacterVitals!.GuardianForceRecoveryProgression));
+            Assert.False(again.CharacterVitals.GuardianForces[0].HasLearnedAbility(ability));
+            Assert.Equal(original, File.ReadAllBytes(first));
+            Assert.Equal(initial.Economy!.Gil, again.Economy!.Gil);
+            Assert.Equal(initial.Playtime, again.Playtime);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     [Fact]
     public void Installed_GF_layers_are_composed_before_saved_learning_and_AP_are_restored()
     {
