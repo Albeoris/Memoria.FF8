@@ -202,17 +202,22 @@ public sealed partial class EventEngine
 
     private void ValidateNativeLaddersMode3(Checkpoint saved, IReadOnlyList<Fiber> restored)
     {
-        foreach (ActorState actor in saved.Actors.Where(body => body.NativeLadderMode3 is not null))
+        ValidateNativeLaddersMode3(saved.Actors, saved.Scene, restored, saved.PartyJoin, saved.PartySplit);
+    }
+
+    private void ValidateNativeLaddersMode3(IReadOnlyList<ActorState> savedActors, SceneEventState savedScene, IReadOnlyList<Fiber> restored, PartyJoinState? savedPartyJoin, PartySplitState? savedPartySplit)
+    {
+        foreach (ActorState actor in savedActors.Where(body => body.NativeLadderMode3 is not null))
         {
             NativeLadderMode3State current = actor.NativeLadderMode3!;
             EventScript? script = program!.Objects[actor.ObjectId].Scripts.SingleOrDefault(item => item.Id == current.ScriptId);
             Fiber? owner = restored.SingleOrDefault(fiber => fiber.Sequence == current.FiberSequence);
             int? counter = actor.NativeTurnAccumulator474;
-            if (NativeRuntimeProfile is not { IsVerified: true } || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId))
+            if (NativeRuntimeProfile is not { IsVerified: true } || savedScene.NativeActorLayoutVersion != 1 || !savedScene.NativeActorObjectIds.Contains(actor.ObjectId))
             {
                 throw new InvalidDataException("Saved native mode3 requires its verified retained physical actor allocation.");
             }
-            if (current.Version != 1 || current.Entry is null || current.Target is null || current.Duration < 0 || script is null || !script.ContainsOperation(current.Operation) || program.Operations[current.Operation].Opcode != (current.Up ? Jsm.Opcode.LADDERUP : Jsm.Opcode.LADDERDOWN) || actor.NativeMovementCompletion542 is not (1 or 2) || counter is null or < 0 || counter > current.Duration || !MatchesNativeLadderMode3Placement(actor, current) || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.NativeLadder is not null || actor.NativeMovementRequest is not null || saved.Scene.NativeLadderSpeed490E is null || new[] { current.Target.X, current.Target.Y, current.Target.Z }.Any(value => (value & 4095) != 0) || current.Active && (owner is null || owner.Complete || owner.ObjectId != actor.ObjectId || owner.Script.Id != current.ScriptId || owner.Position != current.Operation || owner.WaitReason != WaitReason.NativeLadderMode3) || !current.Active && actor.NativeMovementCompletion542 != 2)
+            if (current.Version != 1 || current.Entry is null || current.Target is null || current.Duration < 0 || script is null || !script.ContainsOperation(current.Operation) || program.Operations[current.Operation].Opcode != (current.Up ? Jsm.Opcode.LADDERUP : Jsm.Opcode.LADDERDOWN) || actor.NativeMovementCompletion542 is not (1 or 2) || counter is null or < 0 || counter > current.Duration || !MatchesNativeLadderMode3Placement(actor, current) || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.NativeLadder is not null || actor.NativeMovementRequest is not null || savedScene.NativeLadderSpeed490E is null || new[] { current.Target.X, current.Target.Y, current.Target.Z }.Any(value => (value & 4095) != 0) || current.Active && (owner is null || owner.Complete || owner.ObjectId != actor.ObjectId || owner.Script.Id != current.ScriptId || owner.Position != current.Operation || owner.WaitReason != WaitReason.NativeLadderMode3) || !current.Active && actor.NativeMovementCompletion542 != 2)
             {
                 throw new InvalidDataException("Saved native mode3 lost its raw body, phase or original held instruction.");
             }
@@ -220,11 +225,11 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved active mode3 landing WORD508 differs from its issuing instruction.");
             }
-            if (current.Active && (saved.PartyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId) == true || saved.PartySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId) == true))
+            if (current.Active && (savedPartyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId) == true || savedPartySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId) == true))
             {
                 throw new InvalidDataException("Saved active mode3 cannot share its physical body with pending JOIN or SPLIT targets.");
             }
-            if (NativeFieldPartyBinding.TryGetObjectId(saved.Scene, 0, out int player) && player == actor.ObjectId && saved.Scene.NativePlayerPosition != new FieldFixedPosition(current.FixedX, current.FixedY, current.FixedZ))
+            if (NativeFieldPartyBinding.TryGetObjectId(savedScene, 0, out int player) && player == actor.ObjectId && savedScene.NativePlayerPosition != new FieldFixedPosition(current.FixedX, current.FixedY, current.FixedZ))
             {
                 throw new InvalidDataException("Saved mode3 player position mirror differs from its actual physical body.");
             }
@@ -244,7 +249,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException(exception.Message, exception);
             }
         }
-        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeLadderMode3 && saved.Actors[fiber.ObjectId].NativeLadderMode3 is not { Active: true }))
+        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeLadderMode3 && savedActors[fiber.ObjectId].NativeLadderMode3 is not { Active: true }))
         {
             throw new InvalidDataException("Saved native mode3 wait lacks its physical owner.");
         }
