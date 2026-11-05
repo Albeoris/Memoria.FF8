@@ -79,7 +79,10 @@ internal sealed partial class GameWorld
         }
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
         NativeBattleModelCpuResources retainedCpu = session.State.NativeBattleMemory?.ModelCpuResources ?? throw new NotSupportedException("Battle entry requires its retained party CPU allocation.");
-        if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.")))
+        string allocationImage = restoredDefinition is not null
+            ? ActiveBattleResourceCompatibility.AllocationImage(Events.NativeRuntimeProfile, restoredDefinition.NativeGraphics?.Rules)
+            : assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.");
+        if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(allocationImage))
         {
             throw new NotSupportedException("Battle entry requires the edition's retained party CPU allocation; migrate this save explicitly.");
         }
@@ -170,6 +173,10 @@ internal sealed partial class GameWorld
             NativeBattleCompletion? request = Events.PendingInteractiveBattle;
             EncounterBindingContext context = request is not null && request.Encounter == encounterId ? new("Classic", session.State.FieldId, encounterId, activeFlags) : new("Classic");
             definition = ApplyEncounterBattlePolicy(definition, context, restoredDefinition, applyEncounterMods);
+        }
+        if (restoredDefinition is not null)
+        {
+            definition = ActiveBattleResourceCompatibility.RetainAllocatedResources(definition, restoredDefinition, allocationImage, assets.NativeExecutableHash ?? throw new InvalidDataException("Restored battle requires its selected resource image identity."));
         }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
