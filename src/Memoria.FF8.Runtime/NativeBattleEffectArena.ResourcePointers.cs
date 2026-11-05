@@ -129,7 +129,7 @@ public partial record NativeBattleEffectArena
         {
             RequireRange(offset, 4);
             ValidatePointer(pointer);
-            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
+            if ((pointer?.StagingAddress ?? pointer?.Cpu?.TryPhysicalAddress()) is uint numeric)
             {
                 ReadImportData(offset, bytes);
                 if (IntersectsUnknown(offset, 4) || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric)

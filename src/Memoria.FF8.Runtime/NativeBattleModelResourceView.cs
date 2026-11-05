@@ -45,7 +45,7 @@ public readonly struct NativeBattleModelResourceView
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentNullException.ThrowIfNull(staging);
         ArgumentNullException.ThrowIfNull(reference);
-        if (length < 0 || !NativeFieldRuntimeProfile.IsSupportedImage(reference.EffectiveLayout.ExecutableHash) || reference.Bank > 4 || reference.Offset < 0 || reference.Bank < 3 && reference.Offset > reference.EffectiveLayout.BankLength)
+        if (length < 0 || !NativeFieldRuntimeProfile.IsSupportedImage(reference.EffectiveLayout.ExecutableHash) || reference.Bank > 4 || reference.Offset < 0 || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && !reference.ResourceOnly && reference.Offset > reference.EffectiveLayout.BankLength)
         {
             throw new InvalidDataException("Native model section requires its observed CPU resource owner.");
         }
@@ -93,7 +93,7 @@ public readonly struct NativeBattleModelResourceView
             throw new InvalidDataException("Native model section selects an absent CPU bank.");
         }
         NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
-        RequireRange(reference.Offset, length, bank.Capacity);
+        RequireRange(reference.Offset, length, bank.ResourceCapacity);
         return new(bank, null, reference.Offset, 0, length);
     }
 

@@ -364,7 +364,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             throw new InvalidDataException("Native working memory pointer has an invalid source owner.");
         }
-        uint? numeric = pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress;
+        uint? numeric = pointer?.StagingAddress ?? pointer?.Cpu?.TryPhysicalAddress();
         Span<byte> bytes = stackalloc byte[4];
         if (numeric is uint address)
         {
@@ -699,7 +699,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             {
                 throw new InvalidDataException("Native working snapshot pointer has an invalid owner.");
             }
-            uint? numeric = pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress;
+            uint? numeric = pointer?.StagingAddress ?? pointer?.Cpu?.TryPhysicalAddress();
             for (int lane = 0; lane < 4; lane++)
             {
                 if (result.IsKnown(entry.Key + lane) != (numeric is not null))

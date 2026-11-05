@@ -46,18 +46,27 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePartyCpuLayout? Layout { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ResourceOnly { get; init; }
+
     [JsonIgnore]
     public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
 
     [JsonIgnore]
     public uint PhysicalAddress
     {
-        get
+        get => TryPhysicalAddress() ?? throw new NotSupportedException("This model section is resource-owned and requires a section view rather than a numeric guest address.");
+    }
+
+    public uint? TryPhysicalAddress()
+    {
+        NativeBattlePartyCpuLayout layout = EffectiveLayout;
+        layout.Validate();
+        if (ResourceOnly)
         {
-            NativeBattlePartyCpuLayout layout = EffectiveLayout;
-            layout.Validate();
-            return Bank < 3 ? checked(layout.BaseAddress + (uint)layout.BankLength * Bank + (uint)Offset) : SharedAddress;
+            return null;
         }
+        return Bank < 3 ? checked(layout.BaseAddress + (uint)layout.BankLength * Bank + (uint)Offset) : SharedAddress;
     }
 }
 
@@ -65,6 +74,7 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
 public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
 {
     private readonly NativeBattleModelResourceStorage storage = NativeBattleModelResourceStorage.FromKnownRanges(KnownRanges);
+    private readonly NativeBattleModelResourceStorage? resourceStorage;
 
     /// <summary>Compatible diagnostic materialization; ordinary resource reads do not construct or retain this image.</summary>
     public ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges
@@ -73,20 +83,32 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
         init => storage = NativeBattleModelResourceStorage.FromKnownRanges(value);
     }
 
+    /// <summary>Exact logical resource contents when they exceed the independently bounded guest window.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleEffectMemoryRegion>? ResourceRanges
+    {
+        get => resourceStorage?.CaptureKnownRanges(ResourceCapacity);
+        init => resourceStorage = value is { } ranges ? NativeBattleModelResourceStorage.FromKnownRanges(ranges) : null;
+    }
+
     public const int Length = 0x10000;
     public int Capacity { get; init; } = Length;
-    internal ImmutableArray<NativeBattleModelResourceSegment> ResourceSegments => storage.Segments;
+    internal bool HasResourceStorage => resourceStorage is not null;
+    internal int ResourceCapacity => resourceStorage is { Segments.IsDefaultOrEmpty: false } logical ? Math.Max(Capacity, checked(logical.Segments[^1].Offset + logical.Segments[^1].Length)) : Capacity;
+    internal ImmutableArray<NativeBattleModelResourceSegment> ResourceSegments => resourceStorage?.Segments ?? storage.Segments;
+    internal ImmutableArray<NativeBattleModelResourceSegment> GuestSegments => storage.Segments;
     public static NativeBattleModelCpuBank Unknown(int capacity = Length) => new([]) { Capacity = capacity };
 
     public byte[] Read(int offset, int length)
     {
-        return storage.Read(offset, length, Capacity);
+        return (resourceStorage ?? storage).Read(offset, length, ResourceCapacity);
     }
 
     public NativeBattleModelCpuBank Write(int offset, ReadOnlySpan<byte> bytes)
     {
-        NativeBattleModelResourceStorage updated = storage.Write(offset, bytes, Capacity);
-        return ReferenceEquals(updated, storage) ? this : new(updated, Capacity);
+        NativeBattleModelResourceStorage current = resourceStorage ?? storage;
+        NativeBattleModelResourceStorage updated = current.Write(offset, bytes, ResourceCapacity);
+        return ReferenceEquals(updated, current) ? this : resourceStorage is null ? new(updated, Capacity) : new(storage, Capacity, updated);
     }
 
     internal NativeBattleModelCpuBank BindResource(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
@@ -95,9 +117,21 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
         return ReferenceEquals(updated, storage) ? this : new(updated, Capacity);
     }
 
-    private NativeBattleModelCpuBank(NativeBattleModelResourceStorage storage, int capacity) : this([])
+    internal NativeBattleModelCpuBank BindPartyResource(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
+    {
+        int extent = checked(offset + length);
+        if (extent <= Capacity && resourceStorage is null)
+        {
+            return new(storage.Bind(offset, source, sourceOffset, length, Capacity), Capacity);
+        }
+        NativeBattleModelResourceStorage current = resourceStorage ?? storage;
+        return new(storage, Capacity, current.Bind(offset, source, sourceOffset, length, Math.Max(ResourceCapacity, extent)));
+    }
+
+    private NativeBattleModelCpuBank(NativeBattleModelResourceStorage storage, int capacity, NativeBattleModelResourceStorage? resourceStorage = null) : this([])
     {
         this.storage = storage;
+        this.resourceStorage = resourceStorage;
         Capacity = capacity;
     }
 }

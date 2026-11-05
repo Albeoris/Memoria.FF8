@@ -8,7 +8,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? CpuRow { get; init; }
 
-    internal bool HasValidOwner() => Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && cpu.Offset >= 0 && (cpu.Bank >= 3 || cpu.Offset <= cpu.EffectiveLayout.BankLength));
+    internal bool HasValidOwner() => Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && cpu.Offset >= 0 && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
 }
 public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? StagingAddress);
 

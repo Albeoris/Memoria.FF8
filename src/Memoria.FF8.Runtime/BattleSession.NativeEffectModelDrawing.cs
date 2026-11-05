@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
             uint scratch = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 or 274 ? pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new InvalidDataException("Duel body capture requires its actual selected geometry pointer.") : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 or 274 ? ResourceIdentity() : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
             if (pilotIdentity is { Effect: 274 })
             {
                 drawn = drawn with { Packets = NativeBattleCinematicActorPresentation.NativeDepths(drawn.Packets) };
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
             {
                 if (pointer.Length is int available && (offset < 0 || length < 0 || offset > available - length))
                 {
-                    throw new InvalidDataException($"Native effect body geometry read at {offset} for {length} bytes leaves its actual source extent {available} (address 0x{pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress:X8}).");
+                    throw new InvalidDataException($"Native effect body geometry read at {offset} for {length} bytes leaves its actual source extent {available} (address 0x{pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress:X8}).");
                 }
                 if (pointer.Cpu is { } cpuPointer)
                 {
@@ -132,6 +132,11 @@ public sealed partial class BattleSession
                     return bytes;
                 }
                 return IsNativeEffectArenaAddress(address) ? memory.Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length) : staging.Read(address, length);
+            }
+
+            long ResourceIdentity()
+            {
+                return pointer.Cpu is { ResourceOnly: true } logical ? NativeBattlePilotVisualLifetimes.EpochFor(cpu.Cpu.Banks[logical.Bank]) : pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new InvalidDataException("Body capture requires its actual selected geometry owner.");
             }
         }
 

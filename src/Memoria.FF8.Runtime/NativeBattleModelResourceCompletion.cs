@@ -64,7 +64,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     public void Validate()
     {
         Cpu.Validate();
-        if (Palettes.Capacity != NativeBattleModelCpuBank.Length || AnimationFrames.Capacity != NativeBattleModelCpuBank.Length)
+        if (Palettes.Capacity != NativeBattleModelCpuBank.Length || AnimationFrames.Capacity != NativeBattleModelCpuBank.Length || Palettes.HasResourceStorage || AnimationFrames.HasResourceStorage)
         {
             throw new InvalidDataException("Native palette and animation storage requires its fixed physical capacity.");
         }
@@ -76,7 +76,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].Capacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }
@@ -193,7 +193,7 @@ public static class NativeBattleModelResourceCopies
         {
             throw new InvalidDataException("Native resource row aliases an absent party CPU bank.");
         }
-        NativeBattleModelCpuBank changed = cpu.Banks[bank].BindResource(origin, source.Bytes, first, length);
+        NativeBattleModelCpuBank changed = cpu.Banks[bank].BindPartyResource(origin, source.Bytes, first, length);
         if (task.Callback == 0x507E20)
         {
             NativeBattleModelCpuReference geometry = body.Require(16);
@@ -207,6 +207,18 @@ public static class NativeBattleModelResourceCopies
             changed = changed.Write(geometry.Offset + 8, relative);
             body = body with { Lengths = body.Lengths.SetItem(16, checked(origin + length - geometry.Offset)) };
             rows = rows.SetItem(bodyRow, body);
+        }
+        for (int index = 0; index < rows.Length; index++)
+        {
+            NativeBattleModelCpuResourceRow current = rows[index];
+            foreach ((int field, NativeBattleModelCpuReference? reference) in current.Fields)
+            {
+                if (reference is not null && reference.Bank == bank && reference.ResourceOnly != changed.HasResourceStorage)
+                {
+                    current = current.Set(field, reference with { ResourceOnly = changed.HasResourceStorage });
+                }
+            }
+            rows = rows.SetItem(index, current);
         }
         cpu = cpu with { Banks = cpu.Banks.SetItem(bank, changed) };
         return new(cpu, rows, bodyRow, task.Callback == 0x507BF0 ? linkedRow : null, animation, scratch);
