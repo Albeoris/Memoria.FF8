@@ -17,6 +17,10 @@ internal static class OriginalSaveMetadata
         ArgumentNullException.ThrowIfNull(content);
         string fullPath = Path.GetFullPath(savePath);
         string directory = Path.GetDirectoryName(fullPath)!;
+        if (OriginalSaveLocation.IsRemasteredDirectory(directory))
+        {
+            return null;
+        }
         string metadataPath = Path.Combine(directory, "metadata.xml");
         bool exists = File.Exists(metadataPath);
         Match profile = Regex.Match(Path.GetFileName(directory), "^user_([0-9a-fA-F]+)$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
