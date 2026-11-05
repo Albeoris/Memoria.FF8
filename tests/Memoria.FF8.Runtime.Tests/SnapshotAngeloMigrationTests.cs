@@ -163,11 +163,25 @@ public sealed class SnapshotAngeloMigrationTests
         saved["LimitProgress"]!.AsObject().Remove("AngeloFlags");
         JsonObject departure = saved["LimitProgress"]!.DeepClone().AsObject();
         departure["InitOutSha256"] = new string('1', 64);
+        departure["AngeloFlags"] = 0xA5;
         saved["EventState"] = new JsonObject { ["LimitProgress"] = departure };
         string original = saved.ToJsonString();
 
         Assert.Throws<InvalidDataException>(() => SnapshotLimitProgressMigration.Apply(saved, Options, 8, Initial));
 
+        Assert.Equal(original, saved.ToJsonString());
+    }
+
+    [Fact]
+    public void CompleteHistoricalOwnersKeepRecordedIdentitiesWithoutTemplateAccess()
+    {
+        JsonObject saved = Historical();
+        saved["Scene"] = nameof(SceneKind.Field);
+        JsonObject current = saved["LimitProgress"]!.DeepClone().AsObject();
+        current["InitOutSha256"] = new string('1', 64);
+        saved["EventState"] = new JsonObject { ["LimitProgress"] = current };
+        string original = saved.ToJsonString();
+        Assert.False(SnapshotLimitProgressMigration.Apply(saved, Options, 8, () => throw new InvalidOperationException("Complete owners require no initialization.")));
         Assert.Equal(original, saved.ToJsonString());
     }
 

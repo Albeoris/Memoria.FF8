@@ -20,10 +20,6 @@ internal static class SnapshotLimitProgressMigration
         List<(JsonObject Parent, JsonNode? Value)> newOwners = [];
         JsonObject? root = ReadOwner(saved, currentCheckpoint, scene is SceneKind.Field or SceneKind.Movie or SceneKind.WorldMap, initialize is not null || saved[nameof(GameState.OriginalSave)] is JsonObject, newOwners);
         JsonObject? current = currentCheckpoint is null ? null : ReadOwner(currentCheckpoint, saved, true, root is not null, newOwners);
-        if (root is not null && current is not null)
-        {
-            ValidateMatchingOwners(root[nameof(NativeLimitProgress.InitOutSha256)], current);
-        }
         JsonObject? frozenCurrent = currentCheckpoint is null ? (saved[nameof(GameState.EventState)] as JsonObject)?[nameof(GameState.LimitProgress)] as JsonObject : null;
         JsonObject? departing = (saved[nameof(GameState.DepartingFieldState)] as JsonObject)?[nameof(GameState.LimitProgress)] as JsonObject;
         JsonObject[] owners = new[] { root, current, frozenCurrent, departing }.OfType<JsonObject>().Distinct().ToArray();
