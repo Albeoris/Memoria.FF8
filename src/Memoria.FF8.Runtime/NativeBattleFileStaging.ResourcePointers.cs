@@ -20,10 +20,10 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
         {
             throw new InvalidDataException("A retained model source requires its actual selected resource owner.");
         }
-        return Cpu is { Bank: < 3 } reference ? this with { CpuPublication = CpuPublication ?? cpu.Cpu.Banks[reference.Bank] } : this;
+        return Cpu is { IsOwnedResource: true } reference ? this with { CpuPublication = CpuPublication ?? cpu.GetResourceBank(reference) } : this;
     }
 
-    internal bool HasValidOwner() => (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { Bank: < 3 }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && cpu.Offset >= 0 && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
+    internal bool HasValidOwner() => (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { IsOwnedResource: true }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && (cpu.Offset >= 0 || cpu.EnemyResourceId is not null) && cpu.ResourceOffset >= 0 && cpu.EnemyResourceId is not < 0 && (cpu.EnemyResourceId is null || cpu.Bank == 3) && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
 }
 public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? StagingAddress);
 

@@ -54,6 +54,17 @@ public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, Immut
 public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows)
 {
     public const uint EnemyAddress = 0x1939018;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<int, NativeBattleModelCpuBank>? EnemyResources { get; init; }
+    public int NextEnemyResourceId { get; init; }
+
+    public NativeBattleModelCpuBank GetResourceBank(NativeBattleModelCpuReference reference)
+    {
+        return reference.EnemyResourceId is int id
+            ? EnemyResources is { } resources && resources.TryGetValue(id, out NativeBattleModelCpuBank? bank) ? bank : throw new InvalidDataException("Enemy section requires its retained resource owner.")
+            : reference.Bank < 3 ? Cpu.Banks[reference.Bank] : throw new InvalidDataException("Shared guest sections have no immutable resource publication.");
+    }
+
     public int? EnemyCursor { get; init; }
     public byte? EnemyLinkedSlots { get; init; }
     public int? LastModel142Row { get; init; }
@@ -101,18 +112,29 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     {
         ImmutableDictionary<int, NativeBattleModelCpuReference?> pointers = new[] { 8, 12, 16, 20, 24, 28, 32, 40, 44, 48 }.ToImmutableDictionary(offset => offset, _ => (NativeBattleModelCpuReference?)null);
         NativeBattlePartyCpuLayout layout = NativeBattlePartyCpuLayout.ForImage(executableHash);
-        return Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, 11).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+        return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, 11).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
     }
 
     /// <summary>Invalidated resource rows retain physical bytes, but no derived extent belongs to the next load.</summary>
     public NativeBattleModelCpuResources InvalidateResourceExtents()
     {
-        return this with { Rows = Rows.Select(row => row with { Lengths = ImmutableDictionary<int, int>.Empty }).ToImmutableArray() };
+        return this with { Rows = Rows.Select(row => row with { Lengths = ImmutableDictionary<int, int>.Empty }).ToImmutableArray(), EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty };
     }
 
     public void Validate()
     {
         Cpu.Validate();
+        if (NextEnemyResourceId < 0 || EnemyResources is { } resources && resources.Any(item => item.Key < 0 || item.Key >= NextEnemyResourceId || item.Value is null || item.Value.Capacity < 0 || item.Value.HasResourceStorage))
+        {
+            throw new InvalidDataException("Enemy resources require bounded immutable owners and monotonic identities.");
+        }
+        if (EnemyResources is { } owners)
+        {
+            foreach (NativeBattleModelCpuBank owner in owners.Values)
+            {
+                _ = owner.Read(0, 0);
+            }
+        }
         if (Palettes.Capacity != NativeBattleModelCpuBank.Length || AnimationFrames.Capacity != NativeBattleModelCpuBank.Length || Palettes.HasResourceStorage || AnimationFrames.HasResourceStorage)
         {
             throw new InvalidDataException("Native palette and legacy diagnostic animation storage requires its fixed physical capacity.");
@@ -134,7 +156,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 && reference.EnemyResourceId is null || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }

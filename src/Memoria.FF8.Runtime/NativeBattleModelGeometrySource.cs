@@ -44,20 +44,20 @@ public readonly struct NativeBattleModelGeometrySource
         return readArena is not null ? readArena(offset, length) : NativeBattleEffectArena.Clear().Write(0, read!(offset, length));
     }
 
-    internal int AlignmentResidue => numericAddress is uint address ? (int)(address & 3) : (int)((Owner.Cpu!.EffectiveLayout.BaseAddress + (uint)(Owner.Cpu.Offset & 3)) & 3);
+    internal int AlignmentResidue => Owner.Cpu is { EnemyResourceId: not null } enemy ? (int)(enemy.NativePlacementAddress & 3) : numericAddress is uint address ? (int)(address & 3) : (int)((Owner.Cpu!.EffectiveLayout.BaseAddress + (uint)(Owner.Cpu.Offset & 3)) & 3);
 
     public static NativeBattleModelGeometrySource Open(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, Func<int, int, byte[]> readShared)
     {
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentNullException.ThrowIfNull(staging);
         ArgumentNullException.ThrowIfNull(pointer);
-        if (pointer.Cpu is { Bank: < 3 } reference)
+        if (pointer.Cpu is { IsOwnedResource: true } reference)
         {
-            NativeBattleModelCpuBank bank = pointer.CpuPublication ?? cpu.Cpu.Banks[reference.Bank];
-            int available = checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.Offset);
+            NativeBattleModelCpuBank bank = pointer.CpuPublication ?? cpu.GetResourceBank(reference);
+            int available = checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.ResourceStorageOffset);
             int length = Math.Min(pointer.Length ?? available, available);
             NativeBattleModelResourceView view = NativeBattleModelResourceView.Open(cpu, staging, pointer, length);
-            long identity = reference.ResourceOnly ? NativeBattlePilotVisualLifetimes.EpochFor(bank) : reference.PhysicalAddress;
+            long identity = reference.ResourceOnly || reference.EnemyResourceId is not null ? NativeBattlePilotVisualLifetimes.EpochFor(bank) : reference.PhysicalAddress;
             return new(pointer with { Length = length }, view.Read, identity);
         }
         return OpenShared(pointer, readShared);
@@ -72,7 +72,7 @@ public readonly struct NativeBattleModelGeometrySource
     public static NativeBattleModelGeometrySource OpenShared(NativeBattleResourcePointer pointer, Func<int, int, byte[]> read)
     {
         ArgumentNullException.ThrowIfNull(pointer);
-        if (pointer.Cpu is { Bank: < 3 })
+        if (pointer.Cpu is { IsOwnedResource: true })
         {
             throw new InvalidDataException("Party model geometry requires its CPU publication owner.");
         }
@@ -95,7 +95,7 @@ public readonly struct NativeBattleModelGeometrySource
     internal NativeBattleEffectArena WriteCursor(NativeBattleEffectArena destination, int field, int offset)
     {
         // Native callers can publish a cursor before a masked object is skipped; reads remain section-bounded.
-        return Owner.CpuPublication is null && NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
+        return Owner.CpuPublication is null && Owner.Cpu?.EnemyResourceId is null && NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
     }
 
     public NativeBattleResourcePointer Cursor(int offset)
@@ -103,7 +103,7 @@ public readonly struct NativeBattleModelGeometrySource
         RequireOffset(offset);
         return Owner with
         {
-            Cpu = Owner.Cpu is { } reference ? reference with { Offset = checked(reference.Offset + offset) } : null,
+            Cpu = Owner.Cpu is { } reference ? reference.Advance(offset) : null,
             StagingAddress = Owner.StagingAddress is uint address ? checked(address + (uint)offset) : null,
             Length = Owner.Length is int length ? Math.Max(0, length - offset) : null
         };

@@ -6,7 +6,10 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleModelCpuReference
 {
     [System.Text.Json.Serialization.JsonIgnore]
-    public uint SharedAddress => Bank switch { 3 => checked(NativeBattleModelCpuResources.EnemyAddress + (uint)Offset), 4 => checked(0x1D999C0u + (uint)Offset), _ => throw new InvalidOperationException("This reference selects a party CPU bank.") };
+    public uint SharedAddress => EnemyResourceId is not null ? throw new NotSupportedException("An owned enemy section has no shared guest address.") : NativePlacementAddress;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public uint NativePlacementAddress => Bank switch { 3 => checked((uint)((long)NativeBattleModelCpuResources.EnemyAddress + Offset)), 4 => checked(0x1D999C0u + (uint)Offset), _ => throw new InvalidOperationException("This reference selects a party CPU bank.") };
 }
 
 public static class NativeBattleModelEnemyHeap
@@ -19,6 +22,8 @@ public static class NativeBattleModelEnemyHeap
     public static (NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Load(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int destination, int? sharedRow, bool special143)
     {
         int cursor = cpu.EnemyCursor ?? throw new NotSupportedException("Native enemy load requires its actual508260 heap cursor.");
+        bool owned = cpu.EnemyResources is not null;
+        int? ownerId = null;
         NativeBattleModelCpuResourceRow row;
         if (special143)
         {
@@ -32,7 +37,15 @@ public static class NativeBattleModelEnemyHeap
             }
             row = row.Set(16, new(4, 0)).Set(48, null).Set(28, At(0)).Set(32, At(1));
             row = row with { Lengths = row.Lengths.SetItem(16, 4).SetItem(28, source.Section(1) - source.Section(0)).SetItem(32, source.Section(2) - source.Section(1)) };
-            staging = staging.BindResource(At(0).SharedAddress, source.Bytes, source.Section(0), source.Section(2) - source.Section(0));
+            if (owned)
+            {
+                Allocate(source.Bytes, source.Section(0), source.Section(2) - source.Section(0));
+                row = row.Set(28, At(0)).Set(32, At(1));
+            }
+            else
+            {
+                staging = staging.BindResource(At(0).SharedAddress, source.Bytes, source.Section(0), source.Section(2) - source.Section(0));
+            }
             cursor = checked(cursor + source.Section(2) - source.Section(0));
         }
         else if (sharedRow is int existing)
@@ -44,15 +57,46 @@ public static class NativeBattleModelEnemyHeap
             {
                 throw new NotSupportedException("Native507740 requires its retained enemy private skeleton owner.");
             }
-            row = original.Set(12, new(3, cursor));
-            staging = staging.CopyResourceMemory(skeleton.SharedAddress, At(0).SharedAddress, length);
+            if (owned)
+            {
+                if (skeleton.EnemyResourceId is null)
+                {
+                    throw new InvalidDataException("Owned enemy clones require an owned private skeleton.");
+                }
+                NativeBattleModelCpuBank bank = cpu.GetResourceBank(skeleton);
+                NativeBattleModelCpuBank clone = NativeBattleModelCpuBank.Unknown(length);
+                foreach (NativeBattleModelResourceSegment segment in bank.GuestSegments)
+                {
+                    int first = Math.Max(skeleton.ResourceOffset, segment.Offset);
+                    int end = Math.Min(skeleton.ResourceOffset + length, segment.Offset + segment.Length);
+                    if (end > first)
+                    {
+                        clone = clone.BindResource(first - skeleton.ResourceOffset, segment.Source, segment.SourceOffset + first - segment.Offset, end - first);
+                    }
+                }
+                ownerId = cpu.NextEnemyResourceId;
+                cpu = cpu with { EnemyResources = cpu.EnemyResources!.Add(ownerId.Value, clone), NextEnemyResourceId = checked(ownerId.Value + 1) };
+                row = original.Set(12, At(0));
+            }
+            else
+            {
+                row = original.Set(12, new(3, cursor));
+                staging = staging.CopyResourceMemory(skeleton.SharedAddress, At(0).SharedAddress, length);
+            }
             cursor = checked((cursor + length + 3) & ~3);
         }
         else
         {
             int first = source.Section(0);
             int end = source.Section(9);
-            staging = staging.BindResource(At(0).SharedAddress, source.Bytes, first, end - first);
+            if (owned)
+            {
+                Allocate(source.Bytes, first, end - first);
+            }
+            else
+            {
+                staging = staging.BindResource(At(0).SharedAddress, source.Bytes, first, end - first);
+            }
             row = cpu.Rows[destination] with { PrivateLength4 = source.Section(1) - first, SharedLength8 = end - source.Section(1) };
             foreach ((int field, int section) in new (int, int)[] { (12, 0), (16, 1), (20, 2), (48, 3), (24, 4), (44, 5), (28, 6), (32, 7), (40, 8) })
             {
@@ -67,7 +111,14 @@ public static class NativeBattleModelEnemyHeap
         cpu = cpu with { Rows = cpu.Rows.SetItem(destination, row), EnemyCursor = cursor, LastModel142Row = special143 && sharedRow is int shared ? shared : cpu.LastModel142Row };
         return (cpu, staging);
 
-        NativeBattleModelCpuReference At(int section) => new(3, checked((cpu.EnemyCursor ?? 0) + source.Section(section) - source.Section(0)));
+        NativeBattleModelCpuReference At(int section) => new(3, checked((cpu.EnemyCursor ?? 0) + source.Section(section) - source.Section(0))) { EnemyResourceId = ownerId, ResourceOffset = ownerId is not null ? source.Section(section) - source.Section(0) : 0 };
+
+        void Allocate(ImmutableArray<byte> bytes, int first, int length)
+        {
+            ownerId = cpu.NextEnemyResourceId;
+            NativeBattleModelCpuBank bank = NativeBattleModelCpuBank.Unknown(length).BindResource(0, bytes, first, length);
+            cpu = cpu with { EnemyResources = cpu.EnemyResources!.Add(ownerId.Value, bank), NextEnemyResourceId = checked(ownerId.Value + 1) };
+        }
     }
 
     public static (NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Release(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelTextureCache cache, int resource)
@@ -89,6 +140,11 @@ public static class NativeBattleModelEnemyHeap
                 cpu = cpu with { EnemyLinkedSlots = unchecked((byte)((cpu.EnemyLinkedSlots ?? throw new NotSupportedException("Native5080D0 requires its retained slot mask.")) & ~(1 << slot))) };
             }
         }
+        if (cpu.EnemyResources is { } resources)
+        {
+            HashSet<int> retained = cpu.Rows.Where((_, index) => index != resource && cache.Rows[index].Kind == 3).SelectMany(candidate => candidate.Fields.Values).Where(pointer => pointer?.EnemyResourceId is not null).Select(pointer => pointer!.EnemyResourceId!.Value).ToHashSet();
+            cpu = cpu with { EnemyResources = resources.Where(item => retained.Contains(item.Key)).ToImmutableDictionary() };
+        }
         return (cpu, staging);
 
         void Compact(NativeBattleModelCpuReference address, int length)
@@ -102,7 +158,10 @@ public static class NativeBattleModelEnemyHeap
                 throw new NotSupportedException("Native508170 requires its actual enemy heap allocation.");
             }
             int cursor = cpu.EnemyCursor ?? throw new NotSupportedException("Native508170 requires its retained heap cursor.");
-            staging = staging.CopyResourceMemory(checked(address.SharedAddress + (uint)length), address.SharedAddress, checked(cursor - address.Offset - length));
+            if (address.EnemyResourceId is null)
+            {
+                staging = staging.CopyResourceMemory(checked(address.SharedAddress + (uint)length), address.SharedAddress, checked(cursor - address.Offset - length));
+            }
             var rows = cpu.Rows.ToBuilder();
             for (int index = 0; index < rows.Count; index++)
             {

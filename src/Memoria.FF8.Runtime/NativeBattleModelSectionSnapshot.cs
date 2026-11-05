@@ -10,7 +10,7 @@ internal static class NativeBattleModelSectionSnapshot
         {
             throw new InvalidDataException("Model snapshot leaves its selected section owner or extent.");
         }
-        if (pointer.Cpu is { Bank: < 3 })
+        if (pointer.Cpu is { IsOwnedResource: true })
         {
             return NativeBattleModelResourceView.Open(cpu ?? throw new NotSupportedException("Model snapshot requires its CPU resource owner."), staging, pointer, checked(offset + length)).ReadSnapshot(offset, length);
         }

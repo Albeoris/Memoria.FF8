@@ -11,7 +11,7 @@ public sealed class NativeBattleEnemyResourceOwnershipTests
     public void Full_load_private_clone_shared_mutation_and_release_preserve_resource_backing_aliases_and_history(bool restoredLegacy)
     {
         NativeBattleModelDatSource source = Source();
-        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 };
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyResources = null, EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 };
         cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0] with { LinkedPhysicalIndex36 = 255 }) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 0, null, false);

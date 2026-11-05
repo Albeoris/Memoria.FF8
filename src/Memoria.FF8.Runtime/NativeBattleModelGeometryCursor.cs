@@ -32,11 +32,11 @@ internal readonly struct NativeBattleModelGeometryCursor
         {
             if (pointer?.Cpu is { } reference && source.Owner.Cpu is { } owner)
             {
-                if (reference.Bank != owner.Bank || reference.ResourceOnly != owner.ResourceOnly || reference.EffectiveLayout != owner.EffectiveLayout || !NativeBattleModelCpuBank.SamePublication(pointer.CpuPublication, source.Owner.CpuPublication))
+                if (reference.EnemyResourceId != owner.EnemyResourceId || reference.Bank != owner.Bank || reference.ResourceOnly != owner.ResourceOnly || reference.EffectiveLayout != owner.EffectiveLayout || !NativeBattleModelCpuBank.SamePublication(pointer.CpuPublication, source.Owner.CpuPublication))
                 {
                     throw new InvalidDataException("Model source cursor belongs to another publication or address domain.");
                 }
-                relative = (long)reference.Offset - owner.Offset;
+                relative = (long)reference.ResourceStorageOffset - owner.ResourceStorageOffset;
             }
             else if ((pointer?.Cpu?.TryPhysicalAddress() ?? pointer?.StagingAddress) is uint address && source.NumericCursor(0) is uint basis)
             {

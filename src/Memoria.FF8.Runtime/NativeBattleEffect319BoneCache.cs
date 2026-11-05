@@ -36,7 +36,7 @@ public static class NativeBattleEffect319BoneCache
         // The record selects the current actor pose; it does not borrow immutable CPU bytes.
         return skeleton with
         {
-            Cpu = skeleton.Cpu is { } cpu ? cpu with { Offset = checked(cpu.Offset + offset) } : null,
+            Cpu = skeleton.Cpu is { } cpu ? cpu.Advance(offset) : null,
             StagingAddress = skeleton.StagingAddress is uint address ? checked(address + (uint)offset) : null,
             CpuPublication = null,
             Length = skeleton.Length is int available ? available - offset : null
@@ -52,9 +52,9 @@ public static class NativeBattleEffect319BoneCache
             throw new NotSupportedException("A current-pose bone cache cannot select an immutable CPU publication.");
         }
         long offset;
-        if (skeleton.Cpu is { } owner && record.Cpu is { } selected && owner.Bank == selected.Bank && owner.ResourceOnly == selected.ResourceOnly && owner.EffectiveLayout == selected.EffectiveLayout)
+        if (skeleton.Cpu is { } owner && record.Cpu is { } selected && owner.EnemyResourceId == selected.EnemyResourceId && owner.Bank == selected.Bank && owner.ResourceOnly == selected.ResourceOnly && owner.EffectiveLayout == selected.EffectiveLayout)
         {
-            offset = (long)selected.Offset - owner.Offset - 16;
+            offset = (long)selected.ResourceStorageOffset - owner.ResourceStorageOffset - 16;
         }
         else if (skeleton.StagingAddress is uint basis && record.StagingAddress is uint address)
         {

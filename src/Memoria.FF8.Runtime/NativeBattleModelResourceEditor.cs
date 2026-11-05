@@ -10,7 +10,7 @@ internal sealed class NativeBattleModelResourceEditor
 
     internal NativeBattleModelResourceEditor(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer)
     {
-        if (pointer.CpuPublication is not null || pointer.Cpu is not { Bank: < 3 })
+        if (pointer.CpuPublication is not null || pointer.Cpu is not { IsOwnedResource: true })
         {
             throw new InvalidDataException("CPU resource editing requires its selected party bank and address domain.");
         }

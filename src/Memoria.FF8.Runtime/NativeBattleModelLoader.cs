@@ -19,6 +19,8 @@ public sealed partial record NativeBattleGraphicsModel
 
 public sealed record NativeBattleModelLoadTask(byte ModelId, byte PhysicalIndex, uint Argument, byte Selector, uint Callback, byte Phase)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleModelDatSource? ResourceSource { get; init; }
     public int? EnemyResourceIndex { get; init; }
     public NativeBattleModelFileSelection? File { get; init; }
     public NativeBattleModelTextureBinding? TextureBinding { get; init; }
@@ -50,6 +52,10 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         if (task.PhysicalIndex >= (task.Callback is 0x507120 or 0x507F80 ? 7 : 3) || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
         {
             throw new InvalidDataException("Native507070 requires its original bounded task and staging owners.");
+        }
+        if (task.ResourceSource is { } source && (task.Phase == 0 || task.Callback is not (0x507120 or 0x507F80) || source.ModelId != task.ModelId || source.Linked || source.Selector != task.Selector || source.FileId != task.File?.FileId || source.Name != task.File?.Name))
+        {
+            throw new InvalidDataException("Owned enemy IO requires its selected DAT and loader phase.");
         }
         _ = PartyPlan?.Part(task);
         if (task.File is { } file)
@@ -95,8 +101,12 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             NativeBattleModelDatSource source = SelectSource(task, sources);
             PartyPlan?.RequireSource(task, source, true);
             _ = source.Section(0);
-            NativeBattleModelLoadTask next = task with { Phase = 1, File = new(source.FileId, source.Name) };
-            staging = staging.BindResource(NativeBattleFileStaging.Address, source.Bytes);
+            bool ownedSource = task.Callback is 0x507120 or 0x507F80;
+            NativeBattleModelLoadTask next = task with { Phase = 1, File = new(source.FileId, source.Name), ResourceSource = ownedSource ? source : null };
+            if (!ownedSource)
+            {
+                staging = staging.BindResource(NativeBattleFileStaging.Address, source.Bytes);
+            }
             return new(this with { Task = next }, staging, 1, new(source.FileId, source.Name, 0x508470, source.Bytes.Length), null, null);
         }
         if (task.Phase == 1)
@@ -115,8 +125,11 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             NativeBattleEffectHeapAllocation pack = source.TexturePack(task.Callback);
             NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
             NativeBattleModelDatSource relocated = source.Relocate507400(task.Callback, upload);
-            staging = staging.BindResource(NativeBattleFileStaging.Address, relocated.Bytes);
-            NativeBattleModelLoadTask next = task with { Phase = 2, TextureBinding = upload.Binding, OriginalTexturePack = pack };
+            if (task.ResourceSource is null)
+            {
+                staging = staging.BindResource(NativeBattleFileStaging.Address, relocated.Bytes);
+            }
+            NativeBattleModelLoadTask next = task with { Phase = 2, ResourceSource = task.ResourceSource is not null ? relocated : null, TextureBinding = upload.Binding, OriginalTexturePack = pack };
             return new(this with { Task = next }, staging, 1, null, upload, null);
         }
         if (task.Phase == 2 && task.Callback == 0x5079B0)
@@ -150,6 +163,6 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
     private static NativeBattleModelDatSource ReadCurrentStaging(NativeBattleModelLoadTask task, NativeBattleFileStaging staging)
     {
         NativeBattleModelFileSelection file = task.File ?? throw new NotSupportedException("Native model callback requires its actual selected file metadata; migrate an older task snapshot explicitly.");
-        return new(task.ModelId, task.Callback is 0x507BF0 or 0x507E20, task.Selector, file.FileId, file.Name, staging.ReadDat(NativeBattleFileStaging.Address));
+        return task.ResourceSource ?? new(task.ModelId, task.Callback is 0x507BF0 or 0x507E20, task.Selector, file.FileId, file.Name, staging.ReadDat(NativeBattleFileStaging.Address));
     }
 }

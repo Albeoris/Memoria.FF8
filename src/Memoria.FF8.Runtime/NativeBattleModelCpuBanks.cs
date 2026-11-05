@@ -49,6 +49,23 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ResourceOnly { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? EnemyResourceId { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ResourceOffset { get; init; }
+
+    [JsonIgnore]
+    public bool IsOwnedResource => Bank < 3 || EnemyResourceId is not null;
+
+    [JsonIgnore]
+    public int ResourceStorageOffset => EnemyResourceId is not null ? ResourceOffset : Offset;
+
+    public NativeBattleModelCpuReference Advance(int relativeOffset)
+    {
+        return this with { Offset = checked(Offset + relativeOffset), ResourceOffset = EnemyResourceId is not null ? checked(ResourceOffset + relativeOffset) : ResourceOffset };
+    }
+
     [JsonIgnore]
     public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
 
@@ -62,7 +79,7 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     {
         NativeBattlePartyCpuLayout layout = EffectiveLayout;
         layout.Validate();
-        if (ResourceOnly)
+        if (ResourceOnly || EnemyResourceId is not null)
         {
             return null;
         }

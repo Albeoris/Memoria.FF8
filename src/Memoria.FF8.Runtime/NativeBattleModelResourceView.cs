@@ -47,7 +47,7 @@ public readonly struct NativeBattleModelResourceView
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentNullException.ThrowIfNull(staging);
         ArgumentNullException.ThrowIfNull(reference);
-        if (length < 0 || !NativeFieldRuntimeProfile.IsSupportedImage(reference.EffectiveLayout.ExecutableHash) || reference.Bank > 4 || reference.Offset < 0 || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && !reference.ResourceOnly && reference.Offset > reference.EffectiveLayout.BankLength)
+        if (length < 0 || !new NativeBattleResourcePointer(reference, null, length).HasValidOwner())
         {
             throw new InvalidDataException("Native model section requires its observed CPU resource owner.");
         }
@@ -130,18 +130,18 @@ public readonly struct NativeBattleModelResourceView
 
     internal static NativeBattleModelCpuResources WritePartySection(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, int offset, ReadOnlySpan<byte> bytes)
     {
-        if (pointer.CpuPublication is not null || pointer.Cpu is not { Bank: < 3 } reference)
+        if (pointer.CpuPublication is not null || pointer.Cpu is not { IsOwnedResource: true } reference)
         {
             throw new InvalidDataException("CPU section writes require their actual party resource owner.");
         }
-        int available = checked((reference.ResourceOnly ? cpu.Cpu.Banks[reference.Bank].ResourceCapacity : cpu.Cpu.Banks[reference.Bank].Capacity) - reference.Offset);
+        int available = checked((reference.ResourceOnly ? cpu.GetResourceBank(reference).ResourceCapacity : cpu.GetResourceBank(reference).Capacity) - reference.ResourceStorageOffset);
         int extent = Math.Min(pointer.Length ?? available, available);
         NativeBattleModelResourceView view = Open(cpu, staging, pointer, extent);
         RequireRange(offset, bytes.Length, view.Length);
-        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
-        int destination = checked(reference.Offset + offset);
+        NativeBattleModelCpuBank bank = cpu.GetResourceBank(reference);
+        int destination = checked(reference.ResourceStorageOffset + offset);
         bank = reference.ResourceOnly ? bank.Write(destination, bytes) : bank.WriteGuest(destination, bytes);
-        return cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
+        return reference.EnemyResourceId is int id ? cpu with { EnemyResources = cpu.EnemyResources!.SetItem(id, bank) } : cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
     }
 
     private static NativeBattleModelResourceView OpenStaging(NativeBattleFileStaging staging, uint address, int length)
@@ -152,21 +152,21 @@ public readonly struct NativeBattleModelResourceView
 
     private static NativeBattleModelResourceView OpenCpu(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelCpuReference reference, int length, NativeBattleModelCpuBank? publication = null)
     {
-        if (reference.Bank >= 3)
+        if (!reference.IsOwnedResource)
         {
             return OpenStaging(staging, reference.SharedAddress, length);
         }
-        if (reference.Bank >= cpu.Cpu.Banks.Length)
+        if (reference.Bank < 3 && reference.Bank >= cpu.Cpu.Banks.Length)
         {
             throw new InvalidDataException("Native model section selects an absent CPU bank.");
         }
-        NativeBattleModelCpuBank bank = publication ?? cpu.Cpu.Banks[reference.Bank];
+        NativeBattleModelCpuBank bank = publication ?? cpu.GetResourceBank(reference);
         if (reference.ResourceOnly && !bank.HasResourceStorage)
         {
             throw new InvalidDataException("A logical model section requires its retained resource owner.");
         }
-        RequireRange(reference.Offset, length, reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity);
-        return new(bank, null, reference.Offset, 0, length, reference.ResourceOnly);
+        RequireRange(reference.ResourceStorageOffset, length, reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity);
+        return new(bank, null, reference.ResourceStorageOffset, 0, length, reference.ResourceOnly);
     }
 
     private void RequireOwner()
