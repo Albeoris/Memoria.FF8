@@ -43,7 +43,7 @@ public sealed partial class EventEngine
         return NativeMovementProgress.Sample(EventMemory, services.CharacterVitals, services.LimitProgress, Scene.Party.Select(value => unchecked((byte)value)).ToArray(), (services as GameSession)?.State.SavedBattleFlags, Scene.NativeSalaryMovementUnits.Value);
     }
 
-    private void ValidateNativePlayerInput(ActorState player)
+    private void ValidateNativePlayerInput(ActorState player, bool beforeScripts = false)
     {
         if (Scene.RunEnabled && (services.InputConfiguration is null || ButtonInput is null))
         {
@@ -53,7 +53,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Ordinary player input requires the current native field body, preserved party trace and physical fade bank; the snapshot is missing required native state");
         }
-        if (!NativePlayerHasScriptedMode(player) && (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true || Scene.NativePlayerEarlyRetryState is not (0 or 1)))
+        // Native4789A0 suppresses the ordinary motor while physical mode4 is black.
+        // Scripts may release that fade, so certify again when the motor actually runs.
+        if ((!beforeScripts || FieldFade.Physical.Mode != 4) && !NativePlayerHasScriptedMode(player) && (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true || Scene.NativePlayerEarlyRetryState is not (0 or 1)))
         {
             throw new NotSupportedException("Ordinary player input requires its certified current native motor and executed retry state before the callback.");
         }

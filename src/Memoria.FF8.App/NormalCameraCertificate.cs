@@ -35,10 +35,11 @@ public static class NormalCameraCertificate
         if (!FieldNativeCameraProbe.TryResolveFixedCenter(information!, scene.CameraIndex, out FieldNativeCameraCenter center))
         {
             ActorState? leader = NativeFieldPartyBinding.ResolveActor(scene, actors, 0);
-            if (leader is null || (uint)leader.RenderModelId >= field.Models.Count)
+            if (leader is null)
             {
                 throw new NotSupportedException("Normal camera tracking cannot substitute an unproved actor for the compact party leader.");
             }
+            // Native475E60 projects the bound actor's fixed XYZ, including model-less script actors.
             FieldNativeCameraResult result = ProjectActorCenter(field, scene, leader);
             if (!result.Supported || result.Center is not FieldNativeCameraCenter projectedCenter)
             {

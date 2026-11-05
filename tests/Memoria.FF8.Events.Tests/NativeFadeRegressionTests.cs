@@ -128,6 +128,32 @@ internal static partial class Program
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted && independent.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted, "Released field callback did not admit normal movement.");
             Require(live.PlayerCalls.Count == 1 && engine.Scene.NativePlayerPosition == position with { X = position.X + 4096 } && engine.Scene.NativeSalaryMovementUnits == 5 && JsonElement.DeepEquals(engine.Capture(), independent.Engine.Capture()), "Normal motor, movement salary scalar or independent continuation failed after the actual fade producer left mode4.");
         }
+        foreach (Jsm.Opcode release in new[] { Jsm.Opcode.FADENONE, Jsm.Opcode.FADEIN })
+        {
+            var unavailable = CreateNativeFadeRegression(release);
+            int certificationCalls = 0;
+            unavailable.Engine.CanUseNativePlayerMovement = _ =>
+            {
+                certificationCalls++;
+                return false;
+            };
+            FieldFixedPosition position = unavailable.Engine.Scene.NativePlayerPosition!;
+            long blackFrame = unavailable.Engine.Frame;
+            Require(unavailable.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 2)).Accepted && unavailable.Engine.Frame == blackFrame + 2 && unavailable.Engine.FieldFade is { Physical.Mode: 4 } && certificationCalls == 0 && unavailable.PlayerCalls.Count == 0 && unavailable.Engine.Scene.NativePlayerPosition == position, "Physical mode4 required an unavailable ordinary motor certificate despite suppressing its callback.");
+            bool refusedReleasedMotor = false;
+            for (int update = 0; update < 10 && !refusedReleasedMotor; update++)
+            {
+                try
+                {
+                    unavailable.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
+                }
+                catch (NotSupportedException)
+                {
+                    refusedReleasedMotor = true;
+                }
+            }
+            Require(refusedReleasedMotor && unavailable.Engine.FieldFade!.Physical.Mode == (release == Jsm.Opcode.FADEIN ? 2 : 0) && CapturedVariables(unavailable.Engine.Capture()).GetProperty("6003").GetInt32() == 73 && certificationCalls == 1 && unavailable.PlayerCalls.Count == 0 && unavailable.Engine.Scene.NativePlayerPosition == position, "The script-released fade failed to certify and refuse an unavailable ordinary motor before invoking its resolver.");
+        }
         var resampled = CreateNativeFadeRegression(Jsm.Opcode.FADENONE, blackAfterRelease: true);
         for (int update = 0; update < 10 && resampled.Engine.FieldFade!.Physical.Mode == 4; update++)
         {
@@ -167,7 +193,7 @@ internal static partial class Program
         {
         }
         Require(JsonElement.DeepEquals(beforeMissingOwner, missing.Engine.Capture()) && missing.Engine.Scene.NativeSalaryMovementUnits == 5 && missing.Engine.ActionLog.Count == actionsBeforeMissingOwner && missing.PlayerCalls.Count == 1, "Missing physical fade owner refusal advanced the VM/input, cleared the previous salary scalar or invoked the normal motor.");
-        Console.WriteLine("Native physical fadeWORD4: loader/saved bank distinction, Wait/Move pose/animation/trace retention, genuine movement scalar5 reset to0, atomic missing-owner Move refusal, independent restore and FADENONE/FADEIN release passed.");
+        Console.WriteLine("Native physical fadeWORD4: loader/saved bank distinction, Wait/Move pose/animation/trace retention, suppressed unavailable motor and release refusal, genuine movement scalar5 reset to0, atomic missing-owner Move refusal, independent restore and FADENONE/FADEIN release passed.");
     }
 
     private static void NativeFadeBlackScriptJoinContract()

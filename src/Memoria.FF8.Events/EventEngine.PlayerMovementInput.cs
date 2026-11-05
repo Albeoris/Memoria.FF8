@@ -36,17 +36,14 @@ public sealed partial class EventEngine
     {
         if (!sampleAfterScripts)
         {
-            ValidateNativePlayerInput(player!);
+            ValidateNativePlayerInput(player!, beforeScripts: true);
         }
         int[] pushContacts = [];
         IReadOnlyList<NativeLineContactChange> lineChanges = [];
         pendingNativePlayerInput = () =>
         {
             ActorState currentPlayer = sampleAfterScripts ? PlayerActor ?? throw new NotSupportedException("Player movement requires the current native leader.") : player!;
-            if (sampleAfterScripts)
-            {
-                ValidateNativePlayerInput(currentPlayer);
-            }
+            ValidateNativePlayerInput(currentPlayer);
             if (ResolveWalkmesh is null)
             {
                 throw new InvalidOperationException("Player movement requires the field walkmesh resolver.");

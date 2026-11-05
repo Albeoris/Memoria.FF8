@@ -136,6 +136,8 @@ Choose filters for the contract being changed; the examples are not a mandatory 
 
 `NativePlayerMovementSpeedTests` checks the actual collision adapter for every supported field movement percentage, including walking, running and unscaled movie callbacks. The optional `InstalledPlayerMovementSpeedTests` uses the external catalog entry `App.Tests.InstalledPlayerMovementSpeedTests.1` for a field continuation with nearby actor collision geometry; it checks ordinary callbacks and compact snapshot reloads at 50/100/150/300%. Set `MEMORIA_FF8_MOVEMENT_SAVE_OUTPUT` to a new file to retain its 150% running checkpoint. Supplied saves remain unchanged.
 
+`InstalledFieldTransitionInputTests` uses the optional external catalog entry `App.Tests.InstalledFieldTransitionInputTests.1` for a standalone field770 console checkpoint. It selects the timer, exits through the side door and verifies held input during the black field769 entry, camera projection for the model-less script actor, and snapshot/render continuation. Set `MEMORIA_FF8_FIELD_ENTRY_SAVE_OUTPUT` to a new file to retain the resulting checkpoint.
+
 The App `WindowModeControllerTests` are visible desktop checks, enabled with `MEMORIA_FF8_WINDOW_MODE_TEST=1`. They create their own initialized graphics host and check monitor coverage, backbuffer dimensions and restoration of normal and maximized windows. They require no original game resources. `WindowModeHotkeyTests` and `BorderlessWindowSettingsTests` cover the shortcut and persisted configuration without showing a window.
 
 ## Optional local inputs
