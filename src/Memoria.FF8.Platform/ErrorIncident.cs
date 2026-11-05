@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -164,22 +165,37 @@ public sealed class ErrorIncident
 
     public ErrorIncident WithLogPaths(IEnumerable<string> paths) => new(Id, LaunchId, Timestamp, Subsystem, Exception, Runtime, Environment, Save, SaveUnavailableReason, Events.ToArray(), CollectionErrors.ToArray(), logPaths.Concat(paths).Distinct().ToArray());
 
+    internal static string PendingRoot(string reportsDirectory) => Path.GetFullPath(reportsDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".pending";
+
+    internal string PublicLaunchId => Guid.TryParseExact(LaunchId, "N", out _) ? LaunchId : PublicLaunchIdentity(Id, LaunchId);
+
+    private static string PublicLaunchIdentity(string incidentId, string launchId)
+    {
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(incidentId + ":" + launchId)))[..32].ToLowerInvariant();
+    }
+
+    internal byte[] EvidenceBytes(bool includeSave, bool published = false)
+    {
+        object evidence = new { schemaVersion = 1, Id, LaunchId = published ? PublicLaunchId : LaunchId, Timestamp, Subsystem, Exception, Runtime, Environment, SaveUnavailableReason = published && Save is not null && !includeSave ? "Automatic reproduction save excluded because complete snapshots cannot be safely sanitized." : SaveUnavailableReason, Events, CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Save.Kind, Save.CapturedUtc, Save.Validation } };
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(evidence, JsonOptions);
+        return published ? ReportPrivacy.JsonBytes(bytes) : bytes;
+    }
+
     public string Persist(string? reportsDirectory = null)
     {
-        string directory = Path.Combine(reportsDirectory ?? ApplicationPaths.Current.Reports, Id);
+        string directory = Path.Combine(PendingRoot(reportsDirectory ?? ApplicationPaths.Current.Reports), Id);
         Directory.CreateDirectory(directory);
         if (Save is not null)
         {
             AtomicWrite(Path.Combine(directory, "state.json"), Save.CopyBytes());
         }
-        object evidence = new { schemaVersion = 1, Id, LaunchId, Timestamp, Subsystem, Exception, Runtime, Environment, SaveUnavailableReason, Events, CollectionErrors, LogPaths = logPaths, Save = Save is null ? null : new { Save.Kind, Save.CapturedUtc, Save.Validation } };
-        AtomicWrite(Path.Combine(directory, "incident.json"), JsonSerializer.SerializeToUtf8Bytes(evidence, JsonOptions));
+        AtomicWrite(Path.Combine(directory, "incident.json"), EvidenceBytes(Save is not null));
         return directory;
     }
 
     public void MarkPresented(string? reportsDirectory = null)
     {
-        string directory = Path.Combine(reportsDirectory ?? ApplicationPaths.Current.Reports, Id);
+        string directory = Path.Combine(PendingRoot(reportsDirectory ?? ApplicationPaths.Current.Reports), Id);
         Directory.CreateDirectory(directory);
         AtomicWrite(Path.Combine(directory, "presented"), []);
     }
@@ -187,33 +203,51 @@ public sealed class ErrorIncident
     public static ErrorIncident? DiscoverLatest(string? reportsDirectory = null, string? launchId = null, bool pendingOnly = false)
     {
         string root = reportsDirectory ?? ApplicationPaths.Current.Reports;
-        if (!Directory.Exists(root))
-        {
-            return null;
-        }
-        foreach (string file in Directory.EnumerateFiles(root, "incident.json", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc))
+        string pendingRoot = PendingRoot(root);
+        IEnumerable<string> pending = Directory.Exists(pendingRoot) ? Directory.EnumerateFiles(pendingRoot, "incident.json", SearchOption.AllDirectories) : [];
+        IEnumerable<string> completed = Directory.Exists(root) ? Directory.EnumerateFiles(root, "*.zip", SearchOption.AllDirectories) : [];
+        // Also accept previously persisted incidents until they are packaged by this version.
+        IEnumerable<string> legacy = Directory.Exists(root) ? Directory.EnumerateFiles(root, "incident.json", SearchOption.AllDirectories) : [];
+        foreach (string file in pending.Concat(completed).Concat(legacy).OrderByDescending(File.GetLastWriteTimeUtc))
         {
             try
             {
-                if (pendingOnly && File.Exists(Path.Combine(Path.GetDirectoryName(file)!, "presented")))
-                {
-                    continue;
-                }
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(file));
+                using ZipArchive? archive = file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ZipFile.OpenRead(file) : null;
+                using Stream evidence = archive is null ? File.OpenRead(file) : archive.GetEntry("incident.json")?.Open() ?? throw new InvalidDataException("Report recovery metadata is unavailable.");
+                using JsonDocument document = JsonDocument.Parse(evidence);
                 JsonElement data = document.RootElement;
-                string capturedLaunch = data.GetProperty("LaunchId").GetString()!;
-                if (launchId is not null && capturedLaunch != launchId)
-                {
-                    continue;
-                }
-                JsonElement saveData = data.GetProperty("Save");
-                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.json");
-                ReportSave? save = saveData.ValueKind == JsonValueKind.Null || !File.Exists(saveFile) ? null : new(File.ReadAllBytes(saveFile), saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!);
                 string id = data.GetProperty("Id").GetString()!;
                 if (!Guid.TryParseExact(id, "N", out _))
                 {
                     continue;
                 }
+                if (pendingOnly && (File.Exists(Path.Combine(pendingRoot, id, "presented")) || File.Exists(Path.Combine(Path.GetDirectoryName(file)!, "presented"))))
+                {
+                    continue;
+                }
+                string capturedLaunch = data.GetProperty("LaunchId").GetString()!;
+                if (launchId is not null && capturedLaunch != launchId && capturedLaunch != PublicLaunchIdentity(id, launchId))
+                {
+                    continue;
+                }
+                JsonElement saveData = data.GetProperty("Save");
+                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.json");
+                byte[]? saveBytes = null;
+                if (saveData.ValueKind != JsonValueKind.Null)
+                {
+                    if ((archive?.GetEntry("repro/state.ff8save") ?? archive?.GetEntry("repro/state.json")) is { } entry)
+                    {
+                        using Stream source = entry.Open();
+                        using MemoryStream target = new();
+                        source.CopyTo(target);
+                        saveBytes = target.ToArray();
+                    }
+                    else if (archive is null && File.Exists(saveFile))
+                    {
+                        saveBytes = File.ReadAllBytes(saveFile);
+                    }
+                }
+                ReportSave? save = saveBytes is null ? null : new(saveBytes, saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!);
                 return new(id, capturedLaunch, data.GetProperty("Timestamp").GetDateTimeOffset(), data.GetProperty("Subsystem").GetString()!, data.GetProperty("Exception").Deserialize<ErrorException>()!, data.GetProperty("Runtime").Clone(), data.GetProperty("Environment").Clone(), save, data.GetProperty("SaveUnavailableReason").GetString()!, data.GetProperty("Events").Deserialize<ErrorBreadcrumb[]>()!, data.GetProperty("CollectionErrors").Deserialize<string[]>()!, data.GetProperty("LogPaths").Deserialize<string[]>()!);
             }
             catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)

@@ -8,7 +8,7 @@ public sealed class ErrorReportingTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.ReportLauncher.Tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task ProcessFailureRetainsOriginalIncidentAndFullLaunchLog()
+    public async Task ProcessFailureRetainsOriginalIncidentAndOmitsRawLaunchLog()
     {
         string reports = Path.Combine(directory, "reports");
         ErrorIncident original = ErrorIncident.Capture(new AggregateException(new IOException("first cause"), new InvalidOperationException("second cause")), "Field", runtime: new { Field = 42 }, launchId: "matching-launch");
@@ -25,9 +25,19 @@ public sealed class ErrorReportingTests : IDisposable
         Assert.Contains("second cause", recovered.ExceptionText);
         using PreparedErrorReport report = await ErrorReport.PrepareAsync(recovered, reports);
         using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
-        ZipArchiveEntry log = Assert.Single(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
-        using StreamReader reader = new(log.Open());
-        Assert.Equal(logText, await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain(archive.Entries, entry => entry.FullName.StartsWith("logs/", StringComparison.Ordinal));
+        Assert.Contains("Excluded 1 raw log file", report.Description);
+        using StreamReader reader = new(archive.GetEntry("exception.txt")!.Open());
+        string exceptionText = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("first cause", exceptionText);
+        Assert.Contains("second cause", exceptionText);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            using StreamReader contentReader = new(entry.Open());
+            string content = await contentReader.ReadToEndAsync(TestContext.Current.CancellationToken);
+            Assert.DoesNotContain(logText, content);
+            Assert.DoesNotContain(Path.GetFileName(path), content);
+        }
     }
 
     [Fact]

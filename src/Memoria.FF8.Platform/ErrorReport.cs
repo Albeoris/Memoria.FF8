@@ -85,9 +85,7 @@ public static class ErrorReport
             protectedPaths.Remove(archivePath);
             if (leaseFiles.Remove(archivePath, out FileStream? stream))
             {
-                string leasePath = stream.Name;
                 stream.Dispose();
-                File.Delete(leasePath);
             }
         }
         preparations.TryRemove(Path.GetDirectoryName(archivePath)!, out _);
@@ -95,84 +93,66 @@ public static class ErrorReport
 
     private static PreparedErrorReport Prepare(ErrorIncident incident, string root)
     {
-        string directory = incident.Persist(root);
+        string pendingDirectory = incident.Persist(root);
+        string directory = Path.Combine(root, incident.Id);
+        Directory.CreateDirectory(directory);
         string name = $"Memoria-FF8-report-{incident.Timestamp:yyyyMMdd-HHmmss}-{incident.Id[..8]}.zip";
         string archivePath = Path.Combine(directory, name);
         lock (retentionLock)
         {
             protectedPaths.Add(archivePath);
-            string leasePath = Path.Combine(directory, ".lease-" + Guid.NewGuid().ToString("N"));
-            leaseFiles[archivePath] = new FileStream(leasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
         }
         string temporary = archivePath + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
             string evidenceSignature = EvidenceSignature(incident);
-            string completedPath = Path.Combine(directory, "completed.json");
-            if (File.Exists(completedPath) && File.Exists(archivePath) && File.Exists(Path.Combine(directory, "report.md")))
-            {
-                using JsonDocument completed = JsonDocument.Parse(File.ReadAllBytes(completedPath));
-                if (completed.RootElement.TryGetProperty("evidenceSignature", out JsonElement signature) && signature.GetString() == evidenceSignature)
-                {
-                    return new(incident.Id, archivePath, File.ReadAllText(Path.Combine(directory, "report.md")), completed.RootElement.GetProperty("issueUrl").GetString()!);
-                }
-            }
             List<string> omissions = new(incident.CollectionErrors);
+            if (!string.IsNullOrWhiteSpace(incident.SaveUnavailableReason))
+            {
+                omissions.Add(incident.SaveUnavailableReason);
+            }
             if (!string.IsNullOrWhiteSpace(incident.SaveUnavailableReason))
             {
                 omissions.Add(incident.SaveUnavailableReason);
             }
             Dictionary<string, byte[]> files = new()
             {
-                ["exception.txt"] = Encoding.UTF8.GetBytes(incident.ExceptionText),
-                ["runtime.json"] = Encoding.UTF8.GetBytes(incident.Runtime.GetRawText()),
-                ["environment.json"] = Encoding.UTF8.GetBytes(incident.Environment.GetRawText()),
-                ["events.jsonl"] = Encoding.UTF8.GetBytes(string.Join('\n', incident.Events.Select(entry => JsonSerializer.Serialize(entry))))
+                ["exception.txt"] = Encoding.UTF8.GetBytes(ReportPrivacy.Text(incident.ExceptionText)),
+                ["runtime.json"] = Encoding.UTF8.GetBytes(ReportPrivacy.Json(incident.Runtime).GetRawText()),
+                ["environment.json"] = Encoding.UTF8.GetBytes(ReportPrivacy.Json(incident.Environment).GetRawText()),
+                ["events.jsonl"] = Encoding.UTF8.GetBytes(string.Join('\n', incident.Events.Select(entry => ReportPrivacy.Json(JsonSerializer.SerializeToElement(entry)).GetRawText())))
             };
-            int index = 0;
-            if (incident.LogPaths.Count > 8)
+            if (incident.LogPaths.Count > 0)
             {
-                omissions.Add($"Omitted {incident.LogPaths.Count - 8} older log files; retained the latest eight provided logs.");
+                omissions.Add($"Excluded {incident.LogPaths.Count} raw log file(s): arbitrary logs may contain account identity, paths, credentials and other private data.");
             }
-            foreach (string log in incident.LogPaths.TakeLast(8))
+            if (incident.Save is not null)
             {
-                try
-                {
-                    using FileStream stream = new(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                    const int maximumLogBytes = 1024 * 1024;
-                    long skipped = Math.Max(0, stream.Length - maximumLogBytes);
-                    stream.Position = skipped;
-                    byte[] content = new byte[(int)Math.Min(maximumLogBytes, stream.Length)];
-                    int read = stream.ReadAtLeast(content, content.Length, false);
-                    files[$"logs/{index++:D2}-{Path.GetFileName(log)}"] = content[..read];
-                    if (skipped > 0)
-                    {
-                        omissions.Add($"Log {Path.GetFileName(log)}: omitted {skipped} older bytes.");
-                    }
-                }
-                catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-                {
-                    omissions.Add($"Log {Path.GetFileName(log)} unavailable: {failure.Message}");
-                }
-            }
-            bool includeSave = incident.Save is not null;
-            if (includeSave)
-            {
-                files["repro/" + incident.Save!.ArchiveFileName] = incident.Save.CopyBytes();
+                omissions.Add("Automatic reproduction save excluded: complete snapshots may contain account identity, player names and opaque native buffers that cannot be safely sanitized.");
             }
             string description;
             while (true)
             {
-                string saveStatus = includeSave ? $"{incident.Save!.Kind}; captured {incident.Save.CapturedUtc:O}; age at failure {incident.Timestamp - incident.Save.CapturedUtc}; validation: {incident.Save.Validation}" : incident.Save is null ? "Unavailable: " + incident.SaveUnavailableReason : "Excluded from ZIP to fit the package budget; validated full save retained locally as state.json.";
-                description = BuildDescription(incident, name, saveStatus, omissions);
+                string saveStatus = incident.Save is null ? "Unavailable: " + incident.SaveUnavailableReason : "Excluded from ZIP; see collection omissions.";
+                description = ReportPrivacy.Text(BuildDescription(incident, name, saveStatus, omissions));
+                files["incident.json"] = incident.EvidenceBytes(false, published: true);
+                files["completed.json"] = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 2, privacyPolicyVersion = 1, incidentId = incident.Id, archive = name, issueUrl = BuildIssueUrl(incident, name, false), evidenceSignature });
                 files["report.md"] = Encoding.UTF8.GetBytes(description);
-                files["manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, incidentId = incident.Id, incident.LaunchId, incident.Timestamp, incident.Subsystem, save = saveStatus, omissions, files = files.Where(file => file.Key != "manifest.json").Select(file => new { name = file.Key, bytes = file.Value.LongLength }).ToArray() }, ErrorIncident.JsonOptions);
+                files["manifest.json"] = ReportPrivacy.JsonBytes(JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, incidentId = incident.Id, LaunchId = incident.PublicLaunchId, incident.Timestamp, Subsystem = ReportPrivacy.Text(incident.Subsystem), save = ReportPrivacy.Text(saveStatus), omissions = omissions.Select(ReportPrivacy.Text).ToArray(), files = files.Where(file => file.Key != "manifest.json").Select(file => new { name = file.Key, bytes = file.Value.LongLength }).ToArray() }, ErrorIncident.JsonOptions));
+                if (File.Exists(archivePath) && ArchiveMatches(archivePath, files))
+                {
+                    AcquireArchiveLease(archivePath);
+                    RemoveStagedEvidence(pendingDirectory, directory, archivePath);
+                    return new(incident.Id, archivePath, description, BuildIssueUrl(incident, name, false));
+                }
                 using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
                 using (ZipArchive zip = new(stream, ZipArchiveMode.Create))
                 {
                     foreach ((string entry, byte[] data) in files)
                     {
-                        using Stream target = zip.CreateEntry(entry, CompressionLevel.Optimal).Open();
+                        ZipArchiveEntry archived = zip.CreateEntry(entry, CompressionLevel.Optimal);
+                        archived.LastWriteTime = incident.Timestamp.ToUniversalTime();
+                        using Stream target = archived.Open();
                         target.Write(data);
                     }
                 }
@@ -180,31 +160,19 @@ public static class ErrorReport
                 {
                     break;
                 }
-                string? removable = files.Keys.FirstOrDefault(key => key.StartsWith("logs/", StringComparison.Ordinal));
-                if (removable is not null)
-                {
-                    files.Remove(removable);
-                    omissions.Add(removable + " excluded to fit package budget.");
-                }
-                else if (files.Remove("events.jsonl"))
+                if (files.Remove("events.jsonl"))
                 {
                     omissions.Add("Breadcrumbs excluded to fit package budget.");
                 }
-                else if (includeSave)
-                {
-                    includeSave = false;
-                    files.Remove("repro/" + incident.Save!.ArchiveFileName);
-                    omissions.Add("Validated reproduction save excluded to fit package budget; full artifact retained locally.");
-                }
                 else
                 {
-                    throw new IOException("Required exception and context exceed the 20 MiB package budget. Full captured evidence remains available locally.");
+                    throw new IOException("Required exception and context exceed the 20 MiB package budget. Pending evidence remains available for recovery.");
                 }
             }
             File.Move(temporary, archivePath, true);
-            ErrorIncident.AtomicWrite(Path.Combine(directory, "report.md"), Encoding.UTF8.GetBytes(description));
-            string url = BuildIssueUrl(incident, name, includeSave);
-            ErrorIncident.AtomicWrite(Path.Combine(directory, "completed.json"), JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, incidentId = incident.Id, archive = name, issueUrl = url, evidenceSignature }));
+            AcquireArchiveLease(archivePath);
+            string url = BuildIssueUrl(incident, name, false);
+            RemoveStagedEvidence(pendingDirectory, directory, archivePath);
             Cleanup(root);
             return new(incident.Id, archivePath, description, url);
         }
@@ -221,7 +189,7 @@ public static class ErrorReport
 
     private static string BuildDescription(ErrorIncident incident, string name, string saveStatus, List<string> omissions)
     {
-        return $"## Error\n{incident.Exception.Type}: {incident.Exception.Message}\n\nSubsystem: {incident.Subsystem}\nIncident: {incident.Id}\nUTC: {incident.Timestamp:O}\nLaunch: {incident.LaunchId}\n\n## Environment\n```json\n{incident.Environment.GetRawText()}\n```\n\n## Runtime\n```json\n{incident.Runtime.GetRawText()}\n```\n\n## Reproduction material\nSave: {saveStatus}\nAttach: {name}\n{PublicInstructions}\n\n## Complete available exception\n```text\n{incident.Exception}\n```\n\n## Collection omissions\n{(omissions.Count == 0 ? "None." : string.Join('\n', omissions))}\n\n## What I was doing\nOptional: add anything you remember.\n";
+        return $"## Error\n{incident.Exception.Type}: {incident.Exception.Message}\n\nSubsystem: {incident.Subsystem}\nIncident: {incident.Id}\nUTC: {incident.Timestamp:O}\nLaunch: {incident.PublicLaunchId}\n\n## Environment\n```json\n{ReportPrivacy.Json(incident.Environment).GetRawText()}\n```\n\n## Runtime\n```json\n{ReportPrivacy.Json(incident.Runtime).GetRawText()}\n```\n\n## Reproduction material\nSave: {saveStatus}\nAttach: {name}\n{PublicInstructions}\n\n## Complete available exception\n```text\n{incident.Exception}\n```\n\n## Collection omissions\n{(omissions.Count == 0 ? "None." : string.Join('\n', omissions))}\n\n## What I was doing\nOptional: add anything you remember.\n";
     }
 
     private static string EvidenceSignature(ErrorIncident incident)
@@ -234,8 +202,8 @@ public static class ErrorReport
     {
         for (int budget = 240; budget >= 0; budget /= 2)
         {
-            string title = "[Error] " + Shorten(incident.Exception.Message, Math.Max(20, budget / 3));
-            string body = $"## Error\n{Shorten(incident.Exception.Type, Math.Max(30, budget))}: {Shorten(incident.Exception.Message, budget)}\nSubsystem: {Shorten(incident.Subsystem, budget)}\n\nEnvironment: {Shorten(incident.Environment.GetRawText(), budget)}\nContext: {Shorten(incident.Runtime.GetRawText(), budget)}\n\nReport: {incident.Id}\nAttach: {archiveName}\nSave: {(saveIncluded ? "Save included; see report.md for capture age and limitations" : "Unavailable or excluded; see report.md")}\n\n{Shorten(incident.Exception.Stack ?? "Stack unavailable", budget)}\n\nDrag the ZIP into this issue before submitting. Reports and attachments are public. Full details are in report.md inside the ZIP.\n";
+            string title = "[Error] " + Shorten(ReportPrivacy.Text(incident.Exception.Message), Math.Max(20, budget / 3));
+            string body = $"## Error\n{Shorten(ReportPrivacy.Text(incident.Exception.Type), Math.Max(30, budget))}: {Shorten(ReportPrivacy.Text(incident.Exception.Message), budget)}\nSubsystem: {Shorten(ReportPrivacy.Text(incident.Subsystem), budget)}\n\nEnvironment: {Shorten(ReportPrivacy.Json(incident.Environment).GetRawText(), budget)}\nContext: {Shorten(ReportPrivacy.Json(incident.Runtime).GetRawText(), budget)}\n\nReport: {incident.Id}\nAttach: {ReportPrivacy.Text(archiveName)}\nSave: {(saveIncluded ? "Save included; see report.md for capture age and limitations" : "Unavailable or excluded; see report.md")}\n\n{Shorten(ReportPrivacy.Text(incident.Exception.Stack ?? "Stack unavailable"), budget)}\n\nDrag the ZIP into this issue before submitting. Reports and attachments are public. Full details are in report.md inside the ZIP.\n";
             string url = IssueBase + Uri.EscapeDataString(title) + "&body=" + Uri.EscapeDataString(body);
             if (url.Length <= 2000)
             {
@@ -254,38 +222,94 @@ public static class ErrorReport
         return string.Concat(text.EnumerateRunes().Take(length).Select(rune => rune.ToString()));
     }
 
+    private static bool ArchiveMatches(string path, Dictionary<string, byte[]> files)
+    {
+        try
+        {
+            using ZipArchive archive = ZipFile.OpenRead(path);
+            if (archive.Entries.Count != files.Count)
+            {
+                return false;
+            }
+            foreach ((string name, byte[] bytes) in files)
+            {
+                ZipArchiveEntry? entry = archive.GetEntry(name);
+                if (entry is null || entry.Length != bytes.LongLength)
+                {
+                    return false;
+                }
+                using Stream source = entry.Open();
+                byte[] existing = new byte[bytes.Length];
+                source.ReadExactly(existing);
+                if (!existing.AsSpan().SequenceEqual(bytes))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static void AcquireArchiveLease(string archivePath)
+    {
+        lock (retentionLock)
+        {
+            if (!leaseFiles.ContainsKey(archivePath))
+            {
+                leaseFiles[archivePath] = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+        }
+    }
+
+    private static void RemoveStagedEvidence(string pendingDirectory, string directory, string archivePath)
+    {
+        foreach (string file in Directory.EnumerateFiles(pendingDirectory))
+        {
+            if (Path.GetFileName(file) != "presented")
+            {
+                File.Delete(file);
+            }
+        }
+        if (!Directory.EnumerateFileSystemEntries(pendingDirectory).Any())
+        {
+            Directory.Delete(pendingDirectory);
+        }
+        foreach (string file in Directory.EnumerateFiles(directory))
+        {
+            if (!string.Equals(file, archivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(file);
+            }
+        }
+    }
+
     private static void Cleanup(string root)
     {
         lock (retentionLock)
         {
-            string[] completed = Directory.EnumerateFiles(root, "completed.json", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).ToArray();
-            foreach (string marker in completed.Skip(10))
+            string[] completed = Directory.EnumerateFiles(root, "*.zip", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).ToArray();
+            foreach (string archive in completed.Skip(10))
             {
-                string directory = Path.GetDirectoryName(marker)!;
-                if (protectedPaths.Any(path => string.Equals(Path.GetDirectoryName(path), directory, StringComparison.OrdinalIgnoreCase)))
+                if (protectedPaths.Contains(archive))
                 {
                     continue;
                 }
                 try
                 {
-                    bool active = false;
-                    foreach (string leaseFile in Directory.EnumerateFiles(directory, ".lease-*"))
+                    using (FileStream probe = new(archive, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
                     {
-                        try
-                        {
-                            using FileStream probe = new(leaseFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                        }
-                        catch (IOException)
-                        {
-                            active = true;
-                            break;
-                        }
                     }
-                    if (active)
-                    {
-                        continue;
-                    }
+                    string directory = Path.GetDirectoryName(archive)!;
                     Directory.Delete(directory, true);
+                    string pendingDirectory = Path.Combine(ErrorIncident.PendingRoot(root), Path.GetFileName(directory));
+                    if (Directory.Exists(pendingDirectory) && !File.Exists(Path.Combine(pendingDirectory, "incident.json")))
+                    {
+                        Directory.Delete(pendingDirectory, true);
+                    }
                 }
                 catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
                 {

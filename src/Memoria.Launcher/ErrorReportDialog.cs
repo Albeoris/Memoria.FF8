@@ -27,7 +27,7 @@ internal sealed class ErrorReportDialog : Window
         MinWidth = 440;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         StackPanel content = new() { Margin = new Thickness(24), Spacing = 12 };
-        content.Children.Add(new TextBox { Text = message, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 220 });
+        content.Children.Add(new TextBox { Text = ReportPrivacy.Text(message), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 220 });
         content.Children.Add(prepare);
         content.Children.Add(progress);
         content.Children.Add(new TextBlock { Text = "Sign in to GitHub if needed, drag this ZIP into the issue, wait for the upload, then submit the issue. The report and attached files will be public.", TextWrapping = TextWrapping.Wrap });
@@ -40,10 +40,10 @@ internal sealed class ErrorReportDialog : Window
         AddCopy(recovery, "Copy issue URL", () => report!.IssueUrl);
         content.Children.Add(new Expander { Header = "Prepared report and recovery actions", IsExpanded = true, Content = recovery });
         string saveDetails = incident.Save is null ? "Save unavailable: " + incident.SaveUnavailableReason : $"Save: {incident.Save.Kind}; {incident.Save.CapturedUtc:O}; {incident.Save.Validation}";
-        TextBox details = new() { Text = incident.ExceptionText + Environment.NewLine + saveDetails, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 100, MaxHeight = 260 };
+        TextBox details = new() { Text = ReportPrivacy.Text(incident.ExceptionText + Environment.NewLine + saveDetails), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 100, MaxHeight = 260 };
         StackPanel detailPanel = new() { Spacing = 8 };
         detailPanel.Children.Add(details);
-        AddCopy(detailPanel, "Copy error details", () => incident.ExceptionText);
+        AddCopy(detailPanel, "Copy error details", () => ReportPrivacy.Text(incident.ExceptionText));
         content.Children.Add(new Expander { Header = "Details", Content = detailPanel });
         Button close = new() { Content = "Close", IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
         close.Click += (_, _) => Close();
