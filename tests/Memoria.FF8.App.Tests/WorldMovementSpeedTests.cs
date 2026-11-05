@@ -100,6 +100,56 @@ public sealed class WorldMovementSpeedTests
         Assert.Equal(callbacks + 1, session.State.WorldProcess!.MainLoopCallbacks);
     }
 
+    [Theory]
+    [InlineData(50, false)]
+    [InlineData(150, false)]
+    [InlineData(300, false)]
+    [InlineData(50, true)]
+    [InlineData(150, true)]
+    [InlineData(300, true)]
+    public void Car_automatic_motion_uses_default_speed_until_player_control_returns(int percent, bool entryDelay)
+    {
+        string directory = GameDirectory();
+        GameSession session = CreateSession(directory);
+        NativeWorldEntryMemory memory = session.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
+        session.Restore(session.State with { SavedWorld = session.State.SavedWorld! with { WorldEventFlags116 = session.State.SavedWorld.WorldEventFlags116!.WithOperand(0x100) } });
+        using WorldMapScene scene = new(session, directory);
+        if (!entryDelay)
+        {
+            CompleteEntryDelay(scene);
+        }
+        session.SetWorldState(scene.State with { BodyYaw = 0, CameraYaw = 0, NativeCarRuntime = scene.State.NativeCarRuntime! with { Speed = 32 }, EventUi = scene.State.EventUi!.WithScriptMode(entryDelay ? (byte)0 : (byte)14) });
+        GameSession referenceSession = new(session.PrepareSnapshot());
+        using WorldMapScene reference = new(referenceSession, directory);
+        scene.PlayerMovementSpeedPercent = percent;
+        int initialZ = scene.State.Z;
+        for (int tick = 0; tick < 3; tick++)
+        {
+            // Scene input is suppressed; entry coasting also retains the default translation speed.
+            PlayerAction move = entryDelay ? new(PlayerActionKind.Wait) : new(PlayerActionKind.Move, Vertical: -1);
+            Assert.Equal(reference.Apply(move), scene.Apply(move));
+            Assert.Equal(JsonSerializer.Serialize(reference.State), JsonSerializer.Serialize(scene.State));
+        }
+        Assert.Equal(initialZ - 72, scene.State.Z);
+        Assert.Equal(20, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(percent, scene.PlayerMovementSpeedPercent);
+
+        if (entryDelay)
+        {
+            CompleteEntryDelay(scene);
+            CompleteEntryDelay(reference);
+        }
+        session.SetWorldState(scene.State with { EventUi = scene.State.EventUi!.WithScriptMode(0), NativeCarRuntime = scene.State.NativeCarRuntime! with { Speed = 32 } });
+        referenceSession.SetWorldState(reference.State with { EventUi = reference.State.EventUi!.WithScriptMode(0), NativeCarRuntime = reference.State.NativeCarRuntime! with { Speed = 32 } });
+        int beforeZ = scene.State.Z;
+        PlayerAction controlled = new(PlayerActionKind.Move, Vertical: -1);
+        Assert.Equal(reference.Apply(controlled), scene.Apply(controlled));
+        Assert.Equal(34, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(beforeZ - 34 * percent / 100, scene.State.Z);
+        Assert.Equal(beforeZ - 34, reference.State.Z);
+    }
+
     private static void CompleteEntryDelay(WorldMapScene scene)
     {
         while (NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame + 1, 0) > 0)

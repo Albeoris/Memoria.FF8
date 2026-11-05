@@ -17,7 +17,7 @@ internal sealed partial class WorldMapScene
     private RagnarokFootCallback? ragnarokFootCallback;
     private NativeRagnarokWorldObject? ragnarokFootBoardingTarget;
 
-    private WorldState StepRagnarokFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepRagnarokFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (ragnarokFootCallback is not null)
         {
@@ -27,7 +27,7 @@ internal sealed partial class WorldMapScene
         ragnarokFootCallback = new(buttons, memory);
         try
         {
-            WorldState after = StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            WorldState after = StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
             consumeRequest = ragnarokFootCallback.ConsumeRequest;
             ragnarokFootBoardingTarget = ragnarokFootCallback.BoardingTarget;
             return after;

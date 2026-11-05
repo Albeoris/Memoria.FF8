@@ -37,7 +37,7 @@ internal sealed partial class WorldMapScene : IDisposable
         set => playerMovementSpeedPercent = PlayerMovementSpeed.ValidatePercent(value);
     }
 
-    private int ScalePlayerMovement(int movement) => PlayerMovementSpeed.Scale(movement, PlayerMovementSpeedPercent);
+    private static int ScalePlayerMovement(int movement, int percent) => PlayerMovementSpeed.Scale(movement, percent);
 
     public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null, IModelOverrideSource? modelOverrides = null, string? nativeSourceFieldName = null)
     {
@@ -438,7 +438,9 @@ internal sealed partial class WorldMapScene : IDisposable
                     vertical = 0;
                 }
                 WorldState callbackStart = candidate;
-                candidate = Step(candidate, horizontal, vertical, inputScriptMode != 0 ? 0 : action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed, mapOnly: mapScriptMode == 12, motorButtons: inputScriptMode == 0 ? buttons : 0);
+                // Retain configured preferences while automatic callbacks use the native translation scale.
+                int movementSpeedPercent = inputScriptMode == 0 && mapScriptMode == 0 && NativeWorldEntryControl.DelayAfterCallback(candidate.Frame + 1, 0) == 0 ? PlayerMovementSpeedPercent : PlayerMovementSpeed.DefaultPercent;
+                candidate = Step(candidate, movementSpeedPercent, horizontal, vertical, inputScriptMode != 0 ? 0 : action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed, mapOnly: mapScriptMode == 12, motorButtons: inputScriptMode == 0 ? buttons : 0);
                 if (consumeGardenRequest)
                 {
                     salary = salary.ConsumeGardenScriptRequest();
@@ -721,7 +723,7 @@ internal sealed partial class WorldMapScene : IDisposable
         return NativeWorldGroundCacheState.CreateFresh(ground, processSelection: selection);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
+    private WorldState Step(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
     {
         encounterMovementMagnitude = 0;
         consumeGardenRequest = false;
@@ -744,32 +746,32 @@ internal sealed partial class WorldMapScene : IDisposable
         if (before.NativeCarRuntime is not null)
         {
             // Original5573C0 admits manual vehicle camera offset14 only for variant1.
-            return StepCar(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
+            return StepCar(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeRagnarokRuntime is not null && before.NativeFootRuntime is null)
         {
-            return StepRagnarok(before, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, motorButtons ?? buttons);
+            return StepRagnarok(before, movementSpeedPercent, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, motorButtons ?? buttons);
         }
         if (mapOnly && before.NativeFootRuntime is not null)
         {
-            return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly: true, mapButtons: buttons);
+            return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly: true, mapButtons: buttons);
         }
         if (before.NativeRagnarokRuntime is not null)
         {
-            return StepRagnarokFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepRagnarokFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         if (before.NativeGardenRuntime is not null && before.NativeFootRuntime is null)
         {
-            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
+            return StepGarden(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeGardenRuntime is not null)
         {
-            return StepGardenFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepGardenFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
-        return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, mapButtons: buttons);
+        return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, mapButtons: buttons);
     }
 
-    private WorldState StepFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint mapButtons = 0)
+    private WorldState StepFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint mapButtons = 0)
     {
         int inputX = Math.Sign(horizontal);
         //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
@@ -790,8 +792,8 @@ internal sealed partial class WorldMapScene : IDisposable
         (int moveX, int graphicsMoveZ) = Rotate(localX, localZ, before.CameraYaw);
         // Native speed latches drive fuel, vibration and presentation; scale only the ground-query translation.
         int nativeGraphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
-        moveX = ScalePlayerMovement(moveX);
-        graphicsMoveZ = ScalePlayerMovement(graphicsMoveZ);
+        moveX = ScalePlayerMovement(moveX, movementSpeedPercent);
+        graphicsMoveZ = ScalePlayerMovement(graphicsMoveZ, movementSpeedPercent);
         bool moving = moveX != 0 || graphicsMoveZ != 0;
         int bodyYaw = before.BodyYaw;
         bool dampCamera = !moving;

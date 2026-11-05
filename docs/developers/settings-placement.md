@@ -6,6 +6,8 @@ The canonical registries are [SettingsPlacement](../../src/Memoria.FF8.App/GameU
 
 Global means the existing per-user preferences shared across saves. Game means current-session state retained by a normal game save. At Title, default means the existing new-game default; session means a choice held for the next New Game. Neither opening a page nor focusing a row writes a preference.
 
+Field and world movement percentages apply to player-controlled movement. Scripted actor movement and automatic world movement retain the default 100% translation scale. The configured percentage remains saved and resumes when control returns to the player. F1 fast-forward remains a separate simulation-clock setting.
+
 ## Registry coverage
 
 Player rows have one canonical Config editor; developer rows have one Debug editor. Display labels may be clearer than the legacy command key shown here.

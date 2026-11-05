@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepGarden(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
+    private WorldState StepGarden(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
@@ -35,8 +35,8 @@ internal sealed partial class WorldMapScene
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);
         if (!lowering && before.EventUi?.ScriptMode is null or 0)
         {
-            moveX = ScalePlayerMovement(moveX);
-            graphicsZ = ScalePlayerMovement(graphicsZ);
+            moveX = ScalePlayerMovement(moveX, movementSpeedPercent);
+            graphicsZ = ScalePlayerMovement(graphicsZ, movementSpeedPercent);
         }
         garden = garden with { ManualCameraVelocity = cameraVelocity };
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;

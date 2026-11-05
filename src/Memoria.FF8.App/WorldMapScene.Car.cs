@@ -123,7 +123,7 @@ internal sealed partial class WorldMapScene
         return models;
     }
 
-    private WorldState StepCar(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
+    private WorldState StepCar(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
     {
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         bool cameraEnabled = !mapOnly && before.EventUi?.ScriptMode is null or 0 or 13;
@@ -149,8 +149,8 @@ internal sealed partial class WorldMapScene
         (int moveX, int graphicsZ) = Rotate(0, speed, bodyYaw);
         // Native speed latches drive fuel, vibration and presentation; scale only the ground-query translation.
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);
-        moveX = ScalePlayerMovement(moveX);
-        graphicsZ = ScalePlayerMovement(graphicsZ);
+        moveX = ScalePlayerMovement(moveX, movementSpeedPercent);
+        graphicsZ = ScalePlayerMovement(graphicsZ, movementSpeedPercent);
         // 557A90 computes this callback's motion before applying the prior selected terrain yaw.
         bodyYaw = WrapYaw(bodyYaw + (car.GroundYaw!.Value >> 3));
         int x = WrapCoordinate(before.X + moveX, 262144);

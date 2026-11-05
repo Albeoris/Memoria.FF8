@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepRagnarok(WorldState before, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint movementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
+    private WorldState StepRagnarok(WorldState before, int movementSpeedPercent, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint movementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
     {
         NativeRagnarokWorldRuntimeState runtime = before.NativeRagnarokRuntime!;
         runtime.RequireSceneState();
@@ -18,7 +18,7 @@ internal sealed partial class WorldMapScene
         if (scriptMode == 0)
         {
             int heightDelta = unchecked((short)(motor.State.FlightHeight - motorBefore.FlightHeight));
-            motor = motor with { MotionX = ScalePlayerMovement(motor.MotionX), MotionGraphicsZ = ScalePlayerMovement(motor.MotionGraphicsZ), State = motor.State with { FlightHeight = unchecked((short)(motorBefore.FlightHeight + ScalePlayerMovement(heightDelta))) } };
+            motor = motor with { MotionX = ScalePlayerMovement(motor.MotionX, movementSpeedPercent), MotionGraphicsZ = ScalePlayerMovement(motor.MotionGraphicsZ, movementSpeedPercent), State = motor.State with { FlightHeight = unchecked((short)(motorBefore.FlightHeight + ScalePlayerMovement(heightDelta, movementSpeedPercent))) } };
         }
         int cameraVelocity = runtime.ManualCameraVelocity;
         if (runtime.AnimationVariant == 1 && scriptMode == 0)
