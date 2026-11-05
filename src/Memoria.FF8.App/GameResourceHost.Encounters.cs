@@ -106,7 +106,7 @@ internal sealed partial class GameResourceHost
         return ApplyCompiledEncounterDefinition(definition, binding, compiled);
     }
 
-    private static BattleDefinition ApplyCompiledEncounterDefinition(BattleDefinition definition, EncounterBindingResult binding, EncounterCompiledDefinition compiled)
+    internal static BattleDefinition ApplyCompiledEncounterDefinition(BattleDefinition definition, EncounterBindingResult binding, EncounterCompiledDefinition compiled)
     {
         BattleCombatantDefinition[] combatants = definition.Combatants.ToArray();
         foreach ((string property, double multiplier) in compiled.ActorProperties.OrderBy(pair => pair.Key, StringComparer.Ordinal))

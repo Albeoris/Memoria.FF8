@@ -102,7 +102,7 @@ internal sealed partial class GameWorld
             return;
         }
         BattleSnapshot snapshot = battle.Capture();
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, snapshot.Definition.NativeSeed, request.Flags), snapshot, session.ExamTimer);
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, snapshot.Definition.NativeSeed, request.Flags, snapshot.Definition), snapshot, session.ExamTimer);
         ValidateBattleDefinition(current, snapshot.Definition);
     }
 }

@@ -68,7 +68,7 @@ internal sealed partial class GameWorld
         };
     }
 
-    public BattleDefinition CreateEncounterBattle(int encounterId, byte nativeSeed = 0, ushort activeFlags = 0)
+    public BattleDefinition CreateEncounterBattle(int encounterId, byte nativeSeed = 0, ushort activeFlags = 0, BattleDefinition? restoredDefinition = null)
     {
         NativeInputConfiguration input = session.InputConfiguration ?? throw new NotSupportedException("Battle command restrictions require the current native saved options owner.");
         input.Validate();
@@ -165,14 +165,34 @@ internal sealed partial class GameWorld
         {
             definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
         }
-        if (effectPreviewRequest is null && applyEncounterMods is not null)
+        if (effectPreviewRequest is null)
         {
             NativeBattleCompletion? request = Events.PendingInteractiveBattle;
             EncounterBindingContext context = request is not null && request.Encounter == encounterId ? new("Classic", session.State.FieldId, encounterId, activeFlags) : new("Classic");
-            definition = applyEncounterMods(definition, context);
+            definition = ApplyEncounterBattlePolicy(definition, context, restoredDefinition, applyEncounterMods);
         }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
+    }
+
+    internal static BattleDefinition ApplyEncounterBattlePolicy(BattleDefinition definition, EncounterBindingContext context, BattleDefinition? restoredDefinition, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? currentPolicy)
+    {
+        if (restoredDefinition is null)
+        {
+            return currentPolicy?.Invoke(definition, context) ?? definition;
+        }
+        // An entered battle owns its compiled policy, including an explicitly absent policy.
+        // Publication changes apply to new encounters; restore revalidates the installed native binding.
+        if (restoredDefinition.EncounterMod is not { } retained)
+        {
+            return definition;
+        }
+        EncounterBindingResult binding = EncounterBindingResolver.Resolve(retained.Encounter, definition, context);
+        if (!string.Equals(retained.SourceProfile, context.Profile, StringComparison.OrdinalIgnoreCase) || retained.OriginalActorId != binding.OriginalActorId || retained.CastingSequence != binding.CastingSequence)
+        {
+            throw new InvalidDataException("Saved encounter policy differs from its validated installed native binding.");
+        }
+        return GameResourceHost.ApplyCompiledEncounterDefinition(definition, binding, retained);
     }
 
     private BattleActionDefinition[] CreateBattleActions()
@@ -218,7 +238,7 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("Saved battle requires exactly one live field BATTLE owner.");
         }
         BattleSnapshot saved = battle.Capture();
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, saved.Definition.NativeSeed, request.Flags), saved, session.ExamTimer);
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, saved.Definition.NativeSeed, request.Flags, saved.Definition), saved, session.ExamTimer);
         long allocationClock = Events.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation!.Value;
         long completedCallbacks = Events.Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
         long executedCallbacks = battle.NativeGraphics is null ? battle.Frame : battle.NativeHostCallbacks ?? throw new InvalidDataException("Saved native battle lacks its executed callback clock.");

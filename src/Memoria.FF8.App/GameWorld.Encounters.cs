@@ -147,7 +147,7 @@ internal sealed partial class GameWorld
             flags = owner.Flags;
         }
         BattleSnapshot saved = battle.Capture();
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, saved.Definition.NativeSeed, flags), saved, session.ExamTimer);
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, saved.Definition.NativeSeed, flags, saved.Definition), saved, session.ExamTimer);
         ValidateBattleDefinition(current, saved.Definition);
     }
 
