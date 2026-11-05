@@ -156,13 +156,14 @@ public sealed class SnapshotAngeloMigrationTests
     }
 
     [Fact]
-    public void IncompatibleTemplateRefusesWithoutPartiallyChangingOwners()
+    public void ContradictorySavedOwnersRefuseWithoutPartiallyChangingOwners()
     {
         JsonObject saved = Historical();
+        saved["Scene"] = nameof(SceneKind.Field);
         saved["LimitProgress"]!.AsObject().Remove("AngeloFlags");
         JsonObject departure = saved["LimitProgress"]!.DeepClone().AsObject();
         departure["InitOutSha256"] = new string('1', 64);
-        saved["DepartingFieldState"] = new JsonObject { ["LimitProgress"] = departure };
+        saved["EventState"] = new JsonObject { ["LimitProgress"] = departure };
         string original = saved.ToJsonString();
 
         Assert.Throws<InvalidDataException>(() => SnapshotLimitProgressMigration.Apply(saved, Options, 8, Initial));

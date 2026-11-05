@@ -227,7 +227,8 @@ public sealed class SnapshotLimitProgressMigrationTests
         {
             File.WriteAllText(path, saved.ToJsonString(Options));
             byte[] original = File.ReadAllBytes(path);
-            GameState loaded = GameSession.Load(path, Initial);
+            GameState loaded = GameSession.Load(path, () => Initial() with { InitOutSha256 = new string('1', 64) });
+            Assert.Equal(loaded.CharacterVitals!.InitOutSha256, loaded.LimitProgress!.InitOutSha256);
             NativeMovementProgressResult progress = NativeMovementProgress.Sample(NativeEventMemory.FromDWords(new Dictionary<int, int> { [244] = 592 }), loaded.CharacterVitals, loaded.LimitProgress, [4, 255, 255], new(NativeInputConfiguration.OriginalInitHash, 0), 0);
             Assert.NotNull(progress.Limits);
             new GameSession(loaded with { LimitProgress = progress.Limits }).Save(output, compact: true);
@@ -245,7 +246,7 @@ public sealed class SnapshotLimitProgressMigrationTests
     }
 
     [Fact]
-    public void NewlyRecoveredInitializationIdentityCannotBeMixedWithADifferentTemplate()
+    public void SavedInitializationIdentitySurvivesAbsentFeatureCompletionFromCurrentDefinitions()
     {
         JsonObject saved = Historical(8);
         saved.Remove("LimitProgress");
@@ -253,12 +254,11 @@ public sealed class SnapshotLimitProgressMigrationTests
         JsonObject current = JsonSerializer.SerializeToNode(Progress() with { InitOutSha256 = new string('1', 64) })!.AsObject();
         current.Remove("DuelFlags");
         saved["EventState"] = new JsonObject { ["LimitProgress"] = current };
-        string original = saved.ToJsonString();
-
-        Assert.Throws<InvalidDataException>(() => SnapshotLimitProgressMigration.Apply(saved, Options, 8, Initial));
-
-        Assert.Equal(original, saved.ToJsonString());
-        Assert.False(saved.ContainsKey("LimitProgress"));
+        GameState restored = Deserialize(saved, Initial);
+        Assert.Equal(new string('1', 64), restored.LimitProgress!.InitOutSha256);
+        Assert.Equal(Initial().DuelFlags, restored.LimitProgress.DuelFlags);
+        Assert.Equal(Progress().AngeloFlags, restored.LimitProgress.AngeloFlags);
+        Assert.False(restored.RequiresLegacyLimitInitialization);
     }
 
     [Fact]

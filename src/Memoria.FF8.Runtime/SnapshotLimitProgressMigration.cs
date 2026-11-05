@@ -20,6 +20,10 @@ internal static class SnapshotLimitProgressMigration
         List<(JsonObject Parent, JsonNode? Value)> newOwners = [];
         JsonObject? root = ReadOwner(saved, currentCheckpoint, scene is SceneKind.Field or SceneKind.Movie or SceneKind.WorldMap, initialize is not null || saved[nameof(GameState.OriginalSave)] is JsonObject, newOwners);
         JsonObject? current = currentCheckpoint is null ? null : ReadOwner(currentCheckpoint, saved, true, root is not null, newOwners);
+        if (root is not null && current is not null)
+        {
+            ValidateMatchingOwners(root[nameof(NativeLimitProgress.InitOutSha256)], current);
+        }
         JsonObject? frozenCurrent = currentCheckpoint is null ? (saved[nameof(GameState.EventState)] as JsonObject)?[nameof(GameState.LimitProgress)] as JsonObject : null;
         JsonObject? departing = (saved[nameof(GameState.DepartingFieldState)] as JsonObject)?[nameof(GameState.LimitProgress)] as JsonObject;
         JsonObject[] owners = new[] { root, current, frozenCurrent, departing }.OfType<JsonObject>().Distinct().ToArray();
@@ -66,11 +70,7 @@ internal static class SnapshotLimitProgressMigration
                         }
                         baseline = JsonSerializer.SerializeToNode(initial, options)!.AsObject();
                     }
-                    ValidateMatchingOwners(identity, baseline);
-                    if (TryCharacterHash(ReferenceEquals(owner, current) ? currentCheckpoint! : saved, saved, out JsonNode? characterHash) && characterHash is JsonValue hash && hash.TryGetValue(out string? savedHash) && !string.Equals(savedHash, baseline[nameof(NativeLimitProgress.InitOutSha256)]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidDataException("Legacy Limit initialization requires the saved characters' selected initial template.");
-                    }
+                    // Current definitions supply only absent feature values; saved owners retain their initialization identity.
                     value = baseline[name];
                 }
                 if (name == nameof(NativeLimitProgress.InitOutSha256))
