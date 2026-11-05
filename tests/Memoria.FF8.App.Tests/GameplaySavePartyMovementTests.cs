@@ -66,6 +66,8 @@ public sealed class GameplaySavePartyMovementTests
         GameplaySaveComponentDocument decoded = GameplaySaveCodec.Read(encoded);
         string before = JsonSerializer.Serialize(decoded);
         GameplaySaveFieldContinuation valid = decoded.Progression!.FieldContinuation!;
+        GameplaySaveFieldContinuation invalidBindings = valid with { PartyMovement = null, Scene = valid.Scene with { SavedPartyBindings = [valid.Actors.RegisteredActors.Length, 255, 255] }, Scripts = valid.Scripts with { Fibers = valid.Scripts.Fibers.Select(fiber => fiber with { Wait = GameplaySaveScriptWait.None }).ToArray() } };
+        Assert.Throws<InvalidDataException>(invalidBindings.Validate);
         GameplaySaveComponentDocument missingOwner = decoded with { Progression = decoded.Progression with { FieldContinuation = valid with { PartyMovement = null } } };
         Assert.Throws<InvalidDataException>(() => GameplaySaveSessionLoader.Restore(missingOwner, directory, sharedAssets: assets));
         GameplaySaveComponentDocument wrongCaller = decoded with { Progression = decoded.Progression with { FieldContinuation = valid with { PartyMovement = valid.PartyMovement! with { CallerObjectId = 2 } } } };
