@@ -7,15 +7,15 @@ public static class NativeBattleDuelEchoWalker
 {
     public static NativeBattleModulePoolTask Draw68A990(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
-        return Draw(context, offset, sectionAddress, readSection, echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 512, 256);
+        return Draw(context, offset, NativeBattleModelGeometrySource.FromNumeric(sectionAddress, readSection), echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 512, 256);
     }
 
     public static NativeBattleModulePoolTask Draw697700(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
-        return Draw(context, offset, sectionAddress, readSection, echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 1152, 576);
+        return Draw(context, offset, NativeBattleModelGeometrySource.FromNumeric(sectionAddress, readSection), echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 1152, 576);
     }
 
-    internal static NativeBattleModulePoolTask Draw(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext, int historyStride, int preparedOffset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    internal static NativeBattleModulePoolTask Draw(NativeBattleModulePoolTask context, int offset, NativeBattleModelGeometrySource section, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext, int historyStride, int preparedOffset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = Int(0);
         if (count > 256)
@@ -68,7 +68,8 @@ public static class NativeBattleDuelEchoWalker
             ushort triangles = Word(cursor);
             ushort quads = Word(checked(cursor + 2));
             cursor = checked(cursor + 12);
-            context = context.WriteWord(offset + 8, triangles).WriteWord(offset + 10, quads).WriteDword(offset, checked(sectionAddress + (uint)cursor));
+            context = context.WriteWord(offset + 8, triangles).WriteWord(offset + 10, quads);
+            context = section.Owner.CpuPublication is null && section.NumericCursor(cursor) is uint address ? context.WriteDword(offset, address) : context.WriteResourcePointer(offset, section.Cursor(cursor));
             observeContext?.Invoke(context, offset + 8, 4);
             observeContext?.Invoke(context, offset, 4);
             ImmutableArray<byte> faces = Bytes(cursor, checked(triangles * 16 + quads * 20)).ToImmutableArray();
@@ -100,7 +101,7 @@ public static class NativeBattleDuelEchoWalker
             {
                 throw new InvalidDataException("Native Duel echo read leaves its original source extent.");
             }
-            byte[] bytes = readSection(source, length);
+            byte[] bytes = section.Read(source, length);
             return bytes.Length == length ? bytes : throw new InvalidDataException("Native Duel echo source returned an incomplete physical read.");
         }
         ushort Word(int source) => BinaryPrimitives.ReadUInt16LittleEndian(Bytes(source, 2));

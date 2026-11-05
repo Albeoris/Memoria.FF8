@@ -6,9 +6,11 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDuelEchoWalkerTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void WalkerUsesSelectedBoneMatricesAndCanonicalCpuRowsWithoutReadingSkippedCoordinates(bool clippedFace)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void WalkerUsesSelectedBoneMatricesAndCanonicalCpuRowsWithoutReadingSkippedCoordinates(bool clippedFace, bool logical)
     {
         byte[] source = new byte[200];
         BinaryPrimitives.WriteInt32LittleEndian(source, 2);
@@ -40,13 +42,34 @@ public sealed class NativeBattleDuelEchoWalkerTests
         List<(int Offset, int Length)> writes = [];
         List<NativeBattleGfGeometryBatch> batches = [];
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        context = NativeBattleDuelEchoWalker.Draw68A990(context, 12, 0x1000000, Read, echo, 12, 0, new(identity, 256, 160, 108), Write, ReadCache, batches.Add, 17, 0, 0x155, 0x100);
+        int origin = NativeBattleModelCpuBank.Length + 4;
+        if (logical)
+        {
+            ImmutableArray<byte> bytes = source.ToImmutableArray();
+            NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+            NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(origin, bytes, 0, 22).BindPartyResource(origin + 28, bytes, 28, 152).BindPartyResource(origin + 199, bytes, 199, 1);
+            cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+            NativeBattleModelGeometrySource section = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), new(new(0, origin) { ResourceOnly = true }, null, source.Length), null!);
+            context = NativeBattleDuelEchoWalker.Draw(context, 12, section, echo, 12, 0, new(identity, 256, 160, 108), Write, ReadCache, batches.Add, 17, 0, 0x155, 0x100, null, 512, 256);
+        }
+        else
+        {
+            context = NativeBattleDuelEchoWalker.Draw68A990(context, 12, 0x1000000, Read, echo, 12, 0, new(identity, 256, 160, 108), Write, ReadCache, batches.Add, 17, 0, 0x155, 0x100);
+        }
         Assert.Equal(new[] { (6, 2), (8, 8), (16, 8), (24, 8) }, writes);
         Assert.All(known.Take(6), value => Assert.False(value));
         Assert.All(known.Skip(6), value => Assert.True(value));
         Assert.Equal((ushort)16, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(6)));
         Assert.Equal((ushort)200, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(12)));
-        Assert.Equal(0x1000040u, context.ReadDword(12));
+        if (logical)
+        {
+            Assert.Equal(origin + 64, context.ReadResourcePointer(12).Cpu!.Offset);
+            Assert.Throws<NotSupportedException>(() => context.ReadDword(12));
+        }
+        else
+        {
+            Assert.Equal(0x1000040u, context.ReadDword(12));
+        }
         NativeBattleGfGeometryBatch batch = Assert.Single(batches);
         if (clippedFace)
         {

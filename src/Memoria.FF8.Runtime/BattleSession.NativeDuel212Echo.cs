@@ -23,12 +23,12 @@ public sealed partial class BattleSession
             NativeBattleModelCpuResourceRow selected = cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual CPU row.")];
             pointer = new(selected.Require(16), null, selected.Lengths.TryGetValue(16, out int length) ? length : null);
         }
-        uint section = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Native Burning Rave echo requires its physical geometry source.");
+        NativeBattleModelGeometrySource section = NativeBattleModelGeometrySource.Open(cpu, frame.Staging, pointer, (offset, length) => Read(frame, offset, length));
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native Burning Rave echo requires its actually loaded CPU maximum.");
         NativeBattleScriptedGraphicsMemory registers = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Burning Rave echo requires its actual GTE registers.");
         NativeBattleEffectTaskPool target = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets);
         uint echo = checked(target.BankAddress + 336);
-        frame = NativeBattleDuelEchoDrawing.Draw6A2760(frame, model, echo, 336, ReadEcho, StoreEcho, section, Read, maximum, view, projection, (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), Submit, registers.Zsf3 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF4."), current => current.Staging, (current, staging) => current with { Staging = staging }, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, target.Slots[0], section, 336), pilotHistoryGeneration: bank => NativeBattleDuel28Presentation.Row(target.Slots[0], bank, section));
+        frame = NativeBattleDuelEchoDrawing.Draw6A2760(frame, model, echo, 336, ReadEcho, StoreEcho, section, Read, maximum, view, projection, (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), Submit, registers.Zsf3 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF4."), current => current.Staging, (current, staging) => current with { Staging = staging }, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, target.Slots[0], section.PresentationIdentity, 336), pilotHistoryGeneration: bank => NativeBattleDuel28Presentation.Row(target.Slots[0], bank, section.PresentationIdentity));
         return (frame, graphics);
 
         NativeBattleModulePoolTask ReadEcho(NativeBattleDuel212Frame current) => current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets).Slots[0];
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             }
             if (pointer.Cpu is { } source)
             {
-                return NativeBattleModelEnemyHeap.Read(cpu, current.Staging, source with { Offset = checked(source.Offset + offset) }, length);
+                return NativeBattleModelResourceView.Open(cpu, current.Staging, pointer, checked(offset + length)).Read(offset, length);
             }
             uint physical = checked(pointer.StagingAddress!.Value + (uint)offset);
             if (NativeBattleEffectTaskMemory.TryRead(current.Effect.Pools, physical, length, out byte[] bytes))

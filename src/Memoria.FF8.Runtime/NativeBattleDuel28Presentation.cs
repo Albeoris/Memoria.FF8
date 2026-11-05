@@ -13,12 +13,12 @@ internal static class NativeBattleDuel28Presentation
         rows[row] = rows.GetValueOrDefault(row) + 1;
     }
 
-    internal static NativeBattlePilotVisualIdentity Identity(ushort effect, NativeBattleModulePoolTask task, uint resource, int primitive = 0)
+    internal static NativeBattlePilotVisualIdentity Identity(ushort effect, NativeBattleModulePoolTask task, long resource, int primitive = 0)
     {
         return NativeBattlePilotVisualLifetimes.Identity(effect, task, primitive) with { ResourceGeneration = resource };
     }
 
-    internal static long Row(NativeBattleModulePoolTask task, int row, uint resource)
+    internal static long Row(NativeBattleModulePoolTask task, int row, long resource)
     {
         return unchecked(((long)resource << 32) ^ births.GetValue(task.RequireOwner(), _ => []).GetValueOrDefault(row));
     }

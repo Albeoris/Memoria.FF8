@@ -162,6 +162,13 @@ public sealed partial record NativeBattleFileStaging
                     throw new InvalidDataException("Native staging pointer metadata differs from its physical DWORD.");
                 }
             }
+            else if (entry.Value?.Cpu?.TryPhysicalAddress() is uint cpuAddress)
+            {
+                if (known.Contains(true) && (known.Contains(false) || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes) != cpuAddress))
+                {
+                    throw new InvalidDataException("Native CPU staging pointer differs from its retained guest DWORD.");
+                }
+            }
             else if (known.Contains(true))
             {
                 throw new InvalidDataException("Native symbolic staging pointer cannot own fabricated numeric bytes.");

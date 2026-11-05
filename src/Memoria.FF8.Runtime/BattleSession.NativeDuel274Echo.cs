@@ -23,7 +23,7 @@ public sealed partial class BattleSession
             NativeBattleModelCpuResourceRow selected = cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Native Duel echo requires its actual selected CPU resource row.")];
             pointer = new(selected.Require(16), null, selected.Lengths.TryGetValue(16, out int length) ? length : null);
         }
-        uint section = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Native Duel echo requires its physical geometry source.");
+        NativeBattleModelGeometrySource section = NativeBattleModelGeometrySource.Open(cpu, frame.Staging, pointer, (offset, length) => Read(frame, offset, length));
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native Duel echo requires its actually loaded scratch maximum.");
         NativeBattleScriptedGraphicsMemory registers = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Duel echo requires its current GTE registers.");
         frame = NativeBattleDuel274Echo.Draw68A7B0(frame, model, echo, section, Read, maximum, view, projection, Submit, registers.Zsf3 ?? throw new NotSupportedException("Native Duel echo requires its actual ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Duel echo requires its actual ZSF4."));
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             }
             if (pointer.Cpu is { } source)
             {
-                return NativeBattleModelEnemyHeap.Read(cpu, current.Staging, source with { Offset = checked(source.Offset + offset) }, length);
+                return NativeBattleModelResourceView.Open(cpu, current.Staging, pointer, checked(offset + length)).Read(offset, length);
             }
             uint physical = checked(pointer.StagingAddress!.Value + (uint)offset);
             if (NativeBattleEffectTaskMemory.TryRead(current.Effect.Pools, physical, length, out byte[] bytes))
