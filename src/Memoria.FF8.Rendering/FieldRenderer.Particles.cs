@@ -8,8 +8,9 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
-    private void PrepareFieldParticles(IReadOnlyList<NativeFieldParticleSprite>? particles, PixelImage? texture, List<(float Depth, Action Draw)> translucent)
+    private void PrepareFieldParticles(IReadOnlyList<NativeFieldParticleSprite>? particles, PixelImage? texture, List<(float Depth, Action Draw)> translucent, FieldParticleBlend? blendHistory = null)
     {
+        blendHistory?.Validate();
         if (particles is null || particles.Count == 0)
         {
             return;
@@ -20,32 +21,34 @@ public sealed partial class FieldRenderer
         }
         foreach (NativeFieldParticleSprite particle in particles.OrderByDescending(particle => particle.PoolIndex))
         {
-            ProjectedPoint centre = ProjectFieldParticle(particle);
-            int orderingIndex = (int)MathF.Truncate(centre.Depth / 4) + particle.DepthOffset;
-            if (orderingIndex <= 0 || orderingIndex >= 4096)
+            FieldParticleQuad? native = ProjectFieldParticleQuad(particle);
+            if (native is not { } quad)
             {
                 continue;
             }
-            int perspectiveScale = ((int)camera.FocalLength << 14) / orderingIndex;
-            int shift = particle.DoubleSize ? 10 : 11;
-            short halfWidth = unchecked((short)((perspectiveScale * particle.Width) >> shift));
-            short halfHeight = unchecked((short)((perspectiveScale * particle.Height) >> shift));
-            int cosine = NativeBattleCameraMath.Cosine(particle.Angle);
-            int sine = NativeBattleCameraMath.Sine(particle.Angle);
-            Vector2 first = RotateParticleCorner(halfWidth, unchecked((short)-halfHeight), cosine, sine);
-            Vector2 second = RotateParticleCorner(halfWidth, halfHeight, cosine, sine);
-            float orderingDepth = orderingIndex * 4;
-            ProjectedPoint a = ParticleCorner(centre, -second, orderingDepth);
-            ProjectedPoint b = ParticleCorner(centre, first, orderingDepth);
-            ProjectedPoint c = ParticleCorner(centre, -first, orderingDepth);
-            ProjectedPoint d = ParticleCorner(centre, second, orderingDepth);
+            if (blendHistory is not null && blendHistory.TryPrevious(particle, out NativeFieldParticleSprite previous) && ProjectFieldParticleQuad(previous) is { } before)
+            {
+                float fraction = blendHistory.Fraction;
+                Vector2 centre = Vector2.Lerp(before.Centre, quad.Centre, fraction);
+                Vector2 Corner(Vector2 oldCorner, Vector2 newCorner)
+                {
+                    return centre + blendHistory.Offset(oldCorner - before.Centre, newCorner - quad.Centre, previous.Angle, particle.Angle);
+                }
+                quad = fraction == 0 ? before : new FieldParticleQuad(centre, Corner(before.A, quad.A), Corner(before.B, quad.B), Corner(before.C, quad.C), Corner(before.D, quad.D), before.Depth + (quad.Depth - before.Depth) * fraction, Vector3.Lerp(before.Color, quad.Color, fraction));
+            }
+            float orderingDepth = quad.Depth;
+            ProjectedPoint Viewport(Vector2 point) => ToViewport(new ProjectedPoint(point.X, point.Y, orderingDepth));
+            ProjectedPoint a = Viewport(quad.A);
+            ProjectedPoint b = Viewport(quad.B);
+            ProjectedPoint c = Viewport(quad.C);
+            ProjectedPoint d = Viewport(quad.D);
             byte right = unchecked((byte)(particle.U + particle.TextureWidth - 1));
             byte bottom = unchecked((byte)(particle.V + particle.TextureHeight - 1));
             Vector2 uvA = new(particle.U, particle.V);
             Vector2 uvB = new(right, particle.V);
             Vector2 uvC = new(particle.U, bottom);
             Vector2 uvD = new(right, bottom);
-            Vector3 color = new(particle.Red, particle.Green, particle.Blue);
+            Vector3 color = quad.Color;
             MapBlendMode blend = particle.BlendMode == 4 ? MapBlendMode.None : (particle.BlendMode & 3) switch
             {
                 0 => MapBlendMode.Average,
@@ -64,6 +67,33 @@ public sealed partial class FieldRenderer
                 translucent.Add((orderingDepth, () => Draw(true)));
             }
         }
+    }
+
+    private readonly record struct FieldParticleQuad(Vector2 Centre, Vector2 A, Vector2 B, Vector2 C, Vector2 D, float Depth, Vector3 Color);
+
+    private FieldParticleQuad? ProjectFieldParticleQuad(NativeFieldParticleSprite particle)
+    {
+        ProjectedPoint centre = ProjectFieldParticle(particle);
+        int orderingIndex = (int)MathF.Truncate(centre.Depth / 4) + particle.DepthOffset;
+        if (orderingIndex <= 0 || orderingIndex >= 4096)
+        {
+            return null;
+        }
+        int perspectiveScale = ((int)camera.FocalLength << 14) / orderingIndex;
+        int shift = particle.DoubleSize ? 10 : 11;
+        short halfWidth = unchecked((short)((perspectiveScale * particle.Width) >> shift));
+        short halfHeight = unchecked((short)((perspectiveScale * particle.Height) >> shift));
+        int cosine = NativeBattleCameraMath.Cosine(particle.Angle);
+        int sine = NativeBattleCameraMath.Sine(particle.Angle);
+        Vector2 first = RotateParticleCorner(halfWidth, unchecked((short)-halfHeight), cosine, sine);
+        Vector2 second = RotateParticleCorner(halfWidth, halfHeight, cosine, sine);
+        float orderingDepth = orderingIndex * 4;
+        Vector2 Corner(Vector2 offset)
+        {
+            ProjectedPoint point = ParticleCorner(centre, offset, orderingDepth);
+            return new Vector2(point.X, point.Y);
+        }
+        return new FieldParticleQuad(new Vector2(centre.X, centre.Y), Corner(-second), Corner(first), Corner(-first), Corner(second), orderingDepth, new Vector3(particle.Red, particle.Green, particle.Blue));
     }
 
     private ProjectedPoint ProjectFieldParticle(NativeFieldParticleSprite particle)
@@ -95,7 +125,7 @@ public sealed partial class FieldRenderer
     {
         short x = unchecked((short)(int)((centre.X - 160 - camera.Pan.X) * 8 + offset.X));
         short y = unchecked((short)(int)((centre.Y - 120 - camera.Pan.Y) * 8 + offset.Y));
-        return ToViewport(new ProjectedPoint(160 + camera.Pan.X + x / 8f, 120 + camera.Pan.Y + y / 8f, orderingDepth));
+        return new ProjectedPoint(160 + camera.Pan.X + x / 8f, 120 + camera.Pan.Y + y / 8f, orderingDepth);
     }
 
     private void DrawFieldParticleTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 color, MapBlendMode blend, bool transparentPass)

@@ -88,10 +88,10 @@ public sealed class WorldShadowPresentationTests
         Type screenVertex = type.GetNestedType("ScreenVertex", BindingFlags.NonPublic)!;
         object Vertex(float x, float y)
         {
-            return Activator.CreateInstance(screenVertex, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, [x, y, 1f, Vector2.Zero, null], null)!;
+            return Activator.CreateInstance(screenVertex, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, [x, y, 1f, Vector2.Zero, null, null], null)!;
         }
         PixelImage texture = new(1, 1, [new Rgba32(20, 30, 40, 128)]);
-        type.GetMethod("Raster", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, [Vertex(0, 0), Vertex(4, 0), Vertex(0, 4), texture, true, 0, 3, blend]);
+        type.GetMethod("Raster", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, [Vertex(0, 0), Vertex(4, 0), Vertex(0, 4), texture, true, 0, 3, blend, null]);
         Assert.Equal(new byte[] { red, green, blue }, pixels.AsSpan(0, 3).ToArray());
         Assert.Equal(new byte[] { 100, 100, 100 }, pixels.AsSpan(15 * 4, 3).ToArray());
         Assert.All(depth, value => Assert.Equal(groundDepth, value));

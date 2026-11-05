@@ -33,11 +33,46 @@ public static class WorldRenderInterpolation
             Sky = Sky(previous.Sky, current.Sky, alpha),
             StaticModels = StaticModels(previous.StaticModels, current.StaticModels, position, alpha),
             AnimatedModels = AnimatedModels(previous.AnimatedModels, current.AnimatedModels, position, alpha),
-            ForestParticles = Forest(previous.Forest, current.Forest, position, alpha)
+            ForestParticles = Forest(previous.Forest, current.Forest, position, alpha),
+            Shadows = Shadows(previous.Shadows, current.Shadows, position, alpha)
         };
     }
 
     private static float Lerp(float previous, float current, float alpha) => previous + (current - previous) * alpha;
+
+    private static IReadOnlyList<NativeWorldShadowDraw>? Shadows(IReadOnlyList<NativeWorldShadowDraw>? previous, IReadOnlyList<NativeWorldShadowDraw>? current, Vector3 position, float alpha)
+    {
+        if (current is null)
+        {
+            return null;
+        }
+        NativeWorldShadowDraw[] result = current.ToArray();
+        for (int index = 0; index < result.Length; index++)
+        {
+            NativeWorldShadowDraw draw = result[index];
+            NativeWorldShadowDraw[] matches = previous?.Where(item => draw.ObjectId.HasValue && item.ObjectId == draw.ObjectId && item.ShapeId == draw.ShapeId).ToArray() ?? [];
+            if (matches.Length != 1)
+            {
+                continue;
+            }
+            NativeWorldShadowDraw before = matches[0];
+            if (alpha == 0)
+            {
+                result[index] = before;
+                continue;
+            }
+            float previousYaw = before.PresentationYaw ?? before.NativeYaw;
+            float currentYaw = draw.PresentationYaw ?? draw.NativeYaw;
+            result[index] = draw with
+            {
+                Anchor = Near(Position(before.Anchor, draw.Anchor, alpha), position),
+                PresentationYaw = previousYaw + MathF.IEEERemainder(currentYaw - previousYaw, 4096) * alpha,
+                GroundHeight = Lerp(before.GroundHeight, draw.GroundHeight, alpha),
+                Scale = Lerp(before.Scale, draw.Scale, alpha)
+            };
+        }
+        return Array.AsReadOnly(result);
+    }
 
     private static float Angle(float previous, float current, float alpha) => previous + MathF.IEEERemainder(current - previous, MathF.Tau) * alpha;
 

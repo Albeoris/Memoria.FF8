@@ -659,11 +659,17 @@ internal sealed partial class WorldMapScene : IDisposable
         uint mainLoopCounter = session.State.WorldProcess?.MainLoopCounter ?? throw new NotSupportedException("World presentation requires the executed native main-loop counter.");
         NativeWorldTextureAnimationState animation = session.State.WorldProcess?.TextureAnimation ?? throw new NotSupportedException("World presentation requires its retained texture animation clocks; migrate this save explicitly.");
         // Resource loading uploads base images before the first world animation callback.
-        frame = frame with { TextureAnimation = State.Frame == 0 ? null : animation, TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204, Shadows = CaptureShadows(State, frame) };
+        frame = frame with { TextureAnimation = State.Frame == 0 ? null : animation, TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204 };
         return renderer.Render(frame, replacements);
     }
 
     private WorldRenderFrame PrepareRenderFrame(WorldState state)
+    {
+        WorldRenderFrame frame = PrepareLogicalRenderFrame(state);
+        return frame with { Shadows = CaptureShadows(state, frame) };
+    }
+
+    private WorldRenderFrame PrepareLogicalRenderFrame(WorldState state)
     {
         if (state.NativeFootRuntime is { StationTrains: { } source, StationTrainProcess.ProjectionCamera: null })
         {

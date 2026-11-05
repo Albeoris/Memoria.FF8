@@ -68,7 +68,7 @@ public sealed partial class FieldRenderer
         GpuQuad(raster.Origin, raster.Size, raster.Depth, new Vector4(shade / 128, 1), material, region.End, region.Start, pointSampleRectangle: true);
     }
 
-    private void DrawGpuFade(NativeFadeDraw? fade)
+    private void DrawGpuFade(FieldFadeSample? fade)
     {
         if (fade is null || fade.Mode == NativeFadeDrawMode.None)
         {
@@ -80,7 +80,7 @@ public sealed partial class FieldRenderer
             NativeFadeDrawMode.Subtract => TriangleBlend.Subtract,
             _ => TriangleBlend.Replace
         };
-        Vector4 color = fade.Mode == NativeFadeDrawMode.Black ? new Vector4(0, 0, 0, 1) : new Vector4(fade.Red / 255f, fade.Green / 255f, fade.Blue / 255f, 1);
+        Vector4 color = fade.Mode == NativeFadeDrawMode.Black ? new Vector4(0, 0, 0, 1) : new Vector4(fade.Color / 255, 1);
         TriangleMaterial material = new(null, blend, TriangleDepthComparison.Always, false) { ClipRectangle = new Vector4(clipLeft, clipTop, clipRight, clipBottom) };
         GpuQuad(Vector2.Zero, new Vector2(OutputWidth, OutputHeight), 0, color, material, Vector2.One);
     }

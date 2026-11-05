@@ -8,7 +8,8 @@ public enum WorldRenderObjectKind
 {
     Allocation,
     Rail,
-    Controlled
+    Controlled,
+    Avatar
 }
 
 public readonly record struct WorldRenderObjectId(WorldRenderObjectKind Kind, int Index, int Group = 0);

@@ -499,10 +499,10 @@ internal sealed partial class GameWorld : IDisposable
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
         bool revealHiddenDrawPoint = Events.Scene.DrawPointEnabled != 0 && (Events.Scene.DrawPointDisplayParameter & 1) == 0 && session.CharacterVitals?.HasActivePassiveAbility(79) == true;
-        byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: frame.DrawPointParticles, drawPointBlend: sample.DrawPointBlend, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint, fieldParticles: Events.FieldParticleSprites, fieldParticleTexture: Events.FieldParticleSprites.Count > 0 ? ReadFieldParticleTexture() : null);
+        byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: sample.BackgroundShades, backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: frame.DrawPointParticles, drawPointBlend: sample.DrawPointBlend, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint, fieldParticles: frame.FieldParticleSprites, fieldParticleBlend: sample.FieldParticles, presentationFade: sample.Fade, fieldParticleTexture: Events.FieldParticleSprites.Count > 0 ? ReadFieldParticleTexture() : null);
         if (triangleRenderer is null)
         {
-            FieldColorComposite.Apply(pixels, fade.Draw, renderWidth, renderer.ContentBounds);
+            FieldColorComposite.Apply(pixels, sample.Fade ?? FieldFadeSample.FromNative(fade.Draw), renderWidth, renderer.ContentBounds);
         }
         return pixels;
     }
@@ -620,6 +620,12 @@ internal static class FieldColorComposite
 {
     public static void Apply(byte[] rgba, NativeFadeDraw draw, int width = 0, PixelBounds? bounds = null)
     {
+        Apply(rgba, FieldFadeSample.FromNative(draw), width, bounds);
+    }
+
+    public static void Apply(byte[] rgba, FieldFadeSample draw, int width = 0, PixelBounds? bounds = null)
+    {
+        draw.Validate();
         int start = bounds is PixelBounds clip ? (clip.Y * width + clip.X) * 4 : 0;
         int rowBytes = bounds is PixelBounds area ? area.Width * 4 : rgba.Length;
         int rows = bounds?.Height ?? 1;
@@ -638,8 +644,8 @@ internal static class FieldColorComposite
             }
             return;
         }
-        Vector3 additive = draw.Mode == NativeFadeDrawMode.Add ? new(draw.Red, draw.Green, draw.Blue) : Vector3.Zero;
-        Vector3 subtractive = draw.Mode == NativeFadeDrawMode.Subtract ? new(draw.Red, draw.Green, draw.Blue) : Vector3.Zero;
+        Vector3 additive = draw.Mode == NativeFadeDrawMode.Add ? draw.Color : Vector3.Zero;
+        Vector3 subtractive = draw.Mode == NativeFadeDrawMode.Subtract ? draw.Color : Vector3.Zero;
         if (additive == Vector3.Zero && subtractive == Vector3.Zero)
         {
             return;

@@ -5,7 +5,12 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Rendering;
 
 /// <summary>Original stored shape/yaw with canonical raw anchor and selected ground elevation.</summary>
-public readonly record struct NativeWorldShadowDraw(byte ShapeId, Vector3 Anchor, short NativeYaw, float GroundHeight, float Scale = 1);
+public readonly record struct NativeWorldShadowDraw(byte ShapeId, Vector3 Anchor, short NativeYaw, float GroundHeight, float Scale = 1)
+{
+    public WorldRenderObjectId? ObjectId { get; init; }
+    /// <summary>Fractional native yaw units before the shape-specific correction; absent at logical endpoints.</summary>
+    public float? PresentationYaw { get; init; }
+}
 public readonly record struct WorldShadowVertex(Vector3 Position, Vector2 Uv);
 public readonly record struct WorldShadowTriangle(WorldShadowVertex A, WorldShadowVertex B, WorldShadowVertex C);
 public sealed record WorldShadowGeometry(int TextureMember, IReadOnlyList<WorldShadowTriangle> Triangles);
@@ -14,7 +19,7 @@ public static class WorldShadowPresentation
 {
     public static WorldShadowGeometry Create(NativeWorldShadowDraw draw, NativeWorldContactShape shape)
     {
-        if (!float.IsFinite(draw.GroundHeight) || !float.IsFinite(draw.Scale) || draw.Scale <= 0)
+        if (!float.IsFinite(draw.GroundHeight) || !float.IsFinite(draw.Scale) || draw.Scale <= 0 || draw.PresentationYaw is float presentedYaw && !float.IsFinite(presentedYaw))
         {
             throw new ArgumentOutOfRangeException(nameof(draw));
         }
@@ -28,7 +33,8 @@ public static class WorldShadowPresentation
             _ => throw new NotSupportedException($"Unsupported native world shadow contact kind {shape.Kind}.")
         };
         NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(draw.ShapeId, 0, draw.NativeYaw, 0);
-        Matrix4x4 rotation = Matrix4x4.CreateRotationY(angles.Yaw * MathF.Tau / 4096);
+        float yaw = draw.PresentationYaw is float presented ? presented + WorldStaticModelTransform.AllocationAngles(draw.ShapeId, 0, 0, 0).Yaw : angles.Yaw;
+        Matrix4x4 rotation = Matrix4x4.CreateRotationY(yaw * MathF.Tau / 4096);
         Vector3 World(Vector3 point)
         {
             Vector3 native = Vector3.Transform(point * draw.Scale, rotation);

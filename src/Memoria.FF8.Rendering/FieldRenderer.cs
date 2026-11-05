@@ -9,7 +9,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null, FieldAnimationBlend? AnimationBlend = null, bool GroundShadowEnabled = true);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null, FieldAnimationBlend? AnimationBlend = null, bool GroundShadowEnabled = true, Vector3? PresentationPolygonColor = null);
 
 public enum ModelTextureSampling
 {
@@ -98,14 +98,22 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null, IReadOnlyDictionary<int, short>? backgroundLayerScales = null, IReadOnlyDictionary<BackgroundTile, bool>? backgroundTileVisibility = null, bool revealHiddenDrawPoint = false, IReadOnlyList<NativeFieldParticleSprite>? fieldParticles = null, PixelImage? fieldParticleTexture = null, DrawPointParticleBlend? drawPointBlend = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null, IReadOnlyDictionary<int, short>? backgroundLayerScales = null, IReadOnlyDictionary<BackgroundTile, bool>? backgroundTileVisibility = null, bool revealHiddenDrawPoint = false, IReadOnlyList<NativeFieldParticleSprite>? fieldParticles = null, PixelImage? fieldParticleTexture = null, DrawPointParticleBlend? drawPointBlend = null, FieldParticleBlend? fieldParticleBlend = null, FieldFadeSample? presentationFade = null)
     {
+        presentationFade?.Validate();
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
         {
             if (actor.PolygonColor is not Vector3 color || new[] { color.X, color.Y, color.Z }.Any(value => !float.IsFinite(value) || value < 0 || value > 255 || value != MathF.Truncate(value)))
             {
                 throw new NotSupportedException("Model drawing requires explicit primitive RGB bytes; shadow level or neutral defaults cannot replace them.");
+            }
+        }
+        foreach (ActorVisual actor in preparedActors)
+        {
+            if (actor.PresentationPolygonColor is Vector3 color && new[] { color.X, color.Y, color.Z }.Any(value => !float.IsFinite(value) || value < 0 || value > 255))
+            {
+                throw new ArgumentOutOfRangeException(nameof(actors), "Presentation RGB must contain finite color channels.");
             }
         }
         IReadOnlyDictionary<int, Vector2> nextOffsets = backgroundScrollOffsets ?? EmptyScrollOffsets;
@@ -208,7 +216,7 @@ public sealed partial class FieldRenderer
         {
             DrawCardMarkers(preparedActors, cardMarkers, elapsed);
         }
-        PrepareFieldParticles(fieldParticles, fieldParticleTexture, translucent);
+        PrepareFieldParticles(fieldParticles, fieldParticleTexture, translucent, fieldParticleBlend);
         List<Action> revealedPoints = [];
         PrepareDrawPointParticles(drawPointParticles, drawPointParticleTables, drawPointDisplayMask, translucent, revealedPoints, revealHiddenDrawPoint, drawPointBlend);
         // Native45D080 draws opaque primitives before the translucent pass.
@@ -223,7 +231,7 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            DrawGpuFade(fade);
+            DrawGpuFade(presentationFade ?? (fade is null ? null : FieldFadeSample.FromNative(fade)));
             TriangleRenderer.End();
         }
         return pixels;
@@ -490,10 +498,10 @@ public sealed partial class FieldRenderer
             PixelImage texture = selectedTextures[face.Texture];
             Vector2 textureScale = ResourceTextureList.PhysicalScale(selectedTextures, face.Texture);
             bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
-            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[0], face.VertexColors?[1], face.VertexColors?[2]);
+            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PresentationPolygonColor ?? actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[0], face.VertexColors?[1], face.VertexColors?[2]);
             if (face.Quad)
             {
-                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[1], face.VertexColors?[3], face.VertexColors?[2]);
+                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PresentationPolygonColor ?? actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[1], face.VertexColors?[3], face.VertexColors?[2]);
             }
         }
     }
