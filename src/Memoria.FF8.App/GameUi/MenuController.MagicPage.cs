@@ -22,7 +22,7 @@ public sealed partial class MenuController
         else
         {
             UiList list = Commands(38, 25);
-            MenuMagic[] spells = Data.Magic.Where(value => value.CharacterId == Character?.Id).ToArray();
+            MenuMagic[] spells = Entries.Select(CommandMagic).OfType<MenuMagic>().ToArray();
             ConfigureMagicColumns(list, spells);
             stock = InventoryQuantities(list, spells.Select(value => value.Name).ToList(), spells.Select(value => value.StockPresentation).ToList());
         }

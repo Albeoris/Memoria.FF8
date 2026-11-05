@@ -140,7 +140,15 @@ public static class MenuCatalog
         string? characterId = c.Character?.Id;
         return c.Data.Magic.Where(magic => magic.CharacterId == characterId);
     }
-    private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, m.Name, m.Description, destination, new MenuAction("select-magic", m.Id), m.Quantity > 0 && (destination != "magic-target" || c.IsDemo || c.Data.SupportedActions.Contains("magic-use") || c.Data.SupportedActions.Contains($"magic-use:{m.Id}")))).ToArray();
+    private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination)
+    {
+        IEnumerable<MenuEntry> entries = CharacterMagic(c).Select(m => new MenuEntry(m.Id, m.Name, m.Description, destination, new MenuAction("select-magic", m.Id), m.Quantity > 0 && (destination != "magic-target" || c.IsDemo || c.Data.SupportedActions.Contains("magic-use") || c.Data.SupportedActions.Contains($"magic-use:{m.Id}"))));
+        if (destination == "magic-target")
+        {
+            entries = entries.OrderByDescending(entry => entry.Enabled);
+        }
+        return entries.ToArray();
+    }
     private static IReadOnlyList<MenuEntry> CommandChoices(MenuController c)
     {
         if (c.IsDemo)
