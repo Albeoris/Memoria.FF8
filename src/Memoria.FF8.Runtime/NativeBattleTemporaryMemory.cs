@@ -72,6 +72,21 @@ public static class NativeBattleTemporaryMemory
         return staging.WriteWithKnownness(address, data, known);
     }
 
+    internal static NativeBattleFileStaging PublishResourceView(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena view, int length)
+    {
+        if (!view.MayHaveResourcePointers())
+        {
+            return PublishView(staging, address, view, length);
+        }
+        KeyValuePair<int, NativeBattleResourcePointer?>[] pointers = view.EnumerateResourcePointers().Where(entry => entry.Key >= 0 && entry.Key <= length - 4).ToArray();
+        staging = PublishView(staging, address, view, length);
+        foreach (var entry in pointers)
+        {
+            staging.WriteResourcePointer(checked(address + (uint)entry.Key), entry.Value);
+        }
+        return staging;
+    }
+
     private static int Aligned(int size)
     {
         if (size < 0 || size > int.MaxValue - 3)

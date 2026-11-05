@@ -9,6 +9,11 @@ public static class NativeBattleAcid317Snapshot
 {
     public static NativeBattleAcid317SnapshotStep Capture(NativeBattleEffectMemory memory, NativeCrtRandomState random, NativeBattleEffectArena temporary12, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint cacheAddress, int cacheLength)
     {
+        return Capture(memory, random, temporary12, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, cacheAddress, cacheLength);
+    }
+
+    public static NativeBattleAcid317SnapshotStep Capture(NativeBattleEffectMemory memory, NativeCrtRandomState random, NativeBattleEffectArena temporary12, NativeBattleModelGeometrySource geometry, ImmutableArray<NativeBattlePackedMatrix32> bones, uint cacheAddress, int cacheLength)
+    {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Acid snapshot requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Acid snapshot requires its current arithmetic registers."));
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Acid snapshot requires its actual effect arena.");
         uint cache = BinaryPrimitives.ReadUInt32LittleEndian(temporary12.Read(8, 4));
@@ -18,7 +23,7 @@ public static class NativeBattleAcid317Snapshot
             int cursor = BinaryPrimitives.ReadInt32LittleEndian(Read(checked(4 + index * 4), 4));
             int groups = Count(cursor);
             cursor = checked(cursor + 2);
-            temporary12 = temporary12.Write(4, BitConverter.GetBytes(checked(geometryAddress + (uint)cursor)));
+            temporary12 = geometry.WriteCursor(temporary12, 4, cursor);
             for (int group = 0; group < groups; group++)
             {
                 int bone = BinaryPrimitives.ReadInt16LittleEndian(Read(cursor, 2));
@@ -30,7 +35,7 @@ public static class NativeBattleAcid317Snapshot
                 short? padding = matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
                 registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix.ReadMatrix(), true, true, padding) };
                 cursor = checked(cursor + 2);
-                temporary12 = temporary12.Write(4, BitConverter.GetBytes(checked(geometryAddress + (uint)cursor)));
+                temporary12 = geometry.WriteCursor(temporary12, 4, cursor);
                 int vertices = Count(cursor);
                 cursor = checked(cursor + 2);
                 for (int vertex = 0; vertex < vertices; vertex++)
@@ -50,14 +55,14 @@ public static class NativeBattleAcid317Snapshot
                     cache = checked(cache + 1);
                     cursor = checked(cursor + 6);
                 }
-                temporary12 = temporary12.Write(4, BitConverter.GetBytes(checked(geometryAddress + (uint)cursor))).Write(8, BitConverter.GetBytes(cache));
+                temporary12 = geometry.WriteCursor(temporary12, 4, cursor).Write(8, BitConverter.GetBytes(cache));
             }
         }
         return new(memory with { Arena = arena, GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, random, temporary12);
 
         byte[] Read(int offset, int count)
         {
-            byte[] bytes = readGeometry(offset, count);
+            byte[] bytes = geometry.Read(offset, count);
             return bytes is not null && bytes.Length == count ? bytes : throw new InvalidDataException("Acid snapshot requires its exact current raw geometry bytes.");
         }
         int Count(int offset)

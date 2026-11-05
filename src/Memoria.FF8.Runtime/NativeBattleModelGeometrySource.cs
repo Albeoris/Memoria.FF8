@@ -69,6 +69,11 @@ public readonly struct NativeBattleModelGeometrySource
         return numericAddress is uint address ? checked(address + (uint)offset) : null;
     }
 
+    internal NativeBattleEffectArena WriteCursor(NativeBattleEffectArena destination, int field, int offset)
+    {
+        return NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
+    }
+
     public NativeBattleResourcePointer Cursor(int offset)
     {
         Require(offset, 0);

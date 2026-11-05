@@ -117,6 +117,82 @@ public sealed class NativeBattleAcid317ModelDrawingTests
         Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Logical_body_linked_snapshot_and_deformation_keep_cache_random_and_native_writes_after_restore(bool remastered, bool quad)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        byte[] original = Geometry(quad);
+        byte[] expanded = new byte[layout.BankLength + original.Length];
+        BinaryPrimitives.WriteInt32LittleEndian(expanded, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(expanded.AsSpan(4), layout.BankLength + 8);
+        original.AsSpan(8).CopyTo(expanded.AsSpan(layout.BankLength + 8));
+        ImmutableArray<byte> geometry = expanded.ToImmutableArray();
+        int first = layout.BankLength + 8;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[1].BindPartyResource(first, geometry, 0, geometry.Length).BindPartyResource(first + geometry.Length, geometry, 0, geometry.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(1, bank) } };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleAcid317SnapshotStep logical = new(Memory(0), new(1), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0xA5A5A5A5u)).Write(8, BitConverter.GetBytes(CacheAddress)));
+        NativeBattleAcid317SnapshotStep numeric = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317SnapshotStep>(NativeBattleTestSnapshots.Json(logical));
+        for (int linked = 0; linked < 2; linked++)
+        {
+            NativeBattleModelGeometrySource source = Open(cpu, staging, first + linked * geometry.Length);
+            ImmutableArray<NativeBattlePackedMatrix32> bones = [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)];
+            logical = NativeBattleAcid317Snapshot.Capture(logical.Memory, logical.Random, logical.Temporary12, source, bones, CacheAddress, 2048);
+            numeric = NativeBattleAcid317Snapshot.Capture(numeric.Memory, numeric.Random, numeric.Temporary12, (offset, length) => geometry.AsSpan(offset, length).ToArray(), GeometryAddress, bones, CacheAddress, 2048);
+            Assert.Equal(numeric.Random, logical.Random);
+            Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+            Assert.Equal(U32(numeric.Temporary12, 8), U32(logical.Temporary12, 8));
+            Assert.Equal(first + linked * geometry.Length + layout.BankLength + 38, logical.Temporary12.ReadResourcePointer(4)!.Cpu!.Offset);
+        }
+        NativeBattleTemporaryMemory.PublishResourceView(staging, NativeBattleTemporaryMemory.Address, logical.Temporary12, 12);
+        DeformedResourceState restored = NativeBattleTestSnapshots.RestoreJson<DeformedResourceState>(NativeBattleTestSnapshots.Json(new DeformedResourceState(cpu, staging, logical)));
+        Assert.True(restored.Staging.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 4)!.Cpu!.ResourceOnly);
+        NativeBattleEffectArena logicalTemporary = Context(1024);
+        NativeBattleEffectArena numericTemporary = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(logicalTemporary));
+        NativeBattleEffectMemory logicalMemory = restored.Snapshot.Memory;
+        NativeBattleEffectMemory numericMemory = numeric.Memory;
+        for (int linked = 0; linked < 2; linked++)
+        {
+            NativeBattleModelGeometrySource source = Open(restored.Cpu, restored.Staging, first + linked * geometry.Length);
+            NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawBody(logicalMemory, logicalTemporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 40), source, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null)], Camera(), Projection, logicalMemory.ScriptedGraphics!, ScratchAddress, 32, CacheAddress, 2048);
+            NativeBattleAcid317ModelStep expected = Draw(geometry.ToArray(), numericTemporary, numericMemory, 2000);
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory), NativeBattleTestSnapshots.Json(drawn.Memory));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(drawn.Batch));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.VertexScratch), NativeBattleTestSnapshots.Json(drawn.VertexScratch));
+            byte[] expectedBytes = expected.Temporary132.ReadSnapshot(0, 132).Data;
+            byte[] actualBytes = drawn.Temporary132.ReadSnapshot(0, 132).Data;
+            foreach (int field in new[] { 0x20, 0x30 })
+            {
+                Array.Clear(expectedBytes, field, 4);
+                Array.Clear(actualBytes, field, 4);
+                Assert.True(drawn.Temporary132.ReadResourcePointer(field)!.Cpu!.ResourceOnly);
+            }
+            Assert.Equal(expectedBytes, actualBytes);
+            NativeBattleTemporaryMemory.PublishResourceView(restored.Staging, NativeBattleTemporaryMemory.Address, drawn.Temporary132, 132);
+            DeformedResourceState next = NativeBattleTestSnapshots.RestoreJson<DeformedResourceState>(NativeBattleTestSnapshots.Json(restored with { Snapshot = new(drawn.Memory, restored.Snapshot.Random, restored.Snapshot.Temporary12) }));
+            Assert.True(next.Staging.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 0x20)!.Cpu!.ResourceOnly);
+            Assert.True(next.Staging.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 0x30)!.Cpu!.ResourceOnly);
+            logicalTemporary = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(drawn.Temporary132));
+            logicalMemory = next.Snapshot.Memory;
+            numericTemporary = expected.Temporary132;
+            numericMemory = expected.Memory;
+        }
+        Assert.Equal(CacheAddress + 8, U32(logicalTemporary, 0x2C));
+
+        NativeBattleModelGeometrySource Open(NativeBattleModelCpuResources resources, NativeBattleFileStaging current, int offset)
+        {
+            NativeBattleResourcePointer pointer = new(new(1, offset) { Layout = layout, ResourceOnly = true }, null, geometry.Length);
+            return NativeBattleModelGeometrySource.Open(resources, current, pointer, (_, _) => throw new InvalidOperationException("CPU geometry must use its retained publication."));
+        }
+    }
+
+    private sealed record DeformedResourceState(NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging, NativeBattleAcid317SnapshotStep Snapshot);
+
     private const uint GeometryAddress = 0x1000000;
     private const uint ScratchAddress = 0x196B000;
     private const int CacheOffset = 0x3F08;

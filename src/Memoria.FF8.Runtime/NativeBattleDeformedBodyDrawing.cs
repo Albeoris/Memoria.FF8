@@ -9,6 +9,11 @@ public static partial class NativeBattleDeformedBodyDrawing
 {
     public static NativeBattleDeformedBodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary132, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, uint cacheAddress, int cacheLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawBody(memory, temporary132, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, cacheAddress, cacheLength, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    public static NativeBattleDeformedBodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary132, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometry, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, uint cacheAddress, int cacheLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary132, 0x24) != scratchAddress)
         {
             throw new InvalidDataException("Acid body requires its actual bounded physical projection workspace.");
@@ -21,7 +26,7 @@ public static partial class NativeBattleDeformedBodyDrawing
         for (int index = 0; index < objects; index++)
         {
             int cursor = I32(checked(4 + index * 4));
-            temporary132 = Dword(temporary132, 0x30, Address(cursor));
+            temporary132 = geometry.WriteCursor(temporary132, 0x30, cursor);
             if ((U32(temporary132, 0x4C) & (1u << (index & 31))) == 0)
             {
                 continue;
@@ -29,7 +34,7 @@ public static partial class NativeBattleDeformedBodyDrawing
             temporary132 = Dword(temporary132, 0x28, scratchAddress);
             int groups = S16(cursor);
             cursor = checked(cursor + 2);
-            temporary132 = Dword(temporary132, 0x30, Address(cursor));
+            temporary132 = geometry.WriteCursor(temporary132, 0x30, cursor);
             int vertexCount = 0;
             Dictionary<int, System.Numerics.Vector3>? world = pilotIdentity.HasValue ? [] : null;
             for (int group = 0; group < groups; group++)
@@ -40,7 +45,7 @@ public static partial class NativeBattleDeformedBodyDrawing
                     throw new InvalidDataException("Acid selected bone leaves its current physical matrix bank.");
                 }
                 cursor = checked(cursor + 2);
-                temporary132 = Dword(temporary132, 0x30, Address(cursor));
+                temporary132 = geometry.WriteCursor(temporary132, 0x30, cursor);
                 int count = S16(cursor);
                 if (count < 0)
                 {
@@ -121,13 +126,13 @@ public static partial class NativeBattleDeformedBodyDrawing
                 vertexCount = checked(vertexCount + count);
                 cursor = checked(cursor + count * 6);
                 temporary132 = Dword(temporary132, 0x28, checked(scratchAddress + (uint)(vertexCount * 8)));
-                temporary132 = Dword(temporary132, 0x30, Address(cursor));
+                temporary132 = geometry.WriteCursor(temporary132, 0x30, cursor);
             }
             cursor = checked((cursor + 3) & ~3);
             temporary132 = temporary132.Write(0x34, Read(cursor, 12));
             cursor = checked(cursor + 12);
-            temporary132 = Dword(temporary132, 0x30, Address(cursor));
-            temporary132 = Dword(temporary132, 0x20, Address(cursor));
+            temporary132 = geometry.WriteCursor(temporary132, 0x30, cursor);
+            temporary132 = geometry.WriteCursor(temporary132, 0x20, cursor);
             DrawFaces(false);
             DrawFaces(true);
 
@@ -162,12 +167,11 @@ public static partial class NativeBattleDeformedBodyDrawing
 
         byte[] Read(int offset, int length)
         {
-            byte[] result = readGeometry(offset, length);
+            byte[] result = geometry.Read(offset, length);
             return result is not null && result.Length == length ? result : throw new InvalidDataException("Acid requires its exact current addressed geometry bytes.");
         }
         int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));
         short S16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(Read(offset, 2));
-        uint Address(int offset) => checked(geometryAddress + (uint)offset);
         void RequireScratch(int output)
         {
             if (output < 0 || output > scratchLength - 8)

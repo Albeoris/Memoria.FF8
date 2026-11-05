@@ -5,6 +5,30 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleTemporaryMemoryTests
 {
+    [Fact]
+    public void Resource_view_publication_keeps_explicit_cursors_unknown_bytes_history_and_rollback()
+    {
+        uint address = NativeBattleTemporaryMemory.Address;
+        NativeBattleResourcePointer logical = new(new(0, 70000) { ResourceOnly = true }, null, 0);
+        NativeBattleEffectArena source = NativeBattleEffectArena.CreateUnknown(16).WriteResourcePointer(4, logical).WriteResourcePointer(10, logical);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, new byte[16]).WriteResourcePointer(address + 4, new(null, 0x12345678));
+        using NativeBattleStagingReadWindow history = staging.OpenReadWindow(address + 4, 4);
+        staging.WorkingOwner.BeginCheckpoint();
+        NativeBattleTemporaryMemory.PublishResourceView(staging, address, source, 12);
+        Assert.Equal(logical, staging.ReadResourcePointer(address + 4));
+        Assert.False(staging.TryGetResourcePointerMetadata(address + 10, out _));
+        Assert.Throws<NotSupportedException>(() => staging.ReadUInt32(address + 4));
+        Assert.Equal(0x12345678u, history.ReadUInt32(0));
+        staging.WorkingOwner.RollbackCheckpoint();
+        Assert.Equal(0x12345678u, staging.ReadResourcePointer(address + 4)!.StagingAddress);
+        Assert.Equal(0x12345678u, history.ReadUInt32(0));
+        NativeBattleTemporaryMemory.PublishResourceView(staging, address, source, 12);
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging));
+        staging.WriteResourcePointer(address + 4, new(null, 0x87654321));
+        Assert.Equal(logical, restored.ReadResourcePointer(address + 4));
+        Assert.Equal(0x12345678u, history.ReadUInt32(0));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(8)]

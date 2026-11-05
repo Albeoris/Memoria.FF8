@@ -24,14 +24,14 @@ public sealed partial class BattleSession
             current = Capture(current, true, composed.Matrices);
             current = RestoreNativeDeformedBody(current, linkedSource, true);
         }
-        return FinishNativeDeformedBody(current, actor, 12);
+        return FinishNativeDeformedBody(current, actor, 12, resourcePointers: true);
 
         NativeDeformedBodyBridge Capture(NativeDeformedBodyBridge value, bool linked, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(value, linked);
-            uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Acid snapshot requires its physical geometry address.");
-            NativeBattleAcid317SnapshotStep captured = NativeBattleAcid317Snapshot.Capture(value.Memory, value.Random, value.Temporary, (offset, count) => ReadNativeDeformedGeometry(value, pointer, offset, count), address, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), cacheAddress, cacheLength);
-            return value with { Memory = captured.Memory, Random = captured.Random, Temporary = captured.Temporary12, Staging = NativeBattleTemporaryMemory.PublishView(value.Staging, value.TemporaryAddress, captured.Temporary12, 12) };
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Acid snapshot requires its current CPU resource owner."), value.Staging, pointer, (offset, count) => ReadNativeDeformedGeometry(value, pointer, offset, count));
+            NativeBattleAcid317SnapshotStep captured = NativeBattleAcid317Snapshot.Capture(value.Memory, value.Random, value.Temporary, geometry, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), cacheAddress, cacheLength);
+            return value with { Memory = captured.Memory, Random = captured.Random, Temporary = captured.Temporary12, Staging = NativeBattleTemporaryMemory.PublishResourceView(value.Staging, value.TemporaryAddress, captured.Temporary12, 12) };
         }
     }
 
@@ -70,15 +70,15 @@ public sealed partial class BattleSession
             current = DrawSource(current, true, composed.Matrices);
             current = RestoreNativeDeformedBody(current, linkedSource, true);
         }
-        return FinishNativeDeformedBody(current, actor, 132);
+        return FinishNativeDeformedBody(current, actor, 132, resourcePointers: true);
 
         NativeDeformedBodyBridge DrawSource(NativeDeformedBodyBridge value, bool linked, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(value, linked);
-            uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Acid target requires its physical geometry address.");
-            NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawBody(value.Memory, value.Temporary, NativeDeformedBodyView(value.Staging, scratchAddress, scratchLength), (offset, count) => ReadNativeDeformedGeometry(value, pointer, offset, count), address, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), packedCamera, projection, value.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid target requires its current depth controls."), scratchAddress, scratchLength, cacheAddress, cacheLength, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = ((long)address << 1) | (linked ? 1L : 0L) } : null);
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, value.Staging, pointer, (offset, count) => ReadNativeDeformedGeometry(value, pointer, offset, count));
+            NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawBody(value.Memory, value.Temporary, NativeDeformedBodyView(value.Staging, scratchAddress, scratchLength), geometry, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), packedCamera, projection, value.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid target requires its current depth controls."), scratchAddress, scratchLength, cacheAddress, cacheLength, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = (geometry.PresentationIdentity << 1) | (linked ? 1L : 0L) } : null);
             value = value with { Memory = drawn.Memory, Temporary = drawn.Temporary132, Staging = NativeBattleTemporaryMemory.PublishView(value.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
-            value = value with { Staging = NativeBattleTemporaryMemory.PublishView(value.Staging, value.TemporaryAddress, value.Temporary, 132) };
+            value = value with { Staging = NativeBattleTemporaryMemory.PublishResourceView(value.Staging, value.TemporaryAddress, value.Temporary, 132) };
             return AppendNativeDeformedBody(value, drawn.Batch);
         }
     }
@@ -89,9 +89,9 @@ public sealed partial class BattleSession
         return new(memory, effect, random, graphics, graphics.Models[actor], allocation.Staging, NativeDeformedBodyView(allocation.Staging, allocation.Address, length), allocation.Address);
     }
 
-    private static NativeDeformedBodyBridge FinishNativeDeformedBody(NativeDeformedBodyBridge current, byte actor, int length)
+    private static NativeDeformedBodyBridge FinishNativeDeformedBody(NativeDeformedBodyBridge current, byte actor, int length, bool resourcePointers = false)
     {
-        NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, length);
+        NativeBattleFileStaging published = resourcePointers ? NativeBattleTemporaryMemory.PublishResourceView(current.Staging, current.TemporaryAddress, current.Temporary, length) : NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, length);
         return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, length), Graphics = current.Graphics with { Models = current.Graphics.Models.SetItem(actor, current.Model) } };
     }
 
