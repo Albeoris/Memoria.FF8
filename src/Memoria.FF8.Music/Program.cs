@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
@@ -32,6 +33,12 @@ internal static class MusicProgram
                         case "Concert":
                             output.PlayConcert(command.GetProperty("Paths").EnumerateArray().Select(path => path.GetString()!).ToArray(), command.GetProperty("Volume").GetInt32());
                             break;
+                        case "PlayAtPosition":
+                        case "ConcertAtPosition":
+                            string[] paths = command.GetProperty("Paths").EnumerateArray().Select(path => path.GetString()!).ToArray();
+                            MusicPlaybackPosition position = command.GetProperty("Position").Deserialize<MusicPlaybackPosition>() ?? throw new InvalidDataException("Missing music playback position.");
+                            output.PlayAtPosition(paths, position, command.GetProperty("Volume").GetInt32(), command.GetProperty("Command").GetString() == "ConcertAtPosition", command.TryGetProperty("FallbackStartPoint", out JsonElement fallback) ? fallback.GetInt32() : 0);
+                            break;
                         case "Volume":
                             output.Volume(command.GetProperty("Volume").GetInt32());
                             break;
@@ -46,6 +53,9 @@ internal static class MusicProgram
                             break;
                         case "Playing":
                             Reply(output.IsPlaying);
+                            continue;
+                        case "Position":
+                            Console.WriteLine(JsonSerializer.Serialize(new { Result = output.CapturePosition() }));
                             continue;
                         case "Quit":
                             Reply(true);

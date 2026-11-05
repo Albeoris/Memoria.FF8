@@ -1,11 +1,43 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Audio;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class MusicWorkerOutputTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Position_query_fences_commands_and_preserves_structured_and_absent_results(bool concert)
+    {
+        using HelperFixture fixture = new("position");
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        output.Play("segment.sgt", -1000);
+        Assert.Null(output.CapturePosition());
+        MusicPlaybackPosition position = new(new string('A', 64), new(123456, 44100, 17, 0.5, true));
+        if (concert)
+        {
+            output.PlayConcertAtPosition(["first.sgt", "second.sgt"], -2000, position);
+        }
+        else
+        {
+            output.PlayAtPosition("segment.sgt", -2000, position, 23);
+        }
+        Assert.Equal(position, output.CapturePosition());
+        Assert.True(output.IsPlaying);
+        Assert.Null(output.Error);
+        JsonElement[] commands = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToArray();
+        Assert.Equal(new[] { "Play", "Position", concert ? "ConcertAtPosition" : "PlayAtPosition", "Position", "Playing" }, commands.Select(command => command.GetProperty("Command").GetString()));
+        Assert.Equal(concert ? 2 : 1, commands[2].GetProperty("Paths").GetArrayLength());
+        Assert.Equal(-2000, commands[2].GetProperty("Volume").GetInt32());
+        if (!concert)
+        {
+            Assert.Equal(23, commands[2].GetProperty("FallbackStartPoint").GetInt32());
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -235,6 +267,7 @@ public sealed class MusicWorkerOutputTests
             script = Path.Combine(directory, "helper.ps1");
             File.WriteAllText(script, """
                 param([string] $Directory, [string] $Mode)
+                $PlaybackPosition = $null
                 [IO.File]::AppendAllText([IO.Path]::Combine($Directory, 'launches.txt'), "started`n")
                 if ($Mode -ne 'startup') {
                     [Console]::WriteLine('{"Result":true}')
@@ -263,6 +296,17 @@ public sealed class MusicWorkerOutputTests
                         [Console]::WriteLine('invalid json')
                         [Console]::Out.Flush()
                         continue
+                    }
+                    if ($Mode -eq 'position') {
+                        $Command = ConvertFrom-Json $Line
+                        if ($Command.Command -eq 'PlayAtPosition' -or $Command.Command -eq 'ConcertAtPosition') {
+                            $PlaybackPosition = $Command.Position
+                        }
+                        if ($Command.Command -eq 'Position') {
+                            [Console]::WriteLine((@{Result=$PlaybackPosition} | ConvertTo-Json -Depth 8 -Compress))
+                            [Console]::Out.Flush()
+                            continue
+                        }
                     }
                     [Console]::WriteLine('{"Result":true}')
                     [Console]::Out.Flush()

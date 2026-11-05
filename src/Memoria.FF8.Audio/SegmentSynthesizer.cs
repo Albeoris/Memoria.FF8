@@ -8,7 +8,11 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
     private readonly object gate = new();
     private readonly ChannelState[] channels = Enumerable.Range(0, 256).Select(index => new ChannelState(index % 16 == 9)).ToArray();
     private readonly List<Note> notes = [];
-    private readonly MeltySynth.Reverb reverb = new(sampleRate);
+    private MeltySynth.Reverb reverb = new(sampleRate);
+    private readonly AudioPlaybackTimeline timeline = new();
+    private long renderedFrames;
+    private int initialStartPoint;
+    private double initialSystemGain = 1;
     private MusicSegment? segment;
     private double seconds;
     private int eventIndex;
@@ -58,6 +62,10 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
         }
         lock (gate)
         {
+            renderedFrames = 0;
+            initialStartPoint = startPoint;
+            initialSystemGain = systemGain;
+            timeline.Reset(0);
             notes.Clear();
             foreach (ChannelState channel in channels)
             {
@@ -83,6 +91,59 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
                 }
             }
             ValidateInstruments(music);
+        }
+    }
+
+    public SegmentPlaybackPosition? CapturePosition(int queuedFrames = 0)
+    {
+        lock (gate)
+        {
+            return segment is null ? null : new(timeline.PositionBeforeQueuedFrames(queuedFrames), SampleRate, initialStartPoint, initialSystemGain, paused);
+        }
+    }
+
+    /// <summary>Replays the current segment's sample clock to reconstruct sustaining notes and effects. Previous-track reverb buffers are disposable.</summary>
+    public void PlayAtPosition(MusicSegment music, SegmentPlaybackPosition position, int hundredthDecibels = 0, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        position.Validate();
+        if (position.SampleRate != SampleRate)
+        {
+            throw new NotSupportedException("Segment playback position requires the same synthesis sample rate.");
+        }
+        SegmentSynthesizer prepared = new(bank, SampleRate) { systemGain = position.InitialSystemGain };
+        prepared.Play(music, hundredthDecibels, position.StartPoint);
+        for (long frame = 0; frame < position.Frames; frame++)
+        {
+            if ((frame & 1023) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            prepared.RenderFrame(out _, out _);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (gate)
+        {
+            Array.Copy(prepared.channels, channels, channels.Length);
+            notes.Clear();
+            notes.AddRange(prepared.notes);
+            reverb = prepared.reverb;
+            segment = prepared.segment;
+            seconds = prepared.seconds;
+            eventIndex = prepared.eventIndex;
+            repeats = prepared.repeats;
+            playing = prepared.playing;
+            gain = prepared.gain;
+            systemGain = prepared.systemGain;
+            eventSeconds = prepared.eventSeconds;
+            loopEndSeconds = prepared.loopEndSeconds;
+            loopStartSeconds = prepared.loopStartSeconds;
+            lengthSeconds = prepared.lengthSeconds;
+            renderedFrames = prepared.renderedFrames;
+            initialStartPoint = prepared.initialStartPoint;
+            initialSystemGain = prepared.initialSystemGain;
+            paused = position.Paused;
+            timeline.Reset(renderedFrames);
         }
     }
 
@@ -211,59 +272,67 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
     {
         lock (gate)
         {
-            left = 0;
-            right = 0;
-            if (paused || segment is null)
+            try
             {
-                return;
-            }
-            if (!playing)
-            {
-                MixReverb(0, ref left, ref right);
-                return;
-            }
-            double loopEnd = loopEndSeconds;
-            if (seconds >= loopEnd && repeats != 0)
-            {
-                if (repeats != uint.MaxValue)
+                left = 0;
+                right = 0;
+                if (paused || segment is null)
                 {
-                    repeats--;
+                    return;
                 }
-                seconds = loopStartSeconds + seconds - loopEnd;
-                eventIndex = 0;
-                while (eventIndex < segment.Events.Count && segment.Events[eventIndex].Tick < segment.LoopStart)
+                renderedFrames++;
+                if (!playing)
                 {
-                    eventIndex++;
+                    MixReverb(0, ref left, ref right);
+                    return;
                 }
-            }
-            if (seconds >= lengthSeconds)
-            {
-                playing = false;
-                notes.Clear();
-                MixReverb(0, ref left, ref right);
-                return;
-            }
-            while (eventIndex < segment.Events.Count && eventSeconds[eventIndex] <= seconds)
-            {
-                Dispatch(segment.Events[eventIndex++]);
-            }
-            double send = 0;
-            for (int i = notes.Count - 1; i >= 0; i--)
-            {
-                Note note = notes[i];
-                if (!note.Render(SampleRate, channels[note.Channel], out double l, out double r))
+                double loopEnd = loopEndSeconds;
+                if (seconds >= loopEnd && repeats != 0)
                 {
-                    notes.RemoveAt(i);
+                    if (repeats != uint.MaxValue)
+                    {
+                        repeats--;
+                    }
+                    seconds = loopStartSeconds + seconds - loopEnd;
+                    eventIndex = 0;
+                    while (eventIndex < segment.Events.Count && segment.Events[eventIndex].Tick < segment.LoopStart)
+                    {
+                        eventIndex++;
+                    }
                 }
-                else
+                if (seconds >= lengthSeconds)
                 {
-                    left += l;
-                    right += r;
-                    send += (l + r) / Math.Sqrt(2) * channels[note.Channel].Controllers[91] / 127d;
+                    playing = false;
+                    notes.Clear();
+                    MixReverb(0, ref left, ref right);
+                    return;
                 }
+                while (eventIndex < segment.Events.Count && eventSeconds[eventIndex] <= seconds)
+                {
+                    Dispatch(segment.Events[eventIndex++]);
+                }
+                double send = 0;
+                for (int i = notes.Count - 1; i >= 0; i--)
+                {
+                    Note note = notes[i];
+                    if (!note.Render(SampleRate, channels[note.Channel], out double l, out double r))
+                    {
+                        notes.RemoveAt(i);
+                    }
+                    else
+                    {
+                        left += l;
+                        right += r;
+                        send += (l + r) / Math.Sqrt(2) * channels[note.Channel].Controllers[91] / 127d;
+                    }
+                }
+                MixReverb(send, ref left, ref right);
+                seconds += 1d / SampleRate;
             }
-            MixReverb(send, ref left, ref right);
-            seconds += 1d / SampleRate;
+            finally
+            {
+                timeline.Record(renderedFrames);
+            }
         }
     }
 

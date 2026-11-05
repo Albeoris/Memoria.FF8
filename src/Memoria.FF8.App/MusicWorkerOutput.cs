@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
@@ -35,6 +36,8 @@ internal sealed class MusicWorkerOutput : IDisposable
 
     public void Play(string path, int volume, int startPoint = 0) => Enqueue(new { Command = "Play", Path = path, Volume = volume, StartPoint = startPoint });
     public void PlayConcert(string[] paths, int volume) => Enqueue(new { Command = "Concert", Paths = paths, Volume = volume });
+    public void PlayAtPosition(string path, int volume, MusicPlaybackPosition position, int startPoint = 0) => Enqueue(new { Command = "PlayAtPosition", Paths = new[] { path }, Volume = volume, Position = position, FallbackStartPoint = startPoint });
+    public void PlayConcertAtPosition(string[] paths, int volume, MusicPlaybackPosition position) => Enqueue(new { Command = "ConcertAtPosition", Paths = paths, Volume = volume, Position = position });
     public void Volume(int hundredthDecibels) => Enqueue(new { Command = "Volume", Volume = hundredthDecibels });
     public void Stop() => Enqueue(new { Command = "Stop" });
     public void Pause() => Enqueue(new { Command = "Pause" });
@@ -45,10 +48,17 @@ internal sealed class MusicWorkerOutput : IDisposable
     {
         get
         {
-            TaskCompletionSource<bool> reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<JsonElement> reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Enqueue(new { Command = "Playing" }, reply);
-            return reply.Task.WaitAsync(timeout).GetAwaiter().GetResult();
+            return reply.Task.WaitAsync(timeout).GetAwaiter().GetResult().GetBoolean();
         }
+    }
+
+    public MusicPlaybackPosition? CapturePosition()
+    {
+        TaskCompletionSource<JsonElement> reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(new { Command = "Position" }, reply);
+        return reply.Task.WaitAsync(timeout).GetAwaiter().GetResult().Deserialize<MusicPlaybackPosition>();
     }
 
     private static ProcessStartInfo CreateStartInfo(string directory)
@@ -59,7 +69,7 @@ internal sealed class MusicWorkerOutput : IDisposable
         return start;
     }
 
-    private void Enqueue(object command, TaskCompletionSource<bool>? reply = null)
+    private void Enqueue(object command, TaskCompletionSource<JsonElement>? reply = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (Error is Exception failure)
@@ -90,7 +100,7 @@ internal sealed class MusicWorkerOutput : IDisposable
                 current = command;
                 await helper.StandardInput.WriteLineAsync(command.Json.AsMemory(), stopping.Token).WaitAsync(timeout, stopping.Token);
                 await helper.StandardInput.FlushAsync(stopping.Token).WaitAsync(timeout, stopping.Token);
-                bool result = await ReadResult(helper);
+                JsonElement result = await ReadResult(helper);
                 command.Reply?.TrySetResult(result);
                 current = null;
             }
@@ -119,7 +129,7 @@ internal sealed class MusicWorkerOutput : IDisposable
         }
     }
 
-    private async Task<bool> ReadResult(Process helper)
+    private async Task<JsonElement> ReadResult(Process helper)
     {
         string? response = await helper.StandardOutput.ReadLineAsync(stopping.Token).AsTask().WaitAsync(timeout, stopping.Token);
         if (response is null)
@@ -131,7 +141,7 @@ internal sealed class MusicWorkerOutput : IDisposable
         {
             throw new InvalidOperationException($"Music output: {failure.GetString()}");
         }
-        return document.RootElement.GetProperty("Result").GetBoolean();
+        return document.RootElement.GetProperty("Result").Clone();
     }
 
     private void Fail(Exception failure)
@@ -175,5 +185,5 @@ internal sealed class MusicWorkerOutput : IDisposable
         worker.Wait(TimeSpan.FromSeconds(2));
     }
 
-    private sealed record PendingCommand(string Json, TaskCompletionSource<bool>? Reply);
+    private sealed record PendingCommand(string Json, TaskCompletionSource<JsonElement>? Reply);
 }
