@@ -19,6 +19,7 @@ public static class GameplaySaveStateRestoration
         GameplaySaveCollections collections = progress.Collections;
         GameplaySaveRules rules = progress.Rules;
         GameplaySaveClocks clocks = progress.Clocks;
+        NativeExamTimerState? timer = RestoreTimer(clocks.ExamTimer, progress.SceneFacts);
         GameplaySaveTransactions transactions = progress.Transactions;
         if (transactions.BattleCursor is not null || transactions.DrawCursor is not null)
         {
@@ -92,7 +93,7 @@ public static class GameplaySaveStateRestoration
             FullBattlePlaythrough = rules.FullBattlePlaythrough,
             RandomEncounters = rules.Encounters is { } encounters ? new(encounters.Enabled, encounters.Progress, null) : null,
             DialogueDraft = rules.DialogueChoice,
-            ExamTimer = clocks.ExamTimer,
+            ExamTimer = timer,
             Playtime = clocks.Playtime,
             EventRandom = clocks.EventRandom,
             CrtRandom = clocks.CrtRandom,
@@ -152,6 +153,26 @@ public static class GameplaySaveStateRestoration
             throw new InvalidDataException("Gameplay fade state must preserve both the saved words and map flag, or explicitly omit both.");
         }
         return story.SavedFade is { } words ? Require(initialized, "fade initialization") with { Saved = words, MapFadeDisabled = story.MapFadeDisabled!.Value } : null;
+    }
+
+    private static NativeExamTimerState? RestoreTimer(NativeExamTimerState? timer, GameplaySaveSceneFacts? scene)
+    {
+        if (scene?.PersistentBattleMode is not ushort persistent || scene.ActiveBattleMode is not ushort active)
+        {
+            throw new NotSupportedException("Gameplay restoration requires current complete persistent and active battle-mode words.");
+        }
+        if (timer is null)
+        {
+            return null;
+        }
+        bool event182Mask4 = (persistent & 4) != 0;
+        bool event183Mask1 = (persistent & 0x100) != 0;
+        bool saveGlobalMask4 = (active & 4) != 0;
+        if (timer.Event182Mask4 is bool saved182 && saved182 != event182Mask4 || timer.Event183Mask1 is bool saved183 && saved183 != event183Mask1 || timer.SaveGlobalMask4 is bool savedGlobal && savedGlobal != saveGlobalMask4)
+        {
+            throw new InvalidDataException("Gameplay quest timer masks contradict the saved complete battle-mode words.");
+        }
+        return timer with { Event182Mask4 = event182Mask4, Event183Mask1 = event183Mask1, SaveGlobalMask4 = saveGlobalMask4 };
     }
 
     private static NativePcSaveData? RestoreOriginalResidue(GameplaySaveProgression progress)

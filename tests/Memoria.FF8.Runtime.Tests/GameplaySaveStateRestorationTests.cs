@@ -189,6 +189,56 @@ public sealed class GameplaySaveStateRestorationTests
     }
 
     [Theory]
+    [InlineData(0, 0, false, false, false)]
+    [InlineData(0x104, 4, true, true, true)]
+    [InlineData(0x100, 0, false, true, false)]
+    public void Derives_only_missing_timer_masks_without_advancing_saved_time(ushort persistent, ushort active, bool expected182, bool expected183, bool expectedGlobal)
+    {
+        GameplaySaveComponentDocument document = Document(Source());
+        GameplaySaveProgression progress = document.Progression!;
+        NativeExamTimerState timer = progress.Clocks.ExamTimer! with { Event182Mask4 = null, Event183Mask1 = null, SaveGlobalMask4 = null };
+        document = document with { Progression = progress with { SceneFacts = progress.SceneFacts! with { PersistentBattleMode = persistent, ActiveBattleMode = active }, Clocks = progress.Clocks with { ExamTimer = timer } } };
+        string before = JsonSerializer.Serialize(document);
+
+        GameState restored = GameplaySaveStateRestoration.Restore(document, Initialized());
+
+        Assert.Equal(timer with { Event182Mask4 = expected182, Event183Mask1 = expected183, SaveGlobalMask4 = expectedGlobal }, restored.ExamTimer! with { Alternatives = timer.Alternatives });
+        Assert.Equal(timer.Alternatives, restored.ExamTimer!.Alternatives);
+        Assert.Equal(progress.Clocks.Playtime, restored.Playtime);
+        Assert.Equal(before, JsonSerializer.Serialize(document));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Rejects_contradictory_timer_masks_before_installation(int mask)
+    {
+        GameplaySaveComponentDocument document = Document(Source());
+        GameplaySaveProgression progress = document.Progression!;
+        NativeExamTimerState timer = progress.Clocks.ExamTimer! with { Event182Mask4 = mask == 0, Event183Mask1 = mask == 1, SaveGlobalMask4 = mask == 2 };
+        document = document with { Progression = progress with { Clocks = progress.Clocks with { ExamTimer = timer } } };
+        string before = JsonSerializer.Serialize(document);
+
+        Assert.Throws<InvalidDataException>(() => GameplaySaveStateRestoration.Restore(document, Initialized()));
+        Assert.Equal(before, JsonSerializer.Serialize(document));
+    }
+
+    [Fact]
+    public void Incomplete_scene_words_remain_readable_components_but_cannot_restore_a_game()
+    {
+        GameplaySaveComponentDocument document = Document(Source());
+        GameplaySaveProgression progress = document.Progression!;
+        GameplaySaveComponentDocument incomplete = document with { Progression = progress with { SceneFacts = progress.SceneFacts! with { PersistentBattleMode = null, ActiveBattleMode = null } } };
+        incomplete.Validate();
+        Assert.Throws<NotSupportedException>(() => GameplaySaveStateRestoration.Restore(incomplete, Initialized()));
+        Assert.Throws<NotSupportedException>(() => GameplaySaveStateRestoration.Restore(document with { Progression = progress with { SceneFacts = null } }, Initialized()));
+        GameState noTimer = GameplaySaveStateRestoration.Restore(document with { Progression = progress with { Clocks = progress.Clocks with { ExamTimer = null, Playtime = null } } }, Initialized());
+        Assert.Null(noTimer.ExamTimer);
+        Assert.Null(noTimer.Playtime);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -199,7 +249,8 @@ public sealed class GameplaySaveStateRestorationTests
     [InlineData(50)]
     public void World_completion_uses_current_pose_and_metadata_for_supported_normal_reload(int entity)
     {
-        GameState source = Source() with { Scene = SceneKind.WorldMap, EventState = null };
+        GameState field = Source();
+        GameState source = field with { Scene = SceneKind.WorldMap, EventState = null, WorldEventState = field.EventState };
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.World, 106, 105, null, new(54321, -12345, 123, 2048, (byte)entity));
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume);
         GameState pending = GameplaySaveStateRestoration.Restore(document, Initialized());
@@ -238,7 +289,8 @@ public sealed class GameplaySaveStateRestorationTests
     [Fact]
     public void Unsupported_world_kind_and_invalid_metadata_fail_without_publishing_or_mutation()
     {
-        GameState source = Source() with { Scene = SceneKind.WorldMap, EventState = null };
+        GameState field = Source();
+        GameState source = field with { Scene = SceneKind.WorldMap, EventState = null, WorldEventState = field.EventState };
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.World, 106, 105, null, new(54321, -12345, 123, 2048, 0));
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume);
         GameState pending = GameplaySaveStateRestoration.Restore(document, Initialized());
