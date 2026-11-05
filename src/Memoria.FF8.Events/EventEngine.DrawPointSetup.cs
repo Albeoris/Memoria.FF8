@@ -125,6 +125,7 @@ public sealed partial class EventEngine
         ushort effective = source is byte known ? (ushort)(known | parameter) : parameter;
         int[] args = Pop(fiber, 1);
         NativeDrawPointSparkAnchor anchor = new((short)(raw.X >> 12), (short)(raw.Y >> 12), (short)(raw.Z >> 12), 1);
+        Scene.GameplayDrawPointPosition = null;
         Scene.DrawPointFieldStateVersion = 1;
         Scene.DrawPointEnabled = 1;
         Scene.DrawPointDisplayParameter = parameter;
@@ -142,7 +143,7 @@ public sealed partial class EventEngine
         {
             return Scene.NativeDrawPointDisplayMask;
         }
-        if (Scene.DrawPointFieldStateVersion != 1 || Scene.DrawPointReset is null || UnsupportedDrawPointAliases(false) is not null)
+        if (Scene.DrawPointFieldStateVersion != 1 || Scene.DrawPointReset is null && Scene.GameplayDrawPointPosition is null || UnsupportedDrawPointAliases(false) is not null)
         {
             throw new NotSupportedException("Active menu draw-point display requires its executed setup and unaliased native bytes.");
         }
@@ -164,7 +165,13 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved active draw-point display lacks its current physical WORD1CDBFEA.");
         }
-        if (scene.DrawPointFieldStateVersion is < 0 or > 1 || scene.DrawPointFieldStateVersion == 0 && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0 || scene.DrawPointReset is not null) || scene.DrawPointReset is null && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0))
+        FieldFixedPosition? point = scene.GameplayDrawPointPosition;
+        bool reconstructed = point is not null;
+        if (reconstructed && (scene.NativeFieldInitialization is not { Origin: NativeFieldInitializationOrigin.GameplayContinuation } || scene.DrawPointReset is not null || scene.DrawPointFieldStateVersion != 1 || scene.DrawPointEnabled != 1 || new[] { point!.X, point.Y, point.Z }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue)))
+        {
+            throw new InvalidDataException("Saved reconstructed draw-point anchor lost its semantic owner or coordinate bounds.");
+        }
+        if (scene.DrawPointFieldStateVersion is < 0 or > 1 || scene.DrawPointFieldStateVersion == 0 && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0 || scene.DrawPointReset is not null) || scene.DrawPointReset is null && !reconstructed && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0))
         {
             throw new InvalidDataException("Saved draw-point field bytes lack their native reset or setup authority.");
         }

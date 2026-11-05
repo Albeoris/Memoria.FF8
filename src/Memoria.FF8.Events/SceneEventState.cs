@@ -370,6 +370,10 @@ public sealed class SceneEventState
     public NativeDrawPointInteraction? DrawPointInteraction { get; internal set; }
     [JsonInclude]
     public NativeDrawPointReset? DrawPointReset { get; internal set; }
+    /// <summary>Current anchor reconstructed from a semantic continuation, without original setup history.</summary>
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FieldFixedPosition? GameplayDrawPointPosition { get; internal set; }
 
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

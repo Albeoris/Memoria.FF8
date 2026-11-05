@@ -46,15 +46,15 @@ public sealed partial class EventEngine
         NativeDrawPointParticles restarted = NativeDrawPointParticles.Initialize(null, DrawPointParticlePhase(), DrawPointParticleTables ?? throw new NotSupportedException("Particle presentation restart requires the original tables."));
         if (Scene.DrawPointEnabled != 0)
         {
-            NativeDrawPointReset reset = Scene.DrawPointReset ?? throw new NotSupportedException("Active particle restart requires the executed current-field SETDRAWPOINT receipt.");
-            if (Scene.DrawPointEnabled != 1 || reset.FieldId != FieldId)
+            FieldFixedPosition position = Scene.DrawPointReset?.RawPosition ?? Scene.GameplayDrawPointPosition ?? throw new NotSupportedException("Active particle restart requires its current draw-point anchor.");
+            if (Scene.DrawPointEnabled != 1 || Scene.DrawPointReset is { } reset && reset.FieldId != FieldId || Scene.DrawPointReset is null && Scene.NativeFieldInitialization is not { Origin: NativeFieldInitializationOrigin.GameplayContinuation })
             {
                 throw new NotSupportedException("Active particle restart requires current-field native draw-point setup.");
             }
             // Explicit visual restart: establish the known setup anchor before4745D0
             // initializes curves/history from it, then execute474750's active reset.
-            restarted = restarted.ResetAnchors(reset.RawPosition.X >> 12, reset.RawPosition.Y >> 12, reset.RawPosition.Z >> 12);
-            restarted = NativeDrawPointParticles.Initialize(restarted, DrawPointParticlePhase(), DrawPointParticleTables!).ResetAnchors(reset.RawPosition.X >> 12, reset.RawPosition.Y >> 12, reset.RawPosition.Z >> 12);
+            restarted = restarted.ResetAnchors(position.X >> 12, position.Y >> 12, position.Z >> 12);
+            restarted = NativeDrawPointParticles.Initialize(restarted, DrawPointParticlePhase(), DrawPointParticleTables!).ResetAnchors(position.X >> 12, position.Y >> 12, position.Z >> 12);
         }
         Scene.NativeDrawPointParticles = restarted;
         SampleNativeDrawPointParticlePalette();

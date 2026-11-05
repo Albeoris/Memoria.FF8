@@ -120,6 +120,38 @@ public sealed class LegacyGameplayProjectionTests
         Assert.Equal(requestBattle ? 4 : 2, fiber.GetProperty("Results").GetProperty("0").GetInt32());
     }
 
+    [Fact]
+    public void Semantic_draw_point_anchor_survives_exact_cold_load_and_malformed_anchor_is_rejected_before_restore()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets original = new(directory);
+        string fieldName = original.LoadField(165).Name;
+        using GameAssets assets = CreateAssets(directory, fieldName, Script(false, false));
+        GameSession initial = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, false), directory, sharedAssets: assets));
+        using GameWorld source = new(initial, directory, sharedAssets: assets);
+        source.EnsureField();
+        source.Apply(new(PlayerActionKind.Wait));
+        GameplaySaveFieldContinuation continuation = source.Events.CaptureGameplaySaveFieldContinuation();
+        GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(initial.PrepareSnapshot(), new(1, GameplaySaveResumeKind.Field, 165, 164, continuation.GetLeaderPosition(), null));
+        GameplaySaveFieldScene scene = continuation.Scene with { DrawPointVersion = 1, DrawPointEnabled = 1, DrawPointDisplayParameter = 1, DrawPointDisplayMask = 1, DrawPointIndex = 0, DrawPointPosition = new(4096, 8192, 12288) };
+        document = document with { Progression = document.Progression!.WithFieldContinuation(continuation with { Scene = scene }) };
+        GameSession restored = new(GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets));
+        using GameWorld first = new(restored, directory, sharedAssets: assets);
+        first.EnsureField();
+        Assert.Null(first.Events.Scene.DrawPointReset);
+        Assert.Equal(new FieldFixedPosition(4096, 8192, 12288), first.Events.Scene.GameplayDrawPointPosition);
+        using GameWorld cold = new(new GameSession(restored.PrepareSnapshot()), directory, sharedAssets: assets);
+        cold.EnsureField();
+        Assert.Null(cold.Events.Scene.DrawPointReset);
+        Assert.Equal(first.Events.Scene.GameplayDrawPointPosition, cold.Events.Scene.GameplayDrawPointPosition);
+        Assert.Equal((byte)1, cold.Events.Scene.DrawPointEnabled);
+        string before = cold.Events.Capture().GetRawText();
+        GameplaySaveComponentDocument malformed = document with { Progression = document.Progression! with { FieldContinuation = continuation with { Scene = scene with { DrawPointPosition = new(int.MaxValue, 0, 0) } } } };
+        Assert.Throws<InvalidDataException>(() => GameplaySaveSessionLoader.Restore(malformed, directory, sharedAssets: assets));
+        Assert.Equal(before, cold.Events.Capture().GetRawText());
+        Assert.Equal((byte)1, cold.Events.Scene.DrawPointEnabled);
+    }
+
     private static byte[] Script(bool requestBattle, bool readResult = true)
     {
         (Jsm.Opcode, int)[] initialize = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.RET, 8)];

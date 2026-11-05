@@ -18,6 +18,9 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 public sealed record GameplaySaveFieldScene
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldFixedPosition? DrawPointPosition { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldFadeEndpoint? FadeEndpoint { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int[]? SavedPartyBindings { get; init; }
@@ -122,6 +125,10 @@ public sealed record GameplaySaveFieldScene
     public void Validate()
     {
         FadeEndpoint?.Validate();
+        if (DrawPointPosition is { } drawPoint && (DrawPointVersion != 1 || DrawPointEnabled != 1 || new[] { drawPoint.X, drawPoint.Y, drawPoint.Z }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue)))
+        {
+            throw new InvalidDataException("Gameplay draw-point anchor requires an active setup and signed native coordinates.");
+        }
         if (SavedPartyBindings is not null && (SavedPartyBindings.Length != 3 || SavedPartyBindings.Any(value => value is < 0 or > 255)))
         {
             throw new InvalidDataException("Gameplay saved party bindings are malformed.");

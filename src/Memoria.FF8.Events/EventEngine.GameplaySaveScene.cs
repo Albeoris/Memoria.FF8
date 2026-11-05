@@ -42,6 +42,7 @@ public sealed partial class EventEngine
             DoorDriverVersion = Scene.NativeDoorDriverVersion,
             DoorInitializationFrame = Scene.NativeDoorInitializationFrame,
             DoorPendingEvents = Scene.NativeDoorPendingEvents?.ToDictionary(),
+            DrawPointPosition = (Scene.DrawPointReset?.RawPosition ?? Scene.GameplayDrawPointPosition) is { } point ? new(point.X, point.Y, point.Z) : null,
             DrawPointVersion = Scene.DrawPointFieldStateVersion,
             DrawPointEnabled = Scene.DrawPointEnabled,
             DrawPointDisplayParameter = Scene.DrawPointDisplayParameter,
@@ -138,6 +139,11 @@ public sealed partial class EventEngine
         Scene.DrawPointDisplayParameter = saved.DrawPointDisplayParameter;
         Scene.NativeDrawPointDisplayMask = saved.DrawPointDisplayMask;
         Scene.DrawPointIndex = saved.DrawPointIndex;
+        Scene.GameplayDrawPointPosition = saved.DrawPointPosition is { } point ? new(point.X, point.Y, point.Z) : null;
+        if (Scene.GameplayDrawPointPosition is not null && DrawPointParticleTables is not null)
+        {
+            RestartNativeDrawPointPresentationForMigration();
+        }
         Scene.NativeFieldSoundStopMask = saved.SoundStopMask;
         RestoreGameplayLoopSounds(saved.LoopSounds);
         if (saved.PreparedMovieSource is { } movieSource)

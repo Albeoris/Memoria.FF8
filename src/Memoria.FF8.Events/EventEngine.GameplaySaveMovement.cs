@@ -123,7 +123,7 @@ public sealed partial class EventEngine
         foreach (ActorState actor in actors.Where(actor => actor.NativeScriptMovement is { Active: true } or { Cancelled: true } || actor.NativeMovementRequest is not null || current.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null)))
         {
             FieldFixedPosition? raw = ReadNativeScriptPosition(actor);
-            if (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || raw is null || CanRestoreNativeScriptMovementPlacement?.Invoke(actor, raw) != true)
+            if (raw is null || !extractingLegacyGameplay && (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || CanRestoreNativeScriptMovementPlacement?.Invoke(actor, raw) != true))
             {
                 throw new NotSupportedException("Gameplay movement requires current native movement providers and supported current-resource placement.");
             }
