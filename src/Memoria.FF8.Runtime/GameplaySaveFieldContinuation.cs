@@ -8,6 +8,9 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveScriptMenu? ScriptMenu { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySavePartyMovement? PartyMovement { get; init; }
+
     public void Validate()
     {
         if (Version != 1 || Scripts is null || Scene is null || Actors is null)
@@ -19,6 +22,11 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         Actors.Validate();
         Scene.Ambient?.Validate(Scripts.Frame);
         ScriptMenu?.Validate(Scripts, Scene, Actors);
+        PartyMovement?.Validate(Scripts, Actors);
+        if (PartyMovement is null && Scripts.Fibers.Any(fiber => fiber.Wait is GameplaySaveScriptWait.PartyJoin or GameplaySaveScriptWait.PartySplit))
+        {
+            throw new InvalidDataException("Gameplay party movement wait has no logical target owner.");
+        }
         if (ScriptMenu is null && Scripts.Fibers.Any(fiber => fiber.Wait == GameplaySaveScriptWait.ScriptMenu))
         {
             throw new InvalidDataException("Gameplay script-menu wait has no logical menu owner.");

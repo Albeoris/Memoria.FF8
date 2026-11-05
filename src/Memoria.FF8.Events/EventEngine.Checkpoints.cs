@@ -577,52 +577,7 @@ public sealed partial class EventEngine
         ValidateNativeBattleCheckpoint(saved, bySequence);
         ValidateTripleTriadCheckpoint(saved, bySequence);
         ValidateNativeScriptMovements(saved.Actors, saved.Scene, restored, bySequence);
-        if (saved.PartyJoin is PartyJoinState join && (!bySequence.TryGetValue(join.FiberSequence, out Fiber? caller) || caller.ObjectId != join.CallerObjectId || caller.Complete || caller.WaitReason != WaitReason.PartyJoin || (uint)caller.Position >= program.Operations.Count || program.Operations[caller.Position].Opcode.ToString() != "JOIN" || saved.Scene.NativeActorLayoutVersion != 1 || join.Targets.Length > 2 || join.Targets.Select(target => target.ObjectId).Distinct().Count() != join.Targets.Length || join.Targets.Any(target => !saved.Scene.NativeActorObjectIds.Contains(target.ObjectId) || target.ObjectId == join.CallerObjectId || saved.Actors[target.ObjectId].NativeMovementCompletion542 is null or > 2 || target.Speed is <= 0 or > short.MaxValue)))
-        {
-            throw new InvalidDataException("Saved native JOIN does not match its preserved caller, retained targets or movement state.");
-        }
-        if (saved.PartyJoin is { } nativeJoin && (nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
-        {
-            throw new InvalidDataException("Saved native JOIN movement does not match its exact preserved raw companion coordinates.");
-        }
-        if (saved.PartyJoin is { } boundJoin && NativeRuntimeProfile is { IsVerified: true })
-        {
-            NativePartyBindingMemory memory = saved.Scene.PartyBindingMemory ?? throw new InvalidDataException("Saved native JOIN lacks its original saved party body pointers.");
-            int[] bindings = Enumerable.Range(0, 3).Select(slot => (int)memory.At(slot)).ToArray();
-            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || bindings[0] == byte.MaxValue || saved.Scene.NativeActorObjectIds[bindings[0]] != boundJoin.CallerObjectId || !bindings.Skip(1).Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundJoin.Targets.Select(target => target.ObjectId)))
-            {
-                throw new InvalidDataException("Saved native JOIN targets differ from the original saved party bodies; runtime follow slots are not substitutes.");
-            }
-        }
-        if (saved.PartyJoin is null && restored.Any(fiber => fiber.WaitReason == WaitReason.PartyJoin))
-        {
-            throw new InvalidDataException("Saved JOIN wait has no native companion movement state.");
-        }
-        if (saved.PartySplit is PartySplitState split && (saved.PartyJoin is not null || !bySequence.TryGetValue(split.FiberSequence, out Fiber? splitCaller) || splitCaller.ObjectId != split.CallerObjectId || splitCaller.Complete || splitCaller.WaitReason != WaitReason.PartySplit || (uint)splitCaller.Position >= program.Operations.Count || program.Operations[splitCaller.Position].Opcode.ToString() != "SPLIT" || saved.Scene.NativeActorLayoutVersion != 1 || split.Targets.Length is < 1 or > 3 || split.Targets.Select(target => target.ObjectId).Distinct().Count() != split.Targets.Length || split.Targets.Any(target => !saved.Scene.NativeActorObjectIds.Contains(target.ObjectId) || saved.Actors[target.ObjectId].NativeMovementCompletion542 is null or > 2 || target.Speed is not (2696 or 7929) || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
-        {
-            throw new InvalidDataException("Saved native SPLIT does not match its preserved caller, raw party targets or reached movement context.");
-        }
-        if (saved.PartySplit is { } nativeSplit && (saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0))))
-        {
-            throw new InvalidDataException("Saved native SPLIT requires its exact saved party bindings and raw placement.");
-        }
-        if (saved.PartySplit is { } boundSplit)
-        {
-            NativePartyBindingMemory memory = saved.Scene.PartyBindingMemory ?? throw new InvalidDataException("Saved native SPLIT lacks its original saved party body pointers.");
-            int[] bindings = Enumerable.Range(0, 3).Select(slot => (int)memory.At(slot)).ToArray();
-            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || !bindings.Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundSplit.Targets.Select(target => target.ObjectId)))
-            {
-                throw new InvalidDataException("Saved native SPLIT targets differ from saved party bodies; runtime follow slots are not substitutes.");
-            }
-        }
-        if (saved.PartySplit is { } playerSplit && NativeFieldPartyBinding.TryGetObjectId(saved.Scene, 0, out int splitPlayerObjectId) && playerSplit.Targets.FirstOrDefault(target => target.ObjectId == splitPlayerObjectId) is PartyJoinTarget playerTarget && saved.Scene.NativePlayerPosition != new FieldFixedPosition(playerTarget.FixedX, playerTarget.FixedY, playerTarget.FixedZ))
-        {
-            throw new InvalidDataException("Saved native SPLIT current runtime leader differs from its raw player position.");
-        }
-        if (saved.PartySplit is null && restored.Any(fiber => fiber.WaitReason == WaitReason.PartySplit))
-        {
-            throw new InvalidDataException("Saved SPLIT wait has no native party movement state.");
-        }
+        ValidateNativePartyMovement(saved.Actors, saved.Scene, restored, saved.PartyJoin, saved.PartySplit);
         for (int index = 0; index < restored.Count; index++)
         {
             if (saved.Fibers[index].RequestSequence is long requested)

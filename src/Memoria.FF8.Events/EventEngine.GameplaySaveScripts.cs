@@ -7,7 +7,7 @@ public sealed partial class EventEngine
     /// <summary>Captures logical execution without native resources, receipt histories or replaying completed initialization.</summary>
     public GameplaySaveFieldScripts CaptureGameplaySaveScripts()
     {
-        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || dialogues.Count != 0 || services.IsMoviePlaying || CurrentMoviePlayback?.IsPlaying == true || movieProgressExpected || partyJoin is not null || partySplit is not null || pendingArrival is not null)
+        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || dialogues.Count != 0 || services.IsMoviePlaying || CurrentMoviePlayback?.IsPlaying == true || movieProgressExpected || pendingArrival is not null)
         {
             throw new NotSupportedException("Gameplay script capture requires completed stable field initialization with no transition or modal operation.");
         }
@@ -18,6 +18,7 @@ public sealed partial class EventEngine
             ValidateGameplayAmbientWait(fiber);
         }
         _ = CaptureGameplayScriptMenu();
+        _ = CaptureGameplayPartyMovement();
         ValidateGameplayMovement(fibers);
         ValidateNativeJumps(actors, Scene, fibers);
         ValidateGameplayLaddersMode3(fibers);
@@ -72,6 +73,8 @@ public sealed partial class EventEngine
             WaitReason.NativeLadder => GameplaySaveScriptWait.NativeLadder,
             WaitReason.NativeLadderMode3 => GameplaySaveScriptWait.NativeLadderMode3,
             WaitReason.NativeJump => GameplaySaveScriptWait.NativeJump,
+            WaitReason.PartyJoin => GameplaySaveScriptWait.PartyJoin,
+            WaitReason.PartySplit => GameplaySaveScriptWait.PartySplit,
             WaitReason.NativeMovementFlush => GameplaySaveScriptWait.NativeMovementFlush,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
@@ -120,7 +123,7 @@ public sealed partial class EventEngine
                 Complete = source.Complete,
                 Started = source.Started,
                 NativeResultFrameEntered = source.ResultFrameEntered,
-                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, GameplaySaveScriptWait.FaceDirection => WaitReason.FaceDirection, GameplaySaveScriptWait.NativeFaceSync => WaitReason.NativeFaceSync, GameplaySaveScriptWait.BackgroundAnimation => WaitReason.BackgroundAnimation, GameplaySaveScriptWait.Rotation => WaitReason.Rotation, GameplaySaveScriptWait.NativeTurnCompletion => WaitReason.NativeTurnCompletion, GameplaySaveScriptWait.NativeScriptMovement => WaitReason.NativeScriptMovement, GameplaySaveScriptWait.NativeMovementFlush => WaitReason.NativeMovementFlush, GameplaySaveScriptWait.NativeJump => WaitReason.NativeJump, GameplaySaveScriptWait.NativeLadderMode3 => WaitReason.NativeLadderMode3, GameplaySaveScriptWait.NativeLadder => WaitReason.NativeLadder, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
+                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, GameplaySaveScriptWait.FaceDirection => WaitReason.FaceDirection, GameplaySaveScriptWait.NativeFaceSync => WaitReason.NativeFaceSync, GameplaySaveScriptWait.BackgroundAnimation => WaitReason.BackgroundAnimation, GameplaySaveScriptWait.Rotation => WaitReason.Rotation, GameplaySaveScriptWait.NativeTurnCompletion => WaitReason.NativeTurnCompletion, GameplaySaveScriptWait.NativeScriptMovement => WaitReason.NativeScriptMovement, GameplaySaveScriptWait.NativeMovementFlush => WaitReason.NativeMovementFlush, GameplaySaveScriptWait.NativeJump => WaitReason.NativeJump, GameplaySaveScriptWait.PartyJoin => WaitReason.PartyJoin, GameplaySaveScriptWait.PartySplit => WaitReason.PartySplit, GameplaySaveScriptWait.NativeLadderMode3 => WaitReason.NativeLadderMode3, GameplaySaveScriptWait.NativeLadder => WaitReason.NativeLadder, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
                 WaitUntil = source.WaitUntil,
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,
@@ -182,6 +185,7 @@ public sealed partial class EventEngine
         {
             BindNativeOperandMemory(fiber);
         }
+        ValidateNativePartyMovement(actors, Scene, restored, partyJoin, partySplit);
         ValidateGameplayMovement(restored);
         ValidateNativeJumps(actors, Scene, restored);
         ValidateGameplayLaddersMode3(restored);

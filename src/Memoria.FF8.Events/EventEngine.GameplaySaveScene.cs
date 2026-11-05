@@ -114,6 +114,7 @@ public sealed partial class EventEngine
         Scene.FieldPartyNativeActorIds.Clear();
         Scene.FieldPartyNativeActorIds.AddRange(saved.PartyBindings);
         RecordPartyBindingMemory();
+        RestoreGameplaySavedPartyBindings();
         PartyTraceSample? Sample(GameplaySaveFieldTrailSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         Scene.PartyTrace = saved.Trail is { } trail ? new(trail.Cursor, trail.FirstOffset, trail.SecondOffset, trail.First.Select(Sample).ToArray(), trail.Second.Select(Sample).ToArray()) : null;
         Scene.NativePlayerPosition = saved.PlayerPosition is { } player ? new(player.X, player.Y, player.Z) : null;
