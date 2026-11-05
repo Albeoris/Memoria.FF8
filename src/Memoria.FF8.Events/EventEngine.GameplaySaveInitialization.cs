@@ -19,7 +19,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Gameplay scene facts require unique party identities and a WORD place identifier.");
         }
-        if (session.State.Scene == SceneKind.Field && (facts.Origin != GameplaySaveSceneFactsOrigin.Field || session.State.FieldLoadContext?.Origin != NativeFieldLoadOrigin.GameplaySave))
+        if (session.State.Scene == SceneKind.Field && (facts.Origin != GameplaySaveSceneFactsOrigin.Field || session.State.FieldLoadContext?.Origin is not (NativeFieldLoadOrigin.GameplaySave or NativeFieldLoadOrigin.GameplayContinuation)))
         {
             throw new InvalidOperationException("Gameplay field initialization requires its explicit normal-load context and current field facts.");
         }

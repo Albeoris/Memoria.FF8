@@ -9,7 +9,8 @@ public enum NativeFieldLoadOrigin
     WorldReturn,
     BattleDefeat,
     OriginalSave,
-    GameplaySave
+    GameplaySave,
+    GameplayContinuation
 }
 
 /// <summary>The request or normal-save restoration whose loader supplies the module-entry reason in event BYTE87.</summary>
@@ -24,6 +25,7 @@ public sealed record NativeFieldLoadContext(int Version, int FieldId, NativeFiel
         NativeFieldLoadOrigin.NewGame => 0,
         NativeFieldLoadOrigin.OriginalSave => 0,
         NativeFieldLoadOrigin.GameplaySave => 0,
+        NativeFieldLoadOrigin.GameplayContinuation => 0,
         NativeFieldLoadOrigin.BattleDefeat => 0,
         NativeFieldLoadOrigin.FieldRequest => 1,
         NativeFieldLoadOrigin.WorldReturn => 2,
@@ -32,6 +34,7 @@ public sealed record NativeFieldLoadContext(int Version, int FieldId, NativeFiel
 
     public static NativeFieldLoadContext NewGame() => new(1, 74, NativeFieldLoadOrigin.NewGame);
     public static NativeFieldLoadContext FromGameplaySave(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.GameplaySave);
+    public static NativeFieldLoadContext FromGameplayContinuation(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.GameplayContinuation);
     public static NativeFieldLoadContext FromOriginalSave(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.OriginalSave);
     public static NativeFieldLoadContext FromFieldRequest(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.FieldRequest);
     public static NativeFieldLoadContext FromWorldReturn(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.WorldReturn);
