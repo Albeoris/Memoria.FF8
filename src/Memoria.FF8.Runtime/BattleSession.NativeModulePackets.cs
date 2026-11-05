@@ -36,6 +36,10 @@ public sealed partial class BattleSession
                 graphics = graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingResource(slot, source, resource) };
                 draw = draw with { PilotIdentity = source.Identity with { ResourceGeneration = unchecked(source.Identity.ResourceGeneration * 397 ^ resource) } };
             }
+            else if (draw.PilotIdentity is { Effect: 0 } sceneIdentity && meshResource is not null)
+            {
+                draw = draw with { PilotIdentity = sceneIdentity with { ResourceGeneration = meshResource.Address } };
+            }
             NativeBattleModulePacketBatch batch;
             if (draw.Kind == NativeBattleModuleDrawKind.Flash)
             {

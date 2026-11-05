@@ -164,6 +164,13 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         for (int? next = Head; next is int index;)
         {
+            NativeBattleModuleTask motionTask = state.Slots[index];
+            if (motionTask.PilotIdentity is null && motionTask.Kind is NativeBattleModuleKind.CastingRing5753A0 or NativeBattleModuleKind.CastingGround575250 or NativeBattleModuleKind.CastingParticle574F50 or NativeBattleModuleKind.CastingTrail5751A0)
+            {
+                // Ordinary casting belongs to scene motion; cinematic casting retains its explicit owner.
+                NativeBattlePilotVisualIdentity identity = new(0, DescriptorAddress, index, NativeBattlePilotVisualLifetimes.EpochFor(motionTask), 0);
+                state = state with { Slots = state.Slots.SetItem(index, motionTask with { PilotIdentity = identity }) };
+            }
             observe?.Invoke(state.Slots[index]);
             NativeBattleModuleCallback callback = state.Slots[index].Callback is uint address
                 ? (dispatch ?? throw new NotSupportedException($"Native shared hit-effect callback {address:X8} requires its original dispatcher."))(state, index, inputs)

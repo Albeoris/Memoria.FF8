@@ -128,9 +128,41 @@ public sealed class NativeBattleCastingModuleTests
         Assert.All(advanced.Draws, draw =>
         {
             Assert.Null(draw.PresentationOwnerEffect);
-            Assert.Null(draw.PilotIdentity);
+            if (draw.Kind is NativeBattleModuleDrawKind.Mesh or NativeBattleModuleDrawKind.Sprite)
+            {
+                Assert.Equal((ushort)0, draw.PilotIdentity!.Value.Effect);
+            }
         });
-        Assert.Equal(JsonSerializer.Serialize(original.Advance(Inputs(new(7)))), JsonSerializer.Serialize(advanced with { State = advanced.State with { CastingPresentation = null } }));
+        NativeBattleModuleStep ordinary = original.Advance(Inputs(new(7)));
+        Assert.Equal(JsonSerializer.Serialize(ordinary.State), JsonSerializer.Serialize(advanced.State with { CastingPresentation = null }));
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Draws.Select(draw => draw with { PilotIdentity = null })), JsonSerializer.Serialize(advanced.Draws.Select(draw => draw with { PilotIdentity = null })));
+    }
+
+    [Fact]
+    public void Ordinary_casting_motion_keeps_task_lifetimes_and_rebinds_after_json_restore()
+    {
+        NativeBattleModuleStep first = NativeBattleModuleState.Clear().AppendModelEffect(0, 0).Advance(Inputs(new(7)));
+        NativeBattleModuleDraw ring = first.Draws.First(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh && draw.MeshId == 1);
+        NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(ring.PilotIdentity);
+        Assert.Equal((ushort)0, identity.Effect);
+        NativeBattleModuleStep second = first.State.Advance(Inputs(first.CrtRandomAfter!));
+        Assert.Contains(second.Draws, draw => draw.PilotIdentity == identity);
+        Assert.All(second.Draws.Where(draw => draw.Kind is NativeBattleModuleDrawKind.Mesh or NativeBattleModuleDrawKind.Sprite), draw => Assert.NotNull(draw.PilotIdentity));
+
+        NativeBattleModuleState restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(first.State))!;
+        NativeBattleModuleStep resumed = restored.Advance(Inputs(first.CrtRandomAfter!));
+        Assert.Equal(second.CrtRandomAfter, resumed.CrtRandomAfter);
+        Assert.Equal(JsonSerializer.Serialize(second.State), JsonSerializer.Serialize(resumed.State));
+        Assert.Equal(JsonSerializer.Serialize(second.Draws.Select(draw => draw with { PilotIdentity = null })), JsonSerializer.Serialize(resumed.Draws.Select(draw => draw with { PilotIdentity = null })));
+        Assert.All(resumed.Draws.Where(draw => draw.Kind is NativeBattleModuleDrawKind.Mesh or NativeBattleModuleDrawKind.Sprite), draw => Assert.NotNull(draw.PilotIdentity));
+        Assert.DoesNotContain(resumed.Draws, draw => draw.PilotIdentity == identity);
+
+        NativeBattleModuleTask task = first.State.Slots[identity.Slot];
+        NativeBattleModuleState released = first.State with { Slots = first.State.Slots.SetItem(identity.Slot, task with { Flags = 0 }), Head = null, Tail = null };
+        (NativeBattleModuleState reused, int slot) = released.Append(NativeBattleModuleKind.CastingRing5753A0);
+        Assert.Equal(identity.Slot, slot);
+        NativeBattleModuleStep replacement = reused.Advance(Inputs(new(7)));
+        Assert.DoesNotContain(replacement.Draws, draw => draw.PilotIdentity == identity);
     }
 
     [Fact]
