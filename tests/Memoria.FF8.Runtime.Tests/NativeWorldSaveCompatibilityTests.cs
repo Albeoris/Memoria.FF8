@@ -40,6 +40,21 @@ public sealed class NativeWorldSaveCompatibilityTests
         Assert.Throws<InvalidDataException>(() => NativeWorldSaveCompatibility.InitialParty(new GameState { CharacterVitals = vitals with { CombatParty = [0, 1, 255] } }));
     }
 
+    [Fact]
+    public void CurrentSemanticIdentitiesWinWithoutDependingOnOriginalImageOrCombatRows()
+    {
+        GameplaySaveSceneFacts facts = new(GameplaySaveSceneFactsOrigin.WorldEventContext, 180, [], [], [4, 255, 0], 0, true, true, false, 0, null, null, null);
+        GameState state = MovementState() with { GameplaySceneFacts = facts };
+        Assert.Equal(new byte[] { 4, 255, 0 }, NativeWorldSaveCompatibility.InitialParty(state));
+        Assert.True(NativeWorldSalaryState.Begin(state).PrepareMovementProgress(0).LearnedAngelo);
+        byte[] returned = NativeWorldSaveCompatibility.InitialParty(state);
+        returned[0] = 0;
+        Assert.Equal((byte)4, facts.FieldParty[0]);
+        state = state with { WorldEventState = Snapshot(0) };
+        Assert.Equal(new byte[] { 0, 255, 255 }, NativeWorldSaveCompatibility.InitialParty(state));
+        Assert.False(NativeWorldSalaryState.Begin(state).PrepareMovementProgress(0).LearnedAngelo);
+    }
+
     [Theory]
     [InlineData(4, 0, 0, true)]
     [InlineData(0, 4, 0, false)]

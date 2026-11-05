@@ -7,10 +7,6 @@ public static partial class NativePcSaveConverter
     private static GameState ProjectNativeGameplay(GameState state)
     {
         NativeCharacterVitals source = state.CharacterVitals!;
-        if (!source.MagicSystem.RequiresMemoriaFormat)
-        {
-            return state;
-        }
         source.Validate();
         if (source.MagicSystem.Reservations.Length != 0)
         {
@@ -22,6 +18,10 @@ public static partial class NativePcSaveConverter
         if (banks.Any(bank => bank.Any(stock => stock.SpellId > 56 || stock.Count > 100) || bank.Select(stock => stock.SpellId).Distinct().Count() != bank.Count))
         {
             throw new InvalidDataException("Original FF8 export requires valid, distinct magic stock within each saved physical bank.");
+        }
+        if (!source.MagicSystem.RequiresMemoriaFormat)
+        {
+            return state;
         }
         if (source.MagicSystem.SharedMagicStock)
         {

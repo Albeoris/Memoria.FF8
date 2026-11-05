@@ -34,18 +34,20 @@ public static partial class NativePcSaveConverter
 
     private static GameState CompleteOpaqueExportState(GameState state, NativeCharacterVitals targetSource)
     {
-        if (state.OriginalSave is not null || state.CharacterVitals is not { } current)
+        if (state.CharacterVitals is not { } current)
         {
             return state;
         }
         NativeCharacterVitals projected = current.DeepCopy();
         for (int row = 0; row < projected.Records.Length; row++)
         {
-            projected.Records[row] = projected.Records[row] with { NativeByte90 = projected.Records[row].NativeByte90 ?? targetSource.Records[row].NativeByte90 };
+            projected.Records[row] = projected.Records[row] with { NativeByte90 = projected.Records[row].NativeByte90 ?? state.OriginalSave?.Block[Main + 1088 + row * 152 + 90] ?? targetSource.Records[row].NativeByte90 };
         }
         for (int id = 0; id < projected.GuardianForces.Length; id++)
         {
-            projected.GuardianForces[id] = projected.GuardianForces[id] with { NativeOpaqueBytes = projected.GuardianForces[id].NativeOpaqueBytes ?? targetSource.GuardianForces[id].NativeOpaqueBytes };
+            int start = Main + id * 68;
+            NativeGuardianForceOpaqueBytes? legacy = state.OriginalSave is { } original ? new(original.Block[start + 16], original.Block[start + 57], original.Block[start + 58], original.Block[start + 59]) : null;
+            projected.GuardianForces[id] = projected.GuardianForces[id] with { NativeOpaqueBytes = projected.GuardianForces[id].NativeOpaqueBytes ?? legacy ?? targetSource.GuardianForces[id].NativeOpaqueBytes };
         }
         return state with { CharacterVitals = projected };
     }
@@ -70,7 +72,9 @@ public static partial class NativePcSaveConverter
         {
             throw new NotSupportedException("Original FF8 export requires one exact saved countdown value.");
         }
-        byte[] block = state.OriginalSave?.Block.ToArray() ?? CreateDefaultBlock();
+        byte[] block = state.NativeSaveInteroperability is null && state.OriginalSave is { } legacy ? legacy.Block.ToArray() : CreateDefaultBlock();
+        state.NativeSaveInteroperability?.ApplyTo(block);
+        ExportRetainedSceneFacts(block, state.GameplaySceneFacts);
         void W(int offset, ushort value) => WriteWord(block, Main + offset, value);
         void D(int offset, uint value) => WriteDWord(block, Main + offset, value);
         void EW(int address, ushort value) => WriteWord(block, Event + address, value);
@@ -329,12 +333,7 @@ public static partial class NativePcSaveConverter
     private static byte[] CreateDefaultBlock()
     {
         byte[] block = new byte[NativePcSaveData.BlockSize];
-        block[0] = (byte)'S';
-        block[1] = (byte)'C';
-        block[2] = 0x11;
-        block[3] = 1;
-        WriteWord(block, 80, 1);
-        "CRD0"u8.CopyTo(block.AsSpan(82, 4));
+        NativeSaveInteroperability.CreateDefaultMemoryCardHeader().CopyTo(block, 0);
         WriteWord(block, 386, 0x08FF);
         FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         void Name(int offset, int subject)
@@ -368,6 +367,12 @@ public static partial class NativePcSaveConverter
             block[Main + 2712 + index] = (byte)(index + 1);
         }
         block[Event + 204] = 1;
+        WriteDWord(block, Event + 108, uint.MaxValue);
+        WriteDWord(block, Event + 112, uint.MaxValue);
+        block.AsSpan(Event + 194, 3).Fill(255);
+        block[Event + 199] = 255;
+        block[Event + 200] = 255;
+        block[Event + 202] = 255;
         WriteDWord(block, Event, 0x382D4646);
         return block;
     }
@@ -384,6 +389,79 @@ public static partial class NativePcSaveConverter
         }
         FieldTransition savedArrival = new(state.FieldId, BinaryPrimitives.ReadInt16LittleEndian(original.Block.AsSpan(Main + 3318)), BinaryPrimitives.ReadInt16LittleEndian(original.Block.AsSpan(Main + 3324)), BinaryPrimitives.ReadUInt16LittleEndian(original.Block.AsSpan(Main + 3330)), original.Block[Main + 3336]);
         return state.FieldArrival == savedArrival;
+    }
+
+    private static void ExportRetainedSceneFacts(byte[] block, GameplaySaveSceneFacts? facts)
+    {
+        if (facts is null)
+        {
+            return;
+        }
+        facts.Validate();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
+        foreach ((int subject, string name) in facts.Names)
+        {
+            int offset = subject switch { 0 => 408, 1 => 420, 2 => 432, GameNames.BokoSubject => 444, GameNames.GrieverSubject => Main + 2732, >= 16 and <= 31 => Main + (subject - 16) * 68, _ => -1 };
+            if (offset < 0)
+            {
+                continue;
+            }
+            block.AsSpan(offset, 12).Clear();
+            byte[] encoded = encoding.GetBytes(name);
+            encoded.AsSpan(0, Math.Min(encoded.Length, 11)).CopyTo(block.AsSpan(offset));
+        }
+        block.AsSpan(Main + 3283, 16).Clear();
+        foreach (int tutorial in facts.UnlockedTutorials)
+        {
+            block[Main + 3283 + tutorial / 8] |= (byte)(1 << (tutorial & 7));
+        }
+        WriteWord(block, 388, unchecked((ushort)facts.PlaceId));
+        if (facts.PersistentBattleMode is { } battleMode)
+        {
+            WriteWord(block, Event + 182, battleMode);
+        }
+        if (facts.Music is { } music)
+        {
+            foreach ((GameplaySaveMusicChannel? channel, int address, int musicAddress) in new[] { (music.PrimaryChannel, 108, 199), (music.SecondaryChannel, 112, 200) })
+            {
+                if (channel is not null)
+                {
+                    WriteDWord(block, Event + address, unchecked((uint)channel.ChannelId));
+                    if (channel.MusicId is { } musicId)
+                    {
+                        block[Event + musicAddress] = musicId;
+                    }
+                }
+            }
+            if (music.BattleMusic is { } battle)
+            {
+                block[Event + 203] = battle;
+            }
+            if (music.MusicVolume is { } volume)
+            {
+                block[Event + 197] = volume;
+            }
+            if (music.SoundVolume is { } sound)
+            {
+                block[Event + 198] = sound;
+            }
+            if (music.WorldSelection is { } selection)
+            {
+                block[Event + 268] = selection;
+            }
+        }
+        if (facts.RequestedMusic213 is { } requested)
+        {
+            block[Event + 213] = requested;
+        }
+        if (facts.CompletedMusic214 is { } completed)
+        {
+            block[Event + 214] = completed;
+        }
+        if (facts.DrawPointIndex242 is { } index)
+        {
+            block[Event + 242] = index;
+        }
     }
 
     private static void ExportLocation(byte[] block, GameState state)
@@ -406,7 +484,7 @@ public static partial class NativePcSaveConverter
             }
         }
         bool originalAllocation = HasUnallocatedOriginalField(state);
-        byte[] party = scene is { } current && current.TryGetProperty("Party", out JsonElement values) && values.GetArrayLength() >= 3 ? values.EnumerateArray().Take(3).Select(value => unchecked((byte)value.GetInt32())).ToArray() : originalAllocation ? state.OriginalSave!.FieldParty : state.CharacterVitals?.CombatParty.Select(row => row == 255 ? (byte)255 : state.CharacterVitals.Records[row].CharacterId).ToArray() ?? state.OriginalSave?.FieldParty ?? [0, 255, 255];
+        byte[] party = scene is { } current && current.TryGetProperty("Party", out JsonElement values) && values.GetArrayLength() >= 3 ? values.EnumerateArray().Take(3).Select(value => unchecked((byte)value.GetInt32())).ToArray() : state.GameplaySceneFacts?.FieldParty ?? (originalAllocation ? state.OriginalSave!.FieldParty : state.CharacterVitals?.CombatParty.Select(row => row == 255 ? (byte)255 : state.CharacterVitals.Records[row].CharacterId).ToArray() ?? state.OriginalSave?.FieldParty ?? [0, 255, 255]);
         party.CopyTo(block, Main + 3304);
         block[Main + 3307] = 255;
         int fieldId = state.Scene == SceneKind.Field ? state.FieldId : state.NativeFieldLocation?.FieldId ?? state.FieldArrival?.FieldId ?? state.FieldId;
@@ -432,6 +510,7 @@ public static partial class NativePcSaveConverter
                 }
             }
             pose ??= state.NativeFieldLocation?.FieldId == fieldId ? state.NativeFieldLocation.Slots[slot].Pose : null;
+            pose ??= state.GameplayFieldLocation?.FieldId == fieldId ? state.GameplayFieldLocation.PartyPositions[slot] : null;
             if (pose is null && originalAllocation)
             {
                 byte[] savedBlock = state.OriginalSave!.Block;
@@ -465,6 +544,37 @@ public static partial class NativePcSaveConverter
         }
         if (scene is { } source)
         {
+            foreach ((string property, int address) in new[] { ("FieldLoadReasonByte87", 87), ("DrawPointEnabled", 240), ("DrawPointDisplayParameter", 241) })
+            {
+                if (source.TryGetProperty(property, out JsonElement value) && value.ValueKind != JsonValueKind.Null && value.TryGetByte(out byte number))
+                {
+                    block[Event + address] = number;
+                }
+            }
+            foreach ((string property, int address, int musicAddress) in new[] { ("MusicChannel108", 108, 199), ("MusicChannel112", 112, 200) })
+            {
+                if (source.TryGetProperty(property, out JsonElement channel) && channel.ValueKind == JsonValueKind.Object)
+                {
+                    if (channel.TryGetProperty("ChannelId", out JsonElement channelId) && channelId.TryGetInt32(out int identity))
+                    {
+                        WriteDWord(block, Event + address, unchecked((uint)identity));
+                    }
+                    if (channel.TryGetProperty("MusicId", out JsonElement channelMusic) && channelMusic.ValueKind != JsonValueKind.Null && channelMusic.TryGetByte(out byte channelMusicByte))
+                    {
+                        block[Event + musicAddress] = channelMusicByte;
+                    }
+                }
+            }
+            if (source.TryGetProperty("PartyBindingMemory", out JsonElement bindings) && bindings.ValueKind == JsonValueKind.Object)
+            {
+                foreach ((string property, int slot) in new[] { ("First", 0), ("Second", 1), ("Third", 2) })
+                {
+                    if (bindings.TryGetProperty(property, out JsonElement value) && value.TryGetByte(out byte binding))
+                    {
+                        block[Event + 194 + slot] = binding;
+                    }
+                }
+            }
             if (source.TryGetProperty("Names", out JsonElement names) && names.ValueKind == JsonValueKind.Object)
             {
                 FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
@@ -493,7 +603,7 @@ public static partial class NativePcSaveConverter
             }
             if (source.TryGetProperty("MusicProcess", out JsonElement process) && process.ValueKind == JsonValueKind.Object)
             {
-                foreach ((string property, int address) in new[] { ("Requested213", 213), ("Complete214", 214) })
+                foreach ((string property, int address) in new[] { ("Requested213", 213), ("Complete214", 214), ("Bank201", 201), ("Bank202", 202) })
                 {
                     if (process.TryGetProperty(property, out JsonElement value) && value.ValueKind != JsonValueKind.Null && value.TryGetByte(out byte number))
                     {
@@ -514,6 +624,15 @@ public static partial class NativePcSaveConverter
 
     private static void ExportSavedWorld(byte[] block, GameState state)
     {
+        if (state.SavedWorld?.OriginalAngleWords is { } originalAngles)
+        {
+            originalAngles.Validate();
+            for (int slot = 0; slot < 8; slot++)
+            {
+                WriteWord(block, World + 12 * slot + 10, originalAngles.BodyWords[slot]);
+            }
+            WriteWord(block, World + 96, originalAngles.CameraWord);
+        }
         void Pose(int offset, NativeSavedWorldPose pose)
         {
             ushort yaw = pose.Yaw;
@@ -560,7 +679,12 @@ public static partial class NativePcSaveConverter
             if (saved.TerrainFlags109 is { } terrain)
             {
                 terrain.Validate();
-                block[World + 109] = (byte)((block[World + 109] & ~terrain.KnownMask) | (terrain.Value & terrain.KnownMask));
+                if (terrain.KnownMask != byte.MaxValue && state.NativeSaveInteroperability?.Terrain109Baseline is null && state.OriginalSave is null)
+                {
+                    throw new NotSupportedException("Original FF8 export requires a retained terrain byte when its current owner has unknown bits.");
+                }
+                byte baseline = state.NativeSaveInteroperability?.Terrain109Baseline ?? state.OriginalSave?.Block[World + 109] ?? block[World + 109];
+                block[World + 109] = (byte)((baseline & ~terrain.KnownMask) | (terrain.Value & terrain.KnownMask));
             }
             Pose(48, saved.Slot4.Pose);
             Pose(60, saved.Slot5.Pose);

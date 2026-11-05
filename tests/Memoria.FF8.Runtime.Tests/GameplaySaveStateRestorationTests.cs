@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -79,8 +80,11 @@ public sealed class GameplaySaveStateRestorationTests
         Assert.Equal(source.PendingOriginalAchievementActions, restored.PendingOriginalAchievementActions);
         Assert.Equal(source.PendingOriginalAchievementObservations, restored.PendingOriginalAchievementObservations);
         Assert.Equal(source.OriginalAchievementMutationSequence, restored.OriginalAchievementMutationSequence);
-        Assert.Equal("Current", restored.OriginalSave!.Names[0]);
-        Assert.Equal((byte)231, restored.OriginalSave.Block[8000]);
+        Assert.Null(restored.OriginalSave);
+        Assert.Equal("Current", restored.GameplaySceneFacts!.Names[0]);
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        restored.NativeSaveInteroperability!.ApplyTo(exported);
+        Assert.Equal((byte)231, exported[8000]);
         Assert.Same(initialized.NativeBattleMemory, restored.NativeBattleMemory);
         Assert.Null(restored.EventState);
         Assert.Null(restored.WorldEventState);
@@ -171,6 +175,130 @@ public sealed class GameplaySaveStateRestorationTests
     }
 
     [Fact]
+    public void Legacy_original_residue_is_read_and_resaved_as_independent_storage_with_current_names()
+    {
+        GameState source = Source();
+        source.OriginalSave!.Block[^1] = 219;
+        source = source with { OriginalSave = source.OriginalSave with { Names = new Dictionary<int, string> { [0] = "Historical", [16] = "Dormant GF" } } };
+        GameplaySaveComponentDocument captured = Document(source);
+        GameplaySaveComponentDocument legacy = captured with
+        {
+            Progression = captured.Progression! with
+            {
+                OriginalResidue = GameplaySaveOriginalResidue.Capture(source.OriginalSave),
+                NativeInteroperability = null
+            }
+        };
+        using MemoryStream stream = new();
+        GameplaySaveCodec.Write(stream, legacy);
+        stream.Position = 0;
+        GameplaySaveComponentDocument loaded = GameplaySaveCodec.Read(stream);
+
+        Assert.Equal((byte)219, loaded.Progression!.OriginalResidue!.Block[^1]);
+        Assert.Equal("Historical", loaded.Progression.OriginalResidue.Names[0]);
+        GameState restored = GameplaySaveStateRestoration.Restore(loaded, Initialized());
+        Assert.Equal((byte)219, restored.OriginalSave!.Block[^1]);
+        Assert.Equal("Current", restored.OriginalSave.Names[0]);
+        GameplaySaveComponentDocument resaved = Document(restored);
+
+        Assert.Null(resaved.Progression!.OriginalResidue);
+        Assert.Equal("Current", resaved.Progression.SceneFacts!.Names[0]);
+        Assert.Equal("Dormant GF", resaved.Progression.SceneFacts.Names[16]);
+        Assert.DoesNotContain("\"OriginalResidue\"", JsonSerializer.Serialize(resaved));
+        Assert.DoesNotContain("\"Block\"", JsonSerializer.Serialize(resaved));
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        resaved.Progression.NativeInteroperability!.ApplyTo(exported);
+        Assert.Equal((byte)219, exported[^1]);
+        restored.OriginalSave.Block[^1] = 0;
+        restored.GameplaySceneFacts!.Names[0] = "Changed";
+        Assert.Equal((byte)219, loaded.Progression.OriginalResidue.Block[^1]);
+        Assert.Equal("Historical", loaded.Progression.OriginalResidue.Names[0]);
+        Assert.Equal((byte)219, resaved.Progression.NativeInteroperability.Tail![^1]);
+        Assert.Equal("Current", resaved.Progression.SceneFacts.Names[0]);
+    }
+
+    [Fact]
+    public void Explicit_native_storage_and_scene_names_win_over_a_legacy_original_image()
+    {
+        GameState source = Source();
+        GameplaySaveComponentDocument document = Document(source);
+        NativeSaveInteroperability current = GameplaySaveCodec.Detach(document.Progression!.NativeInteroperability!);
+        current.Tail![8000 - 5410] = 117;
+        document = document with
+        {
+            Progression = document.Progression with
+            {
+                OriginalResidue = GameplaySaveOriginalResidue.Capture(source.OriginalSave!),
+                NativeInteroperability = current
+            }
+        };
+
+        GameState restored = GameplaySaveStateRestoration.Restore(document, Initialized());
+        GameplaySaveProgression resaved = GameplaySaveProgression.Capture(restored);
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        resaved.NativeInteroperability!.ApplyTo(exported);
+
+        Assert.Null(resaved.OriginalResidue);
+        Assert.Equal((byte)117, exported[8000]);
+        Assert.Equal((byte)231, restored.OriginalSave!.Block[8000]);
+        Assert.Equal("Current", resaved.SceneFacts!.Names[0]);
+        Assert.Equal("Historical", document.Progression.OriginalResidue!.Names[0]);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Legacy_unallocated_field_restores_all_raw_slots_without_fabricating_actor_bindings(bool hasCurrentPose)
+    {
+        GameState source = Source();
+        NativeFieldLocationPose[] originalPoses = [new(-123, 456, 7, 19), new(789, -1234, 23, 47), new(-2345, 3456, 61, 83)];
+        byte[] original = source.OriginalSave!.Block;
+        BinaryPrimitives.WriteUInt16LittleEndian(original.AsSpan(NativePcSaveData.MainOffset + 3312), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(original.AsSpan(NativePcSaveData.MainOffset + 3314), 106);
+        for (int slot = 0; slot < originalPoses.Length; slot++)
+        {
+            NativeFieldLocationPose pose = originalPoses[slot];
+            BinaryPrimitives.WriteInt16LittleEndian(original.AsSpan(NativePcSaveData.MainOffset + 3318 + 2 * slot), pose.X);
+            BinaryPrimitives.WriteInt16LittleEndian(original.AsSpan(NativePcSaveData.MainOffset + 3324 + 2 * slot), pose.Y);
+            BinaryPrimitives.WriteUInt16LittleEndian(original.AsSpan(NativePcSaveData.MainOffset + 3330 + 2 * slot), pose.Triangle);
+            original[NativePcSaveData.MainOffset + 3336 + slot] = pose.Direction;
+        }
+        NativeFieldLocationPose? currentPose = hasCurrentPose ? new(321, -654, 17, 91) : null;
+        GameplaySaveComponentDocument captured = Document(source);
+        GameplaySaveComponentDocument legacy = captured with
+        {
+            Progression = captured.Progression! with
+            {
+                OriginalResidue = GameplaySaveOriginalResidue.Capture(source.OriginalSave),
+                NativeInteroperability = null,
+                FieldLocation = new(106, 105, [currentPose, null, null])
+            }
+        };
+        using MemoryStream stream = new();
+        GameplaySaveCodec.Write(stream, legacy);
+        stream.Position = 0;
+        GameplaySaveComponentDocument loaded = GameplaySaveCodec.Read(stream);
+
+        GameState restored = GameplaySaveStateRestoration.Restore(loaded, Initialized());
+        NativeFieldLocationPose?[] expected = [currentPose ?? originalPoses[0], originalPoses[1], originalPoses[2]];
+        Assert.Equal(expected, restored.GameplayFieldLocation!.PartyPositions);
+        Assert.True(restored.GameplayFieldLocation.IsNativeImport);
+        Assert.Equal((byte)255, restored.GameplaySceneFacts!.FieldParty[2]);
+        Assert.Null(restored.NativeFieldLocation);
+        Assert.Null(restored.FieldLoadContext);
+        Assert.Null(restored.EventState);
+        GameplaySaveComponentDocument resaved = Document(restored);
+        Assert.Null(resaved.Progression!.OriginalResidue);
+        Assert.Equal(expected, resaved.Progression.FieldLocation!.PartyPositions);
+        Assert.True(resaved.Progression.FieldLocation.IsNativeImport);
+        Assert.DoesNotContain("\"Block\"", JsonSerializer.Serialize(resaved));
+        restored.GameplayFieldLocation.PartyPositions[2] = null;
+        Assert.Null(loaded.Progression!.FieldLocation!.PartyPositions[2]);
+        Assert.Equal(originalPoses[2], resaved.Progression.FieldLocation.PartyPositions[2]);
+        Assert.Equal(originalPoses[2], source.OriginalSave.ReadFieldPartyPosition(2));
+    }
+
+    [Fact]
     public void Output_mutable_values_do_not_alias_document_or_initialization()
     {
         GameplaySaveComponentDocument document = Document(Source());
@@ -179,11 +307,16 @@ public sealed class GameplaySaveStateRestorationTests
         restored.CharacterVitals!.Records[0].StatBonuses[0] = 91;
         restored.Economy!.Items[0] = new(1, 1);
         restored.CardInventory!.Cards[0] = 92;
-        restored.OriginalSave!.Block[8000] = 93;
+        restored.NativeSaveInteroperability!.Tail![8000 - 5410] = 93;
+        restored.GameplaySceneFacts!.Names[0] = "Changed";
         Assert.Equal((byte)7, document.Characters.Records[0].StatBonuses[0]);
         Assert.Equal(new NativeItemStock(17, 43), document.Economy.Items[0]);
         Assert.Equal((byte)4, document.Progression!.Collections.Cards!.Cards[0]);
-        Assert.Equal((byte)231, document.Progression.OriginalResidue!.Block[8000]);
+        Assert.Null(document.Progression.OriginalResidue);
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        document.Progression.NativeInteroperability!.ApplyTo(exported);
+        Assert.Equal((byte)231, exported[8000]);
+        Assert.Equal("Current", document.Progression.SceneFacts!.Names[0]);
         Assert.Equal((byte)0, initial.CharacterVitals!.Records[0].StatBonuses[0]);
         Assert.Equal(new NativeItemStock(0, 0), initial.Economy!.Items[0]);
     }

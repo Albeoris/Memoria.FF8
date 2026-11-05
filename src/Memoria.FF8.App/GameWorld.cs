@@ -153,6 +153,10 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.Clear();
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
+        if (gameplaySaveFacts is null && session.State.EventState is null && session.State.DepartingFieldState is null && session.State.WorldEventState is null && (session.State.FieldLoadContext?.Origin is NativeFieldLoadOrigin.GameplaySave or NativeFieldLoadOrigin.GameplayContinuation || session.State.Scene == SceneKind.WorldMap && session.State.OriginalSave is null))
+        {
+            gameplaySaveFacts = session.State.GameplaySceneFacts;
+        }
         if (gameplaySaveFacts is not null)
         {
             Events.InitializeGameplaySave(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Gameplay save loading requires a supported installed native runtime profile."), gameplaySaveFacts);

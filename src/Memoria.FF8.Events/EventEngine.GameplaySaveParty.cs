@@ -44,7 +44,7 @@ public sealed partial class EventEngine
         {
             int binding = load.Bindings[slot];
             NativeFieldLocationPose? pose = location.PartyPositions[slot];
-            if (slot == 0 || pose is null)
+            if (slot == 0 || pose is null || location.IsNativeImport && Scene.Party[slot] == 255)
             {
                 // The current resume descriptor, not a cached menu leader pose, owns the arrival.
                 continue;

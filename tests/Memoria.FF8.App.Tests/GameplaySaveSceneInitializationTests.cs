@@ -97,6 +97,32 @@ public sealed class GameplaySaveSceneInitializationTests
     }
 
     [Fact]
+    public void Retained_names_and_native_scene_scalars_survive_without_an_original_image()
+    {
+        GameplaySaveSceneFacts retained = Facts() with
+        {
+            Names = new() { [0] = "Retained", [16] = "Dormant GF" },
+            RequestedMusic213 = 17,
+            CompletedMusic214 = 15,
+            DrawPointIndex242 = 23
+        };
+        GameState state = new() { Scene = SceneKind.Field, FieldId = 180, FieldLoadContext = NativeFieldLoadContext.FromGameplaySave(180), GameplaySceneFacts = retained };
+        EventEngine engine = new(new GameSession(state));
+        engine.InitializeGameplaySave(NativeFieldRuntimeProfile.FF8En, retained);
+        Assert.Equal((byte)17, engine.Scene.MusicProcess!.Requested213);
+        Assert.Equal((byte)15, engine.Scene.MusicProcess.Complete214);
+        Assert.Equal((byte)23, engine.Scene.DrawPointIndex);
+        JsonElement scene = JsonSerializer.SerializeToElement(new { FieldId = 180, Scene = new { Names = new Dictionary<int, string> { [0] = "Current" }, UnlockedTutorials = Array.Empty<int>(), Party = new[] { 4, 255, 0 }, PartyPower = 0, MenuEnabled = true, RunEnabled = true, MapJumpDisabled = false, PlaceId = 0, LoadedMusic = -1, MusicPlaying = false, MusicVolume = 127, engine.Scene.MusicProcess, engine.Scene.DrawPointIndex } });
+        GameplaySaveSceneFacts captured = GameplaySaveSceneFacts.FromPreparedState(state with { EventState = scene })!;
+        Assert.Equal("Current", captured.Names[0]);
+        Assert.Equal("Dormant GF", captured.Names[16]);
+        Assert.Equal(retained.RequestedMusic213, captured.RequestedMusic213);
+        Assert.Equal(retained.CompletedMusic214, captured.CompletedMusic214);
+        Assert.Equal(retained.DrawPointIndex242, captured.DrawPointIndex242);
+        Assert.Null(state.OriginalSave);
+    }
+
+    [Fact]
     public void Missing_mode_and_contradictory_timer_mirrors_refuse_before_initialization()
     {
         GameState state = new() { Scene = SceneKind.Field, FieldId = 180, FieldLoadContext = NativeFieldLoadContext.FromGameplaySave(180), ExamTimer = NativeExamTimerState.FromColdProcess() with { Event182Mask4 = false, Event183Mask1 = false, SaveGlobalMask4 = false } };

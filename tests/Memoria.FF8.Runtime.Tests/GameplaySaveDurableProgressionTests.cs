@@ -81,8 +81,12 @@ public sealed class GameplaySaveDurableProgressionTests
         Assert.Equal(source.PendingAchievementObservations, restored.Transactions.PendingKillObservations);
         Assert.Equal(source.PendingAchievementFacts, restored.Transactions.PendingDefeats);
         Assert.Equal(47, restored.Transactions.MutationSequence);
-        Assert.Equal(231, restored.OriginalResidue!.Block[8000]);
+        Assert.Null(restored.OriginalResidue);
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        restored.NativeInteroperability!.ApplyTo(exported);
+        Assert.Equal((byte)231, exported[8000]);
         Assert.Equal("Current", restored.SceneFacts!.Names[0]);
+        Assert.Equal("Dormant GF", restored.SceneFacts.Names[16]);
         Assert.Equal(new[] { 2, 9 }, restored.SceneFacts.UnlockedTutorials);
         Assert.Equal(new byte[] { 0, 4, 255 }, restored.SceneFacts.FieldParty);
         Assert.Equal(17, restored.SceneFacts.Music!.LoadedMusic);
@@ -120,12 +124,15 @@ public sealed class GameplaySaveDurableProgressionTests
     public void Field_projection_never_uses_departing_field_facts_as_the_active_scene()
     {
         GameplaySaveProgression saved = GameplaySaveProgression.Capture(State() with { EventState = null, DepartingFieldState = Scene("Dormant", 9) });
-        Assert.Null(saved.SceneFacts);
-        Assert.Equal("Original", saved.OriginalResidue!.Names[0]);
+        Assert.Equal(GameplaySaveSceneFactsOrigin.Field, saved.SceneFacts!.Origin);
+        Assert.Equal("Original", saved.SceneFacts.Names[0]);
+        Assert.Equal("Dormant GF", saved.SceneFacts.Names[16]);
+        Assert.Null(saved.OriginalResidue);
+        Assert.NotNull(saved.NativeInteroperability);
     }
 
     [Fact]
-    public void Captured_collections_names_event_cells_and_original_bytes_are_detached()
+    public void Captured_collections_names_event_cells_and_native_storage_are_detached()
     {
         GameState source = State();
         GameplaySaveProgression saved = GameplaySaveProgression.Capture(source);
@@ -133,7 +140,10 @@ public sealed class GameplaySaveDurableProgressionTests
         source.OriginalSave!.Block[8000] = 0;
         source.CharacterAppearance!.Records[0] = new(99);
         Assert.Equal((byte)7, saved.Collections.Cards!.Cards[0]);
-        Assert.Equal((byte)231, saved.OriginalResidue!.Block[8000]);
+        Assert.Null(saved.OriginalResidue);
+        byte[] exported = new byte[NativePcSaveData.BlockSize];
+        saved.NativeInteroperability!.ApplyTo(exported);
+        Assert.Equal((byte)231, exported[8000]);
         Assert.Equal((byte)4, saved.Collections.Dresses![0]);
         saved.SceneFacts!.Names[0] = "Changed";
         Assert.Equal("Current", source.EventState!.Value.GetProperty("Scene").GetProperty("Names").GetProperty("0").GetString());
@@ -207,7 +217,7 @@ public sealed class GameplaySaveDurableProgressionTests
     {
         HashSet<Type> visited = [];
         Queue<Type> pending = new([typeof(GameplaySaveProgression)]);
-        string[] approved = ["NativeCardInventory", "TripleTriadStatistics", "ChocoboRewardLedger", "ChocoboImportReceipt", "GameplayPreferences", "GameplayTuning", "RareItemProbabilities", "TripleTriadSettings", "PendingEntityName", "DialogueDraft", "NativeRandomEncounterState", "NativeExamTimerState", "NativeTimerAlternative", "NativeTimerDisplayBlink", "NativePlaytimeState", "NativeEventRandomState", "NativeDrawPointMemory", "NativeCrtRandomState", "NativeMenuRandomState", "NativeGlobalRandomState", "NativeBattleStatistics", "NativeBattleVariableState", "EnemyDefeatedEvent", "BattleKillTotalObservedEvent", "OriginalAchievementObservedEvent", "OriginalAchievementActionEvent", "OriginalAchievementDrawCursor", "BattleAchievementCursor", "AchievementEventId", "AchievementContextId", "EnemyDefeatFacts", "AchievementOwner", "OriginalAchievementProgress", "BattleNativeDrawContext", "NativeSavedWorldVehicleSlot", "NativeSavedWorldPose", "NativeWorldEventFlags", "NativeSavedWorldAngleWords", "NativeWorldTerrainFlags109", "NativeSavedWorldUnsupportedEntry", "WorldTransition", "NativeSavedBattleFlagFieldWrite", "NativeFadeWords", "NativeMessageVariables", "NativeFieldLocationPose", "NativeFieldLocationSlot", "NativeWorldClosingChannel", "NativeWorldChannelReadiness", "NativeMovieSource", "NativeMusicBufferIdentity", "NativeModelPartResourceState", "NativeModelPartTranslation"];
+        string[] approved = ["NativeCardInventory", "TripleTriadStatistics", "ChocoboRewardLedger", "ChocoboImportReceipt", "GameplayPreferences", "GameplayTuning", "RareItemProbabilities", "TripleTriadSettings", "PendingEntityName", "DialogueDraft", "NativeRandomEncounterState", "NativeExamTimerState", "NativeTimerAlternative", "NativeTimerDisplayBlink", "NativePlaytimeState", "NativeEventRandomState", "NativeDrawPointMemory", "NativeCrtRandomState", "NativeMenuRandomState", "NativeGlobalRandomState", "NativeBattleStatistics", "NativeBattleVariableState", "EnemyDefeatedEvent", "BattleKillTotalObservedEvent", "OriginalAchievementObservedEvent", "OriginalAchievementActionEvent", "OriginalAchievementDrawCursor", "BattleAchievementCursor", "AchievementEventId", "AchievementContextId", "EnemyDefeatFacts", "AchievementOwner", "OriginalAchievementProgress", "BattleNativeDrawContext", "NativeSavedWorldVehicleSlot", "NativeSavedWorldPose", "NativeWorldEventFlags", "NativeSavedWorldAngleWords", "NativeWorldTerrainFlags109", "NativeSavedWorldUnsupportedEntry", "WorldTransition", "NativeSavedBattleFlagFieldWrite", "NativeFadeWords", "NativeMessageVariables", "NativeFieldLocationPose", "NativeFieldLocationSlot", "NativeWorldClosingChannel", "NativeWorldChannelReadiness", "NativeMovieSource", "NativeMusicBufferIdentity", "NativeModelPartResourceState", "NativeModelPartTranslation", "NativeSaveInteroperability", "NativeSaveDormantWorldPosition"];
         while (pending.TryDequeue(out Type? type))
         {
             if (!visited.Add(type))
@@ -293,7 +303,7 @@ public sealed class GameplaySaveDurableProgressionTests
             PendingOriginalAchievementActions = [new(new("action-1"), new("field-1"), OriginalAchievementActionKind.FirstSalary, Owner: owner)],
             OriginalAchievementMutationContext = "field-1",
             OriginalAchievementMutationSequence = 47,
-            OriginalSave = new(original) { Names = new Dictionary<int, string> { [0] = "Original" } },
+            OriginalSave = new(original) { Names = new Dictionary<int, string> { [0] = "Original", [16] = "Dormant GF" } },
             EventState = Scene("Current", 3)
         };
     }

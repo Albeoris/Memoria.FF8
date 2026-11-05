@@ -22,7 +22,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("World save initialization requires a fresh world process without a retained event snapshot.");
         }
-        if (gameplayParty is null && session.State.OriginalSave is not null)
+        if (gameplayParty is null && session.State.OriginalSave is not null && session.State.FieldLoadContext?.Origin is not (NativeFieldLoadOrigin.GameplaySave or NativeFieldLoadOrigin.GameplayContinuation))
         {
             InitializeOriginalSave(profile);
             NativeRuntimeProfile = profile;

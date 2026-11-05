@@ -67,6 +67,8 @@ public sealed partial class EventEngine
         Scene.MapJumpDisabled = facts.MapJumpDisabled;
         Scene.PlaceId = facts.PlaceId;
         Scene.NativeSalaryMovementUnits = facts.PreviousSalaryMovement;
+        Scene.DrawPointIndex = facts.DrawPointIndex242 ?? Scene.DrawPointIndex;
+        Scene.MusicProcess = Scene.MusicProcess! with { Requested213 = facts.RequestedMusic213 ?? Scene.MusicProcess.Requested213, Complete214 = facts.CompletedMusic214 ?? Scene.MusicProcess.Complete214 };
         Scene.WorldMusicSelection ??= NativeWorldMusicSelection.InitialValue();
         if (facts.Music is { } music)
         {

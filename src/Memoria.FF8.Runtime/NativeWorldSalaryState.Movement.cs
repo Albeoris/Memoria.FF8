@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeWorldSalaryState
@@ -15,17 +13,7 @@ public sealed partial record NativeWorldSalaryState
 
     private byte[]? FieldParty()
     {
-        JsonElement? snapshot = Departure.DepartingFieldState ?? Departure.EventState ?? Departure.WorldEventState;
-        if (snapshot is JsonElement state && state.TryGetProperty("Scene", out JsonElement scene) && scene.TryGetProperty("Party", out JsonElement party))
-        {
-            byte[] members = party.EnumerateArray().Select(value => value.GetByte()).ToArray();
-            if (members.Length != 3)
-            {
-                throw new InvalidDataException("Native movement training requires three physical field-party slots.");
-            }
-            return members;
-        }
-        return Departure.OriginalSave?.FieldParty;
+        return NativeWorldSaveCompatibility.CurrentFieldParty(Departure);
     }
 
     private GameState ApplyMovementProgress(GameState candidate)

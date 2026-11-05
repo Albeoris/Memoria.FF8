@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -22,6 +23,38 @@ public sealed record GameplaySaveSceneFacts([property: JsonRequired] GameplaySav
     public ushort? PersistentBattleMode { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ushort? ActiveBattleMode { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? RequestedMusic213 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? CompletedMusic214 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? DrawPointIndex242 { get; init; }
+
+    /// <summary>Captures native normal-load values before the imported image is released.</summary>
+    public static GameplaySaveSceneFacts FromOriginalSave(NativePcSaveData original, int fieldId, SceneKind scene)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        original.Validate();
+        if (scene is not (SceneKind.Field or SceneKind.WorldMap))
+        {
+            throw new ArgumentOutOfRangeException(nameof(scene));
+        }
+        byte[] block = original.Block;
+        int bank = NativePcSaveData.EventBankOffset;
+        int[] tutorials = Enumerable.Range(0, 128).Where(id => (block[NativePcSaveData.MainOffset + 3283 + id / 8] & (1 << (id & 7))) != 0).ToArray();
+        ushort mode = BinaryPrimitives.ReadUInt16LittleEndian(block.AsSpan(bank + 182));
+        GameplaySaveSceneMusic music = new(-1, false, 127, block[bank + 203], block[bank + 197], block[bank + 198], new(-1, 255, null), new(-1, 255, null), block[bank + 268]);
+        GameplaySaveSceneFacts result = new(scene == SceneKind.Field ? GameplaySaveSceneFactsOrigin.Field : GameplaySaveSceneFactsOrigin.WorldEventContext, fieldId, original.Names.ToDictionary(), tutorials, original.FieldParty, 0, true, true, false, BinaryPrimitives.ReadUInt16LittleEndian(block.AsSpan(388)), null, music, null)
+        {
+            PersistentBattleMode = mode,
+            ActiveBattleMode = mode,
+            RequestedMusic213 = block[bank + 213],
+            CompletedMusic214 = block[bank + 214],
+            DrawPointIndex242 = block[bank + 242]
+        };
+        result.Validate();
+        return result;
+    }
 
     /// <summary>Projects the current field process after the host has published its fresh snapshot, including world callbacks.</summary>
     public static GameplaySaveSceneFacts? FromPreparedState(GameState state)
@@ -56,13 +89,17 @@ public sealed record GameplaySaveSceneFacts([property: JsonRequired] GameplaySav
         }
         if (captured is not { } context)
         {
-            return null;
+            return state.GameplaySceneFacts ?? (state.OriginalSave is { } original ? FromOriginalSave(original, state.FieldId, state.Scene) : null);
         }
         if (context.ValueKind != JsonValueKind.Object || !context.TryGetProperty("Scene", out JsonElement scene) || scene.ValueKind != JsonValueKind.Object)
         {
             throw new InvalidDataException("Gameplay scene facts require an explicit captured Scene object.");
         }
         Dictionary<int, string> names = state.OriginalSave?.Names.ToDictionary() ?? [];
+        foreach ((int subject, string name) in state.GameplaySceneFacts?.Names ?? [])
+        {
+            names[subject] = name;
+        }
         foreach (JsonProperty property in Required(scene, "Names").EnumerateObject())
         {
             if (!int.TryParse(property.Name, NumberStyles.None, CultureInfo.InvariantCulture, out int subject))
@@ -73,6 +110,14 @@ public sealed record GameplaySaveSceneFacts([property: JsonRequired] GameplaySav
         }
         GameplaySaveSceneMusic music = new(Required(scene, "LoadedMusic").GetInt32(), Required(scene, "MusicPlaying").GetBoolean(), Required(scene, "MusicVolume").GetInt32(), Optional<byte>(scene, "NativeBattleMusic203"), Optional<byte>(scene, "SoundMusicVolume197"), Optional<byte>(scene, "SoundMusicVolume198"), Channel(scene, "MusicChannel108"), Channel(scene, "MusicChannel112"), scene.TryGetProperty("WorldMusicSelection", out JsonElement selection) && selection.ValueKind != JsonValueKind.Null ? Required(selection, "Music").GetByte() : null);
         GameplaySaveSceneFacts result = new(origin, Required(context, "FieldId").GetInt32(), names, Required(scene, "UnlockedTutorials").EnumerateArray().Select(value => value.GetInt32()).ToArray(), Required(scene, "Party").EnumerateArray().Select(value => value.GetByte()).ToArray(), Required(scene, "PartyPower").GetInt32(), Required(scene, "MenuEnabled").GetBoolean(), Required(scene, "RunEnabled").GetBoolean(), Required(scene, "MapJumpDisabled").GetBoolean(), Required(scene, "PlaceId").GetInt32(), Optional<byte>(scene, "NativeSalaryMovementUnits"), origin == GameplaySaveSceneFactsOrigin.SuspendedField ? null : music, origin == GameplaySaveSceneFactsOrigin.SuspendedField ? music : null);
+        if (origin != GameplaySaveSceneFactsOrigin.SuspendedField)
+        {
+            result = result with { DrawPointIndex242 = Optional<byte>(scene, "DrawPointIndex") };
+            if (scene.TryGetProperty("MusicProcess", out JsonElement process) && process.ValueKind == JsonValueKind.Object)
+            {
+                result = result with { RequestedMusic213 = Optional<byte>(process, "Requested213"), CompletedMusic214 = Optional<byte>(process, "Complete214") };
+            }
+        }
         if (origin != GameplaySaveSceneFactsOrigin.SuspendedField && scene.TryGetProperty("NativeBattleFlagWrites", out JsonElement writes) && writes.ValueKind == JsonValueKind.Array && writes.GetArrayLength() > 0)
         {
             JsonElement last = writes[writes.GetArrayLength() - 1];

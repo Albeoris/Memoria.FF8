@@ -31,7 +31,10 @@ internal static class GameplaySaveRootOwnership
         Add("Characters", GameplaySavePersistenceRequirement.Durable, nameof(GameState.CharacterVitals));
         Add("Economy", GameplaySavePersistenceRequirement.Durable, nameof(GameState.Economy));
         Add("Limits", GameplaySavePersistenceRequirement.Durable, nameof(GameState.LimitProgress));
-        Add("Progression.OriginalResidue", GameplaySavePersistenceRequirement.Durable, nameof(GameState.OriginalSave));
+        Add("Native import and legacy read carrier", GameplaySavePersistenceRequirement.Split, nameof(GameState.OriginalSave));
+        Add("Progression.NativeInteroperability", GameplaySavePersistenceRequirement.Durable, nameof(GameState.NativeSaveInteroperability));
+        Add("Progression.SceneFacts", GameplaySavePersistenceRequirement.Split, nameof(GameState.GameplaySceneFacts));
+        Add("Progression.FieldLocation", GameplaySavePersistenceRequirement.Split, nameof(GameState.GameplayFieldLocation));
         Add("Progression.Transactions", GameplaySavePersistenceRequirement.Durable, nameof(GameState.PendingAchievementFacts), nameof(GameState.PendingAchievementObservations), nameof(GameState.PendingOriginalAchievementObservations), nameof(GameState.PendingOriginalAchievementActions), nameof(GameState.OriginalAchievementDrawCursor), nameof(GameState.OriginalAchievementMutationContext), nameof(GameState.OriginalAchievementMutationSequence), nameof(GameState.LastOriginalAchievementObservation), nameof(GameState.AchievementCursor), nameof(GameState.AppliedBattleResultIds), nameof(GameState.BattleVariables), nameof(GameState.BattleStatistics));
         Add("Progression.Transactions", GameplaySavePersistenceRequirement.Split, nameof(GameState.AbandonedNativeBattles));
         Add("Progression.Story", GameplaySavePersistenceRequirement.Durable, nameof(GameState.EventMemory), nameof(GameState.WorldEntryMemory), nameof(GameState.WorldControls), nameof(GameState.DiscProcess), nameof(GameState.SavedBattleFlags), nameof(GameState.MessageVariables));

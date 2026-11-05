@@ -45,6 +45,7 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
                 Assert.DoesNotContain("NativeBattleMemory", encoded);
                 Assert.DoesNotContain("ModelCpuResources", encoded);
                 Assert.DoesNotContain("TextureSourceDescriptor", encoded);
+                Assert.DoesNotContain("OriginalResidue", encoded);
                 Assert.Equal(worldMap ? GameplaySaveResumeKind.World : GameplaySaveResumeKind.Field, document.Resume.Kind);
             }
             GameState targetState;
@@ -57,6 +58,7 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
                 throw new InvalidOperationException(exception.Message + " Animation owners: " + DescribeAnimations(document, source, targetAssets, targetDirectory), exception);
             }
             GameSession targetSession = new(targetState);
+            Assert.Null(targetState.OriginalSave);
             AssertRepresentableProgress(expected, targetSession.State);
             AssertFreshDefinitions(targetSession.State, targetAssets);
             AssertSemanticProgress(expected, targetSession.State);
@@ -68,6 +70,7 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
             string returnedPath = Path.Combine(folder, "returned.sav");
             target.WriteGameplaySave(returnedPath);
             GameState returned = PlayerStateLoader.Load(returnedPath, sourceDirectory, sharedAssets: sourceAssets);
+            Assert.Null(returned.OriginalSave);
             AssertRepresentableProgress(expected, returned);
             AssertSemanticProgress(expected, returned);
             AssertFreshDefinitions(returned, sourceAssets);

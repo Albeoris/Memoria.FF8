@@ -29,6 +29,10 @@ internal sealed partial class GameWorld
     /// <summary>Captures supported durable progress and the current resume authority from this live host.</summary>
     internal GameplaySaveComponentDocument CaptureGameplaySave()
     {
+        if (battle is not null || session.HasActiveBattle)
+        {
+            throw new InvalidOperationException("Saving during battle is unavailable.");
+        }
         if (session.State.Scene == SceneKind.Field)
         {
             return Events.Frame == 0 && session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave ? CaptureImportedGameplayField() : CaptureCurrentGameplayField();
@@ -82,8 +86,8 @@ internal sealed partial class GameWorld
         GameState state = session.PrepareSnapshot();
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.Field, state.FieldId, state.PreviousFieldId, new(arrival.X, arrival.Y, arrival.Triangle, checked((byte)arrival.Direction)), null);
         GameplaySaveComponentDocument document = CaptureGameplayDocument(state, resume);
-        NativeFieldLocationPose?[] poses = document.Progression!.SceneFacts!.FieldParty.Select((character, slot) => character == 255 ? null : original.ReadFieldPartyPosition(slot)).ToArray();
-        document = document with { Progression = document.Progression with { FieldLocation = new(checked((ushort)state.FieldId), state.PreviousFieldId is int previous ? checked((ushort)previous) : null, poses) } };
+        NativeFieldLocationPose?[] poses = state.GameplayFieldLocation?.FieldId == state.FieldId ? state.GameplayFieldLocation.PartyPositions.ToArray() : Enumerable.Range(0, 3).Select(slot => (NativeFieldLocationPose?)original.ReadFieldPartyPosition(slot)).ToArray();
+        document = document with { Progression = document.Progression! with { FieldLocation = new(checked((ushort)state.FieldId), state.PreviousFieldId is int previous ? checked((ushort)previous) : null, poses) { IsNativeImport = true } } };
         document.Validate();
         return document;
     }

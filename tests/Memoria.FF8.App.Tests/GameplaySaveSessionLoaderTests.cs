@@ -15,6 +15,8 @@ public sealed class GameplaySaveSessionLoaderTests
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         GameplaySaveComponentDocument document = Document(assets, world);
+        Assert.Null(document.Progression!.OriginalResidue);
+        Assert.DoesNotContain("OriginalResidue", JsonSerializer.Serialize(document));
         string before = JsonSerializer.Serialize(document);
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-gameplay-" + Guid.NewGuid().ToString("N") + ".sav");
         try
@@ -111,6 +113,27 @@ public sealed class GameplaySaveSessionLoaderTests
         AssertProgress(document, restored);
     }
 
+    [Fact]
+    public void Historical_residue_and_compact_owners_allocate_the_same_semantic_field_process()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameplaySaveComponentDocument document = GameplaySaveFieldPartyResumeTests.ThreePartyDocument(assets);
+        GameState current = GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets);
+        NativePcSaveData original = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(current, assets.ReadNewGameCharacterVitals(), originalPlaceId: 0));
+        GameplaySaveComponentDocument historical = document with { Progression = document.Progression! with { NativeInteroperability = null, OriginalResidue = new(original.Block, document.Progression.SceneFacts!.Names.ToDictionary()) } };
+        GameState legacy = GameplaySaveSessionLoader.Restore(historical, directory, sharedAssets: assets);
+        Assert.Null(current.OriginalSave);
+        Assert.NotNull(legacy.OriginalSave);
+        Assert.True(JsonElement.DeepEquals(current.EventState!.Value, legacy.EventState!.Value));
+        GameSession session = new(legacy);
+        using GameWorld world = new(session, directory, sharedAssets: assets);
+        world.EnsureField();
+        GameplaySaveComponentDocument recaptured = world.CaptureGameplaySave();
+        Assert.Null(recaptured.Progression!.OriginalResidue);
+        Assert.NotNull(recaptured.Progression.NativeInteroperability);
+    }
+
     internal static GameplaySaveComponentDocument Document(GameAssets assets, bool world)
     {
         GameSession initializer = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
@@ -171,7 +194,8 @@ public sealed class GameplaySaveSessionLoaderTests
         Assert.Equal(document.Progression!.Transactions.AppliedBattleResults, restored.AppliedBattleResultIds);
         Assert.Equal(document.Progression.Transactions.BattleStatistics, restored.BattleStatistics);
         Assert.Equal(document.Progression.Transactions.PendingOriginalActions, restored.PendingOriginalAchievementActions);
-        Assert.Equal((byte)231, restored.OriginalSave!.Block[8000]);
+        Assert.Null(restored.OriginalSave);
+        Assert.Equal((byte)231, restored.NativeSaveInteroperability!.Tail![8000 - 5410]);
         Assert.Contains(restored.ExamTimer!.Alternatives, alternative => alternative.Remaining == 321);
         Assert.True(restored.Playtime!.Seconds >= 1234);
     }

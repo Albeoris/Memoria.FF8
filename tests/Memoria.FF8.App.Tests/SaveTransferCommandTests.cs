@@ -106,7 +106,8 @@ public sealed class SaveTransferCommandTests : IDisposable
         string exported = Path.Combine(directory, "exported.ff8");
         Assert.Equal(0, SaveTransferCommand.Run([fixture!, "--output", snapshot, "--game-dir", gameDirectory], true));
         GameState state = PlayerStateLoader.Load(snapshot, gameDirectory);
-        Assert.NotNull(state.OriginalSave);
+        Assert.Null(state.OriginalSave);
+        Assert.NotNull(state.NativeSaveInteroperability);
         Assert.True(state.Scene == SceneKind.WorldMap || state.EventState is not null);
         Assert.Equal(0, SaveTransferCommand.Run([snapshot, "--output", exported], false));
         Assert.NotEmpty(File.ReadAllBytes(exported));

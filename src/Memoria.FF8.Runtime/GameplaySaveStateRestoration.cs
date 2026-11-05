@@ -114,6 +114,9 @@ public static class GameplaySaveStateRestoration
             LastOriginalAchievementObservation = transactions.LastOriginalObservation,
             AchievementCursor = null,
             OriginalSave = original,
+            NativeSaveInteroperability = progress.NativeInteroperability ?? (original is not null ? NativeSaveInteroperability.Capture(original) : null),
+            GameplaySceneFacts = progress.SceneFacts,
+            GameplayFieldLocation = RestoreFieldLocation(progress, original, resume),
             // Committed outcome IDs remain authoritative; former native abandonment waits are retired by normal load.
             AbandonedNativeBattles = null,
             PendingBattleEncounter = null,
@@ -173,6 +176,17 @@ public static class GameplaySaveStateRestoration
             throw new InvalidDataException("Gameplay quest timer masks contradict the saved complete battle-mode words.");
         }
         return timer with { Event182Mask4 = event182Mask4, Event183Mask1 = event183Mask1, SaveGlobalMask4 = saveGlobalMask4 };
+    }
+
+    private static GameplaySaveFieldLocation? RestoreFieldLocation(GameplaySaveProgression progress, NativePcSaveData? original, GameplaySaveResumeDescriptor resume)
+    {
+        GameplaySaveFieldLocation? location = progress.FieldLocation;
+        if (original is null || progress.FieldContinuation is not null || resume.Kind != GameplaySaveResumeKind.Field || System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(original.Block.AsSpan(NativePcSaveData.MainOffset + 3312)) == 2 || System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(original.Block.AsSpan(NativePcSaveData.MainOffset + 3314)) != resume.FieldId)
+        {
+            return location;
+        }
+        NativeFieldLocationPose?[] poses = Enumerable.Range(0, 3).Select(slot => location?.PartyPositions[slot] ?? original.ReadFieldPartyPosition(slot)).ToArray();
+        return new(checked((ushort)resume.FieldId), location?.PreviousFieldId, poses) { IsNativeImport = true };
     }
 
     private static NativePcSaveData? RestoreOriginalResidue(GameplaySaveProgression progress)

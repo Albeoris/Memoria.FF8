@@ -24,8 +24,10 @@ public sealed record GameplaySaveProgression
     public required GameplaySaveTransactions Transactions { get; init; }
     [JsonRequired]
     public required GameplaySaveSceneFacts? SceneFacts { get; init; }
-    [JsonRequired]
-    public required GameplaySaveOriginalResidue? OriginalResidue { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveOriginalResidue? OriginalResidue { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSaveInteroperability? NativeInteroperability { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldContinuation? FieldContinuation { get; init; }
@@ -77,13 +79,14 @@ public sealed record GameplaySaveProgression
             World = state.SavedWorld is { } world ? GameplaySaveWorldData.Capture(world) : null,
             WorldUi = GameplaySaveWorldUi.Capture(state),
             WorldConfiguration = state.WorldConfiguration is { } configuration ? new(configuration.EntityByte, configuration.SourceField) : null,
-            FieldLocation = state.NativeFieldLocation is { } location ? new(location.FieldId, location.PreviousFieldId, location.Slots.Select(slot => slot.Pose).ToArray()) : null,
+            FieldLocation = state.NativeFieldLocation is { } location ? new(location.FieldId, location.PreviousFieldId, location.Slots.Select(slot => slot.Pose).ToArray()) : state.GameplayFieldLocation,
             Collections = GameplaySaveCollections.Capture(state),
             Rules = GameplaySaveRules.Capture(state),
             Clocks = GameplaySaveClocks.Capture(state),
             Transactions = GameplaySaveTransactions.Capture(state),
             SceneFacts = GameplaySaveSceneFacts.Capture(state),
-            OriginalResidue = state.OriginalSave is { } original ? GameplaySaveOriginalResidue.Capture(original) : null
+            OriginalResidue = null,
+            NativeInteroperability = state.NativeSaveInteroperability ?? (state.OriginalSave is { } original ? NativeSaveInteroperability.Capture(original) : null)
         };
         if (state.Scene == SceneKind.WorldMap)
         {
@@ -109,6 +112,7 @@ public sealed record GameplaySaveProgression
         Transactions.Validate();
         SceneFacts?.Validate();
         OriginalResidue?.Validate();
+        NativeInteroperability?.Validate();
         FieldContinuation?.Validate();
         WorldUi?.Validate();
         if (WorldUi is not null && (World is null || FieldContinuation is not null || SceneFacts is null || SceneFacts.Origin == GameplaySaveSceneFactsOrigin.Field))
@@ -130,6 +134,10 @@ public sealed record GameplaySaveEventCell([property: JsonRequired] int Address,
 public sealed record GameplaySaveWorldConfiguration([property: JsonRequired] byte EntityType, [property: JsonRequired] ushort SourceField);
 public sealed record GameplaySaveFieldLocation([property: JsonRequired] ushort FieldId, [property: JsonRequired] ushort? PreviousFieldId, [property: JsonRequired] NativeFieldLocationPose?[] PartyPositions)
 {
+    /// <summary>Native slot storage includes dormant empty-party poses and does not establish an actor binding.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsNativeImport { get; init; }
+
     public void Validate()
     {
         if (FieldId < 72 || PartyPositions is not { Length: 3 })
