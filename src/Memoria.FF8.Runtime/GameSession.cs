@@ -568,7 +568,7 @@ public sealed partial class GameSession : IEventServices
         Save(path, compact: false);
     }
 
-    public void Save(string path, bool compact, Action<GameState>? validateContinuation = null)
+    public void Save(string path, bool compact, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
     {
         if (State.RequiresLegacyLimitInitialization)
         {
@@ -596,6 +596,10 @@ public sealed partial class GameSession : IEventServices
             }
             GameState candidate = Load(temporary);
             validateContinuation?.Invoke(candidate);
+            if (savedAtUtc is { } timestamp)
+            {
+                File.SetLastWriteTimeUtc(temporary, timestamp);
+            }
             File.Move(temporary, fullPath, true);
         }
         finally

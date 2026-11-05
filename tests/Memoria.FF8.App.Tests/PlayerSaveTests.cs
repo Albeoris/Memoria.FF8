@@ -69,6 +69,35 @@ public sealed class PlayerSaveTests : IDisposable
     }
 
     [Fact]
+    public void Quick_save_publication_preserves_monotonic_timestamps_when_the_previous_save_is_in_the_future()
+    {
+        PlayerSaveStore store = CreateStore();
+        GameSession session = new(new GameState { Scene = SceneKind.Field, X = 10 });
+        store.Save(0, session);
+        string previous = store.GetPath(0);
+        byte[] original = File.ReadAllBytes(previous);
+        DateTime previousTime = new(2090, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(previous, previousTime);
+        session.SetPosition(20, 0);
+        int validations = 0;
+        store.Save(0, session, candidate =>
+        {
+            validations++;
+            Assert.Equal(20, candidate.X);
+            Assert.Equal(previous, store.GetPath(0));
+            Assert.Equal(original, File.ReadAllBytes(previous));
+        });
+        string current = store.GetPath(0);
+        Assert.Equal(1, validations);
+        Assert.NotEqual(previous, current);
+        Assert.Equal(previousTime.AddMilliseconds(1), File.GetLastWriteTimeUtc(current));
+        Assert.Equal(previousTime, File.GetLastWriteTimeUtc(previous));
+        Assert.Equal(original, File.ReadAllBytes(previous));
+        Assert.Equal(20, store.Load(0).X);
+        Assert.Equal(previousTime.AddMilliseconds(1), store.ReadQuickEntries()[0].SavedAtUtc);
+    }
+
+    [Fact]
     public void Save_rejects_state_that_passes_live_validation_but_cannot_load()
     {
         PlayerSaveStore store = CreateStore();

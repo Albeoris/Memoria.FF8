@@ -214,14 +214,7 @@ internal sealed partial class PlayerSaveStore
             _ = writeGameplay(path, validateContinuation, savedAtUtc);
             return;
         }
-        session.Save(path, compact: true, candidate =>
-        {
-            validateContinuation?.Invoke(candidate);
-            if (savedAtUtc is { } timestamp)
-            {
-                File.SetLastWriteTimeUtc(path + ".tmp", timestamp);
-            }
-        });
+        session.Save(path, compact: true, validateContinuation: validateContinuation, savedAtUtc: savedAtUtc);
     }
 
     public GameState Load(int slot)
