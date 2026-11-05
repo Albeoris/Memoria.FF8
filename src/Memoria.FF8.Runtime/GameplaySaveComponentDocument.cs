@@ -6,8 +6,9 @@ namespace Memoria.FF8.Runtime;
 public sealed record GameplaySaveComponentDocument
 {
     public const string CurrentFormat = "memoria-ff8-gameplay-components";
-    public const int CurrentVersion = 1;
-    public const string CurrentCoverage = "characters,economy,limits";
+    public const int CurrentVersion = 2;
+    public const string InitialCoverage = "characters,economy,limits";
+    public const string CurrentCoverage = "characters,economy,limits,durable-progression";
 
     [JsonRequired]
     public required string Format { get; init; }
@@ -24,6 +25,9 @@ public sealed record GameplaySaveComponentDocument
     [JsonRequired]
     public required GameplaySaveLimitProgress Limits { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveProgression? Progression { get; init; }
+
     /// <summary>Captures only the named component owners. The coordinator must separately preserve all remaining gameplay owners.</summary>
     public static GameplaySaveComponentDocument Capture(GameplaySaveResumeDescriptor resume, NativeCharacterVitals characters, NativeEconomy economy, NativeLimitProgress limits)
     {
@@ -32,8 +36,8 @@ public sealed record GameplaySaveComponentDocument
         GameplaySaveComponentDocument result = new()
         {
             Format = CurrentFormat,
-            Version = CurrentVersion,
-            Coverage = CurrentCoverage,
+            Version = 1,
+            Coverage = InitialCoverage,
             Resume = resume,
             Characters = GameplaySaveCharacters.Capture(characters),
             Economy = GameplaySaveEconomy.Capture(economy),
@@ -43,9 +47,22 @@ public sealed record GameplaySaveComponentDocument
         return result;
     }
 
+    /// <summary>Projects the declared durable owners; the caller still needs a proved semantic scene reconstruction handler.</summary>
+    public static GameplaySaveComponentDocument CaptureProgression(GameState state, GameplaySaveResumeDescriptor resume)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.CharacterVitals is null || state.Economy is null || state.LimitProgress is null || resume.FieldId != state.FieldId || (resume.Kind == GameplaySaveResumeKind.World) != (state.Scene == SceneKind.WorldMap))
+        {
+            throw new NotSupportedException("Gameplay progression document requires its character, economy, Limit and matching scene owners.");
+        }
+        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state) };
+        result.Validate();
+        return result;
+    }
+
     public void Validate()
     {
-        if (Format != CurrentFormat || Version != CurrentVersion || Coverage != CurrentCoverage)
+        if (Format != CurrentFormat || (Version == 1 ? Coverage != InitialCoverage || Progression is not null : Version != CurrentVersion || Coverage != CurrentCoverage || Progression is null))
         {
             throw new InvalidDataException("Unsupported gameplay component document format, version or coverage.");
         }
@@ -57,5 +74,6 @@ public sealed record GameplaySaveComponentDocument
         Characters.Validate();
         Economy.Validate();
         Limits.Validate();
+        Progression?.Validate();
     }
 }

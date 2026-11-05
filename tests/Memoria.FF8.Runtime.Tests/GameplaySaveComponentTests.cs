@@ -119,6 +119,10 @@ public sealed class GameplaySaveComponentTests
             }
             foreach (PropertyInfo property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(property => property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always))
             {
+                if (property.DeclaringType == typeof(GameplaySaveComponentDocument) && property.Name == nameof(GameplaySaveComponentDocument.Progression))
+                {
+                    continue;
+                }
                 pending.Enqueue(property.PropertyType);
             }
         }
@@ -194,7 +198,7 @@ public sealed class GameplaySaveComponentTests
     public void Future_or_unknown_payload_members_are_rejected_explicitly()
     {
         GameplaySaveComponentDocument document = Document();
-        Assert.Throws<InvalidDataException>(() => GameplaySaveCodec.Write(new MemoryStream(), document with { Version = 2 }));
+        Assert.Throws<InvalidDataException>(() => GameplaySaveCodec.Write(new MemoryStream(), document with { Version = GameplaySaveComponentDocument.CurrentVersion + 1 }));
         byte[] bytes = Encode(document);
         JsonObject json = JsonNode.Parse(bytes.AsSpan(48))!.AsObject();
         json["UnexpectedExecutionOwner"] = new JsonObject();

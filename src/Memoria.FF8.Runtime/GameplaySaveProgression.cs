@@ -1,0 +1,150 @@
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+
+namespace Memoria.FF8.Runtime;
+
+/// <summary>Durable root owners, independently of scene reconstruction. Capturing this component does not certify a complete playable save.</summary>
+public sealed record GameplaySaveProgression
+{
+    [JsonRequired]
+    public required GameplaySaveStory Story { get; init; }
+    [JsonRequired]
+    public required GameplaySaveWorldData? World { get; init; }
+    [JsonRequired]
+    public required GameplaySaveWorldConfiguration? WorldConfiguration { get; init; }
+    [JsonRequired]
+    public required GameplaySaveFieldLocation? FieldLocation { get; init; }
+    [JsonRequired]
+    public required GameplaySaveCollections Collections { get; init; }
+    [JsonRequired]
+    public required GameplaySaveRules Rules { get; init; }
+    [JsonRequired]
+    public required GameplaySaveClocks Clocks { get; init; }
+    [JsonRequired]
+    public required GameplaySaveTransactions Transactions { get; init; }
+    [JsonRequired]
+    public required GameplaySaveSceneFacts? SceneFacts { get; init; }
+    [JsonRequired]
+    public required GameplaySaveOriginalResidue? OriginalResidue { get; init; }
+
+    public static GameplaySaveProgression Capture(GameState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Scene is not (SceneKind.Field or SceneKind.WorldMap) || state.Battle is not null || state.PendingBattleEncounter is not null || state.TripleTriadPlay is not null || state.RandomEncounters?.Pending is not null || state.NativeGameOver is not null)
+        {
+            throw new NotSupportedException("Gameplay progression projection requires a field or world with no active battle, card match, pending encounter or game-over request.");
+        }
+        GameplaySaveProgression result = new()
+        {
+            Story = GameplaySaveStory.Capture(state),
+            World = state.SavedWorld is { } world ? GameplaySaveWorldData.Capture(world) : null,
+            WorldConfiguration = state.WorldConfiguration is { } configuration ? new(configuration.EntityByte, configuration.SourceField) : null,
+            FieldLocation = state.NativeFieldLocation is { } location ? new(location.FieldId, location.PreviousFieldId, location.Slots.Select(slot => slot.Pose).ToArray()) : null,
+            Collections = GameplaySaveCollections.Capture(state),
+            Rules = GameplaySaveRules.Capture(state),
+            Clocks = GameplaySaveClocks.Capture(state),
+            Transactions = GameplaySaveTransactions.Capture(state),
+            SceneFacts = GameplaySaveSceneFacts.Capture(state),
+            OriginalResidue = state.OriginalSave is { } original ? GameplaySaveOriginalResidue.Capture(original) : null
+        };
+        result.Validate();
+        return GameplaySaveCodec.Detach(result);
+    }
+
+    public void Validate()
+    {
+        if (Story is null || Collections is null || Rules is null || Clocks is null || Transactions is null)
+        {
+            throw new InvalidDataException("Gameplay progression is missing a required owner group.");
+        }
+        Story.Validate();
+        World?.Validate();
+        FieldLocation?.Validate();
+        Collections.Validate();
+        Rules.Validate();
+        Clocks.Validate();
+        Transactions.Validate();
+        SceneFacts?.Validate();
+        OriginalResidue?.Validate();
+    }
+}
+
+public sealed record GameplaySaveEventCell([property: JsonRequired] int Address, [property: JsonRequired] int Width, [property: JsonRequired] int Value);
+public sealed record GameplaySaveWorldConfiguration([property: JsonRequired] byte EntityType, [property: JsonRequired] ushort SourceField);
+public sealed record GameplaySaveFieldLocation([property: JsonRequired] ushort FieldId, [property: JsonRequired] ushort? PreviousFieldId, [property: JsonRequired] NativeFieldLocationPose?[] PartyPositions)
+{
+    public void Validate()
+    {
+        if (FieldId < 72 || PartyPositions is not { Length: 3 })
+        {
+            throw new InvalidDataException("Gameplay field location requires three logical party positions.");
+        }
+    }
+}
+public sealed record GameplaySaveWorldControls([property: JsonRequired] byte Flags, [property: JsonRequired] uint EventFlags, [property: JsonRequired] byte Menu, [property: JsonRequired] byte MusicKeep);
+public sealed record GameplaySaveBattleFlags([property: JsonRequired] byte Value, [property: JsonRequired] byte? KnownMask, [property: JsonRequired] NativeSavedBattleFlagFieldWrite? FieldWrite, [property: JsonRequired] NativeSavedBattleFlagFieldWrite? WitchWrite);
+
+public sealed record GameplaySaveStory([property: JsonRequired] GameplaySaveEventCell[] Cells, [property: JsonRequired] ImmutableArray<byte>? WorldEntry, [property: JsonRequired] GameplaySaveWorldControls? Controls, [property: JsonRequired] byte? Disc, [property: JsonRequired] GameplaySaveBattleFlags? BattleFlags, [property: JsonRequired] NativeFadeWords? SavedFade, [property: JsonRequired] byte? MapFadeDisabled, [property: JsonRequired] NativeMessageVariables? MessageVariables)
+{
+    internal static GameplaySaveStory Capture(GameState state)
+    {
+        state.EventMemory.Validate();
+        NativeEventMemoryOwnership.Validate(state.EventMemory, NativeEventMemoryOwnership.RootRegions(state));
+        state.WorldEntryMemory?.Validate();
+        state.WorldControls?.Validate();
+        state.DiscProcess?.Validate();
+        state.SavedBattleFlags?.Validate();
+        state.FieldFade?.Validate();
+        List<GameplaySaveEventCell> cells = [];
+        foreach ((int address, NativeMemoryValue cell) in state.EventMemory.Cells.OrderBy(pair => pair.Key))
+        {
+            if (!cell.Value.IsExact)
+            {
+                throw new NotSupportedException("Gameplay event variables require exact values; uncertain executed reads need a semantic event adapter.");
+            }
+            cells.Add(new(address, cell.Width, cell.Value.Values[0]));
+        }
+        return new(cells.ToArray(), state.WorldEntryMemory?.Bytes, state.WorldControls is { } controls ? new(controls.EventFlags103, controls.EventFlags104, controls.Menu209, controls.MusicKeep207) : null, state.DiscProcess?.SavedDisc204, state.SavedBattleFlags is { } flags ? new(flags.Value, flags.KnownMask, flags.FieldWrite, flags.WitchFieldWrite) : null, state.FieldFade?.Saved, state.FieldFade?.MapFadeDisabled, state.MessageVariables);
+    }
+
+    public NativeEventMemory RestoreEventMemory()
+    {
+        if (Cells is null || Cells.Any(cell => cell is null) || Cells.Select(cell => cell.Address).Distinct().Count() != Cells.Length)
+        {
+            throw new InvalidDataException("Gameplay event cells are missing or duplicated.");
+        }
+        return new(NativeEventMemory.CurrentVersion, Cells.ToDictionary(cell => cell.Address, cell => new NativeMemoryValue(cell.Width, NativeScalarValue.Exact(cell.Value))));
+    }
+
+    public void Validate()
+    {
+        RestoreEventMemory().Validate();
+        if (WorldEntry is { } bytes && (bytes.IsDefault || bytes.Length != NativeWorldEntryMemory.ByteCount))
+        {
+            throw new InvalidDataException("Gameplay story has malformed world-entry or fade flags.");
+        }
+        if (BattleFlags is { } flags)
+        {
+            new NativeSavedBattleFlags(NativeInputConfiguration.OriginalInitHash, flags.Value, flags.KnownMask, flags.FieldWrite, flags.WitchWrite).Validate();
+        }
+    }
+}
+
+/// <summary>Bounded original-format compatibility residue for saved fields that do not yet have a typed owner.</summary>
+public sealed record GameplaySaveOriginalResidue([property: JsonRequired] byte[] Block, [property: JsonRequired] Dictionary<int, string> Names)
+{
+    internal static GameplaySaveOriginalResidue Capture(NativePcSaveData source)
+    {
+        source.Validate();
+        return new(source.Block.ToArray(), source.Names.ToDictionary());
+    }
+
+    public void Validate()
+    {
+        new NativePcSaveData(Block).Validate();
+        if (Names is null || Names.Any(pair => !GameNames.IsValidSubject(pair.Key) || !GameNames.IsValidDraft(pair.Value)))
+        {
+            throw new InvalidDataException("Original compatibility names are malformed.");
+        }
+    }
+}
