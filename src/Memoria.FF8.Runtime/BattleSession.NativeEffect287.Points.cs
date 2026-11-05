@@ -32,39 +32,16 @@ public sealed partial class BattleSession
         return new(cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect287 requires its current physical resource row.")].Require(12), null);
     }
 
-    private uint NativeEffect287SkeletonAddress(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, int actor)
-    {
-        NativeBattleResourcePointer pointer = NativeEffect287SkeletonPointer(graphics, frame, actor);
-        return pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect287 requires its actual addressed skeleton owner.");
-    }
-
     private (byte[] Bytes, bool[] Known) ReadNativeEffect287SkeletonSnapshot(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, int actor, int offset, int length)
     {
         NativeBattleResourcePointer pointer = NativeEffect287SkeletonPointer(graphics, frame, actor);
-        if (pointer.Cpu is { Bank: < 3 } cpu)
-        {
-            NativeBattleModelCpuBank bank = (NativeModelCpuResources ?? throw new NotSupportedException("Effect287 requires its current CPU bank owner.")).Cpu.Banks[cpu.Bank];
-            NativeBattleEffectArena output = NativeBattleEffectArena.Clear().MarkUnknown(0, length);
-            int first = checked(cpu.Offset + offset);
-            foreach (NativeBattleEffectMemoryRegion region in bank.KnownRanges)
-            {
-                int start = Math.Max(first, region.Offset);
-                int end = Math.Min(first + length, region.Offset + region.Data.Length);
-                if (start < end)
-                {
-                    output = output.Write(start - first, region.Data.AsSpan().Slice(start - region.Offset, end - start));
-                }
-            }
-            return output.ReadSnapshot(0, length);
-        }
-        uint address = checked((pointer.Cpu?.SharedAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect287 requires its actual shared skeleton owner.")) + (uint)offset);
-        return ReadBytes(frame, address, length).ReadSnapshot(0, length);
+        return NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, RequireStaging(frame), pointer, offset, length, (address, count) => ReadBytes(frame, address, count).ReadSnapshot(0, count));
     }
 
     private NativeBattleEffectArena CaptureNativeEffect287Model(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, uint address)
     {
         NativeBattleGraphicsModel model = graphics.Models[NativeEffect287Actor(graphics, address)];
-        _ = NativeEffect287SkeletonAddress(graphics, frame, model.Index);
+        _ = ReadNativeEffect287SkeletonSnapshot(graphics, frame, model.Index, 0, 0);
         return CaptureNativeEffect210Model(model).Write(0x64, BitConverter.GetBytes(NativeBattleModelResourceRow.Address100(model)));
     }
 

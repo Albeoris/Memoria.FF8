@@ -79,9 +79,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Effect312 bone selection leaves its current physical rig.");
         }
         NativeBattleResourcePointer skeleton = ReadNativeEffect312SkeletonPointer(graphics, frame, actor);
-        uint address = checked((skeleton.Cpu?.PhysicalAddress ?? skeleton.StagingAddress ?? throw new NotSupportedException("Effect312 requires its physical skeleton pointer.")) + 32 + (uint)bone * 48 + 18);
-        NativeBattleEffectArena padding = ReadNativeEffect312Backing(frame, address, 2);
-        (byte[] bytes, bool[] known) = padding.ReadSnapshot(0, 2);
+        (byte[] bytes, bool[] known) = NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging!, skeleton, checked(32 + bone * 48 + 18), 2, (address, count) => ReadNativeEffect312Backing(frame, address, count).ReadSnapshot(0, count));
         NativeBattlePackedMatrix32 matrix = NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
         return matrix with { Bytes = matrix.Bytes.SetItem(18, bytes[0]).SetItem(19, bytes[1]), Known = matrix.Known.SetItem(18, known[0]).SetItem(19, known[1]) };
     }
