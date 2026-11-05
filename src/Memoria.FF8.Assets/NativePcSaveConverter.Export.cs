@@ -608,6 +608,11 @@ public static partial class NativePcSaveConverter
                 Pose(0, scriptedReturn.Pose0);
                 Auxiliary(scriptedReturn.CameraYaw96, scriptedReturn.EntityType105, scriptedReturn.AnimationVariant108, scriptedReturn.MapDisplayMode110);
             }
+            if (saved.DormantScriptedReturn is { } dormant)
+            {
+                Pose(0, dormant.Pose);
+                Auxiliary(dormant.CameraYaw, dormant.EntityType, dormant.AnimationVariant!.Value, dormant.MapDisplayMode!.Value);
+            }
             WriteDWord(block, World + 112, saved.FuelDistance112 ?? 0);
             System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(block.AsSpan(World + 116), saved.WorldEventFlags116?.Value ?? 0);
             block[World + 124] = saved.WorldEventVariable124 ?? 0;

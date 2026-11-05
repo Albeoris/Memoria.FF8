@@ -144,7 +144,7 @@ public sealed partial class EventEngine
 
     public NativeBattleMusicReturnReceipt CommitGameplayBattleFieldReturnTransport(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources)
     {
-        if (nativeResult is not (2 or 4) || Scene.NativeBattleFieldReload is not null || Scene.NativeBattleFieldReloadState is not null)
+        if (!SupportsNativeFieldReturnResult(nativeResult) || Scene.NativeBattleFieldReload is not null || Scene.NativeBattleFieldReloadState is not null)
         {
             throw new InvalidOperationException("Gameplay battle return transport requires a completed ordinary outcome before physical cache reload.");
         }

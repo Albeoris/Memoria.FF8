@@ -328,14 +328,24 @@ public sealed class GameplaySaveStateRestorationTests
     }
 
     [Fact]
-    public void Invalid_achievement_context_and_unknown_scripted_load_adapter_fail_before_installation()
+    public void Invalid_achievement_context_fails_and_dormant_scripted_return_restores_without_native_history()
     {
         GameplaySaveComponentDocument document = Document(Source());
+        string original = JsonSerializer.Serialize(document);
         GameplaySaveProgression progress = document.Progression!;
         Assert.Throws<InvalidDataException>(() => GameplaySaveStateRestoration.Restore(document with { Progression = progress with { Transactions = progress.Transactions with { MutationContext = "invalid" } } }, Initialized()));
         GameplaySaveWorldReturn scripted = new(GameplaySaveWorldReturnKind.Scripted, 106, 1, new(1, 2, 3, 4), 5, 16, 255, 255, 0, 0, 1) { ScriptedPacket = new(1, 16, 2), ScriptedFieldId = 106, ScriptedFieldPosition = new(1, 2, 3, 4) };
-        Assert.Throws<NotSupportedException>(() => GameplaySaveStateRestoration.Restore(document with { Progression = progress with { World = progress.World! with { Return = scripted } } }, Initialized()));
+        GameplaySaveComponentDocument stored = document with { Progression = progress with { World = progress.World! with { Return = scripted } } };
+        string storedOriginal = JsonSerializer.Serialize(stored);
+        GameState restored = GameplaySaveStateRestoration.Restore(stored, Initialized());
+        Assert.Equal(scripted, restored.SavedWorld!.DormantScriptedReturn);
+        Assert.Equal(scripted.ScriptedPacket, restored.SavedWorld.DormantScriptedReturn!.ScriptedPacket);
+        Assert.Null(restored.SavedWorld.ScriptedReturn);
+        Assert.Null(restored.WorldArrival);
+        Assert.Equal(original, JsonSerializer.Serialize(document));
+        Assert.Equal(storedOriginal, JsonSerializer.Serialize(stored));
         Assert.Null(document.Progression!.World!.Return);
+        _ = new GameSession(restored);
     }
 
     [Fact]

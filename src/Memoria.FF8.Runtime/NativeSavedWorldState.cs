@@ -153,6 +153,9 @@ public sealed partial record NativeSavedWorldState
     public NativeSavedWorldCarReturn? CarReturn { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldScriptedReturn? ScriptedReturn { get; init; }
+    /// <summary>Saved endpoint values after semantic field restoration; not an active path or native loader receipt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveWorldReturn? DormantScriptedReturn { get; init; }
     /// <summary>Saved-world +110 initialized by native New Game whole-save zeroing.</summary>
     [JsonRequired]
     public byte? InitialMapDisplayMode110 { get; init; }
@@ -180,6 +183,10 @@ public sealed partial record NativeSavedWorldState
         {
             return garden.MapDisplayMode110;
         }
+        if (DormantScriptedReturn is { MapDisplayMode: byte dormantMap })
+        {
+            return dormantMap;
+        }
         if (ScriptedReturn is NativeSavedWorldScriptedReturn boat)
         {
             return boat.MapDisplayMode110;
@@ -201,14 +208,14 @@ public sealed partial record NativeSavedWorldState
         ArgumentNullException.ThrowIfNull(receipt);
         Validate();
         receipt.Validate();
-        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
+        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null, DormantScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }
 
     public NativeSavedWorldState WithGardenReturn(NativeSavedWorldGardenReturn receipt)
     {
         Validate();
         receipt.Validate();
-        return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
+        return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null, DormantScriptedReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }
 
     public NativeSavedWorldState WithCarParking(NativeWorldParkedCar parked)
@@ -254,7 +261,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("The native car save requires its active selected vehicle slot.");
         }
-        return this with { Slot4 = new NativeSavedWorldVehicleSlot(receipt.RetireSelectedVehicle ? (byte)255 : Slot4.ShapeId, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(receipt.RetireSelectedVehicle ? (byte)255 : Slot4.ShapeId, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, DormantScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }
 
     public NativeSavedWorldState WithScriptedReturn(NativeSavedWorldScriptedReturn receipt)
@@ -268,14 +275,14 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }
-        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
+        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt, DormantScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }
 
     public NativeSavedWorldState WithOrdinaryCarEntry(byte entityType = 33)
     {
         Validate();
         byte shape = NativeCarWorldRuntimeState.ShapeForEntity(entityType);
-        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
+        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, DormantScriptedReturn = null, GardenReturn = null, RagnarokReturn = null, UnsupportedEntry = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -304,6 +311,11 @@ public sealed partial record NativeSavedWorldState
         FootReturn?.Validate();
         CarReturn?.Validate();
         ScriptedReturn?.Validate();
+        DormantScriptedReturn?.Validate();
+        if (DormantScriptedReturn is { } dormant && (Origin.Kind != NativeSavedWorldOriginKind.GameplaySave || dormant.Kind != GameplaySaveWorldReturnKind.Scripted || FootReturn is not null || CarReturn is not null || GardenReturn is not null || RagnarokReturn is not null || ScriptedReturn is not null || UnsupportedEntry is not null))
+        {
+            throw new InvalidDataException("Dormant scripted values cannot claim a live native transport or loader owner.");
+        }
         GardenReturn?.Validate();
         WorldEventFlags116?.Validate();
         TerrainFlags109?.Validate();

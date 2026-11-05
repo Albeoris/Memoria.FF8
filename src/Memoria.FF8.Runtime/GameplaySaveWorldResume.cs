@@ -27,9 +27,12 @@ public static class GameplaySaveWorldResume
         {
             if (stored.Kind == GameplaySaveWorldReturnKind.Scripted)
             {
-                throw new NotSupportedException("Gameplay saved scripted transport returns require a semantic load adapter.");
+                result = result with { DormantScriptedReturn = GameplaySaveCodec.Detach(stored) };
             }
-            result = InstallReturn(result, stored.Kind, stored.Pose, stored.EntityType, stored.LastFieldId, storyWord ?? throw new NotSupportedException("Gameplay world restoration requires known story bytes."), stored.CameraYaw, stored.AnimationVariant ?? throw new NotSupportedException("Gameplay world restoration requires a known animation variant."), stored.MapDisplayMode ?? throw new NotSupportedException("Gameplay world restoration requires a known map display mode."), stored.MapLocation, stored.RetireSelectedVehicle ?? false);
+            else
+            {
+                result = InstallReturn(result, stored.Kind, stored.Pose, stored.EntityType, stored.LastFieldId, storyWord ?? throw new NotSupportedException("Gameplay world restoration requires known story bytes."), stored.CameraYaw, stored.AnimationVariant ?? throw new NotSupportedException("Gameplay world restoration requires a known animation variant."), stored.MapDisplayMode ?? throw new NotSupportedException("Gameplay world restoration requires a known map display mode."), stored.MapLocation, stored.RetireSelectedVehicle ?? false);
+            }
         }
         result.Validate();
         return result;
@@ -76,7 +79,7 @@ public static class GameplaySaveWorldResume
             throw new NotSupportedException("Gameplay world return kind differs from its supported entity.");
         }
         new GameplaySaveWorldResumeMetadata(camera, animation, mapDisplay, location).Validate();
-        NativeSavedWorldState basis = source with { FootReturn = null, CarReturn = null, GardenReturn = null, RagnarokReturn = null, ScriptedReturn = null, UnsupportedEntry = null };
+        NativeSavedWorldState basis = source with { FootReturn = null, CarReturn = null, GardenReturn = null, RagnarokReturn = null, ScriptedReturn = null, DormantScriptedReturn = null, UnsupportedEntry = null };
         NativeSavedWorldState result;
         switch (kind)
         {

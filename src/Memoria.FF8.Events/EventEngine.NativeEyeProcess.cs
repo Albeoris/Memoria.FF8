@@ -32,7 +32,10 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native eye process requires its shared game-session owners.");
         }
         process = process.RestoreOwned();
-        session.SetNativeFieldEyeOwners(process.Memory, process.CrtRandom);
+        if (OwnsNativeFieldEyeProcess(session))
+        {
+            session.SetNativeFieldEyeOwners(process.Memory, process.CrtRandom);
+        }
         Scene.NativeEyeProcess = process;
     }
 

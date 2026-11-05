@@ -439,7 +439,7 @@ internal sealed partial class GameWorld : IDisposable
             }
             Events.CompleteNativeFieldParticleMigration();
         }
-        if (!legacyGameplayProjection && snapshot is not null && !session.HasActiveBattle && Events.Scene.NativeFieldRegistration is { } registration)
+        if (!legacyGameplayProjection && snapshot is not null && !session.HasActiveBattle && !HasRetiredWorldBattleFieldAllocation() && Events.Scene.NativeFieldRegistration is { } registration)
         {
             Events.RehydrateNativeModelResources();
             registration = Events.Scene.NativeFieldRegistration!;

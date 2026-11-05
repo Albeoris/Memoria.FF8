@@ -19,6 +19,19 @@ public sealed record GameplaySaveWorldReturn([property: JsonRequired] GameplaySa
     public WorldTransition? ScriptedPacket { get; init; }
     public int? ScriptedFieldId { get; init; }
     public GameplaySaveFieldPosition? ScriptedFieldPosition { get; init; }
+
+    public void Validate()
+    {
+        bool scripted = Kind == GameplaySaveWorldReturnKind.Scripted;
+        if (!Enum.IsDefined(Kind) || Pose is null || !scripted && CameraYaw >= 4096 || MapDisplayMode == 3 || Channel0 != 255 || Channel1 != 255 || Kind == GameplaySaveWorldReturnKind.Foot != (FootMode is not null) || Kind == GameplaySaveWorldReturnKind.Car != (RetireSelectedVehicle is not null) || (scripted ? ScriptedPacket is null || ScriptedFieldId is null || ScriptedFieldPosition is null : ScriptedPacket is not null || ScriptedFieldId is not null || ScriptedFieldPosition is not null))
+        {
+            throw new InvalidDataException("Gameplay world return has inconsistent logical transport values.");
+        }
+        if (scripted && (EntityType is not (>= 16 and <= 22 or 65 or 66) || unchecked((byte)ScriptedPacket!.Mode) != EntityType || unchecked((byte)ScriptedPacket.EntryIndex) >= 14 || unchecked((sbyte)ScriptedPacket.Extra) < 0 || ScriptedFieldId is < 0 or > ushort.MaxValue || !float.IsFinite(ScriptedFieldPosition!.X) || !float.IsFinite(ScriptedFieldPosition.Y) || ScriptedFieldPosition.Triangle is < 0 or > ushort.MaxValue || AnimationVariant is null || MapDisplayMode is null or > 2 || MapLocation is < sbyte.MinValue or > sbyte.MaxValue))
+        {
+            throw new InvalidDataException("Dormant scripted return lost its packet, field entry or saved native widths.");
+        }
+    }
 }
 
 public sealed record GameplaySaveWorldData
@@ -81,6 +94,7 @@ public sealed record GameplaySaveWorldData
             }
             savedReturn = new(GameplaySaveWorldReturnKind.Scripted, scripted.LastFieldId, scripted.StoryWord, scripted.Pose0, scripted.CameraYaw96, scripted.EntityType105, scripted.Channel106, scripted.Channel107, scripted.AnimationVariant108, scripted.MapDisplayMode110, scripted.MapLocationId) { ScriptedPacket = scripted.Packet, ScriptedFieldId = field.FieldId, ScriptedFieldPosition = new(field.X, field.Y, field.Triangle, (byte)field.Direction) };
         }
+        savedReturn ??= source.DormantScriptedReturn;
         return new() { Slot4 = source.Slot4, Slot5 = source.Slot5, GardenPose = source.GardenPose3, RagnarokPose = source.RagnarokPose2, Return = savedReturn, InitialMapDisplayMode = source.InitialMapDisplayMode110, FuelDistance = source.FuelDistance112, EventFlags = source.WorldEventFlags116, EventVariable0 = source.WorldEventVariable124, EventVariable1 = source.WorldEventVariable125, OriginalAngles = source.OriginalAngleWords, EntryMode = source.EntryMode104, TerrainFlags = source.TerrainFlags109, UnresolvedEntry = source.UnsupportedEntry };
     }
 
@@ -102,6 +116,7 @@ public sealed record GameplaySaveWorldData
             GardenReturn = null,
             RagnarokReturn = null,
             ScriptedReturn = null,
+            DormantScriptedReturn = null,
             InitialMapDisplayMode110 = saved.InitialMapDisplayMode,
             FuelDistance112 = saved.FuelDistance,
             WorldEventFlags116 = saved.EventFlags,
@@ -126,9 +141,6 @@ public sealed record GameplaySaveWorldData
         OriginalAngles?.Validate();
         TerrainFlags?.Validate();
         UnresolvedEntry?.Validate();
-        if (Return is { } saved && (!Enum.IsDefined(saved.Kind) || saved.Pose is null || saved.CameraYaw >= 4096 || saved.MapDisplayMode == 3 || saved.Channel0 != 255 || saved.Channel1 != 255 || saved.Kind == GameplaySaveWorldReturnKind.Foot != (saved.FootMode is not null) || saved.Kind == GameplaySaveWorldReturnKind.Car != (saved.RetireSelectedVehicle is not null) || (saved.Kind == GameplaySaveWorldReturnKind.Scripted ? saved.ScriptedPacket is null || saved.ScriptedFieldId is null || saved.ScriptedFieldPosition is null : saved.ScriptedPacket is not null || saved.ScriptedFieldId is not null || saved.ScriptedFieldPosition is not null)))
-        {
-            throw new InvalidDataException("Gameplay world return has inconsistent logical transport values.");
-        }
+        Return?.Validate();
     }
 }

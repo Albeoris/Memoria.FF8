@@ -10,9 +10,18 @@ public sealed partial class EventEngine
     /// <summary>Projects a completed battle's consumed caller without executing a source-domain callback or claiming a physical resource reload.</summary>
     public GameplaySaveFieldContinuation CaptureCompletedBattleGameplayContinuation(int combatCallbacks, byte nativeResult)
     {
+        if (PendingMenuBattle is { SourceScene: SceneKind.Field } menu)
+        {
+            if (!SupportsNativeFieldReturnResult(nativeResult) || combatCallbacks != menu.Callbacks || Scene.FieldCallbackClock?.MenuBattleCallbacks != menu.CallbackBase + combatCallbacks || services is not GameSession { State.Battle: null, State.PendingBattleEncounter: null })
+            {
+                throw new InvalidDataException("Gameplay menu battle continuation disagrees with its completed encounter or callbacks.");
+            }
+            GameplaySaveFieldContinuation menuContinuation = CaptureLegacyGameplayContinuation();
+            return menuContinuation with { Scene = menuContinuation.Scene with { BattleResult = nativeResult } };
+        }
         if (PendingHostedBattle is null && Scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } random)
         {
-            if (nativeResult is not (2 or 4) || combatCallbacks != random.Callbacks || Scene.FieldCallbackClock?.RandomBattleCallbacks != random.CallbackBase + combatCallbacks || services is not GameSession { State.Battle: null, State.PendingBattleEncounter: null, State.RandomEncounters.Pending: null })
+            if (!SupportsNativeFieldReturnResult(nativeResult) || combatCallbacks != random.Callbacks || Scene.FieldCallbackClock?.RandomBattleCallbacks != random.CallbackBase + combatCallbacks || services is not GameSession { State.Battle: null, State.PendingBattleEncounter: null, State.RandomEncounters.Pending: null })
             {
                 throw new InvalidDataException("Gameplay random battle continuation disagrees with its completed encounter or callbacks.");
             }
@@ -20,7 +29,7 @@ public sealed partial class EventEngine
             return randomContinuation with { Scene = randomContinuation.Scene with { BattleResult = nativeResult } };
         }
         (NativeBattleCompletion request, _) = ValidateHostedBattleReturn(combatCallbacks, nativeResult);
-        if (completedGameplayBattleFiber is not null || nativeResult is not (2 or 4) || request.Backend != NativeBattleBackend.Interactive || services is not GameSession { State.Battle: null, State.PendingBattleEncounter: null } || Scene.NativeBattleWaits is not { Count: 1 } waits || Scene.NativeBattleCompletions is null)
+        if (completedGameplayBattleFiber is not null || !SupportsNativeFieldReturnResult(nativeResult) || request.Backend != NativeBattleBackend.Interactive || services is not GameSession { State.Battle: null, State.PendingBattleEncounter: null } || Scene.NativeBattleWaits is not { Count: 1 } waits || Scene.NativeBattleCompletions is null)
         {
             throw new InvalidOperationException("Gameplay battle continuation requires one completed and committed ordinary battle owner.");
         }

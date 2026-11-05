@@ -30,7 +30,7 @@ public static partial class NativePcSaveConverter
             OriginalAngleWords = new(Enumerable.Range(0, 8).Select(slot => ReadWord(block, World + 12 * slot + 10)).ToImmutableArray(), ReadWord(block, World + 96)),
             FootReturn = null,
             CarReturn = null,
-            ScriptedReturn = null,
+            ScriptedReturn = null, DormantScriptedReturn = null,
             GardenReturn = null,
             RagnarokReturn = null,
             UnsupportedEntry = null

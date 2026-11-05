@@ -80,7 +80,7 @@ internal sealed partial class GameWorld
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
         NativeBattleModelCpuResources retainedCpu = session.State.NativeBattleMemory?.ModelCpuResources ?? throw new NotSupportedException("Battle entry requires its retained party CPU allocation.");
         string allocationImage = restoredDefinition is not null
-            ? ActiveBattleResourceCompatibility.AllocationImage(Events.NativeRuntimeProfile, restoredDefinition.NativeGraphics?.Rules)
+            ? ActiveBattleResourceCompatibility.AllocationImage(session.State.PendingBattleEncounter?.SourceScene == SceneKind.WorldMap ? null : Events.NativeRuntimeProfile, restoredDefinition.NativeGraphics?.Rules)
             : assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.");
         if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(allocationImage))
         {

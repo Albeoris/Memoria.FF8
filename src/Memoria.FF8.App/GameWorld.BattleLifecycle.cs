@@ -74,7 +74,7 @@ internal sealed partial class GameWorld
         PublishBattleSnapshot(active);
         BattleSnapshot completed = session.CompleteLiveBattle();
         BattleResult result = CaptureBattleOutcome(active, occurrence, completed);
-        if (occurrence.SourceScene == SceneKind.Field && Events.PendingMenuBattle is null && active.NativeResult is 2 or 4 && Events.NativeRuntimeProfile?.ExecutableHash != assets.NativeRuntimeProfile?.ExecutableHash)
+        if (occurrence.SourceScene == SceneKind.Field && (active.NativeResult is 2 or 4 || active.NativeResult == 1 && Events.ReadNativeDefeatReturnBranch4706B0().ResumePreviousScene) && Events.NativeRuntimeProfile?.ExecutableHash != assets.NativeRuntimeProfile?.ExecutableHash)
         {
             CompleteBattleProfileHandoff(active, occurrence, result, guardianForceLearning);
             return;
@@ -93,6 +93,10 @@ internal sealed partial class GameWorld
             battle = null;
             worldScene?.Dispose();
             worldScene = null;
+            if (session.State.NativeBattleMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash != assets.NativeExecutableHash)
+            {
+                ReconstructCompletedBattleRuntime(occurrence);
+            }
             BeforeFieldAllocation?.Invoke(this);
             LoadField(75, null, null);
             return;
@@ -125,6 +129,7 @@ internal sealed partial class GameWorld
                 RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("World outcome lost its playthrough owner.");
                 session.SetRandomEncounters(encounters with { Pending = null });
             }
+            CompleteWorldBattleProfileHandoff(occurrence);
             return;
         }
         NativeBattleRetainedMemory? reloadedMemory = null;
@@ -214,7 +219,7 @@ internal sealed partial class GameWorld
         _ = sourceSession.CompleteLiveBattle();
         source.battle = null;
         source.ApplyBattleResult(occurrence, result, guardianForceLearning);
-        if (occurrence.ScriptedOwner is null)
+        if (occurrence.ScriptedOwner is null && source.Events.PendingMenuBattle is null)
         {
             RandomEncounterSessionState encounters = sourceSession.State.RandomEncounters ?? throw new InvalidOperationException("Random outcome lost its playthrough owner.");
             sourceSession.SetRandomEncounters(encounters with { Pending = null });
