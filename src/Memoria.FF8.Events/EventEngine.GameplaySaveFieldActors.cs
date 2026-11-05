@@ -14,7 +14,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Gameplay actor projection requires an allocated stable field program.");
         }
-        GameplaySaveFieldActors result = new(1, FieldId, actors.Select(CaptureGameplayActor).ToArray(), Scene.NativeActorObjectIds.ToArray(), Scene.ModelParts?.Resources.ToDictionary(pair => pair.Key, pair => pair.Value) ?? []);
+        GameplaySaveFieldActors result = new(1, FieldId, actors.Select(CaptureGameplayActor).ToArray(), Scene.NativeActorObjectIds.ToArray(), []) { ModelPartOffsets = CaptureGameplayModelPartOffsets() };
         result.Validate();
         foreach (GameplaySaveFieldActor actor in result.Actors)
         {
@@ -292,7 +292,7 @@ public sealed partial class EventEngine
     {
         if (Scene.ModelParts is not { } bank)
         {
-            if (saved.ModelParts.Count != 0)
+            if (saved.ModelParts.Count != 0 || saved.ModelPartOffsets?.Count > 0)
             {
                 throw new NotSupportedException("Logical model-part restoration requires selected current model definitions.");
             }
@@ -308,6 +308,7 @@ public sealed partial class EventEngine
             state.Validate(ReadNativeModelParts!(model)!);
             resources[model] = state;
         }
+        RestoreGameplayModelPartOffsets(saved, resources);
         Dictionary<int, NativeModelPartDraw> draws = [];
         foreach (NativeFieldModelInstance instance in bank.Instances.Where(instance => actors[instance.ObjectId].Visible))
         {

@@ -3,9 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Logical idle field actors; model definitions and executed script receipts are reconstructed separately.</summary>
+/// <summary>Logical field actors and consumed action state; current model definitions are reconstructed separately.</summary>
 public sealed record GameplaySaveFieldActors([property: JsonRequired] int Version, [property: JsonRequired] int FieldId, [property: JsonRequired] GameplaySaveFieldActor[] Actors, [property: JsonRequired] int[] RegisteredActors, [property: JsonRequired] Dictionary<int, NativeModelPartResourceState> ModelParts)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<int, Dictionary<int, GameplaySaveModelPartOffset>>? ModelPartOffsets { get; init; }
+
     public GameplaySaveFieldActors Detach()
     {
         Validate();
@@ -21,6 +24,17 @@ public sealed record GameplaySaveFieldActors([property: JsonRequired] int Versio
         foreach (GameplaySaveFieldActor actor in Actors)
         {
             actor.Validate();
+        }
+        if (ModelPartOffsets is not null)
+        {
+            if (ModelPartOffsets.Any(pair => pair.Key is < 0 or > 255 || ModelParts.ContainsKey(pair.Key) || pair.Value is null || pair.Value.Any(part => part.Key < 0 || part.Value is null)))
+            {
+                throw new InvalidDataException("Gameplay model-part offsets have invalid or duplicate resource owners.");
+            }
+            foreach (GameplaySaveModelPartOffset offset in ModelPartOffsets.Values.SelectMany(parts => parts.Values))
+            {
+                offset.Validate();
+            }
         }
     }
 }
