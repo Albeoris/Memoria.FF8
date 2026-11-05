@@ -29,6 +29,15 @@ internal sealed partial class WorldMapScene : IDisposable
     private int encounterMovementMagnitude;
     public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
+    private int playerMovementSpeedPercent = PlayerMovementSpeed.DefaultPercent;
+
+    public int PlayerMovementSpeedPercent
+    {
+        get => playerMovementSpeedPercent;
+        set => playerMovementSpeedPercent = PlayerMovementSpeed.ValidatePercent(value);
+    }
+
+    private int ScalePlayerMovement(int movement) => PlayerMovementSpeed.Scale(movement, PlayerMovementSpeedPercent);
 
     public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null, IModelOverrideSource? modelOverrides = null, string? nativeSourceFieldName = null)
     {
@@ -779,6 +788,10 @@ internal sealed partial class WorldMapScene : IDisposable
         int localX = (16 * componentX) >> 6;
         int localZ = (16 * componentZ) >> 6;
         (int moveX, int graphicsMoveZ) = Rotate(localX, localZ, before.CameraYaw);
+        // Native speed latches drive fuel, vibration and presentation; scale only the ground-query translation.
+        int nativeGraphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
+        moveX = ScalePlayerMovement(moveX);
+        graphicsMoveZ = ScalePlayerMovement(graphicsMoveZ);
         bool moving = moveX != 0 || graphicsMoveZ != 0;
         int bodyYaw = before.BodyYaw;
         bool dampCamera = !moving;
@@ -806,7 +819,7 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
         bool priorTerrainOcclusion = before.NativeRagnarokRuntime is { } parkedRagnarok ? parkedRagnarok.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Ragnarok foot camera lost its previous native terrain-render occlusion owner.") : before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : foot.PriorTerrainOcclusion ?? throw new NotSupportedException("Native foot camera requires its previous terrain-render occlusion owner; migrate this save explicitly.");
         NativeForestCameraResult cameraStep = foot.AnimationVariant == 0 ? (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving) : new NativeForestCameraResult(forest.CameraPitch, process with { CameraCooldown = forest.CameraCooldown });
-        graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
+        graphicsSpeed = nativeGraphicsSpeed;
         if (mapOnly)
         {
             salaryMovementUnits = (uint)(foot.MovementMagnitude20409F4 ?? throw new NotSupportedException("Full map requires the preceding accepted movement magnitude; run a normal callback before using this historical save.")) / 8;
@@ -918,7 +931,7 @@ internal sealed partial class WorldMapScene : IDisposable
             foot = foot with { ParkedCar = completedParked with { Car = completedCar } };
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? graphicsMoveZ : 0);
-        encounterMovementMagnitude = ground.PositionCommitted ? graphicsSpeed : 0;
+        encounterMovementMagnitude = ground.PositionCommitted ? NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ) : 0;
         WorldState after = before with
         {
             Frame = before.Frame + 1,
@@ -934,7 +947,7 @@ internal sealed partial class WorldMapScene : IDisposable
             AnimationId = animation,
             AnimationCounter = animationCounter,
             GroundType = groundType,
-            NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX, MovementMagnitude20409F4 = encounterMovementMagnitude }
+            NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX, MovementMagnitude20409F4 = ground.PositionCommitted ? graphicsSpeed : 0 }
         };
         after = CompleteFootBackgroundRails(after);
         return ragnarokCameraState is not null ? CompleteRagnarokFootCallback(after, ground) : gardenCameraState is not null ? CompleteGardenFootCallback(after, ground, graphicsSpeed) : after;

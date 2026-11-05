@@ -308,11 +308,13 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
+        gameplayClock.Configure(uiPreferences.FastForwardMultiplier, uiPreferences.BattleSpeedPercent);
+        world?.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         if (!BattleModalBlocksGameplay && keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
         {
             gameplayClock.ToggleSpeed();
         }
-        fieldAudio?.SetSoundSpeed(gameplayClock.EffectiveSpeed(session.State.Scene, events?.IsScriptedInterface == true));
+        fieldAudio?.SetSoundSpeed(gameplayClock.EffectiveSpeed(session.State.Scene, events?.IsScriptedInterface == true, ActiveBattle is not null));
         // A capture fences the queue until Draw publishes that exact presented frame.
         if (pendingCapture is null)
         {
@@ -376,7 +378,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.IsScriptedInterface == true);
+        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.IsScriptedInterface == true, ActiveBattle is not null);
         world?.AdvanceDebug(gameplayElapsed);
         if (UpdateBattle(gameplayElapsed, input, gameTime.ElapsedGameTime))
         {
@@ -455,6 +457,7 @@ internal sealed partial class RecreateGame : Game
     private GameWorld CreateWorld()
     {
         var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
+        next.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;

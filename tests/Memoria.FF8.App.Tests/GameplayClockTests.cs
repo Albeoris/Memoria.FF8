@@ -4,6 +4,40 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class GameplayClockTests
 {
+    [Theory]
+    [InlineData(50, 2, 0.5, 1)]
+    [InlineData(100, 3, 1, 3)]
+    [InlineData(150, 4, 1.5, 6)]
+    [InlineData(300, 10, 3, 30)]
+    public void Battle_speed_multiplies_fast_forward_even_for_a_field_scripted_interface(int percent, int fastForward, double normal, double accelerated)
+    {
+        GameplayClock clock = new();
+        clock.Configure(fastForward, percent);
+        TimeSpan elapsed = TimeSpan.FromMilliseconds(100);
+        Assert.Equal(normal, clock.EffectiveSpeed(SceneKind.Field, scriptedInterface: true, battle: true));
+        Assert.Equal(elapsed * normal, clock.Advance(elapsed, SceneKind.Title, battle: true));
+        clock.ToggleSpeed();
+        Assert.Equal(accelerated, clock.EffectiveSpeed(SceneKind.WorldMap, battle: true));
+        Assert.Equal(elapsed * accelerated, clock.Advance(elapsed, SceneKind.Field, battle: true));
+        Assert.Equal((double)fastForward, clock.EffectiveSpeed(SceneKind.Field));
+        Assert.Equal(1d, clock.EffectiveSpeed(SceneKind.Movie));
+    }
+
+    [Fact]
+    public void Changing_preferences_preserves_toggle_and_accumulated_time()
+    {
+        GameplayClock clock = new();
+        clock.ToggleSpeed();
+        clock.Advance(TimeSpan.FromSeconds(1), SceneKind.Field);
+        clock.Configure(10, 50);
+        Assert.Equal(10, clock.SpeedMultiplier);
+        Assert.Equal(TimeSpan.FromSeconds(3), clock.Total);
+        Assert.Equal(TimeSpan.FromSeconds(5), clock.Advance(TimeSpan.FromSeconds(1), SceneKind.Field, battle: true));
+        clock.ToggleSpeed();
+        Assert.Equal(1, clock.SpeedMultiplier);
+        Assert.Equal(0.5, clock.EffectiveSpeed(SceneKind.Field, battle: true));
+    }
+
     [Fact]
     public void Field_and_world_share_scaled_elapsed_and_render_time_while_movies_keep_real_time()
     {

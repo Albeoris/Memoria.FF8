@@ -64,7 +64,8 @@ internal sealed partial class RecreateGame
         battlePresentationUpdated = false;
         presentationTiming.RunUpdates(workBudget, () =>
         {
-            double nativeCallbackRate = ActiveBattle?.NativeGraphics is null ? 0 : NativeBattleGraphicsPresentationClock.CallbacksPerSecond * gameplayClock.SpeedMultiplier;
+            gameplayClock.Configure(uiPreferences.FastForwardMultiplier, uiPreferences.BattleSpeedPercent);
+            double nativeCallbackRate = ActiveBattle?.NativeGraphics is null ? 0 : NativeBattleGraphicsPresentationClock.CallbacksPerSecond * gameplayClock.EffectiveSpeed(session.State.Scene, battle: true);
             return PresentationTiming.UpdateStep(appliedFrameLimit ?? 60, nativeCallbackRate);
         }, step =>
         {

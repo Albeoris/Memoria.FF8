@@ -11,7 +11,7 @@ public sealed partial class MenuController
         ("audio", "Audio", "Music, sound effects and dialogue voices. Shared across saves for this user."),
         ("controls", "Controls", "Player bindings and controller settings."),
         ("interface", "Interface", "Interface style, text and battle cursor memory."),
-        ("gameplay", "Gameplay", "Combat, magic, exploration and saving."),
+        ("gameplay", "Gameplay", "Movement and battle speed, combat, magic, exploration and saving."),
         ("triple-triad", "Triple Triad", "Board dimensions, cards, Random redraws and move assistance for this game."),
         ("mods", "Mods", "Installed packages, requested enable state and resource status.")
     ];
@@ -218,7 +218,7 @@ public sealed partial class MenuController
                 Min = numbers[0],
                 Step = setting.Id is "Music volume" or "Effect volume" or "Voice volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
                 Value = float.TryParse(value.TrimEnd('%'), CultureInfo.InvariantCulture, out float number) ? number : numbers[0],
-                ValueFormat = setting.Values[0].EndsWith('%') ? "0'%'" : "0",
+                ValueFormat = setting.Id == "Fast-forward multiplier" ? "0'x'" : setting.Values[0].EndsWith('%') ? "0'%'" : "0",
                 ValueWidth = 66 * TextScale,
                 LabelWidthRatio = 0.52f,
                 ColumnGap = 12 * TextScale,

@@ -18,6 +18,10 @@ internal sealed record UiPreferences
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
     public int MenuFps { get; init; } = 60;
+    public int WorldMovementSpeedPercent { get; init; } = 100;
+    public int FieldMovementSpeedPercent { get; init; } = 100;
+    public int BattleSpeedPercent { get; init; } = 100;
+    public int FastForwardMultiplier { get; init; } = 3;
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
     public int VoiceVolume { get; init; } = 100;
@@ -104,6 +108,10 @@ internal sealed record UiPreferences
         UiPreferences preferences = JsonSerializer.Deserialize<UiPreferences>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty UI preferences.");
         preferences = preferences with
         {
+            WorldMovementSpeedPercent = Math.Clamp(preferences.WorldMovementSpeedPercent, 50, 300),
+            FieldMovementSpeedPercent = Math.Clamp(preferences.FieldMovementSpeedPercent, 50, 300),
+            BattleSpeedPercent = Math.Clamp(preferences.BattleSpeedPercent, 50, 300),
+            FastForwardMultiplier = Math.Clamp(preferences.FastForwardMultiplier, 2, 10),
             FieldFps = preferences.FieldFps switch
             {
                 15 => 30,
@@ -237,6 +245,14 @@ internal sealed record UiPreferences
                 throw new ArgumentException($"{key} must be 30 or 60.");
             }
             return key == "Field FPS" ? this with { FieldFps = fps } : this with { WorldFps = fps };
+        }
+        if (key == "Fast-forward multiplier")
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int multiplier) || multiplier is < 2 or > 10)
+            {
+                throw new ArgumentException("Fast-forward multiplier must be between 2 and 10.");
+            }
+            return this with { FastForwardMultiplier = multiplier };
         }
         if (key == "Quick saves")
         {
@@ -419,6 +435,10 @@ internal sealed record UiPreferences
         }
         return key switch
         {
+            "World movement speed" when number is >= 50 and <= 300 => this with { WorldMovementSpeedPercent = number },
+            "Field movement speed" when number is >= 50 and <= 300 => this with { FieldMovementSpeedPercent = number },
+            "Battle speed" when number is >= 50 and <= 300 => this with { BattleSpeedPercent = number },
+            "World movement speed" or "Field movement speed" or "Battle speed" => throw new ArgumentException("Speed must be between 50% and 300%."),
             "Voice volume" when number is >= 0 and <= 100 => this with { VoiceVolume = number },
             "Music volume" when number is >= 0 and <= 100 => this with { MusicVolume = number },
             "Effect volume" or "Sound volume" when number is >= 0 and <= 100 => this with { SoundVolume = number },
@@ -457,6 +477,10 @@ internal sealed record UiPreferences
             throw new InvalidDataException("Graphics preferences must be an object.");
         }
         Graphics.Validate();
+        if (WorldMovementSpeedPercent is < 50 or > 300 || FieldMovementSpeedPercent is < 50 or > 300 || BattleSpeedPercent is < 50 or > 300 || FastForwardMultiplier is < 2 or > 10)
+        {
+            throw new InvalidDataException("Speed preferences are outside their supported ranges.");
+        }
         if (TripleTriad is null)
         {
             throw new InvalidDataException("Triple Triad settings are missing.");

@@ -4,6 +4,14 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private int playerMovementSpeedPercent = Memoria.FF8.Runtime.PlayerMovementSpeed.DefaultPercent;
+
+    public int PlayerMovementSpeedPercent
+    {
+        get => playerMovementSpeedPercent;
+        set => playerMovementSpeedPercent = Memoria.FF8.Runtime.PlayerMovementSpeed.ValidatePercent(value);
+    }
+
     /// <summary>Runs a decoded movie callback with the currently held movement axes.</summary>
     public void StepMovieFrame(float horizontal, float vertical)
     {

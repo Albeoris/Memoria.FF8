@@ -227,6 +227,11 @@ internal sealed partial class RecreateGame
         data.Settings["Field FPS"] = uiPreferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["World FPS"] = uiPreferences.WorldFps.ToString();
         data.Settings["Battle FPS"] = uiPreferences.BattleFps.ToString();
+        data.Settings["World movement speed"] = uiPreferences.WorldMovementSpeedPercent + "%";
+        data.Settings["Field movement speed"] = uiPreferences.FieldMovementSpeedPercent + "%";
+        data.Settings["Battle speed"] = uiPreferences.BattleSpeedPercent + "%";
+        data.Settings["Fast-forward multiplier"] = uiPreferences.FastForwardMultiplier.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.SupportedActions.UnionWith(["config:World movement speed", "config:Field movement speed", "config:Battle speed", "config:Fast-forward multiplier"]);
         data.Settings["Menu FPS"] = uiPreferences.MenuFps == 0 ? "Unlimited" : uiPreferences.MenuFps.ToString();
         data.Settings["Show FPS"] = uiPreferences.ShowFps ? "On" : "Off";
         data.SupportedActions.Add("config:Show FPS");

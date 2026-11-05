@@ -486,7 +486,7 @@ public sealed partial class EventEngine
     {
         FieldFixedPosition current = ReadNativePartyPlayerPosition(player);
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
-        int speed = NativePlayerMovementSpeed;
+        int speed = services.IsMoviePlaying ? NativePlayerMovementSpeed : Memoria.FF8.Runtime.PlayerMovementSpeed.Scale(NativePlayerMovementSpeed, PlayerMovementSpeedPercent);
         if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
             throw new NotSupportedException("Native party player movement requires the certified native adapter; flat fallback is unsupported.");

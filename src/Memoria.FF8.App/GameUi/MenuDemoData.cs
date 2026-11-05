@@ -114,6 +114,10 @@ public static class MenuDemoData
         data.Settings["Triple Triad assistance"] = "Off";
         data.Settings["Triple Triad modified Same/Plus"] = "Off";
         data.Settings["Quick saves"] = "9";
+        data.Settings["World movement speed"] = "100%";
+        data.Settings["Field movement speed"] = "100%";
+        data.Settings["Battle speed"] = "100%";
+        data.Settings["Fast-forward multiplier"] = "3";
         data.Settings["Anti-aliasing"] = "MSAA 8x";
         AddLimits(data);
         AddBattle(data);
@@ -232,7 +236,10 @@ public static class MenuSettings
         new("Triple Triad modified Same/Plus", "On: Same and Plus compare effective ranks after elemental bonuses and penalties. Off: Same and Plus compare original ranks. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Rare card markers", "Show a rotating card above opponents who can currently offer a rare Triple Triad card. Off by default; shared by all saves.", ["Off", "On"]),
         new("Random encounters", "Enable or disable random encounters immediately in the running game.", ["On", "Off"]),
-        new("Battle speed", "Original battle speed slider.", ["1", "2", "3", "4", "5"]),
+        new("World movement speed", "World-map player movement, 50–300%. F1 multiplies this speed by the fast-forward multiplier. Shared across saves.", Enumerable.Range(5, 26).Select(value => (value * 10).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%").ToArray()),
+        new("Field movement speed", "Field player movement, 50–300%. F1 multiplies this speed by the fast-forward multiplier. Shared across saves.", Enumerable.Range(5, 26).Select(value => (value * 10).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%").ToArray()),
+        new("Battle speed", "Battle simulation speed, 50–300%. Battle sound effects stay synchronized with the battle. F1 multiplies this speed by the fast-forward multiplier. Shared across saves.", Enumerable.Range(5, 26).Select(value => (value * 10).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%").ToArray()),
+        new("Fast-forward multiplier", "F1 toggles fast-forward at 2–10 times normal speed. Multiplies the configured movement and battle speeds. Shared across saves.", Enumerable.Range(2, 9).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Battle message", "Original battle message speed slider.", ["1", "2", "3", "4", "5"]),
         new("Field message", "Field dialogue text reveal speed. Confirm reveals the complete text before advancing.", ["1", "2", "3", "4", "5"]),
         new("Scan", "Original Scan display behavior.", ["Always", "Once"]),

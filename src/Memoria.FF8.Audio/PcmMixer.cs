@@ -82,7 +82,6 @@ public sealed class PcmMixer(int sampleRate = 44100)
         private readonly int rate;
         private readonly int channels;
         private readonly object tempoGate = new();
-        private byte[]? compressed;
         private byte[] playbackPcm;
         private double cursor;
         private double volume = 1;
@@ -194,9 +193,9 @@ public sealed class PcmMixer(int sampleRate = 44100)
         }
 
         /// <summary>Changes duration while retaining pitch and the original PCM position.</summary>
-        public void Tempo(int speed)
+        public void Tempo(double speed)
         {
-            if (speed is not (1 or 3))
+            if (!double.IsFinite(speed) || speed is < 0.5 or > 30)
             {
                 throw new ArgumentOutOfRangeException(nameof(speed));
             }
@@ -207,14 +206,11 @@ public sealed class PcmMixer(int sampleRate = 44100)
                 {
                     ObjectDisposedException.ThrowIf(disposed, this);
                 }
-                if (speed == 3)
-                {
-                    compressed ??= compressedSources.GetValue(pcm, static _ => new CompressedSource()).Get(pcm, rate, channels);
-                }
+                byte[] prepared = speed == 1 ? pcm : compressedSources.GetValue(pcm, static _ => new CompressedSource()).Get(pcm, rate, channels, speed);
                 lock (owner.gate)
                 {
                     ObjectDisposedException.ThrowIf(disposed, this);
-                    playbackPcm = speed == 1 ? pcm : compressed!;
+                    playbackPcm = prepared;
                 }
             }
         }
@@ -273,16 +269,20 @@ public sealed class PcmMixer(int sampleRate = 44100)
 
         private sealed class CompressedSource
         {
-            private readonly Dictionary<(int Rate, int Channels), byte[]> formats = [];
+            private readonly Dictionary<(int Rate, int Channels, double Speed), byte[]> formats = [];
 
-            public byte[] Get(byte[] pcm, int rate, int channels)
+            public byte[] Get(byte[] pcm, int rate, int channels, double speed)
             {
                 lock (formats)
                 {
-                    if (!formats.TryGetValue((rate, channels), out byte[]? result))
+                    if (!formats.TryGetValue((rate, channels, speed), out byte[]? result))
                     {
-                        result = PcmTimeStretch.Compress(pcm, rate, channels, 3);
-                        formats.Add((rate, channels), result);
+                        result = PcmTimeStretch.Compress(pcm, rate, channels, speed);
+                        if (formats.Count >= 8)
+                        {
+                            formats.Remove(formats.Keys.First());
+                        }
+                        formats.Add((rate, channels, speed), result);
                     }
                     return result;
                 }

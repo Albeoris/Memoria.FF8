@@ -4,25 +4,42 @@ namespace Memoria.FF8;
 
 internal sealed class GameplayClock
 {
-    public int SpeedMultiplier { get; private set; } = 1;
+    private bool accelerated;
+    private int fastForwardMultiplier = 3;
+    private int battleSpeedPercent = 100;
+    public int SpeedMultiplier => accelerated ? fastForwardMultiplier : 1;
     public TimeSpan Total { get; private set; }
 
     public void ToggleSpeed()
     {
-        SpeedMultiplier = SpeedMultiplier == 1 ? 3 : 1;
+        accelerated = !accelerated;
     }
 
-    public int EffectiveSpeed(SceneKind scene, bool scriptedInterface = false)
+    public void Configure(int fastForward, int battlePercent)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(fastForward, 2);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(fastForward, 10);
+        ArgumentOutOfRangeException.ThrowIfLessThan(battlePercent, 50);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(battlePercent, 300);
+        fastForwardMultiplier = fastForward;
+        battleSpeedPercent = battlePercent;
+    }
+
+    public double EffectiveSpeed(SceneKind scene, bool scriptedInterface = false, bool battle = false)
+    {
+        if (battle)
+        {
+            return SpeedMultiplier * (battleSpeedPercent / 100d);
+        }
         return !scriptedInterface && (scene is SceneKind.Field or SceneKind.WorldMap) ? SpeedMultiplier : 1;
     }
 
-    public TimeSpan Advance(TimeSpan elapsed, SceneKind scene, bool scriptedInterface = false)
+    public TimeSpan Advance(TimeSpan elapsed, SceneKind scene, bool scriptedInterface = false, bool battle = false)
     {
         // Movie callbacks follow decoded frames and real PCM playback together.
         // Scripted interfaces own their held-button repeat delays in field callbacks.
-        int multiplier = EffectiveSpeed(scene, scriptedInterface);
-        TimeSpan simulationElapsed = TimeSpan.FromTicks(checked(elapsed.Ticks * multiplier));
+        double multiplier = EffectiveSpeed(scene, scriptedInterface, battle);
+        TimeSpan simulationElapsed = elapsed * multiplier;
         Total += simulationElapsed;
         return simulationElapsed;
     }

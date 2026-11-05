@@ -33,6 +33,11 @@ internal sealed partial class WorldMapScene
         }
         (int moveX, int graphicsZ) = NativeGardenTransform.Offset(checked((short)motor.Speed), checked((short)motor.MotionYaw));
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);
+        if (!lowering && before.EventUi?.ScriptMode is null or 0)
+        {
+            moveX = ScalePlayerMovement(moveX);
+            graphicsZ = ScalePlayerMovement(graphicsZ);
+        }
         garden = garden with { ManualCameraVelocity = cameraVelocity };
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;

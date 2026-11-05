@@ -34,7 +34,10 @@ Player rows have one canonical Config editor; developer rows have one Debug edit
 | Battle policy | Config / Gameplay; Debug / Battle | Scalar | Developer · Battle / Encounter execution | Encounter policy / Game, Title default |
 | Rare card markers | Config / Interface; Debug / UI; New Game | Scalar | Player · Gameplay / Exploration and saving | UI preferences / Global, including New Game |
 | Random encounters | Config / Gameplay; Debug / Battle | Scalar | Developer · Battle | Encounter owner / Game, Title default |
-| Battle speed | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |
+| World movement speed | Config / Gameplay / Speed | Percentage, 50–300% | Player · Gameplay / Speed | UI preferences / Global |
+| Field movement speed | Config / Gameplay / Speed | Percentage, 50–300% | Player · Gameplay / Speed | UI preferences / Global |
+| Battle speed | Fixture Config / Gameplay | Percentage, 50–300% | Player · Gameplay / Speed | UI preferences / Global |
+| Fast-forward multiplier | Config / Gameplay / Speed | Multiplier, x2–x10 | Player · Gameplay / Speed | UI preferences / Global |
 | Battle message | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |
 | Field message | Config / Interface | Scalar | Player · Interface / Text and fonts | UI dialogue reveal preference / Global |
 | Scan | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |

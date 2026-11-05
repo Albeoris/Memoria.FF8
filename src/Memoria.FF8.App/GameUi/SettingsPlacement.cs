@@ -34,7 +34,9 @@ internal static class SettingsPlacement
         ["config-text"] = new("Text and fonts", "Menus: design pixels multiplied by text scale. Dialogue: field pixels.",
             ["Text fonts", "Text layout", "Native font profile", "Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
         ["config-gameplay"] = new("Gameplay", "Game rules apply to the current game; save normally to retain them. Title edits new-game defaults or session choices.",
-            ["config-combat", "config-magic", "config-exploration", "config-chocobo"]),
+            ["config-speed", "config-combat", "config-magic", "config-exploration", "config-chocobo"]),
+        ["config-speed"] = new("Speed", "Speed preferences shared across saves. F1 multiplies configured speeds; battle sound effects remain synchronized.",
+            ["World movement speed", "Field movement speed", "Battle speed", "Fast-forward multiplier"]),
         ["config-chocobo"] = new("Chocobo World", "Choose a reward provider; acquired rewards remain recorded when switching modes.", ["Chocobo World"]),
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
             ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
@@ -90,7 +92,10 @@ internal static class SettingsPlacement
             ["Triple Triad modified Same/Plus"] = "triple-triad-modified-same-plus",
             ["Rare card markers"] = "rare-card-markers",
             ["Random encounters"] = "random-encounters",
-            ["Battle speed"] = "native-battle-speed",
+            ["Battle speed"] = "battle-speed",
+            ["World movement speed"] = "world-movement-speed",
+            ["Field movement speed"] = "field-movement-speed",
+            ["Fast-forward multiplier"] = "fast-forward-multiplier",
             ["Battle message"] = "native-battle-message",
             ["Field message"] = "dialogue-speed",
             ["Scan"] = "native-scan",
@@ -121,7 +126,7 @@ internal static class SettingsPlacement
             SettingsAudience audience = setting.Id switch
             {
                 "Sound" or "Controller" => SettingsAudience.Excluded,
-                "ATB" or "Battle speed" or "Battle message" or "Scan" or "Camera movement" or "Battle control" => SettingsAudience.Fixture,
+                "ATB" or "Battle message" or "Scan" or "Camera movement" or "Battle control" => SettingsAudience.Fixture,
                 "Battle policy" or "Random encounters" => SettingsAudience.Developer,
                 _ => SettingsAudience.Player
             };
@@ -149,6 +154,10 @@ internal static class SettingsPlacement
                 "World FPS" => "UiPreferences.WorldFps",
                 "Battle FPS" => "UiPreferences.BattleFps",
                 "Menu FPS" => "UiPreferences.MenuFps",
+                "World movement speed" => "UiPreferences.WorldMovementSpeedPercent",
+                "Field movement speed" => "UiPreferences.FieldMovementSpeedPercent",
+                "Battle speed" => "UiPreferences.BattleSpeedPercent",
+                "Fast-forward multiplier" => "UiPreferences.FastForwardMultiplier",
                 "Quick saves" => "UiPreferences.QuickSaveCount",
                 "Cursor" => "UiPreferences.CursorMemory",
                 "Limit once per turn" => "GameplayPreferences.LimitOncePerTurn",

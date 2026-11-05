@@ -26,12 +26,12 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     private int musicPreference = 100;
     private int soundPreference = 100;
     private int battleVoice;
-    private int soundSpeed = 1;
+    private double soundSpeed = 1;
     internal TimeProvider SoundTimeProvider { get; init; } = TimeProvider.System;
 
-    public void SetSoundSpeed(int speed)
+    public void SetSoundSpeed(double speed)
     {
-        if (speed is not (1 or 3))
+        if (!double.IsFinite(speed) || speed is < 0.5 or > 30)
         {
             throw new ArgumentOutOfRangeException(nameof(speed));
         }
@@ -706,7 +706,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     internal sealed class Ramp(float initial, float target, int milliseconds, TimeProvider? timeProvider = null)
     {
         private readonly SoundClock clock = new(timeProvider);
-        public void SetSpeed(int speed)
+        public void SetSpeed(double speed)
         {
             clock.SetSpeed(speed);
         }
@@ -729,10 +729,10 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         private long started = (timeProvider ?? TimeProvider.System).GetTimestamp();
         private TimeSpan elapsed;
         private bool paused;
-        private int speed = 1;
+        private double speed = 1;
         public TimeSpan Elapsed => elapsed + (paused ? TimeSpan.Zero : time.GetElapsedTime(started) * speed);
 
-        public void SetSpeed(int value)
+        public void SetSpeed(double value)
         {
             elapsed = Elapsed;
             started = time.GetTimestamp();

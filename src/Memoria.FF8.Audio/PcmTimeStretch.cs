@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Audio;
 
-/// <summary>Offline PCM16 time compression using waveform similarity overlap-add.</summary>
+/// <summary>Offline PCM16 tempo adjustment using waveform similarity overlap-add.</summary>
 /// <remarks>
 /// Compression removes waveform regions and can omit isolated transients. When the
 /// compressed duration fits within one 20 ms hop, only the initial unresampled waveform
@@ -10,7 +10,7 @@ namespace Memoria.FF8.Audio;
 /// </remarks>
 public static class PcmTimeStretch
 {
-    public static byte[] Compress(byte[] pcm, int sampleRate, int channels, int speed)
+    public static byte[] Compress(byte[] pcm, int sampleRate, int channels, double speed)
     {
         ArgumentNullException.ThrowIfNull(pcm);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
@@ -18,7 +18,7 @@ public static class PcmTimeStretch
         {
             throw new ArgumentOutOfRangeException(nameof(channels));
         }
-        if (speed is not (1 or 3))
+        if (!double.IsFinite(speed) || speed is < 0.5 or > 30)
         {
             throw new ArgumentOutOfRangeException(nameof(speed));
         }
@@ -32,7 +32,7 @@ public static class PcmTimeStretch
         }
 
         int frames = pcm.Length / (channels * 2);
-        int outputFrames = (int)(((long)frames + speed / 2) / speed);
+        int outputFrames = checked((int)Math.Floor(frames / speed + 0.5));
         short[] input = new short[frames * channels];
         short[] output = new short[outputFrames * channels];
         for (int i = 0; i < input.Length; i++)
@@ -43,15 +43,16 @@ public static class PcmTimeStretch
         // Twenty millisecond hops retain several periods of low musical notes.
         // The same source offset and crossfade are always used for both channels.
         int hop = Math.Max(1, sampleRate / 50);
-        int window = (int)Math.Min((long)hop * 2, outputFrames);
+        int window = (int)Math.Min(Math.Min((long)hop * 2, frames), outputFrames);
+        hop = Math.Min(hop, Math.Max(1, frames / 2));
         Array.Copy(input, output, window * channels);
         int search = Math.Max(1, sampleRate / 66);
         int stride = Math.Max(1, sampleRate / 11025);
         for (int destination = hop; destination < outputFrames; destination += hop)
         {
             int count = Math.Min(window, outputFrames - destination);
-            int overlap = Math.Min(hop, count);
-            int nominal = (int)Math.Min((long)destination * speed, frames - count);
+            int overlap = Math.Min(window - hop, count);
+            int nominal = (int)Math.Min(destination * speed, frames - count);
             int low = Math.Max(0, nominal - search);
             int high = (int)Math.Min((long)frames - count, (long)nominal + search);
             int best = nominal;

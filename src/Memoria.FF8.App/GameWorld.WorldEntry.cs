@@ -52,6 +52,7 @@ internal sealed partial class GameWorld
 
     private void ConfigureWorldScene(WorldMapScene scene)
     {
+        scene.PlayerMovementSpeedPercent = worldMovementSpeedPercent;
         scene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
         scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;

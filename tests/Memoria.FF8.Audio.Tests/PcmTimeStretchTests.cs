@@ -92,7 +92,82 @@ public sealed class PcmTimeStretchTests
         Assert.Throws<ArgumentException>(() => PcmTimeStretch.Compress(new byte[3], 44100, 1, 3));
         Assert.Throws<ArgumentOutOfRangeException>(() => PcmTimeStretch.Compress([], 0, 1, 3));
         Assert.Throws<ArgumentOutOfRangeException>(() => PcmTimeStretch.Compress([], 44100, 3, 3));
-        Assert.Throws<ArgumentOutOfRangeException>(() => PcmTimeStretch.Compress([], 44100, 1, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PcmTimeStretch.Compress([], 44100, 1, 30.01));
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(2.5)]
+    [InlineData(10)]
+    [InlineData(30)]
+    public void FractionalAndExtremeTemposRetainPitchAndDuration(double speed)
+    {
+        const int rate = 12000;
+        const int frequency = 400;
+        byte[] pcm = Signal(rate * 6, 1, i => 12000 * Math.Sin(2 * Math.PI * frequency * i / rate));
+        byte[] adjusted = PcmTimeStretch.Compress(pcm, rate, 1, speed);
+        int frames = adjusted.Length / 2;
+        Assert.Equal((int)Math.Floor(rate * 6 / speed + 0.5), frames);
+        int crossings = 0;
+        for (int i = 1; i < frames; i++)
+        {
+            if (Sample(adjusted, i - 1) <= 0 && Sample(adjusted, i) > 0)
+            {
+                crossings++;
+            }
+        }
+        Assert.InRange(crossings * (double)rate / frames, frequency * 0.98, frequency * 1.02);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(37)]
+    public void HalfSpeedExpandsShortClipsWithoutReadingPastSource(int frames)
+    {
+        byte[] adjusted = PcmTimeStretch.Compress(Signal(frames, 2, _ => 12000), 44100, 2, 0.5);
+        Assert.Equal(frames * 8, adjusted.Length);
+        for (int i = 0; i < adjusted.Length / 2; i++)
+        {
+            Assert.Equal(12000, Sample(adjusted, i));
+        }
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(2.5)]
+    [InlineData(10)]
+    [InlineData(30)]
+    public void SelectedTempoPreservesPositionAndLoopsOnOriginalTimeline(double speed)
+    {
+        PcmMixer mixer = new(12000);
+        using PcmMixer.Voice voice = mixer.Create(Signal(12000, 1, _ => 1000), 12000, 1);
+        voice.Play(true);
+        mixer.Render(new short[1200 * 2]);
+        voice.Tempo(speed);
+        Assert.Equal(2400, voice.PositionBytes);
+        mixer.Render(new short[100 * 2]);
+        Assert.InRange(voice.PositionBytes, (int)(1200 + 100 * speed) * 2 - 2, (int)(1200 + 100 * speed) * 2 + 2);
+        voice.Position(0);
+        mixer.Render(new short[(int)(12000 / speed) * 2]);
+        Assert.True(voice.IsPlaying);
+        Assert.InRange(voice.PositionBytes, 0, 2);
+    }
+
+    [Theory]
+    [InlineData(0.49)]
+    [InlineData(30.01)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void InvalidTempoIsRejectedByCompressorAndVoice(double speed)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PcmTimeStretch.Compress([], 12000, 1, speed));
+        PcmMixer mixer = new(12000);
+        using PcmMixer.Voice voice = mixer.Create(Signal(120, 1, _ => 1000), 12000, 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => voice.Tempo(speed));
     }
 
     [Fact]

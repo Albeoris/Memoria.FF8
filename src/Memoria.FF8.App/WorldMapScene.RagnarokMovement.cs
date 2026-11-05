@@ -14,6 +14,12 @@ internal sealed partial class WorldMapScene
         NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 ? 0 : motorButtons ?? buttons);
         NativeRagnarokMotorState motorBefore = runtime.Motor with { FlightHeight = unchecked((short)before.NativeHeight) };
         NativeRagnarokMotorResult motor = scriptMode is 0 or 12 ? NativeRagnarokMotor.Step(motorBefore, input.Steering13, input.Throttle11, input.Vertical12, variant: runtime.AnimationVariant, scriptMode: scriptMode) : NativeRagnarokMotor.StepScripted(motorBefore, scriptMode, scriptMode == 5 ? 16 : 120);
+        int nativeGraphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
+        if (scriptMode == 0)
+        {
+            int heightDelta = unchecked((short)(motor.State.FlightHeight - motorBefore.FlightHeight));
+            motor = motor with { MotionX = ScalePlayerMovement(motor.MotionX), MotionGraphicsZ = ScalePlayerMovement(motor.MotionGraphicsZ), State = motor.State with { FlightHeight = unchecked((short)(motorBefore.FlightHeight + ScalePlayerMovement(heightDelta))) } };
+        }
         int cameraVelocity = runtime.ManualCameraVelocity;
         if (runtime.AnimationVariant == 1 && scriptMode == 0)
         {
@@ -54,7 +60,7 @@ internal sealed partial class WorldMapScene
         {
             consumeRequest = false;
             movementUnits = 0;
-            graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
+            graphicsSpeed = nativeGraphicsSpeed;
             runtime = runtime.PublishBody(new(before.X, before.NativeHeight, -before.Z), motor.State.BodyPitch, checked((short)motor.State.BodyYaw), motor.State.BodyRoll);
             if (runtime.BackgroundRails is { } mapRails)
             {
@@ -81,7 +87,7 @@ internal sealed partial class WorldMapScene
             runtime = runtime with { BackgroundRails = CompleteBackgroundRails(completedRails, after.X, after.Z, after.NativeHeight) };
         }
         after = after with { NativeRagnarokRuntime = runtime };
-        graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
+        graphicsSpeed = nativeGraphicsSpeed;
         //53FAC0 excludes entity50 from6519D0 movement aging and salary distance.
         movementUnits = 0;
         fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, activity);

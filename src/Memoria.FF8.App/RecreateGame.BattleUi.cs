@@ -120,7 +120,7 @@ internal sealed partial class RecreateGame
         bool slotsOwned = SlotsModalBlocksGameplay;
         bool confirmHeld = (keyboard.HeldFieldButtons & 0x40) != 0;
         bool mouseHeld = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
-        battleHud!.AdvanceSlotsPresentation(presentationElapsed, confirmHeld, mouseHeld);
+        battleHud!.AdvanceSlotsPresentation(elapsed, confirmHeld, mouseHeld);
         if (slotsOwned && !battleHud.CardSlotsOwnsInput)
         {
             slotsInputReleasePending = confirmHeld || mouseHeld;

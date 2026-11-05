@@ -55,7 +55,7 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 | Shortcut | Default key | Effect |
 | --- | --- | --- |
 | Window mode | Alt+Enter | Toggle between windowed and borderless full-screen display. The choice is saved across launches. |
-| Event speed | F1 | Toggle x1 / x3 for ordinary field and world simulation. Movies remain at normal speed. This setting is not saved in the gameplay snapshot. |
+| Event speed | F1 | Toggle fast-forward for ordinary field/world simulation and battles. Configure its multiplier from x2 to x10 (default x3) in Config / Gameplay / Speed. The active toggle is not saved in the gameplay snapshot. |
 | Debug room | F2 | Open the host debug UI where available. |
 | Instant victory | Unbound | Win the current battle or Triple Triad match during your turn. |
 | Instant defeat | Unbound | Lose the current battle or Triple Triad match during your turn. |
@@ -68,6 +68,8 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 | Advance turn | Space | Advance the battle HUD in TurnBased mode. |
 | UI tab | Tab | Move between supported UI tabs. |
 | UI page | Page Up / Page Down | Page supported UI lists. |
+
+Config / Gameplay / Speed also has independent world movement, field movement and battle speed sliders from 50% to 300%, with 100% defaults. These preferences are shared across saves and multiply with F1: 150% with x4 fast-forward gives x6. Movement preferences scale player travel, including controlled world vehicles; battle speed scales the battle clock and sound effects together while preserving audio pitch. Movies keep their normal timing.
 
 Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 

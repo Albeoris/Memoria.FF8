@@ -59,7 +59,7 @@ internal sealed class PcmAudioOutput : IDisposable
         {
             voice.Play(loop);
         }
-        public void Tempo(int speed)
+        public void Tempo(double speed)
         {
             voice.Tempo(speed);
         }

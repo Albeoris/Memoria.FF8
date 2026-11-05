@@ -74,6 +74,22 @@ public sealed class NativeAnalogFieldMovementTests
         analogue.Engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, Value: 0));
         analogue.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: 0.25f));
         Assert.True(analogue.Directions[^1] == headings[0].Direction && analogue.Speeds[^1] == 7929 && analogue.Engine.Scene.NativeSalaryMovementUnits == 5, "Releasing mapped slow-stick walk failed to restore native running at the same heading.");
+        foreach ((int percent, int runSpeed, int walkSpeed) in new[] { (50, 3964, 1348), (100, 7929, 2696), (200, 15858, 5392), (300, 23787, 8088) })
+        {
+            var scaled = Create();
+            scaled.Engine.PlayerMovementSpeedPercent = percent;
+            long beforeFrame = scaled.Engine.Frame;
+            PlayerActionResult result = scaled.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: 0.25f));
+            Assert.Equal(runSpeed, scaled.Speeds.Single());
+            Assert.Equal(headings[0].Direction, scaled.Directions.Single());
+            Assert.Equal(beforeFrame + 1, scaled.Engine.Frame);
+            Assert.Equal(1, result.FramesAdvanced);
+            Assert.Equal(7929, scaled.Engine.Actors[0].MovementSpeed);
+            scaled.Engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, Value: 0x10));
+            scaled.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: 0.25f));
+            Assert.Equal(walkSpeed, scaled.Speeds[^1]);
+            Assert.Equal(2696, scaled.Engine.Actors[0].MovementSpeed);
+        }
         var forcedWalk = Create(forcedWalk: true);
         forcedWalk.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: 0.25f));
         Assert.True(forcedWalk.Directions.Single() == headings[0].Direction && forcedWalk.Speeds.Single() == 2696 && forcedWalk.Engine.Scene.NativeSalaryMovementUnits == 3, "Current VM RUNDISABLE lost precedence over full-stick running.");
