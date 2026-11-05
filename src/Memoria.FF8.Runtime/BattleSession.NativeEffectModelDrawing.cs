@@ -85,13 +85,14 @@ public sealed partial class BattleSession
             }
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native effect body drawing requires its actual model CPU rows.");
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect body drawing requires its canonical projected CPU memory.");
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount, objectMask: mask);
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, Read);
+            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(geometrySource.Read, boneCount, objectMask: mask);
             uint color = graphics.Models[index].Color40 ?? throw new NotSupportedException("Native effect body drawing requires its actual packed model color.");
             process = process.PublishModelColor(color);
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
             uint scratch = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 or 274 ? ResourceIdentity() : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + layer), ResourceGeneration = identity.Effect is 212 or 215 or 216 or 274 ? geometrySource.PresentationIdentity : identity.ResourceGeneration } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
             if (pilotIdentity is { Effect: 274 })
             {
                 drawn = drawn with { Packets = NativeBattleCinematicActorPresentation.NativeDepths(drawn.Packets) };
@@ -134,10 +135,6 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? memory.Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length) : staging.Read(address, length);
             }
 
-            long ResourceIdentity()
-            {
-                return pointer.Cpu is { ResourceOnly: true } logical ? NativeBattlePilotVisualLifetimes.EpochFor(cpu.Cpu.Banks[logical.Bank]) : pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new InvalidDataException("Body capture requires its actual selected geometry owner.");
-            }
         }
 
         NativeBattleResourcePointer GeometryPointer(int? row, uint? staged)
