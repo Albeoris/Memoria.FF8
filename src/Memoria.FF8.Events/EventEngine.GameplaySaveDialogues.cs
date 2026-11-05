@@ -136,5 +136,3 @@ public sealed partial class EventEngine
         CurrentDialogue = Scene.NativeDialogueFocus is byte focus ? visible.FirstOrDefault(dialogue => dialogue.Channel == focus) : visible.LastOrDefault(dialogue => dialogue.CanConfirm) ?? visible.LastOrDefault();
     }
 }
-
-
