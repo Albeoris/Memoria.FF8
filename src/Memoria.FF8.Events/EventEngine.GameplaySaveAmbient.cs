@@ -83,7 +83,7 @@ public sealed partial class EventEngine
                 Jsm.Opcode.SCROLLSYNC2 when fiber.Stack.Count > 0 && fiber.Stack.Capture()[0].IsExact => fiber.Stack.Peek(),
                 _ => null
             };
-            if (fiber.Complete || layer is not int selected || !Scene.BackgroundScrollPositions.ContainsKey(selected))
+            if (fiber.Complete || layer is not int selected || !Scene.BackgroundScrollPositions.ContainsKey(selected) && Scene.ActorBackgroundScroll?.Layer != selected)
             {
                 throw new InvalidDataException("Gameplay scroll wait lost its instruction, unconsumed layer or phase owner.");
             }

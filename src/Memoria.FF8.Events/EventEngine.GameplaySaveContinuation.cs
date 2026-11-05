@@ -31,6 +31,7 @@ public sealed partial class EventEngine
         GameplaySaveFieldContinuation saved = continuation.Detach();
         RestoreGameplaySaveFieldScene(saved.Scene, saved.Scripts, facts);
         RestoreGameplaySaveFieldActors(saved.Actors, saved.ScriptMenu?.PendingPartyRefresh == true);
+        RestoreGameplaySaveActorScroll(saved.Scene.ActorScroll);
         RestoreGameplaySaveParticles(saved.Scene);
         RestoreGameplaySaveScripts(saved.Scripts, saved.ScriptMenu is not null);
         RestoreGameplayScriptMenu(saved.ScriptMenu);

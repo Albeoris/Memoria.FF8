@@ -6,15 +6,16 @@ public sealed partial class EventEngine
 {
     private GameplaySaveFieldScene CaptureGameplaySaveFieldScene()
     {
-        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.ActorBackgroundScroll is not null || Scene.SoundVolumeTransition is not null || Scene.AllSoundVolumeTransition is not null || Scene.MusicCrossfadeFrames != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
+        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.SoundVolumeTransition is not null || Scene.AllSoundVolumeTransition is not null || Scene.MusicCrossfadeFrames != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
         {
-            throw new NotSupportedException("Gameplay field continuation does not yet represent the active actor-scroll, modal, sound-I/O or door-event owner.");
+            throw new NotSupportedException("Gameplay field continuation does not yet represent the active modal, sound-I/O or door-event owner.");
         }
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
             Ambient = CaptureGameplaySaveAmbient(),
             ParticleControls = CaptureGameplaySaveParticleControls(),
+            ActorScroll = CaptureGameplaySaveActorScroll(),
             PreparedMovieSource = preparedMovie >= 0 ? services.MovieSource : null,
             MovieMask = Scene.NativeMovieMask?.Value,
             CameraIndex = Scene.CameraIndex,

@@ -24,6 +24,9 @@ public sealed record GameplaySaveFieldScene
     public Dictionary<int, byte>? ParticleControls { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldActorScroll? ActorScroll { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMovieSource? PreparedMovieSource { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -110,6 +113,7 @@ public sealed record GameplaySaveFieldScene
 
     public void Validate()
     {
+        ActorScroll?.Validate();
         if (ParticleControls?.Any(pair => pair.Key is < 0 or >= 16 || pair.Value is > 1 and < 0x80) == true)
         {
             throw new InvalidDataException("Gameplay particle controls require valid slot indices and emitter bytes.");
