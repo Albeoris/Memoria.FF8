@@ -109,7 +109,7 @@ public sealed class GameplaySaveFieldPartyResumeTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(restored.ExamTimer), JsonSerializer.SerializeToElement(session.State.ExamTimer)));
     }
 
-    private static GameplaySaveComponentDocument ThreePartyDocument(GameAssets assets)
+    internal static GameplaySaveComponentDocument ThreePartyDocument(GameAssets assets)
     {
         GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, false);
         GameplaySaveProgression progress = document.Progression!;

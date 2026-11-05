@@ -10,9 +10,13 @@ internal sealed partial class GameWorld
         return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc);
     }
 
-    /// <summary>Captures durable progress and the current normal-load world position from this live host.</summary>
+    /// <summary>Captures supported durable progress and the current resume authority from this live host.</summary>
     internal GameplaySaveComponentDocument CaptureGameplaySave()
     {
+        if (session.State.Scene == SceneKind.Field)
+        {
+            return CaptureImportedGameplayField();
+        }
         if (session.State.Scene != SceneKind.WorldMap)
         {
             throw new NotSupportedException("Gameplay capture of an active field requires its logical script continuation adapter.");
@@ -34,6 +38,26 @@ internal sealed partial class GameWorld
             MapDisplayMode = selection.MapDisplay == 3 ? (byte)0 : selection.MapDisplay
         };
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.World, state.FieldId, state.PreviousFieldId, null, position);
+        return CaptureGameplayDocument(state, resume);
+    }
+
+    private GameplaySaveComponentDocument CaptureImportedGameplayField()
+    {
+        if (diagnosticAllocationFaulted || Events.LastFault is not null || !HasCurrentFieldAllocation || Events.Frame != 0 || Events.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Allocated } || session.State.FieldLoadContext is not { Origin: NativeFieldLoadOrigin.OriginalSave } context || context.FieldId != session.State.FieldId || session.State.OriginalSave is not { } original || session.State.FieldArrival is not { } arrival || arrival.FieldId != session.State.FieldId)
+        {
+            throw new NotSupportedException("Gameplay capture of an active field requires its logical script continuation adapter.");
+        }
+        GameState state = session.PrepareSnapshot();
+        GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.Field, state.FieldId, state.PreviousFieldId, new(arrival.X, arrival.Y, arrival.Triangle, checked((byte)arrival.Direction)), null);
+        GameplaySaveComponentDocument document = CaptureGameplayDocument(state, resume);
+        NativeFieldLocationPose?[] poses = document.Progression!.SceneFacts!.FieldParty.Select((character, slot) => character == 255 ? null : original.ReadFieldPartyPosition(slot)).ToArray();
+        document = document with { Progression = document.Progression with { FieldLocation = new(checked((ushort)state.FieldId), state.PreviousFieldId is int previous ? checked((ushort)previous) : null, poses) } };
+        document.Validate();
+        return document;
+    }
+
+    private static GameplaySaveComponentDocument CaptureGameplayDocument(GameState state, GameplaySaveResumeDescriptor resume)
+    {
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(state, resume);
         GameplaySaveSceneFacts facts = GameplaySaveSceneFacts.FromPreparedState(state) ?? throw new NotSupportedException("Gameplay capture requires current published scene facts.");
         document = document with { Progression = document.Progression! with { SceneFacts = facts } };

@@ -30,20 +30,9 @@ internal static class SaveTransferCommand
             }
             using GameAssets assets = new(options.GameDirectory!, resources: host.Resources, modelOverrides: host);
             GameSession session = new(NativePcSaveConverter.Import(File.ReadAllBytes(options.SourcePath), assets));
-            using (GameWorld world = new(session, options.GameDirectory!, resources: host.Resources, validateWorldPresentation: false, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host, readGameplayPolicy: () => host.GameplayPolicy))
-            {
-                world.EnsureField();
-                if (session.State.Scene == SceneKind.Field)
-                {
-                    session.SetEventState(world.Events.Capture());
-                }
-            }
-            WriteNewOutput(options.OutputPath, temporary => session.Save(temporary, compact: true, candidate =>
-            {
-                GameSession restored = new(candidate);
-                using GameWorld world = new(restored, options.GameDirectory!, resources: host.Resources, validateWorldPresentation: false, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host, readGameplayPolicy: () => host.GameplayPolicy);
-                world.EnsureField();
-            }));
+            using GameWorld world = new(session, options.GameDirectory!, resources: host.Resources, validateWorldPresentation: false, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host, readGameplayPolicy: () => host.GameplayPolicy);
+            world.EnsureField();
+            WriteNewOutput(options.OutputPath, temporary => world.WriteGameplaySave(temporary));
             Console.WriteLine($"Imported original PC save to {options.OutputPath} | {session.State.Scene} | {session.State.FieldId}:{session.State.FieldName}");
         }
         else

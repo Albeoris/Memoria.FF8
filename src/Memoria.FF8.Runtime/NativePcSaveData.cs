@@ -15,6 +15,14 @@ public sealed record NativePcSaveData([property: JsonRequired] byte[] Block)
     [JsonIgnore]
     public byte[] FieldParty => Block.AsSpan(MainOffset + 3304, 3).ToArray();
 
+    public NativeFieldLocationPose ReadFieldPartyPosition(int slot)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(slot);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(slot, 2);
+        Validate();
+        return new(BinaryPrimitives.ReadInt16LittleEndian(Block.AsSpan(MainOffset + 3318 + 2 * slot)), BinaryPrimitives.ReadInt16LittleEndian(Block.AsSpan(MainOffset + 3324 + 2 * slot)), BinaryPrimitives.ReadUInt16LittleEndian(Block.AsSpan(MainOffset + 3330 + 2 * slot)), Block[MainOffset + 3336 + slot]);
+    }
+
     public void Validate()
     {
         if (Block is not { Length: BlockSize } || Block[0] != 'S' || Block[1] != 'C' || BinaryPrimitives.ReadUInt16LittleEndian(Block.AsSpan(SaveMapOffset + 2)) != 0x08FF)

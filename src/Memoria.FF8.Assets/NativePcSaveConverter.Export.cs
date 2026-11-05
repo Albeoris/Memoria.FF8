@@ -486,7 +486,7 @@ public static partial class NativePcSaveConverter
             }
             foreach ((string property, int offset) in new[] { ("NativeBattleMusic203", 203), ("SoundMusicVolume197", 197), ("SoundMusicVolume198", 198), ("DrawPointIndex", 242) })
             {
-                if (source.TryGetProperty(property, out JsonElement value) && value.TryGetByte(out byte number))
+                if (source.TryGetProperty(property, out JsonElement value) && value.ValueKind != JsonValueKind.Null && value.TryGetByte(out byte number))
                 {
                     block[Event + offset] = number;
                 }
@@ -495,13 +495,13 @@ public static partial class NativePcSaveConverter
             {
                 foreach ((string property, int address) in new[] { ("Requested213", 213), ("Complete214", 214) })
                 {
-                    if (process.TryGetProperty(property, out JsonElement value) && value.TryGetByte(out byte number))
+                    if (process.TryGetProperty(property, out JsonElement value) && value.ValueKind != JsonValueKind.Null && value.TryGetByte(out byte number))
                     {
                         block[Event + address] = number;
                     }
                 }
             }
-            if (source.TryGetProperty("WorldMusicSelection", out JsonElement selection) && selection.ValueKind == JsonValueKind.Object && selection.TryGetProperty("Music", out JsonElement music) && music.TryGetByte(out byte musicId))
+            if (source.TryGetProperty("WorldMusicSelection", out JsonElement selection) && selection.ValueKind == JsonValueKind.Object && selection.TryGetProperty("Music", out JsonElement music) && music.ValueKind != JsonValueKind.Null && music.TryGetByte(out byte musicId))
             {
                 block[Event + 268] = musicId;
             }
