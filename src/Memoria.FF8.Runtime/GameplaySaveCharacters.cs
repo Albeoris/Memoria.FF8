@@ -22,12 +22,14 @@ public sealed record GameplaySaveCharacters
     public required GameplaySaveMagic Magic { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveGuardianForceIntent? GuardianForceIntent { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveGuardianForceRecovery? PendingGuardianForceRecovery { get; init; }
 
     public static GameplaySaveCharacters Capture(NativeCharacterVitals source)
     {
         ArgumentNullException.ThrowIfNull(source);
         source.Validate();
-        source = GameplaySaveGuardianForceAdapter.PrepareCapture(source);
+        source = GameplaySaveGuardianForceAdapter.PrepareCapture(source, out GameplaySaveGuardianForceRecovery? recovery);
         GameplaySaveCharacters result = new()
         {
             Records = source.Records,
@@ -37,7 +39,8 @@ public sealed record GameplaySaveCharacters
             DreamWeapons = source.DreamWeapons,
             JunctionPartyBackup = source.JunctionPartyBackup,
             Magic = GameplaySaveMagic.Capture(source.MagicSystem),
-            GuardianForceIntent = GameplaySaveGuardianForceIntent.Capture(source)
+            GuardianForceIntent = GameplaySaveGuardianForceIntent.Capture(source),
+            PendingGuardianForceRecovery = recovery
         };
         result.Validate();
         return GameplaySaveCodec.Detach(result);
@@ -65,7 +68,8 @@ public sealed record GameplaySaveCharacters
             GuardianForceRecoveryTemplates = [],
             GuardianForceCompatibilityDiagnostics = []
         };
-        return GameplaySaveGuardianForceAdapter.Restore(result, installed, detached.GuardianForces);
+        ImmutableArray<GuardianForceProgression?> recovery = detached.PendingGuardianForceRecovery?.Restore(installed.MenuDefinitions.AbilityPoints.Length) ?? [];
+        return GameplaySaveGuardianForceAdapter.Restore(result, installed, detached.GuardianForces) with { GuardianForceRecoveryProgression = recovery };
     }
 
     public void Validate()
@@ -93,6 +97,7 @@ public sealed record GameplaySaveCharacters
         }
         Magic.Validate();
         GuardianForceIntent?.Validate();
+        PendingGuardianForceRecovery?.Validate();
     }
 }
 

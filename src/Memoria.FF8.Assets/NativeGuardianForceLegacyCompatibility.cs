@@ -48,6 +48,10 @@ public static class NativeGuardianForceLegacyCompatibility
         {
             losses.Add(new(-1, null, "Attribution", "GF mod-layer identities, save-local contributions and their attribution cannot be retained in an original FFVIII save.") { DescriptionId = "attribution" });
         }
+        if (!current.GuardianForceRecoveryProgression.IsDefaultOrEmpty)
+        {
+            losses.Add(new(-1, null, "PendingRecovery", "Pending semantic GF recovery history cannot be retained in an original FFVIII save."));
+        }
         for (int id = 0; id < 16; id++)
         {
             ImmutableArray<NativeGuardianForceLearningRule> sourceRules = current.MenuDefinitions.ResolveLearning(id);

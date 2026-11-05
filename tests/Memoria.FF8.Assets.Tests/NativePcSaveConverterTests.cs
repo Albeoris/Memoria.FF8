@@ -352,6 +352,26 @@ public sealed partial class NativePcSaveConverterTests
     }
 
     [Fact]
+    public void PendingSemanticGuardianRecoveryRequiresExplicitOriginalExportLossReview()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!;
+        ImmutableArray<GuardianForceProgression?> history = Enumerable.Repeat<GuardianForceProgression?>(null, 16).ToImmutableArray().SetItem(0, new(true, [new(42, true, 7, ItemTaught: true)]));
+        NativeCharacterVitals pending = source with { GuardianForceRecoveryProgression = history };
+        GameState active = state with { CharacterVitals = pending };
+        string before = JsonSerializer.Serialize(active);
+        Assert.True(pending.GuardianForceRequiresMemoriaFormat);
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, source);
+        Assert.Contains(plan.Losses, loss => loss.Kind == "PendingRecovery" && loss.Description.Contains("Pending semantic GF recovery", StringComparison.Ordinal));
+        Assert.Empty(plan.ProjectedState.CharacterVitals!.GuardianForceRecoveryProgression);
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active));
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, source));
+        Assert.Contains("Pending semantic GF recovery", error.Message, StringComparison.Ordinal);
+        Assert.NotEmpty(NativePcSaveConverter.Export(active, source, allowGuardianForceLoss: true));
+        Assert.Equal(before, JsonSerializer.Serialize(active));
+    }
+
+    [Fact]
     public void LegacyGuardianForceProjectionReviewsLossOfAttributionEvenWhenValuesMatchSource()
     {
         GameState state = Defaults();

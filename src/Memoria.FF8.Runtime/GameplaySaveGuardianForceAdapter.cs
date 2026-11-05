@@ -5,8 +5,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Projects GF progress by ability identity while keeping selected profile definitions outside the gameplay document.</summary>
 internal static class GameplaySaveGuardianForceAdapter
 {
-    internal static NativeCharacterVitals PrepareCapture(NativeCharacterVitals source)
+    internal static NativeCharacterVitals PrepareCapture(NativeCharacterVitals source, out GameplaySaveGuardianForceRecovery? recovery)
     {
+        recovery = GameplaySaveGuardianForceRecovery.Capture(source);
         for (int id = 0; id < source.GuardianForces.Length; id++)
         {
             NativeGuardianForceVital gf = source.GuardianForces[id];
@@ -29,14 +30,10 @@ internal static class GameplaySaveGuardianForceAdapter
             if (!normalized.GuardianForceRecoveryProgression.IsDefaultOrEmpty && normalized.GuardianForceRecoveryProgression[id] is { } historical)
             {
                 ValidateHistory(historical, normalized.MenuDefinitions.AbilityPoints.Length);
-                if (historical.Abilities.Any(entry => entry.ItemTaught && !progression.Abilities.Any(current => current.Ability == entry.Ability && current.ItemTaught)))
-                {
-                    throw new NotSupportedException("Gameplay GF projection cannot yet preserve unresolved item-taught recovery provenance without reactivating it; preserve the execution snapshot.");
-                }
                 HashSet<int> represented = progression.Abilities.Select(entry => entry.Ability).ToHashSet();
                 progression = progression with
                 {
-                    Abilities = progression.Abilities.AddRange(historical.Abilities.Where(entry => !represented.Contains(entry.Ability)).Select(entry => entry with { Active = false })).OrderBy(entry => entry.Ability).ToImmutableArray()
+                    Abilities = progression.Abilities.AddRange(historical.Abilities.Where(entry => !entry.ItemTaught && !represented.Contains(entry.Ability)).Select(entry => entry with { Active = false })).OrderBy(entry => entry.Ability).ToImmutableArray()
                 };
             }
             NativeGuardianForceVital gf = normalized.GuardianForces[id] with { HitPoints = source.GuardianForces[id].HitPoints, Progression = progression };
@@ -130,7 +127,7 @@ internal static class GameplaySaveGuardianForceAdapter
 
     private static void RequireResolved(NativeCharacterVitals source)
     {
-        if (source.GuardianForceProfile is null && (source.GuardianForceOpaqueBaseline || source.GuardianForceRecoveryProfile is not null || !source.GuardianForceRecoveryProgression.IsDefaultOrEmpty || !source.GuardianForceRecoveryTemplates.IsDefaultOrEmpty))
+        if (source.GuardianForceProfile is null && (source.GuardianForceOpaqueBaseline || source.GuardianForceRecoveryProfile is not null || !source.GuardianForceRecoveryTemplates.IsDefaultOrEmpty))
         {
             throw new NotSupportedException("Gameplay GF projection requires resolving the observed compatibility baseline before replacing its pending profile attribution; preserve the execution snapshot.");
         }

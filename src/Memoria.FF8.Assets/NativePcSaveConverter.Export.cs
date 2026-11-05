@@ -20,7 +20,7 @@ public static partial class NativePcSaveConverter
     public static byte[] Export(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.CharacterVitals is { } vitals && (vitals.GuardianForceProfile is not null || vitals.GuardianForceRecoveryProfile is not null || vitals.GuardianForceOpaqueBaseline || !vitals.MenuDefinitions.Templates.IsDefault || vitals.GuardianForces.Any(gf => gf.Progression is not null)))
+        if (state.CharacterVitals is { } vitals && (vitals.GuardianForceProfile is not null || vitals.GuardianForceRecoveryProfile is not null || !vitals.GuardianForceRecoveryProgression.IsDefaultOrEmpty || vitals.GuardianForceOpaqueBaseline || !vitals.MenuDefinitions.Templates.IsDefault || vitals.GuardianForces.Any(gf => gf.Progression is not null)))
         {
             if (vitals.MenuDefinitions.SourceTemplates.IsDefault)
             {

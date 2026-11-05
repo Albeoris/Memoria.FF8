@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class GameplaySaveGuardianForceTests
+public sealed partial class GameplaySaveGuardianForceTests
 {
     [Fact]
     public void InstalledProfileRoundTripPreservesProgressAndRebuildsSelectedRuntimeProjection()
@@ -138,19 +138,26 @@ public sealed class GameplaySaveGuardianForceTests
     [Theory]
     [InlineData(100)]
     [InlineData(104)]
-    public void UnresolvedItemTaughtRecoveryRefusesWithoutLosingOrReactivatingProvenance(int ability)
+    public void PendingItemTaughtRecoveryIsPreservedSeparatelyWithoutReactivation(int ability)
     {
         NativeCharacterVitals source = Progressed();
         ImmutableArray<GuardianForceProgression?> history = Enumerable.Repeat<GuardianForceProgression?>(null, 16).ToImmutableArray().SetItem(0, new(true, [new(ability, true, 12, ItemTaught: true)]));
         source = source with { GuardianForceOpaqueBaseline = true, GuardianForceRecoveryProfile = source.GuardianForceProfile, GuardianForceRecoveryProgression = history };
         string original = JsonSerializer.Serialize(source);
 
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(source));
+        GameplaySaveComponentDocument saved = RoundTrip(Document(source));
+        NativeCharacterVitals restored = saved.Characters.Restore(Profile(Base(), Templates()));
 
-        Assert.Contains("item-taught recovery provenance", error.Message, StringComparison.Ordinal);
         Assert.Equal(original, JsonSerializer.Serialize(source));
         Assert.True(source.GuardianForceRecoveryProgression[0]!.Abilities.Single().ItemTaught);
         Assert.False(source.GuardianForces[0].HasLearnedAbility(ability));
+        Assert.NotNull(saved.Characters.PendingGuardianForceRecovery);
+        Assert.Equal(JsonSerializer.Serialize(history), JsonSerializer.Serialize(restored.GuardianForceRecoveryProgression));
+        Assert.False(restored.GuardianForces[0].HasLearnedAbility(ability));
+        Assert.Equal(source.GuardianForces[0].LearnedBank, restored.GuardianForces[0].LearnedBank);
+        Assert.Null(restored.GuardianForceRecoveryProfile);
+        Assert.Empty(restored.GuardianForceRecoveryTemplates);
+        Assert.False(restored.GuardianForceOpaqueBaseline);
     }
 
     [Fact]

@@ -18,7 +18,7 @@ public sealed partial record NativeCharacterVitals
     {
         get
         {
-            if (GuardianForceOpaqueBaseline || GuardianForceRecoveryProfile is not null || GuardianForceProfile is not null || !MenuDefinitions.Templates.IsDefault && (MenuDefinitions.SourceTemplates.IsDefault || !MenuDefinitions.Templates.SelectMany((row, id) => row.Select(entry => (id, entry))).SequenceEqual(MenuDefinitions.SourceTemplates.SelectMany((row, id) => row.Select(entry => (id, entry))))))
+            if (GuardianForceOpaqueBaseline || GuardianForceRecoveryProfile is not null || !GuardianForceRecoveryProgression.IsDefaultOrEmpty || GuardianForceProfile is not null || !MenuDefinitions.Templates.IsDefault && (MenuDefinitions.SourceTemplates.IsDefault || !MenuDefinitions.Templates.SelectMany((row, id) => row.Select(entry => (id, entry))).SequenceEqual(MenuDefinitions.SourceTemplates.SelectMany((row, id) => row.Select(entry => (id, entry))))))
             {
                 return true;
             }
