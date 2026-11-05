@@ -6,13 +6,14 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeFieldModelInstance([property: JsonRequired] int ObjectId, [property: JsonRequired] int ModelId);
-/// <summary>Logical input to an executed model callback; resource-specific skin samples are rebuilt without advancing live state.</summary>
+/// <summary>Distinguishes callback samples from normal-load reconstruction.</summary>
 public enum NativeModelPartDrawOrigin
 {
     NativeCallback,
     GameplayReconstruction
 }
 
+/// <summary>Logical model sample input; selected-resource skin translations rebuild without advancing live state.</summary>
 public sealed record NativeModelPartDraw([property: JsonRequired] long Frame, [property: JsonRequired] int ModelId, [property: JsonRequired] NativeModelPartResourceState SampleState)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -225,7 +226,7 @@ public sealed partial class EventEngine
         {
             NativeFieldModelInstance? instance = bank.Instances.SingleOrDefault(item => item.ObjectId == objectId);
             NativeModelPartsDefinition? definition = instance is null ? null : ReadNativeModelParts?.Invoke(instance.ModelId);
-            if (draw is null || !Enum.IsDefined(draw.Origin) || draw.Origin == NativeModelPartDrawOrigin.GameplayReconstruction && (!ValidGameplayActorReconstruction(savedActors[objectId], frame) || draw.Frame != savedActors[objectId].GameplayReconstruction!.Frame) || definition is null || draw.ModelId != instance!.ModelId || draw.Frame < 0 || draw.Frame > frame || draw.SampleState is null)
+            if (draw is null || instance is null || definition is null || (uint)objectId >= savedActors.Count || !Enum.IsDefined(draw.Origin) || draw.Origin == NativeModelPartDrawOrigin.GameplayReconstruction && (!ValidGameplayActorReconstruction(savedActors[objectId], frame) || draw.Frame != savedActors[objectId].GameplayReconstruction!.Frame) || draw.ModelId != instance.ModelId || draw.Frame < 0 || draw.Frame > frame || draw.SampleState is null)
             {
                 throw new InvalidDataException("Saved native model draw samples are malformed.");
             }

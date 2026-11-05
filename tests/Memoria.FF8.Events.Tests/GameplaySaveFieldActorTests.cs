@@ -71,6 +71,24 @@ internal static partial class Program
         Require(JsonSerializer.Serialize(roundTrip) == encoded, "Actor capture/rebuild changed durable logical values or fixed position.");
         Require(JsonSerializer.Serialize(detached) == encoded, "Actor rebuild mutated the source component.");
 
+        NativeFieldModelPartsState validParts = target.Scene.ModelParts!;
+        Dictionary<int, NativeModelPartDraw> invalidDraws = new(validParts.Draws)
+        {
+            [target.Actors.Count + 10] = new(target.Frame, 13, settled) { Origin = NativeModelPartDrawOrigin.GameplayReconstruction }
+        };
+        SetGameplayActorValue(target.Scene, nameof(SceneEventState.ModelParts), validParts with { Draws = invalidDraws });
+        bool malformedDrawRejected = false;
+        try
+        {
+            typeof(EventEngine).GetMethod("ValidateNativeModelParts", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(target, [target.Scene, target.Actors, target.Frame, true, false, null]);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is InvalidDataException)
+        {
+            malformedDrawRejected = true;
+        }
+        Require(malformedDrawRejected, "Malformed semantic model draw key did not fail with controlled validation.");
+        SetGameplayActorValue(target.Scene, nameof(SceneEventState.ModelParts), validParts);
+
         foreach (string member in new[] { nameof(ActorState.MovementTarget), nameof(ActorState.RotationTarget), nameof(ActorState.NativePushContactPending) })
         {
             EventEngine active = Create();
