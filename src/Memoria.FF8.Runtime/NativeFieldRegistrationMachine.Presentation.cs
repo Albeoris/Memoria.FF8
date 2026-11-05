@@ -45,10 +45,12 @@ public static partial class NativeFieldRegistrationMachine
             {
                 continue;
             }
-            NativeFieldResourceCursor resource = ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId));
+            NativeFieldRegisteredResource registered = state.Resources.Single(resource => resource.ModelId == instance.ModelId);
+            NativeFieldResourceCursor resource = ResolveResource(memory, registered);
+            NativeFieldResourceOwner? bindings = ResolveInstanceBindings(memory, instance, registered);
             for (uint buffer = 0; buffer < 2; buffer++)
             {
-                uint packet = memory.Read32(address + 88 + buffer * 4);
+                NativeFieldResourceCursor packet = ReadInstanceGraphicsPointer(memory, instance, bindings, 88 + buffer * 4);
                 int[] strides = [28, 36, 32, 40];
                 for (uint type = 0; type < 4; type++)
                 {

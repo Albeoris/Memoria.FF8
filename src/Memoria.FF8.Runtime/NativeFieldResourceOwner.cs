@@ -33,8 +33,12 @@ public sealed record NativeFieldResourceOwner([property: JsonRequired] NativeBat
     }
 }
 
-/// <summary>Selects the bounded mutable animation-cursor sidecar for one instance.</summary>
-public sealed record NativeFieldInstanceResourceReference([property: JsonRequired] int ResourceIndex, [property: JsonRequired] int InstanceIndex);
+/// <summary>Selects one instance's bounded animation cursors and optional graphics authority.</summary>
+public sealed record NativeFieldInstanceResourceReference([property: JsonRequired] int ResourceIndex, [property: JsonRequired] int InstanceIndex)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? GraphicsLength { get; init; }
+}
 
 /// <summary>Resource ownership on an authenticated numeric registration-table receipt.</summary>
 public sealed record NativeFieldResourcePointerStorage([property: JsonRequired] int ResourceIndex)
@@ -43,6 +47,8 @@ public sealed record NativeFieldResourcePointerStorage([property: JsonRequired] 
     public NativeFieldResourceOwner? Resource { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldResourceOwner? InstanceBindings { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? GraphicsLength { get; init; }
 
     internal bool IsValidAt(uint address) => Resource is not null ? address == 0x1DCB0F0u + (uint)ResourceIndex * 4 : address >= 0x1DCB340u && address < 0x1DCB3C0u && (address - 0x1DCB340u) % 4 == 0;
 
@@ -50,7 +56,7 @@ public sealed record NativeFieldResourcePointerStorage([property: JsonRequired] 
     {
         get
         {
-            if (ResourceIndex is < 0 or >= 64 || (Resource is null) == (InstanceBindings is null) || InstanceBindings is { Length: not 152 })
+            if (ResourceIndex is < 0 or >= 64 || (Resource is null) == (InstanceBindings is null) || Resource is not null && GraphicsLength is not null || InstanceBindings is { } instance && (GraphicsLength is int length ? length < 152 || instance.Length != length : instance.Length != 152))
             {
                 return false;
             }

@@ -34,7 +34,8 @@ public sealed class NativeFieldResourceOwnerTests
             Assert.Equal(0, instance.ResourceReference!.ResourceIndex);
             NativeBattleResourcePointer receipt = registered.Memory.FileStaging!.ReadResourcePointer(InstanceTable + (uint)instance.ResourceReference.InstanceIndex * 4)!;
             Assert.Null(receipt.FieldStorage!.Resource);
-            Assert.Equal(152, receipt.FieldStorage.InstanceBindings!.Length);
+            Assert.Equal(instance.ResourceReference.GraphicsLength, receipt.FieldStorage.GraphicsLength);
+            Assert.Equal(instance.ResourceReference.GraphicsLength, receipt.FieldStorage.InstanceBindings!.Length);
             foreach (int offset in AnimationPointers)
             {
                 Assert.All(registered.Memory.FileStaging.ReadSnapshot(instance.Address + (uint)offset, 4).Known, value => Assert.False(value));
@@ -371,8 +372,10 @@ public sealed class NativeFieldResourceOwnerTests
             NativeFieldRegisteredInstance instance = owned.State.Instances[index];
             uint address = checked(resource.Address + 0x1000u + (uint)index * 0x1000);
             NativeFieldResourceOwner bindings = staging.ReadResourcePointer(InstanceTable + (uint)index * 4)!.FieldStorage!.InstanceBindings!;
-            uint oldEnd = index + 1 < owned.State.Instances.Length ? owned.State.Instances[index + 1].Address : owned.State.EndAddress;
-            (byte[] bytes, bool[] observed) = owned.Memory.FileStaging!.ReadSnapshot(instance.Address, checked((int)(oldEnd - instance.Address)));
+            (byte[] bytes, bool[] observed) = bindings.Storage.ReadSnapshot(0, bindings.Length);
+            (byte[] header, bool[] headerKnown) = owned.Memory.FileStaging!.ReadSnapshot(instance.Address, 152);
+            header.CopyTo(bytes, 0);
+            headerKnown.CopyTo(observed, 0);
             foreach (int field in AnimationPointers)
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(field), checked(bindings.Storage.ReadUInt32((uint)field) + resource.Address));
@@ -380,8 +383,8 @@ public sealed class NativeFieldResourceOwnerTests
             }
             foreach (int field in new[] { 4, 84, 88, 92, 128 })
             {
-                uint old = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(field));
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(field), checked(old + address - instance.Address));
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(field), checked(bindings.Storage.ReadUInt32((uint)field) + address));
+                observed.AsSpan(field, 4).Fill(true);
             }
             staging.WorkingOwner.WriteWithKnownness(address, bytes, observed);
             staging.WriteResourcePointer(InstanceTable + (uint)index * 4, new(null, address));

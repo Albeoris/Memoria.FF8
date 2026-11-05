@@ -141,7 +141,7 @@ public sealed class NativeFieldInputOwnerTests
     private static NativeFieldResourceOwner Owner(NativeBattleRetainedMemory memory) => memory.FileStaging!.ReadResourcePointer(0x1DCB0F0)!.FieldStorage!.Resource!;
     private static ushort Read16(NativeBattleFileStaging storage, uint offset) => BinaryPrimitives.ReadUInt16LittleEndian(storage.Read(offset, 2));
 
-    private static NativeFieldRegistrationResources Fixture(string image, bool mainCharacter, int padding, bool repeatedTexture = false)
+    internal static NativeFieldRegistrationResources Fixture(string image, bool mainCharacter, int padding, bool repeatedTexture = false)
     {
         NativeFieldRegistrationResources template = NativeFieldResourceOwnerTests.Fixture(image);
         byte[] model = new byte[292 + 546];

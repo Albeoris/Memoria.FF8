@@ -5,7 +5,7 @@ public static partial class NativeFieldRegistrationMachine
     private static uint RegisterResource5318D0(NativeFieldRegistrationMemory memory, SelectedModel item, NativeFieldResourceCursor address)
     {
         NativeFieldResourceCursor geometry = item.Geometry;
-        memory.ProjectInputPointer(0x1DC3CDC, geometry);
+        memory.ProjectGuestPointer(0x1DC3CDC, geometry);
         uint scale = item.Scale == 0 ? 16u : item.Scale;
         uint bones = memory.Read32(geometry);
         uint vertices = memory.Read32(geometry + 4);
@@ -50,7 +50,7 @@ public static partial class NativeFieldRegistrationMachine
         memory.WritePointer(address + 32, cursor);
         cursor = checked(cursor + 8 * skins);
         NativeFieldResourceCursor sourceBones = geometry + memory.Read32(geometry + 32);
-        memory.ProjectInputPointer(0x1DC3CD8, sourceBones);
+        memory.ProjectGuestPointer(0x1DC3CD8, sourceBones);
         memory.Copy(sourceBones, memory.ReadPointer(address) + 64, checked((int)bones * 64));
         for (uint bone = 0; bone < bones; bone++)
         {
@@ -60,7 +60,7 @@ public static partial class NativeFieldRegistrationMachine
             memory.Write32(target + 52, 0);
         }
         NativeFieldResourceCursor sourceVertices = geometry + memory.Read32(geometry + 36);
-        memory.ProjectInputPointer(0x1DC3CE8, sourceVertices);
+        memory.ProjectGuestPointer(0x1DC3CE8, sourceVertices);
         for (uint vertex = 0; vertex < vertices; vertex++)
         {
             NativeFieldResourceCursor target = checked(memory.ReadPointer(address + 24) + vertex * 8);

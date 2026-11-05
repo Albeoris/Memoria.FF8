@@ -278,7 +278,7 @@ internal sealed class NativeFieldRegistrationMemory : IDisposable
         }
     }
 
-    internal void ProjectInputPointer(uint address, NativeFieldResourceCursor cursor)
+    internal void ProjectGuestPointer(uint address, NativeFieldResourceCursor cursor)
     {
         if (cursor.Owner is null)
         {

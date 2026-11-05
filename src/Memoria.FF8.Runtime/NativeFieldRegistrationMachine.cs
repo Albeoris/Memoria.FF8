@@ -122,7 +122,7 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
             if (instance.ResourceReference is { } reference)
             {
                 NativeBattleResourcePointer? receipt = scope is null ? memory.ReadResourcePointer(checked(0x1DCB340 + (uint)index * 4)) : scope.ReadResourcePointer(checked(0x1DCB340 + (uint)index * 4));
-                if (reference.InstanceIndex != index || reference.ResourceIndex != selected!.Index || receipt?.StagingAddress != instance.Address || receipt.FieldStorage is not { InstanceBindings: { } bindings } field || field.ResourceIndex != selected.Index || !receipt.HasValidOwner())
+                if (reference.InstanceIndex != index || reference.ResourceIndex != selected!.Index || receipt?.StagingAddress != instance.Address || receipt.FieldStorage is not { InstanceBindings: { } bindings } field || field.ResourceIndex != selected.Index || field.GraphicsLength != reference.GraphicsLength || !receipt.HasValidOwner())
                 {
                     throw new InvalidDataException("Field instance has invalid selected resource cursor storage.");
                 }
@@ -131,6 +131,16 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
                     if (Read32(new(bindings, offset)) > selected.ResourceLength || memory.ReadSnapshot(instance.Address + offset, 4).Known.Any(value => value))
                     {
                         throw new InvalidDataException("Field instance logical cursor is out of bounds or has conflicting guest bytes.");
+                    }
+                }
+                if (reference.GraphicsLength is not null)
+                {
+                    foreach (uint offset in new uint[] { 4, 84, 88, 92, 128 })
+                    {
+                        if (Read32(new(bindings, offset)) > bindings.Length || memory.ReadSnapshot(instance.Address + offset, 4).Known.Any(value => value))
+                        {
+                            throw new InvalidDataException("Field instance graphics cursor conflicts with its selected bounded owner.");
+                        }
                     }
                 }
             }
@@ -320,8 +330,8 @@ public static partial class NativeFieldRegistrationMachine
             memory.Write32(row + 8, item.Entry.SourceWord8!.Value);
             memory.Write32(row + 12, (item.Entry.Flag >> 28) == 0xD ? item.Entry.Flag & 0xFFFF : uint.MaxValue);
             memory.Fill(row + 16, 24, 255);
-            memory.ProjectInputPointer(row + 40, item.Geometry);
-            memory.ProjectInputPointer(row + 44, item.Animation);
+            memory.ProjectGuestPointer(row + 40, item.Geometry);
+            memory.ProjectGuestPointer(row + 44, item.Animation);
             memory.Write8(ModelMap + (uint)item.ModelId, (byte)item.Index);
             for (int ordinal = 0; ordinal < item.Textures.Count; ordinal++)
             {
@@ -341,7 +351,7 @@ public static partial class NativeFieldRegistrationMachine
                 else
                 {
                     NativeFieldResourceCursor textureSource = texture.Source ?? throw new InvalidDataException("Field texture has no selected input owner.");
-                    memory.ProjectInputPointer(row + 16 + (uint)ordinal * 4, textureSource);
+                    memory.ProjectGuestPointer(row + 16 + (uint)ordinal * 4, textureSource);
                     registration = RegisterTexture(context, loader, item.Entry, textureSource, uploadIndex++);
                     item.UploadedTextures++;
                     if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
@@ -393,14 +403,20 @@ public static partial class NativeFieldRegistrationMachine
             else
             {
                 NativeFieldRegisteredResource resource = resources.Single(resource => resource.ModelId == actor.ModelId);
-                NativeFieldResourceOwner bindings = NativeFieldResourceOwner.Create(152);
+                if (address > layout.Limit || layout.Limit - address < 152)
+                {
+                    throw new NotSupportedException("Field instance scalar projection exceeds the selected native allocation.");
+                }
+                NativeFieldResourceOwner bindings = NativeFieldResourceOwner.Create(InstanceGraphicsLength(memory, resource));
+                int seedLength = checked((int)Math.Min((uint)bindings.Length, layout.Limit - address));
+                memory.Copy(address, new NativeFieldResourceCursor(bindings, 0), seedLength);
                 cursor = RegisterInstance531980(memory, index, resource, bindings, cursor);
-                memory.WriteResourcePointer(InstancePointers + (uint)index * 4, new(null, address) { FieldStorage = new(resource.Index) { InstanceBindings = bindings } });
-                reference = new(resource.Index, index);
+                memory.WriteResourcePointer(InstancePointers + (uint)index * 4, new(null, address) { FieldStorage = new(resource.Index) { InstanceBindings = bindings, GraphicsLength = bindings.Length } });
+                reference = new(resource.Index, index) { GraphicsLength = bindings.Length };
             }
             instances.Add(new(actor.ObjectId, actor.ModelId, address, actor.ModelId < 0 ? memory.ReadOptional16(address + 12) : null) { ResourceReference = reference });
         }
-        //532A40 constructs into the same arena after relocating its input. Consumed source bytes can be reused.
+        // Native scalar projections remain in the authenticated guest allocation.
         if (cursor > layout.Limit)
         {
             throw new NotSupportedException("Constructed field resources exceed the selected native allocation.");
