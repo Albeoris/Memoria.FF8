@@ -538,7 +538,7 @@ public sealed partial class BattleHudController
             }
             else
             {
-                (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(WithDrawTarget(WithMagicTargets(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: SelectedCommand, ActionId: SelectedAction!.Id, DrawCast: DrawCast))));
+                (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(WithDrawTarget(WithMagicTargets(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: SelectedCommand, ActionId: SelectedAction!.Id))));
             }
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)

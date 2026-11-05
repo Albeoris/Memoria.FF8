@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Memoria.FF8.Platform;
 
@@ -8,7 +9,16 @@ public sealed record ErrorException(string Type, string Message, int HResult, st
     internal static ErrorException Capture(Exception exception)
     {
         IEnumerable<Exception> causes = exception is AggregateException aggregate ? aggregate.InnerExceptions : exception.InnerException is { } inner ? new[] { inner } : Array.Empty<Exception>();
-        return new(exception.GetType().FullName ?? exception.GetType().Name, exception.Message, exception.HResult, exception.StackTrace, Array.AsReadOnly(causes.Select(Capture).ToArray()));
+        return new(exception.GetType().FullName ?? exception.GetType().Name, exception.Message, exception.HResult, RedactSourcePaths(exception.StackTrace), Array.AsReadOnly(causes.Select(Capture).ToArray()));
+    }
+
+    private static string? RedactSourcePaths(string? stack)
+    {
+        return stack is null ? null : Regex.Replace(stack, @" in (?<path>(?:[A-Za-z]:[\\/]|/)[^\r\n]+):line (?<line>\d+)", match =>
+        {
+            string path = match.Groups["path"].Value.Replace('\\', '/');
+            return " in " + path[(path.LastIndexOf('/') + 1)..] + ":line " + match.Groups["line"].Value;
+        });
     }
 
     public override string ToString()
@@ -73,6 +83,7 @@ public sealed class ReportSave
     public DateTimeOffset CapturedUtc { get; }
     public string Validation { get; }
     public int Length => bytes.Length;
+    internal string ArchiveFileName => bytes.AsSpan().StartsWith("MFF8SAVE"u8) ? "state.ff8save" : "state.json";
 
     // Callers supply existing-format bytes only after independent storage/continuation validation.
     public ReportSave(byte[] bytes, string kind, DateTimeOffset capturedUtc, string validation)
@@ -142,7 +153,7 @@ public sealed class ErrorIncident
         JsonElement details = Detach(environment, "environment");
         System.Reflection.Assembly assembly = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(ErrorIncident).Assembly;
         JsonElement environmentData = JsonSerializer.SerializeToElement(new { productVersion = assembly.GetName().Version?.ToString(), build = assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false).OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion, dotnet = System.Environment.Version.ToString(), os = System.Runtime.InteropServices.RuntimeInformation.OSDescription, architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(), details }, JsonOptions);
-        return new(Guid.NewGuid().ToString("N"), launchId ?? System.Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LAUNCH_ID") ?? sessionId, DateTimeOffset.UtcNow, subsystem, ErrorException.Capture(exception), runtimeData, environmentData, save, saveUnavailableReason ?? "No safe validated save was available at the failure boundary.", breadcrumbs?.Snapshot() ?? [], errors.ToArray(), logPaths?.ToArray() ?? []);
+        return new(Guid.NewGuid().ToString("N"), launchId ?? System.Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LAUNCH_ID") ?? sessionId, DateTimeOffset.UtcNow, subsystem, ErrorException.Capture(exception), runtimeData, environmentData, save, saveUnavailableReason ?? (save is null ? "No safe validated save was available at the failure boundary." : ""), breadcrumbs?.Snapshot() ?? [], errors.ToArray(), logPaths?.ToArray() ?? []);
     }
 
     public string ExceptionText => Exception.ToString();

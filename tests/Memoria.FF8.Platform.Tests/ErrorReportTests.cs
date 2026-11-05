@@ -22,6 +22,56 @@ public sealed class ErrorReportTests : IDisposable
         Assert.Equal("cached", incident.Environment.GetProperty("details").GetProperty("renderer").GetString());
     }
 
+    [Theory]
+    [InlineData(@"C:\build\private-checkout\BattleSession.cs")]
+    [InlineData("/home/builder/private-checkout/BattleSession.cs")]
+    public void Captured_stack_preserves_source_location_without_machine_path(string path)
+    {
+        ErrorIncident incident = ErrorIncident.Capture(new SourceStackException(path), "test");
+
+        Assert.DoesNotContain(path, incident.ExceptionText);
+        Assert.Contains("BattleSession.GetActor", incident.ExceptionText);
+        Assert.Contains("BattleSession.cs:line 42", incident.ExceptionText);
+    }
+
+    [Fact]
+    public async Task Compact_snapshot_attachment_uses_binary_extension()
+    {
+        byte[] snapshot = "MFF8SAVE"u8.ToArray();
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("failed"), "test", save: new ReportSave(snapshot, "earlier validated player save", DateTimeOffset.UtcNow.AddDays(-2), "synthetic validated"));
+
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using Stream source = archive.GetEntry("repro/state.ff8save")!.Open();
+        using MemoryStream copy = new();
+        source.CopyTo(copy);
+
+        Assert.Null(archive.GetEntry("repro/state.json"));
+        Assert.Equal(snapshot, copy.ToArray());
+        Assert.Contains("capture age and limitations", Uri.UnescapeDataString(report.IssueUrl));
+    }
+
+    [Fact]
+    public async Task Earlier_save_keeps_current_snapshot_omission_in_public_report()
+    {
+        const string reason = "Current snapshot unavailable: Faulted. Reproduction has not been verified.";
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("failed"), "test", save: new ReportSave("{}"u8.ToArray(), "earlier validated player save", DateTimeOffset.UtcNow.AddDays(-2), "storage and continuation validated"), saveUnavailableReason: reason);
+
+        using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
+        using ZipArchive archive = ZipFile.OpenRead(report.ArchivePath);
+        using StreamReader manifestReader = new(archive.GetEntry("manifest.json")!.Open());
+        using JsonDocument manifest = JsonDocument.Parse(manifestReader.ReadToEnd());
+
+        Assert.Contains(reason, report.Description);
+        Assert.Contains(manifest.RootElement.GetProperty("omissions").EnumerateArray(), omission => omission.GetString() == reason);
+        Assert.NotNull(archive.GetEntry("repro/state.json"));
+    }
+
+    private sealed class SourceStackException(string path) : Exception("failure")
+    {
+        public override string StackTrace => "   at BattleSession.GetActor(String id) in " + path + ":line 42";
+    }
+
     [Fact]
     public async Task PackagingCoalescesReusesAndPreservesDetachedSave()
     {

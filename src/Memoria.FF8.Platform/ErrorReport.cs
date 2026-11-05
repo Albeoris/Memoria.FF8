@@ -118,6 +118,10 @@ public static class ErrorReport
                 }
             }
             List<string> omissions = new(incident.CollectionErrors);
+            if (!string.IsNullOrWhiteSpace(incident.SaveUnavailableReason))
+            {
+                omissions.Add(incident.SaveUnavailableReason);
+            }
             Dictionary<string, byte[]> files = new()
             {
                 ["exception.txt"] = Encoding.UTF8.GetBytes(incident.ExceptionText),
@@ -154,7 +158,7 @@ public static class ErrorReport
             bool includeSave = incident.Save is not null;
             if (includeSave)
             {
-                files["repro/state.json"] = incident.Save!.CopyBytes();
+                files["repro/" + incident.Save!.ArchiveFileName] = incident.Save.CopyBytes();
             }
             string description;
             while (true)
@@ -189,7 +193,7 @@ public static class ErrorReport
                 else if (includeSave)
                 {
                     includeSave = false;
-                    files.Remove("repro/state.json");
+                    files.Remove("repro/" + incident.Save!.ArchiveFileName);
                     omissions.Add("Validated reproduction save excluded to fit package budget; full artifact retained locally.");
                 }
                 else
@@ -231,7 +235,7 @@ public static class ErrorReport
         for (int budget = 240; budget >= 0; budget /= 2)
         {
             string title = "[Error] " + Shorten(incident.Exception.Message, Math.Max(20, budget / 3));
-            string body = $"## Error\n{Shorten(incident.Exception.Type, Math.Max(30, budget))}: {Shorten(incident.Exception.Message, budget)}\nSubsystem: {Shorten(incident.Subsystem, budget)}\n\nEnvironment: {Shorten(incident.Environment.GetRawText(), budget)}\nContext: {Shorten(incident.Runtime.GetRawText(), budget)}\n\nReport: {incident.Id}\nAttach: {archiveName}\nSave: {(saveIncluded ? "Validated save included" : "Unavailable or excluded; see report.md")}\n\n{Shorten(incident.Exception.Stack ?? "Stack unavailable", budget)}\n\nDrag the ZIP into this issue before submitting. Reports and attachments are public. Full details are in report.md inside the ZIP.\n";
+            string body = $"## Error\n{Shorten(incident.Exception.Type, Math.Max(30, budget))}: {Shorten(incident.Exception.Message, budget)}\nSubsystem: {Shorten(incident.Subsystem, budget)}\n\nEnvironment: {Shorten(incident.Environment.GetRawText(), budget)}\nContext: {Shorten(incident.Runtime.GetRawText(), budget)}\n\nReport: {incident.Id}\nAttach: {archiveName}\nSave: {(saveIncluded ? "Save included; see report.md for capture age and limitations" : "Unavailable or excluded; see report.md")}\n\n{Shorten(incident.Exception.Stack ?? "Stack unavailable", budget)}\n\nDrag the ZIP into this issue before submitting. Reports and attachments are public. Full details are in report.md inside the ZIP.\n";
             string url = IssueBase + Uri.EscapeDataString(title) + "&body=" + Uri.EscapeDataString(body);
             if (url.Length <= 2000)
             {

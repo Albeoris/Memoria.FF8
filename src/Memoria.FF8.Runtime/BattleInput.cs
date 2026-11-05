@@ -38,6 +38,10 @@ public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? A
     public BattleScanButton? ScanButton { get; init; }
     public void Validate()
     {
+        if (DrawCast && (Kind != BattleInputKind.Action || Ability != BattleAbility.Draw))
+        {
+            throw new InvalidDataException("Draw Cast belongs only to an explicit Draw action input.");
+        }
         if (Kind == BattleInputKind.ScanInput ? ScanButton is null || !Enum.IsDefined(ScanButton.Value) || Frames != 1 : ScanButton is not null)
         {
             throw new InvalidDataException("Scan input requires one explicit supported ScanButton on a single ScanInput command.");

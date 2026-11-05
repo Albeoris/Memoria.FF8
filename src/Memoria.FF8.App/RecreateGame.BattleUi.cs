@@ -393,6 +393,7 @@ internal sealed partial class RecreateGame
 
     private int ApplyBattleCommand(BattleInput input)
     {
+        lastReportBattleInput = input;
         if (SlotsModalBlocksGameplay && input.Kind != BattleInputKind.Tick)
         {
             throw new InvalidOperationException("The pending Slots card choice owns battle input.");

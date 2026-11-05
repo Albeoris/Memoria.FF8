@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -51,6 +52,7 @@ public sealed class ErrorReportSnapshotCaptureTests
         Assert.Contains("earlier validated", result.Kind);
         Assert.Contains("120 seconds", result.Kind);
         Assert.Contains("Faulted", result.Kind);
+        Assert.Contains("reproduction of this failure has not been verified", result.UnavailableReason);
     }
 
     [Fact]
@@ -71,6 +73,107 @@ public sealed class ErrorReportSnapshotCaptureTests
         Assert.Same(earlier, result.State);
         Assert.Contains("Current snapshot capture/validation failed", result.Kind);
         Assert.Contains("Earlier save continuation validation failed", result.Kind);
+    }
+
+    [Fact]
+    public void Earlier_quick_save_uses_the_player_loader_and_remains_detached()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-report-save-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "quick.json");
+            new GameSession(new GameState { Scene = SceneKind.Field, X = 12 }).Save(path, compact: true);
+            int loads = 0;
+            PlayerSaveStore store = new(Path.Combine(root, "configured.json"), root, discoverOriginalSaves: false, loadMemoria: loadedPath =>
+            {
+                Assert.Equal(path, loadedPath);
+                loads++;
+                return new GameState { Scene = SceneKind.Field, X = 77 };
+            });
+
+            (GameState state, DateTimeOffset capturedUtc) = Assert.Single(ErrorReportSnapshotCapture.ReadEarlierPlayerSnapshots(store, null, _ => throw new InvalidOperationException("No configured save"), failure => throw failure));
+
+            Assert.Equal(1, loads);
+            Assert.Equal(77, state.X);
+            Assert.Equal(new DateTimeOffset(File.GetLastWriteTimeUtc(path)), capturedUtc);
+            Assert.Equal(12, GameSession.Load(path).X);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Gameplay_component_quick_save_is_restored_by_the_real_player_loader()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, false);
+        string root = Path.Combine(Path.GetTempPath(), "memoria-report-save-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "quick.json");
+            using (FileStream destination = File.Create(path))
+            {
+                GameplaySaveCodec.Write(destination, document);
+            }
+            byte[] original = File.ReadAllBytes(path);
+            Assert.True(original.AsSpan().StartsWith("MFF8GPC1"u8));
+            Assert.ThrowsAny<System.Text.Json.JsonException>(() => GameSession.Load(path));
+            PlayerSaveStore store = new(Path.Combine(root, "configured.json"), root, discoverOriginalSaves: false, loadMemoria: source => PlayerStateLoader.Load(source, directory, sharedAssets: assets));
+
+            (GameState state, _) = Assert.Single(ErrorReportSnapshotCapture.ReadEarlierPlayerSnapshots(store, null, _ => throw new InvalidOperationException("No configured save"), failure => throw failure));
+
+            Assert.Equal(SceneKind.Field, state.Scene);
+            Assert.Equal(document.Resume.FieldId, state.FieldId);
+            Assert.NotNull(state.EventState);
+            Assert.Equal(original, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Configured_binary_save_uses_format_aware_loader()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-report-save-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "configured.sav");
+            File.WriteAllBytes(path, "MFF8GPC1"u8.ToArray());
+            PlayerSaveStore store = new(path, Path.Combine(root, "saves"), discoverOriginalSaves: false);
+            GameState expected = new() { Scene = SceneKind.Field, X = 42 };
+            int loads = 0;
+
+            (GameState state, _) = Assert.Single(ErrorReportSnapshotCapture.ReadEarlierPlayerSnapshots(store, path, loadedPath =>
+            {
+                Assert.Equal(path, loadedPath);
+                loads++;
+                return expected;
+            }, failure => throw failure));
+
+            Assert.Same(expected, state);
+            Assert.Equal(1, loads);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Fact]

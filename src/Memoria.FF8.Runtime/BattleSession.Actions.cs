@@ -9,6 +9,10 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
+        if (drawCast && ability != BattleAbility.Draw)
+        {
+            throw new InvalidOperationException("Only Draw can request a Cast selection.");
+        }
         RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);

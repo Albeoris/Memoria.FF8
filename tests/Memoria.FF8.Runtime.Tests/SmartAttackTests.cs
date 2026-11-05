@@ -6,6 +6,22 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class SmartAttackTests
 {
+    [Theory]
+    [InlineData(BattleAbility.Attack)]
+    [InlineData(BattleAbility.Magic)]
+    [InlineData(BattleAbility.Item)]
+    [InlineData(BattleAbility.GuardianForce)]
+    [InlineData(BattleAbility.NativeCommand)]
+    [InlineData(BattleAbility.LimitBreak)]
+    public void NonDrawCastIsRejectedBeforeChangingBattleState(BattleAbility ability)
+    {
+        BattleSession battle = Create([Spell(4, 20)], [new(4, 6)]);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party", "enemy", ability, 4, drawCast: true));
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        Assert.Throws<InvalidDataException>(() => new BattleInput(BattleInputKind.Action, ActorId: "party", TargetId: "enemy", Ability: ability, ActionId: 4, DrawCast: true).Validate());
+    }
+
     [Fact]
     public void OpeningPlayerCommandMenuDoesNotDisableSmartMagicWhenLimitIsUnavailable()
     {

@@ -7,6 +7,57 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudCursorMemoryTests
 {
     [Theory]
+    [InlineData(BattleAbility.Magic, false)]
+    [InlineData(BattleAbility.Magic, true)]
+    [InlineData(BattleAbility.Item, false)]
+    [InlineData(BattleAbility.Item, true)]
+    [InlineData(BattleAbility.GuardianForce, false)]
+    [InlineData(BattleAbility.GuardianForce, true)]
+    public void DrawCastPageDoesNotLeakIntoOtherCommands(BattleAbility ability, bool submitDraw)
+    {
+        List<BattleInput> inputs = [];
+        BattleSession battle = Create();
+        BattleHudController hud = Hud(battle, input =>
+        {
+            input.Validate();
+            if (input.Ability != BattleAbility.Draw)
+            {
+                GameWorld.ExecuteBattleCommand(battle, input);
+            }
+            inputs.Add(input);
+        });
+        OpenDraw(hud);
+        hud.Navigate(MenuInput.Right);
+        Assert.True(hud.DrawCast);
+        hud.Choose(0);
+        if (submitDraw)
+        {
+            hud.SelectTarget("enemy", true);
+        }
+        else
+        {
+            hud.Navigate(MenuInput.Cancel);
+            hud.Navigate(MenuInput.Cancel);
+        }
+        Submit(hud, ability, 0);
+        BattleInput command = inputs.Last();
+        Assert.Equal(ability, command.Ability);
+        Assert.False(command.DrawCast);
+        Assert.Null(command.DrawCastTargetId);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(ability, queued.Ability);
+        Assert.Equal("enemy", queued.TargetId);
+        Assert.False(queued.DrawCast);
+        if (ability is BattleAbility.Magic or BattleAbility.Item)
+        {
+            string json = System.Text.Json.JsonSerializer.Serialize(battle.Capture());
+            BattleSession restored = BattleSession.Restore(System.Text.Json.JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+            restored.Tick();
+            Assert.NotNull(restored.ActiveAction);
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void DrawRemembersSubmittedBlizzardAndReopensOnStockPage(bool cast)

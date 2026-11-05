@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private ErrorIncident? errorIncident;
+    private BattleInput? lastReportBattleInput;
     private Task<ErrorIncident>? reportEvidence;
     private Task<PreparedErrorReport>? reportPreparation;
     private PreparedErrorReport? preparedReport;
@@ -64,7 +65,7 @@ internal sealed partial class RecreateGame
                 LastFault = events?.LastFault, Transition = events?.NextTrigger.Kind.ToString(),
                 EventRandom = session.State.EventRandom, MenuRandom = session.State.MenuRandom,
                 WorldFrame = session.State.World?.Frame,
-                Battle = battle is null ? null : new { battle.EncounterId, battle.Name, battle.Frame, Outcome = battle.Outcome.ToString(), ActiveAction = battle.ActiveAction, PendingActions = battle.QueuedActions.Take(32).ToArray() },
+                Battle = battle is null ? null : new { battle.EncounterId, battle.Name, battle.Frame, Outcome = battle.Outcome.ToString(), LastInput = lastReportBattleInput, Combatants = battle.Combatants.Select(actor => new { actor.Id, actor.IsPlayer, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags }).ToArray(), ActiveAction = battle.ActiveAction, PendingActions = battle.QueuedActions.Take(32).ToArray() },
                 MenuOpen = gameMenus?.IsOpen, SaveMenuOpen = saveMenu.IsOpen, StartupStage = startup.Stage.ToString(),
                 CompletedTimingSample = metrics.Latest,
                 CompletedTimingSampleAgeSeconds = metrics.LatestCompletedUtc is { } completed ? (double?)(DateTimeOffset.UtcNow - completed).TotalSeconds : null,
@@ -128,32 +129,7 @@ internal sealed partial class RecreateGame
 
     private IEnumerable<(GameState State, DateTimeOffset CapturedUtc)> ReadEarlierReportSnapshots()
     {
-        IEnumerable<string> candidates = playerSaves.ReadQuickEntries().Where(entry => entry.CanLoad).OrderByDescending(entry => entry.SavedAt).Select(entry => playerSaves.GetPath(entry.Slot));
-        if (options.StatePath is not null)
-        {
-            candidates = candidates.Append(options.StatePath);
-        }
-        foreach (string path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            GameState? candidate = null;
-            DateTimeOffset capturedUtc = default;
-            try
-            {
-                if (File.Exists(path))
-                {
-                    candidate = GameSession.Load(path);
-                    capturedUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(path));
-                }
-            }
-            catch (Exception failure)
-            {
-                Console.Error.WriteLine("Earlier report save could not be loaded: " + failure.Message);
-            }
-            if (candidate is not null)
-            {
-                yield return (candidate, capturedUtc);
-            }
-        }
+        return ErrorReportSnapshotCapture.ReadEarlierPlayerSnapshots(playerSaves, options.StatePath, path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources, resourceHost, () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, initialized => resourceHost is null ? initialized : GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost)), failure => Console.Error.WriteLine("Earlier report save could not be loaded: " + failure.Message));
     }
 
     private void ReleasePreparedErrorReport()
@@ -186,7 +162,7 @@ internal sealed partial class RecreateGame
             // Only the independent session is serialized here. Resource continuation was validated on the owner thread.
             new GameSession(detached).Save(path, compact: true);
             _ = GameSession.Load(path);
-            ErrorIncident completed = incident.WithSave(new ReportSave(File.ReadAllBytes(path), kind, capturedUtc, "Storage integrity and owner-thread resource continuation validated."));
+            ErrorIncident completed = incident.WithSave(new ReportSave(File.ReadAllBytes(path), kind, capturedUtc, "Storage integrity and owner-thread resource continuation validated. Captured UTC identifies the source state; the container display timestamp identifies report serialization, not gameplay progress."));
             completed.Persist();
             return completed;
         }
