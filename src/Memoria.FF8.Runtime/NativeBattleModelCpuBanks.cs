@@ -177,6 +177,11 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
         return ReferenceEquals(updated, storage) ? this : new(updated, Capacity);
     }
 
+    internal NativeBattleModelCpuBank PromoteResourceStorage()
+    {
+        return resourceStorage is null ? new(storage, Capacity, storage) : this;
+    }
+
     internal NativeBattleModelCpuBank BindPartyResource(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
     {
         int extent = checked(offset + length);

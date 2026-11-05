@@ -29,14 +29,20 @@ public sealed record NativeBattleModelFileRequest(short FileId, string Name, uin
 public sealed record NativeBattleModelResourceBind(NativeBattleModelLoadTask Task, NativeBattleModelDatSource PreparedDat, NativeBattleModelTextureBinding TextureBinding)
 {
     public NativeBattleEffectHeapAllocation? OriginalTexturePack { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattlePartyLoadPlan? PartyPlan { get; init; }
 }
 public sealed record NativeBattleModelLoadStep(NativeBattleModelLoader State, NativeBattleFileStaging Staging, int Remaining, NativeBattleModelFileRequest? FileRequest, NativeBattleModelTextureLoad? TextureUpload, NativeBattleModelResourceBind? Bind);
 
 /// <summary>507080/507070's global one-row20-byte list; the shared508470 signed result is an explicit external input.</summary>
 public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattlePartyLoadPlan? PartyPlan { get; init; }
+
     public void Validate()
     {
+        PartyPlan?.Validate();
         if (Task is not { } task)
         {
             return;
@@ -45,6 +51,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         {
             throw new InvalidDataException("Native507070 requires its original bounded task and staging owners.");
         }
+        _ = PartyPlan?.Part(task);
         if (task.File is { } file)
         {
             if (file.FileId < 0 || string.IsNullOrWhiteSpace(file.Name))
@@ -85,13 +92,8 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         }
         if (task.Phase == 0)
         {
-            bool linked = task.Callback is 0x507BF0 or 0x507E20;
-            NativeBattleModelDatSource[] matches = sources.Where(source => source.ModelId == task.ModelId && source.Linked == linked && source.Selector == task.Selector).ToArray();
-            NativeBattleModelDatSource source = matches.FirstOrDefault() ?? throw new NotSupportedException("Native508480 lacks its observed BYTE128/129 file-table selection.");
-            if (matches.Any(candidate => candidate.FileId != source.FileId || candidate.Name != source.Name || !candidate.Bytes.AsSpan().SequenceEqual(source.Bytes.AsSpan())))
-            {
-                throw new InvalidDataException("Native model file selection has conflicting immutable sources.");
-            }
+            NativeBattleModelDatSource source = SelectSource(task, sources);
+            PartyPlan?.RequireSource(task, source, true);
             _ = source.Section(0);
             NativeBattleModelLoadTask next = task with { Phase = 1, File = new(source.FileId, source.Name) };
             staging = staging.BindResource(NativeBattleFileStaging.Address, source.Bytes);
@@ -104,6 +106,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
                 return new(this, staging, 1, null, null, null);
             }
             NativeBattleModelDatSource source = ReadCurrentStaging(task, staging);
+            PartyPlan?.RequireSource(task, source, true);
             if (task.Callback == 0x507F80)
             {
                 throw new InvalidOperationException("Native507F80 resource copy must execute against its actual model142 row and enemy heap.");
@@ -124,10 +127,24 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         if (task.Phase == 2 || task.Phase == 3 && task.Callback == 0x5079B0)
         {
             NativeBattleModelDatSource source = ReadCurrentStaging(task, staging);
+            PartyPlan?.RequireSource(task, source, false);
             NativeBattleModelTextureBinding binding = task.TextureBinding ?? throw new InvalidDataException("Native resource completion lost its executed507400 binding.");
-            return new(new(Task: null), staging, 0, null, null, new(task, source, binding) { OriginalTexturePack = task.OriginalTexturePack ?? throw new InvalidDataException("Native resource completion lost its pre-relocation texture pack.") });
+            NativeBattleModelLoader next = this with { Task = null, PartyPlan = task.Callback is 0x5077B0 && PartyPlan?.Linked is not null ? PartyPlan : null };
+            return new(next, staging, 0, null, null, new(task, source, binding) { OriginalTexturePack = task.OriginalTexturePack ?? throw new InvalidDataException("Native resource completion lost its pre-relocation texture pack."), PartyPlan = PartyPlan });
         }
         throw new InvalidDataException("Native model loader phase has no original callback branch.");
+    }
+
+    internal static NativeBattleModelDatSource SelectSource(NativeBattleModelLoadTask task, IReadOnlyList<NativeBattleModelDatSource> sources)
+    {
+        bool linked = task.Callback is 0x507BF0 or 0x507E20;
+        NativeBattleModelDatSource[] matches = sources.Where(source => source.ModelId == task.ModelId && source.Linked == linked && source.Selector == task.Selector).ToArray();
+        NativeBattleModelDatSource source = matches.FirstOrDefault() ?? throw new NotSupportedException("Native508480 lacks its observed BYTE128/129 file-table selection.");
+        if (matches.Any(candidate => candidate.FileId != source.FileId || candidate.Name != source.Name || !candidate.Bytes.AsSpan().SequenceEqual(source.Bytes.AsSpan())))
+        {
+            throw new InvalidDataException("Native model file selection has conflicting immutable sources.");
+        }
+        return source;
     }
 
     private static NativeBattleModelDatSource ReadCurrentStaging(NativeBattleModelLoadTask task, NativeBattleFileStaging staging)

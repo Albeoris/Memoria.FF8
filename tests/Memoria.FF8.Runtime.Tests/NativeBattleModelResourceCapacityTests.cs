@@ -192,7 +192,7 @@ public sealed class NativeBattleModelResourceCapacityTests
         return new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(1, new(1, 1)), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
     }
 
-    private static NativeBattleModelDatSource Source(bool linked, int meshOffset)
+    internal static NativeBattleModelDatSource Source(bool linked, int meshOffset)
     {
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;

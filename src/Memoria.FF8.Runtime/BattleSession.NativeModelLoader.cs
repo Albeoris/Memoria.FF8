@@ -26,7 +26,31 @@ public sealed partial class BattleSession
         bool linked = request >= 0x1000;
         byte body = linked || request >= 16 ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
         byte weapon = !linked || request == 0x1007 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
-        NativeModelLoader = NativeBattleModelLoader.Queue507080(request, physicalIndex, argument, weapon, body);
+        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, physicalIndex, argument, weapon, body);
+        if (!linked && request < 16)
+        {
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Complete party load planning requires its current CPU resource owner.");
+            byte linkedSelector = request == 7 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Complete party load planning requires its selected BYTE128 weapon resource.");
+            NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(checked((byte)request), physicalIndex, body, linkedSelector, cpu.Cpu.EffectiveLayout, NativeModelResourceSources());
+            if (plan.RequiresResourceStorage)
+            {
+                NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, physicalIndex, graphics);
+            }
+            queued = queued with { PartyPlan = plan };
+        }
+        else if (linked && queued.Task is { } task && NativeModelLoader is { Task: null, PartyPlan: { } plan } && plan.ModelId == task.ModelId && plan.PhysicalIndex == physicalIndex)
+        {
+            _ = plan.Part(task);
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Linked party planning requires its current body owner.");
+            int row = model.TextureResourceIndex ?? throw new NotSupportedException("Linked party planning requires its completed body resource row.");
+            NativeBattleModelCpuReference tail = cpu.Rows[row].Require(8);
+            if (tail.Bank != physicalIndex || tail.Offset != plan.Body.CopiedLength || tail.EffectiveLayout != plan.Layout)
+            {
+                throw new InvalidDataException("The linked request no longer belongs to its planned body publication.");
+            }
+            queued = queued with { PartyPlan = plan };
+        }
+        NativeModelLoader = queued;
     }
 
     private int PollNativeModelResource507070(ref NativeBattleGraphicsState graphics)
@@ -35,6 +59,15 @@ public sealed partial class BattleSession
         if (TryPollNativeEnemyModel(ref graphics, loader, out int enemyRemaining))
         {
             return enemyRemaining;
+        }
+        if (loader.PartyPlan is { RequiresResourceStorage: true } plan && loader.Task is not null)
+        {
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Planned party loading requires its retained CPU owner.");
+            if (cpu.Cpu.EffectiveLayout != plan.Layout)
+            {
+                throw new InvalidDataException("The planned party load no longer belongs to its selected CPU layout.");
+            }
+            NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, plan.PhysicalIndex, graphics);
         }
         ImmutableArray<NativeBattleModelDatSource> sources = NativeModelResourceSources();
         if (NativeFileStaging is null && loader.Task is { Phase: > 0 })

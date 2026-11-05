@@ -177,6 +177,20 @@ public static class NativeBattleModelResourceCopies
     internal static void RequireInactiveTransition(NativeBattleModelCpuResources previous, NativeBattleModelResourceCompletion completed, NativeBattleGraphicsState graphics)
     {
         HashSet<int> promoted = previous.Cpu.Banks.Select((bank, index) => (bank, index)).Where(item => !item.bank.HasResourceStorage && completed.Cpu.Banks[item.index].HasResourceStorage).Select(item => item.index).ToHashSet();
+        RequireInactiveBanks(previous, promoted, graphics);
+    }
+
+    internal static void RequirePlannedTransition(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
+    {
+        if (bank >= 3)
+        {
+            throw new InvalidDataException("Party load admission requires its actual physical CPU bank.");
+        }
+        RequireInactiveBanks(previous, previous.Cpu.Banks[bank].HasResourceStorage ? [] : [bank], graphics);
+    }
+
+    private static void RequireInactiveBanks(NativeBattleModelCpuResources previous, HashSet<int> promoted, NativeBattleGraphicsState graphics)
+    {
         if (promoted.Count == 0)
         {
             return;
@@ -282,7 +296,20 @@ public static class NativeBattleModelResourceCopies
         {
             throw new InvalidDataException("Native resource row aliases an absent party CPU bank.");
         }
-        NativeBattleModelCpuBank changed = cpu.Banks[bank].BindPartyResource(origin, source.Bytes, first, length);
+        NativeBattleModelCpuBank selected = cpu.Banks[bank];
+        if (bind.PartyPlan is { } plan)
+        {
+            plan.RequireSource(task, source, false);
+            if (plan.Layout != cpu.EffectiveLayout || bank != plan.PhysicalIndex || origin != (task.Callback is 0x507BF0 or 0x507E20 ? plan.Body.CopiedLength : 0))
+            {
+                throw new InvalidDataException("Party load completion left its planned bank, layout or body-tail placement.");
+            }
+            if (plan.RequiresResourceStorage)
+            {
+                selected = selected.PromoteResourceStorage();
+            }
+        }
+        NativeBattleModelCpuBank changed = selected.BindPartyResource(origin, source.Bytes, first, length);
         if (task.Callback == 0x507E20)
         {
             NativeBattleModelCpuReference geometry = body.Require(16);
