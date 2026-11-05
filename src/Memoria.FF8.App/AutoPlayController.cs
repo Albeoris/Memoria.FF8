@@ -108,7 +108,12 @@ internal sealed partial class AutoPlayController
         {
             using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("World.Get");
             GameWorld world = getWorld();
-            world.Events.AutoPlayCodeEntry = advancing ? request => AutoPlayDirectCodeEntry.Answer(run.DirectCodeEntry, request) : null;
+            world.Events.AutoPlayCodeEntry = advancing ? request =>
+            {
+                int answer = AutoPlayDirectCodeEntry.Answer(run.DirectCodeEntry, request);
+                ResetIdleDeadline();
+                return answer;
+            } : null;
             world.Events.AutoPlayTrainRetryPending = advancing && run.DirectCodeEntry.TrainRetryCheckpoint is not null;
             if (advancing && watchedWorlds.Add(world))
             {
@@ -545,34 +550,18 @@ internal sealed partial class AutoPlayController
         {
             SaveBundle($"direct-train-loss-{run.Steps:D10}", CaptureState());
             direct.TrainNativeLosses++;
-            restore(ReadCheckpoint(Path.Combine(runDirectory!, direct.TrainRetryCheckpoint)));
-            AutoPlayInputSearchContext context = direct.TrainRetryContext!;
-            run.ActiveVisit = context.Visit;
-            run.ActiveNavigationKey = context.Navigation;
-            run.ActiveEvent = context.Event;
-            run.ActiveField = context.Field;
-            run.ActiveStory = context.Story;
-            run.ActiveObjectId = context.ObjectId;
-            run.ActiveConditionSignature = context.Conditions;
-            run.ActiveBeforeCheckpoint = context.BeforeCheckpoint;
-            run.ActiveTargetId = context.Target;
-            run.ActiveAbsenceGuardKey = context.AbsenceGuard;
-            run.ActiveAvailabilityFingerprint = context.Availability;
-            run.ObservedControlLoss = context.ObservedControlLoss;
-            run.SceneChoices = context.SceneChoices.ToList();
-            run.ActiveSelections = direct.TrainRetrySelections?.ToList();
-            run.SettleFrames = 0;
-            run.SceneFrames = 0;
-            return;
+            throw new NotSupportedException("Automatic train traversal reached a native loss; the unchanged checkpoint will not be retried indefinitely.");
         }
-        if (session.State.Scene == SceneKind.Field && session.State.FieldId == 902 && world.Events.IsUserControlEnabled && direct.TrainRetryCheckpoint is not null && world.Events.EventMemory.Read(1038, 1).RequireExact() == 3)
+        int trainCodeCount = session.State.FieldId == 902 ? 3 : 5;
+        bool trainField = session.State.Scene == SceneKind.Field && session.State.FieldId is 902 or 903;
+        if (trainField && direct.TrainRetryCheckpoint is not null && world.Events.EventMemory.Read(1038, 1).RequireExact() == trainCodeCount)
         {
             direct.TrainCodeSequencesCompleted++;
             direct.TrainRetryCheckpoint = null;
             direct.TrainRetryContext = null;
             direct.TrainRetrySelections = null;
         }
-        if (session.State.Scene == SceneKind.Field && session.State.FieldId == 902 && !world.Events.IsUserControlEnabled && direct.TrainRetryCheckpoint is null)
+        if (trainField && !world.Events.IsUserControlEnabled && direct.TrainRetryCheckpoint is null && world.Events.EventMemory.Read(1038, 1).RequireExact() < trainCodeCount)
         {
             direct.TrainRetryCheckpoint = $"direct-train-before-{run.Steps:D10}.json";
             direct.TrainRetryContext = CaptureInputSearchContext();
@@ -594,6 +583,10 @@ internal sealed partial class AutoPlayController
         }
         if ((world.Events.HasDirectAutoPlayCodeScene && !world.Events.IsUserControlEnabled || session.State.FieldId == 75 && direct.TrainRetryCheckpoint is not null) && world.CurrentDialogue?.CanConfirm != true)
         {
+            if (ObserveSceneProgress())
+            {
+                ResetIdleDeadline();
+            }
             int directField = session.State.FieldId;
             for (int callback = 0; callback < 256 && session.State.Scene == SceneKind.Field && session.State.FieldId == directField && (directField == 75 || !world.Events.IsUserControlEnabled) && world.CurrentDialogue?.CanConfirm != true && session.State.NativeGameOver is null; callback++)
             {
@@ -977,6 +970,11 @@ internal sealed partial class AutoPlayController
         }
     }
 
+    internal static bool HasSameProbeDialogueOwner(DialogueState? current, DialogueState? expected)
+    {
+        return current is null ? expected is null : expected is not null && current.Channel == expected.Channel && current.MessageId == expected.MessageId && current.Text == expected.Text && current.X == expected.X && current.Y == expected.Y && current.FirstChoice == expected.FirstChoice && current.LastChoice == expected.LastChoice && current.InitialChoice == expected.InitialChoice && current.CancelChoice == expected.CancelChoice && current.IsNamePrompt == expected.IsNamePrompt && current.ObjectId == expected.ObjectId && current.ScriptId == expected.ScriptId && current.Operation == expected.Operation && current.CanConfirm == expected.CanConfirm && current.NativeWindow?.Version == expected.NativeWindow?.Version;
+    }
+
     private ScriptedInputMetadata? ProbeScriptedInput(ScriptedInputMetadata input, bool allowControlled, int? objectId, out GameState? preparedCheckpoint)
     {
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Input.Probe");
@@ -1001,7 +999,7 @@ internal sealed partial class AutoPlayController
         long queryBeforeFrame = world.Events.Frame;
         bool HasProbeOwner()
         {
-            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value) == pendingInteraction) && Equals(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
+            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value) == pendingInteraction) && HasSameProbeDialogueOwner(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
         }
         bool HasMatchedQueryOwner()
         {
@@ -1074,7 +1072,7 @@ internal sealed partial class AutoPlayController
             ScriptedInputMetadata? current = world.Events.DiscoverObservedScriptedInput(observedQueries, objectId);
             if (!HasProbeOwner() || world.Events.Frame != queryBeforeFrame || current is not { Masks.Count: > 0 } || !current.Queries.Any(query => query.ObjectId == matchedQuery.ObjectId && query.ScriptId == matchedQuery.ScriptId && query.Operation == matchedQuery.Operation && query.Opcode == matchedQuery.Name))
             {
-                throw new NotSupportedException("The observed native input query has no supported metadata at its exact replayed before-callback checkpoint.");
+                throw new NotSupportedException($"The observed native input query has no supported metadata at its exact replayed before-callback checkpoint: field {field}, query {matchedQuery.ObjectId}/{matchedQuery.ScriptId}/{matchedQuery.Operation}/{matchedQuery.Name}, sampled masks [{string.Join(",", observedQueries.Select(query => query.Mask))}], replay frame {world.Events.Frame}/{queryBeforeFrame}, owner {HasProbeOwner()}, reconstructed queries {current?.Queries.Count ?? 0}, physical alternatives {current?.Masks.Count ?? 0}.");
             }
             preparedCheckpoint = callbacks == 1 ? checkpoint : CaptureState();
             return current;

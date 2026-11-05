@@ -22,14 +22,9 @@ internal static class AutoPlayDirectCodeEntry
         switch (request.Puzzle)
         {
             case AutoPlayCodePuzzle.Train:
-                if (request.ExpectedAnswer is < 1 or > 4)
+                if (request.ExpectedAnswer is < 1 or > 6)
                 {
                     throw new InvalidDataException("The automatic train digit is outside its original range.");
-                }
-                if (!state.TrainWrongCodeSubmitted)
-                {
-                    state.TrainWrongCodeSubmitted = true;
-                    return request.ExpectedAnswer % 4 + 1;
                 }
                 state.TrainCorrectDigitsSubmitted++;
                 return request.ExpectedAnswer;
@@ -38,17 +33,8 @@ internal static class AutoPlayDirectCodeEntry
                 {
                     throw new InvalidDataException("The automatic sword number is outside its original range.");
                 }
-                if (request.BeginsAttempt || state.DelingActiveAnswer is null)
-                {
-                    state.DelingActiveAnswer = state.DelingWrongCodeSubmitted ? request.ExpectedAnswer : (request.ExpectedAnswer + 1) % 200;
-                }
-                int answer = state.DelingActiveAnswer.Value;
-                if (request.CompletesAttempt)
-                {
-                    state.DelingWrongCodeSubmitted |= answer != request.ExpectedAnswer;
-                    state.DelingActiveAnswer = null;
-                }
-                return answer;
+                state.DelingActiveAnswer = request.CompletesAttempt ? null : request.ExpectedAnswer;
+                return request.ExpectedAnswer;
             default:
                 throw new ArgumentOutOfRangeException(nameof(request));
         }

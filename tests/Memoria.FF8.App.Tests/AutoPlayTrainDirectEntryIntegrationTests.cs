@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayTrainDirectEntryIntegrationTests
 {
     [Fact]
-    public void OriginalTrainCompletesThreeCodesAndRestoresTheSubmittedWrongAttempt()
+    public void OriginalTrainCompletesThreeCodesWithoutWrongAttemptsAndColdRestores()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayTrainDirectEntryIntegrationTests.1");
         byte[] originalManifest = File.ReadAllBytes(manifest);
@@ -31,7 +31,7 @@ public sealed class AutoPlayTrainDirectEntryIntegrationTests
         Assert.Equal(902, run.Session.State.FieldId);
         Assert.Equal(3, run.World.Events.EventMemory.Read(1038, 1).RequireExact());
         Assert.True(run.World.Events.IsUserControlEnabled);
-        Assert.True(run.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
+        Assert.False(run.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
         Assert.True(run.Controller.State.DirectCodeEntry.TrainCorrectDigitsSubmitted >= 12);
         Assert.Null(run.Controller.State.InputSearch);
         Assert.False(run.Controller.State.ReachedEnding);
@@ -42,13 +42,13 @@ public sealed class AutoPlayTrainDirectEntryIntegrationTests
         using InstalledRun resumed = new();
         resumed.Controller.ResumeFrom(completedManifest);
         resumed.World.EnsureField();
-        Assert.True(resumed.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
+        Assert.False(resumed.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
         Assert.Equal(correctDigits, resumed.Controller.State.DirectCodeEntry.TrainCorrectDigitsSubmitted);
         Assert.Equal(1, resumed.Controller.State.DirectCodeEntry.TrainCodeSequencesCompleted);
         Assert.Equal(3, resumed.World.Events.EventMemory.Read(1038, 1).RequireExact());
         resumed.Controller.Advance(1);
         Assert.Null(resumed.Controller.Error);
-        Assert.True(resumed.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
+        Assert.False(resumed.Controller.State.DirectCodeEntry.TrainWrongCodeSubmitted);
         Assert.Null(resumed.Controller.State.InputSearch);
         Assert.False(resumed.Controller.State.ReachedEnding);
         Assert.Equal(originalManifest, File.ReadAllBytes(manifest));

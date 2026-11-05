@@ -271,6 +271,7 @@ public sealed class AutoPlayAcceptanceTests
         ManualClock clock = new();
         using InstalledRun run = new(gameDirectory, deadlineTime: clock);
         run.Controller.Start();
+        run.Controller.CheckIdleDeadline();
         clock.Advance(TimeSpan.FromSeconds(10));
         run.Controller.Advance(1);
         Assert.False(run.Controller.Running);
@@ -389,7 +390,7 @@ public sealed class AutoPlayAcceptanceTests
 
     private sealed class InstalledRun : IDisposable
     {
-        private readonly GameSession session = GameSession.CreateColdProcess();
+        private readonly GameSession session;
         private readonly GameResourceHost resources;
         private readonly string gameDirectory;
         private readonly string outputDirectory = Path.Combine(Path.GetTempPath(), "ff8-autoplay-acceptance-" + Guid.NewGuid().ToString("N"));
@@ -398,8 +399,9 @@ public sealed class AutoPlayAcceptanceTests
         public InstalledRun(string gameDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null)
         {
             this.gameDirectory = gameDirectory;
+            session = GameWorld.CreateColdProcess(gameDirectory);
             resources = new GameResourceHost(gameDirectory, watch: false);
-            Controller = new AutoPlayController(session, GetWorld, Restore, outputDirectory, time, deadlineTime);
+            Controller = new AutoPlayController(session, GetWorld, Restore, outputDirectory, time, deadlineTime, createColdProcess: () => GameWorld.CreateColdProcess(gameDirectory));
         }
 
         public AutoPlayController Controller { get; }

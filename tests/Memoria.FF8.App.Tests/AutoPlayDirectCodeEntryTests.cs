@@ -6,83 +6,62 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayDirectCodeEntryTests
 {
     [Theory]
-    [InlineData(1, 2)]
-    [InlineData(2, 3)]
-    [InlineData(3, 4)]
-    [InlineData(4, 1)]
-    public void TrainSubmitsOneWrongDigitThenAlwaysCorrectAcrossColdRestore(int expected, int wrong)
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void TrainAlwaysSubmitsCorrectDigitsAcrossColdRestore(int expected)
     {
         AutoPlayRunState run = new();
-
-        Assert.Equal(wrong, Answer(run, AutoPlayCodePuzzle.Train, expected));
-        Assert.True(run.DirectCodeEntry.TrainWrongCodeSubmitted);
-        Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
-
-        run = ColdRestore(run);
         foreach (int next in new[] { expected, 4, 3, 2, 1, expected })
         {
             Assert.Equal(next, Answer(run, AutoPlayCodePuzzle.Train, next));
             run = ColdRestore(run);
         }
-        Assert.True(run.DirectCodeEntry.TrainWrongCodeSubmitted);
+        Assert.Equal(6, run.DirectCodeEntry.TrainCorrectDigitsSubmitted);
+        Assert.False(run.DirectCodeEntry.TrainWrongCodeSubmitted);
         Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
         Assert.Null(run.DirectCodeEntry.DelingActiveAnswer);
     }
 
     [Theory]
-    [InlineData(0, 1)]
-    [InlineData(50, 51)]
-    [InlineData(198, 199)]
-    [InlineData(199, 0)]
-    public void SwordLatchesOneWholeWrongNumberAcrossMidAnswerColdRestore(int expected, int wrong)
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(198)]
+    [InlineData(199)]
+    public void SwordAlwaysSubmitsCorrectNumberAcrossMidAnswerColdRestore(int expected)
     {
         AutoPlayRunState run = new();
-
-        Assert.Equal(wrong, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: true, completes: false));
-        Assert.Equal(wrong, run.DirectCodeEntry.DelingActiveAnswer);
-        Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
-
+        Assert.Equal(expected, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: true, completes: false));
+        Assert.Equal(expected, run.DirectCodeEntry.DelingActiveAnswer);
         run = ColdRestore(run);
-        Assert.Equal(wrong, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: false, completes: false));
-        Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
-
+        Assert.Equal(expected, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: false, completes: false));
         run = ColdRestore(run);
-        Assert.Equal(wrong, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: false, completes: true));
-        Assert.True(run.DirectCodeEntry.DelingWrongCodeSubmitted);
+        Assert.Equal(expected, Answer(run, AutoPlayCodePuzzle.DelingSword, expected, begins: false, completes: true));
+        Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
         Assert.Null(run.DirectCodeEntry.DelingActiveAnswer);
-
-        run = ColdRestore(run);
-        foreach (int next in new[] { expected, 199, 0, 100, 50 })
-        {
-            Assert.Equal(next, Answer(run, AutoPlayCodePuzzle.DelingSword, next, begins: true, completes: false));
-            run = ColdRestore(run);
-            Assert.Equal(next, Answer(run, AutoPlayCodePuzzle.DelingSword, next, begins: false, completes: false));
-            Assert.Equal(next, Answer(run, AutoPlayCodePuzzle.DelingSword, next, begins: false, completes: true));
-            Assert.True(run.DirectCodeEntry.DelingWrongCodeSubmitted);
-            Assert.Null(run.DirectCodeEntry.DelingActiveAnswer);
-        }
-        Assert.False(run.DirectCodeEntry.TrainWrongCodeSubmitted);
     }
 
-    [Fact]
-    public void TrainAndSwordWrongAttemptsRemainIndependentWhenInterleavedAndRestored()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyWrongAttemptStateCannotCauseAnotherWrongSubmission(bool submitted)
     {
         AutoPlayRunState run = new();
-        Assert.Equal(0, Answer(run, AutoPlayCodePuzzle.DelingSword, 199, begins: true, completes: false));
-        Assert.Equal(2, Answer(run, AutoPlayCodePuzzle.Train, 1));
-
+        run.DirectCodeEntry.TrainWrongCodeSubmitted = submitted;
+        run.DirectCodeEntry.DelingWrongCodeSubmitted = submitted;
+        run.DirectCodeEntry.DelingActiveAnswer = 0;
         run = ColdRestore(run);
-        Assert.True(run.DirectCodeEntry.TrainWrongCodeSubmitted);
-        Assert.False(run.DirectCodeEntry.DelingWrongCodeSubmitted);
-        Assert.Equal(0, run.DirectCodeEntry.DelingActiveAnswer);
-        Assert.Equal(0, Answer(run, AutoPlayCodePuzzle.DelingSword, 199, begins: false, completes: true));
-
+        Assert.Equal(1, Answer(run, AutoPlayCodePuzzle.Train, 1));
+        Assert.Equal(199, Answer(run, AutoPlayCodePuzzle.DelingSword, 199, begins: false, completes: false));
+        Assert.Equal(199, run.DirectCodeEntry.DelingActiveAnswer);
         run = ColdRestore(run);
-        Assert.Equal(4, Answer(run, AutoPlayCodePuzzle.Train, 4));
-        Assert.Equal(50, Answer(run, AutoPlayCodePuzzle.DelingSword, 50));
-        Assert.True(run.DirectCodeEntry.TrainWrongCodeSubmitted);
-        Assert.True(run.DirectCodeEntry.DelingWrongCodeSubmitted);
+        Assert.Equal(199, Answer(run, AutoPlayCodePuzzle.DelingSword, 199, begins: false, completes: true));
         Assert.Null(run.DirectCodeEntry.DelingActiveAnswer);
+        Assert.Equal(submitted, run.DirectCodeEntry.TrainWrongCodeSubmitted);
+        Assert.Equal(submitted, run.DirectCodeEntry.DelingWrongCodeSubmitted);
     }
 
     private static int Answer(AutoPlayRunState run, AutoPlayCodePuzzle puzzle, int expected, bool begins = true, bool completes = true)

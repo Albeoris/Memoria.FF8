@@ -12,7 +12,7 @@ public sealed class AutoPlayDelingOriginalScriptTests
     [InlineData(0)]
     [InlineData(50)]
     [InlineData(199)]
-    public void OriginalGuardAssemblesAndComparesTheWrongThenCorrectAutomaticAnswer(int expected)
+    public void OriginalGuardAssemblesAndAcceptsTheFirstAutomaticAnswer(int expected)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
@@ -24,21 +24,13 @@ public sealed class AutoPlayDelingOriginalScriptTests
         Assert.Equal("JPF", program.Operations[2109].Opcode.ToString());
         AutoPlayDirectCodeEntryState policy = new();
 
-        (EventEngine wrong, BranchDecision wrongComparison) = ExecuteAnswer(field, program, script, policy, expected);
-
-        Assert.Equal((expected + 1) % 200, wrong.EventMemory.Read(1030, 1).RequireExact());
-        Assert.NotEqual(expected, wrong.EventMemory.Read(1030, 1).RequireExact());
-        Assert.False(wrongComparison.ConditionPassed);
-        Assert.NotEqual(353, wrong.EventMemory.Read(256, 2).RequireExact());
-        Assert.True(policy.DelingWrongCodeSubmitted);
-
         (EventEngine correct, BranchDecision correctComparison) = ExecuteAnswer(field, program, script, policy, expected);
 
         Assert.Equal(expected, correct.EventMemory.Read(1030, 1).RequireExact());
         Assert.True(correctComparison.ConditionPassed);
         Assert.Equal(353, correct.EventMemory.Read(256, 2).RequireExact());
         Assert.Equal(expected, correct.EventMemory.Read(728, 1).RequireExact());
-        Assert.Empty(wrong.ActionLog);
+        Assert.False(policy.DelingWrongCodeSubmitted);
         Assert.Empty(correct.ActionLog);
     }
 

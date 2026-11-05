@@ -16,7 +16,7 @@ public sealed partial class EventEngine
     public Func<AutoPlayCodeEntryRequest, int>? AutoPlayCodeEntry { get; set; }
     public bool AutoPlayTrainRetryPending { get; set; }
 
-    public bool HasDirectAutoPlayCodeScene => AutoPlayCodeEntry is not null && FieldId == 902;
+    public bool HasDirectAutoPlayCodeScene => AutoPlayCodeEntry is not null && FieldId is 902 or 903;
 
     public bool TryApplyAutoPlayDirectCodeEntry()
     {
@@ -29,6 +29,15 @@ public sealed partial class EventEngine
         {
             return false;
         }
+        if (FieldId == 903)
+        {
+            if ((dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.MessageId) is not ((1, 17, 260, 5) or (5, 43, 935, 25)))
+            {
+                return false;
+            }
+            ConfirmDialogueCore(2);
+            return true;
+        }
         if ((dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.MessageId) is not ((3, 33, 447, 8) or (7, 56, 972, 32) or (7, 59, 1156, 31)))
         {
             return false;
@@ -39,6 +48,10 @@ public sealed partial class EventEngine
 
     private bool TryApplyAutoPlayTrainDigit(Fiber fiber, int objectId, int scriptId, int priority, Jsm.Opcode opcode)
     {
+        if (TryApplyAutoPlaySecondWagonDigit(fiber, objectId, scriptId, priority, opcode))
+        {
+            return true;
+        }
         if (AutoPlayCodeEntry is null || FieldId != 902 || fiber.ObjectId != 12 || fiber.Script.Id != 83 || objectId != 13 || opcode != Jsm.Opcode.REQSW || scriptId is < 88 or > 91)
         {
             return false;
@@ -63,12 +76,16 @@ public sealed partial class EventEngine
     private bool TryApplyAutoPlayTrainNavigation(Fiber fiber, Jsm.Opcode opcode, int mask, out int result)
     {
         result = 0;
+        if (TryApplyAutoPlaySecondWagonNavigation(fiber, opcode, mask, out result))
+        {
+            return true;
+        }
         if (AutoPlayCodeEntry is not null && AutoPlayTrainRetryPending && FieldId == 75 && fiber.ObjectId == 0 && fiber.Script.Id == 1 && fiber.Position - 1 == 125 && opcode == Jsm.Opcode.KEYON && mask == 64)
         {
             result = 1;
             return true;
         }
-        if (!HasDirectAutoPlayCodeScene || opcode != Jsm.Opcode.KEYSCAN2)
+        if (!HasDirectAutoPlayCodeScene || FieldId != 902 || opcode != Jsm.Opcode.KEYSCAN2)
         {
             return false;
         }
