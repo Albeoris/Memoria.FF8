@@ -172,6 +172,10 @@ internal sealed partial class AutoPlayController
         {
             throw new InvalidOperationException("Global choice replay requires the preceding local episode's actual control return.");
         }
+        if (choice.CompletedOptions.Contains(selection) || choice.PolicyDeferredOptions.Contains(selection) || selection < choice.FirstOption || (long)selection >= (long)choice.FirstOption + choice.OptionCount)
+        {
+            throw new InvalidOperationException("A planned global replay must select an uncompleted, nondeferred alternative within its original domain.");
+        }
         GameWorld world = getWorld();
         world.EnsureField();
         if (input is not null)
@@ -185,6 +189,7 @@ internal sealed partial class AutoPlayController
             {
                 throw new NotSupportedException("A planned global input alternative no longer matches its original observed physical domain.");
             }
+            ResetIdleDeadline();
             DriveInputSearchBoundary(current, allowControlled, preparedCheckpoint: checkpoint, preferredSelection: selection);
             return;
         }
@@ -194,6 +199,7 @@ internal sealed partial class AutoPlayController
         {
             throw new NotSupportedException("A planned dialogue replay no longer matches its original native owner and visible range.");
         }
+        ResetIdleDeadline();
         DriveInputSearchBoundary(null, false, dialogue, key, preferredSelection: selection);
     }
 

@@ -6,12 +6,12 @@ internal sealed partial class AutoPlayController
 {
     private bool captureDirty;
     private const long MaximumCaptureBytes = 128L * 1024 * 1024;
-    private sealed record CaptureRootSet(string[] Dependencies, string? Snapshot, string? ExcursionCheckpoint);
+    private sealed record CaptureRootSet(string[] Dependencies, string? Snapshot);
     private CaptureRootSet? rollbackCaptureRoots;
     private CaptureRootSet? bundleCaptureRoots;
     private CaptureRootSet? failureCaptureRoots;
 
-    private static CaptureRootSet FreezeCaptureRoots(AutoPlayRunState state) => new(CaptureDependencies(state).ToArray(), state.Snapshot, state.NavigationExcursion?.Checkpoint);
+    private static CaptureRootSet FreezeCaptureRoots(AutoPlayRunState state) => new(CaptureDependencies(state).ToArray(), state.Snapshot);
 
     private void ResetCaptureRoots()
     {
@@ -45,7 +45,7 @@ internal sealed partial class AutoPlayController
 
     internal static IEnumerable<string> CaptureDependencies(AutoPlayRunState state)
     {
-        IEnumerable<string?> references = new[] { state.Snapshot, state.PrimaryContinuation, state.ActiveBeforeCheckpoint, state.DirectCodeEntry.TrainRetryCheckpoint, state.DirectCodeEntry.TrainRetryContext?.BeforeCheckpoint, state.NavigationExcursion?.Checkpoint };
+        IEnumerable<string?> references = new[] { state.Snapshot, state.PrimaryContinuation, state.ActiveBeforeCheckpoint, state.DirectCodeEntry.TrainRetryCheckpoint, state.DirectCodeEntry.TrainRetryContext?.BeforeCheckpoint };
         foreach (AutoPlayChoiceCoverage choice in state.Coverage.Choices)
         {
             if (!choice.Finished)
@@ -81,18 +81,10 @@ internal sealed partial class AutoPlayController
             {
                 standalone.Add(roots.Snapshot);
             }
-            if (roots.ExcursionCheckpoint is not null)
-            {
-                standalone.Add(roots.ExcursionCheckpoint);
-            }
         }
         if (run.Snapshot is not null)
         {
             standalone.Add(run.Snapshot);
-        }
-        if (run.NavigationExcursion is { } excursion)
-        {
-            standalone.Add(excursion.Checkpoint);
         }
         KeepStandalone(rollbackCaptureRoots);
         KeepStandalone(bundleCaptureRoots);

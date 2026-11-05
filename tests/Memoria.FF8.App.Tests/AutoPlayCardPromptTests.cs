@@ -47,6 +47,7 @@ public sealed class AutoPlayCardPromptTests
                 Assert.True(world.Apply(new(Memoria.FF8.Events.PlayerActionKind.Confirm)).Accepted);
                 Assert.True(session.State.TripleTriadPlay!.RulesAccepted);
 
+                controller.ResetIdleDeadline();
                 controller.Advance(1);
 
                 Assert.False(controller.Running);
@@ -59,6 +60,7 @@ public sealed class AutoPlayCardPromptTests
                 Assert.Equal(originalSnapshot, Hash(snapshot));
                 return;
             }
+            controller.ResetIdleDeadline();
             for (int step = 0; step < 30 && GetWorld().Events.PendingTripleTriad is not null && controller.Error is null; step++)
             {
                 controller.Advance(1);

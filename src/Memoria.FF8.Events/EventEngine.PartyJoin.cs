@@ -480,7 +480,9 @@ public sealed partial class EventEngine
     }
 
     // 4789A0 compensates for the movie callback cadence before narrowing actor WORD510.
-    private int NativePlayerMovementSpeed => unchecked((short)((NativePlayerWalking ? 69020 : 203000) * (services.IsMoviePlaying ? 2 : 1) * 20 >> 9));
+    private int NativePlayerMovementSpeed => GetNativePlayerMovementSpeed(NativePlayerWalking);
+
+    private int GetNativePlayerMovementSpeed(bool walking) => unchecked((short)((walking ? 69020 : 203000) * (services.IsMoviePlaying ? 2 : 1) * 20 >> 9));
 
     private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition, bool MovementSucceeded) ResolveNativePartyPlayerStep(ActorState player, Vector2 axes)
     {
