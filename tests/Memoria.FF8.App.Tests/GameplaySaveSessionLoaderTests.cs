@@ -49,7 +49,7 @@ public sealed class GameplaySaveSessionLoaderTests
             resumed.EnsureField();
             Assert.True(resumed.Apply(new(PlayerActionKind.Wait, Frames: 1)).Accepted);
             GameState next = continued.PrepareSnapshot();
-            AssertProgress(document, next);
+            AssertProgress(document, next, ordinaryFieldCallback: !world);
             Assert.True((world ? next.World!.Frame : resumed.Events.Frame) > (world ? restored.World!.Frame : restored.EventState!.Value.GetProperty("Frame").GetInt64()));
             _ = new GameSession(next);
             Assert.NotNull(assets.LoadField(165));
@@ -61,7 +61,7 @@ public sealed class GameplaySaveSessionLoaderTests
     }
 
     [Fact]
-    public void Unsupported_current_follower_pose_fails_before_resources_and_never_changes_source()
+    public void Unbound_current_follower_pose_fails_without_changing_source_or_caller_resources()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -69,7 +69,7 @@ public sealed class GameplaySaveSessionLoaderTests
         GameplaySaveProgression progress = document.Progression!;
         document = document with { Progression = progress with { FieldLocation = new(165, 164, [null, new(1, 2, 3, 4), null]) } };
         string before = JsonSerializer.Serialize(document);
-        Assert.Throws<NotSupportedException>(() => GameplaySaveSessionLoader.Restore(document, "missing-selected-installation"));
+        Assert.Throws<NotSupportedException>(() => GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets));
         Assert.Equal(before, JsonSerializer.Serialize(document));
         Assert.NotNull(assets.LoadField(165));
     }
@@ -111,7 +111,7 @@ public sealed class GameplaySaveSessionLoaderTests
         AssertProgress(document, restored);
     }
 
-    private static GameplaySaveComponentDocument Document(GameAssets assets, bool world)
+    internal static GameplaySaveComponentDocument Document(GameAssets assets, bool world)
     {
         GameSession initializer = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
         initializer.StartNewGame();
@@ -156,14 +156,14 @@ public sealed class GameplaySaveSessionLoaderTests
         return GameplaySaveComponentDocument.CaptureProgression(source, resume);
     }
 
-    private static void AssertProgress(GameplaySaveComponentDocument document, GameState restored)
+    private static void AssertProgress(GameplaySaveComponentDocument document, GameState restored, bool ordinaryFieldCallback = false)
     {
         Assert.Equal(123456u, restored.CharacterVitals!.Records[0].Experience);
         Assert.Equal((ushort)37, restored.CharacterVitals.Records[0].HitPoints.Minimum);
         Assert.Equal(123456u, restored.Economy!.Gil);
         Assert.Equal(234567u, restored.Economy.PastGil);
-        Assert.Equal(345678u, restored.Economy.EventBankGil72);
-        Assert.Equal(456789u, restored.Economy.EventBankPastGil76);
+        Assert.Equal(ordinaryFieldCallback ? restored.Economy.Gil : 345678u, restored.Economy.EventBankGil72);
+        Assert.Equal(ordinaryFieldCallback ? restored.Economy.PastGil : 456789u, restored.Economy.EventBankPastGil76);
         Assert.Equal(new NativeItemStock(1, 7), restored.Economy.Items[0]);
         Assert.Equal((byte)0x91, restored.LimitProgress!.AngeloFlags);
         Assert.Equal(document.Limits.TrainingCounters, restored.LimitProgress.TrainingCounters);

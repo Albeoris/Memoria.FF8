@@ -7,6 +7,26 @@ public sealed partial class EventEngine
 {
     private bool synchronousFieldInitialization;
 
+    private void RunSynchronousFieldInitialization()
+    {
+        //Diagnostic load transaction1 has no native callback: all entities
+        //finish52C650 before any529FF0 budget, input, RNG, UI or body step.
+        NativeFieldCallbackClock initializationClock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native synchronous initialization requires its executed allocation clock owner.");
+        if (Frame != 0 || initializationClock.InitializationTransactions != 0)
+        {
+            throw new NotSupportedException("Partial synchronous initialization cannot resume through an ordinary callback.");
+        }
+        initializationClock.Validate(Frame);
+        Frame++;
+        Scene.FieldCallbackClock = initializationClock with { InitializationTransactions = 1 };
+        if (Scene.NativeFieldInitialization is { } initialization)
+        {
+            Scene.NativeFieldInitialization = initialization with { Stage = NativeFieldInitializationStage.Initializing };
+        }
+        RunFieldInitialization();
+        CompleteFieldInitialization();
+    }
+
     private string? UnsupportedFieldInitializationInstruction(Fiber fiber, JsmOperation operation)
     {
         return synchronousFieldInitialization && operation.Opcode == Jsm.Opcode.WAIT && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || fiber.Stack.Peek() <= 0) ? "Native synchronous WAIT requires its exact positive DWORD countdown; wraparound polling is unsupported" : null;
@@ -66,7 +86,7 @@ public sealed partial class EventEngine
 
     private void CompleteFieldInitialization()
     {
-        NativeFieldPartyLoad? nativeLoad = PrepareNativeFieldPartyLoad();
+        NativeFieldPartyLoad? nativeLoad = PrepareGameplaySavePartyLoad(PrepareNativeFieldPartyLoad());
         if (HasOpaqueInitializationTrace() && nativeLoad is null)
         {
             throw new NotSupportedException("Native initialization trace requires its original automatic field-party setup before compaction and trace reads.");

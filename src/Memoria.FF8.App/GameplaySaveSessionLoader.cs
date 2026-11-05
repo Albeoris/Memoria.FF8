@@ -45,6 +45,10 @@ internal static class GameplaySaveSessionLoader
         using MovieClock clock = new(candidateSession, gameDirectory);
         using GameWorld candidate = new(candidateSession, gameDirectory, clock, selectedResources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: () => policy, gameplaySaveFacts: facts);
         candidate.EnsureField();
+        if (document.Resume.Kind == GameplaySaveResumeKind.Field)
+        {
+            candidate.Events.InitializeGameplaySaveFieldParty(document.Progression.FieldLocation);
+        }
         GameState snapshot = candidateSession.PrepareSnapshot();
         _ = new GameSession(snapshot);
         return snapshot;
@@ -65,15 +69,6 @@ internal static class GameplaySaveSessionLoader
             if (facts.Origin != GameplaySaveSceneFactsOrigin.Field || facts.FieldParty[0] == 255)
             {
                 throw new NotSupportedException("Gameplay field reconstruction requires current field facts and a leading field-party member.");
-            }
-            if (document.Progression.FieldLocation is { } location && location.FieldId == document.Resume.FieldId)
-            {
-                GameplaySaveFieldPosition position = document.Resume.Field!;
-                NativeFieldLocationPose? leader = location.PartyPositions[0];
-                if (location.PartyPositions.Skip(1).Any(pose => pose is not null) || leader is not null && (leader.X != position.X || leader.Y != position.Y || leader.Triangle != position.Triangle || leader.Direction != position.Direction))
-                {
-                    throw new NotSupportedException("Gameplay field reconstruction cannot discard distinct saved party poses or replace its current arrival with a historical menu location.");
-                }
             }
         }
         return facts;
