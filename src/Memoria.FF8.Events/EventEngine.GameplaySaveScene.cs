@@ -31,6 +31,7 @@ public sealed partial class EventEngine
             PreviousWorldEntity = Scene.PreviousWorldEntityByte86,
             FieldLoadReason = Scene.FieldLoadReasonByte87,
             PartyBindings = Scene.FieldPartyNativeActorIds.ToArray(),
+            SavedPartyBindings = Scene.PartyBindingMemory is { Version: 1 } bindingMemory && !Enumerable.Range(0, 3).Select(slot => (int)bindingMemory.At(slot)).SequenceEqual(Scene.FieldPartyNativeActorIds) ? Enumerable.Range(0, 3).Select(slot => (int)bindingMemory.At(slot)).ToArray() : null,
             Trail = Scene.PartyTrace is { } trail ? new(trail.Cursor, trail.FirstOffset, trail.SecondOffset, trail.FirstTrail.Select(Sample).ToArray(), trail.SecondTrail.Select(Sample).ToArray()) : null,
             PlayerPosition = Scene.NativePlayerPosition is { } player ? new(player.X, player.Y, player.Z) : null,
             PartyTraceVersion = Scene.NativePartyTraceVersion,
@@ -114,7 +115,10 @@ public sealed partial class EventEngine
         Scene.FieldPartyNativeActorIds.Clear();
         Scene.FieldPartyNativeActorIds.AddRange(saved.PartyBindings);
         RecordPartyBindingMemory();
-        RestoreGameplaySavedPartyBindings();
+        if (saved.SavedPartyBindings is { } savedBindings)
+        {
+            Scene.PartyBindingMemory = new(1, checked((byte)savedBindings[0]), checked((byte)savedBindings[1]), checked((byte)savedBindings[2]));
+        }
         PartyTraceSample? Sample(GameplaySaveFieldTrailSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         Scene.PartyTrace = saved.Trail is { } trail ? new(trail.Cursor, trail.FirstOffset, trail.SecondOffset, trail.First.Select(Sample).ToArray(), trail.Second.Select(Sample).ToArray()) : null;
         Scene.NativePlayerPosition = saved.PlayerPosition is { } player ? new(player.X, player.Y, player.Z) : null;

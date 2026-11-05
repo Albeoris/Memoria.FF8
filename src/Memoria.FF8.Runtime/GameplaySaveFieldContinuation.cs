@@ -22,7 +22,7 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         Actors.Validate();
         Scene.Ambient?.Validate(Scripts.Frame);
         ScriptMenu?.Validate(Scripts, Scene, Actors);
-        PartyMovement?.Validate(Scripts, Actors);
+        PartyMovement?.Validate(Scripts, Scene, Actors);
         if (PartyMovement is null && Scripts.Fibers.Any(fiber => fiber.Wait is GameplaySaveScriptWait.PartyJoin or GameplaySaveScriptWait.PartySplit))
         {
             throw new InvalidDataException("Gameplay party movement wait has no logical target owner.");

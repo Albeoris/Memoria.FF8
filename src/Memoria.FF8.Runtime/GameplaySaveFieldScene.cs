@@ -18,6 +18,9 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 public sealed record GameplaySaveFieldScene
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int[]? SavedPartyBindings { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldLoopSound[]? LoopSounds { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -116,6 +119,10 @@ public sealed record GameplaySaveFieldScene
 
     public void Validate()
     {
+        if (SavedPartyBindings is not null && (SavedPartyBindings.Length != 3 || SavedPartyBindings.Any(value => value is < 0 or > 255)))
+        {
+            throw new InvalidDataException("Gameplay saved party bindings are malformed.");
+        }
         if (LoopSounds is { } loops)
         {
             if (loops.Length > 30 || loops.Any(sound => sound is null) || loops.Select(sound => sound.Voice).Distinct().Count() != loops.Length)

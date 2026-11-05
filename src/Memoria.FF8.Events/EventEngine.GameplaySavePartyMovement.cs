@@ -44,12 +44,4 @@ public sealed partial class EventEngine
         partySplit = saved.Kind == GameplaySavePartyMovementKind.Split ? new(saved.FiberSequence, saved.CallerObjectId, targets) : null;
     }
 
-    private void RestoreGameplaySavedPartyBindings()
-    {
-        // Saved BYTE194..196 and runtime follow bindings are separate owners.
-        if (EventMemory.HasRepresentedExactBytes(194, 3))
-        {
-            Scene.PartyBindingMemory = new(1, checked((byte)EventMemory.Read(194, 1).RequireExact()), checked((byte)EventMemory.Read(195, 1).RequireExact()), checked((byte)EventMemory.Read(196, 1).RequireExact()));
-        }
-    }
 }
