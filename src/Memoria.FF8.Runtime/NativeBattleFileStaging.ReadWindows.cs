@@ -36,10 +36,10 @@ internal sealed class NativeBattleStagingReadWindowLease
         }
     }
 
-    internal void AddResource(uint address, ImmutableArray<byte> source)
+    internal void AddResource(uint address, ImmutableArray<byte> source, int sourceOffset, int length)
     {
         ulong first = Math.Max(address, Address);
-        ulong end = Math.Min((ulong)address + (uint)source.Length, (ulong)Address + (uint)Length);
+        ulong end = Math.Min((ulong)address + (uint)length, (ulong)Address + (uint)Length);
         if (first >= end)
         {
             return;
@@ -57,7 +57,7 @@ internal sealed class NativeBattleStagingReadWindowLease
             InitialCells.Remove(current);
             Budget.Release(1);
         }
-        resources.Add(new((uint)first, source, checked((int)(first - address)), checked((int)(end - first)), Unknown.Count));
+        resources.Add(new((uint)first, source, checked(sourceOffset + (int)(first - address)), checked((int)(end - first)), Unknown.Count));
     }
 
     internal void Require(int offset, int length, long generation)

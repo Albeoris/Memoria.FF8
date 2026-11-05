@@ -218,18 +218,20 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         }
     }
 
-    internal void BindResource(uint address, ImmutableArray<byte> data)
+    internal void BindResource(uint address, ImmutableArray<byte> data) => BindResource(address, data, 0, data.Length);
+
+    internal void BindResource(uint address, ImmutableArray<byte> data, int sourceOffset, int length)
     {
         PrepareOperationMutation();
-        PrepareReadWindowWrite(address, data.Length);
-        InvalidatePointers(address, data.Length);
-        for (int offset = 0; offset < data.Length;)
+        PrepareReadWindowWrite(address, length);
+        InvalidatePointers(address, length);
+        for (int offset = 0; offset < length;)
         {
             uint current = checked(address + (uint)offset);
             uint pageAddress = current / PageLength * PageLength;
             int first = (int)(current - pageAddress);
-            int count = Math.Min(data.Length - offset, PageLength - first);
-            SetPage(pageAddress, NativeBattleStagingPage.Bind(pages.GetValueOrDefault(pageAddress), first, data, offset, count));
+            int count = Math.Min(length - offset, PageLength - first);
+            SetPage(pageAddress, NativeBattleStagingPage.Bind(pages.GetValueOrDefault(pageAddress), first, data, sourceOffset + offset, count));
             version++;
             offset += count;
         }
@@ -237,19 +239,34 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
 
     internal bool TryResource(uint address, int length, out ImmutableArray<byte> resource)
     {
+        if (TryBorrowResource(address, length, out resource, out int sourceOffset) && sourceOffset == 0 && resource.Length == length)
+        {
+            return true;
+        }
         resource = default;
+        return false;
+    }
+
+    internal bool TryBorrowResource(uint address, int length, out ImmutableArray<byte> resource, out int resourceOffset)
+    {
+        resource = default;
+        resourceOffset = 0;
         for (int offset = 0; offset < length;)
         {
             uint current = checked(address + (uint)offset);
             uint pageAddress = current / PageLength * PageLength;
             int first = (int)(current - pageAddress);
             int count = Math.Min(length - offset, PageLength - first);
-            if (!pages.TryGetValue(pageAddress, out NativeBattleStagingPage? page) || !page.TrySource(first, count, out ImmutableArray<byte> source, out int sourceOffset) || sourceOffset != offset || source.Length != length || !resource.IsDefault && !resource.Equals(source))
+            if (!pages.TryGetValue(pageAddress, out NativeBattleStagingPage? page) || !page.TrySource(first, count, out ImmutableArray<byte> source, out int sourceOffset) || !resource.IsDefault && (!resource.Equals(source) || sourceOffset != resourceOffset + offset))
             {
                 resource = default;
                 return false;
             }
-            resource = source;
+            if (resource.IsDefault)
+            {
+                resource = source;
+                resourceOffset = sourceOffset;
+            }
             offset += count;
         }
         return !resource.IsDefault;

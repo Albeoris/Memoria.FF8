@@ -4,29 +4,43 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleFileStaging
 {
-    internal NativeBattleFileStaging BindResource(uint address, ImmutableArray<byte> bytes)
+    internal NativeBattleFileStaging BindResource(uint address, ImmutableArray<byte> bytes) => BindResource(address, bytes, 0, bytes.IsDefault ? 0 : bytes.Length);
+
+    internal NativeBattleFileStaging BindResource(uint address, ImmutableArray<byte> bytes, int sourceOffset, int length)
     {
-        if (bytes.IsDefault)
+        if (bytes.IsDefault || sourceOffset < 0 || length < 0 || sourceOffset > bytes.Length - length)
         {
             throw new InvalidDataException("Native staging resource binding requires immutable source bytes.");
         }
-        RequireWritableRange(address, bytes.Length);
+        RequireWritableRange(address, length);
         if (address < BaseAddress)
         {
             Rebase(address);
         }
-        if (!bytes.IsEmpty)
+        if (length != 0)
         {
             if (Transaction is { } transaction)
             {
-                transaction.BindResource(address, bytes);
+                transaction.BindResource(address, bytes, sourceOffset, length);
             }
             else
             {
-                RequireOwner().BindResource(address, bytes);
+                RequireOwner().BindResource(address, bytes, sourceOffset, length);
             }
         }
         return this;
+    }
+
+    internal bool TryBorrowResource(uint address, int length, out ImmutableArray<byte> bytes, out int sourceOffset)
+    {
+        RequirePhysicalRange(address, length);
+        if (snapshot)
+        {
+            bytes = default;
+            sourceOffset = 0;
+            return false;
+        }
+        return Transaction is { } transaction ? transaction.TryBorrowResource(address, length, out bytes, out sourceOffset) : RequireOwner().TryBorrowResource(address, length, out bytes, out sourceOffset);
     }
 
     private bool TryResource(uint address, int length, out ImmutableArray<byte> bytes)
@@ -42,17 +56,17 @@ public sealed partial record NativeBattleFileStaging
 
 internal sealed partial class NativeBattleFileStagingOverlay
 {
-    private readonly record struct ResourceBinding(uint Address, ImmutableArray<byte> Data, long Sequence);
+    private readonly record struct ResourceBinding(uint Address, ImmutableArray<byte> Data, int SourceOffset, int Length, long Sequence);
     private readonly record struct ResourceEvent(long Sequence, uint Address, byte Kind, int Index);
     private delegate void SpanWriter(uint address, ReadOnlySpan<byte> bytes);
     private readonly List<ResourceBinding> resources = [];
     private readonly List<ResourceEvent> resourceEvents = [];
 
-    internal void BindResource(uint address, ImmutableArray<byte> data)
+    internal void BindResource(uint address, ImmutableArray<byte> data, int sourceOffset, int length)
     {
         source.RequireReadWindowMutation();
-        InvalidatePointers(address, data.Length);
-        resources.Add(new(address, data, ++sequence));
+        InvalidatePointers(address, length);
+        resources.Add(new(address, data, sourceOffset, length, ++sequence));
     }
 
     private bool ResourceByte(uint address, out byte value, out long written)
@@ -60,9 +74,9 @@ internal sealed partial class NativeBattleFileStagingOverlay
         for (int index = resources.Count - 1; index >= 0; index--)
         {
             ResourceBinding binding = resources[index];
-            if (address >= binding.Address && (ulong)address < (ulong)binding.Address + (uint)binding.Data.Length)
+            if (address >= binding.Address && (ulong)address < (ulong)binding.Address + (uint)binding.Length)
             {
-                value = binding.Data[(int)(address - binding.Address)];
+                value = binding.Data[binding.SourceOffset + (int)(address - binding.Address)];
                 written = binding.Sequence;
                 return true;
             }
@@ -74,21 +88,33 @@ internal sealed partial class NativeBattleFileStagingOverlay
 
     internal bool TryResource(uint address, int length, out ImmutableArray<byte> data)
     {
+        if (TryBorrowResource(address, length, out data, out int sourceOffset) && sourceOffset == 0 && data.Length == length)
+        {
+            return true;
+        }
+        data = default;
+        return false;
+    }
+
+    internal bool TryBorrowResource(uint address, int length, out ImmutableArray<byte> data, out int sourceOffset)
+    {
         RequireLayerActive();
         long bindingSequence = 0;
         data = default;
+        sourceOffset = 0;
         for (int index = resources.Count - 1; index >= 0; index--)
         {
             ResourceBinding binding = resources[index];
-            if (!Intersects(binding.Address, binding.Data.Length, address, length))
+            if (!Intersects(binding.Address, binding.Length, address, length))
             {
                 continue;
             }
-            if (binding.Address != address || binding.Data.Length != length)
+            if (address < binding.Address || (ulong)address + (uint)length > (ulong)binding.Address + (uint)binding.Length)
             {
-                return false;
+                return TryBorrowResourceFragments(address, length, out data, out sourceOffset);
             }
             data = binding.Data;
+            sourceOffset = checked(binding.SourceOffset + (int)(address - binding.Address));
             bindingSequence = binding.Sequence;
             break;
         }
@@ -105,7 +131,45 @@ internal sealed partial class NativeBattleFileStagingOverlay
             data = default;
             return false;
         }
-        return !data.IsDefault || (parent is null ? source.TryResource(address, length, out data) : parent.TryResource(address, length, out data));
+        return !data.IsDefault || (parent is null ? source.TryBorrowResource(address, length, out data, out sourceOffset) : parent.TryBorrowResource(address, length, out data, out sourceOffset));
+    }
+
+    private bool TryBorrowResourceFragments(uint address, int length, out ImmutableArray<byte> data, out int sourceOffset)
+    {
+        List<int> boundaries = [0, length];
+        foreach (ResourceBinding binding in resources)
+        {
+            long first = Math.Max(0L, (long)binding.Address - address);
+            long end = Math.Min(length, (long)binding.Address + binding.Length - address);
+            if (end > first)
+            {
+                boundaries.Add(checked((int)first));
+                boundaries.Add(checked((int)end));
+            }
+        }
+        boundaries.Sort();
+        data = default;
+        sourceOffset = 0;
+        int previous = 0;
+        foreach (int end in boundaries)
+        {
+            if (end <= previous)
+            {
+                continue;
+            }
+            if (!TryBorrowResource(checked(address + (uint)previous), end - previous, out ImmutableArray<byte> part, out int offset) || !data.IsDefault && (!data.Equals(part) || offset != sourceOffset + previous))
+            {
+                data = default;
+                return false;
+            }
+            if (data.IsDefault)
+            {
+                data = part;
+                sourceOffset = offset;
+            }
+            previous = end;
+        }
+        return !data.IsDefault;
     }
 
     private void OrderResourceEvents()
@@ -127,7 +191,7 @@ internal sealed partial class NativeBattleFileStagingOverlay
         resourceEvents.Sort((left, right) => left.Sequence != right.Sequence ? left.Sequence.CompareTo(right.Sequence) : left.Address.CompareTo(right.Address));
     }
 
-    private void PublishResourceData(Action<uint, ImmutableArray<byte>> bind, Action<uint, int> markUnknown, SpanWriter write)
+    private void PublishResourceData(Action<uint, ImmutableArray<byte>, int, int> bind, Action<uint, int> markUnknown, SpanWriter write)
     {
         OrderResourceEvents();
         Span<byte> data = stackalloc byte[NativeBattleFileStagingWorkingOwner.PageLength];
@@ -137,7 +201,7 @@ internal sealed partial class NativeBattleFileStagingOverlay
             if (current.Kind == 0)
             {
                 ResourceBinding binding = resources[current.Index];
-                bind(binding.Address, binding.Data);
+                bind(binding.Address, binding.Data, binding.SourceOffset, binding.Length);
             }
             else if (current.Kind == 1)
             {
@@ -166,7 +230,7 @@ internal sealed partial class NativeBattleFileStagingOverlay
             if (current.Kind == 0)
             {
                 ResourceBinding binding = resources[current.Index];
-                lease.AddResource(binding.Address, binding.Data);
+                lease.AddResource(binding.Address, binding.Data, binding.SourceOffset, binding.Length);
             }
             else if (current.Kind == 1)
             {

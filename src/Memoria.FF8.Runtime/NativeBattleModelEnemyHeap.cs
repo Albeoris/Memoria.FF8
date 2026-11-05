@@ -32,23 +32,27 @@ public static class NativeBattleModelEnemyHeap
             }
             row = row.Set(16, new(4, 0)).Set(48, null).Set(28, At(0)).Set(32, At(1));
             row = row with { Lengths = row.Lengths.SetItem(16, 4).SetItem(28, source.Section(1) - source.Section(0)).SetItem(32, source.Section(2) - source.Section(1)) };
-            staging = staging.Write(At(0).SharedAddress, source.Bytes.AsSpan().Slice(source.Section(0), source.Section(2) - source.Section(0)));
+            staging = staging.BindResource(At(0).SharedAddress, source.Bytes, source.Section(0), source.Section(2) - source.Section(0));
             cursor = checked(cursor + source.Section(2) - source.Section(0));
         }
         else if (sharedRow is int existing)
         {
             NativeBattleModelCpuResourceRow original = cpu.Rows[existing];
             int length = original.PrivateLength4 ?? throw new NotSupportedException("Native507740 requires its actual resource DWORD4 copy length.");
-            byte[] copied = Read(cpu, staging, original.Require(12), length);
+            NativeBattleModelCpuReference skeleton = original.Require(12);
+            if (skeleton.Bank != 3)
+            {
+                throw new NotSupportedException("Native507740 requires its retained enemy private skeleton owner.");
+            }
             row = original.Set(12, new(3, cursor));
-            staging = staging.Write(At(0).SharedAddress, copied);
+            staging = staging.CopyResourceMemory(skeleton.SharedAddress, At(0).SharedAddress, length);
             cursor = checked((cursor + length + 3) & ~3);
         }
         else
         {
             int first = source.Section(0);
             int end = source.Section(9);
-            staging = staging.Write(At(0).SharedAddress, source.Bytes.AsSpan().Slice(first, end - first));
+            staging = staging.BindResource(At(0).SharedAddress, source.Bytes, first, end - first);
             row = cpu.Rows[destination] with { PrivateLength4 = source.Section(1) - first, SharedLength8 = end - source.Section(1) };
             foreach ((int field, int section) in new (int, int)[] { (12, 0), (16, 1), (20, 2), (48, 3), (24, 4), (44, 5), (28, 6), (32, 7), (40, 8) })
             {
@@ -98,7 +102,7 @@ public static class NativeBattleModelEnemyHeap
                 throw new NotSupportedException("Native508170 requires its actual enemy heap allocation.");
             }
             int cursor = cpu.EnemyCursor ?? throw new NotSupportedException("Native508170 requires its retained heap cursor.");
-            staging = staging.CopyMemory(checked(address.SharedAddress + (uint)length), address.SharedAddress, checked(cursor - address.Offset - length));
+            staging = staging.CopyResourceMemory(checked(address.SharedAddress + (uint)length), address.SharedAddress, checked(cursor - address.Offset - length));
             var rows = cpu.Rows.ToBuilder();
             for (int index = 0; index < rows.Count; index++)
             {

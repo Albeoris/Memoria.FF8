@@ -114,10 +114,16 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         overlay.Write(address, bytes);
     }
 
-    internal void BindResource(uint address, ImmutableArray<byte> bytes)
+    internal void BindResource(uint address, ImmutableArray<byte> bytes, int sourceOffset, int length)
     {
-        RequireRange(address, bytes.Length);
-        overlay.BindResource(address, bytes);
+        RequireRange(address, length);
+        overlay.BindResource(address, bytes, sourceOffset, length);
+    }
+
+    internal bool TryBorrowResource(uint address, int length, out ImmutableArray<byte> bytes, out int sourceOffset)
+    {
+        RequireRange(address, length);
+        return overlay.TryBorrowResource(address, length, out bytes, out sourceOffset);
     }
 
     internal bool TryResource(uint address, int length, out ImmutableArray<byte> bytes)

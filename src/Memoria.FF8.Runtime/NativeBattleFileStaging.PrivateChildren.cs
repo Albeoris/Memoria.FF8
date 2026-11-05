@@ -63,7 +63,7 @@ internal sealed partial class NativeBattleFileStagingOverlay
         }
         foreach (ResourceBinding binding in resources)
         {
-            for (ulong end = (ulong)binding.Address + (uint)binding.Data.Length; end > binding.Address && end > last; end--)
+            for (ulong end = (ulong)binding.Address + (uint)binding.Length; end > binding.Address && end > last; end--)
             {
                 if (reader.ExplicitKnown(checked((uint)(end - 1))))
                 {

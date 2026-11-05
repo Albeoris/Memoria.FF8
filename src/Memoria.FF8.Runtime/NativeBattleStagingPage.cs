@@ -27,10 +27,22 @@ internal sealed class NativeBattleStagingPage : INativeBattleReadWindowSource
     {
         ImmutableArray<Region>.Builder regions = ImmutableArray.CreateBuilder<Region>();
         Preserve(0, Math.Min(first, previous?.StoredLength ?? 0));
-        regions.Add(new(first, source, sourceOffset, length, default));
+        Append(new(first, source, sourceOffset, length, default));
         int end = first + length;
         Preserve(end, Math.Max(0, (previous?.StoredLength ?? 0) - end));
         return new(regions.ToImmutable());
+
+        void Append(Region region)
+        {
+            if (regions.Count > 0 && regions[^1] is var previousRegion && previousRegion.Offset + previousRegion.Length == region.Offset && previousRegion.Source.Equals(region.Source) && previousRegion.SourceOffset + previousRegion.Length == region.SourceOffset && previousRegion.Known.IsDefaultOrEmpty && region.Known.IsDefaultOrEmpty)
+            {
+                regions[^1] = previousRegion with { Length = previousRegion.Length + region.Length };
+            }
+            else
+            {
+                regions.Add(region);
+            }
+        }
 
         void Preserve(int offset, int count)
         {
@@ -38,10 +50,23 @@ internal sealed class NativeBattleStagingPage : INativeBattleReadWindowSource
             {
                 return;
             }
+            if (previous!.Working is null)
+            {
+                foreach (Region region in previous.regions)
+                {
+                    int first = Math.Max(offset, region.Offset);
+                    int end = Math.Min(offset + count, region.Offset + region.Length);
+                    if (end > first)
+                    {
+                        Append(new(first, region.Source, region.SourceOffset + first - region.Offset, end - first, region.Known.IsDefaultOrEmpty ? default : region.Known.Slice(first - region.Offset, end - first)));
+                    }
+                }
+                return;
+            }
             byte[] bytes = new byte[count];
             bool[] known = new bool[count];
-            previous!.ReadWithKnownness(offset, bytes, known);
-            regions.Add(new(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), 0, count, known.All(value => value) ? default : ImmutableCollectionsMarshal.AsImmutableArray(known)));
+            previous.ReadWithKnownness(offset, bytes, known);
+            Append(new(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), 0, count, known.All(value => value) ? default : ImmutableCollectionsMarshal.AsImmutableArray(known)));
         }
     }
 
