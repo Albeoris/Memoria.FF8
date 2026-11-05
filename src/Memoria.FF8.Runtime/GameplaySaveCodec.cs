@@ -17,6 +17,36 @@ public static class GameplaySaveCodec
         Converters = { new JsonStringEnumConverter(), new ImmutableBytesJsonConverter() }
     };
 
+    /// <summary>Checks the format marker without consuming a seekable source or validating its contents.</summary>
+    public static bool HasSignature(Stream source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!source.CanSeek)
+        {
+            throw new ArgumentException("Gameplay format detection requires a seekable stream.", nameof(source));
+        }
+        long position = source.Position;
+        try
+        {
+            Span<byte> marker = stackalloc byte[Signature.Length];
+            int count = source.ReadAtLeast(marker, marker.Length, throwOnEndOfStream: false);
+            return count == marker.Length && marker.SequenceEqual(Signature);
+        }
+        finally
+        {
+            source.Position = position;
+        }
+    }
+
+    /// <summary>Reads display facts from bounded semantic components without loading installed game resources.</summary>
+    public static SaveSummary ReadSummary(Stream source)
+    {
+        GameplaySaveComponentDocument document = Read(source);
+        GameplaySaveProgression progression = document.Progression ?? throw new NotSupportedException("Partial gameplay components do not describe a loadable player save.");
+        int[] portraits = document.Characters.CombatParty.Where(row => row != 255).Select(row => (int)document.Characters.Records[row].CharacterId).ToArray();
+        return new(document.Resume.Kind == GameplaySaveResumeKind.World ? SceneKind.WorldMap : SceneKind.Field, document.Resume.FieldId, "", progression.Clocks.Playtime, portraits, progression.SceneFacts?.PlaceId, document.Resume.World?.X, document.Resume.World?.Z);
+    }
+
     public static void Write(Stream destination, GameplaySaveComponentDocument document)
     {
         ArgumentNullException.ThrowIfNull(destination);

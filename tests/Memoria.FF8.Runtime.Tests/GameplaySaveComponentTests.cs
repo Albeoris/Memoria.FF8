@@ -12,6 +12,33 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplaySaveComponentTests
 {
     [Fact]
+    public void Format_detection_preserves_position_and_does_not_accept_a_truncated_marker()
+    {
+        using MemoryStream stream = new();
+        stream.WriteByte(42);
+        GameplaySaveCodec.Write(stream, Document());
+        stream.Position = 1;
+        Assert.True(GameplaySaveCodec.HasSignature(stream));
+        Assert.Equal(1, stream.Position);
+        stream.Position = stream.Length - 3;
+        long position = stream.Position;
+        Assert.False(GameplaySaveCodec.HasSignature(stream));
+        Assert.Equal(position, stream.Position);
+        stream.Position = 0;
+        Assert.False(GameplaySaveCodec.HasSignature(stream));
+        Assert.Equal(0, stream.Position);
+    }
+
+    [Fact]
+    public void Partial_components_are_not_presented_as_loadable_player_summary()
+    {
+        using MemoryStream stream = new();
+        GameplaySaveCodec.Write(stream, Document());
+        stream.Position = 0;
+        Assert.Throws<NotSupportedException>(() => GameplaySaveCodec.ReadSummary(stream));
+    }
+
+    [Fact]
     public void Component_round_trip_preserves_nondefault_progress_and_uses_current_definitions()
     {
         NativeCharacterVitals source = Characters();

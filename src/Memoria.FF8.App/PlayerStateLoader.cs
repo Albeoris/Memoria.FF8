@@ -14,6 +14,13 @@ internal static class PlayerStateLoader
 
     internal static GameState Load(string path, string? gameDirectory = null, GameAssets? sharedAssets = null, ResourceService? resources = null)
     {
+        using (FileStream source = File.OpenRead(path))
+        {
+            if (GameplaySaveCodec.HasSignature(source))
+            {
+                return GameplaySaveSessionLoader.Restore(GameplaySaveCodec.Read(source), gameDirectory ?? sharedAssets?.GameDirectory ?? LaunchOptions.ConfiguredGameDirectory, sharedAssets, resources);
+            }
+        }
         GameAssets? ownedAssets = null;
         try
         {

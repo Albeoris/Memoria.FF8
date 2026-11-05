@@ -763,11 +763,11 @@ public sealed partial class GameSession : IEventServices
         return ChocoboRewardTransactions.Reconcile(state);
     }
 
-    /// <summary>Reads only the display header of a compact save; legacy JSON has no header.</summary>
+    /// <summary>Reads compact display headers or bounded semantic components; legacy JSON has no header.</summary>
     public static SaveSummary? ReadSummary(string path)
     {
         using FileStream stream = File.OpenRead(path);
-        return SnapshotStorage.ReadSummary(stream, CompactJsonOptions);
+        return GameplaySaveCodec.HasSignature(stream) ? GameplaySaveCodec.ReadSummary(stream) : SnapshotStorage.ReadSummary(stream, CompactJsonOptions);
     }
 
     private void Change(GameState state, bool advancePlaytime = true)
