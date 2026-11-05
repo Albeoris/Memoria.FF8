@@ -63,6 +63,8 @@ internal sealed class AutoPlayRunState
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ExhaustedSurveyInspections { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayExhaustedSurveyRequest? PendingExhaustedSurvey { get; set; }
+    public AutoPlayNavigationExcursion? NavigationExcursion { get; set; }
+    public List<AutoPlayNavigationExcursionBlock> NavigationExcursionBlocks { get; set; } = [];
     public string? RefreshTargetVisit { get; set; }
     public AutoPlaySurveyBaseline? SurveyBaseline { get; set; }
     public bool SurveyInvalidationUnknown { get; set; }
@@ -358,6 +360,13 @@ internal sealed partial class AutoPlayController
         }
         ImportInputSearch(saved, directory, ImportCheckpoint, document.RootElement);
         saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
+        if (saved.NavigationExcursion is { } excursion)
+        {
+            string checkpoint = ImportCheckpoint(excursion.Checkpoint)!;
+            string path = Path.Combine(runDirectory!, checkpoint);
+            SaveGame(path, ReadCheckpoint(path), standalone: true);
+            saved.NavigationExcursion = excursion with { Checkpoint = checkpoint };
+        }
         saved.ActiveBeforeCheckpoint = ImportCheckpoint(saved.ActiveBeforeCheckpoint);
         saved.DirectCodeEntry.TrainRetryCheckpoint = ImportCheckpoint(saved.DirectCodeEntry.TrainRetryCheckpoint);
         if (saved.DirectCodeEntry.TrainRetryContext is { } directRetryContext)
@@ -542,6 +551,10 @@ internal sealed partial class AutoPlayController
         world.EnsureField();
         ApplyBattlePolicy(world);
         if (TryPlayBattle(world))
+        {
+            return;
+        }
+        if (TryDeclineCardGame(world))
         {
             return;
         }
@@ -782,14 +795,20 @@ internal sealed partial class AutoPlayController
             run.VisitGuards[navigation] = guard;
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }
+        planner.SetNavigationExcursionBlocks(run.NavigationExcursionBlocks);
+        ObserveNavigationExcursion(world, navigation);
         AutoPlayPlanStep? next = PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null);
         if (next is null)
         {
+            if (TryReturnNavigationExcursion(world, navigation))
+            {
+                return;
+            }
             WaitForNativeFrontier();
             return;
         }
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
-        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id) && !run.NavigationExcursionBlocks.Any(blocked => blocked.SourceNavigation == navigation && blocked.EventId == item.CoverageId && blocked.ConditionSignature == currentEvent.Event.ConditionSignature && blocked.TargetId == item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         string beforeCheckpoint = $"event-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
@@ -833,11 +852,14 @@ internal sealed partial class AutoPlayController
             foreach (AutoPlayTarget variant in variants)
             {
                 string checkpoint = BeforeVariant();
-                ActivateTarget(variant, checkpoint, CaptureContactSource(world, visit, navigation, variant));
+                AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                BeginNavigationExcursion(world, source, checkpoint);
+                ActivateTarget(variant, checkpoint, source);
                 world.Events.TeleportPlayer(variant.X, variant.Y, variant.Z, variant.Triangle, variant.Direction);
                 PlayerActionResult result = world.Apply(new(PlayerActionKind.Interact, variant.ObjectId));
                 if (result.Accepted)
                 {
+                    ConfirmNavigationExcursionSource(source, checkpoint);
                     accepted = true;
                     break;
                 }
@@ -861,6 +883,7 @@ internal sealed partial class AutoPlayController
             {
                 string checkpoint = BeforeVariant();
                 AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                BeginNavigationExcursion(world, source, checkpoint);
                 if (IsContactInterrupted(source, run.ContactInterruptions))
                 {
                     skippedInterruptedVariant = true;
@@ -901,6 +924,7 @@ internal sealed partial class AutoPlayController
                 }
                 if (contacted)
                 {
+                    ConfirmNavigationExcursionSource(source, checkpoint);
                     triggered = true;
                     break;
                 }
@@ -1328,6 +1352,8 @@ internal sealed partial class AutoPlayController
         run.ActiveAbsenceGuardKey = null;
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
+        planner.SetNavigationExcursionBlocks(run.NavigationExcursionBlocks);
+        ObserveNavigationExcursion(world, navigation);
         AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex)) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
@@ -1798,6 +1824,7 @@ internal sealed partial class AutoPlayController
 
     private void ClearNativeUnavailableInteraction()
     {
+        run.NavigationExcursion = null;
         run.ActiveVisit = null;
         run.ActiveNavigationKey = null;
         run.ActiveEvent = null;
@@ -1877,6 +1904,11 @@ internal sealed partial class AutoPlayController
             planner.Completed(source, eventId, source == destination && sameNavigation ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
         }
         RecordNavigationControlReturn(source, destination, eventId);
+        if (run.NavigationExcursion is not null && (source == destination && run.ActiveNavigationKey == destinationNavigation || run.ActiveSelections is not { Count: 0 } || run.SceneChoices.Count != 0))
+        {
+            run.NavigationExcursion = null;
+        }
+        ObserveNavigationExcursion(world, destinationNavigation);
     }
 
     private PlayerActionResult Apply(PlayerAction action)

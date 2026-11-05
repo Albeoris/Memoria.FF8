@@ -6,6 +6,48 @@ internal sealed record AutoPlayRetiredNavigationRoute(AutoPlayNavigationRoute Ro
 
 internal sealed partial class AutoPlayPlanner
 {
+    private AutoPlayNavigationExcursionBlock[] navigationExcursionBlocks = [];
+
+    public void SetNavigationExcursionBlocks(IEnumerable<AutoPlayNavigationExcursionBlock> blocks)
+    {
+        navigationExcursionBlocks = blocks.ToArray();
+    }
+
+    public bool CanReachNavigation(string sourceKey, string destinationKey, Func<AutoPlayNavigationVisit, bool>? isCurrent = null)
+    {
+        AutoPlayPlanner view = CreateNavigationView(isCurrent);
+        Dictionary<string, AutoPlayVisitCoverage> visits = view.State.Visits.ToDictionary(visit => visit.Visit.Key, StringComparer.Ordinal);
+        if (!visits.ContainsKey(sourceKey) || !visits.ContainsKey(destinationKey))
+        {
+            return false;
+        }
+        HashSet<string> reached = [];
+        Queue<string> pending = new();
+        pending.Enqueue(sourceKey);
+        while (pending.TryDequeue(out string? key))
+        {
+            if (!reached.Add(key))
+            {
+                continue;
+            }
+            if (key == destinationKey)
+            {
+                return true;
+            }
+            foreach (AutoPlayEventCoverage item in OrderedEvents(visits[key]))
+            {
+                foreach (AutoPlayEventRoute route in TravelRoutes(item))
+                {
+                    if (visits.ContainsKey(route.DestinationVisitKey))
+                    {
+                        pending.Enqueue(route.DestinationVisitKey);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     public void ObserveNavigation(string visitKey, string navigationKey, IReadOnlyList<AutoPlayEvent> events)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(navigationKey);
@@ -146,6 +188,10 @@ internal sealed partial class AutoPlayPlanner
             foreach (AutoPlayEvent observed in observation.Events)
             {
                 AutoPlayEventCoverage shared = FindEvent(observation.VisitKey, observed.Id);
+                HashSet<string> blockedTargets = navigationExcursionBlocks.Where(blocked => blocked.SourceNavigation == observation.Key && blocked.SourceVisit == observation.VisitKey && blocked.EventId == observed.Id && blocked.ConditionSignature == observed.ConditionSignature).Select(blocked => blocked.TargetId).ToHashSet(StringComparer.Ordinal);
+                HashSet<string> unavailableVariants = new(shared.UnavailableVariants, StringComparer.Ordinal);
+                unavailableVariants.UnionWith(blockedTargets);
+                IReadOnlyList<string> variants = observed.Variants is { Count: > 0 } specified ? specified : [observed.Id];
                 AutoPlayEventCoverage local = new()
                 {
                     Event = observed,
@@ -155,13 +201,13 @@ internal sealed partial class AutoPlayPlanner
                     Conditions = shared.Conditions,
                     ObservedStoryChanged = shared.ObservedStoryChanged,
                     ObservedConditionSignature = shared.ObservedConditionSignature,
-                    Unavailable = shared.Unavailable,
-                    UnavailableVariants = shared.UnavailableVariants,
+                    Unavailable = shared.Unavailable || variants.All(unavailableVariants.Contains),
+                    UnavailableVariants = unavailableVariants,
                     AvailabilityFingerprint = shared.AvailabilityFingerprint,
                     CompletedAvailabilityFingerprints = shared.CompletedAvailabilityFingerprints,
                     PolicyDeferred = shared.PolicyDeferred,
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
-                    RouteNeedsRediscovery = shared.RouteNeedsRediscovery
+                    RouteNeedsRediscovery = shared.RouteNeedsRediscovery || blockedTargets.Count > 0 && variants.Any(target => !unavailableVariants.Contains(target) && !shared.PolicyDeferredVariants.Contains(target) && !shared.Routes.Any(route => route.ConditionSignature == observed.ConditionSignature && route.TargetId == target))
                 };
                 if (UnconfirmedNavigationRoutes(observation, local, valid).Any())
                 {
@@ -217,8 +263,8 @@ internal sealed partial class AutoPlayPlanner
             Event = observation.Events.Single(item => item.Id == scoped.Event.Id),
             Completed = shared.Completed,
             Routes = shared.Routes,
-            UnavailableVariants = shared.UnavailableVariants,
-            PolicyDeferredVariants = shared.PolicyDeferredVariants
+            UnavailableVariants = scoped.UnavailableVariants,
+            PolicyDeferredVariants = scoped.PolicyDeferredVariants
         };
         return TravelRoutes(candidates).Where(route => State.Visits.Any(visit => visit.Visit.Key == route.DestinationVisitKey));
     }

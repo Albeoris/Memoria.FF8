@@ -11,6 +11,11 @@ internal sealed partial class GameWorld
         return Field is not null && HasCurrentFieldAllocation && CanCacheAutoPlayUnavailableSource(JsmProgram.Read(Field.Jsm), eventId, objectId) && ReadAutoPlayConditions(eventId, objectId).DeferredOperations.Count == 0;
     }
 
+    internal bool CanCacheAutoPlayNavigationSource(string eventId, int objectId)
+    {
+        return Field is not null && HasCurrentFieldAllocation && CanCacheAutoPlayUnavailableSource(JsmProgram.Read(Field.Jsm), eventId, objectId, null, navigationPresentation: true) && ReadAutoPlayConditions(eventId, objectId).DeferredOperations.Count == 0;
+    }
+
     internal static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId)
     {
         return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null);
@@ -31,7 +36,7 @@ internal sealed partial class GameWorld
         return script is not null && TryReadAutoPlayWorldPacket(program, script, sourceOperation, out WorldTransition? packet) && packet == request.Transition && CanCacheAutoPlayUnavailableSource(program, eventId, objectId, script);
     }
 
-    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource)
+    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource, bool navigationPresentation = false)
     {
         string kind = eventId.Split(':').ElementAtOrDefault(1) ?? string.Empty;
         if (kind == "gateway")
@@ -118,7 +123,7 @@ internal sealed partial class GameWorld
                         return false;
                     }
                 }
-                else if (!IsAutoPlayUnavailableSourceOperation(operation.Opcode))
+                else if (!IsAutoPlayUnavailableSourceOperation(operation.Opcode) && !(navigationPresentation && operation.Opcode is Jsm.Opcode.MAPFADEOFF or Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.FADEBLACK or Jsm.Opcode.MOVIESYNC or Jsm.Opcode.MUSICVOLTRANS))
                 {
                     return false;
                 }
