@@ -104,6 +104,11 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
         return (resourceStorage ?? storage).Read(offset, length, ResourceCapacity);
     }
 
+    internal byte[] ReadGuest(int offset, int length)
+    {
+        return storage.Read(offset, length, Capacity);
+    }
+
     public NativeBattleModelCpuBank Write(int offset, ReadOnlySpan<byte> bytes)
     {
         NativeBattleModelResourceStorage current = resourceStorage ?? storage;

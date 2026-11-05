@@ -8,14 +8,16 @@ public readonly struct NativeBattleModelResourceView
     private readonly NativeBattleFileStaging? staging;
     private readonly int bankOffset;
     private readonly ulong address;
+    private readonly bool resourceOnly;
 
-    private NativeBattleModelResourceView(NativeBattleModelCpuBank? bank, NativeBattleFileStaging? staging, int bankOffset, ulong address, int length)
+    private NativeBattleModelResourceView(NativeBattleModelCpuBank? bank, NativeBattleFileStaging? staging, int bankOffset, ulong address, int length, bool resourceOnly = false)
     {
         this.bank = bank;
         this.staging = staging;
         this.bankOffset = bankOffset;
         this.address = address;
         Length = length;
+        this.resourceOnly = resourceOnly;
     }
 
     public int Length { get; }
@@ -56,7 +58,7 @@ public readonly struct NativeBattleModelResourceView
     {
         RequireOwner();
         RequireRange(offset, length, Length);
-        return bank is not null ? new(bank, null, checked(bankOffset + offset), 0, length) : new(null, staging, 0, address + (uint)offset, length);
+        return bank is not null ? new(bank, null, checked(bankOffset + offset), 0, length, resourceOnly) : new(null, staging, 0, address + (uint)offset, length);
     }
 
     public byte[] Read(int offset, int length)
@@ -65,7 +67,7 @@ public readonly struct NativeBattleModelResourceView
         RequireRange(offset, length, Length);
         if (bank is not null)
         {
-            return bank.Read(checked(bankOffset + offset), length);
+            return resourceOnly ? bank.Read(checked(bankOffset + offset), length) : bank.ReadGuest(checked(bankOffset + offset), length);
         }
         ulong selected = address + (uint)offset;
         if (selected > uint.MaxValue)
@@ -93,8 +95,12 @@ public readonly struct NativeBattleModelResourceView
             throw new InvalidDataException("Native model section selects an absent CPU bank.");
         }
         NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
-        RequireRange(reference.Offset, length, bank.ResourceCapacity);
-        return new(bank, null, reference.Offset, 0, length);
+        if (reference.ResourceOnly && !bank.HasResourceStorage)
+        {
+            throw new InvalidDataException("A logical model section requires its retained resource owner.");
+        }
+        RequireRange(reference.Offset, length, reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity);
+        return new(bank, null, reference.Offset, 0, length, reference.ResourceOnly);
     }
 
     private void RequireOwner()

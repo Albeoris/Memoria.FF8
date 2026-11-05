@@ -108,6 +108,29 @@ public sealed record NativeBattleModelResourceCompletion(NativeBattleModelCpuBan
 /// <summary>Resource-only5077B0/5079B0/507BF0/507E20 completion. This does not initialize a model or consume RNG.</summary>
 public static class NativeBattleModelResourceCopies
 {
+    internal static void RequireInactiveTransition(NativeBattleModelCpuResources previous, NativeBattleModelResourceCompletion completed, NativeBattleGraphicsState graphics)
+    {
+        HashSet<int> promoted = previous.Cpu.Banks.Select((bank, index) => (bank, index)).Where(item => !item.bank.HasResourceStorage && completed.Cpu.Banks[item.index].HasResourceStorage).Select(item => item.index).ToHashSet();
+        if (promoted.Count == 0)
+        {
+            return;
+        }
+        if (graphics.OriginalEffect is not null || graphics.Effects.PublishedCount != 0 || graphics.ModuleEffects.PublishedCount != 0 || graphics.Models.Any(UsesLoadedBank))
+        {
+            throw new NotSupportedException("Promoting a guest model bank to logical resources requires an unloaded model and no active resource consumers.");
+        }
+
+        bool UsesLoadedBank(NativeBattleGraphicsModel model)
+        {
+            return (model.Flags0 & 2) != 0 && (promoted.Contains(model.Index) || model.ActiveStagedResourceRow100 is not null || UsesRow(model.ActiveResourceRow100) || UsesRow(model.OriginalResourceRow104) || UsesRow(model.TextureResourceIndex) || UsesRow(model.LinkedTextureResourceIndex));
+        }
+
+        bool UsesRow(int? index)
+        {
+            return index is int row && previous.Rows[row].Fields.Values.Any(reference => reference is not null && promoted.Contains(reference.Bank));
+        }
+    }
+
     public static NativeBattleModelResourceCompletion Complete(NativeBattleModelResourceBind bind, NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> rows, int bodyRow, int? linkedRow)
     {
         if (rows.IsDefault || rows.Length != 11 || (uint)bodyRow >= 11 || cpu.Banks.IsDefault || cpu.Banks.Length != 3 || linkedRow is < 0 or >= 11)

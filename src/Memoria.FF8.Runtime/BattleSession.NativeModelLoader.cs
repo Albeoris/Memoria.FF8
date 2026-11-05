@@ -105,6 +105,7 @@ public sealed partial class BattleSession
             model = model with { LinkedTextureSlots = bind.TextureBinding, LinkedTextureResourceIndex = linkedRow };
         }
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(bind, cpu.Cpu, cpu.Rows, bodyRow, linkedRow);
+        NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, graphics);
         cpu = cpu with { Cpu = completed.Cpu, Rows = completed.Rows };
         if (completed.AnimationCopy is { } animation)
         {
@@ -122,5 +123,6 @@ public sealed partial class BattleSession
         NativeModelCpuResources = cpu;
         NativeModelTextureCache = cache;
         graphics = graphics with { Models = graphics.Models.SetItem(task.PhysicalIndex, model) };
+
     }
 }

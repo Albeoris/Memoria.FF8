@@ -101,6 +101,52 @@ public sealed class NativeBattleModelResourceCapacityTests
         Assert.Throws<NotSupportedException>(() => task.ReadDword(16));
     }
 
+    [Fact]
+    public void Held_guest_pointer_keeps_the_guest_domain_after_a_bank_promotes_and_diagnostic_restore()
+    {
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelCpuBank guest = cpu.Cpu.Banks[0].Write(0, [1, 2, 3, 4]);
+        NativeBattleResourcePointer held = new(new(0, 0), null, 4);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().WriteResourcePointer(16, held);
+        byte[] bytes = new byte[guest.Capacity + 4];
+        bytes.AsSpan(0, 4).Fill(9);
+        NativeBattleModelCpuBank promoted = guest.BindPartyResource(0, bytes.ToImmutableArray(), 0, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, promoted) } };
+        Held restored = NativeBattleTestSnapshots.RestoreJson<Held>(NativeBattleTestSnapshots.Json(new Held(cpu, arena)));
+        NativeBattleResourcePointer original = restored.Arena.ReadResourcePointer(16)!;
+        Assert.False(original.Cpu!.ResourceOnly);
+        Assert.Equal(original.Cpu.PhysicalAddress, restored.Arena.ReadUInt32(16));
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelResourceView guestView = NativeBattleModelResourceView.Open(restored.Cpu, staging, original, 4);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, guestView.Read(0, 4));
+        Assert.Equal(new byte[] { 2, 3 }, guestView.Slice(1, 2).Read(0, 2));
+        NativeBattleResourcePointer logical = new(original.Cpu with { ResourceOnly = true }, null, 4);
+        Assert.Equal(new byte[] { 9, 9, 9, 9 }, NativeBattleModelResourceView.Open(restored.Cpu, staging, logical, 4).Read(0, 4));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(NativeBattleModelCpuResources.Unknown(), staging, logical, 4));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(restored.Cpu, staging, original with { Length = null }, guest.Capacity + 1));
+    }
+
+    [Fact]
+    public void Production_bind_guard_allows_initial_unloaded_entry_and_refuses_live_guest_to_logical_reload_before_publication()
+    {
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelDatSource source = Source(false, NativeBattleModelCpuBank.Length + 4);
+        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleGraphicsState initial = Loading();
+        NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial);
+        NativeBattleGraphicsState loaded = initial with { Models = initial.Models.SetItem(1, new(1, 3)) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, loaded));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial with { Effects = initial.Effects with { PublishedCount = 1 } }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, initial with { ModuleEffects = initial.ModuleEffects with { PublishedCount = 1 } }));
+        NativeBattleModelCpuResources aliased = cpu with { Rows = cpu.Rows.SetItem(3, cpu.Rows[3].Set(12, new(1, 0))) };
+        NativeBattleGraphicsState otherModel = initial with { Models = initial.Models.SetItem(0, new(0, 3) { OriginalResourceRow104 = 3 }) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(aliased, completed, otherModel));
+        Assert.False(cpu.Cpu.Banks[1].HasResourceStorage);
+        NativeBattleModelDatSource small = Source(false, 8);
+        NativeBattleModelResourceCompletion originalDimensions = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), small, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, originalDimensions, loaded);
+    }
+
     private static void Draw(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, int row, ImmutableArray<NativeBattleActionMatrix> bones)
     {
         NativeBattleModelCpuResourceRow owner = cpu.Rows[row];
@@ -119,7 +165,13 @@ public sealed class NativeBattleModelResourceCapacityTests
         NativeBattleModelLoadStep prepared = requested.State.Poll507070(source.Bytes.Length, [source], requested.Staging);
         NativeBattleModelLoadStep loaded = prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging);
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(loaded.Bind!, cpu.Cpu, cpu.Rows, 0, linkedRow);
+        NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, Loading());
         return (cpu with { Cpu = completed.Cpu, Rows = completed.Rows, AnimationFrames = completed.AnimationCopy!.BindTo(cpu.AnimationFrames) }, loaded.Staging);
+    }
+
+    private static NativeBattleGraphicsState Loading()
+    {
+        return new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(1, new(1, 1)), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
     }
 
     private static NativeBattleModelDatSource Source(bool linked, int meshOffset)
@@ -166,4 +218,5 @@ public sealed class NativeBattleModelResourceCapacityTests
     }
 
     private sealed record Pilot(NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging, NativeBattleGraphicsModel Model);
+    private sealed record Held(NativeBattleModelCpuResources Cpu, NativeBattleEffectArena Arena);
 }
