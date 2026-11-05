@@ -216,6 +216,10 @@ public sealed partial class EventEngine
         Scene.NativeBattleCompletions ??= [];
         Scene.NativeBattleWaits.Add(fiber.Sequence, Scene.NativeBattleCompletions.Count);
         Scene.NativeBattleCompletions.Add(completion);
+        if (!suppressed)
+        {
+            RetainGameplayBattleResultForNativeRequest();
+        }
         // Original523270 returns3, consuming the operands and ending this entity's budget.
         // The minimal backend returns to the same field VM on its next ordinary callback.
         fiber.WaitUntil = Frame + 1;
@@ -290,12 +294,14 @@ public sealed partial class EventEngine
             if (result is byte outcome)
             {
                 Scene.NativeBattleResult = outcome;
+                Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
             }
         }
     }
 
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
+        ValidateGameplayBattleResultOrigin(saved.Scene);
         ValidateNativeRandomFieldBattleCheckpoint(saved);
         ValidateNativeMenuBattleCheckpoint(saved);
         saved.Scene.NativeBattleFieldReload?.Validate();

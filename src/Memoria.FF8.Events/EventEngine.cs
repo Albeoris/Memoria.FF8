@@ -237,6 +237,7 @@ public sealed partial class EventEngine
         Scene.NativeBattleCompletions = previousScene.NativeBattleCompletions is null ? null : [.. previousScene.NativeBattleCompletions];
         Scene.NativeBattleWaits = Scene.NativeBattleCompletions is null ? null : [];
         Scene.NativeBattleResult = previousScene.NativeBattleResult;
+        Scene.GameplayBattleResultOrigin = previousScene.GameplayBattleResultOrigin;
         Scene.NativeAbandonedBattleOutcome = previousScene.NativeAbandonedBattleOutcome;
         Scene.NativeWorldBattleOutcome = previousScene.NativeWorldBattleOutcome;
         Scene.NativeRandomFieldBattle = previousScene.NativeRandomFieldBattle;

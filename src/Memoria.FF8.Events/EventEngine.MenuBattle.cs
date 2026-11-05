@@ -58,6 +58,7 @@ public sealed partial class EventEngine
         long allocation = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? 0;
         long callbackBase = sourceScene == SceneKind.Field ? Scene.FieldCallbackClock!.MenuBattleCallbacks : 0;
         Scene.NativeMenuBattle = new(itemId, formation, flags, sourceScene, FieldId, sourceFrame, sourceHash, allocation, callbackBase, 0, services.ExamTimer!.ClockCalls);
+        RetainGameplayBattleResultForNativeRequest();
     }
 
     public void AdvanceMenuBattleCallbacks(int callbacks)
@@ -86,6 +87,7 @@ public sealed partial class EventEngine
         publishOutcome();
         Scene.NativeMenuBattle = owner with { Result = result, ReturnFrame = owner.SourceScene == SceneKind.Field ? Frame : owner.SourceFrame, DefeatBranch = result == 1 ? ReadNativeDefeatReturnBranch4706B0() : null };
         Scene.NativeBattleResult = result;
+        Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
     }
 
     private static void ValidateNativeMenuBattleCheckpoint(Checkpoint saved)

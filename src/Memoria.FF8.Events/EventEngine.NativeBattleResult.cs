@@ -2,8 +2,31 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
+public enum GameplayBattleResultOrigin
+{
+    None,
+    RestoredLastResult,
+    RetainedWhilePending
+}
+
 public sealed partial class EventEngine
 {
+    private void RetainGameplayBattleResultForNativeRequest()
+    {
+        if (Scene.GameplayBattleResultOrigin != GameplayBattleResultOrigin.None)
+        {
+            Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.RetainedWhilePending;
+        }
+    }
+
+    private static void ValidateGameplayBattleResultOrigin(SceneEventState scene)
+    {
+        bool pending = scene.NativeBattleCompletions?.Any(item => !item.Suppressed && item.ReturnFrame is null && item.Abandonment is null) == true || scene.NativeRandomFieldBattle is { Result: null, Abandonment: null } || scene.NativeMenuBattle is { Result: null, Abandonment: null };
+        if (!Enum.IsDefined(scene.GameplayBattleResultOrigin) || scene.GameplayBattleResultOrigin != GameplayBattleResultOrigin.None && scene.NativeBattleResult is null || scene.GameplayBattleResultOrigin == GameplayBattleResultOrigin.RetainedWhilePending && !pending)
+        {
+            throw new InvalidDataException("Gameplay last battle result has an invalid reconstruction origin or pending owner.");
+        }
+    }
     public void BindNativeFreshDefeatOutcome(NativeBattleAbandonment abandoned)
     {
         abandoned.Validate();
@@ -14,6 +37,7 @@ public sealed partial class EventEngine
         byte? result = ReadLatestNativeBattleResult(Scene, abandonedReplacement: abandoned);
         Scene.NativeAbandonedBattleOutcome = abandoned;
         Scene.NativeBattleResult = result;
+        Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
     }
 
     public void RequireNativeWorldBattleOutcome(NativeWorldBattleOutcome outcome)
@@ -31,6 +55,7 @@ public sealed partial class EventEngine
         RequireNativeWorldBattleOutcome(outcome);
         Scene.NativeWorldBattleOutcome = outcome;
         Scene.NativeBattleResult = ReadLatestNativeBattleResult(Scene);
+        Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
     }
 
     private static byte? ReadLatestNativeBattleResult(SceneEventState scene, NativeWorldBattleOutcome? worldReplacement = null, NativeBattleAbandonment? abandonedReplacement = null)
@@ -59,7 +84,7 @@ public sealed partial class EventEngine
         }
         if (writers.Count == 0)
         {
-            return null;
+            return scene.GameplayBattleResultOrigin is GameplayBattleResultOrigin.RestoredLastResult or GameplayBattleResultOrigin.RetainedWhilePending ? scene.NativeBattleResult : null;
         }
         if (writers.Any(item => item.Entry is null))
         {

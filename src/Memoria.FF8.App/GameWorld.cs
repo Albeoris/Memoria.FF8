@@ -41,9 +41,10 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false)
     {
         this.session = session;
+        this.legacyGameplayProjection = legacyGameplayProjection;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;
         this.resources = resources;
@@ -416,7 +417,7 @@ internal sealed partial class GameWorld : IDisposable
             NativeBattleAbandonment abandoned = session.State.AbandonedNativeBattles is { Length: > 0 } history ? history[^1] : throw new InvalidDataException("Fresh defeat allocation lost its actual result1 writer.");
             Events.BindNativeFreshDefeatOutcome(abandoned);
         }
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null, fieldLoadReason: loadContext?.Reason);
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: SelectFieldRuntimeProfile(snapshot), worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null, fieldLoadReason: loadContext?.Reason);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
@@ -424,7 +425,11 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (snapshot is System.Text.Json.JsonElement saved)
         {
-            if (restoreDeparting)
+            if (legacyGameplayProjection)
+            {
+                Events.RestoreLegacyGameplayState(saved, restoreSharedState: !restoreDeparting);
+            }
+            else if (restoreDeparting)
             {
                 Events.RestoreFieldState(saved);
             }
@@ -434,7 +439,7 @@ internal sealed partial class GameWorld : IDisposable
             }
             Events.CompleteNativeFieldParticleMigration();
         }
-        if (snapshot is not null && !session.HasActiveBattle && Events.Scene.NativeFieldRegistration is { } registration)
+        if (!legacyGameplayProjection && snapshot is not null && !session.HasActiveBattle && Events.Scene.NativeFieldRegistration is { } registration)
         {
             Events.RehydrateNativeModelResources();
             registration = Events.Scene.NativeFieldRegistration!;

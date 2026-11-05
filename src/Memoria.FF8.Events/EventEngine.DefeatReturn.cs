@@ -64,6 +64,7 @@ public sealed partial class EventEngine
         }
         Scene.NativeAbandonedBattleOutcome = receipt;
         Scene.NativeBattleResult = ReadLatestNativeBattleResult(Scene);
+        Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
     }
 
     public NativeBattleAbandonment CaptureNativeBattleAbandonment(BattleEncounterOccurrence encounter, int callbacks)

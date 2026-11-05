@@ -28,6 +28,7 @@ public sealed partial class EventEngine
         ushort flags = Scene.NativeBattleFlagWrites is { Count: > 0 } writes ? writes[^1].ActiveFlags : throw new NotSupportedException("Native random field entry requires its observed active battle flags.");
         long allocationClock = Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Native random field entry requires its actual allocation clock.");
         Scene.NativeRandomFieldBattle = new(request, allocationClock, clock.RandomBattleCallbacks, 0, flags, null, null, services.ExamTimer?.ClockCalls ?? throw new NotSupportedException("Random battle entry requires its actual process clock."));
+        RetainGameplayBattleResultForNativeRequest();
         return flags;
     }
 
@@ -62,6 +63,7 @@ public sealed partial class EventEngine
         publishOutcome();
         Scene.NativeRandomFieldBattle = owner with { Result = result, ReturnFrame = Frame, DefeatBranch = result == 1 ? ReadNativeDefeatReturnBranch4706B0() : null };
         Scene.NativeBattleResult = result;
+        Scene.GameplayBattleResultOrigin = GameplayBattleResultOrigin.None;
     }
 
     private static int CountPendingNativeFieldOwners(SceneEventState scene, long frame)

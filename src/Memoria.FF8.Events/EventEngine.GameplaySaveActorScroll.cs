@@ -10,7 +10,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (state.Version != 1 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= Scene.NativeActorObjectIds.Count || Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || !NativeActorScrollPhase.IsValid(state) || Scene.BackgroundScrollPositions.ContainsKey(state.Layer) || CanRestoreNativeActorScroll?.Invoke(Scene, actors) != true)
+        if (state.Version != 1 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= Scene.NativeActorObjectIds.Count || Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || !NativeActorScrollPhase.IsValid(state) || Scene.BackgroundScrollPositions.ContainsKey(state.Layer) || !extractingLegacyGameplay && CanRestoreNativeActorScroll?.Invoke(Scene, actors) != true)
         {
             throw new InvalidDataException("Gameplay actor-camera capture requires its current retained target and proved projection phase.");
         }

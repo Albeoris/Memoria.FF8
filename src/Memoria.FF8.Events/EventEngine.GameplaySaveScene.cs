@@ -147,6 +147,7 @@ public sealed partial class EventEngine
         Scene.NativeLadderSpeed490E = saved.LadderSpeed;
         Scene.PreparedField = saved.PreparedField;
         Scene.NativeBattleResult = saved.BattleResult;
+        Scene.GameplayBattleResultOrigin = saved.BattleResult is null ? GameplayBattleResultOrigin.None : GameplayBattleResultOrigin.RestoredLastResult;
         Scene.NativeDialogueFocus = saved.DialogueFocus;
         Scene.NativeAskPreviousFocus = saved.AskPreviousFocus;
         Scene.NativeAaskPreviousFocus = saved.AaskPreviousFocus;

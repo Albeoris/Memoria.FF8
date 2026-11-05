@@ -303,6 +303,9 @@ public sealed class SceneEventState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeBattleResult { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public GameplayBattleResultOrigin GameplayBattleResultOrigin { get; internal set; }
+    [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment? NativeAbandonedBattleOutcome { get; internal set; }
     [JsonInclude]

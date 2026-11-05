@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Reads player checkpoints with lazy access to the selected resources for historical initialization.</summary>
-internal static class PlayerStateLoader
+internal static partial class PlayerStateLoader
 {
     internal static LaunchOptions Parse(string[] args)
     {
@@ -25,7 +25,8 @@ internal static class PlayerStateLoader
             }
             return GameplaySaveSessionLoader.Restore(document, directory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
         }
-        return LoadLegacy(path, gameDirectory, sharedAssets, resources);
+        GameState legacy = LoadLegacy(path, gameDirectory, sharedAssets, resources);
+        return ProjectLegacyPlayerState(legacy, gameDirectory ?? sharedAssets?.GameDirectory ?? LaunchOptions.ConfiguredGameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
     }
 
     private static GameState LoadConfigured(string path, LaunchOptions options)
@@ -39,11 +40,17 @@ internal static class PlayerStateLoader
                 selected = OpenSelectedHost(options);
                 return GameplaySaveSessionLoader.Restore(document, options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
             }
-            return LoadLegacy(path, options.GameDirectory, openAssets: () =>
+            GameState legacy = LoadLegacy(path, options.GameDirectory, openAssets: () =>
             {
                 selected ??= OpenSelectedHost(options);
                 return new(options.GameDirectory, resources: selected.Resources, modelOverrides: selected);
             });
+            if (!RequiresLegacyGameplayProjection(legacy))
+            {
+                return legacy;
+            }
+            selected ??= OpenSelectedHost(options);
+            return ProjectLegacyPlayerState(legacy, options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
         }
         finally
         {
