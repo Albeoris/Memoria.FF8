@@ -25,16 +25,13 @@ public sealed record GameplaySaveCharacters
     {
         ArgumentNullException.ThrowIfNull(source);
         source.Validate();
-        if (source.GuardianForceProfile is not null || source.GuardianForceRecoveryProfile is not null || !source.GuardianForceRecoveryProgression.IsEmpty || !source.GuardianForceRecoveryTemplates.IsEmpty || source.GuardianForceOpaqueBaseline || source.GuardianForces.Any(gf => gf.LastProjection is not null))
-        {
-            throw new NotSupportedException("Gameplay character projection requires a resolved GF profile without pending compatibility recovery or historical projection tables.");
-        }
+        source = GameplaySaveGuardianForceAdapter.PrepareCapture(source);
         GameplaySaveCharacters result = new()
         {
             Records = source.Records,
             CombatParty = source.CombatParty,
             DreamEnabled = source.DreamEnabled,
-            GuardianForces = source.GuardianForces.Select(GameplaySaveGuardianForce.Capture).ToArray(),
+            GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.Learning[id].Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
             JunctionPartyBackup = source.JunctionPartyBackup,
             Magic = GameplaySaveMagic.Capture(source.MagicSystem)
@@ -49,16 +46,8 @@ public sealed record GameplaySaveCharacters
         ArgumentNullException.ThrowIfNull(installed);
         installed.Validate();
         Validate();
-        if (installed.GuardianForceProfile is not null || installed.GuardianForceRecoveryProfile is not null || !installed.GuardianForceRecoveryProgression.IsEmpty || !installed.GuardianForceRecoveryTemplates.IsEmpty || installed.GuardianForceOpaqueBaseline)
-        {
-            throw new NotSupportedException("Gameplay character restoration requires a resolved installed GF profile.");
-        }
         GameplaySaveCharacters detached = GameplaySaveCodec.Detach(this);
         NativeGuardianForceVital[] guardianForces = detached.GuardianForces.Select(gf => gf.Restore()).ToArray();
-        for (int index = 0; index < guardianForces.Length; index++)
-        {
-            guardianForces[index] = guardianForces[index] with { MaximumHitPoints = installed.Definitions.GuardianForceMaximum(index, guardianForces[index]) };
-        }
         NativeCharacterVitals result = installed with
         {
             Records = detached.Records,
@@ -72,8 +61,7 @@ public sealed record GameplaySaveCharacters
             GuardianForceRecoveryTemplates = [],
             GuardianForceCompatibilityDiagnostics = []
         };
-        result.Validate();
-        return result;
+        return GameplaySaveGuardianForceAdapter.Restore(result, installed, detached.GuardianForces);
     }
 
     public void Validate()
@@ -108,6 +96,8 @@ public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Exp
     public bool MoveFindDisabled { get; init; }
     public NativeGuardianForceOpaqueBytes? OpaqueSavedValues { get; init; }
     public GuardianForceProgression? Progression { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<byte> AbilityBindings { get; init; }
     public ushort? KillCount { get; init; }
     public ushort? DeathCount { get; init; }
 
@@ -123,7 +113,7 @@ public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Exp
 
     public void Validate()
     {
-        if (LearnedBank is null || AbilityProgress.IsDefault || AbilityProgress.Length != 21 || ForgottenAbilities > 0xFFFFFF || Progression is { } progression && (progression.Abilities.IsDefault || progression.Abilities.Any(entry => entry is null || entry.Ability <= 0 || entry.EarnedPoints is < 0 or > 255 || entry.Learned && entry.Forgotten) || progression.Abilities.Select(entry => entry.Ability).Distinct().Count() != progression.Abilities.Length))
+        if (LearnedBank is null || AbilityProgress.IsDefault || AbilityProgress.Length != 21 || ForgottenAbilities > 0xFFFFFF || !AbilityBindings.IsDefault && (AbilityBindings.Length != 21 || AbilityBindings.Any(ability => ability >= 128)) || Progression is { } progression && (progression.Abilities.IsDefault || progression.Abilities.Any(entry => entry is null || entry.Ability <= 0 || entry.EarnedPoints is < 0 or > 255 || entry.Learned && entry.Forgotten) || progression.Abilities.Select(entry => entry.Ability).Distinct().Count() != progression.Abilities.Length))
         {
             throw new InvalidDataException("Gameplay GF progression has malformed learned abilities or AP.");
         }

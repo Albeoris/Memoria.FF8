@@ -144,7 +144,8 @@ public sealed class GameplaySaveComponentTests
         Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(source with { GuardianForceOpaqueBaseline = true }));
         NativeGuardianForceVital[] forces = source.GuardianForces.ToArray();
         forces[0] = forces[0] with { LastProjection = new(forces[0].LearnedBank, forces[0].AbilityProgress, 0, 0, source.MenuDefinitions.Learning[0]) };
-        Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(source with { GuardianForces = forces }));
+        GameplaySaveCharacters projected = GameplaySaveCharacters.Capture(source with { GuardianForces = forces });
+        Assert.NotNull(projected.GuardianForces[0].Progression);
         Assert.Null(source.GuardianForces[0].LastProjection);
     }
 
