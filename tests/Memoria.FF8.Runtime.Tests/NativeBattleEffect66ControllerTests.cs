@@ -121,7 +121,9 @@ public sealed class NativeBattleEffect66ControllerTests
         Assert.Equal(age + 1, Read(step.Frame, task).ReadWord(12));
         if (color >= 0)
         {
-            Assert.Equal(new NativeBattleEffect66Rectangle571250(color, color, color), Assert.Single(harness.Operations));
+            NativeBattleEffect66Rectangle571250 rectangle = Assert.IsType<NativeBattleEffect66Rectangle571250>(Assert.Single(harness.Operations));
+            Assert.Equal((color, color, color), (rectangle.Red, rectangle.Green, rectangle.Blue));
+            Assert.Equal((ushort)66, rectangle.PilotIdentity?.Effect);
         }
         else
         {

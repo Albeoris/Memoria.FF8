@@ -174,9 +174,26 @@ public sealed class NativeBattleEffect315BodyTests
         Assert.Equal((byte)0x22, bytes[1]);
     }
 
-    private static NativeBattleEffect315BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
+        var numeric = Draw(fixture.Bytes, Temporary());
+        var logical = Draw(fixture.Bytes, Temporary(), resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary156, logical.Temporary156, 156, 0);
+    }
+
+    private static NativeBattleEffect315BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096, Zsf4 = 4096 };
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect315BodyDrawing.DrawBodyWithPresentation(Memory(), temporary, selected, [Identity()], Identity(8000), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray()), 0x2000, 32, pilotIdentity: pilotIdentity);
+        }
         if (pilotIdentity is null)
         {
             return NativeBattleEffect315BodyDrawing.DrawBody(Memory(), temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length)), 0x1000, [Identity()], Identity(8000), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray()), 0x2000, 32);

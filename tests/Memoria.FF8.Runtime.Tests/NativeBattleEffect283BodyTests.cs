@@ -141,10 +141,27 @@ public sealed class NativeBattleEffect283BodyTests
         Assert.Equal(4096u, frame.Memory.ScriptedColorRegisters!.Ir0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
+        var numeric = Draw(fixture.Bytes, Temporary(), Identity(8000));
+        var logical = Draw(fixture.Bytes, Temporary(), Identity(8000), resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary124, logical.Temporary124, 124, 32);
+    }
+
     private const uint ScratchAddress = 0x2000;
-    private static NativeBattleEffect283BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 matrix, ImmutableArray<byte> distance = default, ImmutableArray<ushort> radial = default, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private static NativeBattleEffect283BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 matrix, ImmutableArray<byte> distance = default, ImmutableArray<ushort> radial = default, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096, Zsf4 = 4096 };
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect283BodyDrawing.DrawBodyWithPresentation(Memory(), temporary, selected, [matrix], new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, scratch ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32), ScratchAddress, 32, distance.IsDefault ? new byte[16513].ToImmutableArray() : distance, radial.IsDefault ? Enumerable.Repeat((ushort)4096, 128).ToImmutableArray() : radial, pilotIdentity: pilotIdentity);
+        }
         if (pilotIdentity is null)
         {
             return NativeBattleEffect283BodyDrawing.DrawBody(Memory(), temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length)), 0x1000, [matrix], new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, scratch ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32), ScratchAddress, 32, distance.IsDefault ? new byte[16513].ToImmutableArray() : distance, radial.IsDefault ? Enumerable.Repeat((ushort)4096, 128).ToImmutableArray() : radial);

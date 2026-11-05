@@ -9,6 +9,13 @@ public static partial class NativeBattleEffect83SpiralDrawing
 {
     public static NativeBattleEffect83SpiralDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary148, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena transformed, int transformedLength, NativeBattleEffectArena faces, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return Draw(memory, temporary148, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry), bones, matrix, projection, controls, transformed, transformedLength, faces, pilotIdentity);
+    }
+
+    public static NativeBattleEffect83SpiralDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary148, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena transformed, int transformedLength, NativeBattleEffectArena faces, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        NativeBattleModelGeometryCursor geometryAddress = new(geometrySource);
+        Func<NativeBattleModelGeometryCursor, int, NativeBattleEffectArena> readGeometry = static (address, length) => address.Read(length);
         NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 requires its current geometry registers.");
         memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(geometry, matrix.ReadMatrix(), true, true, Padding(matrix)) };
         var attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -22,7 +29,7 @@ public static partial class NativeBattleEffect83SpiralDrawing
             {
                 continue;
             }
-            uint cursor = unchecked(geometryAddress + (uint)Int(geometryAddress + 4 + (uint)(item * 4)));
+            NativeBattleModelGeometryCursor cursor = unchecked(geometryAddress + (uint)Int(geometryAddress + 4 + (uint)(item * 4)));
             int groups = Short(cursor);
             cursor += 2;
             int vertices = 0;
@@ -57,7 +64,7 @@ public static partial class NativeBattleEffect83SpiralDrawing
                     cursor += 6;
                 }
             }
-            cursor = (cursor + 3) & ~3u;
+            cursor = cursor.Align4();
             int triangles = Short(cursor);
             int quads = Short(cursor + 2);
             cursor += 12;
@@ -138,8 +145,8 @@ public static partial class NativeBattleEffect83SpiralDrawing
         return new(memory, temporary148, transformed, faces, new(attempts.ToImmutable(), allocation));
 
         NativeBattleGeometryRegisterStep Registers() => new(memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 requires geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect83 requires arithmetic registers."));
-        int Int(uint address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
-        short Short(uint address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
+        int Int(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
+        short Short(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
     }
 
     private static short? Padding(NativeBattlePackedMatrix32 matrix) => matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
@@ -153,4 +160,5 @@ public static partial class NativeBattleEffect83SpiralDrawing
     private static uint Dword(NativeBattleEffectArena memory, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(offset, 4));
     private static NativeBattleEffectArena Word(NativeBattleEffectArena memory, int offset, int value) => memory.Write(offset, BitConverter.GetBytes(unchecked((short)value)));
     private static NativeBattleEffectArena SetDword(NativeBattleEffectArena memory, int offset, uint value) => memory.Write(offset, BitConverter.GetBytes(value));
+
 }

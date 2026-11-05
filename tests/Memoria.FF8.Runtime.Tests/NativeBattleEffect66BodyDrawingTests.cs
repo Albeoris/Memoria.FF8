@@ -134,6 +134,20 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         Assert.Empty(operations);
     }
 
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered, int age)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(), remastered);
+        var numeric = Draw(Frame(), fixture.Bytes, Temporary(age), Packed());
+        var logical = Draw(Frame(), fixture.Bytes, Temporary(age), Packed(), resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Frame.Memory), NativeBattleTestSnapshots.Json(logical.Frame.Memory));
+        fixture.AssertTemporary(numeric.Temporary176, logical.Temporary176, 176, 0);
+    }
+
     private const uint Common = 0x20DFAB8;
     private const uint FlagAddress = Common + 0x28000;
     private static NativeBattleEffect66Frame Frame()
@@ -150,7 +164,14 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         operations.Add(operation);
         return execute is null ? frame : execute(frame);
     });
-    private static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 bone, NativeBattleEffect66Inputs? inputs = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleEffect66BodyDrawing.Draw(frame, 0x100000, (address, count) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan(checked((int)(address - 0x100000)), count)), [bone], Packed(z: 2000), temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), 24, null!, inputs ?? Inputs([]), pilotIdentity);
+    private static NativeBattleEffect66BodyStep Draw(NativeBattleEffect66Frame frame, byte[] geometry, NativeBattleEffectArena temporary, NativeBattlePackedMatrix32 bone, NativeBattleEffect66Inputs? inputs = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
+    {
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect66BodyDrawing.Draw(frame, selected, [bone], Packed(z: 2000), temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), 24, null!, inputs ?? Inputs([]), pilotIdentity);
+        }
+        return NativeBattleEffect66BodyDrawing.Draw(frame, 0x100000, (address, count) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan(checked((int)(address - 0x100000)), count)), [bone], Packed(z: 2000), temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), 24, null!, inputs ?? Inputs([]), pilotIdentity);
+    }
     private static byte[] Geometry(short secondY = -100, int faces = 1)
     {
         byte[] bytes = new byte[52 + faces * 16];

@@ -50,7 +50,7 @@ internal static class NativeBattleEffect32Presentation
 
     internal static long ResourceEpoch(NativeBattleResourcePointer pointer) => NativeBattlePilotVisualLifetimes.EpochFor((object?)pointer.Cpu ?? pointer);
 
-    internal static NativeBattlePilotVisualIdentity? Resource(NativeBattlePilotVisualIdentity? identity, uint resource, int primitive = 0)
+    internal static NativeBattlePilotVisualIdentity? Resource(NativeBattlePilotVisualIdentity? identity, long resource, int primitive = 0)
     {
         return identity is { } owner ? owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ resource), Primitive = unchecked(owner.Primitive * 397 + primitive) } : null;
     }

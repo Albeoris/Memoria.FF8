@@ -32,9 +32,9 @@ public sealed partial class BattleSession
         temporary = Put(Put(temporary, 0x4C, unchecked((uint)draw.Threshold)), 0x58, 0).MarkUnknown(0x54, 4);
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging!, temporary, temporaryAddress);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
-        uint geometryAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect69 caster requires addressed current geometry.");
-        NativeBattleEffect69CasterDrawingStep drawn = NativeBattleEffect69CasterDrawing.Draw(frame.Memory, temporary, ReadGeometry, geometryAddress, NativeBattleBodyBoneMatrices.Require(model, source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), camera.CapturePackedView1D97778(), camera.Projection ?? throw new NotSupportedException("Effect69 caster requires its current projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect69 caster requires its current GTE controls."), NativeBattleTemporaryMemory.ReadView(frame.Staging!, draw.ScratchAddress, capacity), capacity, pilotIdentity: draw.PilotIdentity is { } identity ? identity with { Primitive = actor, ResourceGeneration = geometryAddress } : null);
-        frame = NativeBattleEffect69Controller.WriteBytes(frame with { Memory = drawn.Memory }, temporaryAddress, drawn.Temporary96, 96);
+        NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), frame.Staging!, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+        NativeBattleEffect69CasterDrawingStep drawn = NativeBattleEffect69CasterDrawing.Draw(frame.Memory, temporary, geometrySource, NativeBattleBodyBoneMatrices.Require(model, source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), camera.CapturePackedView1D97778(), camera.Projection ?? throw new NotSupportedException("Effect69 caster requires its current projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect69 caster requires its current GTE controls."), NativeBattleTemporaryMemory.ReadView(frame.Staging!, draw.ScratchAddress, capacity), capacity, pilotIdentity: draw.PilotIdentity is { } identity ? identity with { Primitive = actor, ResourceGeneration = geometrySource.PresentationIdentity } : null);
+        frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(frame.Staging!, temporaryAddress, drawn.Temporary96, 96) };
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, draw.ScratchAddress, drawn.Scratch, capacity) };
         frame = deliver(frame, drawn.Batch);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging!, 88);
@@ -43,15 +43,6 @@ public sealed partial class BattleSession
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88), 88) };
         return (graphics, NativeBattleEffect69Controller.Release(frame, 96));
 
-        NativeBattleEffectArena ReadGeometry(uint address, int length)
-        {
-            long offset = (long)address - geometryAddress;
-            if (offset < 0 || offset > int.MaxValue)
-            {
-                throw new InvalidDataException("Effect69 caster geometry read leaves its current source.");
-            }
-            return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(bridge, pointer, checked((int)offset), length));
-        }
 
         static NativeBattleEffectArena Put(NativeBattleEffectArena bytes, int offset, uint value) => bytes.Write(offset, BitConverter.GetBytes(value));
     }

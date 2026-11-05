@@ -6,6 +6,19 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect79BodyDrawingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
+        var numeric = Draw(fixture.Bytes, Context(), Temporary(), 4);
+        var logical = Draw(fixture.Bytes, Context(), Temporary(), 4, resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary168, logical.Temporary168, 168);
+    }
+
     private static readonly NativeBattleActionMatrix Identity = NativeBattleCuragaMatrices.Identity8DD770();
 
     [Theory]
@@ -128,13 +141,17 @@ public sealed class NativeBattleEffect79BodyDrawingTests
         Assert.Equal(8000u, U(result.Rows, 44));
     }
 
-    private static NativeBattleEffect79BodyDrawingStep Draw(byte[] source, NativeBattleEffectArena context, NativeBattleEffectArena temporary, int vertices, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? rows = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private static NativeBattleEffect79BodyDrawingStep Draw(byte[] source, NativeBattleEffectArena context, NativeBattleEffectArena temporary, int vertices, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? rows = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         memory ??= NativeBattleEffectMemory.FromColdProcess() with
         {
             GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity, true, true, null) with { Otz = 0x1357 },
             ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown()
         };
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect79BodyDrawing.Draw(memory, context, temporary, selected, [NativeBattlePackedMatrix32.FromMatrix(Identity, null)], 0x7F123456, 1, new(Identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), rows ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 128), vertices * 16, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
+        }
         return NativeBattleEffect79BodyDrawing.Draw(memory, context, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [NativeBattlePackedMatrix32.FromMatrix(Identity, null)], 0x7F123456, 1, new(Identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), rows ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 128), vertices * 16, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 

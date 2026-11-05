@@ -193,7 +193,20 @@ public sealed class NativeBattleEffect167BodyDrawingTests
         Assert.Empty(captured.Batch.Attempts);
     }
 
-    private static NativeBattleEffect167BodyStep Draw(byte[] geometry, uint mask = 1, short normalX = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true, false), remastered);
+        var numeric = Draw(fixture.Bytes);
+        var logical = Draw(fixture.Bytes, resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary464, logical.Temporary464, 464, 0);
+    }
+
+    private static NativeBattleEffect167BodyStep Draw(byte[] geometry, uint mask = 1, short normalX = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 464).Write(0x10, BitConverter.GetBytes(mask)).Write(0x18, BitConverter.GetBytes(0x123456u));
         context = Point(context, 0xA0, normalX, 0, 0).Write(0xA6, BitConverter.GetBytes((short)0));
@@ -201,6 +214,10 @@ public sealed class NativeBattleEffect167BodyDrawingTests
         context = CopyMatrix(context, 0x190, view);
         context = CopyMatrix(context, 0x1B0, view);
         context = context.Write(0x1B0 + 20, BitConverter.GetBytes(1000));
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect167BodyDrawing.Draw(Memory(), context, 0x10000, selected, [NativeBattlePackedMatrix32.FromMatrix(Identity(0), null)], NativeBattleEffectArena.Clear().MarkUnknown(0, 32), 32, new(pilotIdentity.HasValue ? Identity(0) : null, 100, 160, 108), Enumerable.Repeat(3u, 56).ToImmutableArray(), 0, pilotIdentity: pilotIdentity);
+        }
         return NativeBattleEffect167BodyDrawing.Draw(Memory(), context, 0x10000, ReadGeometry, 0x20000, [NativeBattlePackedMatrix32.FromMatrix(Identity(0), null)], NativeBattleEffectArena.Clear().MarkUnknown(0, 32), 32, new(pilotIdentity.HasValue ? Identity(0) : null, 100, 160, 108), Enumerable.Repeat(3u, 56).ToImmutableArray(), 0, pilotIdentity: pilotIdentity);
 
         NativeBattleEffectArena ReadGeometry(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan(checked((int)(address - 0x20000)), length).ToArray());

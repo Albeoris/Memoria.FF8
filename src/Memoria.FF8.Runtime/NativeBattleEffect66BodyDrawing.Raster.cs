@@ -5,11 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect66BodyDrawing
 {
-    private static NativeBattleEffect66BodyStep DrawFaces(NativeBattleEffect66Frame frame, NativeBattleEffectArena temporary, NativeBattleEffectArena scratch, int scratchLength, Func<uint, int, NativeBattleEffectArena> readGeometry, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity, int objectIndex)
+    private static NativeBattleEffect66BodyStep DrawFaces(NativeBattleEffect66Frame frame, NativeBattleEffectArena temporary, NativeBattleEffectArena scratch, int scratchLength, Func<NativeBattleModelGeometryCursor, int, NativeBattleEffectArena> readGeometry, NativeBattleModelGeometryCursor origin, NativeBattleEffect66Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity, int objectIndex)
     {
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect66 body requires current projection controls.");
-        uint source = Dword(temporary, 0);
+        NativeBattleModelGeometryCursor source = origin.ReadCursor(temporary, 0);
         uint flagAddress = Dword(temporary, 0x2C);
         bool allowBirth = true;
         for (int group = 0; group < 2; group++)

@@ -5,10 +5,11 @@ public readonly struct NativeBattleModelGeometrySource
 {
     private readonly Func<int, int, byte[]>? read;
     private readonly uint? numericAddress;
+    private readonly Func<int, int, NativeBattleEffectArena>? readArena;
     public NativeBattleResourcePointer Owner { get; }
     public long PresentationIdentity { get; }
 
-    private NativeBattleModelGeometrySource(NativeBattleResourcePointer owner, Func<int, int, byte[]> read, long identity)
+    private NativeBattleModelGeometrySource(NativeBattleResourcePointer owner, Func<int, int, byte[]> read, long identity, Func<int, int, NativeBattleEffectArena>? readArena = null)
     {
         if (!owner.HasValidOwner() || owner.CpuRow is not null)
         {
@@ -17,6 +18,7 @@ public readonly struct NativeBattleModelGeometrySource
         ArgumentNullException.ThrowIfNull(read);
         Owner = owner;
         this.read = read;
+        this.readArena = readArena;
         numericAddress = owner.Cpu?.TryPhysicalAddress() ?? owner.StagingAddress;
         PresentationIdentity = identity;
     }
@@ -30,6 +32,20 @@ public readonly struct NativeBattleModelGeometrySource
         return new(new(null, address), read, address);
     }
 
+    internal static NativeBattleModelGeometrySource FromNumericArena(uint address, Func<uint, int, NativeBattleEffectArena> read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        return new(new(null, address), (offset, length) => read(checked(address + (uint)offset), length).Read(0, length), address, (offset, length) => read(checked(address + (uint)offset), length));
+    }
+
+    internal NativeBattleEffectArena ReadArena(int offset, int length)
+    {
+        Require(offset, length);
+        return readArena is not null ? readArena(offset, length) : NativeBattleEffectArena.Clear().Write(0, read!(offset, length));
+    }
+
+    internal int AlignmentResidue => numericAddress is uint address ? (int)(address & 3) : (int)((Owner.Cpu!.EffectiveLayout.BaseAddress + (uint)(Owner.Cpu.Offset & 3)) & 3);
+
     public static NativeBattleModelGeometrySource Open(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, Func<int, int, byte[]> readShared)
     {
         ArgumentNullException.ThrowIfNull(cpu);
@@ -38,12 +54,19 @@ public readonly struct NativeBattleModelGeometrySource
         if (pointer.Cpu is { Bank: < 3 } reference)
         {
             NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank];
-            int length = pointer.Length ?? checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.Offset);
+            int available = checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.Offset);
+            int length = Math.Min(pointer.Length ?? available, available);
             NativeBattleModelResourceView view = NativeBattleModelResourceView.Open(cpu, staging, pointer, length);
             long identity = reference.ResourceOnly ? NativeBattlePilotVisualLifetimes.EpochFor(bank) : reference.PhysicalAddress;
             return new(pointer with { Length = length }, view.Read, identity);
         }
         return OpenShared(pointer, readShared);
+    }
+
+    internal static NativeBattleModelGeometrySource OpenEditor(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, Func<int, int, byte[]> readCurrent)
+    {
+        NativeBattleModelGeometrySource initial = Open(cpu, staging, pointer, readCurrent);
+        return new(initial.Owner, readCurrent, initial.PresentationIdentity);
     }
 
     public static NativeBattleModelGeometrySource OpenShared(NativeBattleResourcePointer pointer, Func<int, int, byte[]> read)

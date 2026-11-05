@@ -80,12 +80,29 @@ public sealed class NativeBattleEffect64BodyDrawingTests
         Assert.Empty(Draw(geometry, 0, new(64, 1, 0, 1, 0)).Batch.Attempts);
     }
 
-    private static NativeBattleEffect64BodyStep Draw(byte[] geometry, short visibility, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(), remastered);
+        var numeric = Draw(fixture.Bytes, 100);
+        var logical = Draw(fixture.Bytes, 100, resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary152, logical.Temporary152, 152, 0);
+    }
+
+    private static NativeBattleEffect64BodyStep Draw(byte[] geometry, short visibility, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         NativeBattlePackedMatrix32 identity = NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 8000, 4096), null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity.ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes(0x2000u)).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x18, BitConverter.GetBytes(1u));
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() with { Zsf3 = 4096 };
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect64BodyDrawing.DrawBody(memory, temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), selected, [identity], NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes(visibility)), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, 0x2000, 24, pilotIdentity: pilotIdentity);
+        }
         return NativeBattleEffect64BodyDrawing.DrawBody(memory, temporary, NativeBattleEffectArena.Clear().MarkUnknown(0, 24), Read, 0x1000, [identity], NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes(visibility)), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls, 0x2000, 24, pilotIdentity: pilotIdentity);
         NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length));
     }

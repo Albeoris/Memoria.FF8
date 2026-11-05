@@ -10,6 +10,13 @@ public static class NativeBattleEffect69CasterDrawing
 {
     public static NativeBattleEffect69CasterDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary96, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> currentComposedBones, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, int scratchLength, int tableBaseBucket = 17, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return Draw(memory, temporary96, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry), currentComposedBones, view, projection, controls, scratch, scratchLength, tableBaseBucket, pilotIdentity);
+    }
+
+    public static NativeBattleEffect69CasterDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary96, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> currentComposedBones, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, int scratchLength, int tableBaseBucket = 17, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        NativeBattleModelGeometryCursor geometryAddress = new(geometrySource);
+        Func<NativeBattleModelGeometryCursor, int, NativeBattleEffectArena> readGeometry = static (address, length) => address.Read(length);
         if (scratchLength < 0 || scratchLength > NativeBattleEffectArena.Length || (scratchLength & 7) != 0 || currentComposedBones.IsDefault || currentComposedBones.IsEmpty)
         {
             throw new InvalidDataException("Caster drawing requires its current bounded eight-byte workspace and packed bones.");
@@ -27,7 +34,7 @@ public static class NativeBattleEffect69CasterDrawing
         }
         for (int item = 0; item < objects; item++)
         {
-            uint cursor = checked(geometryAddress + (uint)Integer(checked(geometryAddress + 4u + (uint)(item * 4))));
+            NativeBattleModelGeometryCursor cursor = checked(geometryAddress + (uint)Integer(checked(geometryAddress + 4u + (uint)(item * 4))));
             temporary96 = Put(temporary96, 0x50, cursor);
             if ((mask & (1u << (item & 31))) == 0)
             {
@@ -59,7 +66,7 @@ public static class NativeBattleEffect69CasterDrawing
                     throw new InvalidDataException("Caster drawing leaves its current renderer scratch capacity.");
                 }
                 cursor += 2;
-                uint end = checked(cursor + (uint)(vertices * 6));
+                NativeBattleModelGeometryCursor end = checked(cursor + (uint)(vertices * 6));
                 for (int vertex = 0; vertex < vertices; vertex++)
                 {
                     NativeBattleEffectArena source = readGeometry(cursor, 6);
@@ -117,7 +124,7 @@ public static class NativeBattleEffect69CasterDrawing
                 destination += vertices * 8;
                 temporary96 = Put(Put(temporary96, 0x50, cursor), 0x5C, checked(scratchAddress + (uint)destination));
             }
-            cursor = checked((cursor + 3) & ~3u);
+            cursor = cursor.Align4();
             ushort triangles = UnsignedShort(cursor);
             ushort quads = UnsignedShort(cursor + 2);
             cursor += 12;
@@ -193,7 +200,7 @@ public static class NativeBattleEffect69CasterDrawing
                                 {
                                     System.Numerics.Vector3 Corner(int corner) => world[(BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF)] ?? throw new NotSupportedException("Caster capture requires its reached post-skin source row.");
                                     System.Collections.Immutable.ImmutableArray<int> payload = primitive.VertexPayload4;
-                                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + item) * 65537 + (int)cursor) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, quad ? (byte)4 : (byte)3) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + item) * 65537 + (int)cursor.PresentationCursor) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, quad ? (byte)4 : (byte)3) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
                                 }
                                 attempts.Add(packet.Attempt(primitive));
                                 allocated += quad ? 40 : 32;
@@ -219,9 +226,9 @@ public static class NativeBattleEffect69CasterDrawing
         }
         return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary96, scratch, new(attempts.ToImmutable(), allocated));
 
-        int Integer(uint address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
-        short Short(uint address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
-        ushort UnsignedShort(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
+        int Integer(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
+        short Short(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
+        ushort UnsignedShort(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadUInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
     }
 
     private static NativeBattleGeometryRegisterStep LoadMatrix(NativeBattleGeometryRegisterStep registers, NativeBattlePackedMatrix32 matrix)
@@ -249,4 +256,6 @@ public static class NativeBattleEffect69CasterDrawing
     private static NativeBattleEffectArena StoreVector(NativeBattleEffectArena destination, int offset, NativeBattleVector vector) => destination.Write(offset, BitConverter.GetBytes(vector.X)).Write(offset + 2, BitConverter.GetBytes(vector.Y)).Write(offset + 4, BitConverter.GetBytes(vector.Z));
     private static int Required(int? value) => value ?? throw new NotSupportedException("Caster drawing requires its current arithmetic result.");
     private static uint Required(uint? value) => value ?? throw new NotSupportedException("Caster drawing requires its current geometry result.");
+    private static NativeBattleEffectArena Put(NativeBattleEffectArena arena, int field, NativeBattleModelGeometryCursor cursor) => cursor.Write(arena, field);
+
 }

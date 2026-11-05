@@ -9,6 +9,13 @@ public static class NativeBattleEffect64BodyDrawing
 {
     public static NativeBattleEffect64BodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary152, NativeBattleEffectArena vertexScratch, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawBody(memory, temporary152, vertexScratch, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry), bones, offsets, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    public static NativeBattleEffect64BodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary152, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena offsets, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        NativeBattleModelGeometryCursor geometryAddress = new(geometrySource);
+        Func<NativeBattleModelGeometryCursor, int, NativeBattleEffectArena> readGeometry = static (address, length) => address.Read(length);
         if (U32(temporary152, 4) != scratchAddress || scratchLength < 0 || depthShift > 31)
         {
             throw new InvalidDataException("Effect64 offset-body drawing requires its actual bounded projection workspace.");
@@ -19,7 +26,7 @@ public static class NativeBattleEffect64BodyDrawing
         int objects = ReadInt(geometryAddress);
         for (int index = 0; index < objects; index++)
         {
-            uint cursor = checked(geometryAddress + (uint)ReadInt(checked(geometryAddress + 4 + (uint)(index * 4))));
+            NativeBattleModelGeometryCursor cursor = checked(geometryAddress + (uint)ReadInt(checked(geometryAddress + 4 + (uint)(index * 4))));
             if ((U32(temporary152, 0x18) & (1u << (index & 31))) == 0)
             {
                 continue;
@@ -98,10 +105,10 @@ public static class NativeBattleEffect64BodyDrawing
                     cursor += 6;
                 }
             }
-            cursor = (cursor + 3) & ~3u;
+            cursor = cursor.Align4();
             temporary152 = temporary152.Write(8, readGeometry(cursor, 4).Read(0, 4));
             cursor += 12;
-            temporary152 = temporary152.Write(0, BitConverter.GetBytes(cursor));
+            temporary152 = cursor.Write(temporary152, 0);
             DrawFaces(false);
             DrawFaces(true);
 
@@ -169,8 +176,8 @@ public static class NativeBattleEffect64BodyDrawing
         }
         return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary152, vertexScratch, new(attempts.ToImmutable(), allocated));
 
-        int ReadInt(uint address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
-        short ReadWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
+        int ReadInt(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
+        short ReadWord(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
     }
 
     private static NativeBattleGfGeometryAttempt EmitProjectedFace64(byte[] source, bool quad, NativeBattleEffectArena[] corners, uint color, NativeBattleGeometryRegisters geometry, int bucket, int offset)
@@ -207,4 +214,5 @@ public static class NativeBattleEffect64BodyDrawing
     private static ushort U16(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));
     private static uint U32(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static short? Padding(NativeBattlePackedMatrix32 packed) => packed.Known[18] && packed.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.Bytes.AsSpan().Slice(18, 2)) : null;
+
 }

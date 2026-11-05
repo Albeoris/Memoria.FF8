@@ -188,6 +188,21 @@ public sealed class NativeBattleEffect303BodyTests
         NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, bytes.AsSpan().Slice(checked((int)(address - 0x1000)), length));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
+        NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0();
+        NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, fixture.Bytes.AsSpan(checked((int)(address - 0x1000)), length));
+        var numeric = NativeBattleEffect303BodyDrawing.DrawBody(Memory(), Temporary(), Read, 0x1000, [Identity(8000)], new(null, 100, 160, 108), controls, Scratch, 48);
+        var logical = NativeBattleEffect303BodyDrawing.DrawBodyWithPresentation(Memory(), Temporary(), fixture.Source, [Identity(8000)], new(null, 100, 160, 108), controls, Scratch, 48);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary188, logical.Temporary188, 188, 0x20, 0xAC);
+    }
+
     private const uint Scratch = NativeBattleEffect303Profile.ArenaAddress + NativeBattleEffect303Profile.ScratchOffset;
     private const uint Fx = NativeBattleEffect303Profile.ArenaAddress + NativeBattleEffect303Profile.FirstPacketOffset;
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(NativeBattleEffect303Profile.ScratchOffset, 48), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity().ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

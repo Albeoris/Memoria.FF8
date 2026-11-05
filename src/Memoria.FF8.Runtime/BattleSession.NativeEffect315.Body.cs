@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         };
         body = NativeBattleEffect315BodyDrawing.DrawOuter(body, camera.CapturePackedView1D97778(), scratchAddress, primitiveFlags, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        frame = frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary156, 156) };
+        frame = frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary156, 156) };
         return (graphics, frame);
 
         uint CommonCursor(NativeBattleEffectMemory memory) => checked((uint)(memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect315 body requires its selected ordinary COMMON cursor.")));
@@ -96,11 +96,11 @@ public sealed partial class BattleSession
 
         NativeBattleEffect315BodyFrame DrawGeometry(NativeBattleEffect315BodyFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect315 body requires its addressed current geometry.");
-            NativeBattlePilotVisualIdentity? geometryIdentity = NativeBattleEffect32Presentation.Resource(bodyIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(pointer) } : null, sourceAddress, geometryPass++);
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), current.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(Bridge(current), pointer, offset, length));
+            NativeBattlePilotVisualIdentity? geometryIdentity = NativeBattleEffect32Presentation.Resource(bodyIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(pointer) } : null, geometrySource.PresentationIdentity, geometryPass++);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeDeformedBodyView(current.Staging, scratchAddress, scratchLength);
-            NativeBattleEffect315BodyDrawingStep drawn = NativeBattleEffect315BodyDrawing.DrawBodyWithPresentation(current.Memory, current.Temporary156, ReadGeometry, sourceAddress, bones, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 body requires its current projection controls."), scratch, scratchAddress, scratchLength, pilotIdentity: geometryIdentity);
+            NativeBattleEffect315BodyDrawingStep drawn = NativeBattleEffect315BodyDrawing.DrawBodyWithPresentation(current.Memory, current.Temporary156, geometrySource, bones, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 body requires its current projection controls."), scratch, scratchAddress, scratchLength, pilotIdentity: geometryIdentity);
             current = current with { Memory = drawn.Memory, Temporary156 = drawn.Temporary156, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.Scratch, scratchLength) };
             uint start = current.CommonCursor;
             int allocated = 0;
@@ -124,17 +124,8 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect315 body packet allocation differs from its ordinary cursor advance.");
             }
-            return current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary156, 156) };
+            return current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary156, 156) };
 
-            NativeBattleEffectArena ReadGeometry(uint address, int length)
-            {
-                long offset = (long)address - sourceAddress;
-                if (offset < 0 || offset > int.MaxValue)
-                {
-                    throw new InvalidDataException("Effect315 body read leaves its current geometry.");
-                }
-                return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(Bridge(current), pointer, (int)offset, length));
-            }
         }
 
         NativeDeformedBodyBridge Bridge(NativeBattleEffect315BodyFrame current) => new(current.Memory, frame.Effect, frame.Random, graphics, current.Model, current.Staging, current.Temporary156, temporaryAddress);

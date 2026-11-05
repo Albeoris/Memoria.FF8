@@ -9,6 +9,13 @@ public static class NativeBattleEffect79BodyDrawing
 {
     public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4, int depthFieldOffset = 0xD0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return Draw(memory, context, temporary168, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry), bones, color, mask, projection, controls, rows, rowLength, constants, depthShift, depthFieldOffset, pilotIdentity);
+    }
+
+    public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4, int depthFieldOffset = 0xD0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        NativeBattleModelGeometryCursor geometryAddress = new(geometrySource);
+        Func<NativeBattleModelGeometryCursor, int, NativeBattleEffectArena> readGeometry = static (address, length) => address.Read(length);
         if (depthShift > 29 || rowLength < 0 || rowLength % 16 != 0 || depthFieldOffset is not (0xC0 or 0xD0))
         {
             throw new InvalidDataException("Effect79 requires its actual strided body workspace and depth shift.");
@@ -40,7 +47,7 @@ public static class NativeBattleEffect79BodyDrawing
             {
                 continue;
             }
-            uint cursor = unchecked(geometryAddress + (uint)Int(geometryAddress + 4 + (uint)(item * 4)));
+            NativeBattleModelGeometryCursor cursor = unchecked(geometryAddress + (uint)Int(geometryAddress + 4 + (uint)(item * 4)));
             int groups = Short(cursor);
             cursor += 2;
             int vertices = 0;
@@ -97,7 +104,7 @@ public static class NativeBattleEffect79BodyDrawing
                 rows = Dword(rows, vertex * 16 + 8, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect79 requires current SXY2."));
                 rows = Dword(rows, vertex * 16 + 12, registers.Geometry.Sz[3] ?? throw new NotSupportedException("Effect79 requires current SZ3."));
             }
-            cursor = (cursor + 3) & ~3u;
+            cursor = cursor.Align4();
             int triangles = Short(cursor);
             int quads = Short(cursor + 2);
             cursor += 12;
@@ -155,7 +162,7 @@ public static class NativeBattleEffect79BodyDrawing
                                 NativeBattleVector position = Vector(rows, indices[corner] * 16);
                                 return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view.ReadMatrix(), position), projection);
                             }
-                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor), ResourceGeneration = geometryAddress }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)indices.Length) { SourceDepths = new(depths[0], depths[1], depths[2], quad ? depths[3] : 0), UseSourceDepths = true } };
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor.PresentationCursor), ResourceGeneration = geometryAddress.Identity }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)indices.Length) { SourceDepths = new(depths[0], depths[1], depths[2], quad ? depths[3] : 0), UseSourceDepths = true } };
                         }
                         attempts.Add(packet.Attempt(primitive));
                         allocation += quad ? 40 : 32;
@@ -178,8 +185,8 @@ public static class NativeBattleEffect79BodyDrawing
         }
         return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors, ScriptedLighting = lighting }, temporary168, rows, new(attempts.ToImmutable(), allocation));
 
-        int Int(uint address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
-        short Short(uint address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
+        int Int(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
+        short Short(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
     }
 
     private static short Scale(short radius, int normalized) => unchecked((short)(unchecked(radius * (short)normalized) / 4096));
@@ -202,4 +209,5 @@ public static class NativeBattleEffect79BodyDrawing
         (byte[] bytes, bool[] known) = memory.ReadSnapshot(offset, 2);
         return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
     }
+
 }

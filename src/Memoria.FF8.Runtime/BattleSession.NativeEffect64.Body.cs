@@ -79,25 +79,16 @@ public sealed partial class BattleSession
         temporary = temporary.Write(0x14, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Effect64 requires its current model color."))).Write(0x18, BitConverter.GetBytes((model.SequenceState ?? throw new NotSupportedException("Effect64 requires its current model mask.")).MeshMask124));
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging!, temporary, allocation.Address);
         NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
-        uint address = source.Cpu?.PhysicalAddress ?? source.StagingAddress ?? throw new NotSupportedException("Effect64 requires its current addressed geometry.");
-        NativeBattleEffect64BodyStep drawn = NativeBattleEffect64BodyDrawing.DrawBody(frame.Memory, temporary, NativeDeformedBodyView(frame.Staging!, scratchAddress, scratchLength), ReadGeometry, address, NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), offsets, projection, frame.Memory.ScriptedGraphics!, scratchAddress, scratchLength, pilotIdentity: identity with { ResourceGeneration = address });
+        NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), frame.Staging!, source, (offset, length) => ReadNativeDeformedGeometry(bridge, source, offset, length));
+        NativeBattleEffect64BodyStep drawn = NativeBattleEffect64BodyDrawing.DrawBody(frame.Memory, temporary, NativeDeformedBodyView(frame.Staging!, scratchAddress, scratchLength), geometrySource, NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), offsets, projection, frame.Memory.ScriptedGraphics!, scratchAddress, scratchLength, pilotIdentity: identity with { ResourceGeneration = geometrySource.PresentationIdentity });
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.VertexScratch, scratchLength);
-        staging = NativeBattleTemporaryMemory.PublishView(staging, allocation.Address, drawn.Temporary152, 152);
+        staging = NativeBattleTemporaryMemory.PublishResourceView(staging, allocation.Address, drawn.Temporary152, 152);
         frame = deliver(frame with { Memory = drawn.Memory, Staging = staging }, drawn.Batch, 0x1D8E054, 0);
         (graphics, frame) = ApplyNativeEffect64Pose(graphics, frame, pointer, offsetAddress);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 152) };
         return (graphics, frame);
 
         short Signed(int offset) => System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(offsets.Read(offset, 2));
-        NativeBattleEffectArena ReadGeometry(uint currentAddress, int length)
-        {
-            long relative = (long)currentAddress - address;
-            if (relative < 0 || relative > int.MaxValue)
-            {
-                throw new InvalidDataException("Effect64 geometry read leaves its current source.");
-            }
-            return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(bridge, source, (int)relative, length));
-        }
     }
 
     private NativeBattleEffect64Frame ClearNativeEffect64Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect64Frame frame, uint pointer)
@@ -107,32 +98,27 @@ public sealed partial class BattleSession
         frame = frame with { Staging = allocation.Staging };
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), allocation.Address);
         NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
-        uint address = source.Cpu?.PhysicalAddress ?? source.StagingAddress ?? throw new NotSupportedException("Effect64 cleanup requires its current addressed geometry.");
-        NativeBattleEffectArena temporary = NativeBattleEffect64GeometryCleanup.Clear(address, ReadGeometry, WriteWord, NativeDeformedBodyView(frame.Staging!, allocation.Address, 8));
-        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, allocation.Address, temporary, 8);
+        NativeBattleModelResourceEditor? editor = source.Cpu is { Bank: < 3 } ? new(NativeModelCpuResources ?? throw new NotSupportedException("Effect64 cleanup lost its CPU owner."), frame.Staging!, source) : null;
+        NativeBattleModelGeometrySource geometrySource = editor?.Geometry ?? NativeBattleModelGeometrySource.OpenShared(source, (offset, length) => ReadNativeDeformedGeometry(bridge with { Memory = frame.Memory, Staging = frame.Staging! }, source, offset, length));
+        NativeBattleEffectArena temporary = NativeBattleEffect64GeometryCleanup.Clear(geometrySource, WriteWord, NativeDeformedBodyView(frame.Staging!, allocation.Address, 8));
+        if (editor is not null)
+        {
+            NativeModelCpuResources = editor.Current;
+        }
+        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishResourceView(frame.Staging!, allocation.Address, temporary, 8);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 8) };
 
-        NativeBattleEffectArena ReadGeometry(uint currentAddress, int length)
+        void WriteWord(int offset, ushort value)
         {
-            long relative = (long)currentAddress - address;
-            if (relative < 0 || relative > int.MaxValue)
-            {
-                throw new InvalidDataException("Effect64 cleanup leaves its current geometry source.");
-            }
-            return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(bridge with { Memory = frame.Memory, Staging = frame.Staging! }, source, (int)relative, length));
-        }
-        void WriteWord(uint destination, ushort value)
-        {
-            _ = ReadGeometry(destination, 2);
             byte[] bytes = BitConverter.GetBytes(value);
-            if (source.Cpu is { Bank: < 3 } cpuReference)
+            if (editor is not null)
             {
-                NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect64 cleanup lost its current CPU resource owner.");
-                int relative = checked((int)(destination - address));
-                NativeBattleModelCpuBank bank = cpu.Cpu.Banks[cpuReference.Bank].Write(checked(cpuReference.Offset + relative), bytes);
-                NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(cpuReference.Bank, bank) } };
+                editor.Write(offset, bytes);
+                return;
             }
-            else if (IsNativeEffectArenaAddress(destination))
+            _ = geometrySource.Read(offset, 2);
+            uint destination = checked((geometrySource.Owner.Cpu?.TryPhysicalAddress() ?? geometrySource.Owner.StagingAddress ?? throw new InvalidDataException("Shared geometry cleanup lost its numeric owner.")) + (uint)offset);
+            if (IsNativeEffectArenaAddress(destination))
             {
                 frame = NativeBattleEffect64Controller.WriteBytes(frame, destination, NativeBattleEffectArena.Clear().Write(0, bytes), 2);
             }

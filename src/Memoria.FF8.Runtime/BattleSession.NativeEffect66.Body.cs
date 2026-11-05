@@ -22,25 +22,16 @@ public sealed partial class BattleSession
         temporary = model.Alpha7 is byte alpha ? temporary.Write(0x28, [alpha, alpha, alpha]) : temporary.MarkUnknown(0x28, 3);
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging, temporary, temporaryAddress);
         NativeBattleResourcePointer geometry = NativeDeformedGeometryPointer(bridge, false);
-        uint geometryAddress = geometry.Cpu?.PhysicalAddress ?? geometry.StagingAddress ?? throw new NotSupportedException("Effect66 body requires its current addressed geometry.");
+        NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), frame.Staging, geometry, (offset, length) => ReadNativeDeformedGeometry(bridge, geometry, offset, length));
         ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
-        NativeBattleEffect66BodyStep drawn = NativeBattleEffect66BodyDrawing.Draw(frame, geometryAddress, ReadGeometry, bones, (NativeCamera ?? throw new NotSupportedException("Effect66 body requires its current camera.")).CapturePackedView1D97778(), temporary, NativeDeformedBodyView(frame.Staging, scratchAddress, scratchLength), scratchLength, resources, inputs, pilotIdentity is { } identity ? identity with { ResourceGeneration = geometryAddress } : null);
+        NativeBattleEffect66BodyStep drawn = NativeBattleEffect66BodyDrawing.Draw(frame, geometrySource, bones, (NativeCamera ?? throw new NotSupportedException("Effect66 body requires its current camera.")).CapturePackedView1D97778(), temporary, NativeDeformedBodyView(frame.Staging, scratchAddress, scratchLength), scratchLength, resources, inputs, pilotIdentity is { } identity ? identity with { ResourceGeneration = geometrySource.PresentationIdentity } : null);
         frame = drawn.Frame with { Staging = NativeBattleTemporaryMemory.PublishView(drawn.Frame.Staging ?? throw new InvalidDataException("Effect66 body lost its temporary memory."), scratchAddress, drawn.Scratch, scratchLength) };
-        frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging, temporaryAddress, drawn.Temporary176, 176) };
+        frame = frame with { Staging = NativeBattleTemporaryMemory.PublishResourceView(frame.Staging, temporaryAddress, drawn.Temporary176, 176) };
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 88);
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(model, pose, NativeDeformedBodyView(allocation.Staging, allocation.Address, 88));
         NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
         return (graphics with { Models = graphics.Models.SetItem(actor, restored.Model) }, frame);
 
-        NativeBattleEffectArena ReadGeometry(uint address, int length)
-        {
-            long relative = (long)address - geometryAddress;
-            if (relative < 0 || relative > int.MaxValue)
-            {
-                throw new InvalidDataException("Effect66 body read leaves its current geometry.");
-            }
-            return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(bridge, geometry, checked((int)relative), length));
-        }
     }
 }

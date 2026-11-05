@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleEffect303BodyFrame body = new(frame.Memory, allocated.Staging, graphics.Models[actor], NativeBattleTemporaryMemory.ReadView(allocated.Staging, allocated.Address, 188), CommonCursor(frame.Memory), frame.State.ReadDword(NativeBattleEffect303Profile.CursorGlobal));
         body = NativeBattleEffect303BodyDrawing.DrawOuter(body, camera.CapturePackedView1D97778(), operation.TextureRectangle8, operation.Clut, operation.VOffset, operation.UOffset, operation.Color4, scratchAddress, new(Shadow, Compose, DrawSource, Restore));
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(body.Staging, allocated.Address, body.Temporary188, 188);
+        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, allocated.Address, body.Temporary188, 188);
         frame = frame with { Memory = body.Memory, State = frame.State.WriteDword(NativeBattleEffect303Profile.CursorGlobal, body.FxCursor), Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 188) };
         return (graphics, frame);
 
@@ -91,12 +91,12 @@ public sealed partial class BattleSession
             graphics = graphics with { Models = graphics.Models.SetItem(actor, current.Model) };
             NativeDeformedBodyBridge bridge = new(current.Memory, frame.Effect, frame.Random, graphics, current.Model, current.Staging, NativeBattleEffectArena.Clear(), 0);
             NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
-            uint sourceAddress = source.Cpu?.PhysicalAddress ?? source.StagingAddress ?? throw new NotSupportedException("Effect303 body requires its actual addressed geometry.");
-            NativeBattlePilotVisualIdentity? geometryIdentity = NativeBattleEffect32Presentation.Resource(bodyIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(source) } : null, sourceAddress, geometryPass++);
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Model drawing requires its current CPU owner."), current.Staging, source, (offset, length) => ReadNativeDeformedGeometry(bridge, source, offset, length));
+            NativeBattlePilotVisualIdentity? geometryIdentity = NativeBattleEffect32Presentation.Resource(bodyIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(source) } : null, geometrySource.PresentationIdentity, geometryPass++);
             ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(current.Model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             uint startCommon = current.CommonCursor;
             uint startEffect = current.FxCursor;
-            NativeBattleEffect303BodyStep drawn = NativeBattleEffect303BodyDrawing.DrawBodyWithPresentation(current.Memory, current.Temporary188, ReadGeometry, sourceAddress, bones, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect303 body requires its current projection controls."), scratchAddress, scratchLength, pilotIdentity: geometryIdentity);
+            NativeBattleEffect303BodyStep drawn = NativeBattleEffect303BodyDrawing.DrawBodyWithPresentation(current.Memory, current.Temporary188, geometrySource, bones, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect303 body requires its current projection controls."), scratchAddress, scratchLength, pilotIdentity: geometryIdentity);
             current = current with { Memory = drawn.Memory, Temporary188 = drawn.Temporary188 };
             foreach (NativeBattleEffect303BodyWrite write in drawn.Batch.Writes)
             {
@@ -131,17 +131,8 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect303 body cursor advances differ from its original native allocation.");
             }
-            return current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, allocated.Address, current.Temporary188, 188) };
+            return current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, allocated.Address, current.Temporary188, 188) };
 
-            NativeBattleEffectArena ReadGeometry(uint address, int length)
-            {
-                long offset = (long)address - sourceAddress;
-                if (offset < 0 || offset > int.MaxValue)
-                {
-                    throw new InvalidDataException("Effect303 body read leaves its actual current geometry.");
-                }
-                return NativeBattleEffectArena.Clear().Write(0, ReadNativeDeformedGeometry(bridge, source, (int)offset, length));
-            }
         }
     }
 }

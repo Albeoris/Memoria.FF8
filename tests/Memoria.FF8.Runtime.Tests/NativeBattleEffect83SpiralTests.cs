@@ -117,13 +117,30 @@ public sealed class NativeBattleEffect83SpiralTests
         Assert.Equal(0u, result.Memory.GeometryRegisters!.Mac0);
     }
 
-    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, bool quad, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
+    {
+        NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
+        var numeric = Raster(fixture.Bytes, true);
+        var logical = Raster(fixture.Bytes, true, resourceSource: fixture.Source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        fixture.AssertTemporary(numeric.Temporary148, logical.Temporary148, 148);
+    }
+
+    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, bool quad, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattlePackedMatrix32 bone = NativeBattlePackedMatrix32.FromMatrix(identity, null);
         NativeBattlePackedMatrix32 view = NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 8000 }, null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 148).Write(0x48, BitConverter.GetBytes(0x24123456u)).Write(0x4C, BitConverter.GetBytes(0x2C123456u)).Write(0x50, BitConverter.GetBytes(1u)).Write(0x90, new byte[2]);
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, selected, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear(), pilotIdentity);
+        }
         return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear(), pilotIdentity);
     }
 
