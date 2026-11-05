@@ -211,6 +211,7 @@ internal sealed partial class RecreateGame : Game
         catch (Exception exception) when (autoPlay?.Running == true)
         {
             ReportAutoPlayHostFailure(exception);
+            CaptureErrorIncident(exception, "game runtime");
             Console.Error.WriteLine(exception);
         }
         finally
@@ -267,6 +268,16 @@ internal sealed partial class RecreateGame : Game
         {
             movieSkipGesture.Reset();
             UpdateControlsCapturePointer();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
+        if (UpdateErrorReport(input))
+        {
+            if (pendingCapture is null)
+            {
+                controls?.Poll();
+            }
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
@@ -528,11 +539,13 @@ internal sealed partial class RecreateGame : Game
         {
             error = exception.Message;
             fieldFaulted = true;
+            CaptureErrorIncident(exception, "game runtime");
             Console.Error.WriteLine(exception);
         }
         catch (Exception exception)
         {
             error = $"Movie playback failed: {exception.Message}";
+            CaptureErrorIncident(exception, "game runtime");
             Console.Error.WriteLine(exception);
         }
     }
@@ -640,6 +653,7 @@ internal sealed partial class RecreateGame : Game
         {
             error = exception.Message;
             fieldFaulted = true;
+            CaptureErrorIncident(exception, "game runtime");
             Console.Error.WriteLine(exception);
         }
     }
@@ -747,6 +761,7 @@ internal sealed partial class RecreateGame : Game
         {
             error = exception.Message;
             fieldFaulted = true;
+            CaptureErrorIncident(exception, "game runtime");
             Console.Error.WriteLine(exception);
         }
     }
@@ -1151,6 +1166,7 @@ internal sealed partial class RecreateGame : Game
             {
                 fieldFaulted = true;
                 error = exception.Message;
+                CaptureErrorIncident(exception, "field control");
                 throw;
             }
             if (result.Accepted && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Choose or PlayerActionKind.EnterName or PlayerActionKind.Cancel)
@@ -1338,6 +1354,7 @@ internal sealed partial class RecreateGame : Game
                 error = exception.Message;
                 fieldFaulted = true;
                 fieldRenderFaulted = true;
+                CaptureErrorIncident(exception, "field/world renderer");
                 fieldGpu?.Abort();
                 ReportAutoPlayHostFailure(exception);
                 Console.Error.WriteLine(exception);
@@ -1519,6 +1536,7 @@ internal sealed partial class RecreateGame : Game
             diagnosticTelemetry?.Dispose();
             presentationPacer.Dispose();
             authoringTextInput?.Dispose();
+            ReleasePreparedErrorReport();
             authoringClipboard.Dispose();
             localizationWorkbench.Dispose();
             authoringSelection?.Inputs?.Dispose();

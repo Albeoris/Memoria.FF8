@@ -134,6 +134,7 @@ internal sealed partial class RecreateGame
         catch (Exception exception)
         {
             startupFaulted = true;
+            CaptureErrorIncident(exception, "startup");
             error = exception.Message;
             Console.Error.WriteLine(exception);
         }

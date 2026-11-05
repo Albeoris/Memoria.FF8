@@ -69,14 +69,25 @@ internal static class Program
             }
             string mediaDestination = MediaToolsInstallation.ResolveDirectory(options.MediaToolsDirectory);
             string mediaTools = MediaToolsInstallation.ResolveDirectoryAsync(options.MediaToolsDirectory, Console.Error.WriteLine).GetAwaiter().GetResult();
-            mediaTools = MediaToolsInstallation.PrepareForStartup(mediaTools, message => PortableMessageBox.Confirm(message, "Memoria — optional FFmpeg installation"), Console.Error.WriteLine, mediaDestination);
+            mediaTools = MediaToolsInstallation.PrepareForStartup(mediaTools, message => PortableMessageBox.Confirm(message, "Memoria â€” optional FFmpeg installation"), Console.Error.WriteLine, mediaDestination);
             options = options with { MediaToolsDirectory = mediaTools };
             using var game = new RecreateGame(options, session, playerSession: true);
-            game.Run();
+            game.RunWithErrorCapture();
             return 0;
         }
         catch (Exception exception)
         {
+            if (!exception.Data.Contains("Memoria.ErrorIncidentCaptured") && (Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_FAILURE_FILE") is null || !GraphicsHostReadiness.IsInitializationFailure(exception)))
+            {
+                try
+                {
+                    Memoria.FF8.Platform.ErrorIncident.Capture(exception, "game startup", environment: new { Renderer = GraphicsHostReadiness.Backend }, saveUnavailableReason: "The game did not reach a supported save boundary.").Persist();
+                }
+                catch (Exception captureFailure)
+                {
+                    Console.Error.WriteLine("Local error capture failed: " + captureFailure.Message);
+                }
+            }
             string? failurePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_FAILURE_FILE");
             if (failurePath is not null)
             {

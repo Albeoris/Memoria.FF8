@@ -5,6 +5,7 @@ public sealed record ApplicationPaths(string Configuration, string Saves, string
 {
     public string LauncherSettings => Path.Combine(Configuration, "launcher.json");
     public string DefaultCheckpoint => Path.Combine(LegacyState, "checkpoint.json");
+    public string Reports => Path.Combine(LegacyState, "reports");
     public string UpdateStaging => Path.Combine(Cache, "updates");
 
     public static ApplicationPaths Current => Resolve(HostPlatforms.Current, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Environment.GetEnvironmentVariable);

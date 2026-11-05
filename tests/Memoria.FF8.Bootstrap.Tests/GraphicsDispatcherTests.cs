@@ -14,6 +14,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria bootstrap tests", Guid.NewGuid().ToString("N"));
     private readonly string? previousDiagnostics;
+    private readonly List<BootstrapFailure> failures = [];
 
     public GraphicsDispatcherTests()
     {
@@ -70,6 +71,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12, GraphicsBackend.Vulkan], attempts);
         Assert.Contains("Graphics ready: requested=Auto actual=Vulkan", output.ToString());
         Assert.Contains("Direct3D11", error.ToString());
+        Assert.Empty(failures);
         Assert.Equal(3, Directory.GetFiles(Path.Combine(directory, "diagnostics"), "result.json", SearchOption.AllDirectories).Length);
     }
 
@@ -87,6 +89,18 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.NotEqual(0, result);
         Assert.Equal([GraphicsBackend.Vulkan], attempts);
         Assert.Contains("Try Auto", error.ToString());
+        BootstrapFailure failure = Assert.Single(failures);
+        GraphicsAttemptEvidence attempt = Assert.Single(failure.Attempts);
+        Assert.Equal("Vulkan", attempt.Backend);
+        Assert.NotNull(attempt.Exception);
+        Assert.NotNull(attempt.Exception.Stack);
+        Assert.Contains("missing-host", attempt.Exception.Message);
+        ErrorIncident captured = failure.Capture();
+        string incidentRoot = Path.Combine(directory, "reports");
+        captured.Persist(incidentRoot);
+        ErrorIncident discovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(incidentRoot, failure.LaunchId));
+        Assert.Equal(captured.Id, discovered.Id);
+        Assert.Equal("Graphics host", discovered.Subsystem);
         Assert.DoesNotContain("Graphics ready:", output.ToString());
     }
 
@@ -107,6 +121,10 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Single(attempts);
         Assert.DoesNotContain("Graphics ready:", output.ToString());
         Assert.Contains("before graphics readiness", error.ToString());
+        BootstrapFailure failure = Assert.Single(failures);
+        Assert.Null(failure.Exception);
+        Assert.Null(Assert.Single(failure.Attempts).Exception);
+        Assert.Null(failure.Capture().Exception.Stack);
     }
 
     [Fact]
@@ -129,6 +147,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Equal(0, result);
         Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12], attempts);
         Assert.Contains("Graphics ready: requested=Auto actual=Direct3D12", output.ToString());
+        Assert.Empty(failures);
     }
 
     [Theory]
@@ -159,9 +178,10 @@ public sealed class GraphicsDispatcherTests : IDisposable
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        int result = await GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", "Vulkan", "--validate"], output, error, TestContext.Current.CancellationToken, backend => Child(backend, "[Console]::Out.WriteLine('validation output')\nexit 27"));
+        int result = await GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", "Vulkan", "--validate"], output, error, TestContext.Current.CancellationToken, backend => Child(backend, "[Console]::Out.WriteLine('validation output')\nexit 27"), captureFailure: failures.Add);
         Assert.Equal(27, result);
         Assert.Contains("validation output", output.ToString());
+        Assert.Empty(failures);
         Assert.DoesNotContain("Graphics ready:", output.ToString());
     }
 
@@ -181,6 +201,12 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Contains("Graphics ready: requested=Auto actual=" + attempts[0], output.ToString());
         Assert.Contains("game stdout", output.ToString());
         Assert.Contains("game crash detail", error.ToString());
+        BootstrapFailure failure = Assert.Single(failures);
+        GraphicsAttemptEvidence attempt = Assert.Single(failure.Attempts);
+        Assert.True(attempt.Ready);
+        Assert.Equal(37, attempt.ExitCode);
+        Assert.Contains("backend", attempt.ReadinessReceipt);
+        Assert.Contains(attempt.LogPaths, path => File.ReadAllText(path).Contains("game crash detail", StringComparison.Ordinal));
         string receiptPath = Assert.Single(Directory.GetFiles(Path.Combine(directory, "diagnostics"), "result.json", SearchOption.AllDirectories));
         using JsonDocument receipt = JsonDocument.Parse(File.ReadAllText(receiptPath));
         Assert.True(receipt.RootElement.GetProperty("ready").GetBoolean());
@@ -212,7 +238,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
         {
             attempts.Add(backend);
             return Child(backend, "Start-Sleep -Seconds 120");
-        }, TimeSpan.FromMilliseconds(200));
+        }, TimeSpan.FromMilliseconds(200), failures.Add);
         Assert.NotEqual(0, result);
         Assert.Single(attempts);
         Assert.DoesNotContain("Graphics ready:", output.ToString());
@@ -237,7 +263,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
                 """);
             start.Environment["MEMORIA_TEST_PROCESS_MARKER"] = marker;
             return start;
-        }, TimeSpan.FromSeconds(30));
+        }, TimeSpan.FromSeconds(30), failures.Add);
         try
         {
             Stopwatch timer = Stopwatch.StartNew();
@@ -255,6 +281,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
             using JsonDocument result = JsonDocument.Parse(File.ReadAllText(resultPath));
             Assert.Equal(130, result.RootElement.GetProperty("exitCode").GetInt32());
             Assert.True(result.RootElement.GetProperty("cancelled").GetBoolean());
+            Assert.Empty(failures);
             await AssertExitedAsync(parent);
             await AssertExitedAsync(child);
         }
@@ -272,9 +299,66 @@ public sealed class GraphicsDispatcherTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task UnexpectedDispatchExceptionRetainsEveryNestedCauseAndStack()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        AggregateException original = new("Synthetic launch failure", new IOException("first cause"), new InvalidOperationException("second cause"));
+        AggregateException thrown = await Assert.ThrowsAsync<AggregateException>(() => GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", "Vulkan"], output, error, TestContext.Current.CancellationToken, _ => throw original, captureFailure: failures.Add));
+        Assert.Same(original, thrown);
+        ErrorIncident incident = Assert.Single(failures).Capture();
+        Assert.Equal(2, incident.Exception.Causes.Count);
+        Assert.NotNull(incident.Exception.Stack);
+        Assert.Contains("Synthetic launch failure", incident.Exception.Message);
+    }
+
+    [Fact]
+    public async Task ExistingGameIncidentRemainsPrimaryAndReceivesHostLogs()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        int result = await RunAsync(GraphicsBackend.Vulkan, backend => Child(backend, ReadyScript + "\n[Console]::Out.WriteLine($env:MEMORIA_FF8_REPORT_LAUNCH_ID)\nexit 31"), output, error);
+        Assert.Equal(31, result);
+        BootstrapFailure failure = Assert.Single(failures);
+        Assert.Contains(failure.LaunchId, output.ToString());
+        string reports = Path.Combine(directory, "reports");
+        ErrorIncident game = ErrorIncident.Capture(new InvalidOperationException("Original game error"), "Game", launchId: failure.LaunchId);
+        game.Persist(reports);
+        failure.Persist(reports);
+        ErrorIncident preserved = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(reports, failure.LaunchId));
+        Assert.Equal(game.Id, preserved.Id);
+        Assert.Equal("Game", preserved.Subsystem);
+        Assert.Equal("Original game error", preserved.Exception.Message);
+        Assert.Single(Directory.GetFiles(reports, "incident.json", SearchOption.AllDirectories));
+        using JsonDocument evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(reports, game.Id, "incident.json")));
+        Assert.Contains(evidence.RootElement.GetProperty("LogPaths").EnumerateArray(), path => path.GetString()!.EndsWith("result.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BrokenReporterCannotReplaceTheHostFailure()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        int result = await GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", "Vulkan"], output, error, TestContext.Current.CancellationToken, _ => MissingHost(), captureFailure: _ => throw new IOException("Synthetic reporting failure"));
+        Assert.Equal(1, result);
+        Assert.Contains("Try Auto", error.ToString());
+    }
+
+    [Fact]
+    public async Task BackendSelectionFailureStillHasDiscoverableEvidence()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        await Assert.ThrowsAsync<ArgumentException>(() => GraphicsDispatcher.RunAsync(directory, ["--graphics-backend"], output, error, TestContext.Current.CancellationToken, captureFailure: failures.Add));
+        BootstrapFailure failure = Assert.Single(failures);
+        Assert.Contains("backend selection failed", failure.RequestedBackend);
+        Assert.IsType<ArgumentException>(failure.Exception);
+    }
+
     private Task<int> RunAsync(GraphicsBackend requested, Func<GraphicsBackend, ProcessStartInfo> factory, TextWriter output, TextWriter error)
     {
-        return GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", requested.ToString()], output, error, TestContext.Current.CancellationToken, factory, TimeSpan.FromSeconds(15));
+        return GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", requested.ToString()], output, error, TestContext.Current.CancellationToken, factory, TimeSpan.FromSeconds(15), failures.Add);
     }
 
     private ProcessStartInfo MissingHost() => new(Path.Combine(directory, "missing-host.exe")) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };

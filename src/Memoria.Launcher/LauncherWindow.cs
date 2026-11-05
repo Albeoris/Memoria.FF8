@@ -134,7 +134,11 @@ internal sealed partial class LauncherWindow : Window
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
         cancelMediaSetup.Click += (_, _) => mediaSetupLifetime?.Cancel();
         play.Click += async (_, _) => await PlayAsync();
-        Opened += async (_, _) => await InitializeAsync();
+        Opened += async (_, _) =>
+        {
+            await InitializeAsync();
+            await DiscoverErrorReportAsync();
+        };
         Closing += OnClosing;
     }
 
@@ -565,6 +569,12 @@ internal sealed partial class LauncherWindow : Window
             }
             using TextWriter? console = GameConsole.Open();
             using GameProcessDiagnostics diagnostics = new(console: console);
+            string reportLaunchId = Guid.NewGuid().ToString("N");
+            start.Environment["MEMORIA_FF8_REPORT_LAUNCH_ID"] = reportLaunchId;
+            if (diagnostics.LogPath is not null)
+            {
+                start.Environment["MEMORIA_FF8_REPORT_LOG_PATH"] = diagnostics.LogPath;
+            }
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
             runningGame = process;
             runningGameDirectory = selected.Directory;
@@ -635,7 +645,8 @@ internal sealed partial class LauncherWindow : Window
             {
                 tryAuto.IsVisible = pendingGraphicsRecovery is not null || diagnostics.GraphicsReady is null && requestedGraphicsBackend != GraphicsBackend.Auto;
                 status.Text = completion + (resume is null ? string.Empty : Environment.NewLine + "Automatic update save retained at: " + resume.SavePath);
-                await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
+                ErrorIncident incident = await Task.Run(() => diagnostics.CaptureFailure(process.ExitCode, reportLaunchId));
+                await ShowReportAsync(status.Text, incident);
             }
         }
         catch (Exception exception)
@@ -669,8 +680,38 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task ShowErrorAsync(string message, Exception exception)
     {
+        ErrorIncident incident = ErrorIncident.Capture(exception, "Launcher", environment: new { RequestedBackend = requestedGraphicsBackend.ToString(), ResourceLanguage = SelectedResourceLanguage }, saveUnavailableReason: "Launcher failure; no running game snapshot was captured.");
         status.Text = $"{message}{Environment.NewLine}{exception.Message}";
-        await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
+        await ShowReportAsync(status.Text, incident);
+    }
+
+    private async Task ShowReportAsync(string message, ErrorIncident incident)
+    {
+        try
+        {
+            await Task.Run(() => incident.Persist());
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            message += Environment.NewLine + "Could not preserve report evidence: " + exception.Message;
+        }
+        await new ErrorReportDialog(message, incident).ShowDialog(this);
+    }
+
+    private async Task DiscoverErrorReportAsync()
+    {
+        try
+        {
+            ErrorIncident? incident = await Task.Run(() => ErrorIncident.DiscoverLatest(pendingOnly: true));
+            if (incident is not null)
+            {
+                await new ErrorReportDialog("An error report from a previous game session is available. You can prepare it for GitHub or close this window.", incident).ShowDialog(this);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            status.Text += Environment.NewLine + "Could not read preserved error evidence: " + exception.Message;
+        }
     }
 
     private void SetBusy(bool value)

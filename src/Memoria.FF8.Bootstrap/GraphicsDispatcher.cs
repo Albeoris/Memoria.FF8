@@ -66,12 +66,44 @@ public static class GraphicsDispatcher
         return start;
     }
 
-    public static async Task<int> RunAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart = null, TimeSpan? initializationTimeout = null)
+    public static async Task<int> RunAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart = null, TimeSpan? initializationTimeout = null, Action<BootstrapFailure>? captureFailure = null)
+    {
+        string launchId = Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LAUNCH_ID") ?? Guid.NewGuid().ToString("N");
+        List<GraphicsAttemptEvidence> attempts = [];
+        string requestedBackend = "Unavailable: backend selection failed or was not reached.";
+        void Report(string summary, Exception? exception = null)
+        {
+            try
+            {
+                BootstrapFailure failure = new(launchId, requestedBackend, summary, exception, Array.AsReadOnly(attempts.ToArray()));
+                (captureFailure ?? BootstrapFailure.TryPersist)(failure);
+            }
+            catch
+            {
+                // Evidence collection must preserve the original host result and exception.
+            }
+        }
+        try
+        {
+            return await RunDispatchAsync(dataDirectory, args, output, error, token, createStart, initializationTimeout, launchId, attempts, Report, backend => requestedBackend = backend);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Report("Game launch failed: " + exception.Message, exception);
+            throw;
+        }
+    }
+
+    private static async Task<int> RunDispatchAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart, TimeSpan? initializationTimeout, string launchId, List<GraphicsAttemptEvidence> attempts, Action<string, Exception?> report, Action<string> selectedBackend)
     {
         string[] current = args;
         while (true)
         {
-            DispatchResult result = await RunSessionAsync(dataDirectory, current, output, error, token, createStart, initializationTimeout);
+            DispatchResult result = await RunSessionAsync(dataDirectory, current, output, error, token, createStart, initializationTimeout, launchId, attempts, report, selectedBackend);
             if (result.RestartArguments is null)
             {
                 return result.ExitCode;
@@ -87,13 +119,15 @@ public static class GraphicsDispatcher
         }
     }
 
-    private static async Task<DispatchResult> RunSessionAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart, TimeSpan? initializationTimeout)
+    private static async Task<DispatchResult> RunSessionAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart, TimeSpan? initializationTimeout, string launchId, List<GraphicsAttemptEvidence> attempts, Action<string, Exception?> report, Action<string> selectedBackend)
     {
         GraphicsBackend requested = RequestedBackend(args);
+        selectedBackend(requested.ToString());
         IReadOnlyList<GraphicsBackend> order = GraphicsBackendSelection.InitializationOrder(requested, HostPlatforms.Current);
         string diagnostics = Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_DIAGNOSTICS_DIRECTORY") ?? Path.Combine(ApplicationPaths.Current.Logs, "graphics", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(diagnostics);
         bool graphical = !args.Contains("--validate", StringComparer.Ordinal) && !(args.FirstOrDefault() is "--probe-steam-achievements" or "--import-save" or "--export-save" or "--headless-play" or "--headless-control" or "--auto-play" or "--menu-preview" or "--battle-preview");
+        Exception? lastException = null;
         foreach (GraphicsBackend backend in order)
         {
             token.ThrowIfCancellationRequested();
@@ -105,6 +139,7 @@ public static class GraphicsDispatcher
             string restartToken = Guid.NewGuid().ToString("N");
             ProcessStartInfo start = createStart?.Invoke(backend) ?? CreateStartInfo(dataDirectory, backend, args);
             start.Environment[ApplicationInstallation.DirectoryVariable] = Path.GetFullPath(dataDirectory);
+            start.Environment["MEMORIA_FF8_REPORT_LAUNCH_ID"] = launchId;
             start.Environment["MEMORIA_FF8_HOST_READY_FILE"] = readyPath;
             start.Environment["MEMORIA_FF8_HOST_FAILURE_FILE"] = failurePath;
             start.Environment["MEMORIA_FF8_REQUESTED_GRAPHICS_BACKEND"] = requested.ToString();
@@ -121,6 +156,7 @@ public static class GraphicsDispatcher
             bool cancelled = false;
             int exitCode = 1;
             string? failure = null;
+            Exception? originalException = null;
             using StreamWriter stdout = new(Path.Combine(attempt, "stdout.log")) { AutoFlush = true };
             using StreamWriter stderr = new(Path.Combine(attempt, "stderr.log")) { AutoFlush = true };
             using Process process = new() { StartInfo = start };
@@ -181,6 +217,8 @@ public static class GraphicsDispatcher
             catch (Exception exception)
             {
                 failure = exception.Message;
+                originalException = exception;
+                lastException = exception;
                 initializationFailure = !started;
             }
             finally
@@ -201,9 +239,14 @@ public static class GraphicsDispatcher
             {
                 throw new OperationCanceledException(token);
             }
+            attempts.Add(new(backend.ToString(), ready, exitCode, initializationFailure, failure, originalException is null ? null : ErrorIncident.Capture(originalException, "Graphics host attempt").Exception, ReadReceipt(readyPath), ReadReceipt(failurePath), Array.AsReadOnly(new[] { Path.Combine(attempt, "stdout.log"), Path.Combine(attempt, "stderr.log"), Path.Combine(attempt, "result.json"), readyPath, failurePath }.Where(File.Exists).ToArray())));
             if (ready || !graphical)
             {
                 string[]? restartArguments = ready && exitCode == 0 ? GraphicsRestart.ReadArguments(restartPath, restartToken, process.Id, args) : null;
+                if (graphical && exitCode != 0)
+                {
+                    report($"{backend} host terminated after graphics readiness (exit {exitCode}).", originalException);
+                }
                 return new DispatchResult(exitCode, restartArguments);
             }
             await error.WriteLineAsync($"Host startup failed: {failure} Diagnostics: {attempt}");
@@ -213,11 +256,32 @@ public static class GraphicsDispatcher
                 {
                     await error.WriteLineAsync("Try Auto to let the next launch choose a supported backend.");
                 }
+                report(failure ?? "Graphics host startup failed.", originalException);
                 return new DispatchResult(exitCode, null);
             }
         }
         await error.WriteLineAsync("No graphics host initialized. Update your GPU driver or inspect the recorded diagnostics.");
+        report("No graphics host initialized.", lastException);
         return new DispatchResult(1, null);
+    }
+
+    private static string? ReadReceipt(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+            using StreamReader reader = File.OpenText(path);
+            char[] buffer = new char[16385];
+            int length = reader.ReadBlock(buffer, 0, buffer.Length);
+            return length > 16384 ? new string(buffer, 0, 16384) + "\n[Receipt truncated at 16384 characters.]" : new string(buffer, 0, length);
+        }
+        catch (Exception exception)
+        {
+            return "Receipt unavailable: " + exception.GetType().Name;
+        }
     }
 
     private sealed record DispatchResult(int ExitCode, string[]? RestartArguments);

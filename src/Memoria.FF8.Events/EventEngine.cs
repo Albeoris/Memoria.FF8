@@ -47,6 +47,7 @@ public sealed partial class EventEngine
     public int FieldId { get; private set; }
     public bool HasFieldProgram => program is not null;
     public long Frame { get; private set; }
+    public EventFaultContext? LatestFaultContext { get; private set; }
     private bool userControlEnabled = true;
     private bool userControlSequenceDisabled;
     public bool IsUserControlEnabled
@@ -141,6 +142,7 @@ public sealed partial class EventEngine
         program = next;
         pendingArrival = arrival;
         LastFault = null;
+        LatestFaultContext = null;
         axisStart = InitInputAxisDirection;
         axisTarget = InitInputAxisDirection;
         axisDuration = 0;
@@ -345,7 +347,7 @@ public sealed partial class EventEngine
         }
         if (LastFault is EventFault fault)
         {
-            throw new EventScriptException(fault.Message);
+            throw new EventScriptException(fault.Message) { FaultContext = new EventFaultContext(fault.FieldId, fault.ObjectId, fault.ScriptId, fault.Operation, fault.Opcode, Frame, null, [], []) };
         }
         if (program is null || transitionRequested || NativeGameOver is not null)
         {
@@ -775,7 +777,8 @@ public sealed partial class EventEngine
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
                 string message = $"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {operationIndex}: {reason}; instruction pointer and operands preserved.";
                 LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, operationIndex, operation.Opcode.ToString(), message);
-                throw new EventScriptException(message);
+                LatestFaultContext = DescribeFault(fiber, operationIndex);
+                throw new EventScriptException(message) { FaultContext = LatestFaultContext };
             }
             ObserveNativePartyActionRequest(fiber, operation);
             fiber.Position++;
@@ -808,13 +811,20 @@ public sealed partial class EventEngine
                     }
                 }
             }
-            catch (EventScriptException)
+            catch (EventScriptException exception)
             {
+                exception.FaultContext ??= DescribeFault(fiber, operationIndex);
+                LatestFaultContext = exception.FaultContext;
                 throw;
             }
             catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or InvalidDataException or ArithmeticException or NotSupportedException)
             {
                 throw Fault(fiber, $"{operation.Opcode}: {exception.Message}", exception);
+            }
+            catch
+            {
+                LatestFaultContext = DescribeFault(fiber, operationIndex);
+                throw;
             }
             if (!transitionRequested && (IsNativeSelfRequest(fiber, operation) || fiber.Complete && operation.Opcode == Jsm.Opcode.RET && IsNativeActorRequest(fiber.ObjectId)))
             {
@@ -836,7 +846,14 @@ public sealed partial class EventEngine
 
     private EventScriptException Fault(Fiber fiber, string reason, Exception? inner = null)
     {
-        return new EventScriptException($"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position - 1}: {reason}", inner);
+        LatestFaultContext = DescribeFault(fiber, fiber.Position - 1);
+        return new EventScriptException($"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position - 1}: {reason}", inner) { FaultContext = LatestFaultContext };
+    }
+
+    private EventFaultContext DescribeFault(Fiber fiber, int operation)
+    {
+        string? opcode = program is not null && (uint)operation < program.Operations.Count ? program.Operations[operation].Opcode.ToString() : null;
+        return new EventFaultContext(FieldId, fiber.ObjectId, fiber.Script.Id, operation, opcode, Frame, fiber.WaitReason.ToString(), fiber.Stack.Take(32).ToArray(), fiber.StackExpressions.Take(32).ToArray());
     }
 
     private int[] Pop(Fiber fiber, int count)
@@ -1023,4 +1040,9 @@ public sealed partial class EventEngine
 
 }
 
-public sealed class EventScriptException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed record EventFaultContext(int FieldId, int ObjectId, int ScriptId, int Operation, string? Opcode, long Frame, string? WaitReason, int[] Operands, string[] Expressions);
+
+public sealed class EventScriptException(string message, Exception? inner = null) : Exception(message, inner)
+{
+    public EventFaultContext? FaultContext { get; internal set; }
+}

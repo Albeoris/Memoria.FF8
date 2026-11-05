@@ -210,6 +210,13 @@ internal sealed class GameProcessDiagnostics : IDisposable
         }
     }
 
+    internal Memoria.FF8.Platform.ErrorIncident CaptureFailure(int exitCode, string launchId, string? reportsDirectory = null)
+    {
+        Memoria.FF8.Platform.ErrorIncident? captured = Memoria.FF8.Platform.ErrorIncident.DiscoverLatest(reportsDirectory, launchId);
+        captured ??= Memoria.FF8.Platform.ErrorIncident.Capture(new InvalidOperationException($"The game process exited with code {exitCode} (0x{unchecked((uint)exitCode):X8}). No managed exception was captured; consult the process log."), "Game process", runtime: new { ExitCode = exitCode, GraphicsReady }, logPaths: LogPath is null ? [] : [LogPath], saveUnavailableReason: "The game process exited before a validated report save could be captured.", launchId: launchId);
+        return LogPath is null ? captured : captured.WithLogPaths([LogPath]);
+    }
+
     private void WriteLog(string source, string text)
     {
         try

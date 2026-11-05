@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Themes.Fluent;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 
@@ -8,6 +9,7 @@ internal static class Program
 {
     internal static string? StartupError { get; private set; }
     internal static UpdateResume? Resume { get; private set; }
+    internal static ErrorIncident? StartupIncident { get; private set; }
 
     [STAThread]
     private static void Main(string[] arguments)
@@ -57,6 +59,15 @@ internal static class Program
         }
         catch (Exception exception)
         {
+            StartupIncident = ErrorIncident.Capture(exception, "Launcher startup", saveUnavailableReason: "The launcher failed before starting the game.");
+            try
+            {
+                StartupIncident.Persist();
+            }
+            catch (Exception captureFailure) when (captureFailure is IOException or UnauthorizedAccessException)
+            {
+                Console.Error.WriteLine("Could not preserve launcher incident: " + captureFailure.Message);
+            }
             StartupError = "Memoria could not complete startup or installation. " + exception.Message + "\nIf update recovery failed, keep the .memoria-update folder and its backups, close running game processes, and start the launcher again.";
         }
         try
@@ -85,7 +96,7 @@ internal sealed class LauncherApplication : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = Program.StartupError is string error ? LauncherDialogs.Create("Memoria", error, false) : new LauncherWindow(Program.Resume);
+            desktop.MainWindow = Program.StartupError is string error ? Program.StartupIncident is { } incident ? new ErrorReportDialog(error, incident) : LauncherDialogs.Create("Memoria", error, false) : new LauncherWindow(Program.Resume);
         }
         base.OnFrameworkInitializationCompleted();
     }

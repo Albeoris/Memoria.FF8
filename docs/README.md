@@ -15,6 +15,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [GF ability editor](players/gf-ability-editor.md) | Create native GF mods or save-local changes from inside the game. |
 | [Localization projects](players/localization.md) | Create/convert translation projects, choose active stacks and review resource-coverage gaps. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
+| [Error reporting](error-reporting.md) | Public diagnostics ZIP, GitHub attachment and reproduction saves. |
 | [Debug Room](players/debug-room.md) | Service tools, names, fixture previews and the battle laboratory. |
 | [Automatic exploration](players/automatic-exploration.md) | Start, pause, resume and reproduce an experimental automated run. |
 

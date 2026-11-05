@@ -80,6 +80,8 @@ The distribution inventory is `Data/distribution.json`. Older archives without t
 
 Follow [Installation and first launch](docs/players/getting-started.md) for requirements and troubleshooting. The release includes the required .NET runtimes.
 
+Use **Report error** after a failure to prepare a public diagnostics ZIP and open a filled GitHub draft. Attach the ZIP in your browser before submitting. See [error reporting](docs/error-reporting.md) for contents, recovery actions and reproduction saves.
+
 ## Build
 
 From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:

@@ -75,6 +75,11 @@ internal sealed partial class RecreateGame
     }
     private void DrawNoticeUi(Rectangle bounds, string message, bool bottom)
     {
+        if (bottom && errorIncident is not null && error is not null && message == error)
+        {
+            DrawWindowView(BuildErrorReportView(), bounds);
+            return;
+        }
         UiView? view = bottom ? bottomNoticeWindowUi : topNoticeWindowUi;
         string? previous = bottom ? bottomNoticeWindowText : topNoticeWindowText;
         if (view is null || previous != message)
