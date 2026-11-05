@@ -27,6 +27,32 @@ public sealed record GameplaySaveProgression
     [JsonRequired]
     public required GameplaySaveOriginalResidue? OriginalResidue { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldContinuation? FieldContinuation { get; init; }
+
+    /// <summary>Moves current field-local authority out of durable globals into the logical continuation.</summary>
+    public GameplaySaveProgression WithFieldContinuation(GameplaySaveFieldContinuation continuation)
+    {
+        ArgumentNullException.ThrowIfNull(continuation);
+        return (this with { FieldContinuation = continuation.Detach() }).NormalizeFieldContinuation();
+    }
+
+    /// <summary>Accepts equivalent transitional aliases on reads and returns a separate canonical owner projection.</summary>
+    public GameplaySaveProgression NormalizeFieldContinuation()
+    {
+        if (FieldContinuation is not { } continuation)
+        {
+            return this;
+        }
+        continuation.Validate();
+        GameplaySaveEventCell[] locals = Story.Cells.Where(cell => cell.Address < 2304 && (long)cell.Address + cell.Width > 1024).OrderBy(cell => cell.Address).ToArray();
+        if (locals.Length != 0 && !locals.SequenceEqual(continuation.Scripts.Locals.OrderBy(cell => cell.Address)))
+        {
+            throw new InvalidDataException("Gameplay global/local aliases disagree with the authoritative field continuation.");
+        }
+        return this with { Story = Story with { Cells = Story.Cells.Where(cell => cell.Address >= 2304 || (long)cell.Address + cell.Width <= 1024).ToArray() }, FieldLocation = null };
+    }
+
     public static GameplaySaveProgression Capture(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -47,6 +73,11 @@ public sealed record GameplaySaveProgression
             SceneFacts = GameplaySaveSceneFacts.Capture(state),
             OriginalResidue = state.OriginalSave is { } original ? GameplaySaveOriginalResidue.Capture(original) : null
         };
+        if (state.Scene == SceneKind.WorldMap)
+        {
+            // No field VM is resumed by a new world normal-load document.
+            result = result with { Story = result.Story with { Cells = result.Story.Cells.Where(cell => cell.Address >= 2304 || (long)cell.Address + cell.Width <= 1024).ToArray() } };
+        }
         result.Validate();
         return GameplaySaveCodec.Detach(result);
     }
@@ -66,6 +97,15 @@ public sealed record GameplaySaveProgression
         Transactions.Validate();
         SceneFacts?.Validate();
         OriginalResidue?.Validate();
+        FieldContinuation?.Validate();
+        if (FieldContinuation is { } continuation)
+        {
+            if (SceneFacts is not { Origin: GameplaySaveSceneFactsOrigin.Field } facts || facts.FieldId != continuation.Scripts.FieldId)
+            {
+                throw new InvalidDataException("A gameplay field continuation requires its current field scene facts.");
+            }
+            _ = NormalizeFieldContinuation();
+        }
     }
 }
 

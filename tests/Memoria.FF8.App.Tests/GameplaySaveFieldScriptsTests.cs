@@ -120,6 +120,11 @@ public sealed class GameplaySaveFieldScriptsTests
             scripts.Add([(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             scripts.Add([(Jsm.Opcode.LBL, 10), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_L, 1108), (Jsm.Opcode.RET, 8)]);
         }
+        return Encode(groups, scripts);
+    }
+
+    internal static byte[] Encode(ushort[] groups, List<(Jsm.Opcode Opcode, int Parameter)[]> scripts)
+    {
         int scriptOffset = 8 + groups.Length * 2;
         int operationsOffset = scriptOffset + (scripts.Count + 1) * 2;
         byte[] bytes = new byte[operationsOffset + scripts.Sum(script => script.Length) * 4];

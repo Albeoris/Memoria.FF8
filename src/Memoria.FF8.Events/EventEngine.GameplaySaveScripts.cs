@@ -44,6 +44,9 @@ public sealed partial class EventEngine
             WaitReason.RequestStart => GameplaySaveScriptWait.RequestStart,
             WaitReason.RequestEnd => GameplaySaveScriptWait.RequestEnd,
             WaitReason.NativeHalt => GameplaySaveScriptWait.Halt,
+            WaitReason.Animation => GameplaySaveScriptWait.Animation,
+            WaitReason.NativeAnimationBlocking => GameplaySaveScriptWait.NativeAnimationBlocking,
+            WaitReason.NativeAnimationSync => GameplaySaveScriptWait.NativeAnimationSync,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
         if (fiber.NativeGlobalJumps.Count != 0 || fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeMoveOperation is not null || fiber.NativeMoveTarget is not null || fiber.NativeShadeOperation is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
@@ -80,7 +83,7 @@ public sealed partial class EventEngine
                 Complete = source.Complete,
                 Started = source.Started,
                 NativeResultFrameEntered = source.ResultFrameEntered,
-                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
+                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
                 WaitUntil = source.WaitUntil,
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,

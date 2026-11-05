@@ -17,6 +17,10 @@ internal static class GameplaySaveSessionLoader
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
+        if (document.Progression?.FieldContinuation is not null)
+        {
+            document = document with { Progression = document.Progression.NormalizeFieldContinuation() };
+        }
         GameplaySaveSceneFacts facts = RequireSupportedReconstruction(document);
         using GameAssets? ownedAssets = sharedAssets is null ? new GameAssets(gameDirectory, resources: resources, modelOverrides: modelOverrides) : null;
         GameAssets assets = sharedAssets ?? ownedAssets!;
@@ -34,7 +38,7 @@ internal static class GameplaySaveSessionLoader
         GameState restored = GameplaySaveStateRestoration.Restore(document, initializer.State);
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {
-            restored = restored with { FieldLoadContext = NativeFieldLoadContext.FromGameplaySave(restored.FieldId) };
+            restored = restored with { FieldLoadContext = document.Progression.FieldContinuation is null ? NativeFieldLoadContext.FromGameplaySave(restored.FieldId) : NativeFieldLoadContext.FromGameplayContinuation(restored.FieldId) };
         }
         else
         {
@@ -47,7 +51,14 @@ internal static class GameplaySaveSessionLoader
         candidate.EnsureField();
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {
-            candidate.Events.InitializeGameplaySaveFieldParty(document.Progression.FieldLocation);
+            if (document.Progression.FieldContinuation is { } continuation)
+            {
+                candidate.Events.RestoreGameplaySaveFieldContinuation(continuation, facts);
+            }
+            else
+            {
+                candidate.Events.InitializeGameplaySaveFieldParty(document.Progression.FieldLocation);
+            }
         }
         GameState snapshot = candidateSession.PrepareSnapshot();
         _ = new GameSession(snapshot);
@@ -64,6 +75,11 @@ internal static class GameplaySaveSessionLoader
         {
             throw new InvalidDataException("Gameplay scene facts must identify the current resume field.");
         }
+        if (document.Progression.FieldContinuation is { } continuation && (document.Resume.Kind != GameplaySaveResumeKind.Field || continuation.Scripts.FieldId != document.Resume.FieldId))
+        {
+            throw new InvalidDataException("Gameplay field continuation does not match its resume descriptor.");
+        }
+        document.Progression.FieldContinuation?.ValidateResume(document.Resume, facts);
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {
             if (facts.Origin != GameplaySaveSceneFactsOrigin.Field || facts.FieldParty[0] == 255)
