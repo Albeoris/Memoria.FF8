@@ -13,6 +13,10 @@ public sealed partial class EventEngine
         }
         NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Gameplay script capture requires its actual callback timebase.");
         clock.Validate(Frame);
+        foreach (Fiber fiber in fibers)
+        {
+            ValidateGameplayAmbientWait(fiber);
+        }
         GameplaySaveScriptFiber[] saved = fibers.Select(CaptureGameplaySaveFiber).ToArray();
         GameplaySaveScriptOperands[] operands = actors.Where(actor => actor.NativeOperandMemory is not null).Select(actor => new GameplaySaveScriptOperands(actor.ObjectId, actor.NativeOperandMemory!.Words.Select(word => word is null ? (int?)null : GameplayScriptInteger(word)).ToArray(), actor.NativeOperandMemory.SavedDepths.ToArray(), actor.NativeOperandMemory.LiveDepth, actor.NativeActorWord398)).ToArray();
         GameplaySaveDoorSchedule[] doors = actors.Where(actor => actor.NativeDoorScheduler is not null).Select(actor => new GameplaySaveDoorSchedule(actor.ObjectId, actor.NativeDoorScheduler!.CurrentSlot, actor.NativeDoorScheduler.CurrentSequence, actor.NativeDoorScheduler.DefaultSequence, actor.NativeDoorScheduler.InitializationSequence, actor.NativeDoorScheduler.RetiredOperation)).ToArray();
@@ -48,13 +52,15 @@ public sealed partial class EventEngine
             WaitReason.Animation => GameplaySaveScriptWait.Animation,
             WaitReason.NativeAnimationBlocking => GameplaySaveScriptWait.NativeAnimationBlocking,
             WaitReason.NativeAnimationSync => GameplaySaveScriptWait.NativeAnimationSync,
+            WaitReason.NativeBackgroundShade => GameplaySaveScriptWait.BackgroundShade,
+            WaitReason.BackgroundScroll => GameplaySaveScriptWait.BackgroundScroll,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
-        if (fiber.NativeGlobalJumps.Count != 0 || fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeMoveOperation is not null || fiber.NativeMoveTarget is not null || fiber.NativeShadeOperation is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
+        if (fiber.NativeGlobalJumps.Count != 0 || fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeMoveOperation is not null || fiber.NativeMoveTarget is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
         {
             throw new NotSupportedException("Gameplay script continuation requires a represented logical scheduler without live external request owners.");
         }
-        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray());
+        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation };
     }
 
     /// <summary>Installs only script execution owners. The caller must separately reconstruct current scene/actor/resource owners before input.</summary>
@@ -81,10 +87,12 @@ public sealed partial class EventEngine
             Fiber fiber = new(source.ObjectId, script, source.Priority, source.Sequence, source.Initialization)
             {
                 Position = source.Position,
+                BackgroundId = program.Objects[source.ObjectId].BackgroundModuleIndex ?? 0,
+                NativeShadeOperation = source.ShadeOperation,
                 Complete = source.Complete,
                 Started = source.Started,
                 NativeResultFrameEntered = source.ResultFrameEntered,
-                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
+                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
                 WaitUntil = source.WaitUntil,
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,
@@ -107,6 +115,10 @@ public sealed partial class EventEngine
         for (int index = 0; index < restored.Count; index++)
         {
             restored[index].Request = saved.Fibers[index].RequestSequence is long request ? bySequence[request] : null;
+        }
+        foreach (Fiber fiber in restored)
+        {
+            ValidateGameplayAmbientWait(fiber);
         }
         Dictionary<int, NativeActorOperandMemory> operands = saved.Operands.ToDictionary(item => item.ObjectId, item => new NativeActorOperandMemory(1, item.Words.Select(word => word is int value ? NativeScalarValue.Exact(value) : null).ToArray(), item.SavedDepths.ToArray(), item.LiveDepth));
         Dictionary<int, NativeDoorSchedulerState> doors = saved.Doors.ToDictionary(item => item.ObjectId, item => new NativeDoorSchedulerState(1, item.CurrentSlot, item.CurrentSequence, item.DefaultSequence, item.InitializationSequence, item.RetiredOperation));

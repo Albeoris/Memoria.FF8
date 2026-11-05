@@ -14,6 +14,7 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         Scripts.Validate();
         Scene.Validate();
         Actors.Validate();
+        Scene.Ambient?.Validate(Scripts.Frame);
         if (Scripts.FieldId != Actors.FieldId || Scene.PartyBindings.Any(binding => binding != 255 && binding >= Actors.RegisteredActors.Length) || Scripts.PreparedMovie is int movie && Scene.PreparedMovieSource?.MovieIndex != movie)
         {
             throw new InvalidDataException("Gameplay field continuation owners disagree about the current field or registered actor layout.");

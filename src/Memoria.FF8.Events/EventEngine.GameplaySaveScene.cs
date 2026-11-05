@@ -6,13 +6,14 @@ public sealed partial class EventEngine
 {
     private GameplaySaveFieldScene CaptureGameplaySaveFieldScene()
     {
-        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.ActorBackgroundScroll is not null || Scene.BackgroundScrollPositions.Count != 0 || Scene.BackgroundShades.Count != 0 || Scene.BackgroundShadeLoops.Count != 0 || Scene.SoundVolumeTransition is not null || Scene.AllSoundVolumeTransition is not null || Scene.MusicCrossfadeFrames != 0 || Scene.NativeFieldParticles?.Emitters.Any(value => value != 0) == true || Scene.NativeParticleSlots.Count != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
+        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.ActorBackgroundScroll is not null || Scene.SoundVolumeTransition is not null || Scene.AllSoundVolumeTransition is not null || Scene.MusicCrossfadeFrames != 0 || Scene.NativeFieldParticles?.Emitters.Any(value => value != 0) == true || Scene.NativeParticleSlots.Count != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
         {
-            throw new NotSupportedException("Gameplay field continuation does not yet represent the active scroll, shade, particle, modal, sound-I/O or door-event owner.");
+            throw new NotSupportedException("Gameplay field continuation does not yet represent the active actor-scroll, particle, modal, sound-I/O or door-event owner.");
         }
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
+            Ambient = CaptureGameplaySaveAmbient(),
             PreparedMovieSource = preparedMovie >= 0 ? services.MovieSource : null,
             MovieMask = Scene.NativeMovieMask?.Value,
             CameraIndex = Scene.CameraIndex,
@@ -101,7 +102,6 @@ public sealed partial class EventEngine
         {
             Scene.BackgroundScrollLayers.Add(layer, new(scroll.OffsetX, scroll.OffsetY, scroll.ScaleX, scroll.ScaleY));
         }
-        Scene.BackgroundScrollPositions.Clear();
         Scene.NativeLayerZeroScrollCurrent = saved.LayerZeroCurrent is { } current ? new(1, current.X, current.Y) : null;
         Scene.NativeBackgroundScrollCurrents = saved.ScrollCurrents?.ToDictionary(pair => pair.Key, pair => new NativeBackgroundScrollCurrent(1, pair.Value.X, pair.Value.Y));
         Scene.NormalBackgroundScrollCenter = null;
@@ -199,6 +199,7 @@ public sealed partial class EventEngine
             Scene.SoundMusicVolume197 = sceneMusic.MusicVolume;
             Scene.SoundMusicVolume198 = sceneMusic.SoundVolume;
         }
+        RestoreGameplayAmbient(saved.Ambient, scripts.Frame);
         Frame = scripts.Frame;
         pendingArrival = null;
     }

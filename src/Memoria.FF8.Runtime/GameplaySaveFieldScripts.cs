@@ -11,10 +11,17 @@ public enum GameplaySaveScriptWait
     Halt,
     Animation,
     NativeAnimationBlocking,
-    NativeAnimationSync
+    NativeAnimationSync,
+    BackgroundShade,
+    BackgroundScroll
 }
 
-public sealed record GameplaySaveScriptFiber([property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Priority, [property: JsonRequired] long Sequence, [property: JsonRequired] bool Initialization, [property: JsonRequired] int Position, [property: JsonRequired] bool Complete, [property: JsonRequired] bool Started, [property: JsonRequired] bool ResultFrameEntered, [property: JsonRequired] int[] Stack, [property: JsonRequired] Dictionary<int, int> Results, [property: JsonRequired] GameplaySaveScriptWait Wait, [property: JsonRequired] long WaitUntil, [property: JsonRequired] long? RequestSequence, [property: JsonRequired] byte? DoorSlot, [property: JsonRequired] byte? ActorSlot, [property: JsonRequired] bool DefaultResultFrame, [property: JsonRequired] int[]? SavedResults);
+public sealed record GameplaySaveScriptFiber([property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Priority, [property: JsonRequired] long Sequence, [property: JsonRequired] bool Initialization, [property: JsonRequired] int Position, [property: JsonRequired] bool Complete, [property: JsonRequired] bool Started, [property: JsonRequired] bool ResultFrameEntered, [property: JsonRequired] int[] Stack, [property: JsonRequired] Dictionary<int, int> Results, [property: JsonRequired] GameplaySaveScriptWait Wait, [property: JsonRequired] long WaitUntil, [property: JsonRequired] long? RequestSequence, [property: JsonRequired] byte? DoorSlot, [property: JsonRequired] byte? ActorSlot, [property: JsonRequired] bool DefaultResultFrame, [property: JsonRequired] int[]? SavedResults)
+{
+    /// <summary>Retained BGSHADE instruction whose operands were already consumed; completion must poll without issuing it again.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ShadeOperation { get; init; }
+}
 
 /// <summary>Physical script operands remain observable after pop through native RET result frames; they are not resource memory.</summary>
 public sealed record GameplaySaveScriptOperands([property: JsonRequired] int ObjectId, [property: JsonRequired] int?[] Words, [property: JsonRequired] byte?[] SavedDepths, [property: JsonRequired] int? LiveDepth, [property: JsonRequired] ushort? ActorWord398);
@@ -55,6 +62,10 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
         }
         foreach (GameplaySaveScriptFiber fiber in Fibers)
         {
+            if (fiber.Wait == GameplaySaveScriptWait.BackgroundShade ? fiber.Complete || fiber.ShadeOperation != fiber.Position : fiber.ShadeOperation is not null)
+            {
+                throw new InvalidDataException("Gameplay background shade wait has no matching issued instruction.");
+            }
             if (fiber.RequestSequence is long request && !sequences.Contains(request) || fiber.Wait is GameplaySaveScriptWait.RequestStart or GameplaySaveScriptWait.RequestEnd && fiber.RequestSequence is null)
             {
                 throw new InvalidDataException("Gameplay field script request wait has no retained target fiber.");
