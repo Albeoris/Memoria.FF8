@@ -31,6 +31,7 @@ public sealed partial class EventEngine
     public EventEngine(IEventServices services, NativeEventMemory? initialMemory = null)
     {
         this.services = services ?? throw new ArgumentNullException(nameof(services));
+        AudioCommandExecuted += TrackGameplayLoopSounds;
         if (initialMemory is not null)
         {
             SetEventMemory(initialMemory);
@@ -195,6 +196,7 @@ public sealed partial class EventEngine
         Scene.NativeMovieMask = nativeRuntimeProfile is { IsVerified: true } ? new NativeMovieMaskState(1, 1, null) : null;
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
+        Scene.GameplayLoopSounds = previousScene.GameplayLoopSounds;
         Scene.SoundVolume = previousScene.SoundVolume;
         Scene.SoundPosition = previousScene.SoundPosition;
         Scene.AllSoundPosition = previousScene.AllSoundPosition;

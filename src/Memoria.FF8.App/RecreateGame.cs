@@ -433,6 +433,7 @@ internal sealed partial class RecreateGame : Game
         if (resumeFieldMusic && world?.Field is not null)
         {
             fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
+            world.Events.ResumeGameplayLoopSounds();
             resumeFieldMusic = false;
         }
         fieldAudio?.Update();

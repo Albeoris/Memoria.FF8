@@ -18,6 +18,9 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 public sealed record GameplaySaveFieldScene
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldLoopSound[]? LoopSounds { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldAmbient? Ambient { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -113,6 +116,17 @@ public sealed record GameplaySaveFieldScene
 
     public void Validate()
     {
+        if (LoopSounds is { } loops)
+        {
+            if (loops.Length > 30 || loops.Any(sound => sound is null) || loops.Select(sound => sound.Voice).Distinct().Count() != loops.Length)
+            {
+                throw new InvalidDataException("Gameplay ambient sounds require distinct bounded voice owners.");
+            }
+            foreach (GameplaySaveFieldLoopSound sound in loops)
+            {
+                sound.Validate();
+            }
+        }
         ActorScroll?.Validate();
         if (ParticleControls?.Any(pair => pair.Key is < 0 or >= 16 || pair.Value is > 1 and < 0x80) == true)
         {

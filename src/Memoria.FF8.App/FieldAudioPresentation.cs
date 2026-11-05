@@ -144,6 +144,9 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         {
             switch (command)
             {
+                case GameplayLoopSoundPlayback ambient:
+                    PlaySoundSample(ambient.Resource.SampleIndex, ambient.Sound.Voice, ambient.Sound.Volume, ambient.Sound.Pan, ambient.Resource.LoopPolicy);
+                    break;
                 case NativeBattleMusicEntryReceipt entry:
                     ExecuteBattleMusicEntry(entry);
                     break;

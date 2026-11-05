@@ -6,13 +6,14 @@ public sealed partial class EventEngine
 {
     private GameplaySaveFieldScene CaptureGameplaySaveFieldScene()
     {
-        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.SoundVolumeTransition is not null || Scene.AllSoundVolumeTransition is not null || Scene.MusicCrossfadeFrames != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
+        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.MusicCrossfadeFrames != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
         {
             throw new NotSupportedException("Gameplay field continuation does not yet represent the active modal, sound-I/O or door-event owner.");
         }
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
+            LoopSounds = CaptureGameplayLoopSounds(),
             Ambient = CaptureGameplaySaveAmbient(),
             ParticleControls = CaptureGameplaySaveParticleControls(),
             ActorScroll = CaptureGameplaySaveActorScroll(),
@@ -132,6 +133,7 @@ public sealed partial class EventEngine
         Scene.NativeDrawPointDisplayMask = saved.DrawPointDisplayMask;
         Scene.DrawPointIndex = saved.DrawPointIndex;
         Scene.NativeFieldSoundStopMask = saved.SoundStopMask;
+        RestoreGameplayLoopSounds(saved.LoopSounds);
         if (saved.PreparedMovieSource is { } movieSource)
         {
             session.SetMovieSource(movieSource);

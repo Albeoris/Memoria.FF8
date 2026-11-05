@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
@@ -67,6 +68,9 @@ public sealed class SceneEventState
 
     [JsonInclude]
     public uint NativeFieldSoundStopMask { get; internal set; } = 0xFFFFFF;
+
+    [JsonInclude]
+    public ImmutableDictionary<int, GameplaySaveFieldLoopSound> GameplayLoopSounds { get; internal set; } = ImmutableDictionary<int, GameplaySaveFieldLoopSound>.Empty;
 
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
