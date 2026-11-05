@@ -21,11 +21,12 @@ public sealed partial class BattleSession
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging!, context, allocation.Address);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = NativeBattleEffect32Presentation.ResourceEpoch(pointer) } : null;
-        uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect301 requires its actual current geometry address.");
+        NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Effect301 requires its current CPU resources."), bridge.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+        uint address = new NativeBattleModelGeometryCursor(geometry).PresentationCursor;
         ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(model, source).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect301 requires its current common packet process.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Effect301 requires its current common packet cursor.");
-        NativeBattleEffect301BodyStep drawn = NativeBattleEffect301BodyDrawing.DrawLoaded(frame, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length), address, bones, context, allocation.Address, cursor, resources, inputs, NativeBattleEffect32Presentation.Resource(bodyIdentity, address));
+        NativeBattleEffect301BodyStep drawn = NativeBattleEffect301BodyDrawing.DrawLoaded(frame, geometry, bones, context, allocation.Address, cursor, resources, inputs, NativeBattleEffect32Presentation.Resource(bodyIdentity, address));
         frame = drawn.Frame with { Staging = NativeBattleTemporaryMemory.PublishView(drawn.Frame.Staging!, allocation.Address, drawn.Context136, 136) };
         process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect301 lost its current common packet process.");
         NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(drawn.Batch, cursor, process.CommonPacketWriteCapacity, offset =>

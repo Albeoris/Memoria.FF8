@@ -9,6 +9,47 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect301BodyTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Resource_owned_body_exceeds_guest_capacity_and_keeps_pinned_cursor_identity(bool remastered, bool quad)
+    {
+        byte[] bytes = Geometry(quad);
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        int offset = layout.BankLength + 16;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(offset, bytes.ToImmutableArray(), 0, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer pointer = new(new(0, offset) { Layout = layout, ResourceOnly = true }, null, bytes.Length);
+        pointer = pointer.Pin(cpu);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, (_, _) => throw new InvalidOperationException("CPU-owned geometry must not read shared memory."));
+        Fixture native = new();
+        Fixture logical = new();
+        NativeBattleEffectArena context = Context(Fixture.Main + 0x1494, 1);
+        NativeBattleEffect301BodyStep expected = Draw(native, bytes, context);
+        NativeBattleEffect301BodyStep actual = NativeBattleEffect301BodyDrawing.DrawLoaded(logical.Frame, geometry, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)], context, NativeBattleTemporaryMemory.Address, 0, logical.Resources, logical.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) });
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
+        Assert.Equal(expected.Batch.AllocationBytes, actual.Batch.AllocationBytes);
+        Assert.Equal(Assert.Single(expected.Batch.Attempts).Data, Assert.Single(actual.Batch.Attempts).Data);
+        Assert.Equal(Assert.Single(expected.Batch.Attempts).WriteMask, Assert.Single(actual.Batch.Attempts).WriteMask);
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(actual.Context136));
+        NativeBattleModelCpuResources replaced = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleModelGeometrySource held = NativeBattleModelGeometrySource.Open(replaced, staging, pointer, (_, _) => throw new InvalidOperationException());
+        foreach (int field in new[] { 0, 0x78 })
+        {
+            NativeBattleResourcePointer cursor = restored.ReadResourcePointer(field)!;
+            Assert.NotNull(cursor.CpuPublication);
+            Assert.True(NativeBattleModelCpuBank.SamePublication(bank, cursor.CpuPublication));
+            Assert.Equal(new NativeBattleModelGeometryCursor(geometry).ReadCursor(actual.Context136, field).Offset, new NativeBattleModelGeometryCursor(held).ReadCursor(restored, field).Offset);
+        }
+        Assert.Empty(bank.KnownRanges);
+        Assert.Equal(bytes, held.Read(0, bytes.Length));
+        Assert.Throws<InvalidDataException>(() => held.Read(bytes.Length, 1));
+    }
+
     [Fact]
     public void Actual_loaded_pointer_epoch_survives_new_views_and_changes_on_same_address_resource_replacement()
     {

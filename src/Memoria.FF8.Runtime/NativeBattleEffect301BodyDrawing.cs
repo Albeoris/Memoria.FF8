@@ -16,6 +16,13 @@ public static class NativeBattleEffect301BodyDrawing
 
     public static NativeBattleEffect301BodyStep DrawLoaded(NativeBattleEffect301Frame frame, Func<int, int, byte[]> readGeometry, uint geometrySourceAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena context136, uint temporaryAddress, int ordinaryByteCursor, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawLoaded(frame, NativeBattleModelGeometrySource.FromNumeric(geometrySourceAddress, readGeometry), bones, context136, temporaryAddress, ordinaryByteCursor, resources, inputs, pilotIdentity);
+    }
+
+    public static NativeBattleEffect301BodyStep DrawLoaded(NativeBattleEffect301Frame frame, NativeBattleModelGeometrySource geometry, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattleEffectArena context136, uint temporaryAddress, int ordinaryByteCursor, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        Func<int, int, byte[]> readGeometry = geometry.Read;
+        NativeBattleModelGeometryCursor sourceCursor = new(geometry);
         uint scratch = Dword301(context136, 4);
         if (scratch != checked(Main301(frame) + 0x1494) || ordinaryByteCursor < 0)
         {
@@ -32,7 +39,7 @@ public static class NativeBattleEffect301BodyDrawing
         for (int obj = 0; obj < Math.Max(objects, 0); obj++)
         {
             int cursor = I32(checked(4 + obj * 4));
-            context = Put301(context, 0x78, checked(geometrySourceAddress + (uint)cursor));
+            context = (sourceCursor + cursor).Write(context, 0x78);
             if ((Dword301(context, 24) & (1u << (obj & 31))) == 0)
             {
                 continue;
@@ -123,7 +130,7 @@ public static class NativeBattleEffect301BodyDrawing
                     }
                     frame = WriteBytes(frame, address, row, 16);
                 }
-                context = Put301(Put301(context, 0x78, checked(geometrySourceAddress + (uint)cursor)), 0x84, checked(scratch + (uint)(total * 16)));
+                context = Put301((sourceCursor + cursor).Write(context, 0x78), 0x84, checked(scratch + (uint)(total * 16)));
             }
             cursor = checked((cursor + 3) & ~3);
             int triangles = U16(cursor);
@@ -134,7 +141,7 @@ public static class NativeBattleEffect301BodyDrawing
             }
             context = PutWord301(PutWord301(context, 8, triangles), 10, quads);
             cursor = checked(cursor + 12);
-            context = Put301(Put301(context, 0x78, checked(geometrySourceAddress + (uint)cursor)), 0, checked(geometrySourceAddress + (uint)cursor));
+            context = (sourceCursor + cursor).Write((sourceCursor + cursor).Write(context, 0x78), 0);
             DrawFaces(false, triangles);
             DrawFaces(true, quads);
 
@@ -217,7 +224,7 @@ public static class NativeBattleEffect301BodyDrawing
                             if (worlds is not null)
                             {
                                 System.Numerics.Vector3[] accepted = Enumerable.Range(0, corners).Select(corner => worlds[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF]).ToArray();
-                                primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(pilotIdentity, geometrySourceAddress, cursor), accepted);
+                                primitive = NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(pilotIdentity, sourceCursor.PresentationCursor, cursor), accepted);
                             }
                         }
                     }
