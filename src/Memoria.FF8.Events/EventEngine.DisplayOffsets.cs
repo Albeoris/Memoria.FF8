@@ -111,7 +111,7 @@ public sealed partial class EventEngine
             }
             if (state.Command is not NativeDisplayOffsetCommand command)
             {
-                if (ValidGameplayActorReconstruction(actor, saved.Frame) && actor.GameplayReconstruction!.Offset is { } semantic && semantic == new GameplaySaveActorOffset(state.X, state.Y, state.Z, state.StartX, state.StartY, state.StartZ, state.TargetX, state.TargetY, state.TargetZ, state.Duration, state.Counter, state.Mode))
+                if (ValidGameplayActorReconstruction(actor, saved.Frame) && actor.GameplayReconstruction!.Offset is { } semantic && ValidGameplayDisplayOffsetPhase(state, semantic))
                 {
                     continue;
                 }
@@ -157,5 +157,23 @@ public sealed partial class EventEngine
                 }
             }
         }
+    }
+
+    private static bool ValidGameplayDisplayOffsetPhase(NativeDisplayOffsetState state, GameplaySaveActorOffset origin)
+    {
+        if (origin.Mode is 0 or 3)
+        {
+            return origin == new GameplaySaveActorOffset(state.X, state.Y, state.Z, state.StartX, state.StartY, state.StartZ, state.TargetX, state.TargetY, state.TargetZ, state.Duration, state.Counter, state.Mode);
+        }
+        if (origin.Mode is not (1 or 2) || state.Mode != origin.Mode && state.Mode != 3 || state.StartX != origin.StartX || state.StartY != origin.StartY || state.StartZ != origin.StartZ || state.TargetX != origin.TargetX || state.TargetY != origin.TargetY || state.TargetZ != origin.TargetZ || state.Duration != origin.Duration || state.Counter < origin.Counter)
+        {
+            return false;
+        }
+        if (state.Counter == 0 && state.Mode != 3)
+        {
+            return state.X == origin.X && state.Y == origin.Y && state.Z == origin.Z;
+        }
+        int elapsed = state.Mode == 3 ? state.Counter : state.Counter - 1;
+        return state.X == InterpolateNativeOffset(state.StartX, state.TargetX, state.Duration, elapsed, origin.Mode == 2) && state.Y == InterpolateNativeOffset(state.StartY, state.TargetY, state.Duration, elapsed, origin.Mode == 2) && state.Z == InterpolateNativeOffset(state.StartZ, state.TargetZ, state.Duration, elapsed, origin.Mode == 2);
     }
 }

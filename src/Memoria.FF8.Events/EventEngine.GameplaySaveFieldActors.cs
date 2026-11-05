@@ -25,11 +25,12 @@ public sealed partial class EventEngine
 
     private GameplaySaveFieldActor CaptureGameplayActor(ActorState actor)
     {
-        if (actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.RotationTarget is not null || actor.NativeDisplayOffset is { Mode: 1 or 2 } || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
+        if (actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.RotationTarget is not null || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
         {
             throw new NotSupportedException($"Gameplay actor {actor.ObjectId} has an unfinished movement, rotation, offset or contact operation.");
         }
         ValidateGameplayFaceActor(actor);
+        ValidateGameplayDisplayOffset(actor);
         NativeActorAnimationHeader? header = actor.NativeAnimationHeader;
         if (header?.BoundModelId is int bound && bound != (actor.ModelId is -1 or ushort.MaxValue ? -1 : actor.ModelId))
         {
@@ -108,6 +109,7 @@ public sealed partial class EventEngine
         foreach (ActorState actor in actors)
         {
             ValidateGameplayFaceActor(actor);
+            ValidateGameplayDisplayOffset(actor);
         }
     }
 
