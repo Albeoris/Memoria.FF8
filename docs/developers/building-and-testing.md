@@ -134,6 +134,8 @@ For a Memoria-to-original save integration check, set `MEMORIA_FF8_MEMORIA_SAVE_
 
 Choose filters for the contract being changed; the examples are not a mandatory checklist. Battle-effect tests must be limited to affected effects unless the user explicitly requests other tests. A complete effect-suite run requires changes affecting all effects or an explicit request for that complete suite. Aggregate commands and shared infrastructure changes do not override that scope. Documentation-only changes need document, link and diff checks rather than engine builds or gameplay runs.
 
+`NativePlayerMovementSpeedTests` checks the actual collision adapter for every supported field movement percentage, including walking, running and unscaled movie callbacks. The optional `InstalledPlayerMovementSpeedTests` uses the external catalog entry `App.Tests.InstalledPlayerMovementSpeedTests.1` for a field continuation with nearby actor collision geometry; it checks ordinary callbacks and compact snapshot reloads at 50/100/150/300%. Set `MEMORIA_FF8_MOVEMENT_SAVE_OUTPUT` to a new file to retain its 150% running checkpoint. Supplied saves remain unchanged.
+
 The App `WindowModeControllerTests` are visible desktop checks, enabled with `MEMORIA_FF8_WINDOW_MODE_TEST=1`. They create their own initialized graphics host and check monitor coverage, backbuffer dimensions and restoration of normal and maximized windows. They require no original game resources. `WindowModeHotkeyTests` and `BorderlessWindowSettingsTests` cover the shortcut and persisted configuration without showing a window.
 
 ## Optional local inputs

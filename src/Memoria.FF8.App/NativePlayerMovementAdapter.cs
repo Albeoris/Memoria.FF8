@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -12,7 +13,7 @@ public static class NativePlayerMovementAdapter
 
     public static NativePlayerMovementResult? Resolve(FieldAssets field, SceneEventState scene, NativePlayerMovementQuery query)
     {
-        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is null or > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius is < 0 or > ushort.MaxValue || (scene.MovieActors?.Active == true ? query.Speed is not (5392 or 15859) : query.Speed is not (2696 or 7929)))
+        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is null or > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius is < 0 or > ushort.MaxValue || !SupportsSpeed(scene, query))
         {
             return null;
         }
@@ -36,5 +37,15 @@ public static class NativePlayerMovementAdapter
     private static bool SupportsBinding(SceneEventState scene, int objectId)
     {
         return scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && NativeFieldPartyBinding.TryGetObjectId(scene, 0, out int leaderObjectId) && leaderObjectId == objectId;
+    }
+
+    private static bool SupportsSpeed(SceneEventState scene, NativePlayerMovementQuery query)
+    {
+        if (query.SpeedPercent is < PlayerMovementSpeed.MinimumPercent or > PlayerMovementSpeed.MaximumPercent)
+        {
+            return false;
+        }
+        // Movie callbacks already compensate for cadence and do not scale player translation.
+        return scene.MovieActors?.Active == true ? query.Speed is 5392 or 15859 : query.Speed == PlayerMovementSpeed.Scale(2696, query.SpeedPercent) || query.Speed == PlayerMovementSpeed.Scale(7929, query.SpeedPercent);
     }
 }
