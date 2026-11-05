@@ -281,11 +281,11 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process lacks its pending load/completion authority.");
         }
-        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule or WorldEventInitializationRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
+        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule or NativeMusicBootstrap.GameplaySaveRule or WorldEventInitializationRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
         {
-            throw new InvalidDataException("Saved native music bootstrap is not the authenticated New Game reset.");
+            throw new InvalidDataException("Saved music bootstrap requires a supported process initialization and installed image identity.");
         }
-        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || process?.Pending is not null && scene.MusicLoadRequest is null && process.Bootstrap?.Rule != NativeMusicBootstrap.OriginalSaveRule || scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
+        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || process?.Pending is not null && scene.MusicLoadRequest is null && process.Bootstrap?.Rule is not (NativeMusicBootstrap.OriginalSaveRule or NativeMusicBootstrap.GameplaySaveRule) || scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }

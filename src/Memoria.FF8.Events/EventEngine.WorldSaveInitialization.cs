@@ -13,11 +13,16 @@ public sealed partial class EventEngine
     /// <summary>Initializes absent world-save process owners without replaying a field program or changing saved progress.</summary>
     public void InitializeWorldSave(NativeFieldRuntimeProfile profile)
     {
+        InitializeWorldSave(profile, null);
+    }
+
+    private void InitializeWorldSave(NativeFieldRuntimeProfile profile, byte[]? gameplayParty)
+    {
         if (program is not null || profile is not { IsVerified: true } || services is not GameSession session || session.State.Scene != SceneKind.WorldMap || session.State.EventState is not null || session.State.DepartingFieldState is not null || session.State.WorldEventState is not null)
         {
             throw new InvalidOperationException("World save initialization requires a fresh world process without a retained event snapshot.");
         }
-        if (session.State.OriginalSave is not null)
+        if (gameplayParty is null && session.State.OriginalSave is not null)
         {
             InitializeOriginalSave(profile);
             NativeRuntimeProfile = profile;
@@ -26,7 +31,7 @@ public sealed partial class EventEngine
             return;
         }
 
-        byte[] party = NativeWorldSaveCompatibility.InitialParty(session.State);
+        byte[] party = gameplayParty ?? NativeWorldSaveCompatibility.InitialParty(session.State);
         WorldTransition arrival = session.State.WorldArrival ?? throw new NotSupportedException("World save initialization requires its saved world arrival packet.");
         NativeEventMemory memory = EventMemory;
         byte ReadByte(int address, byte initial)

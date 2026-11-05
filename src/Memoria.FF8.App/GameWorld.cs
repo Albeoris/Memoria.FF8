@@ -41,7 +41,7 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null)
     {
         this.session = session;
         this.readGameplayPolicy = readGameplayPolicy;
@@ -152,7 +152,15 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.Clear();
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
-        if (session.State.WorldEventState is { } retainedWorldEvents && session.State.EventState is null && session.State.DepartingFieldState is null)
+        if (gameplaySaveFacts is not null)
+        {
+            Events.InitializeGameplaySave(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Gameplay save loading requires a supported installed native runtime profile."), gameplaySaveFacts);
+            if (session.State.Scene == SceneKind.WorldMap)
+            {
+                session.SetWorldEventState(Events.CaptureWorldEventState());
+            }
+        }
+        else if (session.State.WorldEventState is { } retainedWorldEvents && session.State.EventState is null && session.State.DepartingFieldState is null)
         {
             Events.RestoreWorldEventState(retainedWorldEvents, assets.NativeRuntimeProfile ?? throw new NotSupportedException("World save restoration requires a supported installed native runtime profile."));
         }

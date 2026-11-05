@@ -32,6 +32,7 @@ public sealed record NativeMusicBufferIdentity([property: JsonRequired] byte Enc
 
 public sealed record NativeMusicBootstrap(int Version, string Rule, string ExecutableHash)
 {
+    public const string GameplaySaveRule = "ff8-gameplay-save-process-defaults-v1";
     public const string OriginalSaveRule = "ff8-original-save-process-defaults-v1";
     public const string WorldSaveInitializationRule = "ff8-world-save-initial-process-v1";
 }
@@ -51,9 +52,9 @@ public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? R
         {
             throw new InvalidDataException("Native music process lost its actual selector, pending request or completion byte.");
         }
-        if (Bootstrap is { } bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule or NativeMusicBootstrap.WorldSaveInitializationRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
+        if (Bootstrap is { } bootstrap && (bootstrap.Version != 1 || bootstrap.Rule is not ("ff8-en-music-new-game-470560-52ca90-v1" or NativeMusicBootstrap.OriginalSaveRule or NativeMusicBootstrap.GameplaySaveRule or NativeMusicBootstrap.WorldSaveInitializationRule) || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
         {
-            throw new InvalidDataException("Native music bootstrap lacks authenticated New Game provenance.");
+            throw new InvalidDataException("Native music bootstrap requires a supported process initialization and installed image identity.");
         }
         Buffer0?.Validate();
         Buffer1?.Validate();

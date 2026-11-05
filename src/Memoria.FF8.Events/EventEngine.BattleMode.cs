@@ -16,7 +16,8 @@ public enum NativeBattleFlagWriter
     NewGame,
     SavedStateMigration,
     OriginalSave,
-    WorldSaveInitialization
+    WorldSaveInitialization,
+    GameplaySave
 }
 
 public sealed record NativeBattleFlagWrite(int Version, NativeBattleFlagWriter Writer, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int? RawOperand, ushort PersistentFlags, ushort ActiveFlags);
@@ -141,11 +142,11 @@ public sealed partial class EventEngine
         for (int index = 0; index < history.Count; index++)
         {
             NativeBattleFlagWrite write = history[index];
-            if (write is null || write.Version != 1 || !Enum.IsDefined(write.Writer) || write.FieldId is < 0 or > ushort.MaxValue || write.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || write.Frame < 0 || write.Writer is not (NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.SavedStateMigration or NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && (write.Frame == 0 || write.ObjectId < 0 || write.ScriptId < 0 || write.Operation < 0) || write.Writer is NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.SavedStateMigration or NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.FieldLoad && (write.Frame != 0 || write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null) || write.Writer is NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn && (write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null))
+            if (write is null || write.Version != 1 || !Enum.IsDefined(write.Writer) || write.FieldId is < 0 or > ushort.MaxValue || write.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || write.Frame < 0 || write.Writer is not (NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.SavedStateMigration or NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.GameplaySave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && (write.Frame == 0 || write.ObjectId < 0 || write.ScriptId < 0 || write.Operation < 0) || write.Writer is NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.SavedStateMigration or NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.GameplaySave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.FieldLoad && (write.Frame != 0 || write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null) || write.Writer is NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn && (write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null))
             {
                 throw new InvalidDataException("Native battle-mode writer has invalid original source metadata.");
             }
-            if (saved is null && write.Writer is not (NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn))
+            if (saved is null && write.Writer is not (NativeBattleFlagWriter.OriginalSave or NativeBattleFlagWriter.GameplaySave or NativeBattleFlagWriter.WorldSaveInitialization or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn))
             {
                 throw new InvalidDataException("Unallocated world battle-mode history cannot claim a field script command or field allocation.");
             }
@@ -158,6 +159,11 @@ public sealed partial class EventEngine
             else if (write.Writer == NativeBattleFlagWriter.OriginalSave && prior is null && write.RawOperand is null)
             {
                 persistent = active = write.PersistentFlags;
+            }
+            else if (write.Writer == NativeBattleFlagWriter.GameplaySave && prior is null && scene.MusicProcess?.Bootstrap is { Version: 1, Rule: NativeMusicBootstrap.GameplaySaveRule } gameplay && NativeFieldRuntimeProfile.IsSupportedImage(gameplay.ExecutableHash))
+            {
+                persistent = write.PersistentFlags;
+                active = write.ActiveFlags;
             }
             else if (write.Writer == NativeBattleFlagWriter.WorldSaveInitialization && prior is null && scene.MusicProcess?.Bootstrap is { Version: 1, Rule: WorldEventInitializationRule } initialized && NativeFieldRuntimeProfile.IsSupportedImage(initialized.ExecutableHash))
             {
