@@ -61,6 +61,8 @@ internal sealed class AutoPlayRunState
     public Dictionary<string, AutoPlayNavigationReceipt> NavigationReceipts { get; set; } = new(StringComparer.Ordinal);
     public List<AutoPlayContactInterruption> ContactInterruptions { get; set; } = [];
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> ExhaustedSurveyInspections { get; set; } = new(StringComparer.Ordinal);
+    public AutoPlayExhaustedSurveyRequest? PendingExhaustedSurvey { get; set; }
     public string? RefreshTargetVisit { get; set; }
     public AutoPlaySurveyBaseline? SurveyBaseline { get; set; }
     public bool SurveyInvalidationUnknown { get; set; }
@@ -764,9 +766,9 @@ internal sealed partial class AutoPlayController
         if (world.CaptureAutoPlayVisitGuard(targets) is { } guard)
         {
             run.VisitGuards[navigation] = guard;
+            SeedExhaustedSurveyInspection(run, navigation, guard);
         }
-        AutoPlayPlanStep? next = planner.PlanNavigation(navigation, candidate => NeedsVisitRefresh(world, candidate), run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex));
-        run.RefreshTargetVisit = next?.RefreshVisitKey;
+        AutoPlayPlanStep? next = PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null);
         if (next is null)
         {
             WaitForNativeFrontier();
@@ -1308,7 +1310,7 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
         AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex)) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
-        run.RefreshTargetVisit = next.RefreshVisitKey;
+        UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = $"world-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
@@ -1492,7 +1494,7 @@ internal sealed partial class AutoPlayController
         }
         planner.RetireTravelRoute(visit, eventId, route, key, first, last, run.ActiveSelections);
         run.ActiveTravelRoute = null;
-        run.RefreshTargetVisit = null;
+        UpdateExhaustedSurveyTarget(run, null);
         selection = default;
         return false;
     }
@@ -1703,13 +1705,15 @@ internal sealed partial class AutoPlayController
 
     private void InspectSurveyVisit(string visit)
     {
-        if (run.InspectedVisitsSinceProgress.Add(visit))
+        bool firstInspection = run.InspectedVisitsSinceProgress.Add(visit);
+        bool exhaustedInspection = CompleteExhaustedSurveyInspection(run, visit, guard => getWorld().Events.ReadPersistentPredicateFingerprint(guard.Reads));
+        if (firstInspection || exhaustedInspection)
         {
             ResetIdleDeadline();
         }
         if (run.RefreshTargetVisit == visit)
         {
-            run.RefreshTargetVisit = null;
+            UpdateExhaustedSurveyTarget(run, null);
         }
     }
 
@@ -1839,7 +1843,7 @@ internal sealed partial class AutoPlayController
         if (run.SurveyInvalidationUnknown)
         {
             run.InspectedVisitsSinceProgress.Clear();
-            run.RefreshTargetVisit = null;
+            UpdateExhaustedSurveyTarget(run, null);
             run.SurveyInvalidationUnknown = false;
         }
         ObserveSurveySegmentChanges(world);
