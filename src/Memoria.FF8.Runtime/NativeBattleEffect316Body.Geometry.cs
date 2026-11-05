@@ -39,51 +39,52 @@ public static partial class NativeBattleEffect316Body
         int cursors = expanded ? 0xA8 : 0x7C;
         context = PutDword(PutDword(context, cursors, ReadDword(frame, inputs, CommonCursorGlobal)), cursors + 4, frame.State.ReadDword(PrivateCursorGlobal));
         frame = Write(frame, inputs, temporary, context, length);
-        frame = WalkObjects(frame, resources, inputs, model, inputs.ReadGeometryAddress(frame, model), temporary + 0x20, 17, 0, expanded);
+        frame = WalkObjects(frame, resources, inputs, model, inputs.ReadGeometrySource?.Invoke(frame, model) ?? NativeBattleModelGeometrySource.FromNumericArena(inputs.ReadGeometryAddress(frame, model), (at, count) => inputs.ReadArena(frame, at, count)), temporary + 0x20, 17, 0, expanded);
         context = inputs.ReadArena(frame, temporary, length);
         frame = inputs.Execute(frame, new NativeBattleEffect316PublishCursors(Dword(context, cursors), Dword(context, cursors + 4)));
         frame = inputs.Execute(frame, new NativeBattleEffect316Restore508C90(model));
         return inputs.ReleaseTemporary(frame, length);
     }
 
-    private static NativeBattleEffect316Frame WalkObjects(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint model, uint source, uint contextAddress, int ordering, int shift, bool expanded)
+    private static NativeBattleEffect316Frame WalkObjects(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift, bool expanded)
     {
-        int objects = unchecked((int)ReadDword(frame, inputs, source));
+        NativeBattleModelGeometryCursor source = new(geometry);
+        int objects = unchecked((int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(source.Read(4).Read(0, 4)));
         int cursorOffset = expanded ? 0x74 : 0x54;
         int outputOffset = cursorOffset + 4;
         for (int index = 0; index < objects; index++)
         {
-            uint entry = ReadDword(frame, inputs, source + 4 + unchecked((uint)index * 4));
+            int entry = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian((source + 4 + index * 4).Read(4).Read(0, 4));
             NativeBattleEffectArena context = inputs.ReadArena(frame, contextAddress, expanded ? 0x90 : 0x64);
-            context = PutDword(context, cursorOffset, unchecked(source + entry));
+            context = (source + entry).Write(context, cursorOffset);
             frame = Write(frame, inputs, contextAddress, context, expanded ? 0x90 : 0x64);
             if ((Dword(context, 0x18) & (1u << (index & 31))) == 0)
             {
                 continue;
             }
             context = PutDword(context, outputOffset, Dword(context, 4));
-            uint raw = Dword(context, cursorOffset);
-            int groups = Word(inputs.ReadArena(frame, raw, 2), 0);
-            context = PutDword(context, cursorOffset, raw + 2);
+            NativeBattleModelGeometryCursor raw = source.ReadCursor(context, cursorOffset);
+            int groups = Word(raw.Read(2), 0);
+            context = (raw + 2).Write(context, cursorOffset);
             frame = Write(frame, inputs, contextAddress, context, expanded ? 0x90 : 0x64);
             for (int group = 0; group < groups; group++)
             {
                 context = inputs.ReadArena(frame, contextAddress, expanded ? 0x90 : 0x64);
-                raw = Dword(context, cursorOffset);
-                int bone = Word(inputs.ReadArena(frame, raw, 2), 0);
-                uint matrix = inputs.ResolveBoneRecord(frame, model, bone);
-                frame = LoadMatrix(frame, inputs.ReadArena(frame, matrix, 32));
-                context = PutDword(context, cursorOffset, raw + 2);
+                raw = source.ReadCursor(context, cursorOffset);
+                int bone = Word(raw.Read(2), 0);
+                NativeBattleEffectArena matrix = inputs.ReadBoneMatrix is { } readBone ? NativeBattleEffect314Controller.PackedArena(readBone(frame, model, bone)) : inputs.ReadArena(frame, inputs.ResolveBoneRecord(frame, model, bone), 32);
+                frame = LoadMatrix(frame, matrix);
+                context = (raw + 2).Write(context, cursorOffset);
                 frame = Write(frame, inputs, contextAddress, context, expanded ? 0x90 : 0x64);
-                frame = ProjectGroup(frame, inputs, contextAddress, expanded);
+                frame = ProjectGroup(frame, inputs, contextAddress, expanded, geometry);
             }
             context = inputs.ReadArena(frame, contextAddress, expanded ? 0x90 : 0x64);
-            raw = unchecked(Dword(context, cursorOffset) + 3) & 0xFFFFFFFC;
-            NativeBattleEffectArena counts = inputs.ReadArena(frame, raw, 4);
+            raw = source.ReadCursor(context, cursorOffset).Align4();
+            NativeBattleEffectArena counts = raw.Read(4);
             context = PutWord(PutWord(context, 8, Word(counts, 0)), 10, Word(counts, 2));
-            context = PutDword(PutDword(context, 0, raw + 12), cursorOffset, raw + 12);
+            context = (raw + 12).Write((raw + 12).Write(context, 0), cursorOffset);
             frame = Write(frame, inputs, contextAddress, context, expanded ? 0x90 : 0x64);
-            frame = RasterFaces(frame, resources, inputs, contextAddress, ordering, shift, expanded);
+            frame = RasterFaces(frame, resources, inputs, contextAddress, ordering, shift, expanded, geometry);
         }
         return frame;
     }
@@ -91,14 +92,15 @@ public static partial class NativeBattleEffect316Body
     public static NativeBattleEffect316Frame ProjectGroup663760(NativeBattleEffect316Frame frame, NativeBattleEffect316Inputs inputs, uint context) => ProjectGroup(frame, inputs, context, false);
     public static NativeBattleEffect316Frame ProjectGroup662630(NativeBattleEffect316Frame frame, NativeBattleEffect316Inputs inputs, uint context) => ProjectGroup(frame, inputs, context, true);
 
-    private static NativeBattleEffect316Frame ProjectGroup(NativeBattleEffect316Frame frame, NativeBattleEffect316Inputs inputs, uint address, bool expanded)
+    private static NativeBattleEffect316Frame ProjectGroup(NativeBattleEffect316Frame frame, NativeBattleEffect316Inputs inputs, uint address, bool expanded, NativeBattleModelGeometrySource? geometry = null)
     {
         int length = expanded ? 0x90 : 0x64;
         int cursorOffset = expanded ? 0x74 : 0x54;
         NativeBattleEffectArena context = inputs.ReadArena(frame, address, length);
-        uint raw = Dword(context, cursorOffset);
+        NativeBattleModelGeometrySource source = geometry ?? NativeBattleModelGeometrySource.FromNumericArena(Dword(context, cursorOffset), (at, count) => inputs.ReadArena(frame, at, count));
+        NativeBattleModelGeometryCursor raw = geometry is null ? new(source) : new NativeBattleModelGeometryCursor(source).ReadCursor(context, cursorOffset);
         uint output = Dword(context, cursorOffset + 4);
-        int count = Word(inputs.ReadArena(frame, raw, 2), 0);
+        int count = Word(raw.Read(2), 0);
         if (count < 0)
         {
             throw new NotSupportedException("The current geometry requires a finite nonnegative vertex count.");
@@ -108,7 +110,7 @@ public static partial class NativeBattleEffect316Body
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         for (int index = 0; index < count; index++)
         {
-            NativeBattleVector point = Vector(inputs.ReadArena(frame, raw, 6));
+            NativeBattleVector point = Vector(raw.Read(6));
             registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, point, 0));
             uint destination = output + unchecked((uint)(index * stride + (expanded ? 8 : 0)));
             NativeBattleEffectArena xyz = NativeBattleEffectArena.Clear().MarkUnknown(0, 6);
@@ -159,7 +161,7 @@ public static partial class NativeBattleEffect316Body
             }
             frame = Write(Publish(frame, registers), inputs, rowAddress, row, stride);
         }
-        context = PutDword(PutDword(context, cursorOffset, raw), cursorOffset + 4, output + unchecked((uint)(count * stride)));
+        context = PutDword(raw.Write(context, cursorOffset), cursorOffset + 4, output + unchecked((uint)(count * stride)));
         return Write(Publish(frame, registers), inputs, address, context, length);
     }
 }

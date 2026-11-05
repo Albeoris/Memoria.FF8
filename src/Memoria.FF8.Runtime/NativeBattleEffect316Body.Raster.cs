@@ -18,11 +18,12 @@ public static partial class NativeBattleEffect316Body
     public static NativeBattleEffect316Frame Raster661720(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint context, int ordering, int shift) => RasterFaces(frame, resources, inputs, context, ordering, shift, false);
     public static NativeBattleEffect316Frame Raster661EB0(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint context, int ordering, int shift) => RasterFaces(frame, resources, inputs, context, ordering, shift, true);
 
-    private static NativeBattleEffect316Frame RasterFaces(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint contextAddress, int ordering, int shift, bool expanded)
+    private static NativeBattleEffect316Frame RasterFaces(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint contextAddress, int ordering, int shift, bool expanded, NativeBattleModelGeometrySource? geometry = null)
     {
         int length = expanded ? 0x90 : 0x64;
         NativeBattleEffectArena context = inputs.ReadArena(frame, contextAddress, length);
-        uint faces = Dword(context, 0);
+        NativeBattleModelGeometrySource source = geometry ?? NativeBattleModelGeometrySource.FromNumericArena(Dword(context, 0), (at, count) => inputs.ReadArena(frame, at, count));
+        NativeBattleModelGeometryCursor faces = geometry is null ? new(source) : new NativeBattleModelGeometryCursor(source).ReadCursor(context, 0);
         uint vertices = Dword(context, 4);
         int cursorOffset = expanded ? 0x88 : 0x5C;
         uint common = Dword(context, cursorOffset);
@@ -35,7 +36,7 @@ public static partial class NativeBattleEffect316Body
             int count = unchecked((ushort)Word(context, 8 + shape * 2));
             for (int index = 0; index < count; index++, faces += (uint)faceLength)
             {
-                NativeBattleEffectArena face = inputs.ReadArena(frame, faces, faceLength);
+                NativeBattleEffectArena face = faces.Read(faceLength);
                 NativeBattleEffectArena[] rows = new NativeBattleEffectArena[corners];
                 byte[] gray = new byte[corners];
                 short[] depths = new short[corners];
@@ -112,7 +113,7 @@ public static partial class NativeBattleEffect316Body
                         int vertex = unchecked((ushort)Word(face, corner * 2)) & 0xFFF;
                         return frame.PresentationWorld[vertices + unchecked((uint)(vertex * vertexStride))];
                     }
-                    NativeBattlePilotVisualIdentity identity = NativeBattleActor33Presentation.Resource(owner, faces, vertices)!.Value;
+                    NativeBattlePilotVisualIdentity identity = NativeBattleActor33Presentation.Resource(faces.NumericAddress.HasValue ? owner : owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ faces.Identity) }, faces.PresentationCursor, vertices)!.Value;
                     frame = frame with { PresentationFace = new(identity, World(0), World(1), World(2), corners == 4 ? World(3) : default, checked((byte)corners)) { DepthDivisor = 4 } };
                 }
                 bool uniform = UniformGray(gray, expanded);

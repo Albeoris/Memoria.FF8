@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleFaceRasterRandom<TState>(TState State, int Value);
 public sealed record NativeBattleEffect314FaceRasterServices<TState>(Func<TState, uint, int, NativeBattleEffectArena> ReadArena, Func<TState, uint, NativeBattleEffectArena, int, TState> WriteArena, Func<TState, NativeBattleEffectMemory> ReadMemory, Func<TState, NativeBattleEffectMemory, TState> WriteMemory, Func<TState, NativeBattleGfGeometryBatch, uint, TState> DrawBatch, Func<TState, NativeBattleFaceRasterRandom<TState>> NextRandom, Func<TState, uint, NativeBattleEffectArena, TState> Birth)
 {
+    public NativeBattleModelGeometrySource? GeometrySource { get; init; }
     public Func<NativeBattleGeometryPrimitive, uint, IReadOnlyList<uint>, NativeBattleGeometryPrimitive>? CapturePrimitive { get; init; }
 }
 
@@ -27,7 +28,8 @@ public static class NativeBattleEffect314FaceRaster661720
     {
         int length = expanded ? 0x90 : 0x64;
         NativeBattleEffectArena context = inputs.ReadArena(frame, contextAddress, length);
-        uint faces = Dword(context, 0);
+        NativeBattleModelGeometrySource source = inputs.GeometrySource ?? NativeBattleModelGeometrySource.FromNumericArena(Dword(context, 0), (at, count) => inputs.ReadArena(frame, at, count));
+        NativeBattleModelGeometryCursor faces = inputs.GeometrySource is null ? new(source) : new NativeBattleModelGeometryCursor(source).ReadCursor(context, 0);
         uint vertices = Dword(context, 4);
         int cursorOffset = expanded ? 0x88 : 0x5C;
         uint common = Dword(context, cursorOffset);
@@ -40,7 +42,7 @@ public static class NativeBattleEffect314FaceRaster661720
             int count = unchecked((ushort)Word(context, 8 + shape * 2));
             for (int index = 0; index < count; index++, faces += (uint)faceLength)
             {
-                NativeBattleEffectArena face = inputs.ReadArena(frame, faces, faceLength);
+                NativeBattleEffectArena face = faces.Read(faceLength);
                 NativeBattleEffectArena[] rows = new NativeBattleEffectArena[corners];
                 byte[] gray = new byte[corners];
                 short[] depths = new short[corners];
@@ -118,7 +120,7 @@ public static class NativeBattleEffect314FaceRaster661720
                         return primitive;
                     }
                     uint[] addresses = Enumerable.Range(0, corners).Select(corner => vertices + unchecked((uint)((unchecked((ushort)Word(face, corner * 2)) & 0xFFF) * vertexStride))).ToArray();
-                    return inputs.CapturePrimitive(primitive, faces, addresses);
+                    return inputs.CapturePrimitive(primitive, faces.PresentationCursor, addresses);
                 }
                 frame = Write(frame, inputs, contextAddress, context, length);
                 if (!expanded && grayOr == 0 || uniform)

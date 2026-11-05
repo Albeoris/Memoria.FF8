@@ -112,7 +112,7 @@ public sealed class NativeBattleEffect314ControllerTests
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect314State.FromUnknown().ReadDword(RandomGlobal));
     }
 
-    private static NativeBattleEffect314Frame Frame()
+    internal static NativeBattleEffect314Frame Frame()
     {
         NativeBattleOriginalEffectState effect = new(314, 313, new(314, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);

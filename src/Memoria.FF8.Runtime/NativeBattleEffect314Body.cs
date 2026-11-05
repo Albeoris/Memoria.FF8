@@ -23,7 +23,7 @@ public static class NativeBattleEffect314Body
         context = PutDword(PutDword(context, 0x34, ReadDword(frame, inputs, model + 0x28)), 0x38, ReadDword(frame, inputs, model + 0x7C));
         context = PutDword(PutDword(context, 0x7C, ReadDword(frame, inputs, 0x1D8E054)), 0x80, frame.State.ReadDword(NativeBattleEffect314Profile.CursorGlobal));
         frame = Write(frame, inputs, temporary, context, 0x84);
-        frame = Walk663670(frame, inputs, model, inputs.ReadGeometryAddress(frame, model), temporary + 0x20, 17, 0);
+        frame = Walk663670(frame, inputs, model, inputs.ReadGeometrySource?.Invoke(frame, model) ?? NativeBattleModelGeometrySource.FromNumericArena(inputs.ReadGeometryAddress(frame, model), (at, count) => inputs.ReadArena(frame, at, count)), temporary + 0x20, 17, 0);
         context = inputs.ReadArena(frame, temporary, 0x84);
         frame = inputs.Execute(frame, new NativeBattleEffect314PublishCursors(Dword(context, 0x7C), Dword(context, 0x80)));
         frame = inputs.Execute(frame, new NativeBattleEffect314Restore508C90(model));
@@ -32,42 +32,48 @@ public static class NativeBattleEffect314Body
 
     public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, uint source, uint contextAddress, int ordering, int shift)
     {
+        return Walk663670(frame, inputs, model, NativeBattleModelGeometrySource.FromNumericArena(source, (at, count) => inputs.ReadArena(frame, at, count)), contextAddress, ordering, shift);
+    }
+
+    public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift)
+    {
         Dictionary<uint, System.Numerics.Vector3>? worlds = frame.PilotIdentity is null ? null : new();
-        int objects = unchecked((int)ReadDword(frame, inputs, source));
+        NativeBattleModelGeometryCursor source = new(geometry);
+        int objects = unchecked((int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(source.Read(4).Read(0, 4)));
         for (int index = 0; index < objects; index++)
         {
-            uint entry = ReadDword(frame, inputs, source + 4 + unchecked((uint)(index * 4)));
+            int entry = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian((source + 4 + index * 4).Read(4).Read(0, 4));
             NativeBattleEffectArena context = inputs.ReadArena(frame, contextAddress, 0x64);
-            context = PutDword(context, 0x54, unchecked(source + entry));
+            context = (source + entry).Write(context, 0x54);
             frame = Write(frame, inputs, contextAddress, context, 0x64);
             if ((Dword(context, 0x18) & (1u << (index & 31))) == 0)
             {
                 continue;
             }
             context = PutDword(context, 0x58, Dword(context, 4));
-            uint raw = Dword(context, 0x54);
-            int groups = Word(inputs.ReadArena(frame, raw, 2), 0);
-            context = PutDword(context, 0x54, raw + 2);
+            NativeBattleModelGeometryCursor raw = source.ReadCursor(context, 0x54);
+            int groups = Word(raw.Read(2), 0);
+            context = (raw + 2).Write(context, 0x54);
             frame = Write(frame, inputs, contextAddress, context, 0x64);
             for (int group = 0; group < groups; group++)
             {
                 context = inputs.ReadArena(frame, contextAddress, 0x64);
-                raw = Dword(context, 0x54);
-                int bone = Word(inputs.ReadArena(frame, raw, 2), 0);
-                uint matrix = inputs.ResolveBoneRecord(frame, model, bone);
-                frame = LoadMatrix(frame, inputs.ReadArena(frame, matrix, 32));
-                context = PutDword(context, 0x54, raw + 2);
+                raw = source.ReadCursor(context, 0x54);
+                int bone = Word(raw.Read(2), 0);
+                NativeBattleEffectArena matrix = inputs.ReadBoneMatrix is { } readBone ? NativeBattleEffect314Controller.PackedArena(readBone(frame, model, bone)) : inputs.ReadArena(frame, inputs.ResolveBoneRecord(frame, model, bone), 32);
+                frame = LoadMatrix(frame, matrix);
+                context = (raw + 2).Write(context, 0x54);
                 frame = Write(frame, inputs, contextAddress, context, 0x64);
-                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection) { CaptureVertex = worlds is null ? null : (address, world) => worlds[address] = world };
+                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection) { GeometrySource = geometry, CaptureVertex = worlds is null ? null : (address, world) => worlds[address] = world };
                 frame = NativeBattleEffect314Projection663760.ProjectGroup(frame, projection, contextAddress, false);
             }
             context = inputs.ReadArena(frame, contextAddress, 0x64);
-            raw = unchecked(Dword(context, 0x54) + 3) & 0xFFFFFFFC;
-            NativeBattleEffectArena counts = inputs.ReadArena(frame, raw, 4);
+            raw = source.ReadCursor(context, 0x54).Align4();
+            NativeBattleEffectArena counts = raw.Read(4);
             context = PutWord(PutWord(context, 8, Word(counts, 0)), 10, Word(counts, 2));
-            context = PutDword(PutDword(context, 0, raw + 12), 0x54, raw + 12);
+            context = (raw + 12).Write((raw + 12).Write(context, 0), 0x54);
             frame = Write(frame, inputs, contextAddress, context, 0x64);
-            NativeBattleEffect314FaceRasterServices<NativeBattleEffect314Frame> raster = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, (current, batch, cursor) => inputs.Execute(current, new NativeBattleEffect314DrawBatch(batch, cursor)), _ => throw new NotSupportedException("The selected unexpanded body cannot draw a fragment random value."), (_, _, _) => throw new NotSupportedException("The selected unexpanded body cannot emit expanded fragments.")) { CapturePrimitive = worlds is null ? null : (primitive, face, addresses) => NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = inputs.PresentationResourceGeneration is null ? owner.ResourceGeneration : inputs.PresentationResourceGeneration(model) ?? throw new InvalidOperationException("Presentation requires the resource already resolved for the current body.") } : null, source, unchecked((int)face)), addresses.Select(address => worlds[address]).ToArray()) };
+            NativeBattleEffect314FaceRasterServices<NativeBattleEffect314Frame> raster = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, (current, batch, cursor) => inputs.Execute(current, new NativeBattleEffect314DrawBatch(batch, cursor)), _ => throw new NotSupportedException("The selected unexpanded body cannot draw a fragment random value."), (_, _, _) => throw new NotSupportedException("The selected unexpanded body cannot emit expanded fragments.")) { GeometrySource = geometry, CapturePrimitive = worlds is null ? null : (primitive, face, addresses) => NativeBattleEffect32Presentation.Capture(primitive, NativeBattleEffect32Presentation.Resource(frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = inputs.PresentationResourceGeneration is null ? owner.ResourceGeneration : inputs.PresentationResourceGeneration(model) ?? throw new InvalidOperationException("Presentation requires the resource already resolved for the current body.") } : null, geometry.PresentationIdentity, unchecked((int)face)), addresses.Select(address => worlds[address]).ToArray()) };
             frame = NativeBattleEffect314FaceRaster661720.RasterFaces(frame, raster, contextAddress, ordering, shift, false, NativeBattleEffect314Profile.CursorGlobal);
         }
         return frame;

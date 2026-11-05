@@ -51,7 +51,11 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            uint first = checked(skeleton.PhysicalAddress + 32);
+            if (skeleton.TryPhysicalAddress() is not uint skeletonAddress)
+            {
+                continue;
+            }
+            uint first = checked(skeletonAddress + 32);
             long relative = (long)address - first;
             if (relative < 0 || relative >= bones.Matrices.Length * 48)
             {
@@ -63,7 +67,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect314 matrix read crosses its native bone record.");
             }
-            NativeBattleEffectArena record = ReadNativeEffect314Physical(frame, skeleton.PhysicalAddress + 32 + (uint)bone * 48, 48);
+            NativeBattleEffectArena record = ReadNativeEffect314Physical(frame, skeletonAddress + 32 + (uint)bone * 48, 48);
             NativeBattleActionMatrix matrix = bones.Matrices[bone];
             for (int lane = 0; lane < 9; lane++)
             {
@@ -79,11 +83,13 @@ public sealed partial class BattleSession
     {
         for (int bank = 0; bank < 3; bank++)
         {
-            uint first = 0x196B018u + (uint)bank * 0x10000;
-            if (address >= first && (ulong)address + (uint)length <= (ulong)first + 0x10000)
+            NativeBattlePartyCpuLayout layout = (NativeModelCpuResources ?? throw new NotSupportedException("The effect requires its current CPU allocation.")).Cpu.EffectiveLayout;
+            uint first = checked(layout.BaseAddress + (uint)(bank * layout.BankLength));
+            if (address >= first && (ulong)address + (uint)length <= (ulong)first + (uint)layout.BankLength)
             {
                 NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its physical CPU bank.");
-                return NativeBattleEffectArena.Clear().Write(0, cpu.Cpu.Banks[bank].Read(checked((int)(address - first)), length));
+                (byte[] data, bool[] known) = NativeBattleModelResourceView.Open(cpu, frame.Staging!, new NativeBattleModelCpuReference((byte)bank, checked((int)(address - first))) { Layout = layout }, length).ReadSnapshot(0, length);
+                return NativeBattleEffectArena.Clear().WriteWithKnownness(0, data, known);
             }
         }
         return NativeBattleEffect314Controller.ReadBytes(frame, address, length);
@@ -93,8 +99,9 @@ public sealed partial class BattleSession
     {
         for (int bank = 0; bank < 3; bank++)
         {
-            uint first = 0x196B018u + (uint)bank * 0x10000;
-            if (address >= first && (ulong)address + (uint)length <= (ulong)first + 0x10000)
+            NativeBattlePartyCpuLayout layout = (NativeModelCpuResources ?? throw new NotSupportedException("The effect requires its current CPU allocation.")).Cpu.EffectiveLayout;
+            uint first = checked(layout.BaseAddress + (uint)(bank * layout.BankLength));
+            if (address >= first && (ulong)address + (uint)length <= (ulong)first + (uint)layout.BankLength)
             {
                 NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its physical CPU bank.");
                 NativeBattleModelCpuBank updated = cpu.Cpu.Banks[bank].Write(checked((int)(address - first)), data.Read(0, length));

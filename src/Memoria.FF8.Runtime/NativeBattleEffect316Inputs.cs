@@ -15,7 +15,11 @@ public sealed record NativeBattleEffect316Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleEffect316Step(NativeBattleEffect316Frame Frame, int Result);
 public sealed record NativeBattleEffect316AddressStep(NativeBattleEffect316Frame Frame, uint Address);
-public sealed record NativeBattleEffect316Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect316Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect316Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect316Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect316Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect316Frame, short> ReadCameraRoll, Func<NativeBattleEffect316Frame, uint, int, NativeBattleEffectArena> ReadArena, Func<NativeBattleEffect316Frame, uint, uint> ReadGeometryAddress, Func<NativeBattleEffect316Frame, uint, int, uint> ResolveBoneRecord, Func<NativeBattleEffect316Frame, int, NativeBattleEffect316AddressStep> AllocateTemporary, Func<NativeBattleEffect316Frame, int, NativeBattleEffect316Frame> ReleaseTemporary, Func<NativeBattleEffect316Frame, NativeBattleEffect316Operation, NativeBattleEffect316Frame> Execute);
+public sealed record NativeBattleEffect316Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect316Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect316Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect316Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect316Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect316Frame, short> ReadCameraRoll, Func<NativeBattleEffect316Frame, uint, int, NativeBattleEffectArena> ReadArena, Func<NativeBattleEffect316Frame, uint, uint> ReadGeometryAddress, Func<NativeBattleEffect316Frame, uint, int, uint> ResolveBoneRecord, Func<NativeBattleEffect316Frame, int, NativeBattleEffect316AddressStep> AllocateTemporary, Func<NativeBattleEffect316Frame, int, NativeBattleEffect316Frame> ReleaseTemporary, Func<NativeBattleEffect316Frame, NativeBattleEffect316Operation, NativeBattleEffect316Frame> Execute)
+{
+    public Func<NativeBattleEffect316Frame, uint, NativeBattleModelGeometrySource>? ReadGeometrySource { get; init; }
+    public Func<NativeBattleEffect316Frame, uint, int, NativeBattlePackedMatrix32>? ReadBoneMatrix { get; init; }
+}
 
 public abstract record NativeBattleEffect316Operation;
 public sealed record NativeBattleEffect316UploadTim505E30(uint SourceAddress) : NativeBattleEffect316Operation;

@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect314Morph
             transformed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), transformed);
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(transformed, null);
             bones.Add(packed);
-            frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(inputs.ResolveBoneRecord(frame, modelAddress, bone), NativeBattleEffect314Controller.PackedArena(packed), 32));
+            frame = inputs.WriteBoneMatrix is { } writeBone ? writeBone(frame, modelAddress, bone, packed) : inputs.Execute(frame, new NativeBattleEffect314WriteArena(inputs.ResolveBoneRecord(frame, modelAddress, bone), NativeBattleEffect314Controller.PackedArena(packed), 32));
         }
         int scratchLength = source.VertexScratchLength ?? throw new NotSupportedException("Effect314 morph requires its loaded projection capacity.");
         uint scratchAddress = source.VertexScratchAddress ?? throw new NotSupportedException("Effect314 morph requires its physical projection workspace.");
@@ -33,7 +33,7 @@ public static partial class NativeBattleEffect314Morph
         temporary = temporary.Write(0xC, new byte[4]).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216));
         temporary = temporary.Write(0x14, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Effect314 morph requires its current model color.")));
         temporary = temporary.Write(0x1C, BitConverter.GetBytes((model.SequenceState ?? throw new NotSupportedException("Effect314 morph requires its current mesh mask.")).MeshMask124));
-        NativeBattleEffect314MorphBodyStep drawn = DrawBodyWithPresentation(frame.Memory, temporary, inputs.ReadArena(frame, scratchAddress, scratchLength), source.ReadGeometry, source.GeometryAddress, bones.MoveToImmutable(), offsets, inputs.ReadProjection(frame), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 morph requires current projection controls."), scratchAddress, scratchLength, 17, 0, NativeBattleEffect32Presentation.Resource(frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = source.PresentationResourceGeneration ?? owner.ResourceGeneration } : null, source.GeometryAddress, 0x663850));
+        NativeBattleEffect314MorphBodyStep drawn = DrawBodyWithPresentation(frame.Memory, temporary, inputs.ReadArena(frame, scratchAddress, scratchLength), source.GeometrySource, bones.MoveToImmutable(), offsets, inputs.ReadProjection(frame), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 morph requires current projection controls."), scratchAddress, scratchLength, 17, 0, NativeBattleEffect32Presentation.Resource(frame.PilotIdentity is { } owner ? owner with { ResourceGeneration = source.PresentationResourceGeneration ?? owner.ResourceGeneration } : null, source.GeometrySource.PresentationIdentity, 0x663850));
         frame = frame with { Memory = drawn.Memory };
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, drawn.Temporary156, 156));
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(scratchAddress, drawn.VertexScratch, scratchLength));

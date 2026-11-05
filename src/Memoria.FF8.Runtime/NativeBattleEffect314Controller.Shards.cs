@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect314Controller
             matrix = matrix with { X = unchecked(matrix.X + I16(offsets, bone * 16)), Y = unchecked(matrix.Y + I16(offsets, bone * 16 + 2)), Z = unchecked(matrix.Z + I16(offsets, bone * 16 + 4)) };
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(matrix, null);
             bones.Add(packed);
-            frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(inputs.ResolveBoneRecord(frame, model, bone), PackedArena(packed), 32));
+            frame = inputs.WriteBoneMatrix is { } writeBone ? writeBone(frame, model, bone, packed) : inputs.Execute(frame, new NativeBattleEffect314WriteArena(inputs.ResolveBoneRecord(frame, model, bone), PackedArena(packed), 32));
         }
         NativeBattleEffect314AddressStep allocation = inputs.AllocateTemporary(frame, 88);
         frame = allocation.Frame;
@@ -33,7 +33,7 @@ public static partial class NativeBattleEffect314Controller
         context = context.Write(0x1C, BitConverter.GetBytes(main)).Write(0x20, BitConverter.GetBytes(offsetAddress)).Write(0x54, BitConverter.GetBytes(rotationBank)).Write(4, BitConverter.GetBytes(scratchAddress));
         context = context.Write(0xC, BitConverter.GetBytes(owner.Color40 ?? throw new NotSupportedException("Effect314 shards require their current model color."))).Write(0x10, BitConverter.GetBytes((owner.SequenceState ?? throw new NotSupportedException("Effect314 shards require their current mesh mask.")).MeshMask124));
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
-        uint geometry = source.GeometryAddress;
+        NativeBattleModelGeometryCursor geometry = new(source.GeometrySource);
         int objects = unchecked((int)Dword(geometry));
         for (int objectIndex = 0; objectIndex < objects; objectIndex++)
         {
@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect314Controller
             {
                 continue;
             }
-            uint cursor = unchecked(geometry + Dword(geometry + 4 + (uint)(objectIndex * 4)));
+            NativeBattleModelGeometryCursor cursor = geometry + unchecked((int)Dword(geometry + 4 + objectIndex * 4));
             int groups = Word(cursor);
             cursor += 2;
             int vertexCount = 0;
@@ -70,7 +70,7 @@ public static partial class NativeBattleEffect314Controller
                     ushort flags = 0;
                     if (state < 2)
                     {
-                        NativeBattleEffectArena input = source.ReadGeometry(cursor, 6);
+                        NativeBattleEffectArena input = cursor.Read(6);
                         NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(Registers(frame), 0, new(I16(input, 0), I16(input, 2), I16(input, 4)), 0));
                         scratch = StoreIr(scratch, destination, registers);
                         frame = Publish(frame, registers);
@@ -86,11 +86,11 @@ public static partial class NativeBattleEffect314Controller
                 }
             }
             frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(scratchAddress, scratch, scratchLength));
-            cursor = (cursor + 3) & ~3u;
+            cursor = cursor.Align4();
             int triangles = unchecked((ushort)Word(cursor));
             int quads = unchecked((ushort)Word(cursor + 2));
             cursor += 12;
-            context = context.Write(8, BitConverter.GetBytes((ushort)triangles)).Write(10, BitConverter.GetBytes((ushort)quads)).Write(0, BitConverter.GetBytes(cursor));
+            context = cursor.Write(context.Write(8, BitConverter.GetBytes((ushort)triangles)).Write(10, BitConverter.GetBytes((ushort)quads)), 0);
             frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
             bool capacity = true;
             for (int kind = 0; kind < 2; kind++)
@@ -101,7 +101,7 @@ public static partial class NativeBattleEffect314Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
                 for (int faceIndex = 0; faceIndex < faces; faceIndex++)
                 {
-                    NativeBattleEffectArena face = source.ReadGeometry(cursor, kind == 0 ? 16 : 20);
+                    NativeBattleEffectArena face = cursor.Read(kind == 0 ? 16 : 20);
                     var vertices = ImmutableArray.CreateBuilder<NativeBattleEffectArena>(corners);
                     for (int corner = 0; corner < corners; corner++)
                     {
@@ -116,7 +116,7 @@ public static partial class NativeBattleEffect314Controller
                     }
                     if (capacity)
                     {
-                        (frame, capacity) = CreateFragment6646A0(frame, inputs, main, cursor, face, vertices.MoveToImmutable(), rotationBank, velocityMask, texturePageAddition, clutAddition);
+                        (frame, capacity) = CreateFragment6646A0(frame, inputs, main, face, vertices.MoveToImmutable(), rotationBank, velocityMask, texturePageAddition, clutAddition, (current, value) => inputs.WriteGeometry is { } write ? write(current, model, checked(cursor.Offset + 15), [value]) : inputs.Execute(current, new NativeBattleEffect314WriteArena(checked((cursor.NumericAddress ?? throw new NotSupportedException("Logical shard markers require their selected resource writer.")) + 15), NativeBattleEffectArena.Clear().Write(0, [value]), 1)));
                     }
                     if (!capacity)
                     {
@@ -135,7 +135,7 @@ public static partial class NativeBattleEffect314Controller
         }
         return inputs.ReleaseTemporary(frame, 88);
 
-        uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(source.ReadGeometry(address, 4).Read(0, 4));
-        short Word(uint address) => BinaryPrimitives.ReadInt16LittleEndian(source.ReadGeometry(address, 2).Read(0, 2));
+        uint Dword(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadUInt32LittleEndian(address.Read(4).Read(0, 4));
+        short Word(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(address.Read(2).Read(0, 2));
     }
 }

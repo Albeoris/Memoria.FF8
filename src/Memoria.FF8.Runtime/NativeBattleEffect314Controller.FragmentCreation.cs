@@ -34,6 +34,11 @@ public static partial class NativeBattleEffect314Controller
 
     public static (NativeBattleEffect314Frame Frame, bool CapacityAvailable) CreateFragment6646A0(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint main, uint faceAddress, NativeBattleEffectArena face, ImmutableArray<NativeBattleEffectArena> vertices, uint rotationBank, short velocityMask, ushort texturePageAddition, ushort clutAddition)
     {
+        return CreateFragment6646A0(frame, inputs, main, face, vertices, rotationBank, velocityMask, texturePageAddition, clutAddition, (current, value) => inputs.Execute(current, new NativeBattleEffect314WriteArena(checked(faceAddress + 15), NativeBattleEffectArena.Clear().Write(0, [value]), 1)));
+    }
+
+    public static (NativeBattleEffect314Frame Frame, bool CapacityAvailable) CreateFragment6646A0(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint main, NativeBattleEffectArena face, ImmutableArray<NativeBattleEffectArena> vertices, uint rotationBank, short velocityMask, ushort texturePageAddition, ushort clutAddition, Func<NativeBattleEffect314Frame, byte, NativeBattleEffect314Frame> writeMarker)
+    {
         int count = vertices.Length;
         if (count is not (3 or 4))
         {
@@ -100,7 +105,7 @@ public static partial class NativeBattleEffect314Controller
             NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + FragmentOffset, checked((int)((address - main - FragmentOffset) / FragmentStride)));
         }
         face = face.Write(15, [(byte)(face.Read(15, 1)[0] | 0x80)]);
-        frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(faceAddress + 15, NativeBattleEffectArena.Clear().Write(0, face.Read(15, 1)), 1));
+        frame = writeMarker(frame, face.Read(15, 1)[0]);
         if (Draw() < 0x2000)
         {
             (frame, uint spark) = AllocateSpark6643D0(frame, main);

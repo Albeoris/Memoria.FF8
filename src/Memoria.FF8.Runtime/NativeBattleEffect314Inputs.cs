@@ -15,6 +15,10 @@ public sealed record NativeBattleEffect314Step(NativeBattleEffect314Frame Frame,
 public sealed record NativeBattleEffect314AddressStep(NativeBattleEffect314Frame Frame, uint Address);
 public sealed record NativeBattleEffect314Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect314Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect314Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect314Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect314Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect314Frame, short> ReadCameraRoll, Func<NativeBattleEffect314Frame, uint, int, NativeBattleEffectArena> ReadArena, Func<NativeBattleEffect314Frame, uint, uint> ReadGeometryAddress, Func<NativeBattleEffect314Frame, uint, int, uint> ResolveBoneRecord, Func<NativeBattleEffect314Frame, int, NativeBattleEffect314AddressStep> AllocateTemporary, Func<NativeBattleEffect314Frame, int, NativeBattleEffect314Frame> ReleaseTemporary, Func<NativeBattleEffect314Frame, NativeBattleEffect314Operation, NativeBattleEffect314Frame> Execute)
 {
+    public Func<NativeBattleEffect314Frame, uint, NativeBattleModelGeometrySource>? ReadGeometrySource { get; init; }
+    public Func<NativeBattleEffect314Frame, uint, int, NativeBattlePackedMatrix32>? ReadBoneMatrix { get; init; }
+    public Func<NativeBattleEffect314Frame, uint, int, NativeBattlePackedMatrix32, NativeBattleEffect314Frame>? WriteBoneMatrix { get; init; }
+    public Func<NativeBattleEffect314Frame, uint, int, byte[], NativeBattleEffect314Frame>? WriteGeometry { get; init; }
     public Func<uint, long?>? PresentationResourceGeneration { get; init; }
     public Func<NativeBattleEffect314Frame, uint, int> ReadBoneCount { get; init; } = (_, _) => throw new NotSupportedException("Effect314 requires its current bone count.");
     public Func<NativeBattleEffect314Frame, int, NativeBattleEffect314IoStep> PollIo { get; init; } = (_, _) => throw new NotSupportedException("Effect314 requires its actual file queue.");

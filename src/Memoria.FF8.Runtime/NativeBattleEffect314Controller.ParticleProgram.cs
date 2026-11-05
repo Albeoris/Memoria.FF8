@@ -44,8 +44,7 @@ public static partial class NativeBattleEffect314Controller
                     frame = WriteBytes(frame, boneRow, row, 16);
                     uint model = task.ReadDword(0xC);
                     int bone = unchecked((int)(boneRow - task.ReadDword(0x10))) >> 4;
-                    uint matrix = inputs.ResolveBoneRecord(frame, model, bone);
-                    NativeBattleEffectArena translation = inputs.ReadArena(frame, matrix + 20, 12);
+                    NativeBattleEffectArena translation = inputs.ReadBoneMatrix is { } readBone ? NativeBattleEffectNodeContextMemory.Copy(PackedArena(readBone(frame, model, bone)), 20, NativeBattleEffectArena.Clear(), 0, 12) : inputs.ReadArena(frame, checked(inputs.ResolveBoneRecord(frame, model, bone) + 20), 12);
                     NativeBattleActionMatrix world = inputs.ReadModel(frame, model).GeometryWorldMatrix ?? throw new NotSupportedException("Effect314 particle requires its current caster world matrix.");
                     (int _, int y, int _) = NativeBattleGfMatrices.RotateLong56C600(world, I32(translation, 0), I32(translation, 4), I32(translation, 8));
                     if (unchecked(y + I16(row, 2)) > Signed(task, 0x2C))

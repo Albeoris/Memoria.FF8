@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect314ProjectionServices<TFrame>(Func<TFrame, uint, int, NativeBattleEffectArena> ReadArena, Func<TFrame, uint, NativeBattleEffectArena, int, TFrame> WriteArena, Func<TFrame, NativeBattleEffectMemory> ReadMemory, Func<TFrame, NativeBattleEffectMemory, TFrame> WriteMemory, Func<TFrame, NativeBattlePackedMatrix32> ReadView, Func<TFrame, NativeBattleCameraProjection> ReadProjection)
 {
+    public NativeBattleModelGeometrySource? GeometrySource { get; init; }
     public Action<uint, System.Numerics.Vector3>? CaptureVertex { get; init; }
 }
 
@@ -30,9 +31,10 @@ public static class NativeBattleEffect314Projection663760
         int length = expanded ? 0x90 : 0x64;
         int cursorOffset = expanded ? 0x74 : 0x54;
         NativeBattleEffectArena context = services.ReadArena(frame, address, length);
-        uint raw = Dword(context, cursorOffset);
+        NativeBattleModelGeometrySource source = services.GeometrySource ?? NativeBattleModelGeometrySource.FromNumericArena(Dword(context, cursorOffset), (at, count) => services.ReadArena(frame, at, count));
+        NativeBattleModelGeometryCursor raw = services.GeometrySource is null ? new(source) : new NativeBattleModelGeometryCursor(source).ReadCursor(context, cursorOffset);
         uint output = Dword(context, cursorOffset + 4);
-        int count = Word(services.ReadArena(frame, raw, 2), 0);
+        int count = Word(raw.Read(2), 0);
         if (count < 0)
         {
             throw new NotSupportedException("The current geometry requires a finite nonnegative vertex count.");
@@ -42,7 +44,7 @@ public static class NativeBattleEffect314Projection663760
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         for (int index = 0; index < count; index++)
         {
-            NativeBattleVector point = Vector(services.ReadArena(frame, raw, 6));
+            NativeBattleVector point = Vector(raw.Read(6));
             registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, point, 0));
             uint destination = output + unchecked((uint)(index * stride + (expanded ? 8 : 0)));
             NativeBattleEffectArena xyz = NativeBattleEffectArena.Clear().MarkUnknown(0, 6);
@@ -89,7 +91,7 @@ public static class NativeBattleEffect314Projection663760
             }
             frame = services.WriteArena(Publish(frame, registers), rowAddress, row, stride);
         }
-        context = PutDword(PutDword(context, cursorOffset, raw), cursorOffset + 4, output + unchecked((uint)(count * stride)));
+        context = PutDword(raw.Write(context, cursorOffset), cursorOffset + 4, output + unchecked((uint)(count * stride)));
         return services.WriteArena(Publish(frame, registers), address, context, length);
     }
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
