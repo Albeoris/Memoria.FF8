@@ -69,7 +69,11 @@ public static class NativeBattleEffect31Stack
             throw new InvalidDataException("Effect31 target stack requires its selected complete bone matrix owner.");
         }
         uint argument;
-        if (boneMatrix.Cpu is { Bank: < 3, ResourceOnly: true } reference)
+        if (boneMatrix.Cpu is { EnemyResourceId: not null } enemy)
+        {
+            argument = enemy.NativePlacementAddress;
+        }
+        else if (boneMatrix.Cpu is { Bank: < 3, ResourceOnly: true } reference)
         {
             NativeBattlePartyCpuLayout layout = reference.EffectiveLayout;
             layout.Validate();

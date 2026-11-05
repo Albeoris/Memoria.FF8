@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its current CPU owner.");
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
-        if (mutable && pointer.Cpu is { Bank: < 3 })
+        if (mutable && pointer.Cpu is { IsOwnedResource: true })
         {
             return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, pointer, (offset, length) => NativeBattleModelResourceView.Open(NativeModelCpuResources!, frame.Staging!, pointer, checked(offset + length)).Read(offset, length));
         }
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Effect314 geometry write leaves its selected section.");
         }
-        if (pointer.Cpu is { Bank: < 3 })
+        if (pointer.Cpu is { IsOwnedResource: true })
         {
             NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(NativeModelCpuResources!, frame.Staging!, pointer, offset, bytes);
             return frame;

@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         int owner = shared >= 0 ? shared : cpu.LastModel142Row ?? throw new NotSupportedException("Native507F80 has no actually retained model142 row.");
         NativeBattleModelTextureBinding binding = cache.Rows[owner].Binding ?? throw new NotSupportedException("Native507F80 model142 material binding remains unknown.");
         NativeBattleModelFileSelection file = task.File ?? throw new InvalidDataException("Native507F80 has no completed source file.");
-        NativeBattleModelDatSource dat = new(task.ModelId, false, 0, file.FileId, file.Name, staging.ReadDat(NativeBattleFileStaging.Address));
+        NativeBattleModelDatSource dat = task.ResourceSource ?? new(task.ModelId, false, 0, file.FileId, file.Name, staging.ReadDat(NativeBattleFileStaging.Address));
         (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, dat, destination, owner, true);
         NativeModelCpuResources = cpu;
         NativeFileStaging = staging;
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native507120 material allocation changed while its singleton task was executing.");
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
-        NativeBattleModelDatSource source = new(task.ModelId, false, task.Selector, task.File!.FileId, task.File.Name, NativeFileStaging!.ReadDat(NativeBattleFileStaging.Address));
+        NativeBattleModelDatSource source = task.ResourceSource ?? new(task.ModelId, false, task.Selector, task.File!.FileId, task.File.Name, NativeFileStaging!.ReadDat(NativeBattleFileStaging.Address));
         byte slot = 255;
         if (source.Section(9) != source.Section(10))
         {

@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             }
             if (pointer.Cpu is { } source)
             {
-                return NativeBattleModelEnemyHeap.Read(cpu, current.Staging ?? throw new NotSupportedException("Effect210 echo requires its current CPU memory."), source with { Offset = checked(source.Offset + offset) }, length);
+                return NativeBattleModelEnemyHeap.Read(cpu, current.Staging ?? throw new NotSupportedException("Effect210 echo requires its current CPU memory."), source.Advance(offset), length);
             }
             uint physical = checked(pointer.StagingAddress!.Value + (uint)offset);
             if (NativeBattleEffectTaskMemory.TryRead(current.Effect.Pools, physical, length, out byte[] bytes))

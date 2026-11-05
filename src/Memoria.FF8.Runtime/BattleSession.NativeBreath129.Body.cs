@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, staging, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         int alignment = pointer.Cpu is { } cpu ? cpu.Offset & 3 : (int)((pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its actual geometry owner.")) & 3);
-        long identity = pointer.Cpu is { ResourceOnly: true } logical ? unchecked(NativeBattlePilotVisualLifetimes.EpochFor((NativeModelCpuResources ?? throw new NotSupportedException("Breath body access requires its current resource owner.")).Cpu.Banks[logical.Bank]) << 32) : unchecked((long)(pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its source identity.")) << 32);
+        long identity = pointer.Cpu is { } logical && (logical.ResourceOnly || logical.EnemyResourceId is not null) ? unchecked(NativeBattlePilotVisualLifetimes.EpochFor(pointer.CpuPublication ?? (NativeModelCpuResources ?? throw new NotSupportedException("Breath body access requires its current resource owner.")).GetResourceBank(logical)) << 32) : unchecked((long)(pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its source identity.")) << 32);
         NativeBattleBreath129BodySource source = new(row100, ReadGeometry, bones) { GeometryAlignment = (byte)alignment, GeometryIdentity = identity };
         return (frame, graphics, source);
 

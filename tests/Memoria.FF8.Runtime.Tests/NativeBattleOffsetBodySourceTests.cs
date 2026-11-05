@@ -30,6 +30,10 @@ public sealed class NativeBattleOffsetBodySourceTests
     [InlineData(308, 2, true)]
     [InlineData(308, 3, true)]
     [InlineData(308, 4, true)]
+    [InlineData(290, 5, false)]
+    [InlineData(290, 6, true)]
+    [InlineData(308, 5, true)]
+    [InlineData(308, 6, false)]
     public void Production_selection_retains_actual_current_row_or_staged_pinned_publication(int family, int domain, bool staged)
     {
         byte[] bytes = Enumerable.Range(0, 16).Select(value => (byte)value).ToArray();
@@ -39,7 +43,9 @@ public sealed class NativeBattleOffsetBodySourceTests
         if (!staged)
         {
             NativeBattleModelCpuResourceRow row = cpu.Rows[0].Set(16, pointer.Cpu) with { Lengths = ImmutableDictionary<int, int>.Empty.Add(16, bytes.Length) };
-            cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, pointer.CpuPublication!) }, Rows = cpu.Rows.SetItem(0, row) };
+            cpu = pointer.Cpu!.EnemyResourceId is int enemyId
+                ? cpu with { EnemyResources = cpu.EnemyResources!.SetItem(enemyId, pointer.CpuPublication!), Rows = cpu.Rows.SetItem(0, row) }
+                : cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, pointer.CpuPublication!) }, Rows = cpu.Rows.SetItem(0, row) };
         }
         BattleDefinition definition = new()
         {

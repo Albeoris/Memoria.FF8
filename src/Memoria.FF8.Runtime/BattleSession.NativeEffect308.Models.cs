@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer pointer = NativeEffect308SkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48 + 18);
         byte[] bytes = BitConverter.GetBytes(value);
-        if (pointer.Cpu is { Bank: < 3 })
+        if (pointer.Cpu is { IsOwnedResource: true })
         {
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect308 lost its current CPU resources.");
             NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(cpu, frame.Staging ?? throw new NotSupportedException("Effect308 requires its current source scope."), pointer, offset, bytes);

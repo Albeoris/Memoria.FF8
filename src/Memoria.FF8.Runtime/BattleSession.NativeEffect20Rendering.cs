@@ -169,7 +169,7 @@ public sealed partial class BattleSession
                 }
                 if (pointer.Cpu is { } selected)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, NativeFileStaging!, selected with { Offset = checked(selected.Offset + offset) }, length);
+                    return NativeBattleModelEnemyHeap.Read(cpu, NativeFileStaging!, selected.Advance(offset), length);
                 }
                 uint shared = pointer.StagingAddress ?? throw new NotSupportedException("Effect20 body requires its selected shared model source.");
                 uint selectedAddress = checked(shared + (uint)offset);

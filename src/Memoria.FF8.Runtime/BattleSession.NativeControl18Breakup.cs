@@ -448,8 +448,8 @@ public sealed partial class BattleSession
             uint address = pointer.StagingAddress ?? throw new NotSupportedException("Native breakup polygon requires its selected source owner.");
             uint basis = source.NumericCursor(0) ?? throw new NotSupportedException("Logical breakup polygons require their retained source receipts.");
             NativeBattleModelCpuReference selected = geometry.Cpu!;
-            int offset = checked(selected.Offset + (int)((long)address - basis));
-            return NativeBattleModelEnemyHeap.Read(cpu, staging, selected with { Offset = offset }, length).ToImmutableArray();
+            int offset = checked((int)((long)address - basis));
+            return NativeBattleModelEnemyHeap.Read(cpu, staging, selected.Advance(offset), length).ToImmutableArray();
         }
         uint ResolveHookOwner(NativeBattleWaterExecutionFrame current, short selector)
         {

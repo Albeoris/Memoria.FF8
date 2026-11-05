@@ -11,7 +11,7 @@ internal static class NativeBattleControl18ResourceRecords
     internal static ImmutableDictionary<int, NativeBattleResourcePointer> Require(ImmutableDictionary<int, NativeBattleResourcePointer>? pointers, int length)
     {
         ImmutableDictionary<int, NativeBattleResourcePointer> selected = pointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty;
-        if (selected.Any(entry => entry.Key < 0 || entry.Key % 68 != 0 || entry.Key > length - 68 || entry.Value is null || !entry.Value.HasValidOwner() || entry.Value.CpuRow is not null || entry.Value.Cpu is { Bank: < 3 } && entry.Value.CpuPublication is null))
+        if (selected.Any(entry => entry.Key < 0 || entry.Key % 68 != 0 || entry.Key > length - 68 || entry.Value is null || !entry.Value.HasValidOwner() || entry.Value.CpuRow is not null || entry.Value.Cpu is { IsOwnedResource: true } && entry.Value.CpuPublication is null))
         {
             throw new InvalidDataException("Native breakup polygon receipts require their exact live record slots and source owners.");
         }

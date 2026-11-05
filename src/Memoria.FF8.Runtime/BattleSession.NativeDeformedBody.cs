@@ -153,7 +153,7 @@ public sealed partial class BattleSession
         }
         if (pointer.Cpu is { } reference)
         {
-            return NativeBattleModelEnemyHeap.Read(NativeModelCpuResources ?? throw new NotSupportedException("Acid target requires its current CPU resource owner."), current.Staging, reference with { Offset = checked(reference.Offset + offset) }, length);
+            return NativeBattleModelEnemyHeap.Read(NativeModelCpuResources ?? throw new NotSupportedException("Acid target requires its current CPU resource owner."), current.Staging, reference.Advance(offset), length);
         }
         uint address = checked((pointer.StagingAddress ?? throw new NotSupportedException("Acid target requires its addressed geometry source.")) + (uint)offset);
         if (NativeBattleEffectTaskMemory.TryRead(current.Effect.Pools, address, length, out byte[] bytes))

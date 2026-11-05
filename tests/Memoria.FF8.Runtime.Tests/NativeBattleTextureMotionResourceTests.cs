@@ -43,6 +43,31 @@ public sealed class NativeBattleTextureMotionResourceTests
         void Set(string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Enemy_motion_counter_updates_owned_source_and_preserves_guest_shadow_and_pin_after_JSON(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        byte[] bytes = Table(5);
+        NativeBattleModelCpuReference target = new(3, 1024) { Layout = layout, EnemyResourceId = 7, ResourceOffset = 4 };
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout), EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, NativeBattleModelCpuBank.Unknown(16).BindResource(4, bytes.ToImmutableArray(), 0, bytes.Length)) };
+        cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(48, target) with { Lengths = ImmutableDictionary<int, int>.Empty.Add(48, bytes.Length) }) };
+        NativeBattleResourcePointer pin = new NativeBattleResourcePointer(target, null, bytes.Length).Pin(cpu);
+        BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
+        cache = cache with { Rows = cache.Rows.SetItem(0, cache.Rows[0] with { Kind = 3 }) };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(session, cache);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, NativeBattleFileStaging.Unknown().Write(target.NativePlacementAddress, bytes));
+        NativeBattleGraphicsModel model = new(0, 16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
+        typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
+        Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, new(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
+        Assert.Equal(5, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, pin, bytes.Length).Read(9, 1)[0]);
+        Assert.Equal(bytes, session.NativeFileStaging!.Read(target.NativePlacementAddress, bytes.Length));
+    }
+
     private static byte[] Table(byte counter)
     {
         byte[] bytes = new byte[12];

@@ -19,6 +19,10 @@ public sealed class NativeBattlePrivateMorphResourceTests
     [InlineData(316, 2, false, true)]
     [InlineData(316, 3, true, true)]
     [InlineData(316, 4, true, true)]
+    [InlineData(314, 5, false, false)]
+    [InlineData(314, 6, true, true)]
+    [InlineData(316, 5, true, false)]
+    [InlineData(316, 6, false, true)]
     public void Private_body_walk_keeps_packets_and_context_receipts_for_pinned_or_oversized_sources(int family, int domain, bool quad, bool expanded)
     {
         byte[] bytes = NativeBattleEffect301BodyTests.Geometry(quad);
@@ -59,15 +63,19 @@ public sealed class NativeBattlePrivateMorphResourceTests
     }
 
     [Theory]
-    [InlineData(314, false, false)]
-    [InlineData(314, false, true)]
-    [InlineData(314, true, false)]
-    [InlineData(314, true, true)]
-    [InlineData(316, false, false)]
-    [InlineData(316, false, true)]
-    [InlineData(316, true, false)]
-    [InlineData(316, true, true)]
-    public void Production_pose_reader_and_marker_writer_keep_instance_authority_source_knownness_and_selected_COW_domain(int family, bool remastered, bool logical)
+    [InlineData(314, false, false, false)]
+    [InlineData(314, false, true, false)]
+    [InlineData(314, true, false, false)]
+    [InlineData(314, true, true, false)]
+    [InlineData(316, false, false, false)]
+    [InlineData(316, false, true, false)]
+    [InlineData(316, true, false, false)]
+    [InlineData(316, true, true, false)]
+    [InlineData(314, false, false, true)]
+    [InlineData(314, true, false, true)]
+    [InlineData(316, false, false, true)]
+    [InlineData(316, true, false, true)]
+    public void Production_pose_reader_and_marker_writer_keep_instance_authority_source_knownness_and_selected_COW_domain(int family, bool remastered, bool logical, bool owned)
     {
         NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
         byte[] skeleton = new byte[64];
@@ -81,6 +89,13 @@ public sealed class NativeBattlePrivateMorphResourceTests
         NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(origin, skeleton.ToImmutableArray(), 0, 50).BindPartyResource(origin + 52, skeleton.ToImmutableArray(), 52, 12).BindPartyResource(geometryOrigin, geometry.ToImmutableArray(), 0, geometry.Length);
         NativeBattleModelCpuReference rig = new(0, origin) { Layout = layout, ResourceOnly = logical };
         NativeBattleModelCpuReference mesh = new(0, geometryOrigin) { Layout = layout, ResourceOnly = logical };
+        if (owned)
+        {
+            bank = NativeBattleModelCpuBank.Unknown(512).BindResource(origin, skeleton.ToImmutableArray(), 0, 50).BindResource(origin + 52, skeleton.ToImmutableArray(), 52, 12).BindResource(geometryOrigin, geometry.ToImmutableArray(), 0, geometry.Length);
+            rig = new(3, 1024 + origin) { Layout = layout, EnemyResourceId = 7, ResourceOffset = origin };
+            mesh = new(3, 1024 + geometryOrigin) { Layout = layout, EnemyResourceId = 7, ResourceOffset = geometryOrigin };
+            cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank) };
+        }
         NativeBattleModelCpuResourceRow row = cpu.Rows[0].Set(12, rig).Set(16, mesh) with { Lengths = ImmutableDictionary<int, int>.Empty.Add(12, 64).Add(16, geometry.Length) };
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) }, Rows = cpu.Rows.SetItem(0, row) };
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
@@ -104,10 +119,12 @@ public sealed class NativeBattlePrivateMorphResourceTests
         Assert.Equal((byte)17, unrelated.Read(0, 1)[0]);
         NativeBattleModelGeometrySource selected = (NativeBattleModelGeometrySource)Invoke($"ReadNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, true);
         NativeBattleEffect64GeometryCleanup.Clear(selected, (offset, value) => frame = Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, offset, BitConverter.GetBytes(value)), NativeBattleEffectArena.Clear());
-        Assert.NotSame(bank, session.NativeModelCpuResources!.Cpu.Banks[0]);
+        Assert.NotSame(bank, session.NativeModelCpuResources!.GetResourceBank(mesh));
         Assert.Equal((byte)0, (byte)(selected.Read(59, 1)[0] & 0x80));
         Assert.Equal((byte)0x80, (byte)(NativeBattleModelResourceView.Open(cpu, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
         Assert.Throws<TargetInvocationException>(() => Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, 0x1D972C0u, geometry.Length, new byte[1]));
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
+        Assert.Equal((byte)0, (byte)(NativeBattleModelResourceView.Open(restored, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
         if (family == 314)
         {
             string before = NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!);

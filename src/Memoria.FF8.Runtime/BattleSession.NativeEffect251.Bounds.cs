@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleResourcePointer pointer = NativeEffect251BoundsSkeletonPointer(graphics, frame, actor);
                 int offset = checked(32 + bone * 48 + 18);
-                if (pointer.Cpu is { Bank: < 3 } reference)
+                if (pointer.Cpu is { IsOwnedResource: true } reference)
                 {
                     NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect251 bounds lost their physical rig owner.");
                     NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(cpu, frame.Staging!, pointer, offset, new byte[2]);

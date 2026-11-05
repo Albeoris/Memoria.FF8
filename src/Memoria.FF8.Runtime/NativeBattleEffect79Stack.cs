@@ -27,7 +27,11 @@ public static class NativeBattleEffect79Stack
         }
         int offset = checked(32 + (boneCount - 1) * 48);
         uint lastRotation;
-        if (skeleton.Cpu is { Bank: < 3, ResourceOnly: true } reference)
+        if (skeleton.Cpu is { EnemyResourceId: not null } enemy)
+        {
+            lastRotation = checked(enemy.NativePlacementAddress + (uint)offset);
+        }
+        else if (skeleton.Cpu is { Bank: < 3, ResourceOnly: true } reference)
         {
             NativeBattlePartyCpuLayout layout = reference.EffectiveLayout;
             layout.Validate();

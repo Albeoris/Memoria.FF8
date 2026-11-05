@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                 }
                 if (pointer.Cpu is { } cpuPointer)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, staging, cpuPointer with { Offset = checked(cpuPointer.Offset + offset) }, length);
+                    return NativeBattleModelEnemyHeap.Read(cpu, staging, cpuPointer.Advance(offset), length);
                 }
                 uint address = checked((pointer.StagingAddress ?? throw new NotSupportedException("Native effect body geometry requires its actual source pointer.")) + (uint)offset);
                 if (graphics.OriginalEffect is { } effect && NativeBattleEffectTaskMemory.TryRead(effect.Pools, address, length, out byte[] bytes))

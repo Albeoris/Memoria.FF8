@@ -60,7 +60,14 @@ public sealed partial class BattleSession
             if (row.Kind == 3)
             {
                 NativeBattleModelCpuReference target = NativeModelCpuResources!.Rows[index].Require(48);
-                NativeFileStaging = NativeFileStaging!.Write(target.SharedAddress, step.Source.AsSpan());
+                if (target.IsOwnedResource)
+                {
+                    NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(NativeModelCpuResources!, NativeFileStaging!, new(target, null, source.Length), 0, step.Source.AsSpan());
+                }
+                else
+                {
+                    NativeFileStaging = NativeFileStaging!.Write(target.SharedAddress, step.Source.AsSpan());
+                }
             }
             else
             {

@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                 }
                 if (pointer.Cpu is { } selected)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, current, selected with { Offset = checked(selected.Offset + offset) }, length);
+                    return NativeBattleModelEnemyHeap.Read(cpu, current, selected.Advance(offset), length);
                 }
                 uint sourceAddress = checked((pointer.StagingAddress ?? throw new NotSupportedException("Native Zombie overlay requires its actual geometry pointer.")) + (uint)offset);
                 if (NativeBattleEffectTaskMemory.TryRead(effect.Pools, sourceAddress, length, out byte[] bytes))

@@ -7,15 +7,19 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect251ResourcePaddingTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void Bounds_padding_observes_knownness_and_root_restore_writes_only_the_selected_domain(bool remastered, bool logical, bool unknown)
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, true)]
+    public void Bounds_padding_observes_knownness_and_root_restore_writes_only_the_selected_domain(bool remastered, bool logical, bool unknown, bool owned)
     {
         NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
         byte[] guest = Skeleton(0x1111);
@@ -27,6 +31,13 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
         bank = unknown && logical ? bank.BindPartyResource(far, resource.ToImmutableArray(), 0, 50).BindPartyResource(far + 52, resource.ToImmutableArray(), 52, 12) : bank.BindPartyResource(far, resource.ToImmutableArray(), 0, resource.Length);
         NativeBattleModelCpuReference selected = new(0, logical ? far : 4) { Layout = layout, ResourceOnly = logical };
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) }, Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, selected)) };
+        if (owned)
+        {
+            bank = NativeBattleModelCpuBank.Unknown(68);
+            bank = unknown ? bank.BindResource(4, guest.ToImmutableArray(), 0, 50).BindResource(56, guest.ToImmutableArray(), 52, 12) : bank.BindResource(4, guest.ToImmutableArray(), 0, guest.Length);
+            selected = new(3, 1024) { Layout = layout, EnemyResourceId = 7, ResourceOffset = 4 };
+            cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank), Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, selected)) };
+        }
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
         NativeBattlePoseSource source = new((logical ? resource : guest).ToImmutableArray(), [1]);
@@ -42,7 +53,7 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
         NativeBattleResourcePointer opposite = new(new(0, logical ? 4 : far) { Layout = layout, ResourceOnly = !logical }, null, 64);
         byte[] unchanged = NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, frame.Staging!, opposite, 64).Read(50, 2);
         Assert.Equal(BitConverter.GetBytes((ushort)(logical ? 0x1111 : 0x2222)), unchanged);
-        Assert.NotSame(bank, session.NativeModelCpuResources!.Cpu.Banks[0]);
+        Assert.NotSame(bank, session.NativeModelCpuResources!.GetResourceBank(selected));
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources));
         Assert.Equal(new byte[2], NativeBattleModelResourceView.Open(restored, frame.Staging!, new NativeBattleResourcePointer(selected, null, 64), 64).Read(50, 2));
     }

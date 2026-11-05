@@ -75,7 +75,7 @@ public sealed partial class BattleSession
                 }
                 if (pointer.Cpu is { } cpuPointer)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, staging, cpuPointer with { Offset = checked(cpuPointer.Offset + offset) }, length);
+                    return NativeBattleModelEnemyHeap.Read(cpu, staging, cpuPointer.Advance(offset), length);
                 }
                 uint address = checked((pointer.StagingAddress ?? throw new NotSupportedException("Primary body history requires its addressed geometry.")) + (uint)offset);
                 if (NativeBattleEffectTaskMemory.TryRead(effect.Pools, address, length, out byte[] bytes))

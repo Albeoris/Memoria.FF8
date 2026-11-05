@@ -98,7 +98,7 @@ public sealed partial class BattleSession
         frame = frame with { Staging = allocation.Staging };
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging!, NativeBattleEffectArena.Clear(), allocation.Address);
         NativeBattleResourcePointer source = NativeDeformedGeometryPointer(bridge, false);
-        NativeBattleModelResourceEditor? editor = source.Cpu is { Bank: < 3 } ? new(NativeModelCpuResources ?? throw new NotSupportedException("Effect64 cleanup lost its CPU owner."), frame.Staging!, source) : null;
+        NativeBattleModelResourceEditor? editor = source.Cpu is { IsOwnedResource: true } ? new(NativeModelCpuResources ?? throw new NotSupportedException("Effect64 cleanup lost its CPU owner."), frame.Staging!, source) : null;
         NativeBattleModelGeometrySource geometrySource = editor?.Geometry ?? NativeBattleModelGeometrySource.OpenShared(source, (offset, length) => ReadNativeDeformedGeometry(bridge with { Memory = frame.Memory, Staging = frame.Staging! }, source, offset, length));
         NativeBattleEffectArena temporary = NativeBattleEffect64GeometryCleanup.Clear(geometrySource, WriteWord, NativeDeformedBodyView(frame.Staging!, allocation.Address, 8));
         if (editor is not null)

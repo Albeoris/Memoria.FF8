@@ -108,7 +108,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Effect31 selected bone matrix leaves its skeleton section.");
         }
-        return pointer with { Cpu = pointer.Cpu is { } reference ? reference with { Offset = checked(reference.Offset + offset) } : null, StagingAddress = pointer.StagingAddress is uint address ? checked(address + (uint)offset) : null, Length = 32 };
+        return pointer with { Cpu = pointer.Cpu is { } reference ? reference.Advance(offset) : null, StagingAddress = pointer.StagingAddress is uint address ? checked(address + (uint)offset) : null, Length = 32 };
     }
 
     private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect31BodyBones(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, NativeBattlePoseSource source)

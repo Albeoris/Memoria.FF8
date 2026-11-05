@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             }
             if (pointer.Cpu is { } reference)
             {
-                return NativeBattleModelEnemyHeap.Read(cpu, staging, reference with { Offset = checked(reference.Offset + offset) }, length);
+                return NativeBattleModelEnemyHeap.Read(cpu, staging, reference.Advance(offset), length);
             }
             uint address = checked((pointer.StagingAddress ?? throw new NotSupportedException("Lightning requires its addressed geometry source.")) + (uint)offset);
             if (NativeBattleEffectTaskMemory.TryRead(effect.Pools, address, length, out byte[] bytes))

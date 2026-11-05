@@ -302,7 +302,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native actor glow resource read leaves its current section owner.");
             }
-            if (pointer.Cpu is { Bank: < 3 } reference)
+            if (pointer.Cpu is { IsOwnedResource: true } reference)
             {
                 return NativeBattleModelResourceView.Open(cpu, staging, pointer, checked(offset + length)).ReadSnapshot(offset, length);
             }
@@ -322,7 +322,7 @@ public sealed partial class BattleSession
 
         void WriteResource(NativeBattleResourcePointer pointer, int offset, byte[] bytes)
         {
-            if (pointer.Cpu is { Bank: < 3 } reference)
+            if (pointer.Cpu is { IsOwnedResource: true } reference)
             {
                 cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, pointer, offset, bytes);
             }

@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 }
                 if (pointer.Cpu is { } cpuPointer)
                 {
-                    return NativeBattleModelEnemyHeap.Read(cpu, frame.Staging, cpuPointer with { Offset = checked(cpuPointer.Offset + offset) }, length);
+                    return NativeBattleModelEnemyHeap.Read(cpu, frame.Staging, cpuPointer.Advance(offset), length);
                 }
                 uint physical = checked(pointer.StagingAddress!.Value + (uint)offset);
                 if (NativeBattleEffectTaskMemory.TryRead(frame.Effect.Pools, physical, length, out byte[] bytes))
