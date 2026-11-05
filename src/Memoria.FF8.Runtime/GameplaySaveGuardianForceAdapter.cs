@@ -31,10 +31,14 @@ internal static class GameplaySaveGuardianForceAdapter
             if (!normalized.GuardianForceRecoveryProgression.IsDefaultOrEmpty && normalized.GuardianForceRecoveryProgression[id] is { } historical)
             {
                 ValidateHistory(historical, normalized.MenuDefinitions.AbilityPoints.Length);
+                if (historical.Abilities.Any(entry => entry.ItemTaught && !progression.Abilities.Any(current => current.Ability == entry.Ability && current.ItemTaught)))
+                {
+                    throw new NotSupportedException("Gameplay GF projection cannot yet preserve unresolved item-taught recovery provenance without reactivating it; preserve the execution snapshot.");
+                }
                 HashSet<int> represented = progression.Abilities.Select(entry => entry.Ability).ToHashSet();
                 progression = progression with
                 {
-                    Abilities = progression.Abilities.AddRange(historical.Abilities.Where(entry => !represented.Contains(entry.Ability)).Select(entry => entry with { Active = false, ItemTaught = false })).OrderBy(entry => entry.Ability).ToImmutableArray()
+                    Abilities = progression.Abilities.AddRange(historical.Abilities.Where(entry => !represented.Contains(entry.Ability)).Select(entry => entry with { Active = false })).OrderBy(entry => entry.Ability).ToImmutableArray()
                 };
             }
             NativeGuardianForceVital gf = normalized.GuardianForces[id] with { HitPoints = source.GuardianForces[id].HitPoints, Progression = progression };

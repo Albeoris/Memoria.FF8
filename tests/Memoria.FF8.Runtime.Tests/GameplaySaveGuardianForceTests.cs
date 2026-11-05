@@ -135,6 +135,38 @@ public sealed class GameplaySaveGuardianForceTests
         Assert.False(restored.GuardianForceOpaqueBaseline);
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(104)]
+    public void UnresolvedItemTaughtRecoveryRefusesWithoutLosingOrReactivatingProvenance(int ability)
+    {
+        NativeCharacterVitals source = Progressed();
+        ImmutableArray<GuardianForceProgression?> history = Enumerable.Repeat<GuardianForceProgression?>(null, 16).ToImmutableArray().SetItem(0, new(true, [new(ability, true, 12, ItemTaught: true)]));
+        source = source with { GuardianForceOpaqueBaseline = true, GuardianForceRecoveryProfile = source.GuardianForceProfile, GuardianForceRecoveryProgression = history };
+        string original = JsonSerializer.Serialize(source);
+
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => GameplaySaveCharacters.Capture(source));
+
+        Assert.Contains("item-taught recovery provenance", error.Message, StringComparison.Ordinal);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.True(source.GuardianForceRecoveryProgression[0]!.Abilities.Single().ItemTaught);
+        Assert.False(source.GuardianForces[0].HasLearnedAbility(ability));
+    }
+
+    [Fact]
+    public void AlreadyRepresentedItemTaughtRecoveryKeepsTheCurrentFact()
+    {
+        NativeCharacterVitals source = Progressed();
+        ImmutableArray<GuardianForceProgression?> history = Enumerable.Repeat<GuardianForceProgression?>(null, 16).ToImmutableArray().SetItem(0, new(true, [new(103, true, 12, ItemTaught: true)]));
+        source = source with { GuardianForceOpaqueBaseline = true, GuardianForceRecoveryProfile = source.GuardianForceProfile, GuardianForceRecoveryProgression = history };
+
+        NativeCharacterVitals restored = GameplaySaveCharacters.Capture(source).Restore(Profile(Base(), Templates()));
+
+        Assert.True(Entry(restored, 103).ItemTaught);
+        Assert.True(restored.GuardianForces[0].HasLearnedAbility(103));
+        Assert.Equal(Entry(source, 103).EarnedPoints, Entry(restored, 103).EarnedPoints);
+    }
+
     [Fact]
     public void UnresolvedRecoveryAndSaveLocalIntentRefuseWithoutChangingSources()
     {
