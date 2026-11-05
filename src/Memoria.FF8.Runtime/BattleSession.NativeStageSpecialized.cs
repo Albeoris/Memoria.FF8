@@ -62,7 +62,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveReference reference = new(packet.Bank, 0, packet.Offset);
             links.InvalidatePacketRange(reference, packet.Bytes.Length);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            links.Prepend(1, reference, words, packet.Flags, [0, 0, 0, 0]);
+            links.Prepend(1, reference, words, packet.Flags, [0, 0, 0, 0], screenCoverage: packet.ScreenCoverage);
             if (linked)
             {
                 state = NativeBattleStageSpecializedPackets.Write(state, overlay.Callback, packet.Offset, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray());

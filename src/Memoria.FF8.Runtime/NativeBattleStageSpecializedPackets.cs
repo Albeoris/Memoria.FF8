@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleStageSpecializedPacket(string Bank, int Offset, ushort Flags, ImmutableArray<byte> Bytes);
+public sealed record NativeBattleStageSpecializedPacket(string Bank, int Offset, ushort Flags, ImmutableArray<byte> Bytes)
+{
+    public NativeBattleScreenCoverage? ScreenCoverage { get; init; }
+}
 public sealed record NativeBattleStageSpecializedPacketStep(NativeBattleStageSpecializedState State, ImmutableArray<NativeBattleStageSpecializedPacket> Packets);
 
 public static class NativeBattleStageSpecializedPackets
@@ -31,7 +34,9 @@ public static class NativeBattleStageSpecializedPackets
         BinaryPrimitives.WriteUInt32LittleEndian(bank.AsSpan(offset + 20), 0xE1000620);
         state = Store(state, callback, bank.ToImmutableArray());
         string identity = callback == 0x518440 ? "1D9BDC8" : callback == 0x518290 ? "1D9BB90" : "1D9B958";
-        return new(state, [new(identity, offset, 1, bank.AsSpan(offset, 16).ToArray().ToImmutableArray()), new(identity, offset + 16, 0, bank.AsSpan(offset + 16, 8).ToArray().ToImmutableArray())]);
+        // These two callbacks tint the screen; 518290 retains a separately owned rectangle.
+        NativeBattleScreenCoverage? coverage = callback is 0x518440 or 0x5180C0 ? NativeBattleScreenCoverage.Full : null;
+        return new(state, [new(identity, offset, 1, bank.AsSpan(offset, 16).ToArray().ToImmutableArray()) { ScreenCoverage = coverage }, new(identity, offset + 16, 0, bank.AsSpan(offset + 16, 8).ToArray().ToImmutableArray())]);
     }
 
     public static NativeBattleStageSpecializedState Write(NativeBattleStageSpecializedState state, uint callback, int offset, ImmutableArray<byte> bytes)
