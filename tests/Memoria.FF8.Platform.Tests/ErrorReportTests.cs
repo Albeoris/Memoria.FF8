@@ -169,6 +169,20 @@ public sealed class ErrorReportTests : IDisposable
     }
 
     [Fact]
+    public void LegacyAndDamagedArchivesDoNotHideRecoverableIncidents()
+    {
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("pending evidence"), "test");
+        incident.Persist(root);
+        Directory.CreateDirectory(root);
+        using (ZipArchive legacy = ZipFile.Open(Path.Combine(root, "legacy.zip"), ZipArchiveMode.Create))
+        {
+            legacy.CreateEntry("report.md");
+        }
+        File.WriteAllText(Path.Combine(root, "damaged.zip"), "not a zip");
+        Assert.Equal(incident.Id, ErrorIncident.DiscoverLatest(root)?.Id);
+    }
+
+    [Fact]
     public async Task RetentionPreservesAnotherActiveLease()
     {
         ErrorIncident original = ErrorIncident.Capture(new Exception("protected"), "test");

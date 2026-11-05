@@ -250,7 +250,7 @@ public sealed class ErrorIncident
                 ReportSave? save = saveBytes is null ? null : new(saveBytes, saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!);
                 return new(id, capturedLaunch, data.GetProperty("Timestamp").GetDateTimeOffset(), data.GetProperty("Subsystem").GetString()!, data.GetProperty("Exception").Deserialize<ErrorException>()!, data.GetProperty("Runtime").Clone(), data.GetProperty("Environment").Clone(), save, data.GetProperty("SaveUnavailableReason").GetString()!, data.GetProperty("Events").Deserialize<ErrorBreadcrumb[]>()!, data.GetProperty("CollectionErrors").Deserialize<string[]>()!, data.GetProperty("LogPaths").Deserialize<string[]>()!);
             }
-            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
+            catch (Exception failure) when (failure is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
             {
                 // Incomplete or damaged evidence must not hide another complete incident.
             }
