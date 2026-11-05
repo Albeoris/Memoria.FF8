@@ -137,7 +137,8 @@ internal static class SnapshotDefaults
         }
         if (!saved.TryGetPropertyValue(name, out JsonNode? current))
         {
-            saved.Add(name, value?.DeepClone());
+            // An absent enemy map selects the historical Guest domain; cold-process ownership is not a missing default.
+            saved.Add(name, name == nameof(NativeBattleModelCpuResources.EnemyResources) ? null : value?.DeepClone());
         }
         else if (name != "MagicSystem" && current is JsonObject savedObject && value is JsonObject defaultObject)
         {
