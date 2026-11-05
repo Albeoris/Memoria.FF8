@@ -64,18 +64,24 @@ public static class NativeBattleEffect308Fragments
 
     public static NativeBattleEffect308Frame Collect667F40(NativeBattleEffect308Frame frame, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint scratchAddress, int scratchLength, uint contextAddress, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
+        return Collect667F40(frame, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, scratchAddress, scratchLength, contextAddress, resources, inputs);
+    }
+
+    public static NativeBattleEffect308Frame Collect667F40(NativeBattleEffect308Frame frame, NativeBattleModelGeometrySource geometry, ImmutableArray<NativeBattlePackedMatrix32> bones, uint scratchAddress, int scratchLength, uint contextAddress, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    {
         NativeBattleEffectArena context = Context(frame, contextAddress, 140);
-        int objects = I32(0);
+        NativeBattleModelGeometryCursor source = new(geometry);
+        int objects = I32(source);
         for (int obj = 0; obj < objects; obj++)
         {
             if ((Dword308(context, 0x10) & (1u << (obj & 31))) == 0)
             {
                 continue;
             }
-            int objectStart = I32(4 + obj * 4);
+            NativeBattleModelGeometryCursor objectStart = source + I32(source + 4 + obj * 4);
             while (true)
             {
-                int cursor = objectStart;
+                NativeBattleModelGeometryCursor cursor = objectStart;
                 int groups = I16(cursor);
                 cursor += 2;
                 if (groups <= 0)
@@ -134,11 +140,11 @@ public static class NativeBattleEffect308Fragments
                 {
                     break;
                 }
-                cursor = checked((cursor + 3) & ~3);
+                cursor = cursor.Align4();
                 int triangles = U16(cursor);
                 int quads = U16(cursor + 2);
                 cursor += 12;
-                context = Put(context, 0, checked(geometryAddress + (uint)cursor));
+                context = cursor.Write(context, 0);
                 context = Word(Word(context, 8, triangles), 10, quads);
                 for (int kind = 0; kind < 2; kind++)
                 {
@@ -147,7 +153,7 @@ public static class NativeBattleEffect308Fragments
                     context = Word(context, countOffset, count - 1);
                     for (int face = 0; face < count; face++)
                     {
-                        byte[] polygon = readGeometry(cursor, kind == 0 ? 16 : 20);
+                        byte[] polygon = cursor.Read(kind == 0 ? 16 : 20).Read(0, kind == 0 ? 16 : 20);
                         byte flags = 0;
                         for (int corner = 0; corner < (kind == 0 ? 3 : 4); corner++)
                         {
@@ -201,17 +207,17 @@ public static class NativeBattleEffect308Fragments
         }
         return PublishContext(frame, contextAddress, context, 140);
 
-        short I16(int offset)
+        short I16(NativeBattleModelGeometryCursor offset)
         {
-            return BinaryPrimitives.ReadInt16LittleEndian(readGeometry(offset, 2));
+            return BinaryPrimitives.ReadInt16LittleEndian(offset.Read(2).Read(0, 2));
         }
-        ushort U16(int offset)
+        ushort U16(NativeBattleModelGeometryCursor offset)
         {
-            return BinaryPrimitives.ReadUInt16LittleEndian(readGeometry(offset, 2));
+            return BinaryPrimitives.ReadUInt16LittleEndian(offset.Read(2).Read(0, 2));
         }
-        int I32(int offset)
+        int I32(NativeBattleModelGeometryCursor offset)
         {
-            return BinaryPrimitives.ReadInt32LittleEndian(readGeometry(offset, 4));
+            return BinaryPrimitives.ReadInt32LittleEndian(offset.Read(4).Read(0, 4));
         }
     }
 

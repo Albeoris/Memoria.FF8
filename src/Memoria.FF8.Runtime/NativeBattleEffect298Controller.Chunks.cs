@@ -48,17 +48,18 @@ public static partial class NativeBattleEffect298Controller
         uint scratchAddress = body.VertexScratchAddress ?? throw new NotSupportedException("Effect298 fragment selection requires its actual current CPU vertex scratch address.");
         int scratchLength = body.VertexScratchLength ?? throw new NotSupportedException("Effect298 fragment selection requires its actual current CPU vertex scratch capacity.");
         NativeBattleEffectArena scratch = Context(frame, scratchAddress, scratchLength);
-        NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(Context(frame, temporary, 180), 32, NativeBattleEffectArena.Clear(), 0, 148);
+        NativeBattleEffectArena context = NativeBattleOffsetBodyContextMemory.Copy(Context(frame, temporary, 180), 32, NativeBattleEffectArena.Clear(), 0, 148);
         uint main = frame.State.ReadDword(0x2507900) + 0x1794;
         context = context.Write(4, BitConverter.GetBytes(scratchAddress)).Write(0xC, BitConverter.GetBytes(actor.Color40 ?? throw new NotSupportedException("Effect298 fragments require their actual model color DWORD."))).Write(0x10, BitConverter.GetBytes((actor.SequenceState ?? throw new NotSupportedException("Effect298 fragments require the current mesh mask.")).MeshMask124)).Write(0x14, BitConverter.GetBytes((int)parameters[0])).Write(0x18, new byte[4]).Write(0x1C, BitConverter.GetBytes((int)parameters[1])).Write(0x20, BitConverter.GetBytes((int)parameters[2])).Write(0x24, BitConverter.GetBytes((int)parameters[3])).Write(0x30, BitConverter.GetBytes(main));
-        int objects = ReadInt(body.GeometryAddress);
+        NativeBattleModelGeometryCursor geometry = new(body.GeometrySource);
+        int objects = ReadInt(geometry);
         for (int index = 0; index < objects; index++)
         {
             if ((Dword298(context, 0x10) & (1u << (index & 31))) == 0)
             {
                 continue;
             }
-            uint cursor = checked(body.GeometryAddress + (uint)ReadInt(body.GeometryAddress + 4 + (uint)(index * 4)));
+            NativeBattleModelGeometryCursor cursor = geometry + ReadInt(geometry + 4 + index * 4);
             while (true)
             {
                 int groups = ReadWord(cursor);
@@ -90,7 +91,7 @@ public static partial class NativeBattleEffect298Controller
                         if (active)
                         {
                             NativeBattleGeometryRegisterStep registers = Registers298(frame);
-                            NativeBattleEffectArena xyz = body.ReadGeometry(cursor, 6);
+                            NativeBattleEffectArena xyz = cursor.Read(6);
                             registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, Vector298(xyz), 0));
                             for (int axis = 0; axis < 3; axis++)
                             {
@@ -111,17 +112,17 @@ public static partial class NativeBattleEffect298Controller
                 {
                     break;
                 }
-                cursor = (cursor + 3) & ~3u;
+                cursor = cursor.Align4();
                 int triangles = ReadWord(cursor);
                 int quads = ReadWord(cursor + 2);
                 cursor += 12;
-                uint polygonStart = cursor;
+                NativeBattleModelGeometryCursor polygonStart = cursor;
                 for (int kind = 0; kind < 2; kind++)
                 {
                     int count = kind == 0 ? triangles : quads;
                     for (int face = 0; face < count; face++)
                     {
-                        byte[] polygon = body.ReadGeometry(cursor, kind == 0 ? 16 : 20).Read(0, kind == 0 ? 16 : 20);
+                        byte[] polygon = cursor.Read(kind == 0 ? 16 : 20).Read(0, kind == 0 ? 16 : 20);
                         cursor += kind == 0 ? 16u : 20u;
                         NativeBattleEffectArena[] points = new NativeBattleEffectArena[kind == 0 ? 3 : 4];
                         bool admitted = true;
@@ -179,7 +180,7 @@ public static partial class NativeBattleEffect298Controller
         }
     Completed:
         frame = PublishContext(frame, scratchAddress, scratch, scratchLength);
-        NativeBattleEffectArena whole = NativeBattleEffectNodeContextMemory.Copy(context, 0, Context(frame, temporary, 180), 32, 148);
+        NativeBattleEffectArena whole = NativeBattleOffsetBodyContextMemory.Copy(context, 0, Context(frame, temporary, 180), 32, 148);
         frame = PublishContext(frame, temporary, whole, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect298RestorePose508C90(model));
         if (Int298(context, 0x18) > 0)
@@ -190,8 +191,8 @@ public static partial class NativeBattleEffect298Controller
         }
         return (Release(frame, 180), script + 8);
 
-        int ReadInt(uint address) => BinaryPrimitives.ReadInt32LittleEndian(body.ReadGeometry(address, 4).Read(0, 4));
-        short ReadWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(body.ReadGeometry(address, 2).Read(0, 2));
+        int ReadInt(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(address.Read(4).Read(0, 4));
+        short ReadWord(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(address.Read(2).Read(0, 2));
     }
 
     private static (NativeBattleEffect298Frame Frame, uint Address) AllocateChunk298(NativeBattleEffect298Frame frame, uint main, NativeBattleEffect298Resources resources, bool capturePresentation)

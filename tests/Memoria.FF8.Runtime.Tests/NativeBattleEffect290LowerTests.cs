@@ -229,6 +229,43 @@ public sealed class NativeBattleEffect290LowerTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Resource_collector_keeps_material_rng_and_typed_context_after_actual_staging_readback(int domain)
+    {
+        byte[] geometry = Geometry();
+        NativeBattleOffsetBodyResourceFixture source = NativeBattleOffsetBodyResourceFixture.Create(geometry, domain);
+        Fixture numeric = new();
+        Fixture typed = new();
+        NativeBattleEffect290Frame Draw(Fixture fixture, bool resource)
+        {
+            (fixture.Frame, uint temporary) = Allocate(fixture.Frame, 180);
+            NativeBattleEffectArena context = Context(fixture.Frame, temporary + 32, 144);
+            foreach ((int offset, uint value) in new (int, uint)[] { (0x10, 1), (0x14, 1), (0x18, 0), (0x1C, 100), (0x20, 5000), (0x24, 32767), (0x30, Fixture.Main) })
+            {
+                context = Put290(context, offset, value);
+            }
+            fixture.Frame = PublishContext(fixture.Frame, temporary + 32, context, 144);
+            ImmutableArray<NativeBattlePackedMatrix32> bones = [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 1)];
+            return resource ? NativeBattleEffect290Fragments.Collect(fixture.Frame, source.Source, bones, Fixture.Scratch, temporary + 32, fixture.Resources, fixture.Inputs()) : NativeBattleEffect290Fragments.Collect(fixture.Frame, (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000, bones, Fixture.Scratch, temporary + 32, fixture.Resources, fixture.Inputs());
+        }
+        NativeBattleEffect290Frame expected = Draw(numeric, false);
+        NativeBattleEffect290Frame actual = Draw(typed, true);
+        Assert.Equal(numeric.ProcessDraws, typed.ProcessDraws);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.State), NativeBattleTestSnapshots.Json(actual.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Effect), NativeBattleTestSnapshots.Json(actual.Effect));
+        uint field = NativeBattleTemporaryMemory.Address + 32;
+        NativeBattleEffectArena reread = Context(actual, field, 144);
+        Assert.Equal(Context(expected, field, 144).Read(4, 140), reread.Read(4, 140));
+        Assert.Equal(source.Pointer.CpuPublication, reread.ReadResourcePointer(0)!.CpuPublication);
+        source.AssertCursor(actual.Staging!, field, 44, geometry);
+    }
+
+    [Theory]
     [InlineData(4, 3, 60)]
     [InlineData(8, 1, 32)]
     public void Fragment_raster_keeps_actual_SZ_for_polygons_and_zero_payload_for_mode(int life, int accepted, int allocation)

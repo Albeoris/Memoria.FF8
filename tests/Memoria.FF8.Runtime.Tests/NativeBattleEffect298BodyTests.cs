@@ -197,6 +197,70 @@ public sealed class NativeBattleEffect298BodyTests
         NativeBattleEffectArena Read(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, bytes.AsSpan().Slice(checked((int)(address - 0x1000)), length));
     }
 
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(4, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    [InlineData(4, true)]
+    public void Resource_body_preserves_packets_projection_and_context_publication_across_replaced_banks(int domain, bool quad)
+    {
+        byte[] geometry = Geometry();
+        if (quad)
+        {
+            geometry = new byte[72];
+            BinaryPrimitives.WriteInt32LittleEndian(geometry, 1);
+            BinaryPrimitives.WriteInt32LittleEndian(geometry.AsSpan(4), 8);
+            BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(8), 1);
+            BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(12), 4);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(14 + corner * 6), (short)((corner & 1) == 0 ? -100 : 100));
+                BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(16 + corner * 6), (short)((corner & 2) == 0 ? -100 : 100));
+                BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(52 + corner * 2), (ushort)corner);
+            }
+            BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(42), 1);
+        }
+        NativeBattleOffsetBodyResourceFixture fixture = NativeBattleOffsetBodyResourceFixture.Create(geometry, domain);
+        int count = quad ? 4 : 3;
+        NativeBattleEffect298BodyStep Draw(NativeBattleModelGeometrySource source)
+        {
+            return NativeBattleEffect298BodyDrawing.DrawBody(Memory(), Temporary(), NativeBattleEffectArena.Clear(), source, [Identity(8000)], NativeBattleEffectArena.Clear(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), 0x2000, count * 8, 17, 0, new(298, 1, 1, 1, 1));
+        }
+        NativeBattleEffect298BodyStep expected = Draw(NativeBattleOffsetBodyResourceFixture.Create(geometry, 0).Source);
+        NativeBattleEffect298BodyStep actual = Draw(fixture.Source);
+        Assert.NotNull(Assert.Single(actual.Batch.Attempts).Primitive);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
+        Assert.Equal(expected.VertexScratch.Read(0, count * 8), actual.VertexScratch.Read(0, count * 8));
+        Assert.Equal(expected.Temporary152.Read(4, 148), actual.Temporary152.Read(4, 148));
+        NativeBattleFileStaging staging = NativeBattleOffsetBodyContextMemory.Publish(NativeBattleFileStaging.Unknown(), NativeBattleTemporaryMemory.Address, actual.Temporary152, 152);
+        NativeBattleEffectArena reread = NativeBattleOffsetBodyContextMemory.Read(staging, NativeBattleTemporaryMemory.Address, 152);
+        Assert.Equal(fixture.Source.Owner.CpuPublication, reread.ReadResourcePointer(0)!.CpuPublication);
+        fixture.AssertCursor(staging, NativeBattleTemporaryMemory.Address, quad ? 52 : 44, geometry);
+        Assert.Equal(geometry, fixture.Source.Read(0, geometry.Length));
+    }
+
+    [Fact]
+    public void Typed_source_keeps_masked_invalid_object_cursor_and_hidden_unknown_coordinates_unobserved()
+    {
+        byte[] geometry = Geometry();
+        BinaryPrimitives.WriteInt32LittleEndian(geometry.AsSpan(4), int.MaxValue);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.OpenShared(new(null, 0x1000, geometry.Length), (offset, length) => geometry.AsSpan(offset, length).ToArray());
+        NativeBattleEffect298BodyStep masked = NativeBattleEffect298BodyDrawing.DrawBody(Memory(), Temporary().Write(0x18, new byte[4]), NativeBattleEffectArena.Clear(), source, [Identity(8000)], NativeBattleEffectArena.Clear(), new(null, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), 0x2000, 24, 17, 0, null);
+        Assert.Empty(masked.Batch.Attempts);
+        BinaryPrimitives.WriteInt32LittleEndian(geometry.AsSpan(4), 8);
+        source = NativeBattleModelGeometrySource.OpenShared(new(null, 0x1000, geometry.Length), (offset, length) => length == 6 ? throw new InvalidOperationException("Hidden XYZ is unknown.") : geometry.AsSpan(offset, length).ToArray());
+        NativeBattleEffect298BodyStep hidden = NativeBattleEffect298BodyDrawing.DrawBody(Memory(), Temporary(), NativeBattleEffectArena.Clear(), source, [Identity(8000)], NativeBattleEffectArena.Clear().Write(6, BitConverter.GetBytes((short)2)), new(null, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), 0x2000, 24, 17, 0, null);
+        Assert.Empty(hidden.Batch.Attempts);
+        Assert.Equal(new byte[6], hidden.VertexScratch.Read(0, 6));
+    }
+
     private static NativeBattleEffectArena Temporary() => NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes(0x2000u)).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x18, BitConverter.GetBytes(1u));
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity().ReadMatrix(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
     private static NativeBattlePackedMatrix32 Identity(int z = 0) => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, z, 4096), null);

@@ -81,7 +81,7 @@ public static partial class NativeBattleEffect290Controller
             }
             else
             {
-                source = NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), current, count);
+                source = NativeBattleOffsetBodyContextMemory.Read(RequireStaging(frame), current, count);
                 offset = 0;
             }
             result = CopyBytes(source, offset, result, copied, count);
@@ -115,7 +115,7 @@ public static partial class NativeBattleEffect290Controller
             }
             else
             {
-                frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), current, part, count) };
+                frame = frame with { Staging = NativeBattleOffsetBodyContextMemory.Publish(RequireStaging(frame), current, part, count) };
             }
             copied += count;
         }

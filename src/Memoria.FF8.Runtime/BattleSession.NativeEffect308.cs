@@ -38,19 +38,9 @@ public sealed partial class BattleSession
             NativeBattlePoseSource pose = Pose(actor);
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(model.SequenceState ?? throw new NotSupportedException("Effect308 requires its current decoded pose."), pose);
             System.Collections.Immutable.ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect308PackedBones(graphics, current, actor, pose);
-            (uint geometry, Func<int, int, byte[]> read) = ReadNativeEffect308Geometry(graphics, current, actor);
+            NativeBattleModelGeometrySource geometry = ReadNativeEffect308Geometry(graphics, current, actor);
             int length = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current CPU scratch capacity.")) * 8);
-            return new(pose, decoded, bones, geometry, Read) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length };
-
-            NativeBattleEffectArena Read(uint selected, int count)
-            {
-                long offset = (long)selected - geometry;
-                if (offset < 0 || offset > int.MaxValue)
-                {
-                    throw new InvalidDataException("Effect308 geometry leaves its current addressed owner.");
-                }
-                return NativeBattleEffectArena.Clear().Write(0, read(checked((int)offset), count));
-            }
+            return new(pose, decoded, bones, geometry) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length };
         }
 
         NativeBattleEffect308PointStep Point(NativeBattleEffect308Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)

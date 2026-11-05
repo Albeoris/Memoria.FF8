@@ -142,8 +142,8 @@ public static partial class NativeBattleEffect298Controller
         return (frame with { Staging = allocation.Staging }, allocation.Address);
     }
     public static NativeBattleEffect298Frame Release(NativeBattleEffect298Frame frame, int length) => frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), length) };
-    public static NativeBattleEffectArena Context(NativeBattleEffect298Frame frame, uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public static NativeBattleEffect298Frame PublishContext(NativeBattleEffect298Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
+    public static NativeBattleEffectArena Context(NativeBattleEffect298Frame frame, uint address, int length) => NativeBattleOffsetBodyContextMemory.Read(RequireStaging(frame), address, length);
+    public static NativeBattleEffect298Frame PublishContext(NativeBattleEffect298Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleOffsetBodyContextMemory.Publish(RequireStaging(frame), address, context, length) };
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
         return task.BorrowPayloadArena(offset, length);

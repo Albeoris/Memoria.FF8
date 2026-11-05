@@ -47,8 +47,8 @@ public sealed partial class BattleSession
             frame = WriteNativeEffect308BonePadding(graphics, frame, actor, bone, 1);
             frame = WriteBytes(frame, checked(operation.OffsetRowsAddress + (uint)(bone * 16 + 6)), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)2)), 2);
         }
-        (uint address, Func<int, int, byte[]> read) = ReadNativeEffect308Geometry(graphics, frame, actor);
-        frame = NativeBattleEffect308Fragments.Collect667F40(frame, read, address, ReadNativeEffect308PackedBones(graphics, frame, actor, source), scratch, scratchLength, temporary + 0x20, resources, inputs);
+        NativeBattleModelGeometrySource geometry = ReadNativeEffect308Geometry(graphics, frame, actor);
+        frame = NativeBattleEffect308Fragments.Collect667F40(frame, geometry, ReadNativeEffect308PackedBones(graphics, frame, actor, source), scratch, scratchLength, temporary + 0x20, resources, inputs);
         frame = RestoreNativeEffect308Pose(ref graphics, frame, actor, source);
         return Release(frame, 172);
     }

@@ -51,12 +51,12 @@ public sealed partial class BattleSession
         return packed.MoveToImmutable();
     }
 
-    private (uint Address, Func<int, int, byte[]> Read) ReadNativeEffect290Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect290Frame frame, int actor)
+    private NativeBattleModelGeometrySource ReadNativeEffect290Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect290Frame frame, int actor)
     {
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], frame.Staging ?? throw new NotSupportedException("Effect290 requires its current addressed memory."), NativeBattleEffectArena.Clear(), 0);
-        NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
-        uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect290 requires its actual current geometry address.");
-        return (address, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+        NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect290 requires its current CPU resources.");
+        NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false).Pin(cpu);
+        return NativeBattleModelGeometrySource.Open(cpu, bridge.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
     }
 
     private NativeBattleEffect290Frame PrepareNativeEffect290Pose(ref NativeBattleGraphicsState graphics, NativeBattleEffect290Frame frame, int actor, NativeBattlePoseSource source, NativeBattleEffectArena offsets)

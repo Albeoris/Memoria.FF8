@@ -10,8 +10,33 @@ public sealed record NativeBattleEffect298Frame(NativeBattleEffectMemory Memory,
 public sealed record NativeBattleEffect298PointStep(NativeBattleEffect298Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleEffect298VibrationStep(NativeBattleEffect298Frame Frame, int Handle);
 public sealed record NativeBattleEffect298IoPoll(NativeBattleEffect298Frame Frame, bool Busy);
-public sealed record NativeBattleEffect298BodySource(NativeBattlePoseSource PoseSource, NativeBattleDecodedPose DecodedPose, ImmutableArray<NativeBattlePackedMatrix32> CurrentBones, uint GeometryAddress, Func<uint, int, NativeBattleEffectArena> ReadGeometry)
+public sealed record NativeBattleEffect298BodySource
 {
+    private readonly uint? geometryAddress;
+    private readonly Func<uint, int, NativeBattleEffectArena>? readGeometry;
+    public NativeBattlePoseSource PoseSource { get; init; }
+    public NativeBattleDecodedPose DecodedPose { get; init; }
+    public ImmutableArray<NativeBattlePackedMatrix32> CurrentBones { get; init; }
+    public uint GeometryAddress => geometryAddress ?? throw new NotSupportedException("Logical body geometry has no guest address.");
+    public Func<uint, int, NativeBattleEffectArena> ReadGeometry => readGeometry ?? throw new NotSupportedException("Logical body geometry requires its retained source reader.");
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattleModelGeometrySource GeometrySource { get; }
+
+    public NativeBattleEffect298BodySource(NativeBattlePoseSource poseSource, NativeBattleDecodedPose decodedPose, ImmutableArray<NativeBattlePackedMatrix32> currentBones, uint geometryAddress, Func<uint, int, NativeBattleEffectArena> readGeometry)
+        : this(poseSource, decodedPose, currentBones, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry))
+    {
+        this.geometryAddress = geometryAddress;
+        this.readGeometry = readGeometry;
+    }
+
+    public NativeBattleEffect298BodySource(NativeBattlePoseSource poseSource, NativeBattleDecodedPose decodedPose, ImmutableArray<NativeBattlePackedMatrix32> currentBones, NativeBattleModelGeometrySource geometrySource)
+    {
+        PoseSource = poseSource;
+        DecodedPose = decodedPose;
+        CurrentBones = currentBones;
+        GeometrySource = geometrySource;
+    }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public long? PresentationResourceGeneration { get; init; }
     public uint? VertexScratchAddress { get; init; }

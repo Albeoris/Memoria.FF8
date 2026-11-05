@@ -153,6 +153,32 @@ public sealed class NativeBattleEffect308FragmentsTests
         Assert.Equal(0u, fixture.Frame.State.ReadDword(InternalRandomGlobal));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Resource_collector_keeps_current_object_cooldown_and_context_publication_after_bank_replacement(int domain)
+    {
+        byte[] geometry = Geometry();
+        NativeBattleOffsetBodyResourceFixture source = NativeBattleOffsetBodyResourceFixture.Create(geometry, domain);
+        Fixture numeric = new();
+        Fixture typed = new();
+        numeric.SetContext(2, 0);
+        typed.SetContext(2, 0);
+        NativeBattleEffect308Frame expected = numeric.Collect(geometry, 1);
+        NativeBattleEffect308Frame actual = Collect667F40(typed.Frame, source.Source, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 1)], Fixture.Scratch, 24, typed.ContextAddress, typed.Resources, typed.Inputs());
+        Assert.Equal(numeric.ProcessDraws, typed.ProcessDraws);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.State), NativeBattleTestSnapshots.Json(actual.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Effect), NativeBattleTestSnapshots.Json(actual.Effect));
+        NativeBattleEffectArena reread = Context(actual, typed.ContextAddress, 140);
+        Assert.Equal(Context(expected, numeric.ContextAddress, 140).Read(4, 136), reread.Read(4, 136));
+        Assert.Equal(source.Pointer.CpuPublication, reread.ReadResourcePointer(0)!.CpuPublication);
+        source.AssertCursor(actual.Staging!, typed.ContextAddress, 44, geometry);
+    }
+
     private static byte[] Geometry()
     {
         byte[] data = new byte[60];

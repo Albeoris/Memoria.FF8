@@ -10,15 +10,21 @@ public static class NativeBattleEffect290Fragments
 {
     public static NativeBattleEffect290Frame Collect(NativeBattleEffect290Frame frame, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint scratchAddress, uint contextAddress, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)
     {
+        return Collect(frame, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, scratchAddress, contextAddress, resources, inputs);
+    }
+
+    public static NativeBattleEffect290Frame Collect(NativeBattleEffect290Frame frame, NativeBattleModelGeometrySource geometry, ImmutableArray<NativeBattlePackedMatrix32> bones, uint scratchAddress, uint contextAddress, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)
+    {
         NativeBattleEffectArena context = Context(frame, contextAddress, 144);
-        int objects = I32(0);
+        NativeBattleModelGeometryCursor source = new(geometry);
+        int objects = I32(source);
         for (int obj = 0; obj < objects; obj++)
         {
             if ((Dword290(context, 0x10) & (1u << (obj & 31))) == 0)
             {
                 continue;
             }
-            int cursor = I32(4 + obj * 4);
+            NativeBattleModelGeometryCursor cursor = source + I32(source + 4 + obj * 4);
             while (true)
             {
                 int groups = I16(cursor);
@@ -74,7 +80,7 @@ public static class NativeBattleEffect290Fragments
                 {
                     break;
                 }
-                cursor = (cursor + 3) & ~3;
+                cursor = cursor.Align4();
                 int triangles = U16(cursor);
                 int quads = U16(cursor + 2);
                 if (U16(cursor + 4) != 0 || U16(cursor + 6) != 0)
@@ -82,13 +88,13 @@ public static class NativeBattleEffect290Fragments
                     throw new NotSupportedException("The fragment collector requires its current triangle and quad faces.");
                 }
                 cursor += 12;
-                int polygonStart = cursor;
-                context = Put290(context, 0, checked(geometryAddress + (uint)cursor));
+                NativeBattleModelGeometryCursor polygonStart = cursor;
+                context = cursor.Write(context, 0);
                 context = PutWord290(PutWord290(context, 8, triangles), 10, quads);
                 for (int face = 0; face < triangles + quads; face++)
                 {
                     bool quad = face >= triangles;
-                    byte[] raw = readGeometry(cursor, quad ? 20 : 16);
+                    byte[] raw = cursor.Read(quad ? 20 : 16).Read(0, quad ? 20 : 16);
                     byte flags = 0;
                     for (int corner = 0; corner < (quad ? 4 : 3); corner++)
                     {
@@ -152,9 +158,9 @@ public static class NativeBattleEffect290Fragments
         }
         return PublishContext(frame, contextAddress, context, 144);
 
-        short I16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(offset, 2));
-        ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(readGeometry(offset, 2));
-        int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(offset, 4));
+        short I16(NativeBattleModelGeometryCursor offset) => BinaryPrimitives.ReadInt16LittleEndian(offset.Read(2).Read(0, 2));
+        ushort U16(NativeBattleModelGeometryCursor offset) => BinaryPrimitives.ReadUInt16LittleEndian(offset.Read(2).Read(0, 2));
+        int I32(NativeBattleModelGeometryCursor offset) => BinaryPrimitives.ReadInt32LittleEndian(offset.Read(4).Read(0, 4));
     }
 
     public static NativeBattleEffect290Frame Initialize6760A0(NativeBattleEffect290Frame frame, uint contextAddress, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)

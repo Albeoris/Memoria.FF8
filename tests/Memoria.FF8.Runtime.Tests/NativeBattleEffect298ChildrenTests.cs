@@ -131,8 +131,14 @@ public sealed class NativeBattleEffect298ChildrenTests
         Assert.Equal(frame.Memory.SharedEffectRandom, actual.Frame.Memory.SharedEffectRandom);
     }
 
-    [Fact]
-    public void Fragment_birth_keeps_twelve_material_rows_and_separates_OP_random_owners()
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Fragment_birth_keeps_twelve_material_rows_and_separates_OP_random_owners(int domain)
     {
         var frame = Frame();
         uint main = ArenaAddress + MainOffset;
@@ -164,6 +170,10 @@ public sealed class NativeBattleEffect298ChildrenTests
         var pose = new NativeBattlePoseSource(skeleton.ToImmutableArray(), [1]);
         var identity = NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), null);
         var body = new NativeBattleEffect298BodySource(pose, new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false), [identity], 0x1000, (address, length) => NativeBattleEffectArena.Clear().Write(0, geometry.AsSpan().Slice(checked((int)(address - 0x1000)), length))) { VertexScratchAddress = 0x1A00000, VertexScratchLength = 24 };
+        if (domain >= 0)
+        {
+            body = new(pose, body.DecodedPose, [identity], NativeBattleOffsetBodyResourceFixture.Create(geometry, domain).Source) { VertexScratchAddress = body.VertexScratchAddress, VertexScratchLength = body.VertexScratchLength };
+        }
         List<Type> operations = [];
         var inputs = Inputs((current, operation) =>
         {
