@@ -83,8 +83,17 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            playerSaves.Transfer(source, destination, ValidatePlayerState);
+            playerSaves.Transfer(source, destination, ValidatePlayerState, writeGameplay: WriteImportedGameplaySave);
         }
+    }
+
+    private GameState WriteImportedGameplaySave(GameState state, string path, Action<GameState>? validateContinuation)
+    {
+        GameSession imported = new(state);
+        using MovieClock clock = new(imported, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
+        using GameWorld candidate = new(imported, options.GameDirectory, clock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
+        candidate.EnsureField();
+        return candidate.WriteGameplaySave(path, validateContinuation);
     }
 
     private void UpdatePlayerSavePointer()

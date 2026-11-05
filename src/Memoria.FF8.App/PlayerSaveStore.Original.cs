@@ -35,7 +35,7 @@ internal sealed partial class PlayerSaveStore
         return bank == 0 ? MemoriaSlotCount : OriginalSlotsPerBank;
     }
 
-    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null)
+    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null, Func<GameState, string, Action<GameState>?, GameState>? writeGameplay = null)
     {
         if (destinationSlot <= 0 || destinationSlot > TotalSlotCount)
         {
@@ -57,9 +57,51 @@ internal sealed partial class PlayerSaveStore
             {
                 throw new InvalidOperationException("A reviewed conversion state is supported only when copying a Memoria save to original FF8.");
             }
-            Save(destinationSlot, new GameSession(reviewedSource ?? Load(sourceSlot)), validateContinuation, targetSource, allowGuardianForceLoss, originalPlaceId);
+            if (sourceSlot <= MemoriaSlotCount && destinationSlot <= MemoriaSlotCount)
+            {
+                CopyMemoria(source, destination, validateContinuation);
+            }
+            else
+            {
+                GameState state = reviewedSource ?? Load(sourceSlot);
+                if (destinationSlot <= MemoriaSlotCount && writeGameplay is not null)
+                {
+                    _ = writeGameplay(state, destination, validateContinuation);
+                }
+                else
+                {
+                    Save(destinationSlot, new GameSession(state), validateContinuation, targetSource, allowGuardianForceLoss, originalPlaceId);
+                }
+            }
         }
         entries.Remove(destination);
+    }
+
+    private void CopyMemoria(string source, string destination, Action<GameState>? validateContinuation)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        bool temporaryCreated = false;
+        try
+        {
+            using (FileStream input = File.OpenRead(source))
+            using (FileStream output = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                temporaryCreated = true;
+                input.CopyTo(output);
+                output.Flush(flushToDisk: true);
+            }
+            GameState candidate = LoadPath(temporary);
+            validateContinuation?.Invoke(candidate);
+            File.Move(temporary, destination, overwrite: true);
+        }
+        finally
+        {
+            if (temporaryCreated)
+            {
+                File.Delete(temporary);
+            }
+        }
     }
 
     private static void ValidateBank(int bank)
