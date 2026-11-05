@@ -5,7 +5,8 @@ namespace Memoria.FF8.Runtime;
 public enum NativeSavedWorldOriginKind
 {
     NativeNewGame,
-    OriginalSave
+    OriginalSave,
+    GameplaySave
 }
 
 /// <summary>The original twelve-byte saved pose, with raw Z and unmodified native integer widths.</summary>
@@ -24,6 +25,7 @@ public sealed record NativeSavedWorldFootReturn
     public const string SaveRule = "ff8-en-foot-world-return-549e80-mode0-type0-v1";
     public const string BattleSaveRule = "ff8-en-foot-world-battle-549e80-mode3-v1";
     public const string OriginalSaveRule = "ff8-original-save-foot-position-v1";
+    public const string GameplaySaveRule = "ff8-gameplay-save-foot-position-v1";
 
     [JsonRequired]
     public required int ProofVersion { get; init; }
@@ -104,7 +106,7 @@ public sealed record NativeSavedWorldFootReturn
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule || Rule == GameplaySaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }
@@ -131,6 +133,7 @@ public sealed partial record NativeSavedWorldState
     public const int CurrentProofVersion = 1;
     public const string NewGameInitializationRule = "ff8-en-newgame-4e43fc-56d9f0-56da10-v1";
     public const string OriginalSaveInitializationRule = "ff8-original-save-world-data-v1";
+    public const string GameplaySaveInitializationRule = "ff8-gameplay-save-world-data-v1";
 
     public required int SchemaVersion { get; init; }
     public required NativeSavedWorldOrigin Origin { get; init; }
@@ -283,7 +286,14 @@ public sealed partial record NativeSavedWorldState
     public void Validate()
     {
         ValidateRagnarokReturn();
-        if (SchemaVersion != CurrentSchemaVersion || Origin is null || Origin.ProofVersion != CurrentProofVersion || !Enum.IsDefined(Origin.Kind) || Origin.InitializationRule != (Origin.Kind == NativeSavedWorldOriginKind.OriginalSave ? OriginalSaveInitializationRule : NewGameInitializationRule))
+        string? expectedRule = Origin?.Kind switch
+        {
+            NativeSavedWorldOriginKind.NativeNewGame => NewGameInitializationRule,
+            NativeSavedWorldOriginKind.OriginalSave => OriginalSaveInitializationRule,
+            NativeSavedWorldOriginKind.GameplaySave => GameplaySaveInitializationRule,
+            _ => null
+        };
+        if (SchemaVersion != CurrentSchemaVersion || Origin is null || Origin.ProofVersion != CurrentProofVersion || !Enum.IsDefined(Origin.Kind) || Origin.InitializationRule != expectedRule)
         {
             throw new InvalidDataException("Unsupported or invalid native saved-world provenance.");
         }

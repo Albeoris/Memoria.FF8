@@ -188,6 +188,7 @@ public sealed record NativeSavedWorldCarReturn
 
     public const string SaveRule = "ff8-en-car-field-return-549e80-mode1-v2";
     public const string OriginalSaveRule = "ff8-original-save-car-position-v1";
+    public const string GameplaySaveRule = "ff8-gameplay-save-car-position-v1";
     [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
@@ -229,7 +230,7 @@ public sealed record NativeSavedWorldCarReturn
 
     public void Validate()
     {
-        if (Version != 2 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || !NativeCarWorldRuntimeState.IsSupportedEntity(EntityType105) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule is not (SaveRule or OriginalSaveRule or GameplaySaveRule) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || !NativeCarWorldRuntimeState.IsSupportedEntity(EntityType105) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }

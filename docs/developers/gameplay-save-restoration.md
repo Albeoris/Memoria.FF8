@@ -1,0 +1,21 @@
+# Installing gameplay save owners
+
+`GameplaySaveStateRestoration.Restore(document, initialized)` installs the complete version 2 gameplay components into a fresh process initialized from the selected installed resources. It returns a separate `GameState`; it does not execute VM scripts, mutate a session, publish a slot or initialize a field/world renderer. Version 1 documents remain readable by the component codec but cannot masquerade as a complete game.
+
+The caller must supply the resource-initialized New Game state before a field VM, world or battle has run. Character/economy/Limit definitions are mandatory; each represented resource-dependent extension also requires its installed initializer. Saved character/GF values, inventory, appearance, rules/choices, clocks/RNG, collections and transaction outboxes overlay these current definitions. Explicit zero, empty and valid null values remain represented. A missing required initializer fails rather than replacing progress with defaults.
+
+The installer validates exact event-cell widths and canonical alias ownership, clock consistency, magic-rule/dream aliases and initialization identities. It preserves current/past gil and their distinct event-bank owners. Saved quest timer alternatives and their masks remain intact; the scene initializer must reconcile independently saved full battle-mode facts without dropping remaining time. Active battle/draw cursors cannot be installed without their encounter continuation and fail explicitly.
+
+Native process memory, presentation state and cached loaders come from the fresh process. The result has no old VM JSON, active battle/card match, pending transition, native saved-location writer, debug view or movie process. Committed battle result IDs, statistics and achievement/reward facts remain authoritative; native abandoned-VM wait diagnostics retire at the normal-load boundary. Logical scene names/tutorials/party and saved party poses still require the separate semantic scene initializer. They must not be fabricated as an old `NativeFieldLocation` with an invented native program/frame/writer.
+
+Original-format bytes remain bounded historical compatibility residue. The installer clones the block and overlays current semantic names in its separate name dictionary; it does not reimport the block as current gameplay. Scene/world initialization must prefer semantic facts over raw original party/location fields.
+
+## World completion
+
+A restored world remains explicitly pending: `Scene` is `WorldMap`, but `WorldArrival` and `World` are null. It must not be constructed as a playable `GameSession` yet. The host resolves `GameplaySaveWorldResumeMetadata` from installed world resources at the current descriptor position, then calls `GameplaySaveWorldResume.Complete(document, restored, metadata)` before scene initialization. The host may deliberately restart the camera at body heading; map location must come from the current position's installed lookup rather than an old saved return.
+
+The helper follows the existing saved-reload contract using entry 62. The current descriptor supplies X/Z/height/body yaw and entity; host metadata supplies camera yaw, animation variant, map-display mode and map location. Parked vehicles and flags survive; controlled car/Garden/Ragnarok positions update their corresponding saved slots. Old `WorldArrival`, source frames and scripted camera trajectories are not replayed. A previously committed field return keeps its last saved position, but receives explicit semantic normal-load provenance and the current story word.
+
+Supported initial adapters are foot entities 0/1/2, car entities 32/33/35, Garden 48 and Ragnarok 50, matching the established original-import reload subset. Other transports, unresolved saved entries and scripted return loaders fail on this new path. Existing snapshot/original readers retain their previous support.
+
+Semantic world origin/return/configuration records use explicit `GameplaySave` rules. They do not claim original-format import or an executed old native world callback. Their zero source frame identifies the new normal-load epoch. Existing original/native rules and validation remain unchanged. Foot completion enters the same `NativeFootWorldRuntimeState.CreateSavedReload` implementation rather than a second movement algorithm.

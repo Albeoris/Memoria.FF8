@@ -9,12 +9,20 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
     public const string ReturnRule = "ff8-en-world-config-53fac0-byte1-v1";
 
     public const string OriginalSaveRule = "ff8-original-save-world-configuration-v1";
+    public const string GameplaySaveRule = "ff8-gameplay-save-world-configuration-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OriginalSaveSha256 { get; init; }
 
     public static NativeWorldConfiguration FromOriginalSave(byte entity, int fieldId, string sourceHash)
     {
         return new(1, OriginalSaveRule, entity, checked((ushort)fieldId)) { OriginalSaveSha256 = sourceHash };
+    }
+
+    public static NativeWorldConfiguration FromGameplaySave(byte entity, int fieldId)
+    {
+        NativeWorldConfiguration result = new(1, GameplaySaveRule, entity, checked((ushort)fieldId));
+        result.Validate();
+        return result;
     }
 
     public static NativeWorldConfiguration FromFieldPacket(WorldTransition transition, int fieldId)
@@ -65,7 +73,7 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
 
     public void Validate()
     {
-        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 2 or >= 32 and <= 40 or 48 or 50 or >= 16 and <= 22 or 65 or 66)) || Rule == OriginalSaveRule && (SourceWorldFrame is not null || FieldPacket is not null || OriginalSaveSha256 is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit)) || Rule != OriginalSaveRule && OriginalSaveSha256 is not null || Rule != PacketRule && Rule != ReturnRule && Rule != OriginalSaveRule)
+        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 2 or >= 32 and <= 40 or 48 or 50 or >= 16 and <= 22 or 65 or 66)) || Rule == OriginalSaveRule && (SourceWorldFrame is not null || FieldPacket is not null || OriginalSaveSha256 is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit)) || Rule == GameplaySaveRule && (SourceWorldFrame is not null || FieldPacket is not null) || Rule != OriginalSaveRule && OriginalSaveSha256 is not null || Rule != PacketRule && Rule != ReturnRule && Rule != OriginalSaveRule && Rule != GameplaySaveRule)
         {
             throw new InvalidDataException("Native world configuration lacks its original executed packet/entity authority.");
         }

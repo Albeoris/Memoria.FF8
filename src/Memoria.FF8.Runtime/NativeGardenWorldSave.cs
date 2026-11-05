@@ -7,6 +7,7 @@ public sealed record NativeSavedWorldGardenReturn([property: JsonRequired] int V
 {
     public const string SaveRule = "ff8-en-garden-field-return-549e80-pose3-v1";
     public const string OriginalSaveRule = "ff8-original-save-garden-position-v1";
+    public const string GameplaySaveRule = "ff8-gameplay-save-garden-position-v1";
 
     public static NativeSavedWorldGardenReturn Create(WorldState world, ushort lastField, ushort story, short location)
     {
@@ -23,7 +24,7 @@ public sealed record NativeSavedWorldGardenReturn([property: JsonRequired] int V
 
     public void Validate()
     {
-        if (Version != 1 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose3 is null || Pose3.X is < -131072 or >= 131072 || Pose3.RawZ is < -98304 or >= 98304 || Pose3.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 != 48 || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 1 || Rule is not (SaveRule or OriginalSaveRule or GameplaySaveRule) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || Pose3 is null || Pose3.X is < -131072 or >= 131072 || Pose3.RawZ is < -98304 or >= 98304 || Pose3.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 != 48 || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Native Garden return lost its executed pose3 and actual saved auxiliary bytes.");
         }
