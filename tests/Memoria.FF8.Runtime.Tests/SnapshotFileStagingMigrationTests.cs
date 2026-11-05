@@ -5,6 +5,35 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class SnapshotFileStagingMigrationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void New_loader_zero_regions_do_not_fabricate_bytes_for_historical_symbolic_CPU_pointers(bool assigned)
+    {
+        uint address = 0x019C3064;
+        uint cpuAddress = NativeBattlePartyCpuLayout.Classic.BaseAddress;
+        JsonObject staging = new()
+        {
+            ["BaseAddress"] = NativeBattleFileStaging.Address,
+            ["KnownRanges"] = assigned ? new JsonArray(new JsonObject { ["Offset"] = checked((int)(address - NativeBattleFileStaging.Address)), ["Data"] = JsonSerializer.SerializeToNode(BitConverter.GetBytes(cpuAddress)) }) : new JsonArray(),
+            ["ResourcePointers"] = new JsonObject { [address.ToString()] = new JsonObject { ["Cpu"] = new JsonObject { ["Bank"] = 0, ["Offset"] = 0 } } }
+        };
+        JsonObject saved = new();
+        Set(saved, OwnerPaths()[0], staging);
+        SnapshotFileStagingMigration.Apply(saved);
+        NativeBattleFileStaging restored = staging.Deserialize<NativeBattleFileStaging>()!;
+        restored.Validate();
+        Assert.Equal(assigned, restored.ReadSnapshot(address, 4).Known.All(value => value));
+        Assert.Equal(cpuAddress, restored.ResourcePointers[address]!.Cpu!.PhysicalAddress);
+        if (assigned)
+        {
+            Assert.Equal(BitConverter.GetBytes(cpuAddress), restored.Read(address, 4));
+        }
+        JsonNode first = saved.DeepClone();
+        SnapshotFileStagingMigration.Apply(saved);
+        Assert.True(JsonNode.DeepEquals(first, saved));
+    }
+
     [Fact]
     public void Historical_byte_ranges_keep_their_absolute_addresses_in_every_owner()
     {

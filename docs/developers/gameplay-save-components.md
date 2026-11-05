@@ -99,3 +99,14 @@ Optional field PartyMovement retains consumed JOIN/SPLIT destinations, speeds an
 Optional model-part offsets retain target coordinates relative to the currently selected model definition. Active interpolation additionally retains start, duration and counter; completed offsets retain only their endpoint. Untouched parts are omitted. Older absolute model-part owners remain readable. Current geometry, draw samples and resource epochs are never ordinary save authority.
 
 Managed graphics ownership is independent of ordinary gameplay persistence. Party sources and linked sections, field source/converted/instance data and enemy resource owners are rebuilt from selected resources. Typed references distinguish resource storage offsets from authentic guest placement metadata. Existing execution snapshots retain their old numeric domain when the newer optional resource owner is absent; generic default completion must not reinterpret that absence as a modern owned-resource snapshot. Scalar guest ABI, dynamic scratch and VRAM remain runtime contracts, not gameplay components.
+
+
+## Ordinary save admission and presentation completion
+
+Player-controlled field exploration and issued ordinary dialogue are supported save boundaries. Background color, fade, animation, parallax and music/sound activity do not independently forbid saving. A real transition, battle/card game, movie, fault or unrepresented gameplay transaction still requires its own safe continuation contract.
+
+Color/fade waits hold a zero-operand synchronization instruction. Capture verifies that instruction and records its successor without executing scripts. Loading settles its physical presentation endpoint from the saved script-visible color words; it does not preserve the discarded visual phase or advance callbacks, rewards or gameplay clocks. Music ramps likewise do not block capture. Active sound-resource waits retain a logical resource ID and the consumed load position; the current backend can remain Pending on restoration. Stale completed sound IDs are not save authority.
+
+Optional field dialogue owners retain issued windows, native consumed operands, focus, choice confirmation/selection and closing state. Restoration does not issue the dialogue opcode again or acknowledge a choice on the player's behalf. Optional ordinary world UI retains resource-identified text progress and its close owner, including fuel-message movement callbacks; selected resources provide the message bytes. Absent new owners preserve older dialogue-free documents.
+
+Current MOVESYNC and shortest LTURN workers retain their existing completion semantics. The actor pose owns fractional facing; the byte direction in the normal-entry descriptor is only a summary. Delayed push, line crossing and area/door entry facts survive as logical pending events and dispatch once on the next ordinary callback. New optional flags default to their prior absent meanings.

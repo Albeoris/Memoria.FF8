@@ -30,6 +30,9 @@ public sealed record GameplaySaveProgression
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldContinuation? FieldContinuation { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveWorldUi? WorldUi { get; init; }
+
     /// <summary>Moves current field-local authority out of durable globals into the logical continuation.</summary>
     public GameplaySaveProgression WithFieldContinuation(GameplaySaveFieldContinuation continuation)
     {
@@ -72,6 +75,7 @@ public sealed record GameplaySaveProgression
         {
             Story = GameplaySaveStory.Capture(state),
             World = state.SavedWorld is { } world ? GameplaySaveWorldData.Capture(world) : null,
+            WorldUi = GameplaySaveWorldUi.Capture(state),
             WorldConfiguration = state.WorldConfiguration is { } configuration ? new(configuration.EntityByte, configuration.SourceField) : null,
             FieldLocation = state.NativeFieldLocation is { } location ? new(location.FieldId, location.PreviousFieldId, location.Slots.Select(slot => slot.Pose).ToArray()) : null,
             Collections = GameplaySaveCollections.Capture(state),
@@ -106,6 +110,11 @@ public sealed record GameplaySaveProgression
         SceneFacts?.Validate();
         OriginalResidue?.Validate();
         FieldContinuation?.Validate();
+        WorldUi?.Validate();
+        if (WorldUi is not null && (World is null || FieldContinuation is not null || SceneFacts is null || SceneFacts.Origin == GameplaySaveSceneFactsOrigin.Field))
+        {
+            throw new InvalidDataException("Gameplay world UI requires its ordinary world scene facts.");
+        }
         if (FieldContinuation is { } continuation)
         {
             if (SceneFacts is not { Origin: GameplaySaveSceneFactsOrigin.Field } facts || facts.FieldId != continuation.Scripts.FieldId)

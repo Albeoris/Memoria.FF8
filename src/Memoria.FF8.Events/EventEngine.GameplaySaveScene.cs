@@ -6,9 +6,9 @@ public sealed partial class EventEngine
 {
     private GameplaySaveFieldScene CaptureGameplaySaveFieldScene()
     {
-        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.MusicCrossfadeFrames != 0 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0 || Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true || Scene.LoadedSoundEffects.Values.Any(sound => sound.Status == SoundResourceStatus.Pending))
+        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.DrawPointInteraction is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null || Scene.TripleTriadRequest is not null || Scene.WorldTransitionRequest is not null || Scene.WorldJumpWaits.Count != 0)
         {
-            throw new NotSupportedException("Gameplay field continuation does not yet represent the active modal, sound-I/O or door-event owner.");
+            throw new NotSupportedException("Gameplay field continuation does not yet represent the active modal or field-transition owner.");
         }
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
@@ -154,9 +154,9 @@ public sealed partial class EventEngine
         foreach (GameplaySaveFieldSound sound in saved.LoadedSounds)
         {
             SoundResourceStatus status = LoadSoundResource?.Invoke(sound.Index) ?? SoundResourceStatus.Muted;
-            if (status == SoundResourceStatus.Pending)
+            if (!Enum.IsDefined(status))
             {
-                throw new NotSupportedException("Gameplay continuation cannot publish an unresolved sound resource.");
+                throw new InvalidDataException("Gameplay sound-resource backend returned an invalid status.");
             }
             Scene.LoadedSoundEffects.Add(sound.Index, new(sound.Index, sound.NativeResourceName, status));
         }

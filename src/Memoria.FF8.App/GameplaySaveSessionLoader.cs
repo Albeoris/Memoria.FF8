@@ -58,12 +58,19 @@ internal static class GameplaySaveSessionLoader
         {
             if (document.Progression.FieldContinuation is { } continuation)
             {
+                NativeFieldFadeState durableFade = restored.FieldFade ?? throw new InvalidDataException("Gameplay continuation requires its saved fade words.");
+                NativeFieldFadeState allocatedFade = candidateSession.FieldFade ?? throw new InvalidDataException("Gameplay continuation requires its allocated fade owner.");
+                candidateSession.SetFieldFade(allocatedFade with { Saved = durableFade.Saved, MapFadeDisabled = durableFade.MapFadeDisabled });
                 candidate.Events.RestoreGameplaySaveFieldContinuation(continuation, facts);
             }
             else
             {
                 candidate.Events.InitializeGameplaySaveFieldParty(document.Progression.FieldLocation);
             }
+        }
+        else if (document.Progression.WorldUi is { } worldUi)
+        {
+            candidate.RestoreGameplayWorldUi(worldUi);
         }
         GameState snapshot = candidateSession.PrepareSnapshot();
         _ = new GameSession(snapshot);

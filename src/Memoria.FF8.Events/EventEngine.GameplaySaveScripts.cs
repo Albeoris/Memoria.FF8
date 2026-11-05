@@ -7,7 +7,7 @@ public sealed partial class EventEngine
     /// <summary>Captures logical execution without native resources, receipt histories or replaying completed initialization.</summary>
     public GameplaySaveFieldScripts CaptureGameplaySaveScripts()
     {
-        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || dialogues.Count != 0 || services.IsMoviePlaying || CurrentMoviePlayback?.IsPlaying == true || movieProgressExpected || pendingArrival is not null)
+        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || services.IsMoviePlaying || CurrentMoviePlayback?.IsPlaying == true || movieProgressExpected || pendingArrival is not null)
         {
             throw new NotSupportedException("Gameplay script capture requires completed stable field initialization with no transition or modal operation.");
         }
@@ -32,7 +32,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Gameplay script capture cannot split a cross-owner local event cell.");
         }
-        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals) { PreparedMovie = preparedMovie >= 0 ? preparedMovie : null, InputAxis = new(axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection) };
+        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals) { PreparedMovie = preparedMovie >= 0 ? preparedMovie : null, InputAxis = new(axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection), Dialogues = CaptureGameplayDialogues() };
         result.Validate();
         return result;
     }
@@ -48,13 +48,18 @@ public sealed partial class EventEngine
 
     private GameplaySaveScriptFiber CaptureGameplaySaveFiber(Fiber fiber)
     {
+        ValidateGameplayPresentationWait(fiber);
+        ValidateGameplayMovementSyncWait(fiber);
         ValidateGameplayAnimationWait(fiber);
         ValidateGameplayFaceWait(fiber);
         ValidateGameplayBackgroundAnimationWait(fiber);
         ValidateGameplayTurnWait(fiber);
         GameplaySaveScriptWait wait = fiber.WaitReason switch
         {
-            WaitReason.None => GameplaySaveScriptWait.None,
+            WaitReason.None or WaitReason.Color or WaitReason.Fade => GameplaySaveScriptWait.None,
+            WaitReason.Dialogue => GameplaySaveScriptWait.Dialogue,
+            WaitReason.SoundResource => GameplaySaveScriptWait.SoundResource,
+            WaitReason.Movement => GameplaySaveScriptWait.Movement,
             WaitReason.Frames => GameplaySaveScriptWait.Frames,
             WaitReason.RequestStart => GameplaySaveScriptWait.RequestStart,
             WaitReason.RequestEnd => GameplaySaveScriptWait.RequestEnd,
@@ -80,11 +85,7 @@ public sealed partial class EventEngine
             WaitReason.NativeMovementFlush => GameplaySaveScriptWait.NativeMovementFlush,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
-        if (fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
-        {
-            throw new NotSupportedException("Gameplay script continuation requires a represented logical scheduler without live external request owners.");
-        }
-        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber), GlobalCalls = CaptureGameplayGlobalCalls(fiber), PartyRequestSelector = CaptureGameplayPartyRequestSelector(fiber) };
+        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, GameplayPresentationResumePosition(fiber), fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber), GlobalCalls = CaptureGameplayGlobalCalls(fiber), PartyRequestSelector = CaptureGameplayPartyRequestSelector(fiber), DialogueWait = CaptureGameplayDialogueWait(fiber), SoundResourceId = fiber.WaitReason == WaitReason.SoundResource ? checked((byte)fiber.SoundResourceId) : null };
     }
 
     /// <summary>Installs only script execution owners. The caller must separately reconstruct current scene/actor/resource owners before input.</summary>
@@ -125,14 +126,18 @@ public sealed partial class EventEngine
                 Complete = source.Complete,
                 Started = source.Started,
                 NativeResultFrameEntered = source.ResultFrameEntered,
-                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, GameplaySaveScriptWait.FaceDirection => WaitReason.FaceDirection, GameplaySaveScriptWait.NativeFaceSync => WaitReason.NativeFaceSync, GameplaySaveScriptWait.BackgroundAnimation => WaitReason.BackgroundAnimation, GameplaySaveScriptWait.Rotation => WaitReason.Rotation, GameplaySaveScriptWait.NativeTurnCompletion => WaitReason.NativeTurnCompletion, GameplaySaveScriptWait.NativeScriptMovement => WaitReason.NativeScriptMovement, GameplaySaveScriptWait.NativeMovementFlush => WaitReason.NativeMovementFlush, GameplaySaveScriptWait.NativeJump => WaitReason.NativeJump, GameplaySaveScriptWait.PartyJoin => WaitReason.PartyJoin, GameplaySaveScriptWait.PartySplit => WaitReason.PartySplit, GameplaySaveScriptWait.NativeLadderMode3 => WaitReason.NativeLadderMode3, GameplaySaveScriptWait.NativeLadder => WaitReason.NativeLadder, GameplaySaveScriptWait.NativeDoorRequest => WaitReason.NativeDoorRequest, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
+                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Dialogue => WaitReason.Dialogue, GameplaySaveScriptWait.SoundResource => WaitReason.SoundResource, GameplaySaveScriptWait.Movement => WaitReason.Movement, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, GameplaySaveScriptWait.FaceDirection => WaitReason.FaceDirection, GameplaySaveScriptWait.NativeFaceSync => WaitReason.NativeFaceSync, GameplaySaveScriptWait.BackgroundAnimation => WaitReason.BackgroundAnimation, GameplaySaveScriptWait.Rotation => WaitReason.Rotation, GameplaySaveScriptWait.NativeTurnCompletion => WaitReason.NativeTurnCompletion, GameplaySaveScriptWait.NativeScriptMovement => WaitReason.NativeScriptMovement, GameplaySaveScriptWait.NativeMovementFlush => WaitReason.NativeMovementFlush, GameplaySaveScriptWait.NativeJump => WaitReason.NativeJump, GameplaySaveScriptWait.PartyJoin => WaitReason.PartyJoin, GameplaySaveScriptWait.PartySplit => WaitReason.PartySplit, GameplaySaveScriptWait.NativeLadderMode3 => WaitReason.NativeLadderMode3, GameplaySaveScriptWait.NativeLadder => WaitReason.NativeLadder, GameplaySaveScriptWait.NativeDoorRequest => WaitReason.NativeDoorRequest, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
                 WaitUntil = source.WaitUntil,
+                SoundResourceId = source.SoundResourceId ?? 0,
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,
                 NativeDoorDefaultFrame = source.DefaultResultFrame,
                 NativePartyRequestPointer = partyPointer,
                 NativeDoorSavedResults = source.SavedResults?.Select(NativeScalarValue.Exact).ToArray()
             };
+            RestoreGameplayDialogueWait(fiber, source.DialogueWait);
+            ValidateGameplayPresentationWait(fiber);
+            ValidateGameplayMovementSyncWait(fiber);
             RestoreGameplayMovementIssue(fiber, source.MovementIssue);
             foreach (int value in source.Stack.Reverse())
             {
@@ -165,6 +170,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Gameplay script physical frame references an absent actor.");
         }
+        ValidateGameplayDialogues(saved, restored);
         Dictionary<int, NativeMemoryValue> cells = EventMemory.Cells.Where(pair => pair.Key >= 2304 || (long)pair.Key + pair.Value.Width <= 1024).ToDictionary();
         foreach (GameplaySaveEventCell local in saved.Locals)
         {
@@ -215,5 +221,6 @@ public sealed partial class EventEngine
         movieProgressExpected = false;
         Scene.FieldCallbackClock = clock;
         defaultsStarted = true;
+        RestoreGameplayDialogues(saved.Dialogues);
     }
 }

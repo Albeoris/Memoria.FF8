@@ -164,7 +164,7 @@ public sealed class GameplaySaveFieldScriptsTests
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(scriptOffset + index * 2), (ushort)operation);
             foreach ((Jsm.Opcode opcode, int parameter) in scripts[index])
             {
-                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.SETMODEL ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.SETMODEL ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(operationsOffset + 4 * operation++), encoded);
             }
         }

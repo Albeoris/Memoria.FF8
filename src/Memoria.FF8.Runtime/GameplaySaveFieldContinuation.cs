@@ -53,10 +53,8 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         }
         int objectId = Actors.RegisteredActors[binding];
         GameplaySaveFieldActor actor = Actors.Actors.Single(item => item.ObjectId == objectId);
-        if (actor.Pose.Direction != MathF.Truncate(actor.Pose.Direction))
-        {
-            throw new NotSupportedException("Gameplay field resume requires the current exact native facing byte.");
-        }
+        // The descriptor is a normal-entry summary. The actor pose remains authoritative
+        // for a continuation, including fractional facing during a shortest-path turn.
         return new(actor.Pose.Position.X, actor.Pose.Position.Y, actor.Pose.Triangle, checked((byte)actor.Pose.Direction));
     }
 

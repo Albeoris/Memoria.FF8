@@ -69,9 +69,15 @@ public sealed partial class EventEngine
             return;
         }
         NativeVibrationBank? bank = ReadNativeVibrationBank?.Invoke();
-        if (bank is null || request.Version != 2 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 1 || request.EffectivePriority != (request.RawPriority | 1) || !NativeFieldRuntimeProfile.IsSupportedImage(request.ExecutableHash) || request.BankSourceHash != bank.SourceHash || request.PatternOffset != ((uint)request.RawPattern < bank.Offsets.Length ? bank.Offsets[request.RawPattern] : (int?)null) || request.NativeReturn < -1 || request.NativeReturn > 16371)
+        if (request.Version != 2 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 1 || request.EffectivePriority != (request.RawPriority | 1) || !NativeFieldRuntimeProfile.IsSupportedImage(request.ExecutableHash) || request.BankSourceHash is not { Length: 64 } || !request.BankSourceHash.All(Uri.IsHexDigit) || request.PatternOffset < 0 || request.NativeReturn < -1 || request.NativeReturn > 16371)
         {
             throw new InvalidDataException("Saved SETVIBRATE receipt lost its original operands, bank or exact native result.");
+        }
+        // The queue retains its actual stream bytes independently. A receipt from an earlier
+        // field or edition does not depend on the currently selected bank, and is never replayed.
+        if (bank?.SourceHash == request.BankSourceHash && request.PatternOffset != ((uint)request.RawPattern < bank.Offsets.Length ? bank.Offsets[request.RawPattern] : (int?)null))
+        {
+            throw new InvalidDataException("Saved SETVIBRATE receipt contradicts its matching source bank.");
         }
         ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         if (request.FieldId == saved.FieldId)

@@ -32,13 +32,13 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException("Gameplay capture of an active field requires its logical script continuation adapter.");
         }
-        if (diagnosticAllocationFaulted || worldScene is null || worldScene.IsPresentationDeferred || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || CurrentDialogue is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null)
+        if (diagnosticAllocationFaulted || worldScene is null || worldScene.IsPresentationDeferred || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null)
         {
             throw new InvalidOperationException("Gameplay capture requires an allocated playable world without a pending interaction, battle or fault.");
         }
         GameState state = session.PrepareSnapshot();
         WorldState current = state.World ?? throw new InvalidOperationException("Gameplay world capture requires a current world position.");
-        if (current.NativeScriptedRuntime is not null || current.NativeTrainRuntime is not null || current.EventUi is { ScriptMode: not 0 } || current.EventUi is { Windows.Length: > 0 } || current.EventUi is { ClosingChannels.Length: > 0 } || state.MoviePlayback is not null || state.PendingEntityNames is { Length: > 0 })
+        if (current.NativeScriptedRuntime is not null || current.NativeTrainRuntime is not null || current.EventUi is { ScriptMode: not 0 } || state.MoviePlayback is not null || state.PendingEntityNames is { Length: > 0 })
         {
             throw new NotSupportedException("Gameplay world capture requires a completed ordinary exploration boundary.");
         }
@@ -54,10 +54,10 @@ internal sealed partial class GameWorld
 
     private GameplaySaveComponentDocument CaptureCurrentGameplayField()
     {
-        bool supportedBoundary = Events.NextTrigger.Kind == PlayerTriggerKind.Playable && Events.CanAcceptMovementInput || Events.HasSupportedGameplayScriptMenu;
-        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || CurrentDialogue is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || !supportedBoundary)
+        bool supportedBoundary = Events.CanAcceptMovementInput || Events.HasSupportedGameplayScriptMenu || Events.HasSupportedGameplayDialogueBoundary;
+        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || !supportedBoundary)
         {
-            throw new InvalidOperationException("Gameplay field capture requires a playable exploration boundary or supported script menu without a pending interaction, battle or fault.");
+            throw new InvalidOperationException("Gameplay field capture requires player control, a supported dialogue or script menu without a pending battle or fault.");
         }
         GameplaySaveFieldContinuation continuation = Events.CaptureGameplaySaveFieldContinuation();
         GameState state = session.PrepareSnapshot();

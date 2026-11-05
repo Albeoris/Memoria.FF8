@@ -14,6 +14,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Gameplay actor projection requires an allocated stable field program.");
         }
+        ValidateGameplayPendingContacts();
         GameplaySaveFieldActors result = new(1, FieldId, actors.Select(CaptureGameplayActor).ToArray(), Scene.NativeActorObjectIds.ToArray(), []) { ModelPartOffsets = CaptureGameplayModelPartOffsets() };
         result.Validate();
         foreach (GameplaySaveFieldActor actor in result.Actors)
@@ -25,7 +26,7 @@ public sealed partial class EventEngine
 
     private GameplaySaveFieldActor CaptureGameplayActor(ActorState actor)
     {
-        if (actor.MovementTarget is not null && actor.NativeScriptMovement is null || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
+        if (actor.MovementTarget is not null && actor.NativeScriptMovement is null)
         {
             throw new NotSupportedException($"Gameplay actor {actor.ObjectId} has an unfinished movement, rotation, offset or contact operation.");
         }
@@ -55,10 +56,11 @@ public sealed partial class EventEngine
             new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)),
             animation, savedBackup,
             new(actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FaceLimits, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget, actor.FaceDuration, actor.FaceProgress, actor.FaceTargetPoint, actor.FirstControlRotation) { Returning = actor.FaceReturning },
-            new(actor.LineStart, actor.LineEnd, actor.LineEnabled, actor.DoorLineEnabled, actor.LineContact, actor.DoorLineContact, actor.NativeLineFacingDirection, actor.NativeLineFacingContact),
+            new(actor.LineStart, actor.LineEnd, actor.LineEnabled, actor.DoorLineEnabled, actor.LineContact, actor.DoorLineContact, actor.NativeLineFacingDirection, actor.NativeLineFacingContact) { ContactVersion = actor.NativeLineContactVersion, CrossingPending = actor.NativeLineCrossingPending, EntryPending = actor.DoorLineEntryPending },
             new(actor.FootstepsEnabled, actor.NativeFootstepSpecial, actor.NativeFootstepPair?.First392, actor.NativeFootstepPair?.Second393),
             offset is null ? null : new(offset.X, offset.Y, offset.Z, offset.StartX, offset.StartY, offset.StartZ, offset.TargetX, offset.TargetY, offset.TargetZ, offset.Duration, offset.Counter, offset.Mode))
         {
+            PushContactPending = actor.NativePushContactPending,
             Turn = CaptureGameplaySaveTurn(actor),
             Movement = CaptureGameplayMovement(actor),
             Jump = CaptureGameplayJump(actor),
@@ -190,7 +192,10 @@ public sealed partial class EventEngine
         actor.DoorLineEnabled = saved.Line.DoorEnabled;
         actor.LineContact = saved.Line.Contact;
         actor.DoorLineContact = saved.Line.DoorContact;
-        actor.NativeLineContactVersion = saved.Line.Contact || saved.Line.DoorContact ? 2 : 0;
+        actor.NativeLineContactVersion = saved.Line.ContactVersion ?? (saved.Line.Contact || saved.Line.DoorContact ? 2 : 0);
+        actor.NativeLineCrossingPending = saved.Line.CrossingPending;
+        actor.DoorLineEntryPending = saved.Line.EntryPending;
+        actor.NativePushContactPending = saved.PushContactPending;
         actor.NativeLineFacingDirection = saved.Line.FacingDirection;
         actor.NativeLineFacingContact = saved.Line.FacingContact;
         actor.LineOperation = -1;
@@ -353,6 +358,42 @@ public sealed partial class EventEngine
         }
         byte? radius = actor.NativeShadowSet?.Radius601To608 ?? (actor.NativeShadowAllocation is not null ? NativeActorShadowAllocation.DefaultRadius601To608 : null);
         return radius is byte value ? Enumerable.Repeat(value, 8).ToArray() : null;
+    }
+
+    private void ValidateGameplayPendingContacts()
+    {
+        foreach (ActorState actor in actors)
+        {
+            EventObject owner = program!.Objects[actor.ObjectId];
+            if (actor.NativePushContactPending)
+            {
+                ValidateNativePushDispatch(actor);
+            }
+            if (actor.DoorLineEntryPending && (!owner.IsArea || owner.Scripts.Count < 3))
+            {
+                throw new InvalidDataException("Gameplay area entry requires its current area and original entry script.");
+            }
+            if (actor.NativeLineContactVersion is < 0 or > 2 || actor.NativeLineCrossingPending && !owner.IsDoor)
+            {
+                throw new InvalidDataException("Gameplay line contact has no supported current door owner.");
+            }
+            if (owner.IsDoor)
+            {
+                byte pending = Scene.NativeDoorPendingEvents?.GetValueOrDefault(actor.ObjectId) ?? 0;
+                if (pending != 0 && (Scene.NativeDoorDriverVersion != 2 || actor.NativeLineContactVersion != 2) || actor.NativeLineCrossingPending != ((pending & NativeDoorCrossing) != 0) || !ValidNativeDoorState(actor, Frame))
+                {
+                    throw new InvalidDataException("Gameplay door contact flags disagree with their current native line owner.");
+                }
+            }
+        }
+        if (Scene.NativeDoorPendingEvents?.Any(pair => (pair.Value & ~31) != 0 || (uint)pair.Key >= actors.Count || !program!.Objects[pair.Key].IsDoor) == true)
+        {
+            throw new InvalidDataException("Gameplay pending door event names an absent door or invalid native flags.");
+        }
+        if (Scene.NativeDoorPendingEvents?.Values.Any(value => value != 0) == true)
+        {
+            ValidatePendingNativeDoorEvents();
+        }
     }
 
     private void ValidateGameplayActorReconstruction(ActorState actor, long frame, NativeFieldInitializationProof? proof)

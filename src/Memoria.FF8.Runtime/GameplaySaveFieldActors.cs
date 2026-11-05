@@ -56,6 +56,9 @@ public sealed record GameplaySaveFieldActor([property: JsonRequired] int ObjectI
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveActorLadder? Ladder { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PushContactPending { get; init; }
+
     [JsonRequired]
     public GameplaySaveActorLadderAnimations? LadderAnimations { get; init; }
 
@@ -66,7 +69,11 @@ public sealed record GameplaySaveFieldActor([property: JsonRequired] int ObjectI
         Jump?.Validate();
         LadderMode3?.Validate();
         Ladder?.Validate();
-        if (ObjectId < 0 || Label < 0 || Identity is null || Pose is null || Control is null || Appearance is null || Animation is null || Face is null || Line is null || Footsteps is null || Identity.ModelId is < -1 or > 255 && Identity.ModelId != ushort.MaxValue || Identity.CharacterId is < -2 or > 255 || !Finite(Pose.Position) || !float.IsFinite(Pose.Direction) || Pose.Direction is < 0 or > 255 || !Finite(Pose.DisplayOffset) || Pose.Triangle is < 0 or > ushort.MaxValue || Pose.FixedPosition is { } raw && (Pose.Position.ToVector3() != new Vector3(raw.X / 4096f, raw.Y / 4096f, raw.Z / 4096f) || (raw.X >> 12) is < short.MinValue or > short.MaxValue || (raw.Y >> 12) is < short.MinValue or > short.MaxValue || (raw.Z >> 12) is < short.MinValue or > short.MaxValue) || Control.Completion is > 2 && (Ladder is null || Control.Completion > 6) || Control.MotionDirection is < 0 or > 255 || Control.FacingHold is < 0 or > 255 || (Control.MotionDirection is null) != (Control.FacingHold is null) || (Control.AutoAnimation is null) != (Control.DetachedFollow is null) || Appearance.PolygonColor is { } color && (!Finite(color) || color.X is < 0 or > 255 || color.Y is < 0 or > 255 || color.Z is < 0 or > 255 || color.X != MathF.Truncate(color.X) || color.Y != MathF.Truncate(color.Y) || color.Z != MathF.Truncate(color.Z)) || Appearance.ShadowRadii is { Length: not 8 } || Appearance.EyeMode is not (null or 0 or 0x80000 or 0x100000 or 0x200000) || (Line.Start is null) != (Line.End is null) || Line.Start is { } start && !Finite(start) || Line.End is { } end && !Finite(end) || (Footsteps.First is null) != (Footsteps.Second is null) || Offset is { Mode: > 3 } || Offset is { } offset && (offset.Counter > offset.Duration || offset.Mode == 0 && offset.Counter != 0 || offset.Mode == 3 && offset.Counter != offset.Duration || Pose.DisplayOffset != new GameplaySaveActorVector(offset.X, offset.Y, offset.Z)))
+        if (Line?.ContactVersion is < 0 or > 2)
+        {
+            throw new InvalidDataException("Gameplay line contact has an invalid logical schema version.");
+        }
+        if (ObjectId < 0 || Label < 0 || Identity is null || Pose is null || Control is null || Appearance is null || Animation is null || Face is null || Line is null || Footsteps is null || Identity.ModelId is < -1 or > 255 && Identity.ModelId != ushort.MaxValue || Identity.CharacterId is < -2 or > 255 || !Finite(Pose.Position) || !float.IsFinite(Pose.Direction) || Pose.Direction is < 0 or >= 256 || !Finite(Pose.DisplayOffset) || Pose.Triangle is < 0 or > ushort.MaxValue || Pose.FixedPosition is { } raw && (Pose.Position.ToVector3() != new Vector3(raw.X / 4096f, raw.Y / 4096f, raw.Z / 4096f) || (raw.X >> 12) is < short.MinValue or > short.MaxValue || (raw.Y >> 12) is < short.MinValue or > short.MaxValue || (raw.Z >> 12) is < short.MinValue or > short.MaxValue) || Control.Completion is > 2 && (Ladder is null || Control.Completion > 6) || Control.MotionDirection is < 0 or > 255 || Control.FacingHold is < 0 or > 255 || (Control.MotionDirection is null) != (Control.FacingHold is null) || (Control.AutoAnimation is null) != (Control.DetachedFollow is null) || Appearance.PolygonColor is { } color && (!Finite(color) || color.X is < 0 or > 255 || color.Y is < 0 or > 255 || color.Z is < 0 or > 255 || color.X != MathF.Truncate(color.X) || color.Y != MathF.Truncate(color.Y) || color.Z != MathF.Truncate(color.Z)) || Appearance.ShadowRadii is { Length: not 8 } || Appearance.EyeMode is not (null or 0 or 0x80000 or 0x100000 or 0x200000) || (Line.Start is null) != (Line.End is null) || Line.Start is { } start && !Finite(start) || Line.End is { } end && !Finite(end) || (Footsteps.First is null) != (Footsteps.Second is null) || Offset is { Mode: > 3 } || Offset is { } offset && (offset.Counter > offset.Duration || offset.Mode == 0 && offset.Counter != 0 || offset.Mode == 3 && offset.Counter != offset.Duration || Pose.DisplayOffset != new GameplaySaveActorVector(offset.X, offset.Y, offset.Z)))
         {
             throw new InvalidDataException("Gameplay actor values are malformed or describe an unsupported active transition.");
         }
@@ -123,7 +130,17 @@ public sealed record GameplaySaveActorFace([property: JsonRequired] int FirstAng
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Returning { get; init; }
 }
-public sealed record GameplaySaveActorLine([property: JsonRequired] GameplaySaveActorVector? Start, [property: JsonRequired] GameplaySaveActorVector? End, [property: JsonRequired] bool Enabled, [property: JsonRequired] bool DoorEnabled, [property: JsonRequired] bool Contact, [property: JsonRequired] bool DoorContact, [property: JsonRequired] byte? FacingDirection, [property: JsonRequired] bool? FacingContact);
+public sealed record GameplaySaveActorLine([property: JsonRequired] GameplaySaveActorVector? Start, [property: JsonRequired] GameplaySaveActorVector? End, [property: JsonRequired] bool Enabled, [property: JsonRequired] bool DoorEnabled, [property: JsonRequired] bool Contact, [property: JsonRequired] bool DoorContact, [property: JsonRequired] byte? FacingDirection, [property: JsonRequired] bool? FacingContact)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ContactVersion { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CrossingPending { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EntryPending { get; init; }
+}
 public sealed record GameplaySaveActorFootsteps([property: JsonRequired] bool Enabled, [property: JsonRequired] bool? Special, [property: JsonRequired] byte? First, [property: JsonRequired] byte? Second);
 public sealed record GameplaySaveActorOffset([property: JsonRequired] short X, [property: JsonRequired] short Y, [property: JsonRequired] short Z, [property: JsonRequired] short StartX, [property: JsonRequired] short StartY, [property: JsonRequired] short StartZ, [property: JsonRequired] short TargetX, [property: JsonRequired] short TargetY, [property: JsonRequired] short TargetZ, [property: JsonRequired] ushort Duration, [property: JsonRequired] ushort Counter, [property: JsonRequired] byte Mode);
 

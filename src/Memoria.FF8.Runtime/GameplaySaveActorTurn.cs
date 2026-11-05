@@ -7,7 +7,7 @@ public sealed record GameplaySaveActorTurn([property: JsonRequired] byte Kind, [
 {
     public void Validate()
     {
-        if (Kind is not (1 or 2) || Remaining < 1 || Remaining > Duration + 1)
+        if (Kind is not (1 or 2 or 3) || (Kind == 3 ? Duration == 0 ? Remaining != 0 : Remaining < 1 || Remaining > Duration : Remaining < 1 || Remaining > Duration + 1))
         {
             throw new InvalidDataException("Gameplay native body turn has an invalid interpolation kind or remaining phase.");
         }

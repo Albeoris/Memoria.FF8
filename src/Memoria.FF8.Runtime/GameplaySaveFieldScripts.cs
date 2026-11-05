@@ -27,11 +27,17 @@ public enum GameplaySaveScriptWait
     NativeLadder,
     PartyJoin,
     PartySplit,
-    NativeDoorRequest = 23
+    NativeDoorRequest = 23,
+    Dialogue = 24,
+    SoundResource = 25,
+    Movement = 26
 }
 
 public sealed record GameplaySaveScriptFiber([property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Priority, [property: JsonRequired] long Sequence, [property: JsonRequired] bool Initialization, [property: JsonRequired] int Position, [property: JsonRequired] bool Complete, [property: JsonRequired] bool Started, [property: JsonRequired] bool ResultFrameEntered, [property: JsonRequired] int[] Stack, [property: JsonRequired] Dictionary<int, int> Results, [property: JsonRequired] GameplaySaveScriptWait Wait, [property: JsonRequired] long WaitUntil, [property: JsonRequired] long? RequestSequence, [property: JsonRequired] byte? DoorSlot, [property: JsonRequired] byte? ActorSlot, [property: JsonRequired] bool DefaultResultFrame, [property: JsonRequired] int[]? SavedResults)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? SoundResourceId { get; init; }
+
     /// <summary>Retained BGSHADE instruction whose operands were already consumed; completion must poll without issuing it again.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ShadeOperation { get; init; }
@@ -44,6 +50,9 @@ public sealed record GameplaySaveScriptFiber([property: JsonRequired] int Object
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? PartyRequestSelector { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveDialogueWait? DialogueWait { get; init; }
 }
 
 /// <summary>Physical script operands remain observable after pop through native RET result frames; they are not resource memory.</summary>
@@ -61,6 +70,9 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldInputAxis? InputAxis { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldDialogues? Dialogues { get; init; }
+
     public void Validate()
     {
         if (Version != 1 || FieldId is < 0 or > ushort.MaxValue || ProgramSha256 is not { Length: 64 } || !ProgramSha256.All(Uri.IsHexDigit) || Frame < 1 || !double.IsFinite(FractionalSeconds) || FractionalSeconds is < 0 or > 10 || Sequence < 0 || BackgroundFps is < 1 or > 60 || PreparedMovie is < 0 or > byte.MaxValue || Clock is null || Fibers is null || Operands is null || Doors is null || Locals is null)
@@ -75,6 +87,7 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
         {
             throw new InvalidDataException("Gameplay field input-axis interpolation has an invalid logical phase.");
         }
+        Dialogues?.Validate();
         HashSet<long> sequences = [];
         foreach (GameplaySaveScriptFiber fiber in Fibers)
         {
@@ -85,6 +98,14 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
         }
         foreach (GameplaySaveScriptFiber fiber in Fibers)
         {
+            if (fiber.Wait == GameplaySaveScriptWait.Dialogue ? fiber.Complete || fiber.DialogueWait is null || fiber.DialogueWait.Channel is < 0 or > 7 : fiber.DialogueWait is not null)
+            {
+                throw new InvalidDataException("Gameplay dialogue wait requires its matching live channel owner.");
+            }
+            if ((fiber.Wait == GameplaySaveScriptWait.SoundResource) != fiber.SoundResourceId.HasValue || fiber.SoundResourceId is not null && fiber.Complete)
+            {
+                throw new InvalidDataException("Gameplay sound-resource wait requires its logical resource identity.");
+            }
             if (fiber.PartyRequestSelector is not null && (fiber.Initialization || fiber.ActorSlot is not byte slot || slot >= 8 || slot != fiber.Priority))
             {
                 throw new InvalidDataException("Gameplay indexed-party request requires its receiving native actor-slot owner.");

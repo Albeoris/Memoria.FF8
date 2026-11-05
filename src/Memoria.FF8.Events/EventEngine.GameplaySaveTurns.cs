@@ -15,18 +15,15 @@ public sealed partial class EventEngine
             }
             return null;
         }
-        if (!actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear)
-        {
-            throw new NotSupportedException("Gameplay body-turn continuation does not yet represent the generic shortest-turn worker.");
-        }
-        if (actor.RotationUsesNativeCosine && actor.RotationUsesNativeLinear || !float.IsFinite(target) || target != MathF.Truncate(target) || target is < short.MinValue or > short.MaxValue || !float.IsFinite(actor.RotationStart) || actor.RotationStart != MathF.Truncate(actor.RotationStart) || actor.RotationStart is < 0 or > 255 || actor.RotationTotalFrames is < 0 or > 255 || actor.RotationFrames is < 1 or > 256 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId))
+        if (actor.RotationUsesNativeCosine && actor.RotationUsesNativeLinear || !float.IsFinite(target) || target != MathF.Truncate(target) || target is < short.MinValue or > short.MaxValue || !float.IsFinite(actor.RotationStart) || actor.RotationStart != MathF.Truncate(actor.RotationStart) || actor.RotationStart is < 0 or > 255 || actor.RotationTotalFrames is < 0 or > 255 || actor.RotationFrames is < 0 or > 256 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId))
         {
             throw new InvalidDataException("Gameplay native body turn requires its allocated actor and exact BYTE/WORD phase.");
         }
-        GameplaySaveActorTurn result = new(actor.RotationUsesNativeLinear ? (byte)1 : (byte)2, (byte)actor.RotationStart, (short)target, (byte)actor.RotationTotalFrames, (ushort)actor.RotationFrames);
+        GameplaySaveActorTurn result = new(actor.RotationUsesNativeLinear ? (byte)1 : actor.RotationUsesNativeCosine ? (byte)2 : (byte)3, (byte)actor.RotationStart, (short)target, (byte)actor.RotationTotalFrames, (ushort)actor.RotationFrames);
         result.Validate();
         int elapsed = Math.Max(0, result.Duration - result.Remaining);
-        byte direction = unchecked((byte)(result.Kind == 1 ? NativeJumpMath.Interpolate(result.Start, result.Target, result.Duration, (short)elapsed) : NativeCosineInterpolation.Interpolate(result.Start, result.Target, result.Duration, elapsed)));
+        float delta = (result.Target - result.Start + 384) % 256 - 128;
+        float direction = result.Kind == 3 ? result.Duration == 0 ? result.Start : (result.Start + delta * (1 - result.Remaining / (float)Math.Max(1, (int)result.Duration)) + 256) % 256 : unchecked((byte)(result.Kind == 1 ? NativeJumpMath.Interpolate(result.Start, result.Target, result.Duration, (short)elapsed) : NativeCosineInterpolation.Interpolate(result.Start, result.Target, result.Duration, elapsed)));
         if (actor.Direction != direction && !NativeMovementOwnsFacing(actor))
         {
             throw new InvalidDataException("Gameplay native turn visible direction disagrees with its logical phase.");
@@ -70,6 +67,18 @@ public sealed partial class EventEngine
         if (fiber.WaitReason == WaitReason.Rotation ? !rotation : !party)
         {
             throw new InvalidDataException("Gameplay native turn wait does not match its consumed or retried instruction.");
+        }
+    }
+
+    private void ValidateGameplayMovementSyncWait(Fiber fiber)
+    {
+        if (fiber.WaitReason != WaitReason.Movement)
+        {
+            return;
+        }
+        if (program is null || fiber.Complete || fiber.Initialization || !fiber.Script.ContainsOperation(fiber.Position) || program.Operations[fiber.Position].Opcode != Jsm.Opcode.MOVESYNC || !Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || actors[fiber.ObjectId].NativeMovementCompletion542 is null)
+        {
+            throw new InvalidDataException("Gameplay movement sync requires its held MOVESYNC instruction and allocated actor completion byte.");
         }
     }
 }
