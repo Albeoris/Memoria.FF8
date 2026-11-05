@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -10,7 +10,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
     internal const int PageLength = 4096;
     private readonly record struct PointerUndo(uint Address, bool Present, NativeBattleResourcePointer? Pointer);
     private readonly record struct ZeroUndo(int Index, NativeBattleLoaderZeroRegion? Removed);
-    private readonly Dictionary<uint, NativeBattleWorkingMemory> pages = [];
+    private readonly Dictionary<uint, NativeBattleStagingPage> pages = [];
     private readonly Dictionary<uint, NativeBattleResourcePointer?> pointers = [];
     private readonly List<NativeBattleLoaderZeroRegion> zeros = [];
     private readonly List<uint> removedPointers = [];
@@ -27,7 +27,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         zeros.AddRange(source.LoaderZeroRanges);
         foreach (NativeBattleEffectMemoryRegion region in source.KnownRanges)
         {
-            Write(checked(BaseAddress + (uint)region.Offset), region.Data.AsSpan());
+            BindResource(checked(BaseAddress + (uint)region.Offset), region.Data);
         }
         Span<bool> unknown = stackalloc bool[PageLength];
         unknown.Clear();
@@ -50,6 +50,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
     public uint BaseAddress { get; private set; }
     public long Version => version;
     public int PageCount => pages.Count;
+    internal int MaterializedPageCount => pages.Values.Count(page => page.Working is not null);
     public bool HasCheckpoint => checkpoint;
     public ulong KnownExtentEnd
     {
@@ -74,7 +75,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             return last;
         }
     }
-    public Dictionary<uint, NativeBattleWorkingMemory>.Enumerator EnumeratePages() => pages.GetEnumerator();
+    public Dictionary<uint, NativeBattleStagingPage>.Enumerator EnumeratePages() => pages.GetEnumerator();
     public Dictionary<uint, NativeBattleResourcePointer?>.Enumerator EnumeratePointers() => pointers.GetEnumerator();
     public ImmutableDictionary<uint, NativeBattleResourcePointer?> CapturePointers() => pointers.ToImmutableDictionary();
     public ImmutableArray<NativeBattleLoaderZeroRegion> CaptureLoaderZeros() => zeros.ToImmutableArray();
@@ -139,7 +140,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             uint pageAddress = current / PageLength * PageLength;
             int first = (int)(current - pageAddress);
             int count = Math.Min(length - offset, PageLength - first);
-            NativeBattleWorkingMemory? page = pages.GetValueOrDefault(pageAddress);
+            NativeBattleStagingPage? page = pages.GetValueOrDefault(pageAddress);
             if (page is not null && page.IsKnown(first, count) || LoaderZeroCovers(current, count))
             {
                 offset += count;
@@ -167,7 +168,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             int count = Math.Min(destination.Length - offset, PageLength - first);
             Span<byte> data = destination.Slice(offset, count);
             Span<bool> known = destinationKnown.Slice(offset, count);
-            if (pages.TryGetValue(pageAddress, out NativeBattleWorkingMemory? page))
+            if (pages.TryGetValue(pageAddress, out NativeBattleStagingPage? page))
             {
                 page.ReadWithKnownness(first, data, known);
             }
@@ -217,6 +218,43 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         }
     }
 
+    internal void BindResource(uint address, ImmutableArray<byte> data)
+    {
+        PrepareOperationMutation();
+        PrepareReadWindowWrite(address, data.Length);
+        InvalidatePointers(address, data.Length);
+        for (int offset = 0; offset < data.Length;)
+        {
+            uint current = checked(address + (uint)offset);
+            uint pageAddress = current / PageLength * PageLength;
+            int first = (int)(current - pageAddress);
+            int count = Math.Min(data.Length - offset, PageLength - first);
+            SetPage(pageAddress, NativeBattleStagingPage.Bind(pages.GetValueOrDefault(pageAddress), first, data, offset, count));
+            version++;
+            offset += count;
+        }
+    }
+
+    internal bool TryResource(uint address, int length, out ImmutableArray<byte> resource)
+    {
+        resource = default;
+        for (int offset = 0; offset < length;)
+        {
+            uint current = checked(address + (uint)offset);
+            uint pageAddress = current / PageLength * PageLength;
+            int first = (int)(current - pageAddress);
+            int count = Math.Min(length - offset, PageLength - first);
+            if (!pages.TryGetValue(pageAddress, out NativeBattleStagingPage? page) || !page.TrySource(first, count, out ImmutableArray<byte> source, out int sourceOffset) || sourceOffset != offset || source.Length != length || !resource.IsDefault && !resource.Equals(source))
+            {
+                resource = default;
+                return false;
+            }
+            resource = source;
+            offset += count;
+        }
+        return !resource.IsDefault;
+    }
+
     public void WriteWithKnownness(uint address, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
     {
         if (data.Length != known.Length)
@@ -256,19 +294,19 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         ForgetLoaderZero(address, length);
         InvalidatePointers(address, length);
         ulong end = (ulong)address + (uint)length;
-        foreach (var entry in pages)
+        foreach (uint pageAddress in pages.Keys.ToArray())
         {
-            ulong first = Math.Max(address, entry.Key);
-            ulong last = Math.Min(end, (ulong)entry.Key + (uint)entry.Value.StoredLength);
+            ulong first = Math.Max(address, pageAddress);
+            ulong last = Math.Min(end, (ulong)pageAddress + (uint)pages[pageAddress].StoredLength);
             if (last <= first)
             {
                 continue;
             }
-            NativeBattleWorkingMemory page = WritablePage(entry.Key);
+            NativeBattleWorkingMemory page = WritablePage(pageAddress);
             long previous = page.Version;
             try
             {
-                page.MarkUnknown((int)(first - entry.Key), (int)(last - first));
+                page.MarkUnknown((int)(first - pageAddress), (int)(last - first));
             }
             finally
             {
@@ -285,7 +323,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
     public bool IsExplicitKnown(uint address)
     {
         uint pageAddress = address / PageLength * PageLength;
-        return pages.TryGetValue(pageAddress, out NativeBattleWorkingMemory? page) && page.IsKnown((int)(address - pageAddress), 1);
+        return pages.TryGetValue(pageAddress, out NativeBattleStagingPage? page) && page.IsKnown((int)(address - pageAddress), 1);
     }
 
     public void SetPointerMetadata(uint address, bool present, NativeBattleResourcePointer? pointer)
@@ -415,13 +453,27 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
 
     private NativeBattleWorkingMemory WritablePage(uint address)
     {
-        if (!pages.TryGetValue(address, out NativeBattleWorkingMemory? page))
+        if (!pages.TryGetValue(address, out NativeBattleStagingPage? page))
         {
-            page = new(PageLength, initialKnownZero: false);
-            pages.Add(address, page);
+            page = new(new NativeBattleWorkingMemory(PageLength, initialKnownZero: false));
+            SetPage(address, page);
         }
-        EnlistPage(page);
-        return page;
+        else if (page.Working is null)
+        {
+            page = new(page.Materialize());
+            SetPage(address, page);
+        }
+        EnlistPage(page.Working!);
+        return page.Working!;
+    }
+
+    private void SetPage(uint address, NativeBattleStagingPage page)
+    {
+        if (checkpoint)
+        {
+            pageUndo.Add(new(address, pages.GetValueOrDefault(address)));
+        }
+        pages[address] = page;
     }
 
     private bool LoaderZero(uint address)

@@ -94,7 +94,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             }
             _ = source.Section(0);
             NativeBattleModelLoadTask next = task with { Phase = 1, File = new(source.FileId, source.Name) };
-            staging = staging.Write(NativeBattleFileStaging.Address, source.Bytes.AsSpan());
+            staging = staging.BindResource(NativeBattleFileStaging.Address, source.Bytes);
             return new(this with { Task = next }, staging, 1, new(source.FileId, source.Name, 0x508470, source.Bytes.Length), null, null);
         }
         if (task.Phase == 1)
@@ -112,7 +112,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             NativeBattleEffectHeapAllocation pack = source.TexturePack(task.Callback);
             NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
             NativeBattleModelDatSource relocated = source.Relocate507400(task.Callback, upload);
-            staging = staging.Write(NativeBattleFileStaging.Address, relocated.Bytes.AsSpan());
+            staging = staging.BindResource(NativeBattleFileStaging.Address, relocated.Bytes);
             NativeBattleModelLoadTask next = task with { Phase = 2, TextureBinding = upload.Binding, OriginalTexturePack = pack };
             return new(this with { Task = next }, staging, 1, null, upload, null);
         }

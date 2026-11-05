@@ -114,6 +114,18 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         overlay.Write(address, bytes);
     }
 
+    internal void BindResource(uint address, ImmutableArray<byte> bytes)
+    {
+        RequireRange(address, bytes.Length);
+        overlay.BindResource(address, bytes);
+    }
+
+    internal bool TryResource(uint address, int length, out ImmutableArray<byte> bytes)
+    {
+        RequireRange(address, length);
+        return overlay.TryResource(address, length, out bytes);
+    }
+
     public void WriteRaw(uint address, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
     {
         RequireRange(address, bytes.Length);

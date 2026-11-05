@@ -19,7 +19,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
     private readonly List<CellUndo> byteUndo = [];
     private readonly List<PointerUndo> pointerUndo = [];
     private long sequence;
-    private readonly record struct CheckpointMark(int Bytes, int Pointers, int Unknown, int Zeros, long Sequence, uint BaseAddress);
+    private readonly record struct CheckpointMark(int Bytes, int Pointers, int Unknown, int Zeros, int Resources, long Sequence, uint BaseAddress);
     private readonly List<CheckpointMark> checkpointMarks = [];
     private bool checkpoint => checkpointMarks.Count != 0;
     public int CheckpointDepth => checkpointMarks.Count;
@@ -97,7 +97,9 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         {
             uint current = checked(address + (uint)index);
             bool written = bytes.TryGetValue(current, out Cell cell);
-            if (!written && !BaselineExplicitKnown(current) && ForgottenZero(current))
+            bool bound = ResourceByte(current, out byte resource, out long resourceSequence);
+            long writtenSequence = written ? cell.Sequence : 0;
+            if (!written && !bound && !BaselineExplicitKnown(current) && ForgottenZero(current))
             {
                 known[index] = false;
             }
@@ -106,8 +108,14 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
                 data[index] = cell.Data;
                 known[index] = true;
             }
+            if (bound && resourceSequence > writtenSequence)
+            {
+                data[index] = resource;
+                known[index] = true;
+                writtenSequence = resourceSequence;
+            }
             long unknownSequence = LastUnknown(current);
-            if (unknownSequence > 0 && (!written || unknownSequence > cell.Sequence))
+            if (unknownSequence > writtenSequence)
             {
                 known[index] = false;
             }
@@ -262,7 +270,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public int BeginNestedCheckpoint()
     {
-        checkpointMarks.Add(new(byteUndo.Count, pointerUndo.Count, unknown.Count, forgottenZeros.Count, sequence, BaseAddress));
+        checkpointMarks.Add(new(byteUndo.Count, pointerUndo.Count, unknown.Count, forgottenZeros.Count, resources.Count, sequence, BaseAddress));
         return checkpointMarks.Count;
     }
 
@@ -321,6 +329,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         pointerUndo.RemoveRange(mark.Pointers, pointerUndo.Count - mark.Pointers);
         unknown.RemoveRange(mark.Unknown, unknown.Count - mark.Unknown);
         forgottenZeros.RemoveRange(mark.Zeros, forgottenZeros.Count - mark.Zeros);
+        resources.RemoveRange(mark.Resources, resources.Count - mark.Resources);
         sequence = mark.Sequence;
         BaseAddress = mark.BaseAddress;
         CommitNestedCheckpoint(depth);
@@ -345,34 +354,41 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
             {
                 source.ForgetLoaderZero(range.Address, range.Length);
             }
-            foreach (Unknown range in unknown)
+            if (resources.Count != 0)
             {
-                source.MarkUnknown(range.Address, range.Length);
+                PublishResourceData(source.BindResource, source.MarkUnknown, source.Write);
             }
-            sorted.Clear();
-            sorted.EnsureCapacity(bytes.Count);
-            foreach (uint address in bytes.Keys)
+            else
             {
-                sorted.Add(address);
-            }
-            sorted.Sort();
-            int bufferLength = Math.Min(NativeBattleFileStagingWorkingOwner.PageLength, sorted.Count);
-            Span<byte> data = stackalloc byte[bufferLength];
-            Span<bool> known = stackalloc bool[bufferLength];
-            for (int index = 0; index < sorted.Count;)
-            {
-                uint first = sorted[index];
-                int count = 0;
-                do
+                foreach (Unknown range in unknown)
                 {
-                    uint current = sorted[index++];
-                    Cell cell = bytes[current];
-                    data[count] = cell.Data;
-                    known[count] = LastUnknown(current) < cell.Sequence;
-                    count++;
+                    source.MarkUnknown(range.Address, range.Length);
                 }
-                while (count < data.Length && index < sorted.Count && (ulong)first + (uint)count == sorted[index]);
-                source.WriteWithKnownness(first, data[..count], known[..count]);
+                sorted.Clear();
+                sorted.EnsureCapacity(bytes.Count);
+                foreach (uint address in bytes.Keys)
+                {
+                    sorted.Add(address);
+                }
+                sorted.Sort();
+                int bufferLength = Math.Min(NativeBattleFileStagingWorkingOwner.PageLength, sorted.Count);
+                Span<byte> data = stackalloc byte[bufferLength];
+                Span<bool> known = stackalloc bool[bufferLength];
+                for (int index = 0; index < sorted.Count;)
+                {
+                    uint first = sorted[index];
+                    int count = 0;
+                    do
+                    {
+                        uint current = sorted[index++];
+                        Cell cell = bytes[current];
+                        data[count] = cell.Data;
+                        known[count] = LastUnknown(current) < cell.Sequence;
+                        count++;
+                    }
+                    while (count < data.Length && index < sorted.Count && (ulong)first + (uint)count == sorted[index]);
+                    source.WriteWithKnownness(first, data[..count], known[..count]);
+                }
             }
             foreach (var entry in pointers)
             {
@@ -400,6 +416,8 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         parentGeneration = 0;
         long cleared = bytes.Clear();
         unknown.Clear();
+        resources.Clear();
+        resourceEvents.Clear();
         forgottenZeros.Clear();
         cleared += pointers.Clear();
         invalidated.Clear();

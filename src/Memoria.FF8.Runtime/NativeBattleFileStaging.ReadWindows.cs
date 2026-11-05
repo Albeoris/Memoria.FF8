@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+using System.Collections.Immutable;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -8,6 +9,8 @@ internal sealed class NativeBattleStagingReadWindowLease
 {
     internal readonly NativeBattleStagingDeltaMap<NativeBattleReadWindow> Pages = new();
     internal readonly NativeBattleStagingDeltaMap<NativeBattleReadWindowByte> InitialCells = new();
+    private readonly record struct Resource(uint Address, ImmutableArray<byte> Source, int Offset, int Length, int UnknownStart);
+    private readonly List<Resource> resources = [];
     internal readonly List<NativeBattleStagingReadRange> Zeros = [];
     internal readonly List<NativeBattleStagingReadRange> Unknown = [];
     internal readonly List<NativeBattleStagingReadRange> ForgottenZeros = [];
@@ -31,6 +34,30 @@ internal sealed class NativeBattleStagingReadWindowLease
         {
             Budget.Accept(1);
         }
+    }
+
+    internal void AddResource(uint address, ImmutableArray<byte> source)
+    {
+        ulong first = Math.Max(address, Address);
+        ulong end = Math.Min((ulong)address + (uint)source.Length, (ulong)Address + (uint)Length);
+        if (first >= end)
+        {
+            return;
+        }
+        List<uint> removed = [];
+        foreach (uint current in InitialCells.Keys)
+        {
+            if (current >= first && current < end)
+            {
+                removed.Add(current);
+            }
+        }
+        foreach (uint current in removed)
+        {
+            InitialCells.Remove(current);
+            Budget.Release(1);
+        }
+        resources.Add(new((uint)first, source, checked((int)(first - address)), checked((int)(end - first)), Unknown.Count));
     }
 
     internal void Require(int offset, int length, long generation)
@@ -75,12 +102,25 @@ internal sealed class NativeBattleStagingReadWindowLease
                     bytes[index] = 0;
                     flags[index] = true;
                 }
+                int unknownStart = 0;
+                for (int resourceIndex = resources.Count - 1; resourceIndex >= 0; resourceIndex--)
+                {
+                    Resource resource = resources[resourceIndex];
+                    if (current >= resource.Address && (ulong)current < (ulong)resource.Address + (uint)resource.Length)
+                    {
+                        bytes[index] = resource.Source[resource.Offset + (int)(current - resource.Address)];
+                        flags[index] = true;
+                        explicitKnown = true;
+                        unknownStart = resource.UnknownStart;
+                        break;
+                    }
+                }
                 if (InitialCells.TryGetValue(current, out NativeBattleReadWindowByte cell))
                 {
                     bytes[index] = cell.Value;
                     flags[index] = cell.Known;
                 }
-                else if (Covers(Unknown, current) || !explicitKnown && Covers(ForgottenZeros, current))
+                else if (Covers(Unknown, current, unknownStart) || !explicitKnown && Covers(ForgottenZeros, current))
                 {
                     flags[index] = false;
                 }
@@ -89,10 +129,11 @@ internal sealed class NativeBattleStagingReadWindowLease
         }
     }
 
-    private static bool Covers(List<NativeBattleStagingReadRange> ranges, uint address)
+    private static bool Covers(List<NativeBattleStagingReadRange> ranges, uint address, int first = 0)
     {
-        foreach (NativeBattleStagingReadRange range in ranges)
+        for (int index = first; index < ranges.Count; index++)
         {
+            NativeBattleStagingReadRange range = ranges[index];
             if (address >= range.Address && (ulong)address < (ulong)range.Address + (uint)range.Length)
             {
                 return true;
@@ -112,6 +153,7 @@ internal sealed class NativeBattleStagingReadWindowLease
         InitialCells.Clear();
         Zeros.Clear();
         Unknown.Clear();
+        resources.Clear();
         ForgottenZeros.Clear();
         Transaction = null;
         Active = false;
@@ -260,7 +302,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             ulong end = (ulong)address + (uint)length;
             for (ulong pageAddress = address / PageLength * PageLength; pageAddress < end && length != 0; pageAddress += PageLength)
             {
-                if (!pages.TryGetValue((uint)pageAddress, out NativeBattleWorkingMemory? page))
+                if (!pages.TryGetValue((uint)pageAddress, out NativeBattleStagingPage? page))
                 {
                     continue;
                 }
@@ -318,7 +360,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         ulong end = (ulong)address + (uint)length;
         for (ulong pageAddress = address / PageLength * PageLength; pageAddress < end && length != 0; pageAddress += PageLength)
         {
-            if (pages.TryGetValue((uint)pageAddress, out NativeBattleWorkingMemory? page))
+            if (pages.TryGetValue((uint)pageAddress, out NativeBattleStagingPage? page))
             {
                 int first = (int)Math.Max(0L, (long)address - (long)pageAddress);
                 ulong last = Math.Min(end, pageAddress + (uint)(materializedOnly ? page.StoredLength : PageLength));
@@ -361,10 +403,20 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
 
 internal sealed partial class NativeBattleFileStagingOverlay
 {
-    internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease)
+    internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease, NativeBattleFileStagingOverlay? reader = null)
     {
         RequireLayerActive();
-        parent?.CaptureReadWindowPrefix(lease);
+        reader ??= this;
+        parent?.CaptureReadWindowPrefix(lease, reader);
+        if (resources.Count != 0)
+        {
+            CaptureResourcePrefix(lease, reader);
+            foreach (NativeBattleLoaderZeroRegion range in forgottenZeros)
+            {
+                NativeBattleFileStagingWorkingOwner.AddReadWindowRange(lease.ForgottenZeros, range.Address, range.Length, lease.Address, lease.Length);
+            }
+            return;
+        }
         foreach (var entry in lease.InitialCells)
         {
             if (LastUnknown(entry.Key) != 0)
@@ -378,7 +430,7 @@ internal sealed partial class NativeBattleFileStagingOverlay
         {
             foreach (var entry in bytes)
             {
-                if (entry.Key >= lease.Address && entry.Key < end)
+                if (entry.Key >= lease.Address && entry.Key < end && !reader.BoundBelow(this, entry.Key))
                 {
                     lease.AddCell(entry.Key, entry.Value.Data, entry.Value.Sequence >= LastUnknown(entry.Key));
                     copied++;

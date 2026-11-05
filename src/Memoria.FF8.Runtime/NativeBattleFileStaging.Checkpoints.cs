@@ -4,11 +4,14 @@ namespace Memoria.FF8.Runtime;
 
 internal sealed partial class NativeBattleFileStagingWorkingOwner
 {
+    private readonly record struct PageUndo(uint Address, NativeBattleStagingPage? Page);
+    private readonly List<PageUndo> pageUndo = [];
     private sealed class OwnerCheckpoint
     {
         internal uint Base;
         internal int Pointers;
         internal int Zeros;
+        internal int PageChanges;
         internal readonly List<NativeBattleWorkingMemory> Pages = [];
     }
 
@@ -41,6 +44,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         }
         pointerUndo.Clear();
         zeroUndo.Clear();
+        pageUndo.Clear();
         OpenCheckpoint();
     }
 
@@ -60,6 +64,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         frame.Base = BaseAddress;
         frame.Pointers = pointerUndo.Count;
         frame.Zeros = zeroUndo.Count;
+        frame.PageChanges = pageUndo.Count;
         frame.Pages.Clear();
         checkpointDepth++;
     }
@@ -225,6 +230,19 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             }
             pointerUndo.RemoveRange(frame.Pointers, pointerUndo.Count - frame.Pointers);
             zeroUndo.RemoveRange(frame.Zeros, zeroUndo.Count - frame.Zeros);
+            for (int index = pageUndo.Count - 1; index >= frame.PageChanges; index--)
+            {
+                PageUndo entry = pageUndo[index];
+                if (entry.Page is null)
+                {
+                    pages.Remove(entry.Address);
+                }
+                else
+                {
+                    pages[entry.Address] = entry.Page;
+                }
+            }
+            pageUndo.RemoveRange(frame.PageChanges, pageUndo.Count - frame.PageChanges);
             BaseAddress = frame.Base;
             version++;
         }
@@ -234,6 +252,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         {
             pointerUndo.Clear();
             zeroUndo.Clear();
+            pageUndo.Clear();
         }
         return failure;
     }
@@ -258,5 +277,5 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
 internal sealed partial class NativeBattleFileStagingOverlay
 {
     internal bool IsPublicLayer { get; set; } = true;
-    internal bool HasPendingChanges => checkpoint || bytes.Count != 0 || pointers.Count != 0 || unknown.Count != 0 || forgottenZeros.Count != 0 || BaseAddress != source.BaseAddress;
+    internal bool HasPendingChanges => checkpoint || resources.Count != 0 || bytes.Count != 0 || pointers.Count != 0 || unknown.Count != 0 || forgottenZeros.Count != 0 || BaseAddress != source.BaseAddress;
 }

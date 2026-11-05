@@ -77,6 +77,7 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
     internal NativeBattleFileStagingWorkingOwner WorkingOwner => RequireOwner();
     internal object OwnerIdentity => RequireOwner();
     internal int AllocatedPageCount => RequireOwner().PageCount;
+    internal int MaterializedPageCount => RequireOwner().MaterializedPageCount;
     internal long StorageVersion => RequireOwner().Version;
     public ulong KnownExtentEnd => Transaction is { } transaction ? transaction.KnownExtentEnd : snapshot ? FrozenKnownExtentEnd() : RequireOwner().KnownExtentEnd;
     bool INativeBattleStorageNode.IsSnapshot => snapshot;
@@ -252,7 +253,7 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
         {
             throw new InvalidDataException("Native staging DAT declares an extent shorter than its directory.");
         }
-        ImmutableArray<byte> bytes = NativeBattleTelemetry.Immutable(1042, Read(address, length));
+        ImmutableArray<byte> bytes = TryResource(address, length, out ImmutableArray<byte> source) ? source : NativeBattleTelemetry.Immutable(1042, Read(address, length));
         _ = NativeBattleDatDirectory.Section(bytes.AsSpan(), 0);
         return bytes;
     }

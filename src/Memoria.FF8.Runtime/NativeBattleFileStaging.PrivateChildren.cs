@@ -45,11 +45,10 @@ internal sealed partial class NativeBattleFileStagingOverlay
     private bool ExplicitKnown(uint address)
     {
         RequireLayerActive();
-        if (bytes.TryGetValue(address, out Cell cell))
-        {
-            return cell.Sequence >= LastUnknown(address);
-        }
-        return LastUnknown(address) == 0 && BaselineExplicitKnown(address);
+        long written = bytes.TryGetValue(address, out Cell cell) ? cell.Sequence : 0;
+        ResourceByte(address, out _, out long bound);
+        long latest = Math.Max(written, bound);
+        return latest != 0 ? latest >= LastUnknown(address) : LastUnknown(address) == 0 && BaselineExplicitKnown(address);
     }
 
     private ulong LastWrittenEnd(NativeBattleFileStagingOverlay reader)
@@ -60,6 +59,17 @@ internal sealed partial class NativeBattleFileStagingOverlay
             if (reader.ExplicitKnown(entry.Key))
             {
                 last = Math.Max(last, (ulong)entry.Key + 1);
+            }
+        }
+        foreach (ResourceBinding binding in resources)
+        {
+            for (ulong end = (ulong)binding.Address + (uint)binding.Data.Length; end > binding.Address && end > last; end--)
+            {
+                if (reader.ExplicitKnown(checked((uint)(end - 1))))
+                {
+                    last = end;
+                    break;
+                }
             }
         }
         return last;
@@ -136,46 +146,53 @@ internal sealed partial class NativeBattleFileStagingOverlay
             {
                 destination.ForgetLoaderZero(range.Address, range.Length);
             }
-            foreach (Unknown range in unknown)
+            if (resources.Count != 0)
             {
-                destination.MarkUnknown(range.Address, range.Length);
+                PublishResourceData(destination.BindResource, destination.MarkUnknown, destination.Write);
             }
-            sorted.Clear();
-            sorted.EnsureCapacity(bytes.Count);
-            foreach (uint address in bytes.Keys)
+            else
             {
-                sorted.Add(address);
-            }
-            sorted.Sort();
-            int bufferLength = Math.Min(NativeBattleFileStagingWorkingOwner.PageLength, sorted.Count);
-            Span<byte> data = stackalloc byte[bufferLength];
-            Span<bool> known = stackalloc bool[bufferLength];
-            for (int index = 0; index < sorted.Count;)
-            {
-                uint first = sorted[index];
-                int count = 0;
-                do
+                foreach (Unknown range in unknown)
                 {
-                    uint address = sorted[index++];
-                    Cell cell = bytes[address];
-                    data[count] = cell.Data;
-                    known[count++] = cell.Sequence >= LastUnknown(address);
+                    destination.MarkUnknown(range.Address, range.Length);
                 }
-                while (count < data.Length && index < sorted.Count && (ulong)first + (uint)count == sorted[index]);
-                destination.Write(first, data[..count]);
-                for (int lane = 0; lane < count;)
+                sorted.Clear();
+                sorted.EnsureCapacity(bytes.Count);
+                foreach (uint address in bytes.Keys)
                 {
-                    if (known[lane])
+                    sorted.Add(address);
+                }
+                sorted.Sort();
+                int bufferLength = Math.Min(NativeBattleFileStagingWorkingOwner.PageLength, sorted.Count);
+                Span<byte> data = stackalloc byte[bufferLength];
+                Span<bool> known = stackalloc bool[bufferLength];
+                for (int index = 0; index < sorted.Count;)
+                {
+                    uint first = sorted[index];
+                    int count = 0;
+                    do
                     {
-                        lane++;
-                        continue;
+                        uint address = sorted[index++];
+                        Cell cell = bytes[address];
+                        data[count] = cell.Data;
+                        known[count++] = cell.Sequence >= LastUnknown(address);
                     }
-                    int begin = lane++;
-                    while (lane < count && !known[lane])
+                    while (count < data.Length && index < sorted.Count && (ulong)first + (uint)count == sorted[index]);
+                    destination.Write(first, data[..count]);
+                    for (int lane = 0; lane < count;)
                     {
-                        lane++;
+                        if (known[lane])
+                        {
+                            lane++;
+                            continue;
+                        }
+                        int begin = lane++;
+                        while (lane < count && !known[lane])
+                        {
+                            lane++;
+                        }
+                        destination.MarkUnknown(checked(first + (uint)begin), lane - begin);
                     }
-                    destination.MarkUnknown(checked(first + (uint)begin), lane - begin);
                 }
             }
             foreach (var entry in pointers)
