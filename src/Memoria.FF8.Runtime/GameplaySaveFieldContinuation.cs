@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>A supported logical field execution continuation. Current resources are rebuilt; completed initialization is never replayed.</summary>
 public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int Version, [property: JsonRequired] GameplaySaveFieldScripts Scripts, [property: JsonRequired] GameplaySaveFieldScene Scene, [property: JsonRequired] GameplaySaveFieldActors Actors)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveScriptMenu? ScriptMenu { get; init; }
+
     public void Validate()
     {
         if (Version != 1 || Scripts is null || Scene is null || Actors is null)
@@ -15,6 +18,11 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         Scene.Validate();
         Actors.Validate();
         Scene.Ambient?.Validate(Scripts.Frame);
+        ScriptMenu?.Validate(Scripts, Scene, Actors);
+        if (ScriptMenu is null && Scripts.Fibers.Any(fiber => fiber.Wait == GameplaySaveScriptWait.ScriptMenu))
+        {
+            throw new InvalidDataException("Gameplay script-menu wait has no logical menu owner.");
+        }
         if (Scripts.FieldId != Actors.FieldId || Scene.PartyBindings.Any(binding => binding != 255 && binding >= Actors.RegisteredActors.Length) || Scripts.PreparedMovie is int movie && Scene.PreparedMovieSource?.MovieIndex != movie)
         {
             throw new InvalidDataException("Gameplay field continuation owners disagree about the current field or registered actor layout.");
@@ -52,7 +60,7 @@ public sealed record GameplaySaveFieldContinuation([property: JsonRequired] int 
         facts.Validate();
         GameplaySaveFieldPosition position = GetLeaderPosition();
         GameplaySaveFieldActor actor = Actors.Actors.Single(item => item.ObjectId == Actors.RegisteredActors[Scene.PartyBindings[0]]);
-        if (resume.Kind != GameplaySaveResumeKind.Field || resume.FieldId != Scripts.FieldId || facts.FieldId != Scripts.FieldId || facts.Origin != GameplaySaveSceneFactsOrigin.Field || resume.Field != position || actor.Identity.CharacterId != facts.FieldParty[0])
+        if (resume.Kind != GameplaySaveResumeKind.Field || resume.FieldId != Scripts.FieldId || facts.FieldId != Scripts.FieldId || facts.Origin != GameplaySaveSceneFactsOrigin.Field || resume.Field != position || actor.Identity.CharacterId != facts.FieldParty[0] && ScriptMenu?.PendingPartyRefresh != true)
         {
             throw new InvalidDataException("Gameplay field resume descriptor contradicts its current logical continuation leader.");
         }

@@ -64,6 +64,11 @@ public sealed partial class EventEngine
     /// <summary>Restores logical actors into a fresh allocated program, rebuilding selected resources without INIT or a callback.</summary>
     public void RestoreGameplaySaveFieldActors(GameplaySaveFieldActors saved)
     {
+        RestoreGameplaySaveFieldActors(saved, false);
+    }
+
+    private void RestoreGameplaySaveFieldActors(GameplaySaveFieldActors saved, bool pendingMenuPartyRefresh)
+    {
         ArgumentNullException.ThrowIfNull(saved);
         saved.Validate();
         if (program is null || NativeRuntimeProfile is not { IsVerified: true } || saved.FieldId != FieldId || saved.Actors.Length != actors.Count || saved.Actors.Where((actor, index) => actor.ObjectId != index || actor.Label != actors[index].Label).Any() || transitionRequested || defaultsStarted || Scene.NativeFieldInitialization is not { Origin: NativeFieldInitializationOrigin.GameplayContinuation, Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, FieldId, programHash) || services is not GameSession)
@@ -86,7 +91,7 @@ public sealed partial class EventEngine
         Scene.NativeActorObjectIds.Clear();
         Scene.NativeActorObjectIds.AddRange(detached.RegisteredActors);
         Scene.NativeActorLayoutVersion = 1;
-        if (Scene.FieldPartyNativeActorIds.Count != 0 && (Scene.FieldPartyNativeActorIds.Count != 3 || Scene.FieldPartyNativeActorIds.Where((ordinal, slot) => ordinal != 255 && ((uint)ordinal >= Scene.NativeActorObjectIds.Count || (byte)actors[Scene.NativeActorObjectIds[ordinal]].CharacterId != (byte)Scene.Party[slot])).Any()))
+        if (Scene.FieldPartyNativeActorIds.Count != 0 && (Scene.FieldPartyNativeActorIds.Count != 3 || Scene.FieldPartyNativeActorIds.Where((ordinal, slot) => ordinal != 255 && ((uint)ordinal >= Scene.NativeActorObjectIds.Count || !pendingMenuPartyRefresh && (byte)actors[Scene.NativeActorObjectIds[ordinal]].CharacterId != (byte)Scene.Party[slot])).Any()))
         {
             throw new InvalidDataException("Gameplay actor layout does not match the saved logical party bindings.");
         }

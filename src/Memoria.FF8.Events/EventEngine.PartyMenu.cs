@@ -387,6 +387,10 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved menu lacks its actual470250 capture before the replacement menu callback.");
         }
+        if (saved.NativeFieldLocation?.Origin == NativeFieldLocationOrigin.GameplayContinuation && saved.Scene.NativeFieldInitialization?.Origin != NativeFieldInitializationOrigin.GameplayContinuation)
+        {
+            throw new InvalidDataException("Semantic menu entry location requires its explicit gameplay continuation origin.");
+        }
         if (menu.Phase is not (NativePartyMenuPhase.Requested or NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization) && saved.ExamTimer?.DisplayEnabled != false || menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization && saved.ExamTimer?.DisplayEnabled != menu.TimerDisplayBeforeMenu)
         {
             throw new InvalidDataException("Saved party menu did not preserve its native cached timer display disable/restore.");

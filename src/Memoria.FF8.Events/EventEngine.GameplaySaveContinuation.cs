@@ -14,7 +14,7 @@ public sealed partial class EventEngine
         GameplaySaveFieldScripts scripts = CaptureGameplaySaveScripts();
         GameplaySaveFieldScene scene = CaptureGameplaySaveFieldScene();
         GameplaySaveFieldActors logicalActors = CaptureGameplaySaveFieldActors();
-        GameplaySaveFieldContinuation result = new(1, scripts, scene, logicalActors);
+        GameplaySaveFieldContinuation result = new(1, scripts, scene, logicalActors) { ScriptMenu = CaptureGameplayScriptMenu() };
         return result.Detach();
     }
 
@@ -30,9 +30,10 @@ public sealed partial class EventEngine
         }
         GameplaySaveFieldContinuation saved = continuation.Detach();
         RestoreGameplaySaveFieldScene(saved.Scene, saved.Scripts, facts);
-        RestoreGameplaySaveFieldActors(saved.Actors);
+        RestoreGameplaySaveFieldActors(saved.Actors, saved.ScriptMenu?.PendingPartyRefresh == true);
         RestoreGameplaySaveParticles(saved.Scene);
-        RestoreGameplaySaveScripts(saved.Scripts);
+        RestoreGameplaySaveScripts(saved.Scripts, saved.ScriptMenu is not null);
+        RestoreGameplayScriptMenu(saved.ScriptMenu);
         ValidateSceneMemoryOwners(EventMemory, Scene);
     }
 }

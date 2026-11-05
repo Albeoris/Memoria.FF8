@@ -19,6 +19,7 @@ internal static partial class Program
                 {
                     ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
                     ["gameplay-animation-waits"] = GameplayAnimationWaitContract,
+                    ["gameplay-script-menu"] = () => GameplayScriptMenuContract(selectedGameDirectory),
                     ["jsm-resource-validation"] = JsmResourceValidationContract,
                     ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
                     ["native-refinement-input"] = NativeRefinementInputContract,
