@@ -6,6 +6,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleGilgameshPresentationTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_actor_geometry_identity_is_stable_without_numeric_addressability_and_keeps_guest_arithmetic(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuReference cpu = new(1, layout.BankLength + 4) { Layout = layout, ResourceOnly = true };
+        NativeBattleGraphicsResource resource = new([0, 0]) { PilotGeometryResource = cpu };
+        NativeBattlePilotVisualIdentity parent = new(330, 0x1000, 1, 7, 3) { ResourceGeneration = long.MaxValue };
+        NativeBattlePilotVisualIdentity first = NativeBattleGilgameshVisuals.ActorResource(parent, resource, 2)!.Value;
+        Assert.Equal(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource, 2));
+        Assert.Null(cpu.TryPhysicalAddress());
+        Assert.NotEqual(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource with { PilotGeometryResource = cpu with { Offset = cpu.Offset + 4 } }, 2));
+        NativeBattleModelCpuReference guest = cpu with { Offset = 4, ResourceOnly = false };
+        NativeBattleGraphicsResource numeric = resource with { PilotGeometryResource = guest };
+        NativeBattlePilotVisualIdentity expected = NativeBattleGilgameshVisuals.Resource(parent, guest, guest.PhysicalAddress, 2)!.Value;
+        Assert.Equal(expected, NativeBattleGilgameshVisuals.ActorResource(parent, numeric, 2));
+    }
+
+    [Theory]
     [InlineData((ushort)327)]
     [InlineData((ushort)328)]
     [InlineData((ushort)329)]

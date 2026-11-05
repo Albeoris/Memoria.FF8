@@ -188,7 +188,7 @@ public static class NativeBattleModelResourceCopies
 
         bool UsesLoadedBank(NativeBattleGraphicsModel model)
         {
-            return (model.Flags0 & 2) != 0 && (promoted.Contains(model.Index) || model.ActiveStagedResourceRow100 is not null || UsesRow(model.ActiveResourceRow100) || UsesRow(model.OriginalResourceRow104) || UsesRow(model.TextureResourceIndex) || UsesRow(model.LinkedTextureResourceIndex));
+            return (model.Flags0 & 2) != 0 && (promoted.Contains(model.Index) || model.ActiveStagedResourceRow100 is not null || model.LinkedStagedResourceRow is not null || UsesRow(model.ActiveResourceRow100) || UsesRow(model.OriginalResourceRow104) || UsesRow(model.TextureResourceIndex) || UsesRow(model.LinkedTextureResourceIndex));
         }
 
         bool UsesRow(int? index)

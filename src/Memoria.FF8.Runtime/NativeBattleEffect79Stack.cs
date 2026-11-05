@@ -25,8 +25,24 @@ public static class NativeBattleEffect79Stack
         {
             return stack.Invalidate(MatrixOffset, 4, 0x8DC870, "One-bone bounds bypasses the observed GTE frame");
         }
-        uint basis = skeleton.Cpu is { } cpu ? cpu.PhysicalAddress : skeleton.StagingAddress ?? throw new NotSupportedException("Effect79 stack observation requires its resolved current physical skeleton pointer.");
-        uint lastRotation = checked(basis + 32u + (uint)((boneCount - 1) * 48));
+        int offset = checked(32 + (boneCount - 1) * 48);
+        uint lastRotation;
+        if (skeleton.Cpu is { Bank: < 3, ResourceOnly: true } reference)
+        {
+            NativeBattlePartyCpuLayout layout = reference.EffectiveLayout;
+            layout.Validate();
+            if (reference.Offset > layout.BankLength - offset - 32)
+            {
+                throw new NotSupportedException("Effect79 stack residue has no proved original placement for this logical last-bone matrix.");
+            }
+            // NG-017: The saved original placement is consumed as raw rotation data, never dereferenced.
+            lastRotation = checked(layout.BaseAddress + (uint)reference.Bank * (uint)layout.BankLength + (uint)(reference.Offset + offset));
+        }
+        else
+        {
+            uint basis = skeleton.Cpu?.TryPhysicalAddress() ?? skeleton.StagingAddress ?? throw new NotSupportedException("Effect79 stack observation requires its actual current skeleton placement.");
+            lastRotation = checked(basis + (uint)offset);
+        }
         return stack.StoreUInt32(MatrixOffset, lastRotation, 0x460865, "Main target bounds last GTE matrix saved EDI");
     }
 

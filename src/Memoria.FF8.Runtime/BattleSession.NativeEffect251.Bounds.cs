@@ -105,27 +105,8 @@ public sealed partial class BattleSession
     {
         NativeBattleResourcePointer pointer = NativeEffect251BoundsSkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48 + 18);
-        if (pointer.Cpu is { Bank: < 3 } reference)
-        {
-            NativeBattleModelCpuBank bank = (NativeModelCpuResources ?? throw new NotSupportedException("Effect251 bounds lost CPU rig memory.")).Cpu.Banks[reference.Bank];
-            int first = checked(reference.Offset + offset);
-            NativeBattleEffectArena padding = NativeBattleEffectArena.Clear().MarkUnknown(0, 2);
-            foreach (NativeBattleEffectMemoryRegion region in bank.KnownRanges)
-            {
-                int start = Math.Max(first, region.Offset);
-                int end = Math.Min(first + 2, region.Offset + region.Data.Length);
-                if (start < end)
-                {
-                    padding = padding.Write(start - first, region.Data.AsSpan(start - region.Offset, end - start));
-                }
-            }
-            (byte[] bytes, bool[] known) = padding.ReadSnapshot(0, 2);
-            return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
-        }
-        uint address = checked((pointer.Cpu?.SharedAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect251 bounds require the shared skeleton owner.")) + (uint)offset);
-        NativeBattleEffectArena observed = NativeBattleEffect251Controller.ReadBytes(frame, address, 2);
-        (byte[] data, bool[] observedKnown) = observed.ReadSnapshot(0, 2);
-        return observedKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(data) : null;
+        (byte[] data, bool[] known) = NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging ?? throw new NotSupportedException("Effect251 bounds require the current source scope."), pointer, offset, 2, (address, length) => NativeBattleEffect251Controller.ReadBytes(frame, address, length).ReadSnapshot(0, length));
+        return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(data) : null;
     }
 
     private NativeBattleEffect251Frame RestoreNativeEffect251BoundsPose(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor, NativeBattlePoseSource source)
@@ -149,8 +130,7 @@ public sealed partial class BattleSession
                 if (pointer.Cpu is { Bank: < 3 } reference)
                 {
                     NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect251 bounds lost their physical rig owner.");
-                    NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank].Write(checked(reference.Offset + offset), new byte[2]);
-                    NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
+                    NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(cpu, frame.Staging!, pointer, offset, new byte[2]);
                 }
                 else
                 {

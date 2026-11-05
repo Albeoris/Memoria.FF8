@@ -40,11 +40,12 @@ public sealed partial class BattleSession
             return [];
         }
         NativeBattleModelCpuReference end = descriptor.Require(44);
-        if (end.Bank != source.Bank || end.Offset < source.Offset)
+        if (end.Bank != source.Bank || end.ResourceOnly != source.ResourceOnly || end.EffectiveLayout != source.EffectiveLayout || end.Offset < source.Offset)
         {
             throw new NotSupportedException("Native texture table requires its actual same-bank section boundary.");
         }
-        return cpu.Cpu.Banks[source.Bank].Read(source.Offset, end.Offset - source.Offset).ToImmutableArray();
+        int extent = end.Offset - source.Offset;
+        return NativeBattleModelResourceView.Open(cpu, NativeFileStaging ?? throw new NotSupportedException("Native texture motion requires its current source scope."), new NativeBattleResourcePointer(source, null, extent), extent).Read(0, extent).ToImmutableArray();
     }
 
     private void AdvanceNativeTextureMotion(NativeBattleGraphicsModel model, byte selector)
@@ -65,8 +66,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
                 NativeBattleModelCpuReference target = cpu.Rows[index].Require(48);
-                NativeBattleModelCpuBank bank = cpu.Cpu.Banks[target.Bank].Write(target.Offset, step.Source.AsSpan());
-                NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(target.Bank, bank) } };
+                NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(cpu, NativeFileStaging!, new(target, null, source.Length), 0, step.Source.AsSpan());
             }
         }
         foreach (NativeBattleTextureCopy copy in step.Copies)

@@ -6,6 +6,31 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect79StackTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_skeleton_preserves_bounded_native_stack_rotation_bits_without_guest_projection(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[2].BindPartyResource(layout.BankLength + 16, [99], 0, 1);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(2, bank) } };
+        NativeBattleResourcePointer logical = new NativeBattleResourcePointer(new(2, 0x40) { Layout = layout, ResourceOnly = true }, null, 112).Pin(cpu);
+        logical = NativeBattleTestSnapshots.RestoreJson<NativeBattleResourcePointer>(NativeBattleTestSnapshots.Json(logical));
+        NativeBattleResourcePointer guest = logical with { Cpu = logical.Cpu! with { ResourceOnly = false } };
+        var fixture = Fixture();
+        NativeBattleStackBytes expected = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), guest, 2), fixture.Pool, fixture.Address, fixture.Task, false);
+        NativeBattleStackBytes actual = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), logical, 2), fixture.Pool, fixture.Address, fixture.Task, false);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleEffect79Stack.ReadRotation(expected), NativeBattleEffect79Stack.ReadRotation(actual));
+        Assert.Null(logical.Cpu!.TryPhysicalAddress());
+        Assert.Empty(logical.CpuPublication!.KnownRanges);
+        NativeBattleResourcePointer outside = logical with { Cpu = logical.Cpu with { Offset = layout.BankLength - 111 } };
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), outside, 2));
+        NativeBattleStackBytes one = NativeBattleEffect79Stack.ObserveTargetBounds(NativeBattleEffect79Stack.Begin(1), outside, 1);
+        Assert.False(one.Known[0]);
+    }
+
     [Fact]
     public void Waiting_body_consumes_current_bounds_saved_pointer_and_its_four_actual_pushes()
     {

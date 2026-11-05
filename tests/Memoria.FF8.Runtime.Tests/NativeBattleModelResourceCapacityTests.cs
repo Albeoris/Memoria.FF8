@@ -147,6 +147,24 @@ public sealed class NativeBattleModelResourceCapacityTests
         NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, originalDimensions, loaded);
     }
 
+    [Fact]
+    public void Linked_staged_alias_and_implicit_auxiliary_animation_owner_keep_live_promotion_blocked()
+    {
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().BindAnimation(1, new(0, [7, 8, 9], 8));
+        NativeBattleModelDatSource source = Source(false, NativeBattleModelCpuBank.Length + 4);
+        NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(new(new(0, 1, 0, 0, 0x5077B0, 2), source, new([])), cpu.Cpu, cpu.Rows, 0, null);
+        NativeBattleGraphicsState linked = Loading() with { Models = Loading().Models.SetItem(0, new(0, 3) { LinkedStagedResourceRow = NativeBattleTemporaryMemory.Address }) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, linked));
+        cpu = cpu with { Rows = cpu.Rows.SetItem(3, cpu.Rows[3].Set(12, new(0, 0)).Set(16, new(0, 64))) };
+        NativeBattleGraphicsState differentRows = Loading() with { Models = Loading().Models.SetItem(1, new(1, 3) { ActiveResourceRow100 = 3, OriginalResourceRow104 = 3, TextureResourceIndex = 3 }) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, differentRows));
+        NativeBattleModelCpuResources next = cpu.BindAnimation(1, completed.AnimationCopy!);
+        Assert.Equal(new byte[] { 7, 8, 9 }, cpu.ReadAnimationHeader(40, 0, 3));
+        Assert.NotEqual(cpu.ReadAnimationHeader(40, 0, 3), next.ReadAnimationHeader(40, 0, 3));
+        NativeBattleGraphicsState activeEffect = Loading() with { OriginalEffect = new(1, 0, new(1, 1, 1), null, null) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelResourceCopies.RequireInactiveTransition(cpu, completed, activeEffect));
+    }
+
     private static void Draw(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, int row, ImmutableArray<NativeBattleActionMatrix> bones)
     {
         NativeBattleModelCpuResourceRow owner = cpu.Rows[row];
