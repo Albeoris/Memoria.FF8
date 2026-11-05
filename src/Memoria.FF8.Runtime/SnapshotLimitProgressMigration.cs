@@ -168,7 +168,7 @@ internal static class SnapshotLimitProgressMigration
     {
         if (targetIdentity is JsonValue targetValue && targetValue.TryGetValue(out string? targetHash) && source[nameof(NativeLimitProgress.InitOutSha256)] is JsonValue sourceValue && sourceValue.TryGetValue(out string? sourceHash) && !string.Equals(targetHash, sourceHash, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("Legacy Limit initialization requires matching saved and selected initial identities.");
+            throw new InvalidDataException("Saved Limit owners disagree about their initialization identity.");
         }
     }
 
