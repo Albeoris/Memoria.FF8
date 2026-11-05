@@ -9,6 +9,43 @@ public sealed class NativeBattleEffect210EchoTests
     private const int Header = 12;
     private const uint EchoAddress = 0x20E1678;
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Typed_live_and_frozen_history_keep_packets_and_pinned_source_outside_guest_capacity(bool frozen, bool remastered)
+    {
+        byte[] geometry = Geometry();
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        int origin = layout.BankLength + 4;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(origin, geometry.ToImmutableArray(), 0, geometry.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer pointer = new NativeBattleResourcePointer(new(0, origin) { Layout = layout, ResourceOnly = true }, null, geometry.Length).Pin(cpu);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), pointer, null!);
+        EchoFrame Prepare()
+        {
+            EchoFrame initial = Fixture();
+            return initial with { Echo = NativeBattleDuelEcho.Capture8200(initial.Echo, Header, 3, _ => MatrixBytes(Identity(30, 40, 400), false)) };
+        }
+        EchoFrame expected = Draw(Prepare(), frozen);
+        EchoFrame initial = Prepare();
+        NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
+        EchoFrame actual = NativeBattleDuelEchoDrawing.Draw7EE0(initial, model, EchoAddress, Header, current => current.Echo, (current, task, writes) => current with { Echo = task, EchoWrites = current.EchoWrites.AddRange(writes) }, source, (_, _, _) => throw new InvalidOperationException("CPU geometry must remain on its selected source."), 3, Identity(), new(Identity(), 256, 160, 108), (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), (current, batch) => current with { Batches = current.Batches.Add(batch) }, 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging }, frozen, pilotHistoryGeneration: row => 1000 + row);
+        Assert.Equal(JsonSerializer.Serialize(expected.Batches), JsonSerializer.Serialize(actual.Batches));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Echo), NativeBattleTestSnapshots.Json(actual.Echo));
+        Assert.Equal(expected.EchoWrites, actual.EchoWrites);
+        Assert.Equal(expected.Staging.Read(0x196B000, 24), actual.Staging.Read(0x196B000, 24));
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(actual.Staging));
+        NativeBattleResourcePointer cursor = restored.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 32)!;
+        Assert.True(cursor.Cpu!.ResourceOnly);
+        Assert.True(NativeBattleModelCpuBank.SamePublication(bank, cursor.CpuPublication));
+        NativeBattleModelCpuResources replaced = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        Assert.Equal(geometry.AsSpan(44, 16).ToArray(), NativeBattleModelResourceView.Open(replaced, restored, cursor, 16).Read(0, 16));
+        Assert.Empty(bank.KnownRanges);
+    }
+
     [Fact]
     public void Capture_uses_current_selected_bone_and_two_physical_64_byte_banks_with_retained_padding()
     {
