@@ -301,6 +301,56 @@ public sealed class AutoPlayControllerTests
         Assert.False(controller.Running);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RollbackSerializationExcludesPassiveTimeWithoutForgivingActiveWork(bool serializationFails)
+    {
+        using TestRun run = new();
+        ManualClock clock = new();
+        AutoPlayController controller = new(run.Session, () => throw new InvalidOperationException("No native execution is needed."), run.Session.Restore, run.Directory, deadlineTime: clock);
+        controller.CheckIdleDeadline();
+        clock.Advance(TimeSpan.FromSeconds(4));
+        controller.State.ActiveTravelRoute = new("destination", null, null, new TimedSelections(() =>
+        {
+            clock.Advance(TimeSpan.FromSeconds(30));
+            if (serializationFails)
+            {
+                throw new InvalidOperationException("Synthetic serialization failure.");
+            }
+        }));
+        if (serializationFails)
+        {
+            Assert.Throws<InvalidOperationException>(() => controller.CaptureControllerRollback());
+        }
+        else
+        {
+            controller.CaptureControllerRollback();
+        }
+        controller.CheckIdleDeadline();
+        clock.Advance(TimeSpan.FromSeconds(5));
+        controller.CheckIdleDeadline();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
+    }
+
+    private sealed class TimedSelections(Action onEnumeration) : IReadOnlyList<AutoPlayChoiceSelection>
+    {
+        public int Count => 1;
+        public AutoPlayChoiceSelection this[int index] => new("choice", 0);
+
+        public IEnumerator<AutoPlayChoiceSelection> GetEnumerator()
+        {
+            onEnumeration();
+            yield return new("choice", 0);
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
     private sealed class ThrowingSelections : IReadOnlyList<AutoPlayChoiceSelection>
     {
         public int Count => 1;

@@ -477,19 +477,38 @@ internal sealed partial class AutoPlayController
         idleDeadline.Reset();
     }
 
+    private bool ObserveSceneProgress() => run.ObservedScenes.Add($"{session.State.Scene}:{VisitKey()}:{(session.State.Scene == SceneKind.Movie ? session.State.MovieIndex : -1)}");
+
     internal void CheckIdleDeadline()
     {
+        if (Running && ObserveSceneProgress())
+        {
+            ResetIdleDeadline();
+        }
         if (idleDeadline.Expired)
         {
             throw new TimeoutException("Automatic play made no new scene, dialogue, event or branch progress for 10 seconds. The pre-failure state is preserved.");
         }
     }
 
-    private GameState CaptureState()
+    internal GameState CaptureState()
     {
         using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Capture");
         GameWorld world = getWorld();
+        if (world.Field is not null && session.State.Scene is SceneKind.Field or SceneKind.Movie && world.HasCurrentFieldAllocation && !session.HasActiveBattle)
+        {
+            GameState snapshot;
+            using (performance.Measure("Snapshot.Capture.Prepare"))
+            {
+                snapshot = session.PrepareSnapshot();
+            }
+            using (performance.Measure("Snapshot.Capture.Publish"))
+            {
+                session.SetEventState(snapshot.EventState);
+            }
+            return snapshot;
+        }
         if (world.Field is not null)
         {
             if (session.State.Scene == SceneKind.WorldMap || world.HasCurrentFieldAllocation)
@@ -592,7 +611,7 @@ internal sealed partial class AutoPlayController
         {
             run.ObservedControlLoss = true;
         }
-        bool observedProgress = run.ObservedScenes.Add($"{session.State.Scene}:{VisitKey()}:{(session.State.Scene == SceneKind.Movie ? session.State.MovieIndex : -1)}");
+        bool observedProgress = ObserveSceneProgress();
         if (world.CurrentDialogue is { } observed)
         {
             observedProgress |= run.ObservedMessages.Add($"{VisitKey()}:{observed.ObjectId}:{observed.ScriptId}:{observed.Operation}:{observed.MessageId}");
@@ -1957,6 +1976,7 @@ internal sealed partial class AutoPlayController
     // Consume this view before another successful capture; later captures reuse its backing storage.
     internal ReadOnlyMemory<byte> CaptureControllerRollback()
     {
+        using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.RollbackJson");
         controllerRollbackScratch.SetLength(0);
         controllerRollbackScratch.Position = 0;
