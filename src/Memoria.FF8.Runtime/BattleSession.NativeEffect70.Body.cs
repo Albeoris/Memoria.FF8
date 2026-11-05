@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         (frame, uint temporaryAddress) = NativeBattleEffect70Controller.Allocate(frame, 92);
         NativeBattleShockwavePulsar260BodyPreparationStep prepared = NativeBattleShockwavePulsar260BodyPreparation.Prepare693170(View(temporaryAddress, 92), model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect70 body requires its current world matrix."), camera.CapturePackedView1D97778(), draw.Rotation8, draw.Offset8, draw.Scale, scratchAddress, View(0x1D969A8, 4), model.Color40 ?? throw new NotSupportedException("Effect70 body requires its current color."), model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect70 body requires its current object mask."));
         NativeBattleEffectArena temporary = prepared.Temporary92;
-        frame = NativeBattleEffect70Controller.WriteBytes(frame, temporaryAddress, temporary, 92);
+        frame = frame with { Staging = NativeBattleModelContext44.PublishTemporary(frame.Staging!, temporaryAddress, temporary) };
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, prepared.Matrix);
         DrawSource(false, NativeBattleBodyBoneMatrices.Require(model, source));
         Restore(false);
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             DrawSource(true, composed);
             Restore(true);
         }
-        frame = NativeBattleEffect70Controller.WriteBytes(frame, temporaryAddress, temporary, 92);
+        frame = frame with { Staging = NativeBattleModelContext44.PublishTemporary(frame.Staging!, temporaryAddress, temporary) };
         frame = NativeBattleEffect70Controller.Release(frame, 92);
         return (graphics with { Models = graphics.Models.SetItem(draw.Actor, model) }, frame);
 
@@ -41,15 +41,15 @@ public sealed partial class BattleSession
         {
             NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, frame.Staging!, temporary, temporaryAddress);
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, linked);
-            uint geometryAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect70 body requires current addressed geometry.");
-            NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(NativeModelCpuResources ?? throw new NotSupportedException("Effect70 body requires its current CPU resource owner."), frame.Staging!, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+            NativeBattleEffectArena context = NativeBattleModelContext44.CopyContext(temporary, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0);
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect70 body requires its current COMMON packet process.");
             uint bank = process.PacketBank switch { "off_B6D070" => 0x1901018, "off_B6D094" => 0x199B018, _ => throw new NotSupportedException("Effect70 body requires its actual COMMON bank.") };
             uint packet = checked(bank + (uint)process.PacketBuffer * (uint)process.CommonPacketNominalCapacity + (uint)(process.ByteCursor ?? throw new NotSupportedException("Effect70 body requires its current COMMON cursor.")));
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length), geometryAddress, View(scratchAddress, scratchLength), scratchLength, projection, colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect70 body requires its renderer capability."), 17, 4, packet, pilotIdentity: draw.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + (linked ? 1 : 0)), ResourceGeneration = geometryAddress } : null);
-            temporary = NativeBattleEffectNodeContextMemory.Copy(drawn.Context44, 0, temporary, 0x30, 44);
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), geometry, View(scratchAddress, scratchLength), scratchLength, projection, colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect70 body requires its renderer capability."), 17, 4, packet, pilotIdentity: draw.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + (linked ? 1 : 0)), ResourceGeneration = geometry.PresentationIdentity } : null);
+            temporary = NativeBattleModelContext44.CopyContext(drawn.Context44, 0, temporary, 0x30);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.ProjectedScratch, scratchLength) };
-            frame = NativeBattleEffect70Controller.WriteBytes(frame, temporaryAddress, temporary, 92);
+            frame = frame with { Staging = NativeBattleModelContext44.PublishTemporary(frame.Staging!, temporaryAddress, temporary) };
             frame = deliver(frame, drawn.Batch);
         }
 

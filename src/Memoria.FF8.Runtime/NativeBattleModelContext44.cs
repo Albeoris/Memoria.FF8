@@ -9,11 +9,17 @@ public static class NativeBattleModelContext44
 {
     public static NativeBattleModelContext44Step Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context44, IReadOnlyList<NativeBattlePackedMatrix32> bones, Func<int, int, byte[]> readGeometry, uint geometryAddress, NativeBattleEffectArena projectedScratch, int projectedLength, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, int tableBaseBucket, byte depthShift, uint? packetPhysicalStart = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
     {
+        return Draw(memory, context44, bones, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), projectedScratch, projectedLength, projection, colors, hardware, tableBaseBucket, depthShift, packetPhysicalStart, pilotIdentity, pilotScreenSpace, pilotContinuous);
+    }
+
+    public static NativeBattleModelContext44Step Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context44, IReadOnlyList<NativeBattlePackedMatrix32> bones, NativeBattleModelGeometrySource geometry, NativeBattleEffectArena projectedScratch, int projectedLength, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, int tableBaseBucket, byte depthShift, uint? packetPhysicalStart = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
+    {
         RequireTemporary(context44);
-        if (geometryAddress == 0 || projectedLength < 0 || projectedLength > NativeBattleEffectArena.Length || bones.Count == 0 || depthShift > 31)
+        if (projectedLength < 0 || projectedLength > NativeBattleEffectArena.Length || bones.Count == 0 || depthShift > 31)
         {
             throw new InvalidDataException("Model body context requires its actual current geometry, bones and bounded shared projection workspace.");
         }
+        _ = geometry.NumericCursor(0);
         NativeBattleEffectArena temporary = context44;
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Model body context requires its retained renderer process.");
         var gate = process.Enter5099D0(hardware);
@@ -28,7 +34,7 @@ public static class NativeBattleModelContext44
         process = gate.Process.PublishModelColor(groupColor);
         memory = memory with { PrimitiveProcess = process };
         Dictionary<int, (ImmutableArray<ushort> Counts, int First, int End)> layouts = [];
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(readGeometry, bones.Count, (index, counts, first, end) => layouts.Add(index, (counts, first, end)), Dword(temporary, 0x20));
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(geometry.Read, bones.Count, (index, counts, first, end) => layouts.Add(index, (counts, first, end)), Dword(temporary, 0x20));
         ImmutableArray<NativeBattleActionMatrix> matrices = bones.Select(bone => bone.ReadMatrix()).ToImmutableArray();
         uint objectMask = Dword(temporary, 0x20);
         NativeBattleGeometryViewport viewport = new(Short(temporary, 0x14), Short(temporary, 0x16), Short(temporary, 0x18), Short(temporary, 0x1A));
@@ -55,7 +61,7 @@ public static class NativeBattleModelContext44
             }
             memory = memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors };
             var layout = layouts[objectIndex];
-            temporary = Dword(temporary, 0, checked(geometryAddress + (uint)layout.First));
+            temporary = geometry.NumericCursor(layout.First) is uint first ? Dword(temporary, 0, first) : temporary.WriteResourcePointer(0, geometry.Cursor(layout.First));
             for (int group = 0; group < 4; group++)
             {
                 temporary = Word(temporary, 8 + group * 2, layout.Counts[group]);
@@ -69,10 +75,25 @@ public static class NativeBattleModelContext44
             memory = PublishAcceptedColors(memory, mesh, body.ProjectedScratch, temporary, groupColor, groupDepth, tableBaseBucket, depthShift, colors);
             attempts.AddRange(body.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + body.Packets.AllocationBytes);
-            process = (memory.PrimitiveProcess ?? throw new NotSupportedException("Model body context lost its model renderer process.")).Publish50FDF0(packetPhysicalStart is uint start ? checked(start + (uint)allocated) : null, checked(geometryAddress + (uint)layout.End));
+            process = memory.PrimitiveProcess ?? throw new NotSupportedException("Model body context lost its model renderer process.");
+            uint? packetEnd = packetPhysicalStart is uint start ? checked(start + (uint)allocated) : null;
+            process = geometry.NumericCursor(layout.End) is uint end ? process.Publish50FDF0(packetEnd, end) : process.PublishModelSource50FDF0(packetEnd, geometry.Cursor(layout.End));
             memory = memory with { PrimitiveProcess = process };
         }
         return new(memory, temporary, projectedScratch, new(attempts.ToImmutable(), allocated));
+    }
+
+    internal static NativeBattleEffectArena CopyContext(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset)
+    {
+        bool retained = source.TryGetResourcePointer(sourceOffset, out NativeBattleResourcePointer? pointer);
+        destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, 44);
+        return retained ? destination.WriteResourcePointer(destinationOffset, pointer) : destination;
+    }
+
+    internal static NativeBattleFileStaging PublishTemporary(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena temporary)
+    {
+        staging = NativeBattleTemporaryMemory.PublishView(staging, address, temporary, 92);
+        return temporary.TryGetResourcePointer(48, out NativeBattleResourcePointer? pointer) ? staging.WriteResourcePointer(checked(address + 48), pointer) : staging;
     }
 
     internal static NativeBattleEffectMemory PublishAcceptedColors(NativeBattleEffectMemory memory, NativeBattleRawMesh mesh, ImmutableArray<byte> scratch, NativeBattleEffectArena temporary, uint color, short? depth, int bucket, byte depthShift, NativeBattleSummonColors constants)

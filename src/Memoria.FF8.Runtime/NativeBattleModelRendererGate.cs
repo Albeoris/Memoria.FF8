@@ -3,9 +3,26 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Retained model-render far-color controls and cursors. COMMON packet cursors use the current bank-relative convention; private cursors are arena addresses.</summary>
 public sealed record NativeBattleModelRendererRegisters(uint? FarRed, uint? FarGreen, uint? FarBlue, uint? PacketCursor, uint? SourceCursor)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleResourcePointer? SourceResourceCursor { get; init; }
+
+    internal void ValidateSourceCursor()
+    {
+        if (SourceResourceCursor is { } pointer && (!pointer.HasValidOwner() || pointer.Cpu is not { ResourceOnly: true } || SourceCursor is not null))
+        {
+            throw new InvalidDataException("Model renderer cursor has inconsistent resource and numeric domains.");
+        }
+    }
+
+    public NativeBattleResourcePointer? ReadSourceCursor()
+    {
+        ValidateSourceCursor();
+        return SourceResourceCursor ?? (SourceCursor is uint address ? new(null, address) : null);
+    }
+
     public NativeBattleModelRendererRegisters PublishFarColor45DDA0(uint red, uint green, uint blue) => this with { FarRed = unchecked(red << 4), FarGreen = unchecked(green << 4), FarBlue = unchecked(blue << 4) };
     public NativeBattleModelRendererRegisters PublishModelColor(uint rgb) => PublishFarColor45DDA0((byte)rgb, (byte)(rgb >> 8), (byte)(rgb >> 16));
-    public NativeBattleModelRendererRegisters Publish50FDF0(uint? packetCursor, uint? sourceCursor) => this with { PacketCursor = packetCursor, SourceCursor = sourceCursor };
+    public NativeBattleModelRendererRegisters Publish50FDF0(uint? packetCursor, uint? sourceCursor) => this with { PacketCursor = packetCursor, SourceCursor = sourceCursor, SourceResourceCursor = null };
 }
 
 public sealed partial record NativeBattlePrimitiveProcess
@@ -43,4 +60,18 @@ public sealed partial record NativeBattlePrimitiveProcess
         NativeBattleModelRendererRegisters registers = ModelRendererRegisters ?? new(null, null, null, null, null);
         return this with { ModelRendererRegisters = registers.Publish50FDF0(packetCursor, sourceCursor) };
     }
+    public NativeBattlePrimitiveProcess PublishModelSource50FDF0(uint? packetCursor, NativeBattleResourcePointer source)
+    {
+        if (!source.HasValidOwner() || source.CpuRow is not null)
+        {
+            throw new InvalidDataException("Model renderer cursor requires a selected resource section.");
+        }
+        if (source.Cpu is not { ResourceOnly: true })
+        {
+            return Publish50FDF0(packetCursor, source.Cpu?.PhysicalAddress ?? source.StagingAddress);
+        }
+        NativeBattleModelRendererRegisters registers = ModelRendererRegisters ?? new(null, null, null, null, null);
+        return this with { ModelRendererRegisters = registers with { PacketCursor = packetCursor, SourceCursor = null, SourceResourceCursor = source } };
+    }
+
 }
