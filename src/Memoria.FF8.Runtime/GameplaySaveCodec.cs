@@ -44,7 +44,7 @@ public static class GameplaySaveCodec
         GameplaySaveComponentDocument document = Read(source);
         GameplaySaveProgression progression = document.Progression ?? throw new NotSupportedException("Partial gameplay components do not describe a loadable player save.");
         int[] portraits = document.Characters.CombatParty.Where(row => row != 255).Select(row => (int)document.Characters.Records[row].CharacterId).ToArray();
-        return new(document.Resume.Kind == GameplaySaveResumeKind.World ? SceneKind.WorldMap : SceneKind.Field, document.Resume.FieldId, "", progression.Clocks.Playtime, portraits, progression.SceneFacts?.PlaceId, document.Resume.World?.X, document.Resume.World?.Z);
+        return new(document.Resume.Kind == GameplaySaveResumeKind.World ? SceneKind.WorldMap : SceneKind.Field, document.Resume.FieldId, "", progression.Clocks.Playtime, portraits, progression.SceneFacts?.PlaceId, document.Resume.World?.X, document.Resume.World?.Z) { SavedLocalAt = document.SavedLocalAt };
     }
 
     public static void Write(Stream destination, GameplaySaveComponentDocument document)

@@ -149,7 +149,7 @@ internal sealed partial class PlayerSaveStore
         return state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
-    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null)
     {
         if (slot < 0 || slot > TotalSlotCount)
         {
@@ -178,7 +178,7 @@ internal sealed partial class PlayerSaveStore
             }
             else
             {
-                session.Save(target, compact: true, validateContinuation);
+                WriteMemoria(target, session, validateContinuation, null, writeGameplay);
             }
             entries.Remove(target);
             return;
@@ -198,17 +198,30 @@ internal sealed partial class PlayerSaveStore
         {
             savedAt = files[0].SavedAtUtc.AddMilliseconds(1);
         }
-        session.Save(path, compact: true, candidate =>
-        {
-            validateContinuation?.Invoke(candidate);
-            File.SetLastWriteTimeUtc(path + ".tmp", savedAt);
-        });
+        WriteMemoria(path, session, validateContinuation, savedAt, writeGameplay);
         entries.Remove(path);
         foreach (QuickSaveFile file in obsolete)
         {
             File.Delete(file.Path);
             entries.Remove(file.Path);
         }
+    }
+
+    private static void WriteMemoria(string path, GameSession session, Action<GameState>? validateContinuation, DateTime? savedAtUtc, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay)
+    {
+        if (writeGameplay is not null)
+        {
+            _ = writeGameplay(path, validateContinuation, savedAtUtc);
+            return;
+        }
+        session.Save(path, compact: true, candidate =>
+        {
+            validateContinuation?.Invoke(candidate);
+            if (savedAtUtc is { } timestamp)
+            {
+                File.SetLastWriteTimeUtc(path + ".tmp", timestamp);
+            }
+        });
     }
 
     public GameState Load(int slot)

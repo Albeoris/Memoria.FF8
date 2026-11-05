@@ -6,6 +6,8 @@ The opt-in component codec is separate from the existing execution snapshot and 
 
 `GameWorld.CaptureGameplaySave` currently admits ordinary world exploration with one supported controlled transport and no pending interaction, script mode, battle, movie or transition presentation. It samples the current host position and current published scene facts, rather than a historical return pose. Field capture requires the logical script-continuation adapter; arbitrary field initialization is not a safe substitute. `WriteGameplaySave` stages the document in a unique file beside the destination, flushes it, normal-loads it with the same selected assets and policy, and runs the caller's continuation validator before replacing the destination. A failure preserves the previous save and removes only that operation's staging file.
 
+The player store can use this host writer for both manual slots and rotating quicksaves. It supplies monotonic quicksave file timestamps to the publisher and retires older files only after successful publication. The optional document `SavedLocalAt` records display metadata independently of filesystem copy times; older documents without it remain readable.
+
 ## Ownership and absence
 
 | Component | Saved authority | Reconstructed or excluded | Version 1 absence policy |

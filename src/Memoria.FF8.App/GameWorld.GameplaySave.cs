@@ -4,10 +4,10 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    internal GameState WriteGameplaySave(string path, Action<GameState>? validateContinuation = null)
+    internal GameState WriteGameplaySave(string path, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
     {
         GameplaySaveComponentDocument document = CaptureGameplaySave();
-        return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation);
+        return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc);
     }
 
     /// <summary>Captures durable progress and the current normal-load world position from this live host.</summary>

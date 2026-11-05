@@ -28,6 +28,9 @@ public sealed record GameplaySaveComponentDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveProgression? Progression { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? SavedLocalAt { get; init; }
+
     /// <summary>Captures only the named component owners. The coordinator must separately preserve all remaining gameplay owners.</summary>
     public static GameplaySaveComponentDocument Capture(GameplaySaveResumeDescriptor resume, NativeCharacterVitals characters, NativeEconomy economy, NativeLimitProgress limits)
     {
