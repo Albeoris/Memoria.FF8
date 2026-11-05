@@ -25,6 +25,9 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         Assert.Single(NativeBattleRawGeometryReader.Read(geometryView.Read, 1));
         NativeBattlePoseSource pose = new(NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[0].Require(12), cpu.Rows[0].Lengths[12]).ToImmutableArray(), NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[0].Require(20), cpu.Rows[0].Lengths[20]).ToImmutableArray());
         Assert.Single(pose.Sample(0, 1, 0).Bones);
+        NativeBattleGraphicsResource resolved = NativeBattleEnemyResourceView.Resolve(cpu, staging, 0, new([0, 0]));
+        Assert.Single(resolved.Geometry!.Value);
+        Assert.Single(resolved.PoseSource!.Sample(0, 1, 0).Bones);
         NativeBattleResourcePointer pin = new NativeBattleResourcePointer(geometry, null, cpu.Rows[0].Lengths[16]).Pin(cpu);
         NativeBattleModelGeometrySource held = NativeBattleModelGeometrySource.Open(cpu, staging, pin, (_, _) => throw new InvalidOperationException());
         (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 1, 0, false);
@@ -123,7 +126,7 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         byte[] geometry = template.Bytes.AsSpan(template.Section(1), template.Section(2) - template.Section(1)).ToArray();
         byte[] animation = new byte[0x21000];
         new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0x80, 2, 0 }.CopyTo(animation, 0);
-        byte[][] sections = [skeleton, geometry, animation, [], [], [], new byte[4], new byte[4], new byte[4], [], [0, 0, 0, 0, 8, 0, 0, 0]];
+        byte[][] sections = [skeleton, geometry, animation, [], [0, 0], [], new byte[4], new byte[4], new byte[4], [], [0, 0, 0, 0, 8, 0, 0, 0]];
         int cursor = 4 + 4 * (sections.Length + 1);
         byte[] bytes = new byte[cursor + sections.Sum(section => section.Length)];
         BinaryPrimitives.WriteInt32LittleEndian(bytes, sections.Length);

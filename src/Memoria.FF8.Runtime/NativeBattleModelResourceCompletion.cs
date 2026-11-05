@@ -156,7 +156,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 && reference.EnemyResourceId is null || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (!new NativeBattleResourcePointer(reference, null).HasValidOwner() || reference.Offset < 0 && reference.EnemyResourceId is null || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }
