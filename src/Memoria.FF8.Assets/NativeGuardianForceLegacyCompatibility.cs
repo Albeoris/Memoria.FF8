@@ -50,7 +50,7 @@ public static class NativeGuardianForceLegacyCompatibility
         }
         for (int id = 0; id < 16; id++)
         {
-            ImmutableArray<NativeGuardianForceLearningRule> sourceRules = current.MenuDefinitions.Learning[id];
+            ImmutableArray<NativeGuardianForceLearningRule> sourceRules = current.MenuDefinitions.ResolveLearning(id);
             ImmutableArray<NativeGuardianForceLearningRule> targetRules = targetSource.MenuDefinitions.Learning[id];
             NativeGuardianForceVital gf = current.GuardianForces[id];
             void Loss(int? ability, string kind, string detail, string textId, params int[] arguments) => losses.Add(new(id, ability, kind, $"GF {id}: {detail}") { DescriptionId = textId, DescriptionArguments = [id, .. arguments] });

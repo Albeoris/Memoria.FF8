@@ -34,7 +34,7 @@ public sealed partial record NativeCharacterVitals
                     HashSet<int> active = ResolveGuardianForceTemplates()[id].Select(entry => entry.Ability).ToHashSet();
                     foreach (GuardianForceAbilityProgress entry in progression.Abilities)
                     {
-                        int index = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == entry.Ability);
+                        int index = Array.FindIndex(MenuDefinitions.ResolveLearning(id).ToArray(), rule => rule.Ability == entry.Ability);
                         if (!active.Contains(entry.Ability) && !entry.ItemTaught || entry.Learned != gf.LearnedBank.Has(entry.Ability) || index < 0 && (entry.EarnedPoints != 0 || entry.Forgotten) || index >= 0 && (entry.EarnedPoints != gf.AbilityProgress[index] || entry.Forgotten != (!gf.LearnedBank.Has(entry.Ability) && NativeGuardianForceForgotten(id, entry.Ability))))
                         {
                             return true;
@@ -147,27 +147,32 @@ public sealed partial record NativeCharacterVitals
             exceptional = true;
         }
         bool initialized = (gf.Flags & 1) != 0 || exceptional;
+        ImmutableArray<NativeGuardianForceLearningRule> rules = (MenuDefinitions with { Templates = MenuDefinitions.Templates.SetItem(id, templates) }).ResolveLearning(id);
         List<GuardianForceAbilityProgress> entries = [];
         if (initialized)
         {
             for (int ability = 1; ability < MenuDefinitions.AbilityPoints.Length; ability++)
             {
-                int index = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+                int index = Array.FindIndex(rules.ToArray(), rule => rule.Ability == ability);
                 if (gf.LearnedBank.Has(ability) || index >= 0)
                 {
-                    entries.Add(new(ability, gf.LearnedBank.Has(ability), index >= 0 ? gf.AbilityProgress[index] : 0, index >= 0 && !gf.LearnedBank.Has(ability) && NativeGuardianForceForgotten(id, ability), !templates.Any(entry => entry.Ability == ability)));
+                    entries.Add(new(ability, gf.LearnedBank.Has(ability), index >= 0 ? gf.AbilityProgress[index] : 0, index >= 0 && !gf.LearnedBank.Has(ability) && NativeGuardianForceForgotten(id, ability, rules), !templates.Any(entry => entry.Ability == ability)));
                 }
             }
         }
         return new(initialized, entries.ToImmutableArray());
     }
 
-    private bool NativeGuardianForceForgotten(int id, int ability)
+    private bool NativeGuardianForceForgotten(int id, int ability, ImmutableArray<NativeGuardianForceLearningRule> rules = default)
     {
         bool found = false;
-        for (int index = 0; index < MenuDefinitions.Learning[id].Length; index++)
+        if (rules.IsDefault)
         {
-            if (MenuDefinitions.Learning[id][index].Ability == ability)
+            rules = MenuDefinitions.ResolveLearning(id);
+        }
+        for (int index = 0; index < rules.Length; index++)
+        {
+            if (rules[index].Ability == ability)
             {
                 found = true;
                 if ((GuardianForces[id].ForgottenAbilities & (1u << index)) == 0)
@@ -210,11 +215,12 @@ public sealed partial record NativeCharacterVitals
         int target = available.Contains(gf.Learning) ? gf.Learning : ResolveGuardianForceTemplates()[id].OrderBy(entry => entry.LearningPriority).FirstOrDefault(entry => available.Contains(entry.Ability))?.Ability ?? 0;
         ImmutableArray<byte> nativeProgress = gf.AbilityProgress;
         uint forgotten = gf.ForgottenAbilities & 0xE00000u;
-        for (int index = 0; index < MenuDefinitions.Learning[id].Length; index++)
+        ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.ResolveLearning(id);
+        for (int index = 0; index < rules.Length; index++)
         {
-            GuardianForceAbilityProgress? entry = gf.Progression.Abilities.FirstOrDefault(entry => entry.Ability == MenuDefinitions.Learning[id][index].Ability);
-            int ability = MenuDefinitions.Learning[id][index].Ability;
-            int owner = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+            GuardianForceAbilityProgress? entry = gf.Progression.Abilities.FirstOrDefault(entry => entry.Ability == rules[index].Ability);
+            int ability = rules[index].Ability;
+            int owner = Array.FindIndex(rules.ToArray(), rule => rule.Ability == ability);
             if (entry is not null && owner == index)
             {
                 nativeProgress = nativeProgress.SetItem(index, checked((byte)Math.Min(255, entry.EarnedPoints)));
@@ -231,7 +237,7 @@ public sealed partial record NativeCharacterVitals
             Learning = checked((byte)target),
             AbilityProgress = nativeProgress,
             ForgottenAbilities = forgotten,
-            LastProjection = new(bank, nativeProgress, checked((byte)target), forgotten, MenuDefinitions.Learning[id])
+            LastProjection = new(bank, nativeProgress, checked((byte)target), forgotten, rules)
         };
     }
 

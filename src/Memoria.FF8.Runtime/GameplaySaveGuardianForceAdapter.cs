@@ -10,7 +10,7 @@ internal static class GameplaySaveGuardianForceAdapter
         for (int id = 0; id < source.GuardianForces.Length; id++)
         {
             NativeGuardianForceVital gf = source.GuardianForces[id];
-            if (gf.Progression is null && gf.LastProjection is { } projection && !projection.LearningRules.SequenceEqual(source.MenuDefinitions.Learning[id]))
+            if (gf.Progression is null && gf.LastProjection is { } projection && !projection.LearningRules.SequenceEqual(source.MenuDefinitions.ResolveLearning(id)))
             {
                 throw new NotSupportedException("Gameplay GF projection requires a resolved ability mapping for orphaned compatibility history; preserve the execution snapshot.");
             }
@@ -40,7 +40,7 @@ internal static class GameplaySaveGuardianForceAdapter
                 };
             }
             NativeGuardianForceVital gf = normalized.GuardianForces[id] with { HitPoints = source.GuardianForces[id].HitPoints, Progression = progression };
-            result.GuardianForces[id] = PreserveUnmappedFlags(gf, source.GuardianForces[id], source.MenuDefinitions.Learning[id]);
+            result.GuardianForces[id] = PreserveUnmappedFlags(gf, source.GuardianForces[id], source.MenuDefinitions.ResolveLearning(id));
         }
         return result;
     }
@@ -58,14 +58,14 @@ internal static class GameplaySaveGuardianForceAdapter
         };
         for (int id = 0; id < prepared.GuardianForces.Length; id++)
         {
-            prepared.GuardianForces[id] = RebindSavedSlots(prepared.GuardianForces[id], saved[id], installed.MenuDefinitions.Learning[id]);
+            prepared.GuardianForces[id] = RebindSavedSlots(prepared.GuardianForces[id], saved[id], installed.MenuDefinitions.ResolveLearning(id));
         }
         NativeCharacterVitals mapped = prepared.ApplyGuardianForceTemplates(installed.ResolveGuardianForceTemplates());
         NativeCharacterVitals result = prepared with { GuardianForces = mapped.GuardianForces };
         for (int id = 0; id < result.GuardianForces.Length; id++)
         {
             NativeGuardianForceVital gf = result.GuardianForces[id] with { MoveFindDisabled = restored.GuardianForces[id].MoveFindDisabled, HitPoints = restored.GuardianForces[id].HitPoints };
-            gf = PreserveUnmappedFlags(gf, prepared.GuardianForces[id], installed.MenuDefinitions.Learning[id]);
+            gf = PreserveUnmappedFlags(gf, prepared.GuardianForces[id], installed.MenuDefinitions.ResolveLearning(id));
             result.GuardianForces[id] = gf with { MaximumHitPoints = installed.Definitions.GuardianForceMaximum(id, gf) };
         }
         result.Validate();

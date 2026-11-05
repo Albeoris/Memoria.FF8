@@ -17,6 +17,26 @@ public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<NativeGuardianForceInitialState> InitialStates { get; init; }
 
+    public ImmutableArray<NativeGuardianForceLearningRule> ResolveLearning(int id)
+    {
+        ImmutableArray<NativeGuardianForceLearningRule> rules = Learning[id];
+        if (Templates.IsDefault)
+        {
+            return rules;
+        }
+        foreach (GuardianForceAbilityTemplate entry in Templates[id])
+        {
+            for (int index = 0; index < rules.Length; index++)
+            {
+                if ((entry.NativeLearningSlots & (1u << index)) != 0 && rules[index].Ability != entry.Ability)
+                {
+                    rules = rules.SetItem(index, rules[index] with { Ability = checked((byte)entry.Ability) });
+                }
+            }
+        }
+        return rules;
+    }
+
     public void Validate()
     {
         if (!InitialStates.IsDefault && (InitialStates.Length != 16 || InitialStates.Any(entry => entry is null || entry.LearnedBank is null || entry.AbilityProgress.IsDefault || entry.AbilityProgress.Length != 21)))
@@ -31,23 +51,43 @@ public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired]
             }
             for (int id = 0; id < Templates.Length; id++)
             {
+                uint occupied = 0;
                 foreach (GuardianForceAbilityTemplate entry in Templates[id].Where(entry => entry.NativeLearningSlots != 0))
                 {
                     if (Learning.IsDefault || Learning.Length != 16 || Learning[id].IsDefault || Learning[id].Length != 21 || (entry.NativeLearningSlots & ~0x1FFFFFu) != 0)
                     {
                         throw new InvalidDataException("Native GF learning bindings require their complete source table.");
                     }
+                    int first = System.Numerics.BitOperations.TrailingZeroCount(entry.NativeLearningSlots);
+                    int sourceAbility = Learning[id][first].Ability;
                     uint slots = 0;
                     for (int index = 0; index < Learning[id].Length; index++)
                     {
-                        if (Learning[id][index].Ability == entry.Ability)
+                        if (Learning[id][index].Ability == sourceAbility)
                         {
                             slots |= 1u << index;
                         }
                     }
-                    if (entry.NativeLearningSlots != slots || entry.RequiredLevel != 1 || entry.PrerequisiteAbility is not null || entry.ExcludedAbility is not null)
+                    if (sourceAbility == 0 || entry.NativeLearningSlots != slots || (occupied & slots) != 0 || entry.RequiredLevel != 1 || entry.PrerequisiteAbility is not null || entry.ExcludedAbility is not null)
                     {
                         throw new InvalidDataException("Native GF learning bindings must preserve every matching source slot.");
+                    }
+                    occupied |= slots;
+                }
+                ImmutableArray<NativeGuardianForceLearningRule> resolved = ResolveLearning(id);
+                foreach (GuardianForceAbilityTemplate entry in Templates[id].Where(entry => entry.NativeLearningSlots != 0))
+                {
+                    uint slots = 0;
+                    for (int index = 0; index < resolved.Length; index++)
+                    {
+                        if (resolved[index].Ability == entry.Ability)
+                        {
+                            slots |= 1u << index;
+                        }
+                    }
+                    if (slots != entry.NativeLearningSlots)
+                    {
+                        throw new InvalidDataException("Native GF learning bindings cannot alias another source group.");
                     }
                 }
             }

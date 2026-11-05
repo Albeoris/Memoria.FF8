@@ -33,7 +33,7 @@ public sealed record GameplaySaveCharacters
             Records = source.Records,
             CombatParty = source.CombatParty,
             DreamEnabled = source.DreamEnabled,
-            GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.Learning[id].Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
+            GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.ResolveLearning(id).Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
             JunctionPartyBackup = source.JunctionPartyBackup,
             Magic = GameplaySaveMagic.Capture(source.MagicSystem),

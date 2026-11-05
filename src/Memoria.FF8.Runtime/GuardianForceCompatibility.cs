@@ -38,8 +38,8 @@ public sealed partial record NativeCharacterVitals
                 continue;
             }
             GuardianForceCompatibilityProjection? projection = gf.LastProjection;
-            bool observed = projection is not null && (projection.LearnedBank != gf.LearnedBank || projection.Learning != gf.Learning || projection.ForgottenAbilities != gf.ForgottenAbilities || !projection.AbilityProgress.SequenceEqual(gf.AbilityProgress) || !projection.LearningRules.SequenceEqual(MenuDefinitions.Learning[id]));
-            if (observed && (!projection!.LearningRules.SequenceEqual(MenuDefinitions.Learning[id]) || projection.LearningRules.Where(rule => rule.Ability != 0).GroupBy(rule => rule.Ability).Any(group => group.Count() > 1)))
+            bool observed = projection is not null && (projection.LearnedBank != gf.LearnedBank || projection.Learning != gf.Learning || projection.ForgottenAbilities != gf.ForgottenAbilities || !projection.AbilityProgress.SequenceEqual(gf.AbilityProgress) || !projection.LearningRules.SequenceEqual(MenuDefinitions.ResolveLearning(id)));
+            if (observed && (!projection!.LearningRules.SequenceEqual(MenuDefinitions.ResolveLearning(id)) || projection.LearningRules.Where(rule => rule.Ability != 0).GroupBy(rule => rule.Ability).Any(group => group.Count() > 1)))
             {
                 return RecoverOpaqueGuardianForceBaseline($"GF {id}: external compatibility structure is ambiguous; previous mod attribution is baked into the observed recovery baseline.");
             }
@@ -121,6 +121,7 @@ public sealed partial record NativeCharacterVitals
         {
             MenuDefinitions = MenuDefinitions with
             {
+                Learning = Enumerable.Range(0, 16).Select(MenuDefinitions.ResolveLearning).ToImmutableArray(),
                 Templates = default,
                 SourceTemplates = default
             },

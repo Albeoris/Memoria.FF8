@@ -45,7 +45,7 @@ public sealed partial record NativeCharacterVitals
         for (int index = 0; index < templates.Length; index++)
         {
             GuardianForceAbilityTemplate entry = templates[index];
-            int nativeIndex = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == entry.Ability);
+            int nativeIndex = Array.FindIndex(MenuDefinitions.ResolveLearning(id).ToArray(), rule => rule.Ability == entry.Ability);
             GuardianForceAbilityProgress? progress = ledger?.GetValueOrDefault(entry.Ability);
             int selectedIndex = entry.NativeLearningSlots != 0 ? SelectNativeGuardianForceLearningIndex(id, entry, level, result) : nativeIndex;
             bool forgotten = entry.NativeLearningSlots != 0 ? selectedIndex < 0 : ledger is null ? nativeIndex >= 0 && (gf.ForgottenAbilities & (1u << nativeIndex)) != 0 : progress?.Forgotten == true;
@@ -79,7 +79,7 @@ public sealed partial record NativeCharacterVitals
 
     private int SelectNativeGuardianForceLearningIndex(int id, GuardianForceAbilityTemplate template, int level, IReadOnlyDictionary<int, NativeGuardianForceAbility> abilities)
     {
-        ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.Learning[id];
+        ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.ResolveLearning(id);
         for (int pass = 0; pass < 2; pass++)
         {
             for (int index = 0; index < rules.Length; index++)

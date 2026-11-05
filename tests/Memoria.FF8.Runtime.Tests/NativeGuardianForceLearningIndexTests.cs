@@ -126,6 +126,84 @@ public sealed class NativeGuardianForceLearningIndexTests
         Assert.Equal(source.MenuDefinitions.Learning.SelectMany(row => row), normalized.MenuDefinitions.Learning.SelectMany(row => row));
     }
 
+    [Fact]
+    public void ReplacementRetargetsNativeDependenciesWithoutChangingConditionBytes()
+    {
+        NativeCharacterVitals source = Source([new(1, 255, 100), new(101, 255, 101), new(101, 1, 102)], learned: [100]);
+        var templates = source.ResolveGuardianForceTemplates();
+        NativeCharacterVitals replaced = source.ApplyGuardianForceTemplates(templates.SetItem(0, templates[0].Select(entry => entry.Ability == 100 ? entry with { Ability = 103, InitialLearned = false } : entry).ToImmutableArray()));
+
+        replaced.Validate();
+        Assert.Equal(source.MenuDefinitions.Learning, replaced.MenuDefinitions.Learning);
+        Assert.Equal(new NativeGuardianForceLearningRule(1, 255, 103), replaced.MenuDefinitions.ResolveLearning(0)[0]);
+        Assert.Equal(source.MenuDefinitions.Learning[0].Skip(1), replaced.MenuDefinitions.ResolveLearning(0).Skip(1));
+        Assert.False(replaced.GuardianForces[0].HasLearnedAbility(100));
+        Assert.False(replaced.GuardianForces[0].HasLearnedAbility(103));
+        Assert.Contains(replaced.GuardianForces[0].Progression!.Abilities, entry => entry.Ability == 100 && entry.Learned && !entry.Active);
+        Assert.DoesNotContain(replaced.GuardianForceAbilities(0), entry => entry.Ability == 101 || entry.Ability == 102);
+
+        NativeCharacterVitals taught = replaced.TeachGuardianForceAbility(0, 103);
+        Assert.Contains(taught.GuardianForceAbilities(0), entry => entry.Ability == 101 && !entry.Learned);
+        Assert.Contains(taught.GuardianForceAbilities(0), entry => entry.Ability == 102 && !entry.Learned);
+        NativeCharacterVitals excluded = taught.TeachGuardianForceAbility(0, 101);
+        Assert.DoesNotContain(excluded.GuardianForceAbilities(0), entry => entry.Ability == 102);
+        Assert.Equal(taught.MenuDefinitions.ResolveLearning(0), taught.GuardianForces[0].LastProjection!.LearningRules);
+        Assert.Same(taught, taught.NormalizeGuardianForceCompatibility());
+    }
+
+    [Fact]
+    public void ReplacementKeepsDuplicateSlotSelectionAndFirstMatchingApOwnership()
+    {
+        NativeCharacterVitals source = Source([new(102, 255, 100), new(1, 255, 101), new(1, 255, 100)], learned: [101]);
+        source.GuardianForces[0] = source.GuardianForces[0] with { AbilityProgress = source.GuardianForces[0].AbilityProgress.SetItem(0, 3).SetItem(2, 17) };
+        var templates = source.ResolveGuardianForceTemplates();
+        NativeCharacterVitals replaced = source.ApplyGuardianForceTemplates(templates.SetItem(0, templates[0].Select(entry => entry.Ability == 100 ? entry with { Ability = 103 } : entry).ToImmutableArray()));
+        Assert.Equal(5u, replaced.ResolveGuardianForceTemplates()[0].Single(entry => entry.Ability == 103).NativeLearningSlots);
+        NativeGuardianForceAbility available = Assert.Single(replaced.GuardianForceAbilities(0), entry => entry.Ability == 103);
+        Assert.Equal(2, available.LearningIndex);
+        Assert.Equal(17, available.Progress);
+        NativeCharacterVitals advanced = replaced.SelectGuardianForceLearning(0, 103).AwardGuardianForceAbilityPoints(0, 2);
+        Assert.Equal((byte)2, advanced.GuardianForces[0].AbilityProgress[0]);
+        Assert.Equal((byte)17, advanced.GuardianForces[0].AbilityProgress[2]);
+        Assert.Contains(advanced.GuardianForces[0].Progression!.Abilities, entry => entry.Ability == 100 && entry.EarnedPoints == 3 && !entry.Active);
+        NativeCharacterVitals reverted = advanced.ApplyGuardianForceTemplates(templates);
+        Assert.Equal((byte)3, reverted.GuardianForces[0].AbilityProgress[0]);
+        Assert.Equal((byte)17, reverted.GuardianForces[0].AbilityProgress[2]);
+    }
+
+    [Fact]
+    public void NativeBindingsRejectAliasingAndPermitDisjointReplacementChains()
+    {
+        NativeCharacterVitals source = Source([new(1, 255, 100), new(101, 255, 101)]);
+        var templates = source.ResolveGuardianForceTemplates();
+        GuardianForceAbilityTemplate first = templates[0].Single(entry => entry.Ability == 100);
+        GuardianForceAbilityTemplate second = templates[0].Single(entry => entry.Ability == 101);
+        Assert.Throws<InvalidDataException>(() => source.ApplyGuardianForceTemplates(templates.SetItem(0, [first with { Ability = 103 }, second with { NativeLearningSlots = first.NativeLearningSlots }])));
+        Assert.Throws<InvalidDataException>(() => source.ApplyGuardianForceTemplates(templates.SetItem(0, [first with { Ability = 101 }])));
+        NativeCharacterVitals chained = source.ApplyGuardianForceTemplates(templates.SetItem(0, [first with { Ability = 103 }, second with { Ability = 100 }]));
+        Assert.Equal(new byte[] { 103, 100 }, chained.MenuDefinitions.ResolveLearning(0).Take(2).Select(rule => rule.Ability));
+        chained.Validate();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExternalApChangesUseTheEffectiveAbilityEvenDuringOpaqueRecovery(bool duplicate)
+    {
+        NativeCharacterVitals source = Source(duplicate ? [new(1, 255, 100), new(1, 255, 100)] : [new(1, 255, 100)]);
+        var templates = source.ResolveGuardianForceTemplates();
+        NativeCharacterVitals replaced = source.ApplyGuardianForceTemplates(templates.SetItem(0, templates[0].Select(entry => entry with { Ability = 103 }).ToImmutableArray()));
+        replaced.GuardianForces[0] = replaced.GuardianForces[0] with { AbilityProgress = replaced.GuardianForces[0].AbilityProgress.SetItem(0, 6) };
+
+        NativeCharacterVitals normalized = replaced.NormalizeGuardianForceCompatibility();
+
+        normalized.Validate();
+        Assert.Equal(duplicate, normalized.GuardianForceOpaqueBaseline);
+        Assert.Contains(normalized.GuardianForces[0].Progression!.Abilities, entry => entry.Ability == 103 && entry.EarnedPoints == 6);
+        Assert.Equal((byte)103, normalized.GuardianForces[0].LastProjection!.LearningRules[0].Ability);
+        Assert.Equal(duplicate ? (byte)103 : (byte)100, normalized.MenuDefinitions.Learning[0][0].Ability);
+    }
+
     private static NativeCharacterVitals Source(NativeGuardianForceLearningRule[] rules, int[]? learned = null)
     {
         NativeCharacterVitals source = MagicSystemFixture.Create();

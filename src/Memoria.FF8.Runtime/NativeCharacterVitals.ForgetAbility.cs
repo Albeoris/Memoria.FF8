@@ -17,7 +17,7 @@ public sealed partial record NativeCharacterVitals
         GuardianForceAbilityTemplate? template = result.ResolveGuardianForceTemplates()[id].FirstOrDefault(entry => entry.Ability == ability);
         if (template is { NativeLearningSlots: not 0 })
         {
-            int owner = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+            int owner = Array.FindIndex(MenuDefinitions.ResolveLearning(id).ToArray(), rule => rule.Ability == ability);
             gf = gf with { ForgottenAbilities = gf.ForgottenAbilities | (1u << owner) };
             result.GuardianForces[id] = gf;
         }
