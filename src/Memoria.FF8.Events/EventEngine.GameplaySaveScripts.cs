@@ -80,11 +80,11 @@ public sealed partial class EventEngine
             WaitReason.NativeMovementFlush => GameplaySaveScriptWait.NativeMovementFlush,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
-        if (fiber.NativePartyRequestPointer is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
+        if (fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
         {
             throw new NotSupportedException("Gameplay script continuation requires a represented logical scheduler without live external request owners.");
         }
-        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber), GlobalCalls = CaptureGameplayGlobalCalls(fiber) };
+        return new(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture().Select(GameplayScriptInteger).ToArray(), fiber.Results.ToDictionary(pair => pair.Key, pair => GameplayScriptInteger(pair.Value)), wait, fiber.WaitUntil, fiber.Request?.Sequence, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults?.Select(GameplayScriptInteger).ToArray()) { ShadeOperation = fiber.NativeShadeOperation, MovementIssue = CaptureGameplayMovementIssue(fiber), GlobalCalls = CaptureGameplayGlobalCalls(fiber), PartyRequestSelector = CaptureGameplayPartyRequestSelector(fiber) };
     }
 
     /// <summary>Installs only script execution owners. The caller must separately reconstruct current scene/actor/resource owners before input.</summary>
@@ -112,7 +112,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Gameplay script object is absent from the installed program.");
             }
-            EventScript script = program.Objects[source.ObjectId].Scripts.SingleOrDefault(script => script.Id == source.ScriptId) ?? throw new InvalidDataException("Gameplay script is absent from the installed object.");
+            EventScript script = ReadGameplayRequestScript(source, out NativePartyRequestPointer? partyPointer);
             if (!script.ContainsPosition(source.Position, source.Complete))
             {
                 throw new InvalidDataException("Gameplay script continuation has an invalid instruction pointer.");
@@ -130,6 +130,7 @@ public sealed partial class EventEngine
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,
                 NativeDoorDefaultFrame = source.DefaultResultFrame,
+                NativePartyRequestPointer = partyPointer,
                 NativeDoorSavedResults = source.SavedResults?.Select(NativeScalarValue.Exact).ToArray()
             };
             RestoreGameplayMovementIssue(fiber, source.MovementIssue);

@@ -41,6 +41,9 @@ public sealed record GameplaySaveScriptFiber([property: JsonRequired] int Object
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveGlobalCall[]? GlobalCalls { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PartyRequestSelector { get; init; }
 }
 
 /// <summary>Physical script operands remain observable after pop through native RET result frames; they are not resource memory.</summary>
@@ -82,6 +85,10 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
         }
         foreach (GameplaySaveScriptFiber fiber in Fibers)
         {
+            if (fiber.PartyRequestSelector is not null && (fiber.Initialization || fiber.ActorSlot is not byte slot || slot >= 8 || slot != fiber.Priority))
+            {
+                throw new InvalidDataException("Gameplay indexed-party request requires its receiving native actor-slot owner.");
+            }
             if (fiber.GlobalCalls is { } calls && (calls.Length > 8 || fiber.Complete && calls.Length != 0 || calls.Any(call => call is null || call.CallOperation < 0 || call.OperandBase is < 0 or > 79)))
             {
                 throw new InvalidDataException("Gameplay global calls exceed their live physical frame domain.");
