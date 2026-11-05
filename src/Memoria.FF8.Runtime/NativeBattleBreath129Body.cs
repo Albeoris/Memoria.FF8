@@ -59,10 +59,10 @@ public static class NativeBattleBreath129Body
         {
             context = context.Write(30 + lane * 2, BitConverter.GetBytes(short.MaxValue)).Write(36 + lane * 2, BitConverter.GetBytes(short.MinValue));
         }
-        int objects = unchecked((int)Read32(source, source.GeometryAddress));
+        int objects = unchecked((int)Read32(source, 0));
         for (int item = 0; item < objects; item++)
         {
-            uint at = unchecked(source.GeometryAddress + Read32(source, checked(source.GeometryAddress + 4u + (uint)item * 4)));
+            uint at = Read32(source, checked(4u + (uint)item * 4));
             int groups = Read16(source, at);
             at = checked(at + 2);
             for (int group = 0; group < groups; group++)
@@ -82,7 +82,7 @@ public static class NativeBattleBreath129Body
                     {
                         throw new NotSupportedException("Native Breath body vertices overlap their selected centroid-index bank.");
                     }
-                    NativeBattleEffectArena captured = NativeBattleEffectNodeContextMemory.Copy(source.ReadGeometry(at, 6), 0, ReadBytes(frame, output, 16), 0, 6).Write(6, BitConverter.GetBytes(bone));
+                    NativeBattleEffectArena captured = NativeBattleEffectNodeContextMemory.Copy(source.ReadGeometry(checked((int)at), 6), 0, ReadBytes(frame, output, 16), 0, 6).Write(6, BitConverter.GetBytes(bone));
                     NativeBattleVector local = new(Signed(captured, 0), Signed(captured, 2), Signed(captured, 4));
                     NativeBattleGeometryRegisterStep step = NativeBattleGeometry.LoadVector(new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Breath body capture requires its current data registers.")), 0, local, bone);
                     step = NativeBattleGeometry.Transform(step);
@@ -105,7 +105,7 @@ public static class NativeBattleBreath129Body
                     at = checked(at + 6);
                 }
             }
-            at = unchecked((at + 3) & ~3u);
+            at = source.AlignGeometryCursor(at);
             ushort polygons = unchecked((ushort)(Word(context, 44) + unchecked((ushort)Read16(source, at)) + unchecked((ushort)Read16(source, at + 2))));
             context = context.Write(44, BitConverter.GetBytes(polygons)).Write(24, BitConverter.GetBytes(unchecked((ushort)(item + 1))));
         }
@@ -129,13 +129,13 @@ public static class NativeBattleBreath129Body
         uint centroid = unchecked(scratch + 0x8002u + (uint)(faces * 2));
         context = context.Write(20, BitConverter.GetBytes(centroid)).Write(24, new byte[2]).Write(28, new byte[2]);
         frame = PublishContext(frame, temporary, context, 52);
-        int objects = unchecked((int)Read32(source, source.GeometryAddress));
+        int objects = unchecked((int)Read32(source, 0));
         int captured = 0;
         ushort totalVertices = 0;
         for (int item = 0; item < objects; item++)
         {
             ushort start = totalVertices;
-            uint at = unchecked(source.GeometryAddress + Read32(source, checked(source.GeometryAddress + 4u + (uint)item * 4)));
+            uint at = Read32(source, checked(4u + (uint)item * 4));
             int groups = Read16(source, at);
             at = checked(at + 2);
             for (int group = 0; group < groups; group++)
@@ -148,7 +148,7 @@ public static class NativeBattleBreath129Body
                 totalVertices = unchecked((ushort)(totalVertices + count));
                 at = checked(at + 4u + (uint)count * 6);
             }
-            at = unchecked((at + 3) & ~3u);
+            at = source.AlignGeometryCursor(at);
             ushort triangles = unchecked((ushort)Read16(source, at));
             ushort quads = unchecked((ushort)Read16(source, at + 2));
             at = checked(at + 12);
@@ -282,8 +282,8 @@ public static class NativeBattleBreath129Body
     }
     private static NativeBattleBreath129Frame PutWord(NativeBattleBreath129Frame frame, uint address, ushort value) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 2);
     private static NativeBattleBreath129Frame Publish(NativeBattleBreath129Frame frame, NativeBattleGeometryRegisterStep registers) => frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-    private static uint Read32(NativeBattleBreath129BodySource source, uint address) => Dword(source.ReadGeometry(address, 4), 0);
-    private static short Read16(NativeBattleBreath129BodySource source, uint address) => Signed(source.ReadGeometry(address, 2), 0);
+    private static uint Read32(NativeBattleBreath129BodySource source, uint offset) => Dword(source.ReadGeometry(checked((int)offset), 4), 0);
+    private static short Read16(NativeBattleBreath129BodySource source, uint offset) => Signed(source.ReadGeometry(checked((int)offset), 2), 0);
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static ushort Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));
     private static short Signed(NativeBattleEffectArena arena, int offset) => unchecked((short)Word(arena, offset));

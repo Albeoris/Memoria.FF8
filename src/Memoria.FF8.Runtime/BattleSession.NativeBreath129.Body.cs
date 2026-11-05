@@ -33,18 +33,14 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattlePackedMatrix32> bones = NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, model, staging, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
-        uint geometryAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its actual addressed raw geometry source.");
-        NativeBattleBreath129BodySource source = new(row100, geometryAddress, ReadGeometry, bones);
+        int alignment = pointer.Cpu is { } cpu ? cpu.Offset & 3 : (int)((pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its actual geometry owner.")) & 3);
+        long identity = pointer.Cpu is { ResourceOnly: true } logical ? unchecked(NativeBattlePilotVisualLifetimes.EpochFor((NativeModelCpuResources ?? throw new NotSupportedException("Breath body access requires its current resource owner.")).Cpu.Banks[logical.Bank]) << 32) : unchecked((long)(pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new NotSupportedException("Breath body access requires its source identity.")) << 32);
+        NativeBattleBreath129BodySource source = new(row100, ReadGeometry, bones) { GeometryAlignment = (byte)alignment, GeometryIdentity = identity };
         return (frame, graphics, source);
 
-        NativeBattleEffectArena ReadGeometry(uint address, int length)
+        NativeBattleEffectArena ReadGeometry(int offset, int length)
         {
-            long delta = (long)address - geometryAddress;
-            if (delta < 0 || delta > int.MaxValue)
-            {
-                throw new InvalidDataException("Breath raw geometry address precedes or leaves its actual selected resource.");
-            }
-            byte[] bytes = ReadNativeDeformedGeometry(bridge, pointer, (int)delta, length);
+            byte[] bytes = ReadNativeDeformedGeometry(bridge, pointer, offset, length);
             return NativeBattleEffectArena.Clear().Write(0, bytes);
         }
 

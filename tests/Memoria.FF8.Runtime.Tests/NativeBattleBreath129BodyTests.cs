@@ -112,6 +112,105 @@ public sealed class NativeBattleBreath129BodyTests
         Assert.Throws<InvalidDataException>(() => NativeBattleBreath129Body.Capture6B74F0(frame, temporary, Source()));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Legacy_absolute_reader_and_relative_reader_preserve_origin_alignment_and_the_same_capture(int alignment)
+    {
+        byte[] bytes = new byte[96];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 8);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(12), 3);
+        for (int vertex = 0; vertex < 3; vertex++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(14 + vertex * 6), (short)(100 + vertex * 100));
+        }
+        int header = ((32 + alignment + 3) & ~3) - alignment;
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(header), 1);
+        for (int corner = 0; corner < 3; corner++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(header + 12 + corner * 2), (short)corner);
+        }
+        uint origin = 0x900000u + (uint)alignment;
+        ImmutableArray<NativeBattlePackedMatrix32> bones = [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)];
+        NativeBattleBreath129BodySource legacy = new(0x910000, origin, (address, length) => NativeBattleEffectArena.Clear().Write(0, bytes.AsSpan(checked((int)(address - origin)), length)), bones);
+        NativeBattleBreath129BodySource relative = new(0x910000, (offset, length) => NativeBattleEffectArena.Clear().Write(0, bytes.AsSpan(offset, length)), bones) { GeometryAlignment = (byte)alignment };
+        NativeBattleBreath129Frame a = Capture(legacy);
+        NativeBattleBreath129Frame b = Capture(relative);
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
+        Assert.Equal((ushort)1, Word(Context(b, NativeBattleTemporaryMemory.Address, 52), 44));
+        Assert.Throws<InvalidDataException>(() => (relative with { GeometryAlignment = 4 }).AlignGeometryCursor(32));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_body_geometry_beyond_guest_capacity_rebinds_after_snapshot_and_captures_current_source_without_numeric_projection(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleBreath129BodySource original = Source();
+        byte[] compact = original.ReadGeometry(0, 128).Read(0, 128);
+        int padding = layout.BankLength + 4;
+        byte[] bytes = new byte[padding + compact.Length];
+        compact.AsSpan(0, 12).CopyTo(bytes);
+        compact.AsSpan(12).CopyTo(bytes.AsSpan(padding + 12));
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), padding + 12);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), padding + 64);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(0, bytes.ToImmutableArray(), 0, bytes.Length);
+        NativeBattleResourcePointer pointer = new(new(0, 0) { Layout = layout, ResourceOnly = true }, null, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) }, Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(16, pointer.Cpu) with { Lengths = cpu.Rows[0].Lengths.SetItem(16, bytes.Length) }) };
+        BoundBody restored = NativeBattleTestSnapshots.RestoreJson<BoundBody>(NativeBattleTestSnapshots.Json(new BoundBody(NativeBattleBreath129LowerTests.Frame(), cpu, pointer, original.BoneMatrices)));
+        Assert.Throws<NotSupportedException>(() => restored.Geometry.Cpu!.PhysicalAddress);
+        int publications = 0;
+        NativeBattleBreath129Inputs inputs = NativeBattleBreath129LowerTests.Inputs() with
+        {
+            ReadModel = (_, _) => new(0, 3) { ActiveResourceRow100 = 0 },
+            PublishBody508C90 = (current, row) =>
+            {
+                Assert.Equal(0x1D99774u, row);
+                publications++;
+                return new(current, RelativeSource(restored, row));
+            }
+        };
+        NativeBattleBreath129Frame legacyStart = NativeBattleTestSnapshots.Independent(restored.Frame);
+        NativeBattleBreath129Frame changedStart = NativeBattleTestSnapshots.Independent(restored.Frame);
+        NativeBattleBreath129Frame actual = NativeBattleBreath129Body.Capture6B73F0(restored.Frame, 0x1D972C0, Base + 0x1000, 4, Resources, inputs);
+        NativeBattleBreath129Inputs legacyInputs = inputs with { PublishBody508C90 = (current, row) => new(current, original with { BodyRowAddress = row }) };
+        NativeBattleBreath129Frame legacy = NativeBattleBreath129Body.Capture6B73F0(legacyStart, 0x1D972C0, Base + 0x1000, 4, Resources, legacyInputs);
+        Assert.Equal(1, publications);
+        Assert.Equal(NativeBattleTestSnapshots.Json(legacy), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(restored.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4), actual.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
+        int vertexOffset = padding + 18;
+        NativeBattleModelCpuBank changed = restored.Cpu.Cpu.Banks[0].Write(vertexOffset, BitConverter.GetBytes((short)777));
+        BoundBody replacement = restored with { Cpu = restored.Cpu with { Cpu = restored.Cpu.Cpu with { Banks = restored.Cpu.Cpu.Banks.SetItem(0, changed) } } };
+        NativeBattleBreath129Inputs changedInputs = inputs with { PublishBody508C90 = (current, row) => new(current, RelativeSource(replacement, row)) };
+        NativeBattleBreath129Frame changedCapture = NativeBattleBreath129Body.Capture6B73F0(changedStart, 0x1D972C0, Base + 0x1000, 4, Resources, changedInputs);
+        Assert.Equal((ushort)777, Word(ReadBytes(changedCapture, Scratch, 2), 0));
+        Assert.Equal((ushort)100, Word(ReadBytes(actual, Scratch, 2), 0));
+        Assert.Equal((ushort)100, Word(RelativeSource(restored, 0x1D99774).ReadGeometry(vertexOffset, 2), 0));
+        Assert.Throws<InvalidDataException>(() => RelativeSource(restored, 0x1D99774).ReadGeometry(bytes.Length, 1));
+    }
+
+    private static NativeBattleBreath129Frame Capture(NativeBattleBreath129BodySource source)
+    {
+        NativeBattleBreath129Frame frame = NativeBattleBreath129LowerTests.Frame();
+        (frame, uint temporary) = Allocate(frame, 52);
+        frame = PublishContext(frame, temporary, Context(frame, temporary, 52).Write(0, BitConverter.GetBytes(Scratch)).Write(4, BitConverter.GetBytes(source.BodyRowAddress)), 52);
+        return NativeBattleBreath129Body.Capture6B74F0(frame, temporary, source);
+    }
+
+    private static NativeBattleBreath129BodySource RelativeSource(BoundBody bound, uint row)
+    {
+        NativeBattleModelResourceView view = NativeBattleModelResourceView.Open(bound.Cpu, bound.Frame.Staging!, bound.Geometry, bound.Geometry.Length!.Value);
+        return new(row, (offset, length) => NativeBattleEffectArena.Clear().Write(0, view.Read(offset, length)), bound.Bones) { GeometryAlignment = (byte)(bound.Geometry.Cpu!.Offset & 3) };
+    }
+
+    private sealed record BoundBody(NativeBattleBreath129Frame Frame, NativeBattleModelCpuResources Cpu, NativeBattleResourcePointer Geometry, ImmutableArray<NativeBattlePackedMatrix32> Bones);
+
     private static NativeBattleBreath129BodySource Source()
     {
         byte[] bytes = new byte[128];

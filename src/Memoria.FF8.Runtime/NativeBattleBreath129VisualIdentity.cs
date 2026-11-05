@@ -19,10 +19,20 @@ public static class NativeBattleBreath129VisualIdentity
 
     public static NativeBattlePilotVisualIdentity Fibre(NativeBattleBreath129Frame frame, uint address, uint geometry)
     {
+        return FibreIdentity(frame, address, unchecked((long)geometry << 32));
+    }
+
+    public static NativeBattlePilotVisualIdentity Fibre(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129BodySource source)
+    {
+        return FibreIdentity(frame, address, source.GeometryIdentity ?? throw new NotSupportedException("Breath fibre presentation requires its selected geometry identity."));
+    }
+
+    private static NativeBattlePilotVisualIdentity FibreIdentity(NativeBattleBreath129Frame frame, uint address, long geometryIdentity)
+    {
         NativeBattleModulePoolTask task = NativeBattleBreath129Controller.Read(frame, address);
         uint triangles = task.ReadDword(24);
         long capturedGeneration = Containing(frame, triangles) is { } capture ? NativeBattlePilotVisualLifetimes.Identity(129, capture.Task).Generation : triangles == NativeBattleBreath129Profile.ControlTrianglesAddress ? 0 : throw new InvalidDataException("Breath fibre presentation triangle source leaves its actual captured task or immutable control source.");
-        long resource = unchecked((((long)geometry << 32) | task.ReadDword(20)) * 397 ^ triangles);
+        long resource = unchecked((geometryIdentity | task.ReadDword(20)) * 397 ^ triangles);
         return NativeBattlePilotVisualLifetimes.Identity(129, task) with { ResourceGeneration = unchecked(resource * 397 ^ capturedGeneration) };
     }
 

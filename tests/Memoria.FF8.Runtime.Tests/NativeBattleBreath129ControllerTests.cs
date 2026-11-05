@@ -172,6 +172,20 @@ public sealed class NativeBattleBreath129ControllerTests
         Assert.Throws<InvalidDataException>(() => NativeBattleBreath129VisualIdentity.Fibre(unsupported, FibreAddress, 0x1100000));
     }
 
+    [Fact]
+    public void Fibre_source_tokens_preserve_legacy_identity_without_changing_gameplay_or_random_state()
+    {
+        NativeBattleBreath129Frame frame = SpawnFibres(Frame(), 0x812345, 0x1229318, NativeBattleBreath129Profile.ControlTrianglesAddress, 12, 7, 0x100);
+        NativeBattleBreath129BodySource legacy = new(0x812345, 0x1100000, (_, _) => throw new InvalidOperationException(), []);
+        Assert.Equal(NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000), NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, legacy));
+        string before = NativeBattleTestSnapshots.Json(frame);
+        NativeCrtRandomState random = frame.Random;
+        NativeBattleBreath129BodySource logical = new(0x812345, (_, _) => throw new InvalidOperationException(), []) { GeometryIdentity = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(new object()) << 32) };
+        Assert.NotEqual(NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, legacy), NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, logical));
+        Assert.Equal(random, frame.Random);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(frame));
+    }
+
     private static (NativeBattleBreath129Frame Frame, uint Address) AppendTarget(NativeBattleBreath129Frame frame)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[2];

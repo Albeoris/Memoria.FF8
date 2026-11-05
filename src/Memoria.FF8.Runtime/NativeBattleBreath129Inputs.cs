@@ -10,7 +10,27 @@ public sealed record NativeBattleBreath129Frame(NativeBattleEffectMemory Memory,
 public sealed record NativeBattleBreath129PointStep(NativeBattleBreath129Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleBreath129ActContext(NativeBattlePackedMatrix32 Matrix, int DepthBias, uint MorphAddress);
 public sealed record NativeBattleBreath129ActStep(NativeBattleBreath129Frame Frame, int Remaining);
-public sealed record NativeBattleBreath129BodySource(uint BodyRowAddress, uint GeometryAddress, Func<uint, int, NativeBattleEffectArena> ReadGeometry, ImmutableArray<NativeBattlePackedMatrix32> BoneMatrices);
+public sealed record NativeBattleBreath129BodySource(uint BodyRowAddress, Func<int, int, NativeBattleEffectArena> ReadGeometry, ImmutableArray<NativeBattlePackedMatrix32> BoneMatrices)
+{
+    public byte GeometryAlignment { get; init; }
+    public long? GeometryIdentity { get; init; }
+
+    /// <summary>Adapts an existing addressed source to the same resource-relative traversal.</summary>
+    public NativeBattleBreath129BodySource(uint bodyRowAddress, uint geometryAddress, Func<uint, int, NativeBattleEffectArena> readGeometry, ImmutableArray<NativeBattlePackedMatrix32> boneMatrices) : this(bodyRowAddress, (offset, length) => readGeometry(checked(geometryAddress + (uint)offset), length), boneMatrices)
+    {
+        GeometryAlignment = (byte)(geometryAddress & 3);
+        GeometryIdentity = unchecked((long)geometryAddress << 32);
+    }
+
+    internal uint AlignGeometryCursor(uint offset)
+    {
+        if (GeometryAlignment > 3)
+        {
+            throw new InvalidDataException("Breath geometry alignment must describe the source origin's low two bits.");
+        }
+        return checked(((offset + GeometryAlignment + 3) & ~3u) - GeometryAlignment);
+    }
+}
 public sealed record NativeBattleBreath129BodyStep(NativeBattleBreath129Frame Frame, NativeBattleBreath129BodySource Source);
 public sealed record NativeBattleBreath129Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleBreath129Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBreath129Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleBreath129Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleBreath129Frame, uint, short> ReadHeading, Func<NativeBattleBreath129Frame, uint, int, short, NativeBattleBreath129PointStep> ReadBone502170, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129PointStep> ReadAnchor571400, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> ReadBody, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> PublishBody508C90, Func<NativeBattleBreath129Frame, uint, NativeBattleGfAnimationSource, NativeBattleBreath129ActContext, NativeBattleBreath129ActStep> AdvanceAct, Func<NativeBattleBreath129Frame, NativeBattleBreath129Operation, NativeBattleBreath129Frame> Execute)
 {
