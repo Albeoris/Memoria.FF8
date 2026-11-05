@@ -25,12 +25,9 @@ public sealed partial class BattleSession
                 graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
                 return frame;
             case NativeBattleEffect318ScaleBone56BEF0 scale:
-                int caster = NativeEffect318Actor(graphics, frame.State.ReadDword(CasterGlobal));
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, caster).PoseSource ?? throw new NotSupportedException("Effect318 requires its current bone-cache source.");
-                _ = NativeBattleBodyBoneMatrices.Require(graphics.Models[caster], source);
-                int bone = NativeBattleEffect319BoneCache.ResolveIndex(NativeEffect318SkeletonAddress(graphics, frame, caster), source.BoneCount, scale.BoneRecordAddress);
-                graphics = graphics with { Models = graphics.Models.SetItem(caster, NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(graphics.Models[caster], bone, scale.XY, scale.Z)) };
-                return frame;
+                return ScaleNativeEffect318Bone(ref graphics, frame, scale.BoneRecordAddress, null, scale.XY, scale.Z);
+            case NativeBattleEffect318ScaleBoneReference56BEF0 scale:
+                return ScaleNativeEffect318Bone(ref graphics, frame, null, scale.BoneRecord, scale.XY, scale.Z);
             case NativeBattleEffect318Sound501330 sound:
                 PublishNativeEffect318Frame(frame);
                 PublishNativeModuleSound(new(BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(sound.SourceAddress, 4)), sound.Flags, null) { Pan = sound.Pan });
@@ -66,5 +63,16 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Effect318 emitted unsupported service {operation.GetType().Name}.");
         }
+    }
+
+    private NativeBattleEffect318Frame ScaleNativeEffect318Bone(ref NativeBattleGraphicsState graphics, NativeBattleEffect318Frame frame, uint? recordAddress, NativeBattleResourcePointer? record, short xy, short z)
+    {
+        int caster = NativeEffect318Actor(graphics, frame.State.ReadDword(CasterGlobal));
+        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, caster).PoseSource ?? throw new NotSupportedException("Effect318 requires its current bone-cache source.");
+        _ = NativeBattleBodyBoneMatrices.Require(graphics.Models[caster], source);
+        NativeBattleResourcePointer skeleton = NativeEffect318SkeletonPointer(graphics, frame, caster);
+        int bone = record is not null ? NativeBattleEffect319BoneCache.ResolveIndex(skeleton, source.BoneCount, record) : NativeBattleEffect319BoneCache.ResolveIndex(skeleton.Cpu?.TryPhysicalAddress() ?? skeleton.StagingAddress ?? throw new NotSupportedException("An old numeric bone cache requires its actual guest skeleton address."), source.BoneCount, recordAddress ?? throw new NotSupportedException("The bone cache record is unobserved."));
+        graphics = graphics with { Models = graphics.Models.SetItem(caster, NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(graphics.Models[caster], bone, xy, z)) };
+        return frame;
     }
 }

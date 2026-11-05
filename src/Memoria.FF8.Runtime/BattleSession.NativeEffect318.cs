@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffect318Resources resources = effect.Binding.Effect318Resources ?? throw new NotSupportedException("Effect318 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect318 requires current process memory.");
         NativeBattleEffect318Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect318 requires its current CRT stream."), memory.Effect318 ?? throw new NotSupportedException("Effect318 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
-        NativeBattleEffect318Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect318 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect318Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect318 requires its current projection."), _ => Camera().Roll, Point, Anchor, ResolveBoneRecord, SelectIo, (current, operation) => ExecuteNativeEffect318Operation(ref graphics, current, operation, resources));
+        NativeBattleEffect318Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect318 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect318Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect318 requires its current projection."), _ => Camera().Roll, Point, Anchor, ResolveBoneRecord, SelectIo, (current, operation) => ExecuteNativeEffect318Operation(ref graphics, current, operation, resources)) { ResolveBoneRecordReference = (current, address, bone) => ResolveNativeEffect318BoneRecord(graphics, current, address, bone) };
         frame = initialize ? NativeBattleEffect318Controller.Initialize(frame, resources, inputs) : NativeBattleEffect318Controller.Advance(frame, resources, inputs);
         PublishNativeEffect318Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -54,10 +54,8 @@ public sealed partial class BattleSession
 
         uint ResolveBoneRecord(NativeBattleEffect318Frame current, uint address, int bone)
         {
-            int actor = NativeEffect318Actor(graphics, address);
-            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect318 requires its current caster skeleton.");
-            _ = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
-            return NativeBattleEffect319BoneCache.ResolveRecord(NativeEffect318SkeletonAddress(graphics, current, actor), source.BoneCount, bone);
+            NativeBattleResourcePointer record = ResolveNativeEffect318BoneRecord(graphics, current, address, bone);
+            return record.Cpu?.TryPhysicalAddress() ?? record.StagingAddress ?? throw new NotSupportedException("A logical bone cache requires its typed record coordinate.");
         }
 
         NativeBattleEffect318PollStep SelectIo(NativeBattleEffect318Frame current, int index)
@@ -88,7 +86,7 @@ public sealed partial class BattleSession
         return checked((int)(offset / 156));
     }
 
-    private uint NativeEffect318SkeletonAddress(NativeBattleGraphicsState graphics, NativeBattleEffect318Frame frame, int actor)
+    private NativeBattleResourcePointer NativeEffect318SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect318Frame frame, int actor)
     {
         NativeBattleGraphicsModel model = graphics.Models[actor];
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -98,10 +96,19 @@ public sealed partial class BattleSession
             {
                 pointer = IsNativeEffectArenaAddress(staged) ? frame.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(staged, 4)) : (frame.Staging ?? throw new NotSupportedException("Effect318 requires its staged resource row.")).ReadResourcePointer(staged);
             }
-            return pointer?.Cpu?.PhysicalAddress ?? pointer?.StagingAddress ?? throw new NotSupportedException("Effect318 requires its current addressed skeleton pointer.");
+            return pointer ?? throw new NotSupportedException("Effect318 requires its current skeleton owner.");
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect318 requires its current CPU resource owner.");
-        return cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect318 requires its current primary resource row.")].Require(12).PhysicalAddress;
+        NativeBattleModelCpuResourceRow row = cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect318 requires its current primary resource row.")];
+        return new(row.Require(12), null, row.Lengths.TryGetValue(12, out int length) ? length : null);
+    }
+
+    private NativeBattleResourcePointer ResolveNativeEffect318BoneRecord(NativeBattleGraphicsState graphics, NativeBattleEffect318Frame frame, uint address, int bone)
+    {
+        int actor = NativeEffect318Actor(graphics, address);
+        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect318 requires its current caster skeleton.");
+        _ = NativeBattleBodyBoneMatrices.Require(graphics.Models[actor], source);
+        return NativeBattleEffect319BoneCache.ResolveRecord(NativeEffect318SkeletonPointer(graphics, frame, actor), source.BoneCount, bone);
     }
 
     private void PublishNativeEffect318Frame(NativeBattleEffect318Frame frame)

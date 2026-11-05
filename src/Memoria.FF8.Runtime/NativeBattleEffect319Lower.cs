@@ -22,8 +22,10 @@ public static class NativeBattleEffect319Lower
         {
             throw new InvalidDataException("The selected bone task requires its current available pool slot.");
         }
-        uint pointer = inputs.ResolveBoneRecord(frame, frame.State.ReadDword(0x25053AC), boneIndex);
-        NativeBattleModulePoolTask task = Read(frame, address).WriteDword(12, pointer).WriteWord(16, unchecked((ushort)delay)).WriteWord(24, unchecked((ushort)stepXY)).WriteWord(20, unchecked((ushort)stepZ)).WriteWord(18, 0).WriteWord(22, 0);
+        NativeBattleModulePoolTask task = Read(frame, address);
+        uint caster = frame.State.ReadDword(0x25053AC);
+        task = inputs.ResolveBoneRecordReference is { } resolve ? task.WriteResourcePointer(12, resolve(frame, caster, boneIndex)) : task.WriteDword(12, inputs.ResolveBoneRecord(frame, caster, boneIndex));
+        task = task.WriteWord(16, unchecked((ushort)delay)).WriteWord(24, unchecked((ushort)stepXY)).WriteWord(20, unchecked((ushort)stepZ)).WriteWord(18, 0).WriteWord(22, 0);
         return Write(frame, address, task);
     }
 
@@ -36,7 +38,8 @@ public static class NativeBattleEffect319Lower
         {
             return new(frame, 2);
         }
-        frame = inputs.Execute(frame, new NativeBattleEffect319ScaleBone56BEF0(task.ReadDword(12), Signed(task, 22), Signed(task, 18)));
+        NativeBattleEffect319Operation operation = task.BorrowPayloadArena(12, 4).TryGetResourcePointer(0, out NativeBattleResourcePointer? record) ? new NativeBattleEffect319ScaleBoneReference56BEF0(record ?? throw new NotSupportedException("The current-pose bone cache record is NULL."), Signed(task, 22), Signed(task, 18)) : new NativeBattleEffect319ScaleBone56BEF0(task.ReadDword(12), Signed(task, 22), Signed(task, 18));
+        frame = inputs.Execute(frame, operation);
         return new(frame, 0);
     }
 
