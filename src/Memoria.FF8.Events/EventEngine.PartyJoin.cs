@@ -380,26 +380,26 @@ public sealed partial class EventEngine
         return new EventScriptException(message);
     }
 
-    private void ValidateNativeJoinedPositions(Checkpoint saved)
+    private void ValidateNativeJoinedPositions(IReadOnlyList<ActorState> savedActors, SceneEventState savedScene, int savedFieldId, long savedFrame, PartyJoinState? joinState)
     {
-        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeScriptMovement is { SupersededByPartyJoin: true }))
+        foreach (ActorState actor in savedActors.Where(actor => actor.NativeScriptMovement is { SupersededByPartyJoin: true }))
         {
             NativeScriptMovementState displaced = actor.NativeScriptMovement!;
-            PartyJoinTarget? active = saved.PartyJoin?.Targets.SingleOrDefault(target => target.ObjectId == actor.ObjectId);
+            PartyJoinTarget? active = joinState?.Targets.SingleOrDefault(target => target.ObjectId == actor.ObjectId);
             NativeJoinedPosition? completed = actor.NativeJoinedPosition;
             bool activeOwner = active is not null && active.FixedX == displaced.FixedX && active.FixedY == displaced.FixedY && active.FixedZ == displaced.FixedZ;
-            bool completedOwner = completed is not null && completed.FixedX == displaced.FixedX && completed.FixedY == displaced.FixedY && completed.FixedZ == displaced.FixedZ && actor.NativeMovementCompletion542 == 2;
+            bool completedOwner = completed is not null && completed.FixedX == displaced.FixedX && completed.FixedY == displaced.FixedY && completed.FixedZ == displaced.FixedZ && actor.NativeMovementCompletion542 == 2 || IsGameplayCompletedJoinedPosition(actor, savedScene, savedFrame);
             if (displaced.Active || !displaced.Cancelled && !(displaced.Asynchronous && actor.NativeMovementCompletion542 == 2 && actor.NativeMovementRequest is not null) || displaced.Suspended || displaced.AnimationFlag40000 is null || !activeOwner && !completedOwner)
             {
                 throw new InvalidDataException("Saved displaced MOVE lost its active or completed native JOIN physical owner.");
             }
         }
-        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeJoinedPosition is not null || actor.NativeSplitPosition is not null))
+        foreach (ActorState actor in savedActors.Where(actor => actor.NativeJoinedPosition is not null || actor.NativeSplitPosition is not null))
         {
             NativeJoinedPosition joined = actor.NativeJoinedPosition ?? actor.NativeSplitPosition!;
             Albeoris.Games.FF8.Jsm.Jsm.Opcode opcode = actor.NativeJoinedPosition is not null ? Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN : Albeoris.Games.FF8.Jsm.Jsm.Opcode.SPLIT;
             EventScript? script = (uint)joined.CallerObjectId < program!.Objects.Count ? program.Objects[joined.CallerObjectId].Scripts.FirstOrDefault(script => script.Id == joined.ScriptId) : null;
-            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null && !(opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.NativeScriptMovement.SupersededByPartyJoin) || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != savedFieldId || joined.Frame is < 1 || joined.Frame > savedFrame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !savedScene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null && !(opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.NativeScriptMovement.SupersededByPartyJoin) || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
             {
                 throw new InvalidDataException("Saved completed JOIN body lost its original instruction, raw position or physical motion authority.");
             }

@@ -4,6 +4,11 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private bool IsGameplayCompletedJoinedPosition(ActorState actor, SceneEventState scene, long frame)
+    {
+        return scene.NativeFieldInitialization is { Origin: NativeFieldInitializationOrigin.GameplayContinuation } && actor.NativeScriptMovement is { SupersededByPartyJoin: true } worker && actor.NativeMovementCompletion542 == 2 && actor.NativeMotionAuthority is { Version: 1 } && ValidGameplayActorReconstruction(actor, frame) && actor.GameplayReconstruction!.Position is { } raw && raw.X == worker.FixedX && raw.Y == worker.FixedY && raw.Z == worker.FixedZ && actor.X == raw.X / 4096f && actor.Y == raw.Y / 4096f && actor.Z == raw.Z / 4096f && actor.WalkmeshTriangle == worker.Triangle;
+    }
+
     private GameplaySavePartyMovement? CaptureGameplayPartyMovement()
     {
         ValidateNativePartyMovement(actors, Scene, fibers, partyJoin, partySplit);
@@ -12,9 +17,9 @@ public sealed partial class EventEngine
             return null;
         }
         PartyJoinTarget[] targets = partyJoin?.Targets ?? partySplit!.Targets;
-        if (targets.Any(target => actors[target.ObjectId].NativeScriptMovement is not null || actors[target.ObjectId].NativeMovementRequest is not null))
+        if (targets.Any(target => actors[target.ObjectId].NativeScriptMovement is { SupersededByPartyJoin: false } || actors[target.ObjectId].NativeMovementRequest is not null && actors[target.ObjectId].NativeScriptMovement is not { SupersededByPartyJoin: true }))
         {
-            throw new NotSupportedException("Gameplay party movement requires separate ownership for a displaced or backed-up MOVE.");
+            throw new NotSupportedException("Gameplay party movement has an unrelated physical movement owner.");
         }
         return new(partyJoin is null ? GameplaySavePartyMovementKind.Split : GameplaySavePartyMovementKind.Join, partyJoin?.FiberSequence ?? partySplit!.FiberSequence, partyJoin?.CallerObjectId ?? partySplit!.CallerObjectId, targets.Select(target => new GameplaySavePartyMovementTarget(target.ObjectId, new(target.TargetX, target.TargetY, target.TargetZ), target.Speed)).ToArray());
     }

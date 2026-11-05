@@ -5,8 +5,15 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Logical mode1 movement. Current raw placement belongs to Actor.Pose; geometry proposals are recreated by current providers.</summary>
 public sealed record GameplaySaveMovementWorker([property: JsonRequired] bool Active, [property: JsonRequired] long FiberSequence, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] GameplaySaveActorPosition Target, [property: JsonRequired] short Speed, [property: JsonRequired] short StopDistance, [property: JsonRequired] byte MovementDirection, [property: JsonRequired] byte FacingDirection, [property: JsonRequired] bool Asynchronous, [property: JsonRequired] bool AutomaticAnimation, [property: JsonRequired] int? TrackingObjectId, [property: JsonRequired] bool? ResetAnimation, [property: JsonRequired] bool Cancelled, [property: JsonRequired] bool HoldsFacing, [property: JsonRequired] bool Suspended, [property: JsonRequired] bool? AnimationFlag, [property: JsonRequired] byte? FacingHold, [property: JsonRequired] bool Accelerated)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SupersededByPartyJoin { get; init; }
+
     public void Validate()
     {
+        if (SupersededByPartyJoin && (Active || Suspended || AnimationFlag is null))
+        {
+            throw new InvalidDataException("Gameplay displaced movement cannot own an active or suspended physical body.");
+        }
         if (FiberSequence <= 0 || ScriptId < 0 || Operation < 0 || Target is null || new[] { Target.X, Target.Y, Target.Z }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || TrackingObjectId < 0 || FacingHold > 1 || Cancelled && (Active || Suspended) || ResetAnimation == false)
         {
             throw new InvalidDataException("Gameplay movement worker contains invalid logical operands or ownership.");

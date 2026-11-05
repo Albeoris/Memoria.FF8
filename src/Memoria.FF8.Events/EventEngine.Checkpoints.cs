@@ -568,7 +568,7 @@ public sealed partial class EventEngine
         ValidateNativeActorContactCheckpoint(saved);
         ValidateNativeMovementRequests(saved, restored);
         ValidateBackgroundShades(saved);
-        ValidateNativeJoinedPositions(saved);
+        ValidateNativeJoinedPositions(saved.Actors, saved.Scene, saved.FieldId, saved.Frame, saved.PartyJoin);
         ValidateNativeCopiedPositions(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence, IsDormantWorldReturnCheckpoint(snapshot));
         ValidateMinimalMenuCheckpoint(saved, bySequence);

@@ -40,11 +40,7 @@ public sealed partial class EventEngine
 
     private GameplaySaveMovementWorker CaptureGameplayMovementWorker(NativeScriptMovementState worker)
     {
-        if (worker.SupersededByPartyJoin)
-        {
-            throw new NotSupportedException("Gameplay movement superseded by JOIN requires its separate joined-position owner.");
-        }
-        return new(worker.Active, worker.FiberSequence, worker.ScriptId, worker.Operation, new(worker.TargetX, worker.TargetY, worker.TargetZ), worker.Speed, worker.StopDistance, worker.MovementDirection, worker.FacingDirection, worker.Asynchronous, worker.AutomaticAnimation, worker.TargetNativeObjectId is int target ? GameplayMovementObject(target) : null, worker.ResetAnimationOnCompletion, worker.Cancelled, worker.HoldsFacing, worker.Suspended, worker.AnimationFlag40000, worker.FacingHold576, worker.Accelerated);
+        return new(worker.Active, worker.FiberSequence, worker.ScriptId, worker.Operation, new(worker.TargetX, worker.TargetY, worker.TargetZ), worker.Speed, worker.StopDistance, worker.MovementDirection, worker.FacingDirection, worker.Asynchronous, worker.AutomaticAnimation, worker.TargetNativeObjectId is int target ? GameplayMovementObject(target) : null, worker.ResetAnimationOnCompletion, worker.Cancelled, worker.HoldsFacing, worker.Suspended, worker.AnimationFlag40000, worker.FacingHold576, worker.Accelerated) { SupersededByPartyJoin = worker.SupersededByPartyJoin };
     }
 
     private GameplaySaveActorMovement? CaptureGameplayMovement(ActorState actor)
@@ -65,7 +61,7 @@ public sealed partial class EventEngine
     private NativeScriptMovementState RestoreGameplayMovementWorker(GameplaySaveMovementWorker saved, ActorState actor, GameplaySaveActorPosition raw)
     {
         saved.Validate();
-        return new(1, saved.Active, saved.FiberSequence, saved.ScriptId, saved.Operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, saved.Target.X, saved.Target.Y, saved.Target.Z, saved.Speed, saved.StopDistance, saved.MovementDirection, saved.FacingDirection, saved.Asynchronous, saved.AutomaticAnimation, saved.TrackingObjectId is int target ? GameplayMovementIndex(target) : null, saved.ResetAnimation, saved.Cancelled, saved.HoldsFacing, saved.Suspended, saved.AnimationFlag, saved.FacingHold, saved.Accelerated);
+        return new(1, saved.Active, saved.FiberSequence, saved.ScriptId, saved.Operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, saved.Target.X, saved.Target.Y, saved.Target.Z, saved.Speed, saved.StopDistance, saved.MovementDirection, saved.FacingDirection, saved.Asynchronous, saved.AutomaticAnimation, saved.TrackingObjectId is int target ? GameplayMovementIndex(target) : null, saved.ResetAnimation, saved.Cancelled, saved.HoldsFacing, saved.Suspended, saved.AnimationFlag, saved.FacingHold, saved.Accelerated, saved.SupersededByPartyJoin);
     }
 
     private void RestoreGameplayMovement(ActorState actor, GameplaySaveFieldActor saved)
@@ -86,7 +82,7 @@ public sealed partial class EventEngine
         if (actor.NativeScriptMovement is { } current)
         {
             actor.MovementTarget = current.Cancelled || actor.NativeMovementCompletion542 == 2 || !current.Active ? null : new Vector3(current.TargetX / 4096f, current.TargetY / 4096f, current.TargetZ / 4096f);
-            actor.MovementStopDistance = current.StopDistance;
+            actor.MovementStopDistance = current.SupersededByPartyJoin ? 0 : current.StopDistance;
         }
     }
 
@@ -123,6 +119,7 @@ public sealed partial class EventEngine
         Dictionary<long, Fiber> bySequence = current.ToDictionary(fiber => fiber.Sequence);
         ValidateNativeScriptMovements(actors, Scene, current, bySequence);
         ValidateNativeMovementRequests(actors, Scene, current);
+        ValidateNativeJoinedPositions(actors, Scene, FieldId, Frame, partyJoin);
         foreach (ActorState actor in actors.Where(actor => actor.NativeScriptMovement is { Active: true } or { Cancelled: true } || actor.NativeMovementRequest is not null || current.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null)))
         {
             FieldFixedPosition? raw = ReadNativeScriptPosition(actor);

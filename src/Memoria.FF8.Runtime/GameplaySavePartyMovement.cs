@@ -35,7 +35,7 @@ public sealed record GameplaySavePartyMovement([property: JsonRequired] Gameplay
         foreach (GameplaySavePartyMovementTarget target in Targets)
         {
             GameplaySaveFieldActor actor = actors.Actors.Single(actor => actor.ObjectId == target.ObjectId);
-            if (actor.Pose.FixedPosition is null || actor.Control.Completion is null or > 2 || actor.Movement is not null || Kind == GameplaySavePartyMovementKind.Split && (target.Speed is not (2696 or 7929) || new[] { target.Destination.X, target.Destination.Y, target.Destination.Z }.Any(value => (value & 4095) != 0)))
+            if (actor.Pose.FixedPosition is null || actor.Control.Completion is null or > 2 || actor.Movement is not null && (Kind != GameplaySavePartyMovementKind.Join || actor.Movement.Worker is not { SupersededByPartyJoin: true }) || Kind == GameplaySavePartyMovementKind.Split && (target.Speed is not (2696 or 7929) || new[] { target.Destination.X, target.Destination.Y, target.Destination.Z }.Any(value => (value & 4095) != 0)))
             {
                 throw new InvalidDataException("Gameplay party movement lacks its canonical actor placement or a supported movement owner.");
             }
