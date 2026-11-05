@@ -80,6 +80,10 @@ public static class NativeBattleModelGeometryWriter
                 {
                     throw new NotSupportedException("Native battle geometry requires retained transparency and culling flags.");
                 }
+                if (mesh.AlphaCutoff is float cutoff && edited.Textures[mesh.Texture].Pixels.Any(pixel => (pixel.A / 255f < cutoff) != (pixel.A == 0)))
+                {
+                    throw new NotSupportedException("Native battle materials discard only transparent texels; the imported alpha cutoff changes that coverage.");
+                }
                 if (((template.GetProperty("NativeMaterial").GetProperty("TexturePage").GetUInt16() >> 7) & 3) != 1)
                 {
                     throw new NotSupportedException("Imported native battle geometry requires existing indexed eight-bit materials.");

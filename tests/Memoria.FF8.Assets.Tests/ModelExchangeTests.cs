@@ -12,6 +12,63 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ModelExchangeTests
 {
     [Fact]
+    public void NativeOpaqueStpTexelsExportAsCutoutWithoutChangingTexturePixels()
+    {
+        EditableModel source = CreateModel();
+        PixelImage texture = new(2, 1, [new Rgba32(10, 20, 30, 0), new Rgba32(40, 50, 60, 128)]);
+        EditableMesh native = source.Meshes[0] with { NativePart = 0, NativeTexture = 0, NativeMaterial = 0 };
+        source = source with { Textures = [texture], Meshes = [native] };
+        byte[] content = ModelExchange.ExportGlb(source);
+        using JsonDocument json = JsonDocument.Parse(content.AsMemory(20, BinaryPrimitives.ReadInt32LittleEndian(content.AsSpan(12))));
+        JsonElement material = json.RootElement.GetProperty("materials")[0];
+        Assert.Equal("MASK", material.GetProperty("alphaMode").GetString());
+        Assert.Equal(1f / 255, material.GetProperty("alphaCutoff").GetSingle());
+        EditableModel imported = ModelExchange.ImportGlb(content).Model;
+        Assert.False(imported.Meshes[0].Transparent);
+        Assert.Equal(1f / 255, imported.Meshes[0].AlphaCutoff);
+        Assert.Equal(texture.Pixels, imported.Textures[0].Pixels);
+        string? fixture = Environment.GetEnvironmentVariable("MEMORIA_MODEL_EXCHANGE_CUTOUT_GLB");
+        if (!string.IsNullOrEmpty(fixture))
+        {
+            File.WriteAllBytes(fixture, content);
+        }
+        string? blenderFixture = Environment.GetEnvironmentVariable("MEMORIA_MODEL_EXCHANGE_CUTOUT_BLENDER_GLB");
+        if (!string.IsNullOrEmpty(blenderFixture))
+        {
+            EditableModel blender = ModelExchange.ImportGlb(File.ReadAllBytes(blenderFixture)).Model;
+            Assert.False(blender.Meshes[0].Transparent);
+            Assert.Equal(1f / 255, blender.Meshes[0].AlphaCutoff!.Value, 6);
+            Assert.Equal(texture.Pixels, blender.Textures[blender.Meshes[0].Texture].Pixels);
+        }
+
+        foreach (EditableMesh blended in new[]
+        {
+            native with { Transparent = true },
+            native with { Vertices = native.Vertices.Select(vertex => vertex with { Color = vertex.Color with { W = 0.5f } }).ToArray() },
+            native with { NativePart = -1, NativeMaterial = -1, NativeTexture = -1 }
+        })
+        {
+            byte[] blend = ModelExchange.ExportGlb(source with { Meshes = [blended] });
+            using JsonDocument blendJson = JsonDocument.Parse(blend.AsMemory(20, BinaryPrimitives.ReadInt32LittleEndian(blend.AsSpan(12))));
+            Assert.Equal("BLEND", blendJson.RootElement.GetProperty("materials")[0].GetProperty("alphaMode").GetString());
+        }
+    }
+
+    [Fact]
+    public void GenericCutoutKeepsItsAuthoredThresholdAndRejectsInvalidThresholds()
+    {
+        EditableModel source = CreateModel();
+        source = source with { Meshes = [source.Meshes[0] with { AlphaCutoff = 0.7f }] };
+        EditableModel imported = ModelExchange.ImportGlb(ModelExchange.ExportGlb(source)).Model;
+        Assert.False(imported.Meshes[0].Transparent);
+        Assert.Equal(0.7f, imported.Meshes[0].AlphaCutoff);
+        foreach (float invalid in new[] { -0.1f, 1.1f, float.NaN })
+        {
+            Assert.Throws<InvalidDataException>(() => ModelExchange.ExportGlb(source with { Meshes = [source.Meshes[0] with { AlphaCutoff = invalid }] }));
+        }
+    }
+
+    [Fact]
     public void UprightAuthoringBasisIsVersionedAndLegacyFilesRemainReadable()
     {
         EditableModel source = CreateModel();

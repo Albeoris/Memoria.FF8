@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 
@@ -7,6 +8,31 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ModelBrowserDialogTests
 {
+    [Fact]
+    public void Native_opaque_preview_keeps_stp_texels_solid_without_removing_cutouts_or_blended_materials()
+    {
+        EditableModel source = Triangle();
+        PixelImage texture = new(2, 1, [new Rgba32(255, 255, 255, 128), default]);
+        EditableMesh mesh = source.Meshes[0] with { Texture = 0, NativePart = 0, NativeTexture = 0, NativeMaterial = 0 };
+        EditableModel model = source with { Meshes = [mesh], Textures = [texture] };
+        RecordingRenderer opaque = new();
+        ModelPreviewRenderer.Render(opaque, model, 800, 400, 0, 0, 1, 0);
+        TriangleMaterial material = Assert.Single(opaque.Materials);
+        Assert.Equal(TriangleBlend.Replace, material.Blend);
+        Assert.Equal(1f / 255, material.MinimumAlpha);
+        Assert.Equal((byte)128, material.Texture!.Pixels[0].A);
+        Assert.Equal((byte)0, material.Texture.Pixels[1].A);
+
+        RecordingRenderer blended = new();
+        ModelPreviewRenderer.Render(blended, model with { Meshes = [mesh with { Transparent = true }] }, 800, 400, 0, 0, 1, 0);
+        Assert.Equal(TriangleBlend.Alpha, Assert.Single(blended.Materials).Blend);
+
+        RecordingRenderer mask = new();
+        ModelPreviewRenderer.Render(mask, model with { Meshes = [mesh with { NativePart = -1, NativeTexture = -1, NativeMaterial = -1, AlphaCutoff = 0.25f }] }, 800, 400, 0, 0, 1, 0);
+        Assert.Equal(0.25f, Assert.Single(mask.Materials).MinimumAlpha);
+        Assert.Equal(TriangleBlend.Replace, Assert.Single(mask.Materials).Blend);
+    }
+
     [Fact]
     public void Preview_centers_transformed_geometry_and_applies_zoom_rotation_uv_and_color()
     {

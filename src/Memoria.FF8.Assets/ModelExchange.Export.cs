@@ -98,14 +98,23 @@ public static partial class ModelExchange
                 ["TEXCOORD_0"] = Accessor(mesh.Vertices.SelectMany(vertex => new[] { vertex.Uv.X, vertex.Uv.Y }).ToArray(), 2),
                 ["COLOR_0"] = Accessor(mesh.Vertices.SelectMany(vertex => new[] { vertex.Color.X, vertex.Color.Y, vertex.Color.Z, vertex.Color.W }).ToArray(), 4)
             };
+            bool textureAlpha = mesh.Texture >= 0 && model.Textures[mesh.Texture].Pixels.Any(pixel => pixel.A < 255);
+            float? cutoff = GetAlphaCutoff(mesh);
+            bool blend = mesh.Transparent || mesh.AlphaCutoff is null && mesh.Vertices.Any(vertex => vertex.Color.W < 1) || textureAlpha && cutoff is null;
+            bool mask = !blend && cutoff is not null && (textureAlpha || mesh.AlphaCutoff is not null);
             JsonObject material = new()
             {
                 ["name"] = $"material_{materials.Count}",
                 ["extras"] = new JsonObject { ["memoria_native_material"] = mesh.NativeMaterial, ["memoria_native_texture"] = mesh.NativeTexture },
                 ["doubleSided"] = mesh.DoubleSided,
-                ["alphaMode"] = mesh.Transparent || mesh.Vertices.Any(vertex => vertex.Color.W < 1) || mesh.Texture >= 0 && model.Textures[mesh.Texture].Pixels.Any(pixel => pixel.A < 255) ? "BLEND" : "OPAQUE",
+                ["alphaMode"] = blend ? "BLEND" : mask ? "MASK" : "OPAQUE",
                 ["pbrMetallicRoughness"] = new JsonObject { ["metallicFactor"] = 0, ["roughnessFactor"] = 1 }
             };
+            if (mask)
+            {
+                // Native opaque polygons discard zero texels; STP is not fractional coverage.
+                material["alphaCutoff"] = cutoff!.Value;
+            }
             if (mesh.Texture >= 0)
             {
                 material["pbrMetallicRoughness"]!["baseColorTexture"] = new JsonObject { ["index"] = mesh.Texture };

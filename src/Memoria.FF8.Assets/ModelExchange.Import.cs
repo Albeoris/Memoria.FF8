@@ -97,6 +97,10 @@ public static partial class ModelExchange
         long vertexCount = 0;
         foreach (EditableMesh mesh in model.Meshes)
         {
+            if (mesh.AlphaCutoff is float alphaCutoff && (!float.IsFinite(alphaCutoff) || alphaCutoff < 0 || alphaCutoff > 1))
+            {
+                throw new InvalidDataException("Material alpha cutoff must be finite and between zero and one.");
+            }
             vertexCount += mesh.Vertices.Count;
             if (vertexCount > 4_000_000 || mesh.Vertices.Count == 0 || mesh.Indices.Count == 0 || mesh.Indices.Count % 3 != 0 || mesh.Texture < -1 || mesh.Texture >= model.Textures.Count || mesh.Node < -1 || mesh.Node >= model.Bones.Count)
             {
@@ -390,6 +394,7 @@ public static partial class ModelExchange
                     int nativeTexture = node.TryGetProperty("extras", out JsonElement nodeMaterialExtras) && nodeMaterialExtras.TryGetProperty("memoria_native_texture", out JsonElement nodeNativeTexture) ? nodeNativeTexture.GetInt32() : -1;
                     Vector4 factor = Vector4.One;
                     bool transparent = false;
+                    float? alphaCutoff = null;
                     bool doubleSided = false;
                     if (primitive.TryGetProperty("material", out JsonElement materialReference))
                     {
@@ -402,7 +407,16 @@ public static partial class ModelExchange
                         {
                             nativeMaterial = materialTemplate.GetInt32();
                         }
-                        transparent = String(material, "alphaMode", "OPAQUE") != "OPAQUE";
+                        string alphaMode = String(material, "alphaMode", "OPAQUE");
+                        transparent = alphaMode == "BLEND";
+                        if (alphaMode == "MASK")
+                        {
+                            alphaCutoff = material.TryGetProperty("alphaCutoff", out JsonElement cutoff) ? cutoff.GetSingle() : 0.5f;
+                            if (!float.IsFinite(alphaCutoff.Value) || alphaCutoff < 0 || alphaCutoff > 1)
+                            {
+                                throw new InvalidDataException("Material alpha cutoff must be finite and between zero and one.");
+                            }
+                        }
                         doubleSided = material.TryGetProperty("doubleSided", out JsonElement sided) && sided.GetBoolean();
                         if (material.TryGetProperty("pbrMetallicRoughness", out JsonElement pbr))
                         {
@@ -466,7 +480,7 @@ public static partial class ModelExchange
                     {
                         indices = Enumerable.Range(0, positions.Length).ToArray();
                     }
-                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, DoubleSided = doubleSided, NativeMaterial = nativeMaterial, NativeTexture = nativeTexture, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
+                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, AlphaCutoff = alphaCutoff, DoubleSided = doubleSided, NativeMaterial = nativeMaterial, NativeTexture = nativeTexture, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
                 }
             }
             List<EditableAnimation> animations = [];

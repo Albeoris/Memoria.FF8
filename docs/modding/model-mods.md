@@ -11,8 +11,8 @@ In the viewer:
 | Control | Action |
 | --- | --- |
 | Arrows / movement stick | Rotate the model. |
-| Left mouse drag | Orbit the preview freely. |
-| Shift + left mouse drag | Pan the preview. |
+| Left or middle mouse drag | Orbit the preview freely. |
+| Shift + left or middle mouse drag | Pan the preview. |
 | Right mouse drag | Roll horizontally; dolly vertically. |
 | World camera rotation buttons | Zoom. The mouse wheel also zooms. |
 | Front / Side / Top | Select a camera direction while keeping pan and zoom. |

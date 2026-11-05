@@ -31,6 +31,7 @@ public sealed record EditableMesh(string Name, IReadOnlyList<EditableVertex> Ver
     public bool Skinned { get; init; }
     public IReadOnlyDictionary<int, Matrix4x4>? InverseBindMatrices { get; init; }
     public bool Transparent { get; init; }
+    public float? AlphaCutoff { get; init; }
     public bool DoubleSided { get; init; } = true;
 }
 public sealed record EditableAnimation(string Name, IReadOnlyList<EditableAnimationChannel> Channels)
@@ -42,6 +43,20 @@ public sealed record ModelExchangeImportResult(EditableModel Model, IReadOnlyLis
 
 public static partial class ModelExchange
 {
+    /// <summary>Returns explicit cutout coverage or the zero-texel cutoff of an opaque native material.</summary>
+    public static float? GetAlphaCutoff(EditableMesh mesh)
+    {
+        if (mesh.Transparent)
+        {
+            return null;
+        }
+        if (mesh.AlphaCutoff is not null)
+        {
+            return mesh.AlphaCutoff;
+        }
+        return mesh.NativePart >= 0 && mesh.NativeTexture >= 0 && mesh.NativeMaterial >= 0 && mesh.Vertices.All(vertex => vertex.Color.W >= 1) ? 1f / 255 : null;
+    }
+
     public const float FramesPerSecond = 30;
     public const float WorldFramesPerSecond = 30.5f;
     private static readonly Matrix4x4 NativeToGltf = Matrix4x4.CreateRotationX(-MathF.PI / 2);

@@ -42,7 +42,8 @@ internal static class ModelPreviewRenderer
             for (int meshIndex = 0; meshIndex < model.Meshes.Count; meshIndex++)
             {
                 EditableMesh mesh = model.Meshes[meshIndex];
-                TriangleMaterial material = new(mesh.Texture >= 0 ? model.Textures[mesh.Texture] : null, TriangleBlend.Alpha, Sampler: TriangleSampler.LinearWrap);
+                float? cutoff = ModelExchange.GetAlphaCutoff(mesh);
+                TriangleMaterial material = new(mesh.Texture >= 0 ? model.Textures[mesh.Texture] : null, cutoff.HasValue ? TriangleBlend.Replace : TriangleBlend.Alpha, MinimumAlpha: cutoff ?? 1f / 255, Sampler: TriangleSampler.LinearWrap);
                 for (int index = 0; index < mesh.Indices.Count; index += 3)
                 {
                     TriangleVertex Vertex(int vertexIndex)

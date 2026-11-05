@@ -8,6 +8,21 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class ModelModInstalledTests
 {
     [Fact]
+    public void InstalledOpaqueStpMaterialRoundTripPreservesNativePixelsAndRejectsChangedMaskCoverage()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Set MEMORIA_FF8_GAME_DIR to run the optional installed resource check.");
+        using BattleAssets assets = new(game!);
+        EditableModel original = ModelExchange.FromBattle(assets.LoadEnemy(85));
+        Assert.Contains(original.Textures.SelectMany(image => image.Pixels), pixel => pixel.A == 128);
+        EditableModel imported = ModelExchange.ImportGlb(ModelExchange.ExportGlb(original)).Model;
+        _ = NativeBattleModelGeometryWriter.Encode(imported, original);
+        Assert.Equal(original.Textures.SelectMany(image => image.Pixels), imported.Textures.SelectMany(image => image.Pixels));
+        EditableMesh mesh = imported.Meshes[0] with { AlphaCutoff = 0.9f };
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelGeometryWriter.Encode(imported with { Meshes = [mesh] }, original));
+    }
+
+    [Fact]
     public void InstalledWideMotionClipKeepsNativeJointMatricesAfterSelectedReencoding()
     {
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
