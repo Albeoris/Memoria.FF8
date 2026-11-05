@@ -27,17 +27,31 @@ public sealed class PlayerStateInitializationTests
         }
     }
 
-    [Fact]
-    public void InstalledTemplateCompletesLegacyReadsThroughLaunchAndPlayerBanks()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(null)]
+    public void InstalledTemplateCompletesLegacyReadsThroughLaunchAndPlayerBanks(bool? wholeOwner)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeLimitProgress initial = assets.ReadNewGameLimitProgress();
         NativeLimitProgress progress = initial with { BlueMagicFlags = 0x8181, DuelFlags = 0x4242, SpecialMagicFlags = 0x35, Options978 = 0x1234 };
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         JsonObject saved = JsonSerializer.SerializeToNode(GameSession.CreateColdProcess().State with { SnapshotSchemaVersion = 8, Scene = SceneKind.Field, LimitProgress = progress }, options)!.AsObject();
-        foreach (string property in new[] { "AngeloFlags", "TrainingSelection", "TrainingCounters", "PetPalsFlags" })
+        if (wholeOwner is null)
         {
-            saved["LimitProgress"]!.AsObject().Remove(property);
+            saved["LimitProgress"] = null;
+        }
+        else if (wholeOwner == true)
+        {
+            saved.Remove("LimitProgress");
+        }
+        else
+        {
+            foreach (string property in new[] { "AngeloFlags", "TrainingSelection", "TrainingCounters", "PetPalsFlags" })
+            {
+                saved["LimitProgress"]!.AsObject().Remove(property);
+            }
         }
         string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-legacy-initialization-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -47,7 +61,7 @@ public sealed class PlayerStateInitializationTests
             File.WriteAllText(source, saved.ToJsonString(options));
             byte[] original = File.ReadAllBytes(source);
             GameState loaded = PlayerStateLoader.Load(source, TestResources.GameDirectory, assets);
-            Assert.Equal(JsonSerializer.Serialize(progress), JsonSerializer.Serialize(loaded.LimitProgress));
+            Assert.Equal(JsonSerializer.Serialize(wholeOwner == false ? progress : initial), JsonSerializer.Serialize(loaded.LimitProgress));
             LaunchOptions launch = PlayerStateLoader.Parse(["--game-dir", TestResources.GameDirectory, "--state", source]);
             Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(launch.InitialState));
             PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), Path.Combine(directory, "saves"), discoverOriginalSaves: false, loadMemoria: path => PlayerStateLoader.Load(path, TestResources.GameDirectory, assets));

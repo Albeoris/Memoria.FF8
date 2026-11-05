@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Upgrades saved JSON before constructing the single current state model.</summary>
 internal static class SnapshotMigrations
 {
-    internal static int Apply(JsonObject saved, JsonSerializerOptions options)
+    internal static int ReadVersion(JsonObject saved)
     {
         int version = 0;
         if (saved.TryGetPropertyValue(nameof(GameState.SnapshotSchemaVersion), out JsonNode? schema))
@@ -20,6 +20,12 @@ internal static class SnapshotMigrations
         {
             throw new InvalidDataException($"Snapshot schema {version} is newer than supported schema {GameState.CurrentSnapshotSchemaVersion}. Update the application to load this save.");
         }
+        return version;
+    }
+
+    internal static int Apply(JsonObject saved, JsonSerializerOptions options)
+    {
+        int version = ReadVersion(saved);
         int originalVersion = version;
         while (version < GameState.CurrentSnapshotSchemaVersion)
         {

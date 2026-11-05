@@ -99,7 +99,7 @@ public sealed class SnapshotAngeloMigrationTests
         saved["DepartingFieldState"] = new JsonObject { ["LimitProgress"] = departure };
         saved["LimitProgress"]!.AsObject().Remove("AngeloFlags");
 
-        SnapshotAngeloMigration.Apply(saved, Options, 8, Initial);
+        SnapshotLimitProgressMigration.Apply(saved, Options, 8, Initial);
 
         Assert.Equal(Initial().AngeloFlags, saved["LimitProgress"]!["AngeloFlags"]!.GetValue<byte>());
         Assert.Equal(255, departure["AngeloFlags"]!.GetValue<int>());
@@ -165,7 +165,7 @@ public sealed class SnapshotAngeloMigrationTests
         saved["DepartingFieldState"] = new JsonObject { ["LimitProgress"] = departure };
         string original = saved.ToJsonString();
 
-        Assert.Throws<InvalidDataException>(() => SnapshotAngeloMigration.Apply(saved, Options, 8, Initial));
+        Assert.Throws<InvalidDataException>(() => SnapshotLimitProgressMigration.Apply(saved, Options, 8, Initial));
 
         Assert.Equal(original, saved.ToJsonString());
     }

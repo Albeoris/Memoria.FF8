@@ -9,8 +9,9 @@ internal static class SnapshotDefaults
     internal static GameState Deserialize(Stream stream, JsonSerializerOptions options, Func<NativeLimitProgress>? initializeLegacyAngelo = null)
     {
         JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
-        int originalVersion = SnapshotMigrations.Apply(saved, options);
-        SnapshotAngeloMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
+        int originalVersion = SnapshotMigrations.ReadVersion(saved);
+        SnapshotLimitProgressMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
+        SnapshotMigrations.Apply(saved, options);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");

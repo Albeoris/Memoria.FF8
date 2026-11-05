@@ -649,7 +649,7 @@ public sealed partial class GameSession : IEventServices
         return LoadCore(path, null);
     }
 
-    /// <summary>Reads a checkpoint and completes absent historical Angelo fields from the selected initial template when needed.</summary>
+    /// <summary>Reads a checkpoint and completes absent historical Limit features from saved owners or the selected initial template when needed.</summary>
     public static GameState Load(string path, Func<NativeLimitProgress> initializeLegacyAngelo)
     {
         ArgumentNullException.ThrowIfNull(initializeLegacyAngelo);
