@@ -577,11 +577,13 @@ public sealed partial class GameSession : IEventServices
         GameState snapshot = SnapshotOwnership.Prepare(PrepareSnapshot());
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        string temporary = fullPath + ".tmp";
+        string temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        bool ownsTemporary = false;
         try
         {
-            using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
+                ownsTemporary = true;
                 if (compact)
                 {
                     SnapshotStorage.Write(stream, snapshot, CompactJsonOptions);
@@ -598,7 +600,7 @@ public sealed partial class GameSession : IEventServices
         }
         finally
         {
-            if (File.Exists(temporary))
+            if (ownsTemporary && File.Exists(temporary))
             {
                 File.Delete(temporary);
             }

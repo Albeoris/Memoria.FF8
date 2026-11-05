@@ -13,6 +13,33 @@ public sealed class SnapshotStorageTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Exact_publication_preserves_existing_save_and_foreign_temporary_on_validation_failure(bool compact)
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "atomic.save");
+        string foreign = path + ".tmp";
+        byte[] original = [1, 2, 3];
+        byte[] foreignBytes = [4, 5, 6];
+        File.WriteAllBytes(path, original);
+        File.WriteAllBytes(foreign, foreignBytes);
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 165 });
+        Assert.Throws<InvalidDataException>(() => session.Save(path, compact, candidate =>
+        {
+            Assert.Equal(165, candidate.FieldId);
+            throw new InvalidDataException("Rejected continuation.");
+        }));
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.Equal(foreignBytes, File.ReadAllBytes(foreign));
+        Assert.Equal(2, Directory.GetFiles(directory).Length);
+        session.Save(path, compact);
+        Assert.Equal(165, GameSession.Load(path).FieldId);
+        Assert.Equal(foreignBytes, File.ReadAllBytes(foreign));
+        Assert.Equal(2, Directory.GetFiles(directory).Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Projection_reads_metadata_without_requiring_complete_gameplay_owners(bool compact)
     {
         Directory.CreateDirectory(directory);
