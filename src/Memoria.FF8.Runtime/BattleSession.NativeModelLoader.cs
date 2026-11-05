@@ -36,6 +36,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, physicalIndex, graphics);
             }
+            plan = plan with { PreferResourceStorage = NativeBattleModelResourceCopies.CanUseResourceStorage(cpu, physicalIndex, graphics) };
             queued = queued with { PartyPlan = plan };
         }
         else if (linked && queued.Task is { } task && NativeModelLoader is { Task: null, PartyPlan: { } plan } && plan.ModelId == task.ModelId && plan.PhysicalIndex == physicalIndex)
@@ -60,7 +61,7 @@ public sealed partial class BattleSession
         {
             return enemyRemaining;
         }
-        if (loader.PartyPlan is { RequiresResourceStorage: true } plan && loader.Task is not null)
+        if (loader.PartyPlan is { UseResourceStorage: true } plan && loader.Task is not null)
         {
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Planned party loading requires its retained CPU owner.");
             if (cpu.Cpu.EffectiveLayout != plan.Layout)

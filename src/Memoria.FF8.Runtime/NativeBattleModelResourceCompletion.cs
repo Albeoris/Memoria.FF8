@@ -186,19 +186,36 @@ public static class NativeBattleModelResourceCopies
         {
             throw new InvalidDataException("Party load admission requires its actual physical CPU bank.");
         }
-        RequireInactiveBanks(previous, previous.Cpu.Banks[bank].HasResourceStorage ? [] : [bank], graphics);
+        if (!CanUseResourceStorage(previous, bank, graphics))
+        {
+            throw new NotSupportedException("Promoting a guest model bank to logical resources requires an unloaded model and no active resource consumers.");
+        }
+    }
+
+    internal static bool CanUseResourceStorage(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
+    {
+        if (bank >= 3)
+        {
+            throw new InvalidDataException("Party load admission requires its actual physical CPU bank.");
+        }
+        return CanPromoteBanks(previous, previous.Cpu.Banks[bank].HasResourceStorage ? [] : [bank], graphics);
     }
 
     private static void RequireInactiveBanks(NativeBattleModelCpuResources previous, HashSet<int> promoted, NativeBattleGraphicsState graphics)
     {
-        if (promoted.Count == 0)
-        {
-            return;
-        }
-        if (graphics.OriginalEffect is not null || graphics.Effects.PublishedCount != 0 || graphics.ModuleEffects.PublishedCount != 0 || graphics.Models.Any(UsesLoadedBank))
+        if (!CanPromoteBanks(previous, promoted, graphics))
         {
             throw new NotSupportedException("Promoting a guest model bank to logical resources requires an unloaded model and no active resource consumers.");
         }
+    }
+
+    private static bool CanPromoteBanks(NativeBattleModelCpuResources previous, HashSet<int> promoted, NativeBattleGraphicsState graphics)
+    {
+        if (promoted.Count == 0)
+        {
+            return true;
+        }
+        return graphics.OriginalEffect is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.PublishedCount == 0 && !graphics.Models.Any(UsesLoadedBank);
 
         bool UsesLoadedBank(NativeBattleGraphicsModel model)
         {
@@ -304,7 +321,7 @@ public static class NativeBattleModelResourceCopies
             {
                 throw new InvalidDataException("Party load completion left its planned bank, layout or body-tail placement.");
             }
-            if (plan.RequiresResourceStorage)
+            if (plan.UseResourceStorage)
             {
                 selected = selected.PromoteResourceStorage();
             }

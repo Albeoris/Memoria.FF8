@@ -17,6 +17,10 @@ public sealed record NativeBattlePartyLoadPart(uint Callback, byte Selector, Nat
 /// <summary>Selected file metadata and extents for one complete body/linked load; no resource bytes are retained here.</summary>
 public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex, NativeBattlePartyCpuLayout Layout, NativeBattlePartyLoadPart Body, NativeBattlePartyLoadPart? Linked)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PreferResourceStorage { get; init; }
+    [JsonIgnore]
+    public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage;
     [JsonIgnore]
     public int RequiredCapacity => checked(Body.CopiedLength + (Linked?.CopiedLength ?? 0));
     [JsonIgnore]
