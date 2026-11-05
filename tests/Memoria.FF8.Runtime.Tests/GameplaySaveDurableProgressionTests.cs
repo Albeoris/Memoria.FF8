@@ -18,6 +18,32 @@ public sealed class GameplaySaveDurableProgressionTests
     }
 
     [Fact]
+    public void Retained_graphics_growth_does_not_change_gameplay_save_bytes_or_publish_a_guest_resource()
+    {
+        GameState source = State();
+        byte[] Encode(GameState state)
+        {
+            using MemoryStream output = new();
+            GameplaySaveCodec.Write(output, GameplaySaveComponentDocument.CaptureProgression(state, Resume()));
+            return output.ToArray();
+        }
+        byte[] expected = Encode(source);
+        ImmutableArray<byte> graphics = Enumerable.Repeat((byte)0xA7, 2 * 1024 * 1024).ToImmutableArray();
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelCpuBank guest = cpu.Cpu.Banks[0];
+        NativeBattleModelCpuBank resource = guest.BindPartyResource(0, graphics, 0, graphics.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, resource) } };
+        cpu.Validate();
+        NativeBattleRetainedMemory memory = source.NativeBattleMemory! with { ModelCpuResources = cpu };
+        Assert.Equal(expected, Encode(source with { NativeBattleMemory = memory }));
+        Assert.Equal(graphics.Length, Assert.Single(resource.ResourceSegments).Length);
+        Assert.True(Assert.Single(resource.ResourceSegments).Source.Equals(graphics));
+        Assert.Empty(resource.KnownRanges);
+        Assert.Empty(guest.KnownRanges);
+        Assert.NotSame(cpu, source.NativeBattleMemory.ModelCpuResources);
+    }
+
+    [Fact]
     public void Durable_projection_round_trips_nondefault_root_progression_without_native_memory()
     {
         GameState source = State();
