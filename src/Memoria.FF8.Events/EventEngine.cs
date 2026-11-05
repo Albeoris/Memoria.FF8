@@ -66,6 +66,7 @@ public sealed partial class EventEngine
     public long DialogueOccurrenceId(int channel) => dialogueOccurrences.GetValueOrDefault(channel);
 
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
+    public bool HasConfirmableAutomaticDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
     public bool CanConfirmDialogue => Scene.NativeDialogueFocus is not null ? CurrentDialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false } : dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
     public int? PendingNameSubject => CurrentDialogue?.IsNamePrompt == true ? nameEntity : null;
     public string? PendingNameDefault => CurrentDialogue?.IsNamePrompt == true ? NativeCharacterName(nameEntity) : null;

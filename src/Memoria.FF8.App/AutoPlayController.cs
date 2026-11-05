@@ -656,6 +656,27 @@ internal sealed partial class AutoPlayController
             run.SettleFrames = 0;
             return;
         }
+        if (session.State.Scene == SceneKind.Field && world.Events.HasConfirmableAutomaticDialogue)
+        {
+            if (PrepareScriptedInput(true) && world.Events.HasConfirmableAutomaticDialogue && world.CurrentDialogue?.FirstChoice is null)
+            {
+                ushort confirm = (session.State.InputConfiguration ?? throw new NotSupportedException("Automatic message confirmation requires its saved input mapping.")).RawForMappedPulse(64);
+                try
+                {
+                    Apply(new(PlayerActionKind.FieldButtons, confirm));
+                    AdvanceInputFrame(world);
+                }
+                finally
+                {
+                    if (session.State.FieldButtonInput is { } sampler)
+                    {
+                        session.SetFieldButtonInput(sampler with { PhysicalHeld = 0 });
+                    }
+                }
+            }
+            run.SettleFrames = 0;
+            return;
+        }
         if (world.Events.PartyMenu is not null)
         {
             run.SettleFrames = 0;
