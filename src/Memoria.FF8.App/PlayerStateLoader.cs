@@ -9,24 +9,67 @@ internal static class PlayerStateLoader
 {
     internal static LaunchOptions Parse(string[] args)
     {
-        return LaunchOptions.Parse(args, (path, gameDirectory) => Load(path, gameDirectory));
+        return LaunchOptions.Parse(args, loadConfiguredState: LoadConfigured);
     }
 
-    internal static GameState Load(string path, string? gameDirectory = null, GameAssets? sharedAssets = null, ResourceService? resources = null)
+    internal static GameState Load(string path, string? gameDirectory = null, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
     {
-        using (FileStream source = File.OpenRead(path))
+        GameplaySaveComponentDocument? document = ReadGameplayDocument(path);
+        if (document is not null)
         {
-            if (GameplaySaveCodec.HasSignature(source))
+            string directory = gameDirectory ?? sharedAssets?.GameDirectory ?? LaunchOptions.ConfiguredGameDirectory;
+            if (sharedAssets is null && resources is null && modelOverrides is null && readGameplayPolicy is null && prepareCharacterDefinitions is null)
             {
-                return GameplaySaveSessionLoader.Restore(GameplaySaveCodec.Read(source), gameDirectory ?? sharedAssets?.GameDirectory ?? LaunchOptions.ConfiguredGameDirectory, sharedAssets, resources);
+                using GameResourceHost selected = OpenSelectedHost(new() { GameDirectory = directory });
+                return GameplaySaveSessionLoader.Restore(document, directory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
             }
+            return GameplaySaveSessionLoader.Restore(document, directory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
         }
+        return LoadLegacy(path, gameDirectory, sharedAssets, resources);
+    }
+
+    private static GameState LoadConfigured(string path, LaunchOptions options)
+    {
+        GameplaySaveComponentDocument? document = ReadGameplayDocument(path);
+        GameResourceHost? selected = null;
+        try
+        {
+            if (document is not null)
+            {
+                selected = OpenSelectedHost(options);
+                return GameplaySaveSessionLoader.Restore(document, options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
+            }
+            return LoadLegacy(path, options.GameDirectory, openAssets: () =>
+            {
+                selected ??= OpenSelectedHost(options);
+                return new(options.GameDirectory, resources: selected.Resources, modelOverrides: selected);
+            });
+        }
+        finally
+        {
+            selected?.Dispose();
+        }
+    }
+
+    private static GameResourceHost OpenSelectedHost(LaunchOptions options)
+    {
+        return new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+    }
+
+    private static GameplaySaveComponentDocument? ReadGameplayDocument(string path)
+    {
+        using FileStream source = File.OpenRead(path);
+        return GameplaySaveCodec.HasSignature(source) ? GameplaySaveCodec.Read(source) : null;
+    }
+
+    private static GameState LoadLegacy(string path, string? gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, Func<GameAssets>? openAssets = null)
+    {
         GameAssets? ownedAssets = null;
         try
         {
             return GameSession.Load(path, () =>
             {
-                GameAssets assets = sharedAssets ?? (ownedAssets ??= new GameAssets(gameDirectory ?? LaunchOptions.ConfiguredGameDirectory, resources: resources));
+                GameAssets assets = sharedAssets ?? (ownedAssets ??= openAssets?.Invoke() ?? new GameAssets(gameDirectory ?? LaunchOptions.ConfiguredGameDirectory, resources: resources));
                 return assets.ReadNewGameLimitProgress();
             });
         }

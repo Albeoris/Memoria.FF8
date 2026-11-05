@@ -1,11 +1,39 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class GameplaySaveSessionCaptureTests
 {
+    [Fact]
+    public void Current_field_capture_retains_logical_continuation_and_drops_historical_menu_locations()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameSession session = new(GameplaySaveSessionLoader.Restore(GameplaySaveFieldPartyResumeTests.ThreePartyDocument(assets), directory, sharedAssets: assets));
+        using GameWorld world = new(session, directory, sharedAssets: assets);
+        world.EnsureField();
+        Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 1)).Accepted);
+        GameState before = session.State;
+        GameplaySaveComponentDocument document = world.CaptureGameplaySave();
+        Assert.Same(before, session.State);
+        Assert.NotNull(document.Progression!.FieldContinuation);
+        Assert.Null(document.Progression.FieldLocation);
+        Assert.Equal(document.Progression.FieldContinuation.GetLeaderPosition(), document.Resume.Field);
+        GameState restored = GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets);
+        GameSession selected = new(restored);
+        using GameWorld candidate = new(selected, directory, sharedAssets: assets);
+        candidate.EnsureField();
+        Assert.Equal(world.Events.Frame, candidate.Events.Frame);
+        Assert.Equal(world.Events.CaptureGameplaySaveFieldParty().PartyPositions, candidate.Events.CaptureGameplaySaveFieldParty().PartyPositions);
+        Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 1)).Accepted);
+        Assert.True(candidate.Apply(new(PlayerActionKind.Wait, Frames: 1)).Accepted);
+        Assert.Equal(world.Events.Frame, candidate.Events.Frame);
+        Assert.Equal(session.State.Economy!.Gil, selected.State.Economy!.Gil);
+    }
+
     [Fact]
     public void Live_world_capture_uses_current_position_and_globals_and_cold_reloads_without_resource_buffers()
     {

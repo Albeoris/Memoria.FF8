@@ -7,13 +7,13 @@ namespace Memoria.FF8;
 /// <summary>Loads an explicitly selected semantic gameplay document into an isolated normal-load process.</summary>
 internal static class GameplaySaveSessionLoader
 {
-    internal static GameState Load(string path, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null)
+    internal static GameState Load(string path, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
     {
         using FileStream source = File.OpenRead(path);
-        return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy);
+        return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
     }
 
-    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null)
+    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
@@ -35,7 +35,12 @@ internal static class GameplaySaveSessionLoader
         {
             // Constructor initialization selects current definitions; no field VM is loaded or advanced.
         }
-        GameState restored = GameplaySaveStateRestoration.Restore(document, initializer.State);
+        GameState initialized = initializer.State;
+        if (prepareCharacterDefinitions is not null)
+        {
+            initialized = initialized with { CharacterVitals = prepareCharacterDefinitions(initialized.CharacterVitals ?? throw new InvalidOperationException("Gameplay restoration requires initialized character definitions.")) };
+        }
+        GameState restored = GameplaySaveStateRestoration.Restore(document, initialized);
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {
             restored = restored with { FieldLoadContext = document.Progression.FieldContinuation is null ? NativeFieldLoadContext.FromGameplaySave(restored.FieldId) : NativeFieldLoadContext.FromGameplayContinuation(restored.FieldId) };

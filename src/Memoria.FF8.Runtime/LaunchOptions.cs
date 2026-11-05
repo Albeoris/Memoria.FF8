@@ -54,7 +54,7 @@ public sealed record LaunchOptions
     public bool AchievementsLocalOnly { get; init; }
     public bool IsAchievementToolSession => ValidateOnly || ControlDirectory is not null || CaptureFramePath is not null || ExitAfterSeconds is not null || ExitAfterFrames is not null || DebugUiScreen is not null || IsDiagnosticGraphicalHost;
 
-    public static LaunchOptions Parse(string[] args, Func<string, string, GameState>? loadState = null)
+    public static LaunchOptions Parse(string[] args, Func<string, string, GameState>? loadState = null, Func<string, LaunchOptions, GameState>? loadConfiguredState = null)
     {
         var options = new LaunchOptions();
         for (int index = 0; index < args.Length; index++)
@@ -146,7 +146,8 @@ public sealed record LaunchOptions
         }
         if (options.StatePath is not null)
         {
-            options = options with { InitialState = loadState is null ? GameSession.Load(options.StatePath) : loadState(options.StatePath, options.GameDirectory) };
+            GameState initial = loadConfiguredState is not null ? loadConfiguredState(options.StatePath, options) : loadState is not null ? loadState(options.StatePath, options.GameDirectory) : GameSession.Load(options.StatePath);
+            options = options with { InitialState = initial };
         }
         if (options.InitialState.EntryPoint != 0)
         {

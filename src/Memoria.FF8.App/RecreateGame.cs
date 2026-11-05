@@ -76,14 +76,14 @@ internal sealed partial class RecreateGame : Game
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
         achievementToolSession = !playerSession || options.IsAchievementToolSession;
-        updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
+        updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe, writeGameplay: WritePlayerGameplaySave);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
         playerSaves = new PlayerSaveStore(options.SavePath, directory: options.IsolatedPlayerSaveDirectory, locationName: state =>
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
-        }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive, loadMemoria: path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources));
+        }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive, loadMemoria: path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources, resourceHost, () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, initialized => resourceHost is null ? initialized : GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost)));
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -852,7 +852,7 @@ internal sealed partial class RecreateGame : Game
     private void SavePlayerSlot(int slot)
     {
         PreparePlayerSlotSave();
-        playerSaves.Save(slot, session, ValidatePlayerState);
+        playerSaves.Save(slot, session, ValidatePlayerState, writeGameplay: WritePlayerGameplaySave);
         if (slot == 0)
         {
             ShowSaveNotice("Quick Saved", 1);
@@ -862,6 +862,15 @@ internal sealed partial class RecreateGame : Game
             saveNotice = null;
             saveNoticeSeconds = 0;
         }
+    }
+
+    private GameState WritePlayerGameplaySave(string path, Action<GameState>? validateContinuation, DateTime? savedAtUtc)
+    {
+        if (world is null)
+        {
+            throw new InvalidOperationException("Start or load a game before saving.");
+        }
+        return world.WriteGameplaySave(path, validateContinuation, savedAtUtc);
     }
 
     private void LoadPlayerSlot(int slot)

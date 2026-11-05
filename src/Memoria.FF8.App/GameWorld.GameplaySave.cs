@@ -1,3 +1,4 @@
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -7,7 +8,9 @@ internal sealed partial class GameWorld
     internal GameState WriteGameplaySave(string path, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
     {
         GameplaySaveComponentDocument document = CaptureGameplaySave();
-        return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc);
+        GuardianForceAbilityProfile? profile = session.State.CharacterVitals?.GuardianForceProfile;
+        Func<NativeCharacterVitals, NativeCharacterVitals>? prepareDefinitions = profile is null ? null : initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, profile.AppliedLayers);
+        return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc, prepareDefinitions);
     }
 
     /// <summary>Captures supported durable progress and the current resume authority from this live host.</summary>
@@ -15,7 +18,7 @@ internal sealed partial class GameWorld
     {
         if (session.State.Scene == SceneKind.Field)
         {
-            return CaptureImportedGameplayField();
+            return Events.Frame == 0 && session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave ? CaptureImportedGameplayField() : CaptureCurrentGameplayField();
         }
         if (session.State.Scene != SceneKind.WorldMap)
         {
@@ -39,6 +42,21 @@ internal sealed partial class GameWorld
         };
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.World, state.FieldId, state.PreviousFieldId, null, position);
         return CaptureGameplayDocument(state, resume);
+    }
+
+    private GameplaySaveComponentDocument CaptureCurrentGameplayField()
+    {
+        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || CurrentDialogue is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || Events.NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput)
+        {
+            throw new InvalidOperationException("Gameplay field capture requires a playable exploration boundary without a pending interaction, battle or fault.");
+        }
+        GameplaySaveFieldContinuation continuation = Events.CaptureGameplaySaveFieldContinuation();
+        GameState state = session.PrepareSnapshot();
+        GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.Field, state.FieldId, state.PreviousFieldId, continuation.GetLeaderPosition(), null);
+        GameplaySaveComponentDocument document = CaptureGameplayDocument(state, resume);
+        document = document with { Progression = document.Progression!.WithFieldContinuation(continuation) };
+        document.Validate();
+        return document;
     }
 
     private GameplaySaveComponentDocument CaptureImportedGameplayField()

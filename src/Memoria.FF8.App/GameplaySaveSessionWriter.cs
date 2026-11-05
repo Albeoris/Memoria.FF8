@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 /// <summary>Publishes an explicitly selected gameplay document only after normal-load validation succeeds.</summary>
 internal static class GameplaySaveSessionWriter
 {
-    internal static GameState Write(string path, GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null)
+    internal static GameState Write(string path, GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Action<GameState>? validateContinuation = null, DateTime? savedAtUtc = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(document);
@@ -25,7 +25,7 @@ internal static class GameplaySaveSessionWriter
                 GameplaySaveCodec.Write(stream, document);
                 stream.Flush(flushToDisk: true);
             }
-            GameState restored = GameplaySaveSessionLoader.Load(temporary, gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy);
+            GameState restored = GameplaySaveSessionLoader.Load(temporary, gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
             validateContinuation?.Invoke(restored);
             if (savedAtUtc is { } timestamp)
             {
