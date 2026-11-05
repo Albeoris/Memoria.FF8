@@ -14,6 +14,7 @@ public sealed partial class MenuController
     private bool sortMagicByName;
     private MenuSound? actionSound;
     private string _characterId = "";
+    private string weaponShopCharacterId = "";
     private string _gfId = "";
     private string _itemId = "";
     private string _magicId = "";
@@ -489,6 +490,14 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId == "shop-junk" && SelectedIndex >= Data.Characters.Count && Data.Characters.Count > 0)
+        {
+            _selections[ScreenId] = Math.Max(0, Data.Characters.FindIndex(character => character.Id == weaponShopCharacterId));
+            Message = "";
+            _view = null;
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
         if (BackFromJunctionDashboard())
         {
             return;
@@ -560,7 +569,21 @@ public sealed partial class MenuController
 
     private void Select(int index, int count)
     {
-        int next = count == 0 ? 0 : (index % count + count) % count;
+        int start = 0;
+        if (ScreenId == "shop-junk")
+        {
+            int characterCount = Data.Characters.Count;
+            if (SelectedIndex < characterCount)
+            {
+                count = characterCount;
+            }
+            else
+            {
+                start = characterCount;
+                count -= characterCount;
+            }
+        }
+        int next = count == 0 ? start : start + ((index - start) % count + count) % count;
         if (next != SelectedIndex)
         {
             SoundRequested?.Invoke(MenuSound.Move);
@@ -693,6 +716,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (ScreenId == "shop-junk" && (index < Data.Characters.Count) != (SelectedIndex < Data.Characters.Count))
+        {
+            return;
+        }
         _selections[ScreenId] = index;
         var entry = entries[index];
         bool captureBinding = IsControlsBindingList && entry.Action?.Kind == "controls-select";
@@ -716,6 +743,11 @@ public sealed partial class MenuController
         if (entry.Action != null)
         {
             Execute(entry.Action);
+            if (ScreenId == "shop-junk" && entry.Action.Kind == "weapon-character" && Message.Length == 0 && Data.Items.Count > 0)
+            {
+                weaponShopCharacterId = entry.Id;
+                _selections[ScreenId] = Data.Characters.Count;
+            }
         }
         if (entry.Destination != null)
         {

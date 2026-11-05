@@ -183,6 +183,14 @@ public sealed partial class MenuController
         characters.EnabledItems = Entries.Take(characterCount).Select(entry => entry.Enabled).ToList();
         characters.SelectedIndex = SelectedIndex < characterCount ? SelectedIndex : Math.Max(0, Data.Characters.FindIndex(value => value.InParty));
         characters.ShowSelection = SelectedIndex < characterCount;
+        characters.Focusable = characters.ShowSelection;
+        characters.SelectionChanged = index =>
+        {
+            if (SelectedIndex < characterCount)
+            {
+                Select(index, Entries.Count);
+            }
+        };
         Place(choices, Panel(SystemText("ui.buildweaponshop.panel.character", "CHARACTER"), characters), 0);
         UiList weapons = SecondaryCommands();
         weapons.Items = Data.Items.Select(item => item.Name).ToList();
@@ -191,7 +199,14 @@ public sealed partial class MenuController
         weapons.AutoSecondaryWidth = true;
         weapons.SelectedIndex = Math.Max(0, SelectedIndex - characterCount);
         weapons.ShowSelection = SelectedIndex >= characterCount;
-        weapons.SelectionChanged = index => Select(index + characterCount, Entries.Count);
+        weapons.Focusable = weapons.ShowSelection;
+        weapons.SelectionChanged = index =>
+        {
+            if (SelectedIndex >= characterCount)
+            {
+                Select(index + characterCount, Entries.Count);
+            }
+        };
         weapons.Confirmed = index => Activate(index + characterCount);
         Place(choices, Panel(SystemText("ui.buildweaponshop.panel.weapon", "WEAPON"), weapons), 1);
         Place(page, choices, 1);

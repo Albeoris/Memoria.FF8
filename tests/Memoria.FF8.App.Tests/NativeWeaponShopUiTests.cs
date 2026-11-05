@@ -94,6 +94,9 @@ public sealed class NativeWeaponShopUiTests
         Assert.True(controller.IsOpen);
         Assert.Equal(new MenuAction("weapon-character", "character-0"), Assert.Single(actions));
         controller.Navigate(MenuInput.Cancel);
+        Assert.True(controller.IsOpen);
+        Assert.Equal("character-0", controller.SelectedEntry!.Id);
+        controller.Navigate(MenuInput.Cancel);
         Assert.False(controller.IsOpen);
         Assert.Single(actions);
         Assert.Equal(before, JsonSerializer.Serialize(shop));
@@ -134,10 +137,7 @@ public sealed class NativeWeaponShopUiTests
         controller.Navigate(MenuInput.Confirm);
         Assert.Single(actions);
         Assert.Empty(controller.Message);
-        for (int index = 0; index < controller.Data.Characters.Count; index++)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
+        Assert.Equal(controller.Data.Characters.Count, controller.SelectedIndex);
         UiElement[] elements = Descendants(controller.BuildView().Root).ToArray();
         MenuItem selected = controller.Data.Items.Single(item => item.Id == controller.SelectedEntry!.Id);
         UiList characters = Assert.Single(elements.OfType<UiList>(), list => list.Id == "weapon-characters");
@@ -179,7 +179,6 @@ public sealed class NativeWeaponShopUiTests
         characters.SelectionChanged!(1);
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal(new MenuAction("weapon-character", "character-1"), Assert.Single(actions));
-        controller.Navigate(MenuInput.Down);
         Assert.Equal("weapon-0", controller.SelectedEntry!.Id);
         UiList weapons = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "commands");
         weapons.SelectionChanged!(1);
@@ -187,7 +186,131 @@ public sealed class NativeWeaponShopUiTests
         Assert.Equal(new MenuAction("weapon-remodel", "weapon-1"), actions[1]);
         controller.Navigate(MenuInput.Up);
         controller.Navigate(MenuInput.Up);
+        Assert.StartsWith("weapon-", controller.SelectedEntry!.Id);
+        controller.Navigate(MenuInput.Cancel);
+        Assert.True(controller.IsOpen);
         Assert.Equal("character-1", controller.SelectedEntry!.Id);
+    }
+
+    [Theory]
+    [InlineData(MenuInput.Up)]
+    [InlineData(MenuInput.Down)]
+    [InlineData(MenuInput.Left)]
+    [InlineData(MenuInput.Right)]
+    [InlineData(MenuInput.PageUp)]
+    [InlineData(MenuInput.PageDown)]
+    [InlineData(MenuInput.PageLeft)]
+    [InlineData(MenuInput.PageRight)]
+    [InlineData(MenuInput.Tab)]
+    public void WorkshopNavigationStaysWithinActiveList(MenuInput input)
+    {
+        MenuData data = new();
+        for (int index = 0; index < 6; index++)
+        {
+            data.Characters.Add(new MenuCharacter { Id = $"character-{index}", Name = $"Character {index}", InParty = index == 0 });
+            data.SupportedActions.Add($"weapon-character:character-{index}");
+        }
+        data.Items.Add(new MenuItem { Id = "weapon-0", Name = "Revolver" });
+        data.Items.Add(new MenuItem { Id = "weapon-1", Name = "Shear Trigger" });
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => data, actions.Add);
+        controller.Open("shop-junk");
+        for (int index = 0; index < 14; index++)
+        {
+            controller.Navigate(input);
+            Assert.StartsWith("character-", controller.SelectedEntry!.Id);
+            Assert.Equal("weapon-characters", controller.BuildView().FocusedElement!.Id);
+        }
+        string character = controller.SelectedEntry!.Id;
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(new MenuAction("weapon-character", character), Assert.Single(actions));
+        Assert.Equal("weapon-0", controller.SelectedEntry!.Id);
+        for (int index = 0; index < 14; index++)
+        {
+            controller.Navigate(input);
+            Assert.StartsWith("weapon-", controller.SelectedEntry!.Id);
+            Assert.Equal("commands", controller.BuildView().FocusedElement!.Id);
+        }
+        controller.Back();
+        Assert.True(controller.IsOpen);
+        Assert.Equal(character, controller.SelectedEntry!.Id);
+        controller.Navigate(MenuInput.Cancel);
+        Assert.False(controller.IsOpen);
+    }
+
+    [Fact]
+    public void WorkshopInactivePointerListCannotChangePhaseOrDispatch()
+    {
+        MenuData data = new();
+        data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Squall", InParty = true });
+        data.Items.Add(new MenuItem { Id = "weapon-0", Name = "Revolver" });
+        data.SupportedActions.UnionWith(["weapon-character:character-0", "weapon-remodel:weapon-0"]);
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => data, actions.Add);
+        controller.Open("shop-junk");
+        UiList weapons = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "commands");
+        Assert.False(weapons.Focusable);
+        weapons.SelectionChanged!(0);
+        weapons.Confirmed!(0);
+        Assert.Equal("character-0", controller.SelectedEntry!.Id);
+        Assert.Empty(actions);
+        controller.Navigate(MenuInput.Confirm);
+        UiList characters = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "weapon-characters");
+        Assert.False(characters.Focusable);
+        characters.SelectionChanged!(0);
+        characters.Confirmed!(0);
+        Assert.Equal("weapon-0", controller.SelectedEntry!.Id);
+        Assert.Single(actions);
+    }
+
+    [Fact]
+    public void WorkshopFromSavedStateTransfersFocusWithoutChangingGameplay()
+    {
+        using GameAssets assets = InstalledAssets();
+        string path = TestResources.FixturePath("App.Tests.NativeWeaponShopUiTests.1");
+        GameState state = PlayerStateLoader.Load(path, assets.GameDirectory, sharedAssets: assets);
+        string before = JsonSerializer.Serialize(state);
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), state.Economy!, state.CharacterVitals!, state.WeaponRecipes!, state.GameplayPreferences);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => NativeWeaponShopMenuProjection.Build(prepared.Shop, prepared.Vitals, catalog), actions.Add);
+        controller.Open("shop-junk");
+        Assert.NotEmpty(controller.Data.Characters);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("commands", controller.BuildView().FocusedElement!.Id);
+        Assert.Equal(controller.Data.Items[0].Id, controller.SelectedEntry!.Id);
+        controller.Navigate(MenuInput.Cancel);
+        Assert.Equal("weapon-characters", controller.BuildView().FocusedElement!.Id);
+        Assert.True(controller.IsOpen);
+        Assert.Single(actions);
+        Assert.Equal(before, JsonSerializer.Serialize(state));
+    }
+
+    [Fact]
+    public void PreviousWeaponRemainsAvailableAfterRemodelWhenMaterialsAndGilSuffice()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy() with { Gil = 100000 };
+        int row = 0;
+        foreach (byte item in definitions.Recipes.Take(2).SelectMany(recipe => recipe.Materials).Where(material => material.ItemId != 0).Select(material => material.ItemId).Distinct())
+        {
+            economy.Items[row++] = new(item, 100);
+        }
+        var prepared = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes());
+        var remodeled = prepared.Shop.Remodel(1, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.True(accepted);
+        MenuData data = NativeWeaponShopMenuProjection.Build(remodeled.Shop, remodeled.Vitals);
+        Assert.Contains("weapon-remodel:weapon-0", data.SupportedActions);
+        Assert.DoesNotContain("weapon-remodel:weapon-1", data.SupportedActions);
+        var returned = remodeled.Shop.Remodel(0, remodeled.Vitals, remodeled.Recipes, out accepted);
+        Assert.True(accepted);
+        Assert.Equal(0, returned.Vitals.Records[0].Weapon);
+        Assert.Equal(remodeled.Shop.Gil - remodeled.Shop.Price(0), returned.Shop.Gil);
+        foreach (NativeItemStock material in remodeled.Shop.Definitions.Recipes[0].Materials.Where(material => material.ItemId != 0))
+        {
+            Assert.Equal(remodeled.Shop.Counts[material.ItemId] - material.Count, returned.Shop.Counts[material.ItemId]);
+        }
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)
