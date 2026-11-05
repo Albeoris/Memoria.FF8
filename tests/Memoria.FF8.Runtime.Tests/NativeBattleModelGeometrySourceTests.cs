@@ -8,6 +8,8 @@ public sealed class NativeBattleModelGeometrySourceTests
     [Theory]
     [InlineData(false, 70)]
     [InlineData(true, 70)]
+    [InlineData(false, 210)]
+    [InlineData(true, 210)]
     [InlineData(false, 260)]
     [InlineData(true, 260)]
     public void Logical_context_draw_preserves_numeric_math_and_retains_body_linked_cursors_after_snapshot(bool remastered, int effect)
@@ -41,6 +43,9 @@ public sealed class NativeBattleModelGeometrySourceTests
             NativeBattleEffectArena temporary = NativeBattleModelContext44.CopyContext(logical.Context44, 0, NativeBattleEffectArena.CreateUnknown(92), 48);
             NativeBattleModelContext44.PublishTemporary(staging, NativeBattleTemporaryMemory.Address, temporary);
             Pilot restored = NativeBattleTestSnapshots.RestoreJson<Pilot>(NativeBattleTestSnapshots.Json(new Pilot(cpu, staging, temporary, logical.Memory.PrimitiveProcess)));
+            NativeBattleTemporaryMemory.PublishView(restored.Staging, NativeBattleTemporaryMemory.Address, restored.Temporary, 92);
+            Assert.False(restored.Staging.TryGetResourcePointerMetadata(NativeBattleTemporaryMemory.Address + 48, out _));
+            NativeBattleModelContext44.PublishCursor(restored.Staging, NativeBattleTemporaryMemory.Address + 48, restored.Temporary, 48);
             NativeBattleResourcePointer saved = restored.Staging.ReadResourcePointer(NativeBattleTemporaryMemory.Address + 48)!;
             Assert.True(saved.Cpu!.ResourceOnly);
             Assert.Equal(offset + 52, saved.Cpu.Offset);
@@ -50,6 +55,26 @@ public sealed class NativeBattleModelGeometrySourceTests
             Assert.Equal(effect, logical.Batch.Attempts[0].Primitive!.PilotGeometry!.Identity.Effect);
             Assert.Equal(geometry.PresentationIdentity, logical.Batch.Attempts[0].Primitive!.PilotGeometry!.Identity.ResourceGeneration);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Shared_sources_keep_current_numeric_cursor_domain_and_enforce_the_selected_section(bool cpuShared)
+    {
+        ImmutableArray<byte> bytes = Geometry();
+        NativeBattleResourcePointer owner = cpuShared ? new(new(3, 128), null, bytes.Length) : new(null, 0x2000000, bytes.Length);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.OpenShared(owner, (offset, length) => bytes.AsSpan(offset, length).ToArray());
+        NativeBattleModelContext44Step drawn = Draw(source, 218);
+        uint basis = owner.Cpu?.PhysicalAddress ?? owner.StagingAddress!.Value;
+        Assert.Equal(basis + 52, drawn.Context44.ReadUInt32(0));
+        Assert.Equal(basis + (uint)bytes.Length, drawn.Memory.PrimitiveProcess!.ModelRendererRegisters!.SourceCursor);
+        Assert.Null(drawn.Memory.PrimitiveProcess.ModelRendererRegisters.SourceResourceCursor);
+        Assert.Equal(basis, source.PresentationIdentity);
+        Assert.Equal(owner.Cpu is null, source.Cursor(4).Cpu is null);
+        Assert.Throws<InvalidDataException>(() => source.Read(bytes.Length, 1));
+        Assert.Throws<InvalidDataException>(() => source.Cursor(bytes.Length + 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelGeometrySource.OpenShared(new(new(0, 0) { ResourceOnly = true }, null), (_, _) => []));
     }
 
     [Fact]

@@ -49,25 +49,26 @@ public sealed partial class BattleSession
             body = RestoreNativeDeformedBody(body, linkedSource, true);
         }
         body = FinishNativeDeformedBody(body, actor, 92);
+        body = body with { Staging = NativeBattleModelContext44.PublishCursor(body.Staging, checked(body.TemporaryAddress + 48), body.Temporary, 48) };
         graphics = body.Graphics;
         return frame with { Memory = body.Memory, Staging = body.Staging };
 
         NativeDeformedBodyBridge Draw(NativeDeformedBodyBridge current, bool linked, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, 92) };
+            current = current with { Staging = NativeBattleModelContext44.PublishTemporary(current.Staging, current.TemporaryAddress, current.Temporary) };
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect210 body requires its current COMMON process.");
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(current, linked);
-            uint address = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect210 body requires its physical geometry address.");
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(current, pointer, offset, length));
             NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 body requires its color arithmetic.");
             uint bank = process.PacketBank switch { "off_B6D070" => 0x1901018, "off_B6D094" => 0x199B018, _ => throw new NotSupportedException("Effect210 body requires its actual COMMON packet bank.") };
             uint cursor = checked(bank + (uint)process.PacketBuffer * (uint)process.CommonPacketNominalCapacity + (uint)(process.ByteCursor ?? throw new NotSupportedException("Effect210 body requires its current COMMON cursor.")));
-            NativeBattleEffectArena context44 = NativeBattleEffectNodeContextMemory.Copy(current.Temporary, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(current.Memory, context44, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, length) => ReadNativeDeformedGeometry(current, pointer, offset, length), address, NativeDeformedBodyView(current.Staging, scratch, capacity), capacity, projection, colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect210 body requires its renderer capability."), 17, 4, cursor, pilotIdentity: operation.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 2 + (linked ? 1 : 0)), ResourceGeneration = address } : null);
-            current = current with { Memory = drawn.Memory, Temporary = NativeBattleEffectNodeContextMemory.Copy(drawn.Context44, 0, current.Temporary, 0x30, 44), Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratch, drawn.ProjectedScratch, capacity) };
+            NativeBattleEffectArena context44 = NativeBattleModelContext44.CopyContext(current.Temporary, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0);
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(current.Memory, context44, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), geometry, NativeDeformedBodyView(current.Staging, scratch, capacity), capacity, projection, colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect210 body requires its renderer capability."), 17, 4, cursor, pilotIdentity: operation.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 2 + (linked ? 1 : 0)), ResourceGeneration = geometry.PresentationIdentity } : null);
+            current = current with { Memory = drawn.Memory, Temporary = NativeBattleModelContext44.CopyContext(drawn.Context44, 0, current.Temporary, 0x30), Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratch, drawn.ProjectedScratch, capacity) };
             NativeBattlePrimitiveFrame primitive = current.Graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect210 body requires its COMMON ordering table.");
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess!, primitive.Pending, drawn.Batch);
             current = current with { Memory = current.Memory with { PrimitiveProcess = written.Process }, Graphics = current.Graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } } };
-            return current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, 92) };
+            return current with { Staging = NativeBattleModelContext44.PublishTemporary(current.Staging, current.TemporaryAddress, current.Temporary) };
         }
 
         static NativeBattleVector Vector(NativeBattleEffectArena bytes) => new(BinaryPrimitives.ReadInt16LittleEndian(bytes.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Read(4, 2)));

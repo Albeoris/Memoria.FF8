@@ -47,7 +47,8 @@ public sealed partial class BattleSession
                 }
                 return staging.Read(checked(geometryAddress + (uint)offset), length);
             }
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(bone => NativeBattlePackedMatrix32.FromMatrix(bone, null)).ToImmutableArray(), ReadGeometry, geometryAddress, NativeDeformedBodyView(staging, scratchAddress, capacity), capacity, projection, colors, hardware, 17, 16, NativeEffect218CommonCursor(frame.Memory), NativeBattleEffect218Presentation.Resource(frame, geometryAddress, 1), pilotContinuous: false);
+            NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.OpenShared(new(null, geometryAddress, geometryLength), ReadGeometry);
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(bone => NativeBattlePackedMatrix32.FromMatrix(bone, null)).ToImmutableArray(), geometry, NativeDeformedBodyView(staging, scratchAddress, capacity), capacity, projection, colors, hardware, 17, 16, NativeEffect218CommonCursor(frame.Memory), NativeBattleEffect218Presentation.Resource(frame, geometryAddress, 1), pilotContinuous: false);
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context44, 44);
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.ProjectedScratch, capacity) };
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect218 capture requires its current ordering table.");

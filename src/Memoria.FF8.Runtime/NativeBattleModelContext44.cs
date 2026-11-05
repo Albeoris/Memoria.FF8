@@ -93,7 +93,12 @@ public static class NativeBattleModelContext44
     internal static NativeBattleFileStaging PublishTemporary(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena temporary)
     {
         staging = NativeBattleTemporaryMemory.PublishView(staging, address, temporary, 92);
-        return temporary.TryGetResourcePointer(48, out NativeBattleResourcePointer? pointer) ? staging.WriteResourcePointer(checked(address + 48), pointer) : staging;
+        return PublishCursor(staging, checked(address + 48), temporary, 48);
+    }
+
+    internal static NativeBattleFileStaging PublishCursor(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena source, int offset)
+    {
+        return source.TryGetResourcePointer(offset, out NativeBattleResourcePointer? pointer) ? staging.WriteResourcePointer(address, pointer) : staging;
     }
 
     internal static NativeBattleEffectMemory PublishAcceptedColors(NativeBattleEffectMemory memory, NativeBattleRawMesh mesh, ImmutableArray<byte> scratch, NativeBattleEffectArena temporary, uint color, short? depth, int bucket, byte depthShift, NativeBattleSummonColors constants)

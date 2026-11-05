@@ -11,6 +11,13 @@ public sealed partial class BattleSession
         return stage.CurrentGroupGeometryAddress(group, (address, length) => (NativeFileStaging ?? throw new NotSupportedException("Native stage geometry requires its addressed current bytes.")).Read(address, length)) ?? throw new NotSupportedException("Native stage geometry selected an empty current group.");
     }
 
+    private NativeBattleResourcePointer RequireNativeCurrentStageGeometryPointer(int group)
+    {
+        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native stage geometry requires its current stage owner.");
+        var geometry = stage.CurrentGroupGeometryRange(group, (address, length) => (NativeFileStaging ?? throw new NotSupportedException("Native stage geometry requires its addressed current bytes.")).Read(address, length)) ?? throw new NotSupportedException("Native stage geometry selected an empty current group.");
+        return new(null, geometry.Address, geometry.Length);
+    }
+
     private void QueueNativeStage512AA0(int index, uint destination)
     {
         (NativeBattleEffectFileAsset source, _) = NativeStageReloadResource(index, false);

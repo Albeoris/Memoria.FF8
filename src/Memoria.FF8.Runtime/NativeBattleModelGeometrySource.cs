@@ -43,8 +43,18 @@ public readonly struct NativeBattleModelGeometrySource
             long identity = reference.ResourceOnly ? NativeBattlePilotVisualLifetimes.EpochFor(bank) : reference.PhysicalAddress;
             return new(pointer with { Length = length }, view.Read, identity);
         }
+        return OpenShared(pointer, readShared);
+    }
+
+    public static NativeBattleModelGeometrySource OpenShared(NativeBattleResourcePointer pointer, Func<int, int, byte[]> read)
+    {
+        ArgumentNullException.ThrowIfNull(pointer);
+        if (pointer.Cpu is { Bank: < 3 })
+        {
+            throw new InvalidDataException("Party model geometry requires its CPU publication owner.");
+        }
         uint address = pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new InvalidDataException("Shared model geometry requires its addressed byte owner.");
-        return new(pointer, readShared, address);
+        return new(pointer, read, address);
     }
 
     public byte[] Read(int offset, int length)
