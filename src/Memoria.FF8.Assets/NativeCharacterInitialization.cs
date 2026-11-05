@@ -10,6 +10,9 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeCharacterInitialization
 {
+    private const string ClassicKernelSha256 = "E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6";
+    private const string RemasteredKernelSha256 = "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B";
+    private const string SharedStatusPassiveFlagsSha256 = "5F072E4739C4B5CC796BDB779609A2E58D48588C9FB70252D130668DDB2FA914";
     public static GameState RestoreMissingStatusPassiveFlags(GameState saved, NativeCharacterVitals source)
     {
         if (saved.CharacterVitals is not { } vitals || !vitals.Definitions.CharacterStatusPassiveFlags.IsDefault)
@@ -36,7 +39,7 @@ public static class NativeCharacterInitialization
         };
     }
 
-    /// <summary>Restores an omitted resource table in an older snapshot from its exact kernel, preserving saved progress.</summary>
+    /// <summary>Restores an omitted table from the same kernel or an authenticated identical vanilla flag table, preserving saved progress.</summary>
     public static NativeCharacterVitals RestoreMissingStatusPassiveFlags(NativeCharacterVitals saved, NativeCharacterVitals source)
     {
         saved.Validate();
@@ -45,15 +48,31 @@ public static class NativeCharacterInitialization
             return saved;
         }
         source.Validate();
-        if (!string.Equals(saved.KernelSha256, source.KernelSha256, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(saved.KernelSha256, source.KernelSha256, StringComparison.OrdinalIgnoreCase) && !HasCompatibleStatusPassiveFlags(saved.KernelSha256, source))
         {
-            throw new NotSupportedException("Restoring character ability definitions requires the same kernel used by the saved characters.");
+            throw new NotSupportedException("Restoring character ability definitions requires the same kernel or an authenticated identical flag table.");
         }
         if (source.Definitions.CharacterStatusPassiveFlags.IsDefault || source.Definitions.CharacterStatusPassiveFlags.Length != 20)
         {
             throw new NotSupportedException("Restoring character ability definitions requires all twenty original kernel flag records.");
         }
         return saved with { Definitions = saved.Definitions with { CharacterStatusPassiveFlags = source.Definitions.CharacterStatusPassiveFlags } };
+    }
+
+    private static bool HasCompatibleStatusPassiveFlags(string savedKernel, NativeCharacterVitals source)
+    {
+        static bool KnownKernel(string hash) => hash.Equals(ClassicKernelSha256, StringComparison.OrdinalIgnoreCase) || hash.Equals(RemasteredKernelSha256, StringComparison.OrdinalIgnoreCase);
+        ImmutableArray<uint> flags = source.Definitions.CharacterStatusPassiveFlags;
+        if (!KnownKernel(savedKernel) || !KnownKernel(source.KernelSha256) || flags.IsDefault || flags.Length != 20)
+        {
+            return false;
+        }
+        Span<byte> bytes = stackalloc byte[20 * sizeof(uint)];
+        for (int index = 0; index < flags.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes[(index * sizeof(uint))..], flags[index]);
+        }
+        return Convert.ToHexString(SHA256.HashData(bytes)) == SharedStatusPassiveFlagsSha256;
     }
 
     public static NativeCharacterVitals Read(byte[] initial, byte[] kernel)

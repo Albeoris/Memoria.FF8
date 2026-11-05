@@ -9,6 +9,64 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeStatDefinitionRecoveryTests
 {
+    private const string ClassicKernel = "E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6";
+    private const string RemasteredKernel = "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B";
+
+    [Theory]
+    [InlineData(ClassicKernel, RemasteredKernel)]
+    [InlineData(RemasteredKernel, ClassicKernel)]
+    public void Authenticated_vanilla_pair_recovers_only_the_absent_consumed_flag_table(string savedKernel, string selectedKernel)
+    {
+        NativeCharacterVitals source = Source() with { KernelSha256 = selectedKernel };
+        NativeCharacterVitals saved = Missing(source).DeepCopy() with { KernelSha256 = savedKernel.ToLowerInvariant(), DreamEnabled = true };
+        saved.Records[0] = saved.Records[0] with { Experience = 1234, HitPoints = new(7, 7), KillCount = 12, Junction = saved.Records[0].Junction with { Abilities = 64 } };
+        string before = JsonSerializer.Serialize(saved);
+
+        NativeCharacterVitals restored = NativeCharacterInitialization.RestoreMissingStatusPassiveFlags(saved, source);
+
+        Assert.Equal(source.Definitions.CharacterStatusPassiveFlags, restored.Definitions.CharacterStatusPassiveFlags);
+        Assert.Equal(before, JsonSerializer.Serialize(Missing(restored)));
+        Assert.Equal(before, JsonSerializer.Serialize(saved));
+        Assert.Same(saved.Records, restored.Records);
+        Assert.Same(saved.GuardianForces, restored.GuardianForces);
+        Assert.Same(saved.MenuDefinitions, restored.MenuDefinitions);
+        NativeCharacterVitals cold = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(restored))!;
+        Assert.Equal(savedKernel.ToLowerInvariant(), cold.KernelSha256);
+        NativeEventMemory memory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [4] = 0, [12] = 7, [244] = 0 });
+        Assert.Equal(new NativeHpWord(8, 8), NativeMovementProgress.Sample(memory, cold, null, null, null, 1).Vitals!.Records[0].HitPoints);
+    }
+
+    [Theory]
+    [InlineData(ClassicKernel, RemasteredKernel)]
+    [InlineData(RemasteredKernel, ClassicKernel)]
+    public void A_known_kernel_label_cannot_supply_a_modified_flag_table(string savedKernel, string selectedKernel)
+    {
+        NativeCharacterVitals source = Source() with { KernelSha256 = selectedKernel };
+        NativeCharacterVitals saved = Missing(source) with { KernelSha256 = savedKernel };
+        source = source with { Definitions = source.Definitions with { CharacterStatusPassiveFlags = source.Definitions.CharacterStatusPassiveFlags.SetItem(0, 0) } };
+        Assert.Throws<NotSupportedException>(() => NativeCharacterInitialization.RestoreMissingStatusPassiveFlags(saved, source));
+        Assert.True(saved.Definitions.CharacterStatusPassiveFlags.IsDefault);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unknown_different_kernels_are_not_promoted_to_the_vanilla_pair(bool unknownSource)
+    {
+        NativeCharacterVitals source = Source() with { KernelSha256 = unknownSource ? new string('0', 64) : RemasteredKernel };
+        NativeCharacterVitals saved = Missing(source) with { KernelSha256 = unknownSource ? ClassicKernel : new string('0', 64) };
+        Assert.Throws<NotSupportedException>(() => NativeCharacterInitialization.RestoreMissingStatusPassiveFlags(saved, source));
+    }
+
+    [Fact]
+    public void Explicit_saved_flags_remain_authoritative_across_the_known_pair()
+    {
+        NativeCharacterVitals saved = Source() with { KernelSha256 = ClassicKernel };
+        saved = saved with { Definitions = saved.Definitions with { CharacterStatusPassiveFlags = saved.Definitions.CharacterStatusPassiveFlags.SetItem(0, 0) } };
+        NativeCharacterVitals source = Source() with { KernelSha256 = RemasteredKernel };
+        Assert.Same(saved, NativeCharacterInitialization.RestoreMissingStatusPassiveFlags(saved, source));
+    }
+
     [Fact]
     public void GameStateRestoresEverySnapshotWithoutReplacingItsSavedProgress()
     {
