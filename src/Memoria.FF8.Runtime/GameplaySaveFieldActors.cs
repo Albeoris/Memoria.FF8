@@ -36,7 +36,7 @@ public sealed record GameplaySaveFieldActor([property: JsonRequired] int ObjectI
         {
             throw new InvalidDataException("Gameplay actor values are malformed or describe an unsupported active transition.");
         }
-        if (Face.Duration is < 0 or > ushort.MaxValue || Face.Progress < 0 || Face.Progress > Face.Duration || new[] { Face.FirstAngle, Face.SecondAngle, Face.Elapsed, Face.PendingBaseline, Face.PitchTarget, Face.YawTarget }.Any(value => value is < short.MinValue or > short.MaxValue) || !Finite(Face.Limits) || new[] { Face.Limits.X, Face.Limits.Y, Face.Limits.Z }.Any(value => value is < 0 or > 255 || value != MathF.Truncate(value)) || Face.TargetPoint is { } target && !Finite(target) || Face.FirstControlRotation is { } rotation && !Finite(rotation))
+        if (Face.Returning && Face.TargetPoint is not null || Face.Duration is < 0 or > ushort.MaxValue || Face.Progress < 0 || Face.Progress > Face.Duration || new[] { Face.FirstAngle, Face.SecondAngle, Face.Elapsed, Face.PendingBaseline, Face.PitchTarget, Face.YawTarget }.Any(value => value is < short.MinValue or > short.MaxValue) || !Finite(Face.Limits) || new[] { Face.Limits.X, Face.Limits.Y, Face.Limits.Z }.Any(value => value is < 0 or > 255 || value != MathF.Truncate(value)) || Face.TargetPoint is { } target && (!Finite(target) || new[] { target.X, target.Y, target.Z }.Any(value => value != MathF.Truncate(value) || value is < short.MinValue or > short.MaxValue)) || Face.FirstControlRotation is { } rotation && !Finite(rotation))
         {
             throw new InvalidDataException("Gameplay actor face words or limits are invalid.");
         }
@@ -83,7 +83,12 @@ public sealed record GameplaySaveActorAnimation([property: JsonRequired] byte Se
     }
 }
 
-public sealed record GameplaySaveActorFace([property: JsonRequired] int FirstAngle, [property: JsonRequired] int SecondAngle, [property: JsonRequired] int Elapsed, [property: JsonRequired] GameplaySaveActorVector Limits, [property: JsonRequired] int PendingBaseline, [property: JsonRequired] int PitchTarget, [property: JsonRequired] int YawTarget, [property: JsonRequired] int Duration, [property: JsonRequired] int Progress, [property: JsonRequired] GameplaySaveActorVector? TargetPoint, [property: JsonRequired] GameplaySaveActorVector? FirstControlRotation);
+public sealed record GameplaySaveActorFace([property: JsonRequired] int FirstAngle, [property: JsonRequired] int SecondAngle, [property: JsonRequired] int Elapsed, [property: JsonRequired] GameplaySaveActorVector Limits, [property: JsonRequired] int PendingBaseline, [property: JsonRequired] int PitchTarget, [property: JsonRequired] int YawTarget, [property: JsonRequired] int Duration, [property: JsonRequired] int Progress, [property: JsonRequired] GameplaySaveActorVector? TargetPoint, [property: JsonRequired] GameplaySaveActorVector? FirstControlRotation)
+{
+    /// <summary>Nontracking override-release mode, used by both literal angular targets and a consumed return-to-baseline operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Returning { get; init; }
+}
 public sealed record GameplaySaveActorLine([property: JsonRequired] GameplaySaveActorVector? Start, [property: JsonRequired] GameplaySaveActorVector? End, [property: JsonRequired] bool Enabled, [property: JsonRequired] bool DoorEnabled, [property: JsonRequired] bool Contact, [property: JsonRequired] bool DoorContact, [property: JsonRequired] byte? FacingDirection, [property: JsonRequired] bool? FacingContact);
 public sealed record GameplaySaveActorFootsteps([property: JsonRequired] bool Enabled, [property: JsonRequired] bool? Special, [property: JsonRequired] byte? First, [property: JsonRequired] byte? Second);
 public sealed record GameplaySaveActorOffset([property: JsonRequired] short X, [property: JsonRequired] short Y, [property: JsonRequired] short Z, [property: JsonRequired] short StartX, [property: JsonRequired] short StartY, [property: JsonRequired] short StartZ, [property: JsonRequired] short TargetX, [property: JsonRequired] short TargetY, [property: JsonRequired] short TargetZ, [property: JsonRequired] ushort Duration, [property: JsonRequired] ushort Counter, [property: JsonRequired] byte Mode);

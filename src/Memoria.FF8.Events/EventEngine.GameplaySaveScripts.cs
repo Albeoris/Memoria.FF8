@@ -43,6 +43,7 @@ public sealed partial class EventEngine
     private GameplaySaveScriptFiber CaptureGameplaySaveFiber(Fiber fiber)
     {
         ValidateGameplayAnimationWait(fiber);
+        ValidateGameplayFaceWait(fiber);
         GameplaySaveScriptWait wait = fiber.WaitReason switch
         {
             WaitReason.None => GameplaySaveScriptWait.None,
@@ -56,6 +57,8 @@ public sealed partial class EventEngine
             WaitReason.NativeBackgroundShade => GameplaySaveScriptWait.BackgroundShade,
             WaitReason.BackgroundScroll => GameplaySaveScriptWait.BackgroundScroll,
             WaitReason.NativePartyMenu => GameplaySaveScriptWait.ScriptMenu,
+            WaitReason.FaceDirection => GameplaySaveScriptWait.FaceDirection,
+            WaitReason.NativeFaceSync => GameplaySaveScriptWait.NativeFaceSync,
             _ => throw new NotSupportedException($"Gameplay script continuation does not yet represent {fiber.WaitReason} waits.")
         };
         if (fiber.NativeGlobalJumps.Count != 0 || fiber.NativeDoorRequestWait is not null || fiber.NativePartyRequestPointer is not null || fiber.NativeMoveOperation is not null || fiber.NativeMoveTarget is not null || fiber.NativeDialogueConsumer is not null || fiber.DialogueChannel != -1 || fiber.SoundResourceId != 0)
@@ -103,7 +106,7 @@ public sealed partial class EventEngine
                 Complete = source.Complete,
                 Started = source.Started,
                 NativeResultFrameEntered = source.ResultFrameEntered,
-                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
+                WaitReason = source.Wait switch { GameplaySaveScriptWait.None => WaitReason.None, GameplaySaveScriptWait.Frames => WaitReason.Frames, GameplaySaveScriptWait.RequestStart => WaitReason.RequestStart, GameplaySaveScriptWait.RequestEnd => WaitReason.RequestEnd, GameplaySaveScriptWait.Halt => WaitReason.NativeHalt, GameplaySaveScriptWait.Animation => WaitReason.Animation, GameplaySaveScriptWait.NativeAnimationBlocking => WaitReason.NativeAnimationBlocking, GameplaySaveScriptWait.NativeAnimationSync => WaitReason.NativeAnimationSync, GameplaySaveScriptWait.BackgroundShade => WaitReason.NativeBackgroundShade, GameplaySaveScriptWait.BackgroundScroll => WaitReason.BackgroundScroll, GameplaySaveScriptWait.ScriptMenu => WaitReason.NativePartyMenu, GameplaySaveScriptWait.FaceDirection => WaitReason.FaceDirection, GameplaySaveScriptWait.NativeFaceSync => WaitReason.NativeFaceSync, _ => throw new InvalidDataException("Unknown gameplay script wait.") },
                 WaitUntil = source.WaitUntil,
                 NativeDoorSlot = source.DoorSlot,
                 NativeActorSlot = source.ActorSlot,
@@ -120,6 +123,7 @@ public sealed partial class EventEngine
                 fiber.Results.Add(key, NativeScalarValue.Exact(value));
             }
             ValidateGameplayAnimationWait(fiber);
+            ValidateGameplayFaceWait(fiber);
             restored.Add(fiber);
         }
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);

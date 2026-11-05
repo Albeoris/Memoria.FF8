@@ -25,10 +25,11 @@ public sealed partial class EventEngine
 
     private GameplaySaveFieldActor CaptureGameplayActor(ActorState actor)
     {
-        if (actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.RotationTarget is not null || actor.FaceReturning || actor.FaceProgress < actor.FaceDuration || actor.NativeDisplayOffset is { Mode: 1 or 2 } || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
+        if (actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeLadder is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.RotationTarget is not null || actor.NativeDisplayOffset is { Mode: 1 or 2 } || actor.NativePushContactPending || actor.NativeLineCrossingPending || actor.DoorLineEntryPending)
         {
-            throw new NotSupportedException($"Gameplay actor {actor.ObjectId} has an unfinished movement, face, offset or contact operation.");
+            throw new NotSupportedException($"Gameplay actor {actor.ObjectId} has an unfinished movement, rotation, offset or contact operation.");
         }
+        ValidateGameplayFaceActor(actor);
         NativeActorAnimationHeader? header = actor.NativeAnimationHeader;
         if (header?.BoundModelId is int bound && bound != (actor.ModelId is -1 or ushort.MaxValue ? -1 : actor.ModelId))
         {
@@ -52,7 +53,7 @@ public sealed partial class EventEngine
             new(actor.TalkEnabled, actor.PushEnabled, actor.CollisionEnabled, actor.NativeSavedCollisionDisabled16, actor.TalkRadius, actor.PushRadius, actor.MovementSpeed, actor.NativeMovementBaseSpeed, actor.NativeMovementAccelerationTarget, actor.MovementDirectionLimit, actor.MovementFlags, actor.MovementIgnoresWalkmesh, actor.NativeMovementCompletion542, actor.NativeLandingTriangle508, actor.NativeTurnAccumulator474, actor.NativeMovementGroundContact600, actor.NativeTurnMode580, actor.NativeMotionAuthority?.MovementDirection, actor.NativeMotionAuthority?.FacingHold, actor.NativePartyFlags?.AutoAnimation4, actor.NativePartyFlags?.DetachedFollow64, actor.NativeCardChallenge),
             new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)),
             animation, savedBackup,
-            new(actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FaceLimits, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget, actor.FaceDuration, actor.FaceProgress, actor.FaceTargetPoint, actor.FirstControlRotation),
+            new(actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FaceLimits, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget, actor.FaceDuration, actor.FaceProgress, actor.FaceTargetPoint, actor.FirstControlRotation) { Returning = actor.FaceReturning },
             new(actor.LineStart, actor.LineEnd, actor.LineEnabled, actor.DoorLineEnabled, actor.LineContact, actor.DoorLineContact, actor.NativeLineFacingDirection, actor.NativeLineFacingContact),
             new(actor.FootstepsEnabled, actor.NativeFootstepSpecial, actor.NativeFootstepPair?.First392, actor.NativeFootstepPair?.Second393),
             offset is null ? null : new(offset.X, offset.Y, offset.Z, offset.StartX, offset.StartY, offset.StartZ, offset.TargetX, offset.TargetY, offset.TargetZ, offset.Duration, offset.Counter, offset.Mode))
@@ -104,6 +105,10 @@ public sealed partial class EventEngine
         RestoreGameplayActorPresentation(detached);
         InitializeNativeModelParts();
         RestoreGameplayModelParts(detached);
+        foreach (ActorState actor in actors)
+        {
+            ValidateGameplayFaceActor(actor);
+        }
     }
 
     private void RestoreGameplayActor(ActorState actor, GameplaySaveFieldActor saved)
@@ -167,6 +172,7 @@ public sealed partial class EventEngine
         actor.FaceYawTarget = saved.Face.YawTarget;
         actor.FaceDuration = saved.Face.Duration;
         actor.FaceProgress = saved.Face.Progress;
+        actor.FaceReturning = saved.Face.Returning;
         actor.FaceTargetPoint = saved.Face.TargetPoint;
         actor.FirstControlRotation = saved.Face.FirstControlRotation;
         actor.LineStart = saved.Line.Start;
