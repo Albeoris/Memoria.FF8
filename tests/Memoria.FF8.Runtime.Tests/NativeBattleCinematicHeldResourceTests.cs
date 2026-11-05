@@ -7,11 +7,13 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicHeldResourceTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void Current_clone_descriptors_refresh_while_held_polygon_keeps_its_publication_after_rebind_and_restore(bool remastered, bool logical)
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    public void Current_clone_descriptors_refresh_while_held_polygon_keeps_its_publication_after_rebind_and_restore(bool remastered, bool logical, bool owned)
     {
         NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
@@ -24,6 +26,15 @@ public sealed class NativeBattleCinematicHeldResourceTests
         {
             row = row.Set(field, new(0, origin + (field - 12) * 4) { Layout = layout, ResourceOnly = logical }) with { Lengths = row.Lengths.SetItem(field, 16) };
         }
+        if (owned)
+        {
+            bank = NativeBattleModelCpuBank.Unknown(68).BindResource(4, first, 0, first.Length);
+            cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank) };
+            foreach (int field in new[] { 12, 16, 20, 24 })
+            {
+                row = row.Set(field, new(3, 1024 + (field - 12) * 4) { Layout = layout, EnemyResourceId = 7, ResourceOffset = 4 + (field - 12) * 4 });
+            }
+        }
         uint clone = NativeBattleEffectNodeMemory.ArenaAddress + 0x4000;
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x4010, Enumerable.Repeat((byte)0xA5, 12).ToArray()).Write(0x4020, [0x5A]);
         arena = NativeBattleCinematicActorResourceDescriptors.Refresh(arena, cpu, row, clone);
@@ -31,8 +42,12 @@ public sealed class NativeBattleCinematicHeldResourceTests
         Assert.Same(bank, held.CpuPublication);
         NativeBattleEffectArena before = NativeBattleStorageSnapshots.Capture(arena);
         ImmutableArray<byte> replacement = Enumerable.Repeat((byte)0xCC, 64).ToImmutableArray();
-        NativeBattleModelCpuBank next = bank.BindPartyResource(origin, replacement, 0, replacement.Length);
+        NativeBattleModelCpuBank next = owned ? bank.BindResource(4, replacement, 0, replacement.Length) : bank.BindPartyResource(origin, replacement, 0, replacement.Length);
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, next) } };
+        if (owned)
+        {
+            cpu = cpu with { EnemyResources = cpu.EnemyResources!.SetItem(7, next) };
+        }
         row = row.Set(16, row.Require(20));
         arena = NativeBattleCinematicActorResourceDescriptors.Refresh(arena, cpu, row, clone);
         NativeBattleResourcePointer refreshed = arena.ReadResourcePointer(0x4034)!;
@@ -46,7 +61,7 @@ public sealed class NativeBattleCinematicHeldResourceTests
         NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(saved));
         NativeBattleResourcePointer restoredHeld = restored.ReadResourcePointer(0)!;
         Assert.Equal(first.AsSpan(16, 16).ToArray(), NativeBattleModelResourceView.Open(cpu, NativeBattleFileStaging.Unknown(), restoredHeld, 16).Read(0, 16));
-        if (logical)
+        if (logical || owned)
         {
             Assert.Throws<NotSupportedException>(() => restored.ReadUInt32(0));
         }
@@ -57,13 +72,15 @@ public sealed class NativeBattleCinematicHeldResourceTests
     }
 
     [Theory]
-    [InlineData(1, false)]
-    [InlineData(2, false)]
-    [InlineData(5, false)]
-    [InlineData(6, false)]
-    [InlineData(7, false)]
-    [InlineData(2, true)]
-    public void Logical_shard_spawn_physics_packets_retirement_and_reuse_follow_the_same_mode_algorithm(int selectedMode, bool quad)
+    [InlineData(1, false, false)]
+    [InlineData(2, false, false)]
+    [InlineData(5, false, false)]
+    [InlineData(6, false, false)]
+    [InlineData(7, false, false)]
+    [InlineData(2, true, false)]
+    [InlineData(1, false, true)]
+    [InlineData(2, true, true)]
+    public void Logical_shard_spawn_physics_packets_retirement_and_reuse_follow_the_same_mode_algorithm(int selectedMode, bool quad, bool owned)
     {
         ushort mode = (ushort)selectedMode;
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
@@ -72,6 +89,12 @@ public sealed class NativeBattleCinematicHeldResourceTests
         NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(origin, polygon, 0, polygon.Length);
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
         NativeBattleResourcePointer pointer = new NativeBattleResourcePointer(new(0, origin) { ResourceOnly = true }, null, quad ? 20 : 16).Pin(cpu);
+        if (owned)
+        {
+            bank = NativeBattleModelCpuBank.Unknown(polygon.Length).BindResource(0, polygon, 0, polygon.Length);
+            cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank) };
+            pointer = new NativeBattleResourcePointer(new(3, 1024) { EnemyResourceId = 7 }, null, quad ? 20 : 16).Pin(cpu);
+        }
         ImmutableArray<NativeBattleVector> vertices = quad ? [new(-5, -1, 100), new(5, -1, 100), new(5, -1, 110), new(-5, -1, 110)] : [new(-5, -1, 100), new(5, -1, 100), new(0, -1, 110)];
         NativeBattleControl18Face numeric = new(0x1939020, quad, vertices);
         NativeBattleControl18ResourceFace logical = new(pointer, quad, vertices);
@@ -91,7 +114,7 @@ public sealed class NativeBattleCinematicHeldResourceTests
         NativeBattleEffectArena records = NativeBattleEffectArena.CreateUnknown(136).Write(0, actual.Records.AsSpan()).WriteResourcePointer(0, actual.ResourcePointers[0]);
         records = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(records));
         ImmutableDictionary<int, NativeBattleResourcePointer> owners = records.EnumerateResourcePointers().ToImmutableDictionary(entry => entry.Key, entry => entry.Value!);
-        NativeBattleModelCpuResources replaced = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown() };
+        NativeBattleModelCpuResources replaced = cpu with { Cpu = NativeBattleModelCpuBanks.Unknown(), EnemyResources = owned ? ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty : cpu.EnemyResources };
         NativeBattleModuleProjectedVertex Project(NativeBattleVector point) => new(0x00100020, 1000, 0);
         NativeBattleGfGeometryBatch before = NativeBattleControl18Shards.Emit(expected.Records.AsSpan(), (_, length) => polygon.AsSpan(0, length).ToArray().ToImmutableArray(), new uint[] { 1, 2, 3 }, Project, 17);
         NativeBattleGfGeometryBatch after = NativeBattleControl18Shards.Emit(actual.Records.AsSpan(), owners, (source, length) => NativeBattleModelResourceView.Open(replaced, NativeBattleFileStaging.Unknown(), source, length).Read(0, length).ToImmutableArray(), new uint[] { 1, 2, 3 }, Project, 17);
