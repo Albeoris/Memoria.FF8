@@ -191,6 +191,40 @@ public sealed class NativeBattleAcid317ModelDrawingTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Masked_object_cursor_publication_does_not_dereference_or_reject_out_of_section_offsets(bool logical)
+    {
+        byte[] bytes = new byte[8];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 123456);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        int offset = logical ? cpu.Cpu.Banks[0].Capacity + 8 : 0;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].BindPartyResource(offset, bytes.ToImmutableArray(), 0, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer pointer = new(new(0, offset) { ResourceOnly = logical }, null, bytes.Length);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, NativeBattleFileStaging.Unknown(), pointer, null!);
+        NativeBattleEffectArena context = Context(0).Write(0x4C, new byte[4]);
+        NativeBattleDeformedBodyStep step = NativeBattleDeformedBodyDrawing.DrawBody(Memory(0), context, NativeBattleEffectArena.CreateUnknown(32), source, [], Camera(), Projection, Memory(0).ScriptedGraphics!, ScratchAddress, 32, CacheAddress, 2048);
+        Assert.Empty(step.Batch.Attempts);
+        Assert.Throws<InvalidDataException>(() => source.Read(123456, 2));
+        Assert.Equal(0, source.Cursor(123456).Length);
+        if (logical)
+        {
+            NativeBattleResourcePointer cursor = step.Temporary132.ReadResourcePointer(0x30)!;
+            Assert.True(cursor.Cpu!.ResourceOnly);
+            Assert.Equal(offset + 123456, cursor.Cpu.Offset);
+            Assert.Equal(0, cursor.Length);
+            NativeBattleDeformedBodyStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDeformedBodyStep>(NativeBattleTestSnapshots.Json(step));
+            Assert.Equal(cursor, restored.Temporary132.ReadResourcePointer(0x30));
+        }
+        else
+        {
+            Assert.Equal(pointer.Cpu!.PhysicalAddress + 123456, step.Temporary132.ReadUInt32(0x30));
+        }
+    }
+
     private sealed record DeformedResourceState(NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging, NativeBattleAcid317SnapshotStep Snapshot);
 
     private const uint GeometryAddress = 0x1000000;

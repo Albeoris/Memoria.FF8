@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleDegenerator306ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleDegenerator306ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary136, 136) }, graphics);
+        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary136, 136) }, graphics);
 
         NativeBattleDegenerator306ModelFrame Shadow(NativeBattleDegenerator306ModelFrame current)
         {
@@ -69,12 +69,12 @@ public sealed partial class BattleSession
 
         NativeBattleDegenerator306ModelFrame DrawSource(NativeBattleDegenerator306ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices, int role)
         {
-            uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Degenerator target requires its physical geometry address.");
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeDegenerator306View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleDegenerator306ModelStep drawn = NativeBattleDegenerator306ModelDrawing.DrawBody(current.Memory, current.Temporary136, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Degenerator target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + role), ResourceGeneration = sourceAddress } : null);
+            NativeBattleDegenerator306ModelStep drawn = NativeBattleDegenerator306ModelDrawing.DrawBody(current.Memory, current.Temporary136, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Degenerator target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + role), ResourceGeneration = geometrySource.PresentationIdentity } : null);
             current = current with { Memory = drawn.Memory, Temporary136 = drawn.Temporary136, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
-            current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary136, 136) };
+            current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary136, 136) };
             return AppendCommon(current, drawn.Batch);
 
             byte[] Read(int offset, int length)

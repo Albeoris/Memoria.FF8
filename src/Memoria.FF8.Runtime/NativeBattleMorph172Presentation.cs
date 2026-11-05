@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattleMorph172Presentation
 {
-    internal static NativeBattlePilotVisualIdentity? Domain(NativeBattlePilotVisualIdentity? identity, uint source, int role)
+    internal static NativeBattlePilotVisualIdentity? Domain(NativeBattlePilotVisualIdentity? identity, long source, int role)
     {
         return identity is { } parent ? parent with { Primitive = unchecked(parent.Primitive * 397 + role), ResourceGeneration = unchecked(parent.ResourceGeneration * 397 ^ source) } : null;
     }

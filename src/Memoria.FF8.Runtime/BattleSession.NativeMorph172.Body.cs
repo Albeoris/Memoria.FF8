@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeBattleMorph172ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleMorph172ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary220, 220) }, graphics);
+        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary220, 220) }, graphics);
 
         NativeBattleMorph172ModelFrame Shadow(NativeBattleMorph172ModelFrame current)
         {
@@ -69,12 +69,12 @@ public sealed partial class BattleSession
 
         NativeBattleMorph172ModelFrame DrawSource(NativeBattleMorph172ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Morph172 target requires its physical geometry address.");
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeMorph172View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."), pilotIdentity: NativeBattleMorph172Presentation.Domain(pilotIdentity, sourceAddress, 0));
+            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."), pilotIdentity: NativeBattleMorph172Presentation.Domain(pilotIdentity, geometrySource.PresentationIdentity, 0));
             current = current with { Memory = drawn.Memory, Temporary220 = drawn.Temporary220, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
-            current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary220, 220) };
+            current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary220, 220) };
             return AppendCommon(current, drawn.Batch);
 
             byte[] Read(int offset, int length)
@@ -94,11 +94,12 @@ public sealed partial class BattleSession
             {
                 return current with { Memory = current.Memory with { PrimitiveProcess = process } };
             }
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount);
+            NativeBattleModelGeometrySource linkedGeometry = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
+            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(linkedGeometry.Read, boneCount);
             uint color = current.Model.Color40 ?? throw new NotSupportedException("Morph172 linked body requires its actual full color.");
             process = process.PublishModelColor(color);
             (byte[] retained, _) = current.Staging.ReadSnapshot(scratchAddress, scratchLength);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Morph172 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity.HasValue ? NativeBattleMorph172Presentation.Domain(pilotIdentity, pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Morph172 capture requires its actual linked source."), 1) : null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Morph172 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity.HasValue ? NativeBattleMorph172Presentation.Domain(pilotIdentity, linkedGeometry.PresentationIdentity, 1) : null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };

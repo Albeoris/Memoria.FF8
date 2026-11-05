@@ -9,6 +9,11 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
 {
     public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawBody(memory, temporary176, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary176, 4) != scratchAddress)
         {
             throw new InvalidDataException("Poison Gas body requires its actual bounded native projection workspace.");
@@ -66,7 +71,7 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
             cursor = checked((cursor + 3) & ~3);
             temporary176 = temporary176.Write(8, Read(cursor, 8));
             cursor = checked(cursor + 12);
-            temporary176 = Dword(temporary176, 0, checked(geometryAddress + (uint)cursor));
+            temporary176 = geometrySource.WriteCursor(temporary176, 0, cursor);
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, camera.ReadMatrix(), true, true, Padding(camera)) };
             _ = S16(temporary176, 0x3A);
             DrawFaces(false);
@@ -98,7 +103,7 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
 
         byte[] Read(int offset, int length)
         {
-            byte[] result = readGeometry(offset, length);
+            byte[] result = geometrySource.Read(offset, length);
             return result is not null && result.Length == length ? result : throw new InvalidDataException("Poison Gas requires its exact current addressed geometry bytes.");
         }
         int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

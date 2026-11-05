@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleAdditional181ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleAdditional181ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary128, 128) }, graphics);
+        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary128, 128) }, graphics);
 
         NativeBattleAdditional181ModelFrame Shadow(NativeBattleAdditional181ModelFrame current)
         {
@@ -69,12 +69,12 @@ public sealed partial class BattleSession
 
         NativeBattleAdditional181ModelFrame DrawSource(NativeBattleAdditional181ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Additional effect181 target requires its physical geometry address.");
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeAdditional181View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = sourceAddress } : null);
+            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null);
             current = current with { Memory = drawn.Memory, Temporary128 = drawn.Temporary128, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
-            current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary128, 128) };
+            current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary128, 128) };
             return AppendCommon(current, drawn.Batch);
 
             byte[] Read(int offset, int length)

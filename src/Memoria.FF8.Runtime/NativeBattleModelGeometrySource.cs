@@ -65,24 +65,33 @@ public readonly struct NativeBattleModelGeometrySource
 
     internal uint? NumericCursor(int offset)
     {
-        Require(offset, 0);
+        RequireOffset(offset);
         return numericAddress is uint address ? checked(address + (uint)offset) : null;
     }
 
     internal NativeBattleEffectArena WriteCursor(NativeBattleEffectArena destination, int field, int offset)
     {
+        // Native callers can publish a cursor before a masked object is skipped; reads remain section-bounded.
         return NumericCursor(offset) is uint address ? destination.Write(field, BitConverter.GetBytes(address)) : destination.WriteResourcePointer(field, Cursor(offset));
     }
 
     public NativeBattleResourcePointer Cursor(int offset)
     {
-        Require(offset, 0);
+        RequireOffset(offset);
         return Owner with
         {
             Cpu = Owner.Cpu is { } reference ? reference with { Offset = checked(reference.Offset + offset) } : null,
             StagingAddress = Owner.StagingAddress is uint address ? checked(address + (uint)offset) : null,
-            Length = Owner.Length is int length ? length - offset : null
+            Length = Owner.Length is int length ? Math.Max(0, length - offset) : null
         };
+    }
+
+    private void RequireOffset(int offset)
+    {
+        if (read is null || offset < 0)
+        {
+            throw new InvalidDataException("Model source cursor requires its observed owner and nonnegative offset.");
+        }
     }
 
     private void Require(int offset, int length)

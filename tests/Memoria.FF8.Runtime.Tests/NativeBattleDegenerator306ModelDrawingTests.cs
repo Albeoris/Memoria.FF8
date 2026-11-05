@@ -159,11 +159,46 @@ public sealed class NativeBattleDegenerator306ModelDrawingTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_geometry_reads_beyond_old_capacity_and_preserves_native_output_and_cursor_restore(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        byte[] original = Geometry(true);
+        byte[] bytes = new byte[layout.BankLength + original.Length];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), layout.BankLength + 8);
+        original.AsSpan(8).CopyTo(bytes.AsSpan(layout.BankLength + 8));
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        int offset = layout.BankLength + 8;
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[1].BindPartyResource(offset, bytes.ToImmutableArray(), 0, bytes.Length);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(1, bank) } };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleResourcePointer pointer = new(new(1, offset) { Layout = layout, ResourceOnly = true }, null, bytes.Length);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, null!);
+        NativeBattleDegenerator306ModelStep numeric = Draw(bytes, Context(0), 2000);
+        NativeBattleDegenerator306ModelStep logical = Draw(bytes, Context(0), 2000, resourceSource: source);
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(numeric.VertexScratch), NativeBattleTestSnapshots.Json(logical.VertexScratch));
+        byte[] expected = numeric.Temporary136.ReadSnapshot(4, 136 - 4).Data;
+        Assert.Equal(expected, logical.Temporary136.ReadSnapshot(4, 136 - 4).Data);
+        Assert.True(logical.Temporary136.ReadResourcePointer(0)!.Cpu!.ResourceOnly);
+        NativeBattleTemporaryMemory.PublishResourceView(staging, NativeBattleTemporaryMemory.Address, logical.Temporary136, 136);
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging));
+        Assert.Equal(logical.Temporary136.ReadResourcePointer(0), restored.ReadResourcePointer(NativeBattleTemporaryMemory.Address));
+    }
+
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 } };
 
-    private static NativeBattleDegenerator306ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null, NativeBattleActionMatrix? camera = null)
+    private static NativeBattleDegenerator306ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null, NativeBattleActionMatrix? camera = null, NativeBattleModelGeometrySource? resourceSource = null)
     {
         memory ??= Memory();
+        if (resourceSource is { } selected)
+        {
+            return NativeBattleDegenerator306ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), selected, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770(), null), projection ?? Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity);
+        }
         return NativeBattleDegenerator306ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770(), null), projection ?? Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity);
     }
 

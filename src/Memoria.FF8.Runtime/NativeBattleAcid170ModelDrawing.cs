@@ -9,6 +9,11 @@ public static partial class NativeBattleAcid170ModelDrawing
 {
     public static NativeBattleAcid170ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary172, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawBody(memory, temporary172, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    public static NativeBattleAcid170ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary172, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary172, 4) != scratchAddress)
         {
             throw new InvalidDataException("Acid body requires its actual bounded native projection workspace.");
@@ -72,7 +77,7 @@ public static partial class NativeBattleAcid170ModelDrawing
             cursor = checked((cursor + 3) & ~3);
             temporary172 = temporary172.Write(8, Read(cursor, 8));
             cursor = checked(cursor + 12);
-            temporary172 = Dword(temporary172, 0, checked(geometryAddress + (uint)cursor));
+            temporary172 = geometrySource.WriteCursor(temporary172, 0, cursor);
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, camera.ReadMatrix(), true, true, Padding(camera)) };
             DrawFaces(false);
             DrawFaces(true);
@@ -101,7 +106,7 @@ public static partial class NativeBattleAcid170ModelDrawing
 
         byte[] Read(int offset, int length)
         {
-            byte[] result = readGeometry(offset, length);
+            byte[] result = geometrySource.Read(offset, length);
             return result is not null && result.Length == length ? result : throw new InvalidDataException("Acid body requires its exact current addressed geometry bytes.");
         }
         int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

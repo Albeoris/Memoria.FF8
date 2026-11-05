@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeBattlePoisonGas171ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattlePoisonGas171ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
-        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishView(body.Staging, temporaryAddress, body.Temporary176, 176) }, graphics);
+        return (frame with { Memory = body.Memory, Staging = NativeBattleTemporaryMemory.PublishResourceView(body.Staging, temporaryAddress, body.Temporary176, 176) }, graphics);
 
         NativeBattlePoisonGas171ModelFrame Shadow(NativeBattlePoisonGas171ModelFrame current)
         {
@@ -69,12 +69,12 @@ public sealed partial class BattleSession
 
         NativeBattlePoisonGas171ModelFrame DrawSource(NativeBattlePoisonGas171ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Poison Gas171 target requires its physical geometry address.");
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativePoisonGas171View(current.Staging, scratchAddress, scratchLength);
-            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = sourceAddress } : null);
+            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null);
             current = current with { Memory = drawn.Memory, Temporary176 = drawn.Temporary176, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
-            current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary176, 176) };
+            current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary176, 176) };
             return AppendCommon(current, drawn.Batch);
 
             byte[] Read(int offset, int length)
@@ -94,11 +94,12 @@ public sealed partial class BattleSession
             {
                 return current with { Memory = current.Memory with { PrimitiveProcess = process } };
             }
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount);
+            NativeBattleModelGeometrySource linkedGeometry = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
+            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(linkedGeometry.Read, boneCount);
             uint color = current.Model.Color40 ?? throw new NotSupportedException("Poison Gas171 linked body requires its actual full color.");
             process = process.PublishModelColor(color);
             (byte[] retained, _) = current.Staging.ReadSnapshot(scratchAddress, scratchLength);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Poison Gas171 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 397 + 1), ResourceGeneration = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Poison Gas linked capture requires its actual source.") } : null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Poison Gas171 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 397 + 1), ResourceGeneration = linkedGeometry.PresentationIdentity } : null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };

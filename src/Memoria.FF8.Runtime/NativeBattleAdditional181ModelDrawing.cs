@@ -9,6 +9,11 @@ public static partial class NativeBattleAdditional181ModelDrawing
 {
     public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return DrawBody(memory, temporary128, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary128, 4) != scratchAddress)
         {
             throw new InvalidDataException("Additional body body requires its actual bounded native projection workspace.");
@@ -66,7 +71,7 @@ public static partial class NativeBattleAdditional181ModelDrawing
             cursor = checked((cursor + 3) & ~3);
             temporary128 = temporary128.Write(8, Read(cursor, 8));
             cursor = checked(cursor + 12);
-            temporary128 = Dword(temporary128, 0, checked(geometryAddress + (uint)cursor));
+            temporary128 = geometrySource.WriteCursor(temporary128, 0, cursor);
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, camera.ReadMatrix(), true, true, Padding(camera)) };
             DrawFaces(false);
             DrawFaces(true);
@@ -102,7 +107,7 @@ public static partial class NativeBattleAdditional181ModelDrawing
 
         byte[] Read(int offset, int length)
         {
-            byte[] result = readGeometry(offset, length);
+            byte[] result = geometrySource.Read(offset, length);
             return result is not null && result.Length == length ? result : throw new InvalidDataException("Additional body requires its exact current addressed geometry bytes.");
         }
         int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

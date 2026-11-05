@@ -73,7 +73,7 @@ public sealed class NativeBattleModelGeometrySourceTests
         Assert.Equal(basis, source.PresentationIdentity);
         Assert.Equal(owner.Cpu is null, source.Cursor(4).Cpu is null);
         Assert.Throws<InvalidDataException>(() => source.Read(bytes.Length, 1));
-        Assert.Throws<InvalidDataException>(() => source.Cursor(bytes.Length + 1));
+        Assert.Equal(0, source.Cursor(bytes.Length + 1).Length);
         Assert.Throws<InvalidDataException>(() => NativeBattleModelGeometrySource.OpenShared(new(new(0, 0) { ResourceOnly = true }, null), (_, _) => []));
     }
 
@@ -100,7 +100,8 @@ public sealed class NativeBattleModelGeometrySourceTests
         Assert.Equal(guest.Cpu!.PhysicalAddress, old.PresentationIdentity);
         Assert.False(old.Cursor(4).Cpu!.ResourceOnly);
         Assert.Throws<InvalidDataException>(() => held.Read(-1, 1));
-        Assert.Throws<InvalidDataException>(() => held.Cursor(bytes.Length + 1));
+        Assert.Equal(0, held.Cursor(bytes.Length + 1).Length);
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, held.Cursor(bytes.Length + 1), 1));
         Assert.Throws<InvalidDataException>(() => held.Read(bytes.Length, 1));
     }
 
