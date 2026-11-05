@@ -38,7 +38,7 @@ public sealed partial class BattleSession
                     {
                         anchors++;
                         uint temporary = BinaryPrimitives.ReadUInt32LittleEndian((current.Staging ?? throw new NotSupportedException("Effect31 requires its current target temporary cursor.")).Read(NativeBattleTemporaryMemory.Cursor, 4));
-                        uint boneAddress = 0;
+                        NativeBattleResourcePointer? boneMatrix = null;
                         if (anchors == 2)
                         {
                             NativeBattleGraphicsModel model = graphics.Models[targetActor];
@@ -48,12 +48,12 @@ public sealed partial class BattleSession
                             {
                                 throw new InvalidDataException("Effect31 target F1 alias leaves its current skeleton.");
                             }
-                            boneAddress = ReadNativeEffect31BoneAddress(graphics, current, targetActor, bone);
+                            boneMatrix = ReadNativeEffect31BonePointer(graphics, current, targetActor, bone);
                         }
                         current = ObserveNativeEffect31Point(current, producer);
                         if (anchors == 2)
                         {
-                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, checked(0x1D972C0u + (uint)targetActor * 0x9C), boneAddress) } };
+                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, checked(0x1D972C0u + (uint)targetActor * 0x9C), boneMatrix!) } };
                         }
                     });
                     return NativeBattleEffect31Controller.Write(current, target.TaskAddress, targetTask);

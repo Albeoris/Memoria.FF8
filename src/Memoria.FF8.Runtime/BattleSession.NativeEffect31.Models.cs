@@ -100,11 +100,15 @@ public sealed partial class BattleSession
         return new(cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect31 requires its current CPU resource row.")].Require(12), null);
     }
 
-    private uint ReadNativeEffect31BoneAddress(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, int bone)
+    private NativeBattleResourcePointer ReadNativeEffect31BonePointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, int bone)
     {
         NativeBattleResourcePointer pointer = ReadNativeEffect31SkeletonPointer(graphics, frame, actor);
-        uint skeleton = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect31 requires its physical skeleton backing.");
-        return checked(skeleton + 32 + (uint)bone * 48);
+        int offset = checked(32 + bone * 48);
+        if (!pointer.HasValidOwner() || pointer.CpuRow is not null || bone < 0 || pointer.Length is int extent && offset > extent - 32)
+        {
+            throw new InvalidDataException("Effect31 selected bone matrix leaves its skeleton section.");
+        }
+        return pointer with { Cpu = pointer.Cpu is { } reference ? reference with { Offset = checked(reference.Offset + offset) } : null, StagingAddress = pointer.StagingAddress is uint address ? checked(address + (uint)offset) : null, Length = 32 };
     }
 
     private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect31BodyBones(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, int actor, NativeBattlePoseSource source)
@@ -114,8 +118,8 @@ public sealed partial class BattleSession
         for (int bone = 0; bone < matrices.Length; bone++)
         {
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
-            NativeBattleEffectArena padding = ReadNativeEffect31Physical(graphics, frame, checked(ReadNativeEffect31BoneAddress(graphics, frame, actor, bone) + 18), 2);
-            (byte[] bytes, bool[] known) = padding.ReadSnapshot(0, 2);
+            NativeBattleResourcePointer pointer = ReadNativeEffect31BonePointer(graphics, frame, actor, bone);
+            (byte[] bytes, bool[] known) = NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging!, pointer, 18, 2, (address, count) => ReadNativeEffect31Physical(graphics, frame, address, count).ReadSnapshot(0, count));
             result.Add(packed with { Bytes = packed.Bytes.SetItem(18, bytes[0]).SetItem(19, bytes[1]), Known = packed.Known.SetItem(18, known[0]).SetItem(19, known[1]) });
         }
         return result.ToImmutable();

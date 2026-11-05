@@ -6,6 +6,33 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect31StackTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Logical_source_retains_original_stack_argument_bits_without_a_guest_resource_projection(bool remastered)
+    {
+        NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[2].BindPartyResource(layout.BankLength + 16, [99], 0, 1);
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(2, bank) } };
+        NativeBattleResourcePointer logical = new(new(2, 0x50) { Layout = layout, ResourceOnly = true }, null, 32);
+        logical = logical.Pin(cpu);
+        logical = NativeBattleTestSnapshots.RestoreJson<NativeBattleResourcePointer>(NativeBattleTestSnapshots.Json(logical));
+        NativeBattleModelCpuReference old = logical.Cpu! with { ResourceOnly = false };
+        NativeBattleStackBytes expected = NativeBattleEffect31Stack.ObserveTarget(NativeBattleEffect31Stack.Begin(), 0x2000000, 0x1D972C0, old.PhysicalAddress);
+        NativeBattleStackBytes actual = NativeBattleEffect31Stack.ObserveTarget(NativeBattleEffect31Stack.Begin(), 0x2000000, 0x1D972C0, logical);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        NativeBattlePackedMatrix32 expectedMatrix = NativeBattleEffect31Stack.ReadMatrix(expected, 0x8729F0);
+        NativeBattlePackedMatrix32 actualMatrix = NativeBattleEffect31Stack.ReadMatrix(actual, 0x8729F0);
+        Assert.Equal(expectedMatrix.Bytes, actualMatrix.Bytes);
+        Assert.Equal(expectedMatrix.Known, actualMatrix.Known);
+        Assert.Null(logical.Cpu.TryPhysicalAddress());
+        Assert.Empty(bank.KnownRanges);
+        Assert.Empty(logical.CpuPublication!.KnownRanges);
+        NativeBattleResourcePointer outside = logical with { Cpu = logical.Cpu with { Offset = layout.BankLength - 31 } };
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect31Stack.ObserveTarget(NativeBattleEffect31Stack.Begin(), 0x2000000, 0x1D972C0, outside));
+    }
+
     [Fact]
     public void Target_service_observations_supply_current_physical_pointers_and_return_bytes()
     {

@@ -61,6 +61,32 @@ public static class NativeBattleEffect31Stack
             .StoreUInt32(-0xEC, 0x50225A, 0x502255, "Target temporary release return");
     }
 
+    internal static NativeBattleStackBytes ObserveTarget(NativeBattleStackBytes stack, uint temporary, uint model, NativeBattleResourcePointer boneMatrix)
+    {
+        ArgumentNullException.ThrowIfNull(boneMatrix);
+        if (!boneMatrix.HasValidOwner() || boneMatrix.CpuRow is not null || boneMatrix.Length is < 32)
+        {
+            throw new InvalidDataException("Effect31 target stack requires its selected complete bone matrix owner.");
+        }
+        uint argument;
+        if (boneMatrix.Cpu is { Bank: < 3, ResourceOnly: true } reference)
+        {
+            NativeBattlePartyCpuLayout layout = reference.EffectiveLayout;
+            layout.Validate();
+            if (reference.Offset > layout.BankLength - 32)
+            {
+                throw new NotSupportedException("Effect31 stack argument has no proved original bank placement for this logical bone matrix.");
+            }
+            // NG-016: These original placement bits are consumed as stack data, never dereferenced as a resource address.
+            argument = checked(layout.BaseAddress + (uint)reference.Bank * (uint)layout.BankLength + (uint)reference.Offset);
+        }
+        else
+        {
+            argument = boneMatrix.Cpu?.TryPhysicalAddress() ?? boneMatrix.StagingAddress ?? throw new NotSupportedException("Effect31 stack argument requires its actual placement identity.");
+        }
+        return ObserveTarget(stack, temporary, model, argument);
+    }
+
     public static NativeBattleStackBytes ObserveBounds(NativeBattleStackBytes stack, uint temporary, int boneCount)
     {
         Validate(stack);
