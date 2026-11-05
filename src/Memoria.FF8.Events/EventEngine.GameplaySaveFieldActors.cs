@@ -39,6 +39,10 @@ public sealed partial class EventEngine
         }
         NativeActorAnimationBackup? backup = actor.NativeAnimationBackup;
         GameplaySaveActorAnimation animation = new(header?.AnimationId ?? checked((byte)actor.AnimationId), header?.Frame, header?.Increment ?? checked((ushort)actor.AnimationSpeed), header?.First ?? checked((ushort)(actor.AnimationFirst * 16)), header?.Flags is ushort currentFlags ? (GameplaySaveActorAnimationFlags)currentFlags : null, actor.BaseAnimationId, actor.WalkAnimationId, actor.RunAnimationId, actor.BaseFirstFrame, actor.BaseLastFrame, CaptureGameplayAnimationEnd(actor, header?.AnimationId, header?.Terminal));
+        if (header?.BoundModelId == -1)
+        {
+            animation = animation with { EmptyModelTerminal = header.EmptyModelTerminal };
+        }
         GameplaySaveActorAnimation? savedBackup = backup is null ? null : new(backup.AnimationId, backup.Frame, backup.Increment, backup.First, (GameplaySaveActorAnimationFlags)backup.Flags, actor.BaseAnimationId, actor.WalkAnimationId, actor.RunAnimationId, actor.BaseFirstFrame, actor.BaseLastFrame, CaptureGameplayAnimationEnd(actor, backup.AnimationId, backup.Terminal));
         if (IsGameplayResourceLastPose(actor, animation.Selector, header?.Frame, header?.Terminal, animation.Increment, animation.Flags))
         {
@@ -217,7 +221,7 @@ public sealed partial class EventEngine
         NativeActorAnimationHeader bound = RequireNativeAnimationHeader(actor);
         GameplaySaveActorAnimation animation = saved.Animation;
         (ushort? phase, ushort? terminal) = RestoreGameplayAnimationPhase(actor, animation);
-        actor.NativeAnimationHeader = bound with { AnimationId = animation.Selector, Frame = phase, Increment = animation.Increment, First = animation.First, Terminal = terminal, Flags = animation.Flags is { } flags ? checked((ushort)flags) : null };
+        actor.NativeAnimationHeader = bound with { AnimationId = animation.Selector, Frame = phase, Increment = animation.Increment, First = animation.First, Terminal = terminal, Flags = animation.Flags is { } flags ? checked((ushort)flags) : null, EmptyModelTerminal = animation.EmptyModelTerminal ?? bound.EmptyModelTerminal };
         PublishNativeAnimation(actor, true);
         if (saved.AnimationBackup is { } backup)
         {
@@ -233,7 +237,11 @@ public sealed partial class EventEngine
     private (ushort? Phase, ushort? Terminal) RestoreGameplayAnimationPhase(ActorState actor, GameplaySaveActorAnimation animation)
     {
         NativeActorAnimationHeader bound = RequireNativeAnimationHeader(actor);
-        ushort? resourceTerminal = bound.BoundModelId == -1 ? bound.EmptyModelTerminal : NativeAnimationTerminal(actor, animation.Selector);
+        if (bound.BoundModelId != -1 && animation.EmptyModelTerminal is not null)
+        {
+            throw new InvalidDataException("A bound model animation cannot replace its resource terminal with an empty-body completion WORD.");
+        }
+        ushort? resourceTerminal = bound.BoundModelId == -1 ? animation.EmptyModelTerminal ?? bound.EmptyModelTerminal : NativeAnimationTerminal(actor, animation.Selector);
         ushort? terminal = animation.End ?? resourceTerminal;
         ushort? phase = animation.Frame;
         if (animation.UseResourceLastPose)
@@ -251,7 +259,13 @@ public sealed partial class EventEngine
                 ? checked((ushort)(animation.First + (phase.Value - animation.First) % (end - animation.First)))
                 : checked((ushort)(end - 1));
         }
-        if (terminal is ushort currentEnd && (animation.First > currentEnd || terminal > resourceTerminal || phase > currentEnd))
+        else if (bound.BoundModelId == -1 && animation.End is null && animation.EmptyModelTerminal is null && terminal == animation.First && phase > terminal)
+        {
+            // Older components omitted the empty-body WORD. There is no selected clip
+            // here; restart only its zero-length presentation instead of rejecting play.
+            phase = terminal;
+        }
+        if (terminal is ushort currentEnd && (animation.First > currentEnd || bound.BoundModelId != -1 && terminal > resourceTerminal || phase > currentEnd))
         {
             throw new NotSupportedException("Saved logical animation range lies outside the selected current model.");
         }

@@ -108,11 +108,19 @@ public enum GameplaySaveActorAnimationFlags
 
 public sealed record GameplaySaveActorAnimation([property: JsonRequired] byte Selector, [property: JsonRequired] ushort? Frame, [property: JsonRequired] ushort Increment, [property: JsonRequired] ushort First, [property: JsonRequired] GameplaySaveActorAnimationFlags? Flags, [property: JsonRequired] int Idle, [property: JsonRequired] int Walk, [property: JsonRequired] int Run, [property: JsonRequired] int IdleFirst, [property: JsonRequired] int IdleLast, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ushort? End = null)
 {
+    /// <summary>An empty body's logical completion WORD has no model clip from which to recover it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? EmptyModelTerminal { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UseResourceLastPose { get; init; }
 
     public void Validate()
     {
+        if (EmptyModelTerminal is not null && UseResourceLastPose)
+        {
+            throw new InvalidDataException("An empty animation header cannot select the final pose of a model resource.");
+        }
         if (UseResourceLastPose && (End is not null || Frame is null || (Flags & (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen)) != (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen)))
         {
             throw new InvalidDataException("Resource-relative final animation pose requires known frozen completion and no explicit range end.");
