@@ -42,8 +42,9 @@ public sealed partial class BattleSession
         if (gate.Draw)
         {
             NativeBattleResourcePointer pointer = GeometryPointer();
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, source.BoneCount);
-            NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ (pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? 0)) } : null;
+            NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, Read);
+            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(geometrySource.Read, source.BoneCount);
+            NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ geometrySource.PresentationIdentity) } : null;
             process = process.PublishModelColor(color);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, NativeBattleBodyBoneMatrices.Require(model, source), projection, color, mask, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Primary body history requires its color arithmetic."), 4, new(0, 0, 320, 216), 17, pilotIdentity: pilotIdentity, pilotContinuous: callerPilotIdentity?.Effect != 174);
