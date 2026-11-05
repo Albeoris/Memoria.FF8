@@ -224,7 +224,7 @@ internal static partial class Program
 
     private static void QueueNativeDoorWaitComponent(EventEngine engine, int script, byte slot)
     {
-        MethodInfo queue = typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        MethodInfo queue = typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int), typeof(int), typeof(int), typeof(bool)], null)!;
         object fiber = queue.Invoke(engine, [1, script, 7 - slot, false])!;
         fiber.GetType().GetField("NativeDoorSlot")!.SetValue(fiber, slot);
         typeof(EventEngine).GetMethod("SelectNativeDoorRequest", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(engine, [fiber]);

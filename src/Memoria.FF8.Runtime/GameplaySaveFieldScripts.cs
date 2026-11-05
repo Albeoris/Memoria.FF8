@@ -26,7 +26,8 @@ public enum GameplaySaveScriptWait
     NativeLadderMode3,
     NativeLadder,
     PartyJoin,
-    PartySplit
+    PartySplit,
+    NativeDoorRequest = 23
 }
 
 public sealed record GameplaySaveScriptFiber([property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Priority, [property: JsonRequired] long Sequence, [property: JsonRequired] bool Initialization, [property: JsonRequired] int Position, [property: JsonRequired] bool Complete, [property: JsonRequired] bool Started, [property: JsonRequired] bool ResultFrameEntered, [property: JsonRequired] int[] Stack, [property: JsonRequired] Dictionary<int, int> Results, [property: JsonRequired] GameplaySaveScriptWait Wait, [property: JsonRequired] long WaitUntil, [property: JsonRequired] long? RequestSequence, [property: JsonRequired] byte? DoorSlot, [property: JsonRequired] byte? ActorSlot, [property: JsonRequired] bool DefaultResultFrame, [property: JsonRequired] int[]? SavedResults)
@@ -89,7 +90,7 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
             {
                 throw new InvalidDataException("Gameplay background shade wait has no matching issued instruction.");
             }
-            if (fiber.RequestSequence is long request && !sequences.Contains(request) || fiber.Wait is GameplaySaveScriptWait.RequestStart or GameplaySaveScriptWait.RequestEnd && fiber.RequestSequence is null)
+            if (fiber.RequestSequence is long request && !sequences.Contains(request) || fiber.Wait is GameplaySaveScriptWait.RequestStart or GameplaySaveScriptWait.RequestEnd or GameplaySaveScriptWait.NativeDoorRequest && fiber.RequestSequence is null)
             {
                 throw new InvalidDataException("Gameplay field script request wait has no retained target fiber.");
             }

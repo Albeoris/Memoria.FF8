@@ -1,10 +1,21 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
-/// <summary>Executed first-call request373 state while the caller retains both original DWORD operands.</summary>
-public sealed record NativeDoorRequestWaitState([property: JsonRequired] int Version, [property: JsonRequired] int Operation, [property: JsonRequired] int TargetNativeObjectId, [property: JsonRequired] int TargetObjectId, [property: JsonRequired] int RawPriority, [property: JsonRequired] int RawScriptId, [property: JsonRequired] long RequestSequence, [property: JsonRequired] long DefaultSequence);
+public enum NativeDoorRequestWaitOrigin
+{
+    Opcode,
+    GameplayContinuation
+}
+
+/// <summary>First-call request373 ownership while the caller retains both original DWORD operands.</summary>
+public sealed record NativeDoorRequestWaitState([property: JsonRequired] int Version, [property: JsonRequired] int Operation, [property: JsonRequired] int TargetNativeObjectId, [property: JsonRequired] int TargetObjectId, [property: JsonRequired] int RawPriority, [property: JsonRequired] int RawScriptId, [property: JsonRequired] long RequestSequence, [property: JsonRequired] long DefaultSequence)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NativeDoorRequestWaitOrigin Origin { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -83,7 +94,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native door wait requires its two exact original DWORD operands");
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || owner.Version != 2 || caller.Initialization || caller.Complete || !caller.Script.ContainsOperation(owner.Operation) || program!.Operations[owner.Operation].Opcode is not (Jsm.Opcode.REQSW or Jsm.Opcode.REQEW) || program.Operations[owner.Operation].Parameter != owner.TargetNativeObjectId || (uint)owner.TargetNativeObjectId >= program.NativeObjects.Count || program.NativeObjects[owner.TargetNativeObjectId] != owner.TargetObjectId || !program.Objects[owner.TargetObjectId].IsDoor || caller.ObjectId == owner.TargetObjectId || caller.Stack.Count < 2 || caller.Stack.Peek() != owner.RawScriptId || caller.Stack.Skip(1).First() != owner.RawPriority || unchecked((byte)owner.RawPriority) > 7)
+        if (NativeRuntimeProfile is not { IsVerified: true } || owner.Version != 2 || !Enum.IsDefined(owner.Origin) || caller.Initialization || caller.Complete || !caller.Script.ContainsOperation(owner.Operation) || program!.Operations[owner.Operation].Opcode is not (Jsm.Opcode.REQSW or Jsm.Opcode.REQEW) || program.Operations[owner.Operation].Parameter != owner.TargetNativeObjectId || (uint)owner.TargetNativeObjectId >= program.NativeObjects.Count || program.NativeObjects[owner.TargetNativeObjectId] != owner.TargetObjectId || !program.Objects[owner.TargetObjectId].IsDoor || caller.ObjectId == owner.TargetObjectId || caller.Stack.Count < 2 || caller.Stack.Peek() != owner.RawScriptId || caller.Stack.Skip(1).First() != owner.RawPriority || unchecked((byte)owner.RawPriority) > 7)
         {
             throw new InvalidDataException("Saved native door wait lost its request opcode, full DWORD operands or target slot");
         }
@@ -96,6 +107,11 @@ public sealed partial class EventEngine
 
     private void ValidateNativeDoorRequestWaitCheckpoint(Checkpoint saved, IReadOnlyList<Fiber> restored)
     {
+        ValidateNativeDoorRequestWaits(saved.Actors, saved.Scene, restored);
+    }
+
+    private void ValidateNativeDoorRequestWaits(IReadOnlyList<ActorState> savedActors, SceneEventState savedScene, IReadOnlyList<Fiber> restored)
+    {
         foreach (Fiber caller in restored)
         {
             if (caller.NativeDoorRequestWait is null)
@@ -106,9 +122,13 @@ public sealed partial class EventEngine
                 }
                 continue;
             }
-            ValidateNativeDoorRequestWaitOwner(caller, restored, (uint)caller.NativeDoorRequestWait.TargetObjectId < saved.Actors.Length ? saved.Actors[caller.NativeDoorRequestWait.TargetObjectId].NativeDoorScheduler : null);
+            ValidateNativeDoorRequestWaitOwner(caller, restored, (uint)caller.NativeDoorRequestWait.TargetObjectId < savedActors.Count ? savedActors[caller.NativeDoorRequestWait.TargetObjectId].NativeDoorScheduler : null);
             NativeDoorRequestWaitState owner = caller.NativeDoorRequestWait!;
-            if (saved.Scene.NativeDoorDriverVersion != 2 || caller.WaitReason != WaitReason.NativeDoorRequest || caller.Position != owner.Operation || caller.Request?.Sequence != owner.RequestSequence)
+            if (owner.Origin == NativeDoorRequestWaitOrigin.GameplayContinuation && (savedScene.NativeFieldInitialization is not { Origin: NativeFieldInitializationOrigin.GameplayContinuation, Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, FieldId, programHash)))
+            {
+                throw new InvalidDataException("Gameplay door wait requires its matching explicit field reconstruction origin.");
+            }
+            if (savedScene.NativeDoorDriverVersion != 2 || caller.WaitReason != WaitReason.NativeDoorRequest || caller.Position != owner.Operation || caller.Request?.Sequence != owner.RequestSequence)
             {
                 throw new InvalidDataException("Saved native door wait lost its held PC, request reference or physical-slot scheduler");
             }
