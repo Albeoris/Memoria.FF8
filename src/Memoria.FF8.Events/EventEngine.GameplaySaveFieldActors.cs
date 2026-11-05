@@ -37,6 +37,14 @@ public sealed partial class EventEngine
         NativeActorAnimationBackup? backup = actor.NativeAnimationBackup;
         GameplaySaveActorAnimation animation = new(header?.AnimationId ?? checked((byte)actor.AnimationId), header?.Frame, header?.Increment ?? checked((ushort)actor.AnimationSpeed), header?.First ?? checked((ushort)(actor.AnimationFirst * 16)), header?.Flags is ushort currentFlags ? (GameplaySaveActorAnimationFlags)currentFlags : null, actor.BaseAnimationId, actor.WalkAnimationId, actor.RunAnimationId, actor.BaseFirstFrame, actor.BaseLastFrame, CaptureGameplayAnimationEnd(actor, header?.AnimationId, header?.Terminal));
         GameplaySaveActorAnimation? savedBackup = backup is null ? null : new(backup.AnimationId, backup.Frame, backup.Increment, backup.First, (GameplaySaveActorAnimationFlags)backup.Flags, actor.BaseAnimationId, actor.WalkAnimationId, actor.RunAnimationId, actor.BaseFirstFrame, actor.BaseLastFrame, CaptureGameplayAnimationEnd(actor, backup.AnimationId, backup.Terminal));
+        if (IsGameplayResourceLastPose(actor, animation.Selector, header?.Frame, header?.Terminal, animation.Increment, animation.Flags))
+        {
+            animation = animation with { End = null, UseResourceLastPose = true };
+        }
+        if (savedBackup is { } savedPhase && IsGameplayResourceLastPose(actor, savedPhase.Selector, backup!.Frame, backup.Terminal, savedPhase.Increment, savedPhase.Flags))
+        {
+            savedBackup = savedPhase with { End = null, UseResourceLastPose = true };
+        }
         NativeDisplayOffsetState? offset = actor.NativeDisplayOffset;
         return new(actor.ObjectId, actor.Label,
             new(actor.ModelId, actor.CharacterId, actor.Active),
@@ -178,33 +186,51 @@ public sealed partial class EventEngine
     {
         NativeActorAnimationHeader bound = RequireNativeAnimationHeader(actor);
         GameplaySaveActorAnimation animation = saved.Animation;
-        ushort? resourceTerminal = bound.BoundModelId == -1 ? bound.EmptyModelTerminal : NativeAnimationTerminal(actor, animation.Selector);
-        ushort? terminal = animation.End ?? resourceTerminal;
-        ushort? phase = animation.Frame;
-        if (animation.End is null && terminal is ushort loopEnd && phase >= loopEnd && loopEnd > animation.First && (animation.Flags & GameplaySaveActorAnimationFlags.Repeating) != 0)
-        {
-            phase = checked((ushort)(animation.First + (phase.Value - animation.First) % (loopEnd - animation.First)));
-        }
-        if (terminal is ushort end && (animation.First > end || animation.End > resourceTerminal || phase > end))
-        {
-            throw new NotSupportedException("Saved logical animation phase lies outside the selected current model.");
-        }
+        (ushort? phase, ushort? terminal) = RestoreGameplayAnimationPhase(actor, animation);
         actor.NativeAnimationHeader = bound with { AnimationId = animation.Selector, Frame = phase, Increment = animation.Increment, First = animation.First, Terminal = terminal, Flags = animation.Flags is { } flags ? checked((ushort)flags) : null };
         PublishNativeAnimation(actor, true);
         if (saved.AnimationBackup is { } backup)
         {
-            ushort backupResourceTerminal = bound.BoundModelId == -1 ? bound.EmptyModelTerminal ?? 0 : NativeAnimationTerminal(actor, backup.Selector);
-            ushort backupTerminal = backup.End ?? backupResourceTerminal;
-            if (backup.First > backupTerminal || backup.Frame > backupTerminal || backupTerminal > backupResourceTerminal)
-            {
-                throw new NotSupportedException("Saved logical animation backup lies outside the selected current model.");
-            }
-            actor.NativeAnimationBackup = new(1, backup.Selector, backup.Frame ?? 0, backup.Increment, backup.First, backupTerminal, checked((ushort)(backup.Flags ?? 0)));
+            (ushort? backupPhase, ushort? backupTerminal) = RestoreGameplayAnimationPhase(actor, backup);
+            actor.NativeAnimationBackup = new(1, backup.Selector, backupPhase ?? 0, backup.Increment, backup.First, backupTerminal ?? 0, checked((ushort)(backup.Flags ?? 0)));
         }
         else
         {
             actor.NativeAnimationBackup = null;
         }
+    }
+
+    private (ushort? Phase, ushort? Terminal) RestoreGameplayAnimationPhase(ActorState actor, GameplaySaveActorAnimation animation)
+    {
+        NativeActorAnimationHeader bound = RequireNativeAnimationHeader(actor);
+        ushort? resourceTerminal = bound.BoundModelId == -1 ? bound.EmptyModelTerminal : NativeAnimationTerminal(actor, animation.Selector);
+        ushort? terminal = animation.End ?? resourceTerminal;
+        ushort? phase = animation.Frame;
+        if (animation.UseResourceLastPose)
+        {
+            if (resourceTerminal is not ushort full || animation.Increment > full)
+            {
+                throw new NotSupportedException("Selected clip cannot represent the saved completed final pose.");
+            }
+            terminal = checked((ushort)(full - animation.Increment));
+            phase = terminal;
+        }
+        else if (animation.End is null && terminal is ushort end && phase > end && end > animation.First)
+        {
+            phase = (animation.Flags & GameplaySaveActorAnimationFlags.Repeating) != 0
+                ? checked((ushort)(animation.First + (phase.Value - animation.First) % (end - animation.First)))
+                : checked((ushort)(end - 1));
+        }
+        if (terminal is ushort currentEnd && (animation.First > currentEnd || terminal > resourceTerminal || phase > currentEnd))
+        {
+            throw new NotSupportedException("Saved logical animation range lies outside the selected current model.");
+        }
+        return (phase, terminal);
+    }
+
+    private bool IsGameplayResourceLastPose(ActorState actor, byte selector, ushort? frame, ushort? terminal, ushort increment, GameplaySaveActorAnimationFlags? flags)
+    {
+        return actor.NativeAnimationHeader?.BoundModelId is >= 0 && (flags & (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen)) == (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen) && NativeAnimationTerminal(actor, selector) is ushort full && increment <= full && frame == terminal && terminal == full - increment;
     }
 
     private void RestoreGameplayActorPresentation(GameplaySaveFieldActors saved)

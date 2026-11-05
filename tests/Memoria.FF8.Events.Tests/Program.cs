@@ -18,6 +18,7 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
+                    ["gameplay-animation-waits"] = GameplayAnimationWaitContract,
                     ["jsm-resource-validation"] = JsmResourceValidationContract,
                     ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
                     ["native-refinement-input"] = NativeRefinementInputContract,

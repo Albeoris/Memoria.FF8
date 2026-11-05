@@ -35,8 +35,9 @@ public sealed partial class EventEngine
         return value.RequireExact();
     }
 
-    private static GameplaySaveScriptFiber CaptureGameplaySaveFiber(Fiber fiber)
+    private GameplaySaveScriptFiber CaptureGameplaySaveFiber(Fiber fiber)
     {
+        ValidateGameplayAnimationWait(fiber);
         GameplaySaveScriptWait wait = fiber.WaitReason switch
         {
             WaitReason.None => GameplaySaveScriptWait.None,
@@ -99,6 +100,7 @@ public sealed partial class EventEngine
             {
                 fiber.Results.Add(key, NativeScalarValue.Exact(value));
             }
+            ValidateGameplayAnimationWait(fiber);
             restored.Add(fiber);
         }
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);

@@ -67,8 +67,15 @@ public enum GameplaySaveActorAnimationFlags
 
 public sealed record GameplaySaveActorAnimation([property: JsonRequired] byte Selector, [property: JsonRequired] ushort? Frame, [property: JsonRequired] ushort Increment, [property: JsonRequired] ushort First, [property: JsonRequired] GameplaySaveActorAnimationFlags? Flags, [property: JsonRequired] int Idle, [property: JsonRequired] int Walk, [property: JsonRequired] int Run, [property: JsonRequired] int IdleFirst, [property: JsonRequired] int IdleLast, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ushort? End = null)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UseResourceLastPose { get; init; }
+
     public void Validate()
     {
+        if (UseResourceLastPose && (End is not null || Frame is null || (Flags & (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen)) != (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen)))
+        {
+            throw new InvalidDataException("Resource-relative final animation pose requires known frozen completion and no explicit range end.");
+        }
         if (Flags is { } flags && ((int)flags & ~0xF800) != 0 || Idle is < 0 or > 255 || Walk is < 0 or > 255 || Run is < 0 or > 255 || IdleFirst < 0 || IdleLast < IdleFirst || End is ushort end && (First > end || Frame > end))
         {
             throw new InvalidDataException("Gameplay actor animation requires valid selectors and logical playback flags.");
