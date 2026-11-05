@@ -19,6 +19,9 @@ public sealed record GameState
 
     public int SnapshotSchemaVersion { get; init; } = CurrentSnapshotSchemaVersion;
 
+    [JsonIgnore]
+    internal bool RequiresLegacyLimitInitialization { get; init; }
+
     public ImmutableArray<EnemyDefeatedEvent> PendingAchievementFacts { get; init; } = [];
     public ImmutableArray<BattleKillTotalObservedEvent> PendingAchievementObservations { get; init; } = [];
     public ImmutableArray<OriginalAchievementObservedEvent> PendingOriginalAchievementObservations { get; init; } = [];

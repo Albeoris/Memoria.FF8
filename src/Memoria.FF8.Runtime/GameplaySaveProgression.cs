@@ -56,6 +56,10 @@ public sealed record GameplaySaveProgression
     public static GameplaySaveProgression Capture(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.RequiresLegacyLimitInitialization)
+        {
+            throw new InvalidOperationException("Historical Limit features must be initialized with the selected game's definitions before gameplay save capture.");
+        }
         if (state.Scene is not (SceneKind.Field or SceneKind.WorldMap) || state.Battle is not null || state.PendingBattleEncounter is not null || state.TripleTriadPlay is not null || state.RandomEncounters?.Pending is not null || state.NativeGameOver is not null)
         {
             throw new NotSupportedException("Gameplay progression projection requires a field or world with no active battle, card match, pending encounter or game-over request.");

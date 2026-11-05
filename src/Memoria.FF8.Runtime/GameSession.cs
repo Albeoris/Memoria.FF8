@@ -570,6 +570,10 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path, bool compact, Action<GameState>? validateContinuation = null)
     {
+        if (State.RequiresLegacyLimitInitialization)
+        {
+            throw new InvalidOperationException("This historical save requires loading with the selected game's initial Limit definitions before it can be saved in the current format.");
+        }
         GameState snapshot = SnapshotOwnership.Prepare(PrepareSnapshot());
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);

@@ -12,6 +12,46 @@ public sealed class SnapshotLimitProgressMigrationTests
     private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter(), new ImmutableBytesJsonConverter() } };
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Resource_free_parse_cannot_promote_unresolved_historical_features_or_replace_a_save(bool wholeOwner)
+    {
+        JsonObject saved = Historical(8);
+        if (wholeOwner)
+        {
+            saved.Remove("LimitProgress");
+        }
+        else
+        {
+            saved["LimitProgress"]!.AsObject().Remove("PetPalsFlags");
+        }
+        using MemoryStream stream = new(Encoding.UTF8.GetBytes(saved.ToJsonString(Options)));
+        GameState parsed = SnapshotDefaults.Deserialize(stream, Options);
+        Assert.True(parsed.RequiresLegacyLimitInitialization);
+        Assert.Equal(GameState.CurrentSnapshotSchemaVersion, parsed.SnapshotSchemaVersion);
+        Assert.Throws<InvalidOperationException>(() => GameplaySaveProgression.Capture(parsed));
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".save");
+        byte[] original = [1, 2, 3, 4];
+        File.WriteAllBytes(path, original);
+        try
+        {
+            GameSession session = new(parsed);
+            Assert.Throws<InvalidOperationException>(() => session.Save(path, compact: false));
+            Assert.Throws<InvalidOperationException>(() => session.Save(path, compact: true));
+            Assert.Equal(original, File.ReadAllBytes(path));
+            Assert.False(File.Exists(path + ".tmp"));
+            GameState prepared = Deserialize(saved, Initial);
+            Assert.False(prepared.RequiresLegacyLimitInitialization);
+            Assert.Equal(Initial().PetPalsFlags, prepared.LimitProgress!.PetPalsFlags);
+            Assert.False(Deserialize(JsonSerializer.SerializeToNode(prepared, Options)!.AsObject(), UnexpectedInitialization).RequiresLegacyLimitInitialization);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(7)]

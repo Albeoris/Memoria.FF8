@@ -9,11 +9,11 @@ internal static class SnapshotLimitProgressMigration
 {
     private static readonly string[] Properties = [nameof(NativeLimitProgress.InitOutSha256), nameof(NativeLimitProgress.BlueMagicFlags), nameof(NativeLimitProgress.DuelFlags), nameof(NativeLimitProgress.AngeloFlags), nameof(NativeLimitProgress.TrainingSelection), nameof(NativeLimitProgress.TrainingCounters), nameof(NativeLimitProgress.SpecialMagicFlags), nameof(NativeLimitProgress.PetPalsFlags), nameof(NativeLimitProgress.Options978)];
 
-    internal static void Apply(JsonObject saved, JsonSerializerOptions options, int originalVersion, Func<NativeLimitProgress>? initialize)
+    internal static bool Apply(JsonObject saved, JsonSerializerOptions options, int originalVersion, Func<NativeLimitProgress>? initialize)
     {
         if (originalVersion > 8 || saved[nameof(GameState.Battle)] is not null)
         {
-            return;
+            return false;
         }
         SceneKind? scene = ReadScene(saved);
         JsonObject? currentCheckpoint = scene is SceneKind.Field or SceneKind.Movie ? CurrentCheckpoint(saved) : null;
@@ -88,6 +88,7 @@ internal static class SnapshotLimitProgressMigration
         {
             parent[nameof(GameState.LimitProgress)] = value;
         }
+        return owners.Any(owner => Properties.Any(name => !owner.ContainsKey(name))) || root is null && scene is SceneKind.Field or SceneKind.Movie or SceneKind.WorldMap;
     }
 
     private static JsonObject? ReadOwner(JsonObject parent, JsonObject? counterpart, bool active, bool canInitialize, List<(JsonObject Parent, JsonNode? Value)> additions)

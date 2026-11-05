@@ -10,7 +10,7 @@ internal static class SnapshotDefaults
     {
         JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
         int originalVersion = SnapshotMigrations.ReadVersion(saved);
-        SnapshotLimitProgressMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
+        bool requiresLegacyLimitInitialization = SnapshotLimitProgressMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
         SnapshotMigrations.Apply(saved, options);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
@@ -43,7 +43,8 @@ internal static class SnapshotDefaults
         }
 
         SnapshotMigrations.CompleteInitialOwners(saved, options, originalVersion);
-        return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+        GameState state = saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+        return state with { RequiresLegacyLimitInitialization = requiresLegacyLimitInitialization };
     }
 
     internal static void PreserveHistoricalWorldGlobals(JsonObject saved)
