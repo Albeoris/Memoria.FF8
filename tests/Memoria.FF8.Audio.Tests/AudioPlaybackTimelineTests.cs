@@ -24,6 +24,30 @@ public sealed class AudioPlaybackTimelineTests
         Assert.Equal(6, voice.PositionBytesBeforeQueuedFrames(0));
     }
 
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(1.75)]
+    [InlineData(4)]
+    public void Queued_cursor_uses_actual_source_frames_across_variable_speed_changes(double speed)
+    {
+        PcmMixer mixer = new();
+        using PcmMixer.Voice voice = mixer.Create(new byte[44100 * 2], 44100, 1);
+        voice.Play(true);
+        mixer.Render(new short[160]);
+        voice.Pause();
+        mixer.Render(new short[40]);
+        voice.Resume();
+        voice.Tempo(speed);
+        mixer.Render(new short[200]);
+        Assert.Equal((int)(80 + 100 * speed) * 2, voice.PositionBytesBeforeQueuedFrames(0));
+        Assert.Equal((int)(80 + 50 * speed) * 2, voice.PositionBytesBeforeQueuedFrames(50));
+        Assert.Equal(80 * 2, voice.PositionBytesBeforeQueuedFrames(120));
+        Assert.Equal(70 * 2, voice.PositionBytesBeforeQueuedFrames(130));
+        voice.Tempo(1);
+        mixer.Render(new short[20]);
+        Assert.Equal((int)(80 + 90 * speed) * 2, voice.PositionBytesBeforeQueuedFrames(20));
+    }
+
     [Fact]
     public async Task Exact_stream_frame_seek_does_not_round_the_saved_position()
     {

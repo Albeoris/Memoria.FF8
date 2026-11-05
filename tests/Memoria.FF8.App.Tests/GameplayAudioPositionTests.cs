@@ -82,9 +82,11 @@ public sealed class GameplayAudioPositionTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Ambient_PCM_keeps_intro_or_repeating_region_position_without_a_game_tick(bool inLoop)
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 0.5)]
+    [InlineData(true, 1.75)]
+    public void Ambient_PCM_keeps_intro_or_repeating_region_position_without_a_game_tick(bool inLoop, double speed)
     {
         string directory = TestResources.GameDirectory;
         GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, 2253))!;
@@ -99,6 +101,7 @@ public sealed class GameplayAudioPositionTests
         PcmMixer sourceMixer = new();
         using FieldAudioPresentation source = new(directory, "") { OutputFactory = () => new(sourceMixer) };
         source.Attach(Engine());
+        source.SetSoundSpeed(speed);
         source.Execute(new GameplayLoopSoundPlayback(selection, resource));
         Assert.Null(source.Error);
         var voices = (System.Collections.IDictionary)typeof(FieldAudioPresentation).GetField("voices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(source)!;
@@ -118,6 +121,7 @@ public sealed class GameplayAudioPositionTests
         PcmMixer targetMixer = new();
         using FieldAudioPresentation target = new(directory, "") { OutputFactory = () => new(targetMixer) };
         target.Attach(Engine());
+        target.SetSoundSpeed(speed);
         target.SetPlaybackResumePositions(saved);
         target.Execute(new GameplayLoopSoundPlayback(selection, resource));
         Assert.Null(target.Error);

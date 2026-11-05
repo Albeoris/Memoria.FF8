@@ -37,16 +37,26 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
             string sourcePath = Path.Combine(folder, "source.sav");
             source.WriteGameplaySave(sourcePath);
             byte[] originalFile = File.ReadAllBytes(sourcePath);
+            GameplaySaveComponentDocument document;
             using (FileStream stream = File.OpenRead(sourcePath))
             {
-                GameplaySaveComponentDocument document = GameplaySaveCodec.Read(stream);
+                document = GameplaySaveCodec.Read(stream);
                 string encoded = JsonSerializer.Serialize(document);
                 Assert.DoesNotContain("NativeBattleMemory", encoded);
                 Assert.DoesNotContain("ModelCpuResources", encoded);
                 Assert.DoesNotContain("TextureSourceDescriptor", encoded);
                 Assert.Equal(worldMap ? GameplaySaveResumeKind.World : GameplaySaveResumeKind.Field, document.Resume.Kind);
             }
-            GameSession targetSession = new(PlayerStateLoader.Load(sourcePath, targetDirectory, sharedAssets: targetAssets));
+            GameState targetState;
+            try
+            {
+                targetState = PlayerStateLoader.Load(sourcePath, targetDirectory, sharedAssets: targetAssets);
+            }
+            catch (NotSupportedException exception) when (!worldMap)
+            {
+                throw new InvalidOperationException(exception.Message + " Animation owners: " + DescribeAnimations(document, source, targetAssets, targetDirectory), exception);
+            }
+            GameSession targetSession = new(targetState);
             AssertRepresentableProgress(expected, targetSession.State);
             AssertFreshDefinitions(targetSession.State, targetAssets);
             AssertSemanticProgress(expected, targetSession.State);
@@ -103,14 +113,13 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
         AssertNativeEnvelope(image);
         byte[] original = image.ToArray();
         GameState imported = NativePcSaveConverter.Import(image, targetAssets);
-        AssertRepresentableProgress(expected, imported);
+        AssertRepresentableProgress(expected, imported, nativeWorldEntry: true);
         AssertFreshDefinitions(imported, targetAssets);
         Assert.Equal(expected.Scene, imported.Scene);
-        Assert.Equal(expected.FieldId, imported.FieldId);
         byte[] returnedImage = NativePcSaveConverter.Export(imported, targetAssets.ReadNewGameCharacterVitals(), originalPlaceId: 0);
         AssertNativeEnvelope(returnedImage);
         GameState returned = NativePcSaveConverter.Import(returnedImage, sourceAssets);
-        AssertRepresentableProgress(expected, returned);
+        AssertRepresentableProgress(expected, returned, nativeWorldEntry: true);
         AssertFreshDefinitions(returned, sourceAssets);
         Assert.Equal(original, image);
     }
@@ -131,10 +140,22 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
         return state with { CharacterVitals = characters, KnownMagic = state.KnownMagic!.Add(7).Add(33) };
     }
 
-    private static void AssertRepresentableProgress(GameState expected, GameState actual)
+    private static void AssertRepresentableProgress(GameState expected, GameState actual, bool nativeWorldEntry = false)
     {
         Assert.Equal(expected.Scene, actual.Scene);
-        Assert.Equal(expected.FieldId, actual.FieldId);
+        if (nativeWorldEntry && expected.Scene == SceneKind.WorldMap)
+        {
+            Assert.Equal(expected.PreviousFieldId ?? expected.FieldId, actual.FieldId);
+            NativeSavedWorldPose pose = Assert.IsType<NativeSavedWorldFootReturn>(actual.SavedWorld!.FootReturn).Pose0;
+            Assert.Equal(expected.World!.X, pose.X);
+            Assert.Equal(expected.World.Z, pose.RawZ);
+            Assert.Equal(checked((short)expected.World.NativeHeight), pose.Height);
+            Assert.Equal(NativeSavedWorldAngleWords.Normalize(checked((ushort)expected.World.BodyYaw)), pose.Yaw);
+        }
+        else
+        {
+            Assert.Equal(expected.FieldId, actual.FieldId);
+        }
         Assert.Equal(expected.Economy!.Gil, actual.Economy!.Gil);
         Assert.Equal(expected.Economy.PastGil, actual.Economy.PastGil);
         Assert.Equal(expected.Economy.Items, actual.Economy.Items);
@@ -184,6 +205,33 @@ public sealed class GameplaySaveCrossEditionAcceptanceTests
         Assert.Equal(expected.PendingOriginalAchievementActions, actual.PendingOriginalAchievementActions);
         Assert.Equal(expected.Playtime, actual.Playtime);
         Assert.Equal(JsonSerializer.Serialize(expected.ExamTimer), JsonSerializer.Serialize(actual.ExamTimer));
+    }
+
+    private static string DescribeAnimations(GameplaySaveComponentDocument document, GameWorld source, GameAssets targetAssets, string targetDirectory)
+    {
+        using GameWorld target = new(new GameSession(CreateProgress(targetAssets, targetDirectory, false)), targetDirectory, sharedAssets: targetAssets);
+        target.EnsureField();
+        List<object> rows = [];
+        int? Frames(EventEngine events, int? model, byte selector)
+        {
+            return model is >= 0 ? events.AnimationFrameCount?.Invoke(model.Value, selector) : null;
+        }
+        foreach (GameplaySaveFieldActor actor in document.Progression!.FieldContinuation!.Actors.Actors)
+        {
+            NativeActorAnimationHeader? sourceHeader = source.Events.Actors.Single(owner => owner.ObjectId == actor.ObjectId).NativeAnimationHeader;
+            NativeActorAnimationHeader? targetHeader = target.Events.Actors.Single(owner => owner.ObjectId == actor.ObjectId).NativeAnimationHeader;
+            void Add(string phase, GameplaySaveActorAnimation? animation)
+            {
+                if (animation is null)
+                {
+                    return;
+                }
+                rows.Add(new { actor.ObjectId, actor.Identity.ModelId, actor.Identity.CharacterId, Phase = phase, animation.Selector, animation.Frame, animation.First, animation.Increment, animation.End, animation.Flags, animation.UseResourceLastPose, SourceModel = sourceHeader?.BoundModelId, TargetModel = targetHeader?.BoundModelId, SourceFrames = Frames(source.Events, sourceHeader?.BoundModelId, animation.Selector), TargetFrames = Frames(target.Events, targetHeader?.BoundModelId, animation.Selector), SourceEmptyTerminal = sourceHeader?.EmptyModelTerminal, TargetEmptyTerminal = targetHeader?.EmptyModelTerminal });
+            }
+            Add("Current", actor.Animation);
+            Add("Backup", actor.AnimationBackup);
+        }
+        return JsonSerializer.Serialize(rows);
     }
 
     private static void AssertFreshDefinitions(GameState actual, GameAssets currentAssets)
