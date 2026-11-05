@@ -161,8 +161,26 @@ internal sealed partial class RecreateGame : Game
         SynchronizationContext.SetSynchronizationContext(dialogContext);
         dialogContext.Drain();
         desktopDialogs.PumpPendingEvents();
-        // Keep launcher handoff and recovery responsive during native pickers.
+        localizationWorkbench.Poll();
+        if (authoringWorkspaceInitialized)
+        {
+            PollAuthoringWorkspace();
+        }
+        // Keep launcher handoff and recovery responsive during native pickers and exit confirmation.
         updateControls?.Poll();
+        if (UpdateWindowCloseConfirmation())
+        {
+            controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+            return;
+        }
+        if (authoringExitRequested && localizationWorkbench.Enabled && !dialogContext.IsBusy)
+        {
+            UpdateLocalizationAuthoring(gameTime.ElapsedGameTime);
+            controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+            return;
+        }
         if (dialogContext.IsBusy)
         {
             dialogInputBlocked = true;
@@ -323,11 +341,11 @@ internal sealed partial class RecreateGame : Game
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames)
         {
-            Exit();
+            ExitGame();
         }
         if (options.ExitAfterSeconds is double duration && gameTime.TotalGameTime.TotalSeconds >= duration)
         {
-            Exit();
+            ExitGame();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateAutoPlay(gameTime, input))
@@ -421,7 +439,7 @@ internal sealed partial class RecreateGame : Game
             if (input.Cancel)
             {
                 fieldAudio?.PlayUiSound(GameUi.MenuSound.Cancel);
-                gameMenus!.ShowTitleExitConfirmation(Exit);
+                gameMenus!.ShowTitleExitConfirmation(ExitGame);
             }
         }
         else if (session.State.Scene == SceneKind.Movie)
@@ -665,7 +683,7 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (!physicalInput.Enabled)
+        if (!physicalInput.Enabled || windowCloseDecision is not null)
         {
             return;
         }
@@ -1045,7 +1063,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
         {
-            Exit();
+            ExitGame();
             return new { Exiting = true };
         }
         if (request.Command.Equals("graphics-restart", StringComparison.OrdinalIgnoreCase))
@@ -1300,8 +1318,13 @@ internal sealed partial class RecreateGame : Game
             text.BeginFrame();
             batch.Begin(samplerState: SamplerState.LinearClamp);
             DrawModelBrowserUi(GraphicsDevice.Viewport.Bounds);
+            if (authoringExitRequested)
+            {
+                DrawLocalizationAuthoring(GraphicsDevice.Viewport.Bounds);
+            }
             DrawFps(GraphicsDevice.Viewport.Bounds);
             DrawGameConfirmation(GraphicsDevice.Viewport.Bounds);
+            DrawWindowCloseConfirmation(GraphicsDevice.Viewport.Bounds);
             batch.End();
             CapturePresentedFrame(gameTime);
             base.Draw(gameTime);
@@ -1471,6 +1494,7 @@ internal sealed partial class RecreateGame : Game
         DrawModelBrowserUi(bounds);
         DrawFps(bounds);
         DrawGameConfirmation(bounds);
+        DrawWindowCloseConfirmation(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);
@@ -1514,6 +1538,7 @@ internal sealed partial class RecreateGame : Game
             nativeBackBuffer?.Dispose();
 #endif
             confirmationOverlay.Dispose();
+            windowCloseConfirmation.Dispose();
             if (ModelBrowserDialogs.Confirmation?.Target == this)
             {
                 ModelBrowserDialogs.Confirmation = null;

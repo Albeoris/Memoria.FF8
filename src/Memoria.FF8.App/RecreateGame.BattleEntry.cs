@@ -69,7 +69,7 @@ internal sealed partial class RecreateGame
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames || options.ExitAfterSeconds is double duration && gameTime.TotalGameTime.TotalSeconds >= duration)
         {
-            Exit();
+            ExitGame();
         }
         NativeBattleEntryTransition transition = battleEntryTransition!;
         if (Stopwatch.GetElapsedTime(battleEntryCallbackStarted).TotalMilliseconds >= NativeBattleEntryTransition.CallbackMilliseconds)
@@ -134,6 +134,11 @@ internal sealed partial class RecreateGame
         batch.Begin(samplerState: SamplerState.LinearClamp);
         batch.Draw(battleEntryPrevious!, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
         DrawFps(bounds);
+        if (authoringExitRequested)
+        {
+            DrawLocalizationAuthoring(bounds);
+        }
+        DrawWindowCloseConfirmation(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);

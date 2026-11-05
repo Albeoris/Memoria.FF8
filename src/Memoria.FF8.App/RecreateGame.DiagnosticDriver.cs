@@ -331,7 +331,7 @@ internal sealed partial class RecreateGame
         }
         diagnosticDriver = null;
         WriteDiagnosticFinalizationStage("exit-requested");
-        Exit();
+        ExitGame();
     }
 
     private void WriteDiagnosticFinalizationStage(string stage)

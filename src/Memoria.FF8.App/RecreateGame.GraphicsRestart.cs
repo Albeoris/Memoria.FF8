@@ -76,7 +76,7 @@ internal sealed partial class RecreateGame
             }
             File.Move(temporary, requestPath);
             Console.WriteLine($"Graphics restart: requested={backend} state={saved.Path} scene={session.State.Scene} field={session.State.FieldId}");
-            Exit();
+            ExitGame();
             return new { Restarting = true, Path = saved.Path, Backend = backend.ToString() };
         }
         catch

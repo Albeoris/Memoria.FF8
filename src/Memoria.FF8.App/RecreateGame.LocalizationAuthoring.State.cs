@@ -31,7 +31,11 @@ internal sealed partial class RecreateGame
             await using FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             return await JsonSerializer.DeserializeAsync<AuthoringWorkspace>(input).ConfigureAwait(false);
         });
-        localizationWorkbench.DisableCancelled = () => authoringExitRequested = false;
+        localizationWorkbench.DisableCancelled = () =>
+        {
+            authoringExitRequested = false;
+            windowCloseApproved = false;
+        };
     }
 
     private void PollAuthoringWorkspace()
@@ -89,13 +93,15 @@ internal sealed partial class RecreateGame
                     else
                     {
                         authoringExitAllowed = true;
-                        Exit();
+                        ExitGame();
                     }
                 }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
+                authoringExitSaveFailed = authoringExitRequested;
                 authoringExitRequested = false;
+                windowCloseApproved = false;
                 authoringNotice = "Authoring state could not be saved; recovery remains available in this session: " + exception.Message;
             }
         }
@@ -159,6 +165,11 @@ internal sealed partial class RecreateGame
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
+        if (!ConfirmWindowClose())
+        {
+            args.Cancel = true;
+            return;
+        }
         if (authoringWorkspaceInitialized && !authoringExitAllowed)
         {
             args.Cancel = true;

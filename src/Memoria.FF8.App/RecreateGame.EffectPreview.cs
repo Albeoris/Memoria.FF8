@@ -132,18 +132,18 @@ internal sealed partial class RecreateGame
                 {
                     throw new TimeoutException("The complete ability did not drain its native graphics, descriptors, files and camera within the preview deadline.");
                 }
-                Exit();
+                ExitGame();
             }
             else if (request.AbilityId is null && effectPreviewPresented && now - effectPreviewStartedSeconds >= request.DurationSeconds)
             {
-                Exit();
+                ExitGame();
             }
         }
         catch (Exception exception)
         {
             effectPreviewFailed = true;
             effectPreviewGate!.Write("blocked", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, exception.ToString());
-            Exit();
+            ExitGame();
         }
     }
 }

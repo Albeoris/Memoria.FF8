@@ -17,36 +17,41 @@ internal sealed partial class RecreateGame
 
     private void UpdateGameConfirmation()
     {
-        if (!confirmationOverlay.IsOpen)
+        UpdateGameConfirmation(confirmationOverlay);
+    }
+
+    private void UpdateGameConfirmation(GameConfirmationOverlay overlay)
+    {
+        if (!overlay.IsOpen)
         {
             return;
         }
         InputFrame input = keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), IsActive);
         if (input.Cancel)
         {
-            confirmationOverlay.Handle(UiKey.Cancel);
+            overlay.Handle(UiKey.Cancel);
         }
         else if (input.Confirm)
         {
-            confirmationOverlay.Handle(UiKey.Confirm);
+            overlay.Handle(UiKey.Confirm);
         }
         else
         {
             if (input.MenuHorizontal != 0)
             {
-                confirmationOverlay.Handle(input.MenuHorizontal < 0 ? UiKey.Left : UiKey.Right);
+                overlay.Handle(input.MenuHorizontal < 0 ? UiKey.Left : UiKey.Right);
             }
             if (input.MenuVertical != 0)
             {
-                confirmationOverlay.Handle(input.MenuVertical < 0 ? UiKey.Up : UiKey.Down);
+                overlay.Handle(input.MenuVertical < 0 ? UiKey.Up : UiKey.Down);
             }
             if (input.MenuPage != 0)
             {
-                confirmationOverlay.Handle(input.MenuPage < 0 ? UiKey.PageUp : UiKey.PageDown);
+                overlay.Handle(input.MenuPage < 0 ? UiKey.PageUp : UiKey.PageDown);
             }
         }
         MouseState mouse = physicalInput.ReadMouse();
-        confirmationOverlay.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
+        overlay.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
     }
 
     private void DrawGameConfirmation(Rectangle bounds)

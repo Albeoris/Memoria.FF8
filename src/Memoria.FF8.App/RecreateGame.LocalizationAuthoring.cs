@@ -621,9 +621,7 @@ internal sealed partial class RecreateGame
 
     private bool UpdateLocalizationAuthoring(TimeSpan elapsed)
     {
-        localizationWorkbench.Poll();
         PollAuthoringTerms();
-        PollAuthoringWorkspace();
         PollLocalizationAuthoring();
         PollAuthoringRecovery();
         if (localizationWorkbench.Enabled && authoringSelection?.Inputs is { } inputs && authoringSelectionTask is null)
