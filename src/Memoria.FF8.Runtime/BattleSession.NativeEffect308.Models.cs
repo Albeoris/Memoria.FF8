@@ -26,11 +26,10 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer pointer = NativeEffect308SkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48 + 18);
         byte[] bytes = BitConverter.GetBytes(value);
-        if (pointer.Cpu is { Bank: < 3 } reference)
+        if (pointer.Cpu is { Bank: < 3 })
         {
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect308 lost its current CPU resources.");
-            NativeBattleModelCpuBank bank = cpu.Cpu.Banks[reference.Bank].Write(checked(reference.Offset + offset), bytes);
-            NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
+            NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(cpu, frame.Staging ?? throw new NotSupportedException("Effect308 requires its current source scope."), pointer, offset, bytes);
             return frame;
         }
         uint address = checked((pointer.Cpu?.SharedAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect308 requires its actual shared skeleton owner.")) + (uint)offset);
@@ -45,27 +44,7 @@ public sealed partial class BattleSession
         for (int bone = 0; bone < bones.Length; bone++)
         {
             int offset = checked(32 + bone * 48 + 18);
-            NativeBattleEffectArena padding = NativeBattleEffectArena.Clear().MarkUnknown(0, 2);
-            if (pointer.Cpu is { Bank: < 3 } reference)
-            {
-                NativeBattleModelCpuBank bank = (NativeModelCpuResources ?? throw new NotSupportedException("Effect308 lost its current CPU resources.")).Cpu.Banks[reference.Bank];
-                int first = checked(reference.Offset + offset);
-                foreach (NativeBattleEffectMemoryRegion region in bank.KnownRanges)
-                {
-                    int start = Math.Max(first, region.Offset);
-                    int end = Math.Min(first + 2, region.Offset + region.Data.Length);
-                    if (start < end)
-                    {
-                        padding = padding.Write(start - first, region.Data.AsSpan().Slice(start - region.Offset, end - start));
-                    }
-                }
-            }
-            else
-            {
-                uint address = checked((pointer.Cpu?.SharedAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect308 requires its actual shared skeleton owner.")) + (uint)offset);
-                padding = NativeBattleEffect308Controller.ReadBytes(frame, address, 2);
-            }
-            (byte[] bytes, bool[] known) = padding.ReadSnapshot(0, 2);
+            (byte[] bytes, bool[] known) = NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging ?? throw new NotSupportedException("Effect308 requires its current source scope."), pointer, offset, 2, (address, count) => NativeBattleEffect308Controller.ReadBytes(frame, address, count).ReadSnapshot(0, count));
             NativeBattlePackedMatrix32 matrix = NativeBattlePackedMatrix32.FromMatrix(bones[bone], null);
             packed.Add(matrix with { Bytes = matrix.Bytes.SetItem(18, bytes[0]).SetItem(19, bytes[1]), Known = matrix.Known.SetItem(18, known[0]).SetItem(19, known[1]) });
         }
