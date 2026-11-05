@@ -7,20 +7,31 @@ public static class NativeBattleControl18Shards
 {
     public static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> records, Func<uint, int, ImmutableArray<byte>> readPolygon, ReadOnlySpan<uint> shadeTable, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, int orderingBaseBucket, Func<NativeBattleVector, System.Numerics.Vector3>? pilotWorld = null, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity = null)
     {
+        return EmitCore(records, null, (pointer, length) => readPolygon(pointer.StagingAddress ?? throw new InvalidDataException("Numeric breakup rendering requires its guest polygon address."), length), shadeTable, project, orderingBaseBucket, pilotWorld, pilotIdentity);
+    }
+
+    internal static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> records, ImmutableDictionary<int, NativeBattleResourcePointer> pointers, Func<NativeBattleResourcePointer, int, ImmutableArray<byte>> readPolygon, ReadOnlySpan<uint> shadeTable, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, int orderingBaseBucket, Func<NativeBattleVector, System.Numerics.Vector3>? pilotWorld = null, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity = null)
+    {
+        return EmitCore(records, pointers, readPolygon, shadeTable, project, orderingBaseBucket, pilotWorld, pilotIdentity);
+    }
+
+    private static NativeBattleGfGeometryBatch EmitCore(ReadOnlySpan<byte> records, ImmutableDictionary<int, NativeBattleResourcePointer>? pointers, Func<NativeBattleResourcePointer, int, ImmutableArray<byte>> readPolygon, ReadOnlySpan<uint> shadeTable, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, int orderingBaseBucket, Func<NativeBattleVector, System.Numerics.Vector3>? pilotWorld, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity)
+    {
         if (records.Length % 68 != 0)
         {
             throw new InvalidDataException("Native shards require complete68-byte records.");
         }
+        ImmutableDictionary<int, NativeBattleResourcePointer> owners = NativeBattleControl18ResourceRecords.Require(pointers, records.Length);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
         for (int offset = 0; offset < records.Length; offset += 68)
         {
             ReadOnlySpan<byte> record = records.Slice(offset, 68);
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(record);
-            if (pointer == 0)
+            if (!NativeBattleControl18ResourceRecords.Active(records, offset, owners))
             {
                 continue;
             }
+            NativeBattleResourcePointer pointer = owners.TryGetValue(offset, out NativeBattleResourcePointer? retained) ? retained : new(null, BinaryPrimitives.ReadUInt32LittleEndian(record));
             bool quad = record[0x26] != 0;
             int corners = quad ? 4 : 3;
             int length = quad ? 40 : 32;
@@ -75,7 +86,8 @@ public static class NativeBattleControl18Shards
             if (primitive is not null && world is not null)
             {
                 NativeBattlePilotVisualIdentity identity = pilotIdentity!(offset / 68);
-                identity = identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ pointer) };
+                long sourceIdentity = (pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress) is uint numeric ? numeric : pointer.Cpu is { } reference && pointer.CpuPublication is { } publication ? unchecked(NativeBattlePilotVisualLifetimes.EpochFor(publication) * 397 ^ reference.Offset) : throw new NotSupportedException("Logical breakup rendering requires its retained source publication.");
+                identity = identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ sourceIdentity) };
                 primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)corners)) };
             }
             attempts.Add(new(allocation, packet.ToImmutableArray(), states, primitive));

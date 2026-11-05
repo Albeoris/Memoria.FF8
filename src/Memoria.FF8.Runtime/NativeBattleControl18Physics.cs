@@ -3,25 +3,34 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleControl18PhysicsStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount);
+public sealed record NativeBattleControl18PhysicsStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount)
+{
+    public ImmutableDictionary<int, NativeBattleResourcePointer> ResourcePointers { get; init; } = ImmutableDictionary<int, NativeBattleResourcePointer>.Empty;
+}
 
 public static class NativeBattleControl18Physics
 {
     public static NativeBattleControl18PhysicsStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ushort mode)
     {
+        return Advance(source, polygonStates, liveCount, mode, null);
+    }
+
+    internal static NativeBattleControl18PhysicsStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ushort mode, ImmutableDictionary<int, NativeBattleResourcePointer>? pointers)
+    {
         if (source.Length % 68 != 0)
         {
             throw new InvalidDataException("Native breakup physics requires complete68-byte records.");
         }
+        ImmutableDictionary<int, NativeBattleResourcePointer> owners = NativeBattleControl18ResourceRecords.Require(pointers, source.Length);
         byte[] records = source.ToArray();
         byte[] states = polygonStates.ToArray();
         if (mode > 7 || mode == 4)
         {
-            return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount);
+            return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount) { ResourcePointers = owners };
         }
         for (int offset = 0; offset < records.Length; offset += 68)
         {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(records.AsSpan(offset)) == 0)
+            if (!NativeBattleControl18ResourceRecords.Active(records, offset, owners))
             {
                 continue;
             }
@@ -54,6 +63,7 @@ public static class NativeBattleControl18Physics
             if (life <= 0)
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(offset), 0);
+                owners = owners.Remove(offset);
                 liveCount = unchecked((ushort)(liveCount - 1));
                 ushort polygon = BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan(offset + 0x30));
                 states[polygon] = 255;
@@ -68,6 +78,6 @@ public static class NativeBattleControl18Physics
                 BinaryPrimitives.WriteInt32LittleEndian(records.AsSpan(offset + position), unchecked(Dword(position) + (SignedWord(velocity) << 4)));
             }
         }
-        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount);
+        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount) { ResourcePointers = owners };
     }
 }

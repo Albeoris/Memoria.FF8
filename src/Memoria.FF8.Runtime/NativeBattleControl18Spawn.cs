@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleControl18Face(uint Address, bool Quad, ImmutableArray<NativeBattleVector> Vertices);
-public sealed record NativeBattleControl18SpawnStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount, NativeCrtRandomState Random, int? LastDistance, ImmutableArray<NativeBattleVector> LastVertices, int? FallbackCountdown = null);
+public sealed record NativeBattleControl18SpawnStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount, NativeCrtRandomState Random, int? LastDistance, ImmutableArray<NativeBattleVector> LastVertices, int? FallbackCountdown = null)
+{
+    public ImmutableDictionary<int, NativeBattleResourcePointer> ResourcePointers { get; init; } = ImmutableDictionary<int, NativeBattleResourcePointer>.Empty;
+}
 public sealed record NativeBattleControl18SpawnServices(int Interval, Func<NativeCrtRandomState, int, int, int, int, NativeCrtRandomState> EmitAuxiliary)
 {
     public ImmutableArray<byte> Mode5Anchors { get; init; }
@@ -15,10 +18,23 @@ public static class NativeBattleControl18Spawn
 {
     public static NativeBattleControl18SpawnStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<NativeBattleControl18Face> faces, short threshold, NativeCrtRandomState random, NativeBattleControl18SpawnServices? services = null)
     {
+        return AdvanceCore(source, polygonStates, liveCount, payload, faces, face => new(face.Address, null, face.Quad, face.Vertices), threshold, random, services, null);
+    }
+
+    internal static NativeBattleControl18SpawnStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<NativeBattleControl18ResourceFace> faces, short threshold, NativeCrtRandomState random, NativeBattleControl18SpawnServices? services, ImmutableDictionary<int, NativeBattleResourcePointer> pointers)
+    {
+        return AdvanceCore(source, polygonStates, liveCount, payload, faces, face => new(face.Source.Cpu?.TryPhysicalAddress() ?? face.Source.StagingAddress, face.Source, face.Quad, face.Vertices), threshold, random, services, pointers);
+    }
+
+    private readonly record struct Face(uint? Address, NativeBattleResourcePointer? Source, bool Quad, ImmutableArray<NativeBattleVector> Vertices);
+
+    private static NativeBattleControl18SpawnStep AdvanceCore<TFace>(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<TFace> faces, Func<TFace, Face> selectFace, short threshold, NativeCrtRandomState random, NativeBattleControl18SpawnServices? services, ImmutableDictionary<int, NativeBattleResourcePointer>? pointers)
+    {
         if (source.Length % 68 != 0 || payload.Length < 0x32 || faces.Count > polygonStates.Length)
         {
             throw new InvalidDataException("Native breakup spawning requires complete records, controls and polygon states.");
         }
+        ImmutableDictionary<int, NativeBattleResourcePointer> owners = NativeBattleControl18ResourceRecords.Require(pointers, source.Length);
         byte[] records = source.ToArray();
         byte[] states = polygonStates.ToArray();
         byte[] controls = payload.ToArray();
@@ -49,7 +65,7 @@ public static class NativeBattleControl18Spawn
             {
                 break;
             }
-            NativeBattleControl18Face face = faces[polygon];
+            Face face = selectFace(faces[polygon]);
             int count = face.Quad ? 4 : 3;
             if (face.Vertices.Length != count)
             {
@@ -84,7 +100,7 @@ public static class NativeBattleControl18Spawn
             {
                 break;
             }
-            while (cursor < records.Length && BinaryPrimitives.ReadUInt32LittleEndian(records.AsSpan(cursor)) != 0)
+            while (cursor < records.Length && NativeBattleControl18ResourceRecords.Active(records, cursor, owners))
             {
                 cursor += 68;
             }
@@ -92,7 +108,26 @@ public static class NativeBattleControl18Spawn
             {
                 throw new InvalidDataException("Native breakup live count disagrees with its physical free-record scan.");
             }
-            BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(cursor), face.Address);
+            if (face.Source is { } pointer)
+            {
+                if (!pointer.HasValidOwner() || pointer.CpuRow is not null || pointer.Cpu is { Bank: < 3 } && pointer.CpuPublication is null)
+                {
+                    throw new InvalidDataException("Native breakup spawning requires its selected polygon source.");
+                }
+                owners = owners.SetItem(cursor, pointer);
+            }
+            if (face.Address is uint address)
+            {
+                if (address == 0)
+                {
+                    throw new InvalidDataException("Native breakup spawning cannot activate a null polygon address.");
+                }
+                BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(cursor), address);
+            }
+            else if (face.Source is null)
+            {
+                throw new InvalidDataException("Native breakup spawning requires an addressed or typed polygon source.");
+            }
             records[cursor + 0x26] = face.Quad ? (byte)1 : (byte)0;
             records[cursor + 0x2E] = controls[0xC];
             Write16(0x30, polygon);
@@ -143,7 +178,7 @@ public static class NativeBattleControl18Spawn
             liveCount = unchecked((ushort)(liveCount + 1));
             cursor += 68;
         }
-        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount, random, lastDistance, lastVertices, services is not null ? countdown : null);
+        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount, random, lastDistance, lastVertices, services is not null ? countdown : null) { ResourcePointers = owners };
 
         ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(controls.AsSpan(offset));
         short S16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(controls.AsSpan(offset));

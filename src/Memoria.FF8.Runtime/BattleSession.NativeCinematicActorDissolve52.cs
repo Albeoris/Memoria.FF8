@@ -25,9 +25,10 @@ public sealed partial class BattleSession
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor dissolve requires its current staging owner.");
         int physicalRow = actor.ActiveResourceRow100 ?? throw new NotSupportedException("Native actor dissolve requires its physical resource row.");
         NativeBattleModelCpuResourceRow row = cpu.Rows[physicalRow];
-        NativeBattleModelCpuReference geometry = row.Require(16);
+        NativeBattleResourcePointer geometry = new(row.Require(16), null, row.Lengths.TryGetValue(16, out int extent) ? extent : null);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, staging, geometry, (offset, length) => NativeBattleModelResourceView.Open(cpu, staging, geometry, checked(offset + length)).Read(offset, length));
         List<ImmutableArray<ushort>> objectCounts = [];
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, staging, geometry with { Offset = checked(geometry.Offset + offset) }, length), pose.BoneCount, (_, counts, _, _) => objectCounts.Add(counts));
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(source.Read, pose.BoneCount, (_, counts, _, _) => objectCounts.Add(counts));
         uint clone = Slot32(0xBC);
         if (clone == 0)
         {
@@ -78,7 +79,7 @@ public sealed partial class BattleSession
         }
         if (visualIdentity.Effect == 265)
         {
-            visualIdentity = NativeBattleCinematic31Presentation.DissolveSource(visualIdentity, frame.Arena, clone, NativeBattleModelResourceRow.Address100(actor), geometry.PhysicalAddress);
+            visualIdentity = NativeBattleCinematic31Presentation.DissolveSource(visualIdentity, frame.Arena, clone, NativeBattleModelResourceRow.Address100(actor), source.PresentationIdentity);
         }
         uint state = Slot32(0xC0);
         uint counters = Slot32(0xC4);
@@ -232,12 +233,7 @@ public sealed partial class BattleSession
 
         void RefreshClone()
         {
-            // Descriptor handle bytes remain symbolic; the typed current pose and CPU row own their resources.
-            frame = frame with { Arena = frame.Arena.MarkUnknown(ArenaOffset(clone + 0x10, 12), 12) };
-            foreach (int field in new[] { 12, 16, 20, 24 })
-            {
-                Put32(clone + 0x30u + (uint)(field - 12), row.Require(field).PhysicalAddress);
-            }
+            frame = frame with { Arena = NativeBattleCinematicActorResourceDescriptors.Refresh(frame.Arena, cpu, row, clone) };
         }
 
         void PublishPackedInput(NativeBattleVector input)

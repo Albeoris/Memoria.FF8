@@ -10,11 +10,22 @@ public static class NativeBattleCinematicBreakupMode5
     public static NativeBattleCinematicBreakupMode5Step Initialize(NativeBattleWaterExecutionFrame frame, NativeBattleVector anchor, IReadOnlyList<NativeBattleControl18Face> faces)
     {
         ArgumentNullException.ThrowIfNull(faces);
-        byte[] records = new byte[checked(faces.Count * 4)];
+        return Initialize(frame, anchor, faces.Count, index => (faces[index].Quad, faces[index].Vertices));
+    }
+
+    internal static NativeBattleCinematicBreakupMode5Step Initialize(NativeBattleWaterExecutionFrame frame, NativeBattleVector anchor, IReadOnlyList<NativeBattleControl18ResourceFace> faces)
+    {
+        ArgumentNullException.ThrowIfNull(faces);
+        return Initialize(frame, anchor, faces.Count, index => (faces[index].Quad, faces[index].Vertices));
+    }
+
+    private static NativeBattleCinematicBreakupMode5Step Initialize(NativeBattleWaterExecutionFrame frame, NativeBattleVector anchor, int count, Func<int, (bool Quad, ImmutableArray<NativeBattleVector> Vertices)> readFace)
+    {
+        byte[] records = new byte[checked(count * 4)];
         frame = frame.WriteTemporaryWord(0xD0, unchecked((ushort)anchor.X)).WriteTemporaryWord(0xD2, unchecked((ushort)anchor.Y)).WriteTemporaryWord(0xD4, unchecked((ushort)anchor.Z));
-        for (int index = 0; index < faces.Count; index++)
+        for (int index = 0; index < count; index++)
         {
-            NativeBattleControl18Face face = faces[index];
+            var face = readFace(index);
             int corners = face.Quad ? 4 : 3;
             if (face.Vertices.IsDefault || face.Vertices.Length != corners)
             {
@@ -38,4 +49,14 @@ public static class NativeBattleCinematicBreakupMode5
         }
         return NativeBattleControl18Spawn.Advance(records, polygonStates, liveCount, payload, faces, threshold, random, services with { Mode5Anchors = anchors.ToArray().ToImmutableArray() });
     }
+    internal static NativeBattleControl18SpawnStep Advance(ReadOnlySpan<byte> records, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<NativeBattleControl18ResourceFace> faces, short threshold, ReadOnlySpan<byte> anchors, NativeCrtRandomState random, NativeBattleControl18SpawnServices services, ImmutableDictionary<int, NativeBattleResourcePointer> pointers)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (payload.Length < 0x4C || BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(8, 2)) != 5)
+        {
+            throw new NotSupportedException("Native radial breakup requires its actual mode-five control payload.");
+        }
+        return NativeBattleControl18Spawn.Advance(records, polygonStates, liveCount, payload, faces, threshold, random, services with { Mode5Anchors = anchors.ToArray().ToImmutableArray() }, pointers);
+    }
+
 }

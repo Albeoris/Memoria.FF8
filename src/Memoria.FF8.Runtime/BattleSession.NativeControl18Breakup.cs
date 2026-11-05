@@ -25,11 +25,11 @@ public sealed partial class BattleSession
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native breakup drawing requires its current shared staging owner.");
         int physicalRow = actor.ActiveResourceRow100 ?? throw new NotSupportedException("Native breakup drawing requires its physical resource row.");
         NativeBattleModelCpuResourceRow row = cpu.Rows[physicalRow];
-        NativeBattleModelCpuReference geometry = row.Require(16);
-        uint geometryAddress = geometry.PhysicalAddress;
-        long visualSource = unchecked((long)NativeBattleModelResourceRow.Address100(actor) * 397 ^ geometryAddress);
+        NativeBattleResourcePointer geometry = new(row.Require(16), null, row.Lengths.TryGetValue(16, out int extent) ? extent : null);
+        NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, staging, geometry, (offset, length) => NativeBattleModelResourceView.Open(cpu, staging, geometry, checked(offset + length)).Read(offset, length));
+        long visualSource = unchecked((long)NativeBattleModelResourceRow.Address100(actor) * 397 ^ source.PresentationIdentity);
         var objectRecords = new List<(ImmutableArray<ushort> Counts, int Offset)>();
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => ReadGeometry(checked(geometryAddress + (uint)offset), length), pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(source.Read, pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
         ushort mode = Word(payload + 8);
         if (mode is not (1 or 2 or 5 or 6 or 7))
         {
@@ -99,11 +99,7 @@ public sealed partial class BattleSession
         int recordsLength = (Word(work + 2) + 1) * 68;
         int polygonCount = Word(work + 4);
         frame = frame.WriteTemporaryDword(0x90, payload).WriteTemporaryDword(0x80, clone).WriteTemporaryDword(0x84, work).WriteTemporaryDword(0x88, states).WriteTemporaryDword(0x8C, Slot32(0xA0)).WriteTemporaryDword(0x48, Dword(work + 8)).WriteTemporaryDword(0x4C, Dword(work + 12));
-        frame = frame with { Arena = frame.Arena.MarkUnknown(ArenaOffset(clone + 0x10, 12), 12) };
-        foreach (int field in new[] { 12, 16, 20, 24 })
-        {
-            Put32(clone + 0x30u + (uint)(field - 12), row.Require(field).PhysicalAddress);
-        }
+        frame = frame with { Arena = NativeBattleCinematicActorResourceDescriptors.Refresh(frame.Arena, cpu, row, clone) };
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, pose);
         ImmutableArray<NativeBattleActionMatrix> localBones = NativeBattleBodyBoneMatrices.Require(actor, pose);
         if (initializeRadialCache)
@@ -112,7 +108,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix anchorBasis = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(globalBasis.AsSpan(index * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(28)), 4096);
             NativeBattleWaterActorAnchorResult anchor = CreateNativeActorAnchorServices().EvaluateB66B80(frame, pose.Skeleton, localBones, 0xF1, 4096, anchorBasis);
             frame = anchor.Frame;
-            List<NativeBattleControl18Face> radialFaces = BuildFaces();
+            List<NativeBattleControl18ResourceFace> radialFaces = BuildFaces();
             NativeBattleCinematicBreakupMode5Step initialized = NativeBattleCinematicBreakupMode5.Initialize(frame, new(unchecked((short)anchor.Anchor.X), unchecked((short)anchor.Anchor.Y), unchecked((short)anchor.Anchor.Z)), radialFaces);
             frame = initialized.Frame;
             Put(Dword(work + 0x18), initialized.Anchors.AsSpan());
@@ -138,6 +134,20 @@ public sealed partial class BattleSession
             }
         }
         byte[] recordBytes = frame.Arena.ReadSnapshot(ArenaOffset(work + 32, recordsLength), recordsLength).Data;
+        ImmutableDictionary<int, NativeBattleResourcePointer>.Builder capturedPointers = ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer>();
+        for (int offset = 0; offset < recordsLength; offset += 68)
+        {
+            int field = ArenaOffset(work + 32u + (uint)offset, 4);
+            if (frame.Arena.TryGetResourcePointer(field, out NativeBattleResourcePointer? pointer))
+            {
+                capturedPointers.Add(offset, pointer ?? throw new InvalidDataException("Native breakup record has no retained polygon owner."));
+            }
+            else if (frame.Arena.ReadSnapshot(field, 4).Known.Any(known => !known))
+            {
+                throw new NotSupportedException("Native breakup record has unknown polygon bytes without a source receipt.");
+            }
+        }
+        ImmutableDictionary<int, NativeBattleResourcePointer> recordPointers = NativeBattleControl18ResourceRecords.Require(capturedPointers.ToImmutable(), recordsLength);
         byte[] polygonStates = Read(states, polygonCount);
         if (CoreDword(frame, 0x27973B8) != frame.TemporaryFrame.Address + 0x100)
         {
@@ -153,7 +163,7 @@ public sealed partial class BattleSession
                 limit = 1;
             }
             frame = frame.WriteTemporaryDword(0x50, mode).WriteTemporaryDword(0x54, unchecked((uint)controlX)).WriteTemporaryDword(0x58, unchecked((uint)controlZ)).WriteTemporaryDword(0x5C, 0).WriteTemporaryDword(0x40, unchecked((uint)limit)).WriteTemporaryDword(0x44, unchecked((uint)limit)).WriteTemporaryDword(0xF0, unchecked((uint)(short)SlotWord(frame, 0x96)));
-            List<NativeBattleControl18Face> faces = BuildFaces();
+            List<NativeBattleControl18ResourceFace> faces = BuildFaces();
             NativeBattleControl18SpawnServices? spawnServices = mode is 1 or 5 or 6 or 7 || Word(payload + 0xE) != 0 || Word(payload + 0x2E) != 0 || Word(payload + 0x30) != 0 ? new(limit, (random, x, y, z, count) =>
             {
                 frame = frame with { Random = random };
@@ -171,13 +181,13 @@ public sealed partial class BattleSession
                     return frame.Random;
                 }
             } : null;
-            NativeBattleControl18SpawnStep spawn = mode == 5 ? NativeBattleCinematicBreakupMode5.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, 0x4C), faces, unchecked((short)SlotWord(frame, 0x96)), Read(Dword(work + 0x18), polygonCount * 4), frame.Random, spawnServices!) : NativeBattleControl18Spawn.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, spawnServices is not null ? 0x4C : 0x32), faces, unchecked((short)SlotWord(frame, 0x96)), frame.Random, spawnServices);
+            NativeBattleControl18SpawnStep spawn = mode == 5 ? NativeBattleCinematicBreakupMode5.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, 0x4C), faces, unchecked((short)SlotWord(frame, 0x96)), Read(Dword(work + 0x18), polygonCount * 4), frame.Random, spawnServices!, recordPointers) : NativeBattleControl18Spawn.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, spawnServices is not null ? 0x4C : 0x32), faces, unchecked((short)SlotWord(frame, 0x96)), frame.Random, spawnServices, recordPointers);
             frame = frame with { Random = spawn.Random };
             if (spawn.FallbackCountdown is int countdown)
             {
                 frame = frame.WriteTemporaryDword(0x44, unchecked((uint)countdown));
             }
-            PublishRecords(recordBytes, spawn.Records.AsSpan(), true);
+            PublishRecords(recordBytes, spawn.Records.AsSpan(), true, recordPointers, spawn.ResourcePointers);
             Put(states, spawn.PolygonStates.AsSpan());
             Put16(work + 6, spawn.LiveCount);
             if (spawn.LastDistance is int distance)
@@ -189,8 +199,9 @@ public sealed partial class BattleSession
                     frame = frame.WriteTemporaryWord(0xC0 + index * 8, unchecked((ushort)point.X)).WriteTemporaryWord(0xC2 + index * 8, unchecked((ushort)point.Y)).WriteTemporaryWord(0xC4 + index * 8, unchecked((ushort)point.Z));
                 }
             }
-            NativeBattleControl18PhysicsStep physics = NativeBattleControl18Physics.Advance(spawn.Records.AsSpan(), spawn.PolygonStates.AsSpan(), spawn.LiveCount, mode);
-            PublishRecords(spawn.Records.AsSpan(), physics.Records.AsSpan(), false);
+            NativeBattleControl18PhysicsStep physics = NativeBattleControl18Physics.Advance(spawn.Records.AsSpan(), spawn.PolygonStates.AsSpan(), spawn.LiveCount, mode, spawn.ResourcePointers);
+            PublishRecords(spawn.Records.AsSpan(), physics.Records.AsSpan(), false, spawn.ResourcePointers, physics.ResourcePointers);
+            recordPointers = physics.ResourcePointers;
             Put(states, physics.PolygonStates.AsSpan());
             Put16(work + 6, physics.LiveCount);
             recordBytes = physics.Records.ToArray();
@@ -211,7 +222,7 @@ public sealed partial class BattleSession
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, bodyBasis);
         graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
         Put32(clone + 0x44, CoreDword(frame, manager + 0x74));
-        int highestLife = Enumerable.Range(0, recordBytes.Length / 68).Where(index => BinaryPrimitives.ReadUInt32LittleEndian(recordBytes.AsSpan(index * 68)) != 0).Select(index => (int)unchecked((sbyte)recordBytes[index * 68 + 0x2E])).DefaultIfEmpty(0).Max();
+        int highestLife = Enumerable.Range(0, recordBytes.Length / 68).Where(index => NativeBattleControl18ResourceRecords.Active(recordBytes, index * 68, recordPointers)).Select(index => (int)unchecked((sbyte)recordBytes[index * 68 + 0x2E])).DefaultIfEmpty(0).Max();
         DrawBody();
         if (Word(payload + 0x2E) != 0)
         {
@@ -294,15 +305,15 @@ public sealed partial class BattleSession
                     Put16(clone + 0x4A, directory.Counts[1]);
                     Put16(clone + 0x4C, directory.Counts[2]);
                     Put16(clone + 0x4E, directory.Counts[3]);
-                    Put32(clone + 0x40, geometryAddress + (uint)directory.Offset);
+                    frame = frame with { Arena = source.WriteCursor(frame.Arena, ArenaOffset(clone + 0x40, 4), directory.Offset) };
                     Func<int, ImmutableArray<uint>, uint, uint>? light = ReadSlot(frame, 0xE1, 1)[0] != 0 ? ShadeFace : null;
-                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(ReadGeometry(geometryAddress + (uint)directory.Offset, directory.Counts[0] * 16), ReadGeometry(geometryAddress + (uint)directory.Offset + (uint)(directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, light, OtBucket(frame.ReadTemporaryDword(0x14C)), worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, meshIndex, false, visualSource));
+                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(source.Read(directory.Offset, directory.Counts[0] * 16), source.Read(checked(directory.Offset + directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, light, OtBucket(frame.ReadTemporaryDword(0x14C)), worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, meshIndex, false, visualSource));
                     Append(body);
                     globalFace += faces;
                     frame = frame.WriteTemporaryDword(0x60, unchecked((uint)globalFace));
                     uint shadeAddress = Dword(work + 8);
                     uint[] shades = Enumerable.Range(0, highestLife + 1).Select(index => Dword(shadeAddress + 4u * (uint)index)).ToArray();
-                    NativeBattleGfGeometryBatch shards = NativeBattleControl18Shards.Emit(recordBytes, (address, length) => ReadGeometry(address, length).ToImmutableArray(), shades, Project, OtBucket(frame.ReadTemporaryDword(0x14C)), World, slot => NativeBattlePilotVisualLifetimes.Identity(visualIdentity.Effect, frame.Arena, work + 32, slot, meshIndex) with { ResourceGeneration = visualSource });
+                    NativeBattleGfGeometryBatch shards = NativeBattleControl18Shards.Emit(recordBytes, recordPointers, ReadPolygon, shades, Project, OtBucket(frame.ReadTemporaryDword(0x14C)), World, slot => NativeBattlePilotVisualLifetimes.Identity(visualIdentity.Effect, frame.Arena, work + 32, slot, meshIndex) with { ResourceGeneration = visualSource });
                     Append(shards);
                 }
             }
@@ -320,22 +331,22 @@ public sealed partial class BattleSession
                 return color;
             }
         }
-        List<NativeBattleControl18Face> BuildFaces()
+        List<NativeBattleControl18ResourceFace> BuildFaces()
         {
-            var faces = new List<NativeBattleControl18Face>();
+            var faces = new List<NativeBattleControl18ResourceFace>();
             for (int meshIndex = 0; meshIndex < meshes.Length; meshIndex++)
             {
                 NativeBattleRawMesh mesh = meshes[meshIndex];
                 NativeBattleVector[] points = mesh.Vertices.Select((vertex, index) => TransformLocal(localBones[vertex.Bone], vertex.Position, CoreDword(frame, manager + 0x74) + (uint)(index * 8))).ToArray();
-                uint cursor = geometryAddress + (uint)objectRecords[meshIndex].Offset;
+                int cursor = objectRecords[meshIndex].Offset;
                 int plain = objectRecords[meshIndex].Counts[0] + objectRecords[meshIndex].Counts[1];
                 for (int faceIndex = 0; faceIndex < plain; faceIndex++)
                 {
                     NativeBattleRawPolygon face = mesh.Polygons[faceIndex];
                     int corners = face.Quad ? 4 : 3;
                     ImmutableArray<NativeBattleVector> vertices = Enumerable.Range(0, corners).Select(index => points[BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(index * 2)) & 0xFFF]).ToImmutableArray();
-                    faces.Add(new(cursor, face.Quad, vertices));
-                    cursor += face.Quad ? 20u : 16u;
+                    faces.Add(new(source.Cursor(cursor).Pin(cpu), face.Quad, vertices));
+                    cursor = checked(cursor + (face.Quad ? 20 : 16));
                 }
             }
             return faces;
@@ -384,14 +395,14 @@ public sealed partial class BattleSession
             frame = WriteCoreDword(appended.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = appended.Graphics;
         }
-        void PublishRecords(ReadOnlySpan<byte> before, ReadOnlySpan<byte> after, bool spawn)
+        void PublishRecords(ReadOnlySpan<byte> before, ReadOnlySpan<byte> after, bool spawn, ImmutableDictionary<int, NativeBattleResourcePointer> beforePointers, ImmutableDictionary<int, NativeBattleResourcePointer> afterPointers)
         {
             for (int offset = 0; offset < after.Length; offset += 68)
             {
-                uint oldPointer = BinaryPrimitives.ReadUInt32LittleEndian(before.Slice(offset));
-                uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(after.Slice(offset));
+                bool oldActive = NativeBattleControl18ResourceRecords.Active(before, offset, beforePointers);
+                bool active = NativeBattleControl18ResourceRecords.Active(after, offset, afterPointers);
                 uint address = work + 32u + (uint)offset;
-                if (spawn && oldPointer == 0 && pointer != 0)
+                if (spawn && !oldActive && active)
                 {
                     NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, work + 32, offset / 68);
                     foreach ((int start, int length) in new (int, int)[] { (0, 16), (0x10, 6), (0x16, 8), (0x1E, 9), (0x2E, 1), (0x30, 8), (0x3C, 8) })
@@ -403,7 +414,7 @@ public sealed partial class BattleSession
                         Put(address + 0x28, after.Slice(offset + 0x28, 6));
                     }
                 }
-                else if (!spawn && oldPointer != 0)
+                else if (!spawn && oldActive)
                 {
                     Put(address, after.Slice(offset, 16));
                     Put(address + 0x16, after.Slice(offset + 0x16, 2));
@@ -422,12 +433,23 @@ public sealed partial class BattleSession
                     Put(address + 0x3C, after.Slice(offset + 0x3C, 2));
                     Put(address + 0x40, after.Slice(offset + 0x40, 2));
                 }
+                if (afterPointers.TryGetValue(offset, out NativeBattleResourcePointer? pointer) && (spawn && !oldActive && active || !spawn && oldActive))
+                {
+                    frame = frame with { Arena = frame.Arena.WriteResourcePointer(ArenaOffset(address, 4), pointer) };
+                }
             }
         }
-        byte[] ReadGeometry(uint address, int length)
+        ImmutableArray<byte> ReadPolygon(NativeBattleResourcePointer pointer, int length)
         {
-            int offset = checked(geometry.Offset + (int)((long)address - geometryAddress));
-            return NativeBattleModelEnemyHeap.Read(cpu, staging, geometry with { Offset = offset }, length);
+            if (pointer.Cpu is not null)
+            {
+                return NativeBattleModelResourceView.Open(cpu, staging, pointer, length).Read(0, length).ToImmutableArray();
+            }
+            uint address = pointer.StagingAddress ?? throw new NotSupportedException("Native breakup polygon requires its selected source owner.");
+            uint basis = source.NumericCursor(0) ?? throw new NotSupportedException("Logical breakup polygons require their retained source receipts.");
+            NativeBattleModelCpuReference selected = geometry.Cpu!;
+            int offset = checked(selected.Offset + (int)((long)address - basis));
+            return NativeBattleModelEnemyHeap.Read(cpu, staging, selected with { Offset = offset }, length).ToImmutableArray();
         }
         uint ResolveHookOwner(NativeBattleWaterExecutionFrame current, short selector)
         {
