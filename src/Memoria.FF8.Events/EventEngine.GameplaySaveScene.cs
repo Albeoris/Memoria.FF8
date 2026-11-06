@@ -13,6 +13,7 @@ public sealed partial class EventEngine
         GameplaySaveFieldTrailSample? Sample(PartyTraceSample? item) => item is null ? null : new(item.X, item.Y, item.Z, item.Triangle, item.Direction, item.Animation, item.FirstFlag, item.SecondFlag);
         GameplaySaveFieldScene result = new()
         {
+            Presentation = GameplaySaveFieldPresentation.Capture(services.FieldBars, services.FieldShake),
             FadeEndpoint = CaptureGameplayFadeEndpoint(),
             LoopSounds = CaptureGameplayLoopSounds(),
             Ambient = CaptureGameplaySaveAmbient(),
@@ -84,6 +85,16 @@ public sealed partial class EventEngine
         }
         Scene.NativeFieldInitialization = new(1, profile.ExecutableHash, FieldId, programHash, profile.FieldClock, NativeFieldInitializationStage.Completed, logicalAllocationClock) { Origin = NativeFieldInitializationOrigin.GameplayContinuation };
         Scene.FieldCallbackClock = clock;
+        if (saved.Presentation is { } presentation)
+        {
+            session.SetFieldBars(presentation.RestoreBars(session.FieldBars ?? throw new NotSupportedException("Gameplay field presentation requires initialized bar owners.")));
+            NativeFieldShake shake = presentation.RestoreShake(session.FieldShake ?? throw new NotSupportedException("Gameplay field presentation requires initialized shake owners."));
+            if (ShakeTables is null && (shake.X.Enabled || shake.X.Oscillating || shake.X.Duration > shake.X.Counter || shake.Y.Enabled || shake.Y.Oscillating || shake.Y.Duration > shake.Y.Counter))
+            {
+                throw new NotSupportedException("Gameplay shake continuation requires the selected installed lookup tables.");
+            }
+            session.SetFieldShake(shake);
+        }
         if (session.FieldButtonInput is not null)
         {
             session.SetFieldButtonInput(NativeFieldButtonInput.FromGameplayContinuation(FieldId, scripts.Frame, session.InputConfiguration));

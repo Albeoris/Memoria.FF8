@@ -97,6 +97,7 @@ internal static class GameplaySaveSessionLoader
         {
             throw new NotSupportedException("Gameplay loading requires complete current components and current scene battle-mode words.");
         }
+        document.Progression.RequireRuntimeOwnership();
         if (facts.FieldId != document.Resume.FieldId)
         {
             throw new InvalidDataException("Gameplay scene facts must identify the current resume field.");

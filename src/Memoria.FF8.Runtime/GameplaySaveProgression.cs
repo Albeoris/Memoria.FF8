@@ -6,6 +6,16 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Durable root owners, independently of scene reconstruction. Capturing this component does not certify a complete playable save.</summary>
 public sealed record GameplaySaveProgression
 {
+    public const int CurrentRuntimeOwnershipVersion = 1;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RuntimeOwnershipVersion { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveMusicPlayback? MusicPlayback { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveSalaryPresentation? SalaryPresentation { get; init; }
+
     [JsonRequired]
     public required GameplaySaveStory Story { get; init; }
     [JsonRequired]
@@ -75,6 +85,9 @@ public sealed record GameplaySaveProgression
         }
         GameplaySaveProgression result = new()
         {
+            RuntimeOwnershipVersion = CurrentRuntimeOwnershipVersion,
+            MusicPlayback = GameplaySaveMusicPlayback.Capture(state.GlobalSoundProcess?.MusicPlayback),
+            SalaryPresentation = GameplaySaveSalaryPresentation.Capture(state.SalaryPresentation),
             Story = GameplaySaveStory.Capture(state),
             World = state.SavedWorld is { } world ? GameplaySaveWorldData.Capture(world) : null,
             WorldUi = GameplaySaveWorldUi.Capture(state),
@@ -99,11 +112,17 @@ public sealed record GameplaySaveProgression
 
     public void Validate()
     {
+        if (RuntimeOwnershipVersion is not (null or 1))
+        {
+            throw new InvalidDataException("Unsupported gameplay runtime-ownership capability version.");
+        }
         if (Story is null || Collections is null || Rules is null || Clocks is null || Transactions is null)
         {
             throw new InvalidDataException("Gameplay progression is missing a required owner group.");
         }
         Story.Validate();
+        MusicPlayback?.Validate();
+        SalaryPresentation?.Validate();
         World?.Validate();
         FieldLocation?.Validate();
         Collections.Validate();
@@ -126,6 +145,14 @@ public sealed record GameplaySaveProgression
                 throw new InvalidDataException("A gameplay field continuation requires its current field scene facts.");
             }
             _ = NormalizeFieldContinuation();
+        }
+    }
+
+    public void RequireRuntimeOwnership()
+    {
+        if (RuntimeOwnershipVersion != CurrentRuntimeOwnershipVersion)
+        {
+            throw new NotSupportedException("This gameplay save predates complete runtime ownership and requires explicit migration from an authoritative standalone snapshot before use. Missing bar, shake, music and salary continuation values cannot be inferred from this document.");
         }
     }
 }

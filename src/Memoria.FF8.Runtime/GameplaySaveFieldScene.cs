@@ -18,6 +18,9 @@ public sealed record GameplaySaveFieldMessageWindow([property: JsonRequired] int
 public sealed record GameplaySaveFieldScene
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveFieldPresentation? Presentation { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveFieldFixedPosition? DrawPointPosition { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -164,5 +167,6 @@ public sealed record GameplaySaveFieldScene
             // Its selectors and both buffer identities are part of the saved logical process.
         }
         PreparedMovieSource?.Validate();
+        Presentation?.Validate();
     }
 }

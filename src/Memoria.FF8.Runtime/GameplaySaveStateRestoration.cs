@@ -13,6 +13,7 @@ public static class GameplaySaveStateRestoration
             throw new NotSupportedException("Component-only gameplay documents cannot restore a complete game.");
         }
         RequireFreshProcess(initialized);
+        document.Progression.RequireRuntimeOwnership();
         GameplaySaveComponentDocument saved = GameplaySaveCodec.Detach(document);
         GameplaySaveProgression progress = saved.Progression!;
         GameplaySaveStory story = progress.Story;
@@ -100,6 +101,8 @@ public static class GameplaySaveStateRestoration
             MenuRandom = clocks.MenuRandom,
             GlobalRandom = clocks.GlobalRandom,
             SeeD = seed,
+            GlobalSoundProcess = progress.MusicPlayback is { } playback ? Require(initialized.GlobalSoundProcess, "initialized sound process") with { MusicPlayback = playback.Restore(Require(initialized.GlobalSoundProcess?.MusicPlayback, "initialized music playback")) } : initialized.GlobalSoundProcess,
+            SalaryPresentation = progress.SalaryPresentation is { } salary ? salary.Restore(Require(initialized.SalaryPresentation, "initialized salary presentation")) : initialized.SalaryPresentation,
             SavedBattleFlags = flags,
             AppliedBattleResultIds = transactions.AppliedBattleResults,
             BattleStatistics = transactions.BattleStatistics,

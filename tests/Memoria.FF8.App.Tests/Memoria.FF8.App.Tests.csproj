@@ -8,6 +8,7 @@
     <ApplicationManifest Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="GameplaySaveRuntimeSchema.txt" LogicalName="GameplaySaveRuntimeSchema.txt" />
     <Compile Remove="WindowModeControllerTests.cs" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../Mods/Memoria/Reorientation/fields/*.json" Link="BundledMods/Memoria/Reorientation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
