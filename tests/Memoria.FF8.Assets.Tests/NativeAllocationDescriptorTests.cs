@@ -236,6 +236,90 @@ public sealed class NativeAllocationDescriptorTests
         Assert.Equal(5, battle.Combatants.Single(actor => actor.Id == allocation.Id).Level);
     }
 
+    [Theory]
+    [InlineData(7)]
+    [InlineData(60)]
+    [InlineData(61)]
+    [InlineData(62)]
+    [InlineData(63)]
+    [InlineData(64)]
+    [InlineData(128)]
+    [InlineData(255)]
+    [InlineData(32767)]
+    [InlineData(65535)]
+    public void AllocationStatisticsContinueAfterTextPacketsLeaveANonModelWordAndRestore(int duration)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleSnapshot ready = battle.Capture();
+        NativeBattleDescriptorState descriptors = ready.NativeGraphics!.Descriptors;
+        Assert.Empty(descriptors.Queue);
+        BattleEvent text = new(0, "NativeText", null, null, duration, "Allocation message") { NativeMessageMode = 3 };
+        for (int packet = 0; packet < 29; packet++)
+        {
+            descriptors = descriptors.EnqueueMessage(text, 128, 0).State;
+        }
+        for (int packet = 0; packet < 29; packet++)
+        {
+            descriptors = descriptors.RemoveFirst();
+        }
+        battle = BattleSession.Restore(ready with { NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } });
+        BattleCombatant caller = battle.Combatants.Single(actor => actor.Id == "caller");
+        typeof(BattleSession).GetMethod("AllocateNativeEnemy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, [caller, 6, 0, true]);
+        NativeBattleDescriptorPacket statistics = battle.NativeGraphics!.Descriptors.Packets.Single(packet => packet.PriorityState != 0 && packet.Command == 113 && packet.Argument == 0x48AD10);
+        Assert.Equal(unchecked((short)duration), statistics.Index);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 100 && battle.NativeScriptState.AllocationControl!.ActionGate; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.False(battle.NativeScriptState.AllocationControl!.ActionGate);
+        BattleCombatant allocated = battle.Combatants.Single(actor => actor.Id == "native-allocation-1");
+        Assert.False(battle.Capture().Combatants.Single(actor => actor.Id == allocated.Id).NativeParticipant!.AllocationPendingStatistics);
+        Assert.True(allocated.IsActive);
+        Assert.Single(battle.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
+    }
+
+    [Fact]
+    public void DescriptorAddressAliasesReadCanonicalPacketsAndPreserveUnknownTextPointers()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { Descriptors = NativeBattleDescriptorState.Clear() };
+        NativeBattleDescriptorState descriptors = graphics.Descriptors;
+        for (int slot = 0; slot < 3; slot++)
+        {
+            descriptors = descriptors.Enqueue(10, 128, 0x47DD80).State;
+        }
+        graphics = graphics with { Descriptors = descriptors };
+        System.Reflection.MethodInfo reader = typeof(BattleSession).GetMethod("ReadNativeDescriptorByte", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Assert.Equal((byte)0x80, (byte)reader.Invoke(battle, [graphics, 0x1D96AD4u])!);
+        Assert.Equal((byte)1, (byte)reader.Invoke(battle, [graphics, 0x1D96D18u])!);
+        Assert.Equal((byte)0, (byte)reader.Invoke(battle, [graphics, 0x1D96D1Cu])!);
+        descriptors = NativeBattleDescriptorState.Clear();
+        BattleEvent text = new(0, "NativeText", null, null, 60, "Original message") { NativeMessageMode = 3 };
+        for (int slot = 0; slot < 3; slot++)
+        {
+            descriptors = descriptors.EnqueueMessage(text, 128, 0).State;
+        }
+        graphics = graphics with { Descriptors = descriptors };
+        System.Reflection.TargetInvocationException failure = Assert.Throws<System.Reflection.TargetInvocationException>(() => reader.Invoke(battle, [graphics, 0x1D96AD4u]));
+        Assert.IsType<NotSupportedException>(failure.InnerException);
+        Assert.Equal((byte)60, (byte)reader.Invoke(battle, [graphics, 0x1D96AD8u])!);
+        NativeBattleDescriptorNode node = descriptors.Nodes[1];
+        Assert.NotNull(node.Next);
+        Assert.Equal(unchecked((byte)(0x1D96C20u + (uint)node.Next.Value * 8)), (byte)reader.Invoke(battle, [graphics, 0x1D96C28u])!);
+    }
+
     private static BattleSession Create(GameAssets game, BattleAssets assets, byte[] init)
     {
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();

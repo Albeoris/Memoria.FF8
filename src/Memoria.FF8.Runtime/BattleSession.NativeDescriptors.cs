@@ -267,13 +267,11 @@ public sealed partial class BattleSession
                     }
                     break;
                 case NativeBattleDescriptorTaskKind.Callback502F30:
-                    int index = RequireDescriptorModel(packet.Index);
-                    NativeBattleGraphicsModel model = graphics.Models[index];
-                    if ((model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && (model.Flags8!.Value & 26) == 0 && (model.Kind5 != 0 || (model.ResourceFlags44!.Value & 64) == 0))
+                    if (NativeBattleDescriptorCallbacks.IsBlocked502F30(graphics.Models, packet.Index, address => ReadNativeDescriptorByte(graphics, address)))
                     {
                         return new(descriptors, false);
                     }
-                    graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, unchecked((ushort)packet.Index));
+                    graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, unchecked((uint)packet.Index));
                     completed = true;
                     break;
                 case NativeBattleDescriptorTaskKind.Action104:
