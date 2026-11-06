@@ -29,15 +29,18 @@ internal sealed class SystemTextRenderer(GraphicsDevice device) : IDisposable
 
     public void DrawWrappedClipped(SpriteBatch batch, string value, float size, XnaVector2 position, float maximumWidth, XnaColor color, Microsoft.Xna.Framework.Rectangle clip, string? fontFamily = null)
     {
-        Texture2D texture = GetTexture(value, size, maximumWidth, fontFamily);
+        // Keep the authored line origin when changing glyphs; the raster margin is only overhang storage.
+        Texture2D texture = GetTexture(value, size, maximumWidth, fontFamily, preserveLineMetrics: true);
+        position -= new XnaVector2(SystemTextLayout.RasterMargin(size) / (float)SystemTextLayout.RasterScale);
         DrawClipped(batch, texture, position + new XnaVector2(1, 2), XnaColor.Black * (color.A / 255f * 0.75f), clip);
         DrawClipped(batch, texture, position, color, clip);
     }
 
     public void DrawOutlinedClipped(SpriteBatch batch, string value, float size, XnaVector2 centerLeft, float maximumWidth, XnaColor color, XnaColor outline, float thickness, Microsoft.Xna.Framework.Rectangle clip)
     {
-        Texture2D texture = GetTexture(value, size, maximumWidth);
-        XnaVector2 position = centerLeft - new XnaVector2(0, texture.Height / (2f * SystemTextLayout.RasterScale));
+        Texture2D texture = GetTexture(value, size, maximumWidth, preserveLineMetrics: true);
+        float margin = SystemTextLayout.RasterMargin(size) / (float)SystemTextLayout.RasterScale;
+        XnaVector2 position = centerLeft - new XnaVector2(margin, MeasureWrapped(value, size, maximumWidth).Y / 2 + margin);
         for (int y = -1; y <= 1; y++)
         {
             for (int x = -1; x <= 1; x++)
@@ -66,8 +69,7 @@ internal sealed class SystemTextRenderer(GraphicsDevice device) : IDisposable
 
     public XnaVector2 MeasureWrapped(string text, float size, float maximumWidth, string? fontFamily = null)
     {
-        Texture2D texture = GetTexture(text, size, maximumWidth, fontFamily);
-        return new XnaVector2(texture.Width, texture.Height) / SystemTextLayout.RasterScale;
+        return SystemTextLayout.MeasureWrapped(text, size, maximumWidth, fontFamily ?? FontFamily);
     }
 
     public void DrawCentered(SpriteBatch batch, string text, float size, XnaVector2 center, XnaColor color, string? fontFamily = null)

@@ -49,7 +49,7 @@ internal sealed partial class MonoGameUiCanvas : IUiTextFragmentInspector
         var key = (value, size, maximumWidth, family);
         if (!inspectionRasters.TryGetValue(key, out InspectionRaster? raster))
         {
-            PortableTextRasterResult mapped = SystemTextLayout.RasterizeMapped(value, size, maximumWidth, family);
+            PortableTextRasterResult mapped = SystemTextLayout.RasterizeMapped(value, size, maximumWidth, family, preserveLineMetrics: true);
             using (mapped.Bitmap)
             {
                 raster = new(mapped.Bitmap.Width, mapped.Bitmap.Height, mapped.Clusters);
@@ -62,8 +62,9 @@ internal sealed partial class MonoGameUiCanvas : IUiTextFragmentInspector
         }
         if (verticallyCentered)
         {
-            position.Y -= raster.Height / (2f * SystemTextLayout.RasterScale);
+            position.Y -= SystemTextLayout.MeasureWrapped(value, size, maximumWidth, family).Y / 2;
         }
+        position -= new Vector2(SystemTextLayout.RasterMargin(size) / (float)SystemTextLayout.RasterScale);
         UiRect visible = LocalizationFragmentGeometry.SystemRasterClip(position, raster.Width, raster.Height, clip);
         PublishInspection(LocalizationFragmentGeometry.Map(binding, raster.Clusters, position, 1, visible), size, SystemFontCatalog.ResolveFamily(family), maximumWidth);
     }

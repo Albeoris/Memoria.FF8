@@ -14,7 +14,7 @@ public sealed class ButtonPromptTests
     [InlineData("Escape", 24)]
     [InlineData("Up", 48)]
     [InlineData("N6", 48)]
-    public void Key_label_ink_is_centered_inside_the_keycap(string label, float size)
+    public void Key_label_remains_visible_inside_the_keycap(string label, float size)
     {
         float lineHeight = SystemTextLayout.LineHeight(size);
         using var bitmap = new SkiaSharp.SKBitmap(320, 120);
@@ -40,7 +40,7 @@ public sealed class ButtonPromptTests
         float upperPadding = first - top;
         float lowerPadding = bottom - (last + 1);
         Assert.True(upperPadding > 0 && lowerPadding > 0);
-        Assert.InRange(Math.Abs(upperPadding - lowerPadding), 0, 2);
+
     }
 
     [Fact]

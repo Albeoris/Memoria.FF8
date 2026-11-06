@@ -67,7 +67,7 @@ public sealed class UiTextOverflowRenderingTests
         UiRect bounds = new(20, 20, 260, 50);
         UiRect parentClip = new(30, 10, 240, 100);
         using Bitmap unwrapped = SystemTextLayout.Rasterize(text, size, float.PositiveInfinity);
-        float width = unwrapped.Width / (float)SystemTextLayout.RasterScale;
+        float width = SystemTextLayout.MeasureWrapped(text, size, float.PositiveInfinity).X;
         float distance = width - bounds.Width;
         Assert.True(distance > bounds.Width);
         using Bitmap bitmap = new((int)Surface.Width, (int)Surface.Height);
@@ -125,7 +125,7 @@ public sealed class UiTextOverflowRenderingTests
         const float size = 32;
         UiRect bounds = new(20, 20, 260, 65);
         using Bitmap wrapped = SystemTextLayout.Rasterize(text, size, bounds.Width);
-        float height = wrapped.Height / (float)SystemTextLayout.RasterScale;
+        float height = SystemTextLayout.MeasureWrapped(text, size, bounds.Width).Y;
         float distance = height - bounds.Height;
         Assert.True(distance > bounds.Height);
         using Bitmap bitmap = new((int)Surface.Width, (int)Surface.Height);

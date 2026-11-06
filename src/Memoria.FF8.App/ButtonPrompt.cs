@@ -108,8 +108,7 @@ internal static class ButtonPrompt
             return;
         }
         using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(labelSize, family);
-        using var labelRaster = SystemTextLayout.Rasterize(label, labelSize, float.PositiveInfinity, family);
-        float labelHeight = labelRaster.Height / (float)SystemTextLayout.RasterScale;
+        float labelHeight = measurer.LineHeight;
         canvas.Text(label, labelSize, new UiRect(bounds.X + (width - textWidth * 0.82f) / 2, top + (height - labelHeight) / 2, width, measurer.LineHeight), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
     }
 

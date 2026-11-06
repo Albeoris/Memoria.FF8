@@ -219,11 +219,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         fontSize = UiTextOverflow.FitFontSize(fontSize, bounds.Height, SystemTextLayout.LineHeight(fontSize));
         UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, null, width =>
         {
-            using SKBitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
-            return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
+            return MeasureText(text, fontSize, width);
         }, UiTextFlow.SingleLine);
-        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
-        float y = bounds.Y + (bounds.Height - glyphs.Height / (float)SystemTextLayout.RasterScale) / 2;
+        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, preserveLineMetrics: true);
+        float margin = SystemTextLayout.RasterMargin(fontSize) / (float)SystemTextLayout.RasterScale;
+        float y = bounds.Y + (bounds.Height - layout.Content.Height) / 2 - margin;
         PushClip(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2));
         try
         {
@@ -233,11 +233,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
                 {
                     if (offsetX != 0 || offsetY != 0)
                     {
-                        DrawTinted(glyphs, bounds.X - layout.OffsetX + offsetX * thickness, y + offsetY * thickness, outline);
+                        DrawTinted(glyphs, bounds.X - layout.OffsetX - margin + offsetX * thickness, y + offsetY * thickness, outline);
                     }
                 }
             }
-            DrawTinted(glyphs, bounds.X - layout.OffsetX, y, color);
+            DrawTinted(glyphs, bounds.X - layout.OffsetX - margin, y, color);
         }
         finally
         {
@@ -274,21 +274,21 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, fontFamily, width =>
         {
-            using SKBitmap measured = SystemTextLayout.Rasterize(text, fontSize, width, fontFamily);
-            return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
+            return MeasureText(text, fontSize, width, fontFamily);
         }, flow);
-        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily);
-        float y = bounds.Y - layout.OffsetY;
+        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily, preserveLineMetrics: true);
+        float margin = SystemTextLayout.RasterMargin(fontSize) / (float)SystemTextLayout.RasterScale;
+        float y = bounds.Y - layout.OffsetY - margin;
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {
-            float height = glyphs.Height / (float)SystemTextLayout.RasterScale;
+            float height = layout.Content.Height;
             y += Math.Max(0, bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
         }
         PushClip(bounds);
         try
         {
-            DrawTinted(glyphs, bounds.X - layout.OffsetX + 1, y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
-            DrawTinted(glyphs, bounds.X - layout.OffsetX, y, color);
+            DrawTinted(glyphs, bounds.X - layout.OffsetX - margin + 1, y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
+            DrawTinted(glyphs, bounds.X - layout.OffsetX - margin, y, color);
         }
         finally
         {
