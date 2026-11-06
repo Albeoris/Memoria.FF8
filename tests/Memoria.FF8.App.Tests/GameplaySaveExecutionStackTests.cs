@@ -135,9 +135,11 @@ public sealed class GameplaySaveExecutionStackTests
                 File.WriteAllText(path, "invalid execution-stack profile");
             }
             Environment.SetEnvironmentVariable("MEMORIA_FF8_EXECUTION_STACK_PROFILE", path);
-            GameState reconstructed = GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets, executionEnvironment: environment);
+            NativeMusicPlaybackState history = NativeMusicPlaybackState.FromColdProcess() with { BattleFirstLoadB8B7D4 = false };
+            GameState reconstructed = GameplaySaveSessionLoader.Restore(document, directory, sharedAssets: assets, executionEnvironment: environment, musicProcessHistory: history);
             Assert.Equal(profile, reconstructed.NativeBattleMemory!.EffectMemory!.ExecutionStack);
             Assert.Equal(profile?.HeroCrtStack, reconstructed.NativeBattleMemory.EffectMemory.HeroCrtStack);
+            Assert.False(reconstructed.GlobalSoundProcess!.MusicPlayback!.BattleFirstLoadB8B7D4);
         }
         finally
         {

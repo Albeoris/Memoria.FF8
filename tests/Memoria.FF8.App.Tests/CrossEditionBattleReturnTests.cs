@@ -89,6 +89,7 @@ public sealed class CrossEditionBattleReturnTests
         Assert.Equal(crt, physical.NativeBattleMemory.EffectMemory.HeroCrtStack);
         Assert.Equal(execution, projected.NativeBattleMemory!.EffectMemory!.ExecutionStack);
         Assert.Equal(crt, projected.NativeBattleMemory.EffectMemory.HeroCrtStack);
+        Assert.Equal(physical.GlobalSoundProcess!.MusicPlayback!.BattleFirstLoadB8B7D4, projected.GlobalSoundProcess!.MusicPlayback!.BattleFirstLoadB8B7D4);
         Assert.True(Same(physical.ExamTimer, projected.ExamTimer));
         Assert.Equal(physical.CrtRandom, projected.CrtRandom);
         Assert.True(Same(physical.Economy, projected.Economy));

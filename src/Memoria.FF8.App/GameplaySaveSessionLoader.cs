@@ -13,7 +13,7 @@ internal static class GameplaySaveSessionLoader
         return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
     }
 
-    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, NativeBattleEffectMemory? executionEnvironment = null)
+    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, NativeBattleEffectMemory? executionEnvironment = null, NativeMusicPlaybackState? musicProcessHistory = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
@@ -37,6 +37,12 @@ internal static class GameplaySaveSessionLoader
             initializer = GameSession.CreateColdProcess(cold with { EffectMemory = cold.EffectMemory! with { ExecutionStack = executionEnvironment.ExecutionStack, HeroCrtStack = executionEnvironment.HeroCrtStack } });
         }
         initializer.StartNewGame();
+        if (musicProcessHistory is not null)
+        {
+            NativeGlobalSoundProcess sound = initializer.GlobalSoundProcess ?? throw new InvalidDataException("Same-process reconstruction requires its initialized sound owner.");
+            NativeMusicPlaybackState playback = sound.MusicPlayback ?? throw new InvalidDataException("Same-process reconstruction requires initialized music playback.");
+            initializer.SetGlobalSoundProcess(sound with { MusicPlayback = playback with { BattleFirstLoadB8B7D4 = musicProcessHistory.BattleFirstLoadB8B7D4 } });
+        }
         GameplaySaveRules rules = document.Progression!.Rules;
         initializer.Restore(initializer.State with { GameplayPreferences = rules.Preferences, ConfiguredGameplayTuning = rules.ConfiguredTuning });
         using (MovieClock initialClock = new(initializer, gameDirectory))
