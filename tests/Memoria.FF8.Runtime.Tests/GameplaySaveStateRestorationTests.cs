@@ -75,10 +75,11 @@ public sealed class GameplaySaveStateRestorationTests
         Assert.Equal(source.AppliedBattleResultIds, restored.AppliedBattleResultIds);
         Assert.Equal(source.BattleStatistics, restored.BattleStatistics);
         Assert.Equal(source.BattleVariables!.Values, restored.BattleVariables!.Values);
-        Assert.Equal(source.PendingAchievementFacts, restored.PendingAchievementFacts);
-        Assert.Equal(source.PendingAchievementObservations, restored.PendingAchievementObservations);
-        Assert.Equal(source.PendingOriginalAchievementActions, restored.PendingOriginalAchievementActions);
-        Assert.Equal(source.PendingOriginalAchievementObservations, restored.PendingOriginalAchievementObservations);
+        Assert.Equal(source.PendingAchievementFacts.Select(fact => fact with { Owner = null }), restored.PendingAchievementFacts);
+        Assert.Equal(source.PendingAchievementObservations.Select(fact => fact with { Owner = null }), restored.PendingAchievementObservations);
+        Assert.Equal(source.PendingOriginalAchievementActions.Select(fact => fact with { Owner = null }), restored.PendingOriginalAchievementActions);
+        Assert.Equal(source.PendingOriginalAchievementObservations.Select(observation => OriginalAchievementObservedEvent.Create(observation.Progress, null)).Distinct(), restored.PendingOriginalAchievementObservations);
+        Assert.NotNull(source.PendingAchievementFacts[0].Owner);
         Assert.Equal(source.OriginalAchievementMutationSequence, restored.OriginalAchievementMutationSequence);
         Assert.Null(restored.OriginalSave);
         Assert.Equal("Current", restored.GameplaySceneFacts!.Names[0]);

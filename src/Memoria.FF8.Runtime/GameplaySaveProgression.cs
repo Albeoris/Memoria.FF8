@@ -112,7 +112,7 @@ public sealed record GameplaySaveProgression
 
     public void Validate()
     {
-        if (RuntimeOwnershipVersion is not (null or 1))
+        if (RuntimeOwnershipVersion is not (null or CurrentRuntimeOwnershipVersion))
         {
             throw new InvalidDataException("Unsupported gameplay runtime-ownership capability version.");
         }
@@ -152,7 +152,7 @@ public sealed record GameplaySaveProgression
     {
         if (RuntimeOwnershipVersion != CurrentRuntimeOwnershipVersion)
         {
-            throw new NotSupportedException("This gameplay save predates complete runtime ownership and requires explicit migration from an authoritative standalone snapshot before use. Missing bar, shake, music and salary continuation values cannot be inferred from this document.");
+            throw new NotSupportedException("This gameplay save uses an older continuation format and requires migration from a full standalone snapshot. It does not contain the bar, shake, music and salary state needed to resume reliably.");
         }
     }
 }

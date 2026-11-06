@@ -36,6 +36,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | Guide | What you will find |
 | --- | --- |
 | [Build and test](developers/building-and-testing.md) | A clean checkout, distribution layout, test projects and optional local inputs. |
+| [Excluded runtime ownership](developers/gameplay-runtime-ownership.md) | Nested state classification, restoration sources and required save regression checks. |
 | [Cross-platform migration](developers/cross-platform.md) | Portable projects, launcher/audio contracts and remaining native host gates. |
 | [Windows graphics hosts](developers/graphics-backends.md) | Shared-source DX11/Vulkan payloads, backend selection and initialization diagnostics. |
 | [Shader artifacts](developers/shaders.md) | Reproducible backend profiles, manifests and shipped-payload checks. |

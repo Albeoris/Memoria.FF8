@@ -88,5 +88,3 @@ internal static class GameplaySaveRuntimeOwnership
         return types.ToDictionary(pair => pair.Key, pair => (IReadOnlyDictionary<string, GameplayRuntimeMemberOwnership>)pair.Value.AsReadOnly()).AsReadOnly();
     }
 }
-
-

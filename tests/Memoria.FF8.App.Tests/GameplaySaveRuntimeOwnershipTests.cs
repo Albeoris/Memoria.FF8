@@ -36,6 +36,56 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     }
 
     [Fact]
+    public void Every_reachable_member_resolves_to_a_partition_or_inherited_homogeneous_source()
+    {
+        Queue<(Type Type, GameplayRuntimeMemberOwnership Authority)> pending = new();
+        foreach ((string name, GameplayRuntimeMemberOwnership authority) in GameplaySaveRuntimeOwnership.Roots)
+        {
+            Enqueue(typeof(GameState).GetProperty(name)!.PropertyType, authority);
+        }
+        HashSet<(Type Type, GameplayRuntimeRestoration Restoration)> visited = [];
+        while (pending.TryDequeue(out var entry))
+        {
+            if (!visited.Add((entry.Type, entry.Authority.Restoration)))
+            {
+                continue;
+            }
+            GameplaySaveRuntimeOwnership.Members.TryGetValue(entry.Type, out IReadOnlyDictionary<string, GameplayRuntimeMemberOwnership>? partition);
+            if (entry.Authority.Restoration == GameplayRuntimeRestoration.Composite)
+            {
+                Assert.NotNull(partition);
+            }
+            foreach (PropertyInfo property in SerializedProperties(entry.Type))
+            {
+                GameplayRuntimeMemberOwnership authority = partition is null ? entry.Authority : partition[property.Name];
+                ValidateAuthority(property.PropertyType, authority);
+                Enqueue(property.PropertyType, authority);
+            }
+        }
+        Assert.Equal(ReadReviewedSchema().Keys.Order(), visited.Select(entry => entry.Type.Name).Distinct().Order());
+
+        void Enqueue(Type type, GameplayRuntimeMemberOwnership authority)
+        {
+            type = Nullable.GetUnderlyingType(type) ?? type;
+            if (type.IsArray)
+            {
+                Enqueue(type.GetElementType()!, authority);
+            }
+            else if (type.IsGenericType)
+            {
+                foreach (Type argument in type.GenericTypeArguments)
+                {
+                    Enqueue(argument, authority);
+                }
+            }
+            else if (!type.IsEnum && type.Namespace?.StartsWith("Memoria.", StringComparison.Ordinal) == true)
+            {
+                pending.Enqueue((type, authority));
+            }
+        }
+    }
+
+    [Fact]
     public void Schema_check_rejects_an_unreviewed_nested_field_and_a_changed_existing_field_type()
     {
         IReadOnlyDictionary<string, string> reviewed = ReadReviewedSchema();

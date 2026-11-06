@@ -8,6 +8,8 @@ Compatible music and ambient-loop playback positions are restored when available
 
 Older snapshot schemas are migrated automatically in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application requires an application update. If historical data is insufficient to recover a required running state, loading reports the migration boundary instead of resetting that state.
 
+Older compact gameplay saves that omitted bar, shake, music-channel and salary-popup state require migration from a full standalone snapshot. They remain readable for inspection, but cannot reliably resume those missing values. Load an authoritative standalone and create a new player save; keep the original files. Full standalone snapshots retain their existing loading path.
+
 Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** are retained by Memoria saves. Exporting to an original bank discards the difficulty choice; the exported copy uses the original game's rules.
 
 ## Player saves

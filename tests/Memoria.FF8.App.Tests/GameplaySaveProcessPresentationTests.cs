@@ -66,7 +66,10 @@ public sealed class GameplaySaveProcessPresentationTests
             Assert.Null(inspected.Progression!.RuntimeOwnershipVersion);
             string before = JsonSerializer.Serialize(inspected);
             NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => GameplaySaveSessionLoader.Restore(inspected, "missing-selected-installation"));
-            Assert.Contains("authoritative standalone snapshot", refusal.Message);
+            Assert.Contains("full standalone snapshot", refusal.Message);
+            GameSession coldSession = GameWorld.CreateColdProcess(assets);
+            coldSession.StartNewGame();
+            Assert.Throws<NotSupportedException>(() => GameplaySaveStateRestoration.Restore(inspected, coldSession.State));
             Assert.Equal(before, JsonSerializer.Serialize(inspected));
             Assert.Throws<InvalidDataException>(() => (document.Progression with { RuntimeOwnershipVersion = 2 }).Validate());
         }
