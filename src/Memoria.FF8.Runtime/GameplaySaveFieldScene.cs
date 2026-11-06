@@ -160,10 +160,8 @@ public sealed record GameplaySaveFieldScene
         if (Music is { } music)
         {
             new NativeMusicProcessState(1, music.Pending, music.Requested, music.Complete, music.Bank201, music.Bank202) { SelectionAuthority = music.Authority, Buffer0 = music.Buffer0, Buffer1 = music.Buffer1 }.Validate();
-            if (music.Pending == true)
-            {
-                throw new NotSupportedException("Gameplay field continuation does not yet preserve pending music I/O.");
-            }
+            // Pending retains a completed synchronous preload until a play opcode consumes it.
+            // Its selectors and both buffer identities are part of the saved logical process.
         }
         PreparedMovieSource?.Validate();
     }

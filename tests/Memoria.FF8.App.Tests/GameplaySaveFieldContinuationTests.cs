@@ -11,6 +11,83 @@ public sealed class GameplaySaveFieldContinuationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Completed_music_preload_survives_save_reload_and_is_consumed_once(bool battleReturn)
+    {
+        string directory = TestResources.GameDirectory;
+        string fieldName;
+        using (GameAssets original = new(directory))
+        {
+            fieldName = original.LoadField(165).Name;
+        }
+        (Jsm.Opcode, int)[] initialize = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] ordinary = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.CROSSMUSIC, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        byte[] script = GameplaySaveFieldScriptsTests.Encode([1], [initialize, ordinary]);
+        using GameAssets assets = new(directory, overrides: new ScriptOverride(fieldName, script));
+        GameSession session = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, false), directory, sharedAssets: assets));
+        using GameWorld source = new(session, directory, sharedAssets: assets);
+        source.EnsureField();
+        for (int tick = 0; source.Events.Scene.MusicProcess?.Pending != true && tick < 10; tick++)
+        {
+            source.Events.Step();
+        }
+        if (battleReturn)
+        {
+            // Exercise the preserved preload through the native keep-music return branch.
+            NativeBattleMusicProcessState battleMusic = new(source.Events.Scene.MusicProcess!, 0, 0) { EffectCache = new(0, null) };
+            NativeBattleMusicReturnPreparation returned = NativeBattleMusicReturn.Prepare52B4F0(battleMusic, session.GlobalSoundProcess!, 0x10, null, null);
+            typeof(SceneEventState).GetProperty(nameof(SceneEventState.MusicProcess))!.SetValue(source.Events.Scene, returned.MusicProcess.Buffers);
+            session.SetGlobalSoundProcess(returned.SoundProcess);
+        }
+        NativeMusicProcessState pending = source.Events.Scene.MusicProcess!;
+        Assert.True(pending.Pending);
+        Assert.Equal((byte)1, pending.Complete214);
+        Assert.Equal((byte)27, pending.ReadBuffer((byte)(pending.Bank201!.Value ^ 1)).EncodedAkaoId);
+        session.SetWorldControls(session.WorldControls! with { Menu209 = 3 });
+        string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-pending-music-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            source.WriteGameplaySave(path);
+            GameSession resumedSession = new(PlayerStateLoader.Load(path, directory, sharedAssets: assets));
+            using GameWorld resumed = new(resumedSession, directory, sharedAssets: assets);
+            resumed.EnsureField();
+            Assert.Equal(pending, resumed.Events.Scene.MusicProcess);
+            Assert.Null(resumed.Events.Scene.MusicLoadRequest);
+            Assert.Null(resumed.Events.Scene.MusicPlayRequest);
+            Assert.Equal(session.WorldControls, resumedSession.WorldControls);
+            int plays = 0;
+            resumed.Events.AudioCommandExecuted += command =>
+            {
+                if (command is NativeMusicPlayRequest { ConsumedPending: true })
+                {
+                    plays++;
+                }
+            };
+            for (int tick = 0; tick < 10; tick++)
+            {
+                source.Events.Step();
+                resumed.Events.Step();
+                Assert.Equal(source.Events.Scene.MusicProcess, resumed.Events.Scene.MusicProcess);
+                Assert.Equal(source.Events.Scene.MusicPlayRequest, resumed.Events.Scene.MusicPlayRequest);
+                Assert.Equal(session.WorldControls, resumedSession.WorldControls);
+            }
+            Assert.Equal(1, plays);
+            Assert.False(resumed.Events.Scene.MusicProcess!.Pending);
+            Assert.Equal((byte)(pending.Bank201.Value ^ 1), resumed.Events.Scene.MusicProcess.Bank201);
+            Assert.Equal((byte)26, resumedSession.GlobalSoundProcess!.MusicPlayback!.CurrentMusicId0);
+            Assert.Equal(session.GlobalSoundProcess!.MusicPlayback, resumedSession.GlobalSoundProcess.MusicPlayback);
+            GameplaySaveFieldScene scene = resumed.Events.CaptureGameplaySaveFieldContinuation().Scene;
+            Assert.Throws<InvalidDataException>(() => (scene with { Music = scene.Music! with { Pending = true, Requested = null } }).Validate());
+            Assert.Throws<InvalidDataException>(() => (scene with { Music = scene.Music! with { Pending = true, Complete = 0 } }).Validate());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Script_menu_publication_reopens_the_panel_and_returns_without_replaying_initialization(bool save)
     {
         string directory = TestResources.GameDirectory;

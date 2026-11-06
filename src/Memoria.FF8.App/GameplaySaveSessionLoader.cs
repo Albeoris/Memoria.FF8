@@ -70,6 +70,11 @@ internal static class GameplaySaveSessionLoader
                 NativeFieldFadeState durableFade = restored.FieldFade ?? throw new InvalidDataException("Gameplay continuation requires its saved fade words.");
                 NativeFieldFadeState allocatedFade = candidateSession.FieldFade ?? throw new InvalidDataException("Gameplay continuation requires its allocated fade owner.");
                 candidateSession.SetFieldFade(allocatedFade with { Saved = durableFade.Saved, MapFadeDisabled = durableFade.MapFadeDisabled });
+                if (restored.WorldControls is { } controls)
+                {
+                    // Resource allocation performs normal field-entry resets; a continuation resumes its saved controls.
+                    candidateSession.SetWorldControls(controls);
+                }
                 candidate.Events.RestoreGameplaySaveFieldContinuation(continuation, facts);
             }
             else
