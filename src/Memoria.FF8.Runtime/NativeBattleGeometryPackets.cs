@@ -69,7 +69,7 @@ public static class NativeBattleGeometryPackets
         // Expanded scene coordinates retain their full precision; native packed-word consumers keep their original arithmetic.
         bool sceneViewport = BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native;
         uint screenMask = sceneViewport ? 0 : coordinates is null ? 0x3F00000u : 0xF00000u;
-        bool outsideScene = sceneViewport && (coordinates is null ? BattleSceneVisibleArea.RejectPacked(corners[..count].ToArray().Select(vertex => vertex.Screen)) : BattleSceneVisibleArea.Current.Reject(coordinates));
+        bool outsideScene = coordinates is null ? sceneViewport && BattleSceneVisibleArea.RejectPacked(corners[..count].ToArray().Select(vertex => vertex.Screen)) : BattleSceneVisibleArea.Current.RejectNative(coordinates);
         bool facing = coordinates is null ? Accept510680(corners[0].Screen, corners[1].Screen, corners[2].Screen) : AcceptExpanded(coordinates[0], coordinates[1], coordinates[2]);
         if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0 || outsideScene || !facing)
         {

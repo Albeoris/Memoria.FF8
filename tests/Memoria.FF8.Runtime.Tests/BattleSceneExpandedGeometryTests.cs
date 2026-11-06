@@ -64,9 +64,9 @@ public sealed class BattleSceneExpandedGeometryTests
     [Fact]
     public void Expanded_scene_uses_full_coordinates_when_winding_exceeds_signed_DWORD_area()
     {
-        NativeBattleRawMesh mesh = Triangle(new(-3900, -3900, 1000), new(3900, -3900, 1000), new(-3900, 3900, 1000));
+        NativeBattleRawMesh mesh = Triangle(new(-3900, 0, 1000), new(3900, -3900, 1000), new(0, 3900, 1000));
         NativeBattleGeometryPrimitive primitive = Assert.Single(Emit(mesh, ExpandedViewport));
-        Assert.Equal(new BattleSceneScreenPoint(-29920, -30336), primitive.ProjectedCoordinates!.Value[0]);
+        Assert.Equal(new BattleSceneScreenPoint(-29920, 864), primitive.ProjectedCoordinates!.Value[0]);
         Assert.Empty(Emit(Triangle(mesh.Vertices[0].Position, mesh.Vertices[2].Position, mesh.Vertices[1].Position), ExpandedViewport));
         Assert.False(NativeBattleGeometryPackets.Accept510680(primitive.Words[2], primitive.Words[4], primitive.Words[6]));
     }
@@ -84,6 +84,7 @@ public sealed class BattleSceneExpandedGeometryTests
     [Fact]
     public void ExpandedMultiMeshProjectionPreservesExactPacketOrderDepthCoordinatesAndNativeScratchClipping()
     {
+        using IDisposable scope = BattleSceneVisibleArea.Begin(new(-32768, -32768, 32760, 32760));
         NativeBattleRawMesh first = Mesh(0, 0);
         NativeBattleRawMesh rejected = Mesh(0, 0, reverse: true);
         NativeBattleRawMesh second = Mesh(200, 0);
@@ -111,9 +112,29 @@ public sealed class BattleSceneExpandedGeometryTests
     }
 
     [Fact]
-    public void Expanded_scene_keeps_a_face_crossing_opposite_clip_edges()
+    public void Expanded_scene_preserves_native_rejection_when_all_corners_cross_opposite_axis_edges()
     {
-        Assert.Single(Emit(Triangle(new(-5000, -10, 1000), new(5000, -10, 1000), new(-5000, 10, 1000)), ExpandedViewport));
+        Assert.Empty(Emit(Triangle(new(-5000, -10, 1000), new(5000, -10, 1000), new(-5000, 10, 1000)), ExpandedViewport));
+        Assert.Empty(Emit(Triangle(new(-10, -5000, 1000), new(10, -5000, 1000), new(-10, 5000, 1000)), ExpandedViewport));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 2560, 1728, false)]
+    [InlineData(-640, 0, 3200, 1728, false)]
+    [InlineData(-640, -4000, 3200, 4000, true)]
+    public void Scene_axis_rejection_uses_the_actual_visible_bounds_for_a_vertical_quad(int left, int top, int right, int bottom, bool accepted)
+    {
+        // A narrow vertical face with all four corners beyond the native Y bounds.
+        BattleSceneScreenPoint[] coordinates = [new(168, 2511), new(160, 2631), new(181, -2488), new(174, -2738)];
+        NativeBattleProjectedVertex[] vertices = coordinates.Select((point, index) => new NativeBattleProjectedVertex(unchecked((ushort)point.X) | unchecked((uint)point.Y << 16), (uint)new[] { 2090, 1944, 2114, 1969 }[index])).ToArray();
+        byte[] polygon = new byte[20];
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon, 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(4), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(6), 3);
+        using IDisposable scope = BattleSceneVisibleArea.Begin(new(left, top, right, bottom));
+        NativeBattleGeometryPrimitive? primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(polygon, vertices, true, 0x808080, 17, 4, projectedCoordinates: coordinates);
+        Assert.Equal(accepted, primitive is not null);
     }
 
     private static NativeBattleRawMesh Triangle(NativeBattleVector a, NativeBattleVector b, NativeBattleVector c)
@@ -127,6 +148,7 @@ public sealed class BattleSceneExpandedGeometryTests
 
     private static ImmutableArray<NativeBattleGeometryPrimitive> Emit(NativeBattleRawMesh mesh, NativeBattleGeometryViewport? viewport = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publish = null)
     {
+        using IDisposable? scope = viewport is null ? null : BattleSceneVisibleArea.Begin(new(-32768, -32768, 32760, 32760));
         return NativeBattleRawGeometryPackets.Emit5099D0([mesh], [Identity], Projection, 0x808080, 1, null, 17, 4, null, publishProjectedScratch: publish, viewport: viewport);
     }
 
