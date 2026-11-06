@@ -7,16 +7,22 @@ namespace Memoria.FF8;
 /// <summary>Loads an explicitly selected semantic gameplay document into an isolated normal-load process.</summary>
 internal static class GameplaySaveSessionLoader
 {
-    internal static GameState Load(string path, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
+    internal static GameState Load(string path, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, Action<string>? reportWarning = null)
     {
         using FileStream source = File.OpenRead(path);
-        return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
+        return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions, reportWarning: reportWarning);
     }
 
-    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, NativeBattleEffectMemory? executionEnvironment = null, NativeMusicPlaybackState? musicProcessHistory = null)
+    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, NativeBattleEffectMemory? executionEnvironment = null, NativeMusicPlaybackState? musicProcessHistory = null, Action<string>? reportWarning = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
+        if (document.Progression is { RuntimeOwnershipVersion: null } legacy)
+        {
+            const string warning = "Older save: missing presentation values use hidden bars, no camera shake and a hidden salary notification; missing music playback uses the saved scene selection and default settings. Existing saved values and gameplay progress are preserved.";
+            (reportWarning ?? (message => Console.Error.WriteLine("Warning: " + message)))(warning);
+            document = document with { Progression = legacy.RestoreMissingRuntimeData() };
+        }
         if (document.Progression?.FieldContinuation is not null)
         {
             document = document with { Progression = document.Progression.NormalizeFieldContinuation() };
@@ -103,7 +109,6 @@ internal static class GameplaySaveSessionLoader
         {
             throw new NotSupportedException("Gameplay loading requires complete current components and current scene battle-mode words.");
         }
-        document.Progression.RequireRuntimeOwnership();
         if (facts.FieldId != document.Resume.FieldId)
         {
             throw new InvalidDataException("Gameplay scene facts must identify the current resume field.");

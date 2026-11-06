@@ -19,6 +19,13 @@ public sealed record GameplaySaveFieldShakeAxis([property: JsonRequired] bool En
 /// <summary>Logical bar geometry and shake phase after completed field commands; installed lookup tables and physical aliases are reconstructed separately.</summary>
 public sealed record GameplaySaveFieldPresentation([property: JsonRequired] GameplaySaveFieldBar? FirstBar, [property: JsonRequired] GameplaySaveFieldBar? SecondBar, [property: JsonRequired] GameplaySaveFieldShakeAxis? ShakeX, [property: JsonRequired] GameplaySaveFieldShakeAxis? ShakeY)
 {
+    public static GameplaySaveFieldPresentation CreateDefaults()
+    {
+        // Hidden zeroed UI records also allow a later SETBAR to update a slot whose original display command was not saved.
+        NativeFieldBarsState bars = NativeFieldBarsState.CreateHidden().DisplayWidth(0, 0, 0, 0, 0, 0, 0, 0).Hide(0).DisplayWidth(1, 0, 0, 0, 0, 0, 0, 0).Hide(1);
+        return Capture(bars, NativeFieldShake.FromColdProcess())!;
+    }
+
     public static GameplaySaveFieldPresentation? Capture(NativeFieldBarsState? bars, NativeFieldShake? shake)
     {
         bars?.Validate();

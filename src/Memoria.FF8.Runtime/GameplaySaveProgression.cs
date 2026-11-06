@@ -148,12 +148,23 @@ public sealed record GameplaySaveProgression
         }
     }
 
-    public void RequireRuntimeOwnership()
+    public GameplaySaveProgression RestoreMissingRuntimeData()
     {
-        if (RuntimeOwnershipVersion != CurrentRuntimeOwnershipVersion)
+        if (RuntimeOwnershipVersion is not null)
         {
-            throw new NotSupportedException("This gameplay save uses an older continuation format and requires migration from a full standalone snapshot. It does not contain the bar, shake, music and salary state needed to resume reliably.");
+            return this;
         }
+        GameplaySaveFieldContinuation? continuation = FieldContinuation;
+        if (continuation is not null && continuation.Scene.Presentation is null)
+        {
+            continuation = continuation with { Scene = continuation.Scene with { Presentation = GameplaySaveFieldPresentation.CreateDefaults() } };
+        }
+        return this with
+        {
+            RuntimeOwnershipVersion = CurrentRuntimeOwnershipVersion,
+            MusicPlayback = MusicPlayback ?? GameplaySaveMusicPlayback.FromSceneDefaults(SceneFacts?.Music),
+            FieldContinuation = continuation
+        };
     }
 }
 

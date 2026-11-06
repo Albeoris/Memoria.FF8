@@ -65,11 +65,18 @@ public sealed class GameplaySaveProcessPresentationTests
             GameplaySaveComponentDocument inspected = GameplaySaveCodec.Read(legacyBytes);
             Assert.Null(inspected.Progression!.RuntimeOwnershipVersion);
             string before = JsonSerializer.Serialize(inspected);
-            NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => GameplaySaveSessionLoader.Restore(inspected, "missing-selected-installation"));
-            Assert.Contains("full standalone snapshot", refusal.Message);
+            List<string> warnings = [];
+            GameState compatible = GameplaySaveSessionLoader.Restore(inspected, directory, sharedAssets: assets, reportWarning: warnings.Add);
+            Assert.Single(warnings);
+            Assert.Equal(JsonSerializer.Serialize(salary), JsonSerializer.Serialize(compatible.SalaryPresentation));
+            Assert.Equal(playback with { BattleFirstLoadB8B7D4 = true }, compatible.GlobalSoundProcess!.MusicPlayback);
             GameSession coldSession = GameWorld.CreateColdProcess(assets);
             coldSession.StartNewGame();
-            Assert.Throws<NotSupportedException>(() => GameplaySaveStateRestoration.Restore(inspected, coldSession.State));
+            using (GameWorld initializedWorld = new(coldSession, directory, sharedAssets: assets))
+            {
+            }
+            GameState lowLevel = GameplaySaveStateRestoration.Restore(inspected, coldSession.State);
+            Assert.Equal(source.Economy.Gil, lowLevel.Economy!.Gil);
             Assert.Equal(before, JsonSerializer.Serialize(inspected));
             Assert.Throws<InvalidDataException>(() => (document.Progression with { RuntimeOwnershipVersion = 2 }).Validate());
         }

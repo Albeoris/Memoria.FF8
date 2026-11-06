@@ -6,9 +6,9 @@ Quick Save supports ordinary player-controlled exploration and issued field dial
 
 Compatible music and ambient-loop playback positions are restored when available. Changing the resource or using a backend that cannot seek drops the position and keeps the selected track. One-shot sounds and audio device buffers are not saved.
 
-Older snapshot schemas are migrated automatically in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application requires an application update. If historical data is insufficient to recover a required running state, loading reports the migration boundary instead of resetting that state.
+Older snapshot schemas are upgraded in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application may require an application update. Corrupt data or an unsupported required running state still reports a specific loading boundary.
 
-Older compact gameplay saves that omitted bar, shake, music-channel and salary-popup state require migration from a full standalone snapshot. They remain readable for inspection, but cannot reliably resume those missing values. Load an authoritative standalone and create a new player save; keep the original files. Full standalone snapshots retain their existing loading path.
+Older compact gameplay saves remain loadable when presentation or process fields are missing. Music is recovered from saved selections where available; absent bar, shake and salary-popup details use documented defaults. A compatibility warning can identify presentation that could not be restored exactly. These defaults preserve saved progress, inventory, rewards, random state and script positions without replaying completed scripts. Missing new fields or ownership markers alone do not require a standalone snapshot or manual migration.
 
 Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** are retained by Memoria saves. Exporting to an original bank discards the difficulty choice; the exported copy uses the original game's rules.
 

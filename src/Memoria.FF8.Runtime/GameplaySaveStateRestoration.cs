@@ -13,7 +13,7 @@ public static class GameplaySaveStateRestoration
             throw new NotSupportedException("Component-only gameplay documents cannot restore a complete game.");
         }
         RequireFreshProcess(initialized);
-        document.Progression.RequireRuntimeOwnership();
+        document = document with { Progression = document.Progression.RestoreMissingRuntimeData() };
         GameplaySaveComponentDocument saved = GameplaySaveCodec.Detach(document);
         GameplaySaveProgression progress = saved.Progression!;
         GameplaySaveStory story = progress.Story;
