@@ -28,7 +28,10 @@ public sealed class CrossEditionBattleReturnTests
         ]);
         using GameAssets sourceAssets = new(directory);
         SelectScript(sourceAssets, installed.Name, script);
-        GameSession sourceSession = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(sourceAssets, false), directory, sharedAssets: sourceAssets));
+        NativeBattleExecutionStack execution = new(0x240100, 0x569C3D, NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('C', 64), 1, 2);
+        NativeBattleHeroCrtStackContract crt = new(NativeBattleHeroCrtStackContract.Win32X86Profile, execution.CaptureSha256, execution.CapturedThreadId);
+        NativeBattleEffectMemory environment = NativeBattleEffectMemory.FromColdProcess() with { ExecutionStack = execution, HeroCrtStack = crt };
+        GameSession sourceSession = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(sourceAssets, false), directory, sharedAssets: sourceAssets, executionEnvironment: environment));
         sourceSession.SetFullBattlePlaythrough(true);
         using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets);
         source.EnsureField();
@@ -82,6 +85,10 @@ public sealed class CrossEditionBattleReturnTests
         Assert.Equal(resume ? 165 : 75, targetSession.State.FieldId);
         GameState physical = physicalSession.PrepareSnapshot();
         GameState projected = targetSession.PrepareSnapshot();
+        Assert.Equal(execution, physical.NativeBattleMemory!.EffectMemory!.ExecutionStack);
+        Assert.Equal(crt, physical.NativeBattleMemory.EffectMemory.HeroCrtStack);
+        Assert.Equal(execution, projected.NativeBattleMemory!.EffectMemory!.ExecutionStack);
+        Assert.Equal(crt, projected.NativeBattleMemory.EffectMemory.HeroCrtStack);
         Assert.True(Same(physical.ExamTimer, projected.ExamTimer));
         Assert.Equal(physical.CrtRandom, projected.CrtRandom);
         Assert.True(Same(physical.Economy, projected.Economy));

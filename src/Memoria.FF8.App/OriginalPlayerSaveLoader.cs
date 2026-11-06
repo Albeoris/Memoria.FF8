@@ -10,7 +10,9 @@ internal static class OriginalPlayerSaveLoader
     {
         using GameAssets? ownedAssets = sharedAssets is null ? new GameAssets(gameDirectory, resources: resources) : null;
         GameAssets assets = sharedAssets ?? ownedAssets!;
-        GameSession imported = new(NativePcSaveConverter.Import(File.ReadAllBytes(path), assets));
+        GameState state = NativePcSaveConverter.Import(File.ReadAllBytes(path), assets);
+        NativeBattleRetainedMemory memory = state.NativeBattleMemory ?? throw new InvalidDataException("Original save import requires its fresh native process memory.");
+        GameSession imported = new(state with { NativeBattleMemory = NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(NativeExecutionStackSelection.ConfiguredPath)) });
         using MovieClock clock = new(imported, gameDirectory, mediaToolsDirectory, resolveGameFile);
         using GameWorld candidate = new(imported, gameDirectory, clock, resources, resolveGameFile: resolveGameFile, sharedAssets: assets);
         candidate.EnsureField();

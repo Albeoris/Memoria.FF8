@@ -31,7 +31,8 @@ internal sealed partial class GameWorld
         {
             prepareDefinitions = profile is null ? null : initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, profile.AppliedLayers);
         }
-        GameState restored = GameplaySaveSessionLoader.Restore(document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, prepareDefinitions);
+        NativeBattleEffectMemory executionEnvironment = expected.NativeBattleMemory?.EffectMemory ?? throw new InvalidDataException("Battle profile handoff lost its process execution environment.");
+        GameState restored = GameplaySaveSessionLoader.Restore(document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, prepareDefinitions, executionEnvironment);
         GameSession verificationSession = new(restored);
         using GameWorld verification = new(verificationSession, assets.GameDirectory, resources: resources, sharedAssets: assets, readSceneMods: readSceneMods, modelOverrides: modelOverrides, readGameplayPolicy: readGameplayPolicy, applyEncounterMods: applyEncounterMods);
         verification.EnsureField();

@@ -50,6 +50,8 @@ public sealed partial class GameSession
         NativeBattleRetainedMemory previous = State.NativeBattleMemory ?? throw new InvalidDataException("Retired combat runtime is missing.");
         NativeBattleRetainedMemory memory = selectedColdMemory with
         {
+            // Retiring scene allocations does not replace the selected process execution environment.
+            EffectMemory = selectedColdMemory.EffectMemory! with { ExecutionStack = previous.EffectMemory?.ExecutionStack, HeroCrtStack = previous.EffectMemory?.HeroCrtStack },
             MusicProcess = previous.MusicProcess ?? throw new InvalidDataException("Completed combat lost its physical music owner."),
             VibrationProcess = State.VibrationProcess ?? throw new InvalidDataException("Completed combat lost its canonical vibration owner.")
         };

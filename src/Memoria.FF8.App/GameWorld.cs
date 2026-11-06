@@ -37,6 +37,16 @@ internal sealed partial class GameWorld : IDisposable
     internal static GameSession CreateColdProcess(string gameDirectory, string? selectedExecutionStackPath)
     {
         using GameAssets assets = new(gameDirectory);
+        return CreateColdProcess(assets, selectedExecutionStackPath);
+    }
+
+    internal static GameSession CreateColdProcess(GameAssets assets)
+    {
+        return CreateColdProcess(assets, NativeExecutionStackSelection.ConfiguredPath);
+    }
+
+    private static GameSession CreateColdProcess(GameAssets assets, string? selectedExecutionStackPath)
+    {
         NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }

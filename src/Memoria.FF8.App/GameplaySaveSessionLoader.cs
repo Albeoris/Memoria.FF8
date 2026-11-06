@@ -13,7 +13,7 @@ internal static class GameplaySaveSessionLoader
         return Restore(GameplaySaveCodec.Read(source), gameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
     }
 
-    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
+    internal static GameState Restore(GameplaySaveComponentDocument document, string gameDirectory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null, NativeBattleEffectMemory? executionEnvironment = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
@@ -26,7 +26,16 @@ internal static class GameplaySaveSessionLoader
         GameAssets assets = sharedAssets ?? ownedAssets!;
         ResourceService selectedResources = resources ?? assets.Resources;
         GameplayTuningPolicy policy = readGameplayPolicy?.Invoke() ?? GameplayTuningPolicy.Empty;
-        GameSession initializer = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
+        GameSession initializer;
+        if (executionEnvironment is null)
+        {
+            initializer = GameWorld.CreateColdProcess(assets);
+        }
+        else
+        {
+            NativeBattleRetainedMemory cold = assets.ReadColdProcessNativeBattleMemory();
+            initializer = GameSession.CreateColdProcess(cold with { EffectMemory = cold.EffectMemory! with { ExecutionStack = executionEnvironment.ExecutionStack, HeroCrtStack = executionEnvironment.HeroCrtStack } });
+        }
         initializer.StartNewGame();
         GameplaySaveRules rules = document.Progression!.Rules;
         initializer.Restore(initializer.State with { GameplayPreferences = rules.Preferences, ConfiguredGameplayTuning = rules.ConfiguredTuning });
