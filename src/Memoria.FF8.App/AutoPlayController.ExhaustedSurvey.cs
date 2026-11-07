@@ -101,7 +101,7 @@ internal sealed partial class AutoPlayController
             state.PendingExhaustedSurvey = requested;
         }
         UpdateExhaustedSurveyTarget(state, next?.RefreshVisitKey);
-        return next;
+        return next ?? planner.PlanNavigation(navigation, isCurrent: isCurrent, allowRemoteConditionRoutes: true);
     }
 
     private static AutoPlayEventCoverage[] SoftWalkingBlocks(AutoPlayRunState state, string navigation)

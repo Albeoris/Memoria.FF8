@@ -80,10 +80,10 @@ internal sealed partial class AutoPlayPlanner
         item.Routes.Remove(recorded);
     }
 
-    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null)
+    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false)
     {
         FindNavigationVisit(currentNavigationKey);
-        AutoPlayPlanner shadow = CreateNavigationView(isCurrent);
+        AutoPlayPlanner shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null);
         if (!shadow.State.Visits.Any(visit => visit.Visit.Key == currentNavigationKey))
         {
             return null;
@@ -152,7 +152,7 @@ internal sealed partial class AutoPlayPlanner
         return count;
     }
 
-    private AutoPlayPlanner CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent)
+    private AutoPlayPlanner CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent, string? hintOrigin = null)
     {
         AutoPlayPlannerState view = new();
         Dictionary<string, AutoPlayNavigationVisit[]> navigationByKey = State.NavigationVisits.GroupBy(visit => visit.Key, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
@@ -168,24 +168,30 @@ internal sealed partial class AutoPlayPlanner
             foreach (AutoPlayEvent observed in observation.Events)
             {
                 AutoPlayEventCoverage shared = FindEvent(observation.VisitKey, observed.Id);
+                bool sameCondition = observed.ConditionSignature == shared.Event.ConditionSignature;
+                // A previously executed local transition can guide travel to its
+                // remote source. It cannot authorize an action at the current vertex.
+                bool hint = !sameCondition && hintOrigin is not null && observation.Key != hintOrigin && State.NavigationRoutes.Any(edge =>
+                    edge.SourceKey == observation.Key && edge.EventId == observed.Id && edge.Route.ConditionSignature == observed.ConditionSignature &&
+                    edge.Route.DestinationVisitKey == observation.VisitKey && valid.Contains(edge.DestinationKey));
                 AutoPlayEventCoverage local = new()
                 {
                     Event = observed,
-                    Available = observed.ConditionSignature == shared.Event.ConditionSignature,
+                    Available = sameCondition || hint,
                     Completed = shared.Completed,
                     BlockedReason = shared.BlockedReason,
-                    Conditions = shared.Conditions,
+                    Conditions = hint ? null : shared.Conditions,
                     ObservedStoryChanged = shared.ObservedStoryChanged,
                     ObservedConditionSignature = shared.ObservedConditionSignature,
                     Unavailable = shared.Unavailable,
                     UnavailableVariants = shared.UnavailableVariants,
-                    AvailabilityFingerprint = shared.AvailabilityFingerprint,
+                    AvailabilityFingerprint = hint ? null : shared.AvailabilityFingerprint,
                     CompletedAvailabilityFingerprints = shared.CompletedAvailabilityFingerprints,
                     PolicyDeferred = shared.PolicyDeferred,
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
-                    RouteNeedsRediscovery = shared.RouteNeedsRediscovery
+                    RouteNeedsRediscovery = !hint && shared.RouteNeedsRediscovery
                 };
-                if (UnconfirmedNavigationRoutes(observation, local, valid).Any())
+                if (!hint && UnconfirmedNavigationRoutes(observation, local, valid).Any())
                 {
                     local.RouteNeedsRediscovery = true;
                     if (!NeedsExecution(shared))

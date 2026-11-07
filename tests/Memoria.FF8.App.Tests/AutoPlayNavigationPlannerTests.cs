@@ -5,6 +5,42 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNavigationPlannerTests
 {
     [Fact]
+    public void ARemoteLocalTransitionCanGuideTravelButRequiresFreshObservationAtItsSource()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent entry = new("entry", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent unlock = new("unlock", AutoPlayEventKind.Interaction, ConditionSignature: "locked");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "story");
+        planner.Observe(new("outside", "region"), [entry]);
+        planner.ObserveNavigation("outside", "outside-nav", [entry]);
+        planner.Observe(new("inside", "region"), [unlock, story]);
+        planner.ObserveNavigation("inside", "locked-nav", [unlock]);
+        planner.ObserveNavigation("inside", "open-nav", [story]);
+        Connect(planner, "outside", "entry", "inside", "outside-nav", "locked-nav");
+        Connect(planner, "inside", "unlock", "inside", "locked-nav", "open-nav");
+        planner.Observe(new("inside", "region"), [unlock with { ConditionSignature = "other-local-state" }, story]);
+
+        Assert.Null(planner.PlanNavigation("outside-nav"));
+        Assert.Equal("entry", planner.PlanNavigation("outside-nav", allowRemoteConditionRoutes: true)!.Event.Id);
+        Assert.Null(planner.PlanNavigation("locked-nav", allowRemoteConditionRoutes: true));
+        planner.Observe(new("inside", "region"), [unlock]);
+        Assert.Equal("unlock", planner.PlanNavigation("locked-nav")!.Event.Id);
+    }
+
+    [Fact]
+    public void AStoryEventPrecedesTopologyOnlyRediscovery()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        planner.State.NavigationRoutes.RemoveAll(edge => edge.SourceKey == "main");
+        AutoPlayEvent exit = Event(planner, "165:142", "165:gateway:5");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "story");
+        planner.Observe(new("165:142", "garden"), [exit, story]);
+        planner.ObserveNavigation("165:142", "main", [exit, story]);
+
+        Assert.Equal("story", planner.PlanNavigation("main", _ => false)!.Event.Id);
+    }
+
+    [Fact]
     public void ObservingTheWestComponentDoesNotEraseTheMainComponentsAuthenticatedExit()
     {
         AutoPlayPlanner planner = CreateTwoComponents();

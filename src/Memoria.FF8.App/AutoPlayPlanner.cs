@@ -375,8 +375,8 @@ internal sealed partial class AutoPlayPlanner
         }
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
         var ordered = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
-            .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0)
+            .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
             .ThenBy(item => item.Coverage.Event.Order)
@@ -387,7 +387,8 @@ internal sealed partial class AutoPlayPlanner
         var selected = ordered.FirstOrDefault();
         if (needsRefresh is not null && (selected is null || progressionOrder(selected.Visit.Visit, selected.Coverage.Event) >= 0))
         {
-            var ordinary = ordered.FirstOrDefault(item => !item.Coverage.Event.ChangesStory && progressionOrder(item.Visit.Visit, item.Coverage.Event) <= 0);
+            int selectedPriority = selected is null ? int.MaxValue : frontierPriority?.Invoke(selected.Visit.Visit, selected.Coverage.Event) ?? 0;
+            var ordinary = ordered.FirstOrDefault(item => !item.Coverage.Event.ChangesStory && progressionOrder(item.Visit.Visit, item.Coverage.Event) <= 0 && (frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0) <= selectedPriority);
             if (ordinary is not null)
             {
                 selected = ordinary;

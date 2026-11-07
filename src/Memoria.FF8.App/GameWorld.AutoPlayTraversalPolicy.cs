@@ -14,6 +14,8 @@ internal static class AutoPlayTraversalPolicy
             // NG-010: Complete the ordinary clothing interaction before the night entrances.
             ("163:155", "163:line:17" or "163:line:18") => 1,
             ("241:155", "241:line:12") => -1,
+            // NG-019: Quistis advances this phase once the ordinary approach is available.
+            ("679:324", "679:talk:3") => -1,
             _ => 0
         };
     }
