@@ -132,29 +132,7 @@ public sealed partial class BattleSession
 
             (NativeBattleVector Vertex, short? W) ReadVertex(int offset)
             {
-                int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
-                if (offset < 0 || (offset & 7) != 0 || offset > count * 8 - 8)
-                {
-                    throw new InvalidDataException("Enemy Micro Missiles selected vertex leaves its actual geometry.");
-                }
-                NativeBattleEffectArena point;
-                if (operation.VertexAddress == NativeBattleEnemyMicroMissiles284Profile.ArenaAddress + NativeBattleEnemyMicroMissiles284Profile.ScratchOffset)
-                {
-                    point = NativeBattleEffectNodeContextMemory.Copy(current.Memory.Arena ?? throw new NotSupportedException("Enemy Micro Missiles morph requires its current arena."), NativeBattleEnemyMicroMissiles284Profile.ScratchOffset + offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
-                }
-                else
-                {
-                    uint delta = unchecked(operation.VertexAddress - mesh.Address);
-                    int directory = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan());
-                    if (delta < 12 || (delta - 12) % checked((uint)(count * 8)) != 0 || delta + count * 8 > directory)
-                    {
-                        throw new InvalidDataException("Enemy Micro Missiles selected vertices require its current morph or an actual immutable shape.");
-                    }
-                    point = NativeBattleEffectArena.Clear().Write(0, mesh.Bytes.AsSpan().Slice(checked((int)delta + offset), 8));
-                }
-                byte[] xyz = point.Read(0, 6);
-                (byte[] w, bool[] known) = point.ReadSnapshot(6, 2);
-                return (new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
+                return ReadNativeEnemyMicroMissiles284Vertex(current.Memory.Arena, mesh, operation.VertexAddress, offset);
             }
         }
 
@@ -172,5 +150,38 @@ public sealed partial class BattleSession
             return Deliver(current, drawn.Batch);
         }
 
+    }
+
+    internal static (NativeBattleVector Vertex, short? W) ReadNativeEnemyMicroMissiles284Vertex(NativeBattleEffectArena? arena, NativeBattleStaticMeshResource mesh, uint vertexAddress, int offset)
+    {
+        int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
+        if (offset < 0 || (offset & 7) != 0 || offset > count * 8 - 8)
+        {
+            throw new InvalidDataException("Enemy Micro Missiles selected vertex leaves its actual geometry.");
+        }
+        Span<byte> bytes = stackalloc byte[8];
+        bool hasW;
+        if (vertexAddress == NativeBattleEnemyMicroMissiles284Profile.ArenaAddress + NativeBattleEnemyMicroMissiles284Profile.ScratchOffset)
+        {
+            Span<bool> known = stackalloc bool[8];
+            (arena ?? throw new NotSupportedException("Enemy Micro Missiles morph requires its current arena.")).ReadWithKnownness(NativeBattleEnemyMicroMissiles284Profile.ScratchOffset + offset, bytes, known);
+            if (known[..6].Contains(false))
+            {
+                throw new NotSupportedException("Native effect arena read intersects unresolved physical bytes.");
+            }
+            hasW = known[6] && known[7];
+        }
+        else
+        {
+            uint delta = unchecked(vertexAddress - mesh.Address);
+            int directory = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan());
+            if (delta < 12 || (delta - 12) % checked((uint)(count * 8)) != 0 || delta + count * 8 > directory)
+            {
+                throw new InvalidDataException("Enemy Micro Missiles selected vertices require its current morph or an actual immutable shape.");
+            }
+            mesh.Bytes.AsSpan().Slice(checked((int)delta + offset), 8).CopyTo(bytes);
+            hasW = true;
+        }
+        return (new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), hasW ? BinaryPrimitives.ReadInt16LittleEndian(bytes[6..]) : null);
     }
 }

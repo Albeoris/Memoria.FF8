@@ -94,7 +94,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         return Release(frame, 88);
     }
 
-    private static NativeBattleEnemyMicroMissiles284Frame MorphProgramme284(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleStaticMeshResource mesh, int first, int second, int ratio, uint destination)
+    internal static NativeBattleEnemyMicroMissiles284Frame MorphProgramme284(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleStaticMeshResource mesh, int first, int second, int ratio, uint destination)
     {
         if (destination != NativeBattleEnemyMicroMissiles284Profile.ArenaAddress + 0x45A8)
         {
@@ -102,6 +102,8 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Enemy Micro Missiles morph requires its geometry owner."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Enemy Micro Missiles morph requires its arithmetic owner."));
+        NativeBattleEffectArena? result = null;
+        Span<byte> coordinates = stackalloc byte[6];
         for (int vertex = 0; vertex < count; vertex++)
         {
             int a = 12 + (first * count + vertex) * 8;
@@ -110,11 +112,12 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             registers = NativeBattleRaldo19BallRendering.Weighted(registers, false, NativeBattleGteColorInterpolation.CodeConstants45F270);
             registers = NativeBattleGeometry.LoadIrColumn(registers with { Colors = registers.Colors with { Ir0 = unchecked((uint)ratio) } }, ShapeWord(b), ShapeWord(b + 2), ShapeWord(b + 4));
             registers = NativeBattleRaldo19BallRendering.Weighted(registers, true, NativeBattleGteColorInterpolation.CodeConstants45F270);
-            NativeBattleEffectArena result = NativeBattleEffectArena.Clear();
             for (int axis = 0; axis < 3; axis++)
             {
-                result = result.Write(axis * 2, BitConverter.GetBytes(unchecked((short)registers.Colors.Ir[axis]!.Value)));
+                BinaryPrimitives.WriteInt16LittleEndian(coordinates[(axis * 2)..], unchecked((short)registers.Colors.Ir[axis]!.Value));
             }
+            result ??= NativeBattleEffectArena.Clear();
+            result.Write(0, coordinates);
             frame = WriteBytes(frame, checked(destination + (uint)(vertex * 8)), result, 6);
         }
         return frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
