@@ -176,6 +176,11 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
         return new(Point(earlier.Eye, later.Eye), Point(earlier.Target, later.Target), earlier.FocalLength is short a && later.FocalLength is short b ? Lerp(a, b) : earlier.FocalLength, unchecked((short)(earlier.Roll + MathF.Round(rollDelta * alpha))));
     }
 
+    public static bool CanSampleProjection(NativeBattleCameraPose earlierPose, NativeBattleCameraPose laterPose)
+    {
+        return Matrix4x4.Invert(ViewMatrix(NativeBattlePoseMatrices.CameraView(earlierPose)), out _) && Matrix4x4.Invert(ViewMatrix(NativeBattlePoseMatrices.CameraView(laterPose)), out _);
+    }
+
     public static NativeBattleCameraProjection SampleProjection(NativeBattleCameraProjection earlier, NativeBattleCameraProjection later, NativeBattleCameraPose earlierPose, NativeBattleCameraPose laterPose, float alpha)
     {
         if (alpha <= 0)

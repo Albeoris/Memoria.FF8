@@ -93,6 +93,11 @@ public sealed partial class BattleRenderer
         {
             LastPilotFallbackReason = "The completed interval contains geometry without a world-space presentation contract.";
         }
+        if (earlier.PilotCamera is { } earlierCamera && later.PilotCamera is { } laterCamera && !NativeBattlePilotVisualGeometry.CanSampleProjection(earlierCamera, laterCamera))
+        {
+            LastPilotFallbackCount++;
+            LastPilotFallbackReason = "The completed interval contains a noninvertible native camera pose basis.";
+        }
         return LastPilotFallbackCount == 0;
 
         void Check(NativeBattlePreparedPrimitiveFrame frame)
@@ -130,7 +135,8 @@ public sealed partial class BattleRenderer
         pilotAlpha = Math.Clamp(alpha, 0, 1);
         if (!CanSampleNativePilotInterval(earlier, later))
         {
-            return RenderNativePrimitiveFrame(earlier.Primitives, earlier.Textures, overlayCamera, capabilities, earlier.TextureWindows, replacements, earlier.UiFrame, uiTexture, effectTextureSource);
+            NativeBattlePreparedPresentation endpoint = pilotAlpha == 1 ? later : earlier;
+            return RenderNativePrimitiveFrame(endpoint.Primitives, endpoint.Textures, overlayCamera, capabilities, endpoint.TextureWindows, replacements, endpoint.UiFrame, uiTexture, effectTextureSource);
         }
         if (pilotAlpha is 0 or 1)
         {
