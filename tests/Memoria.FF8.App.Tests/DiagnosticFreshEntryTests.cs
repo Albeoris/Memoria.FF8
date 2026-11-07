@@ -9,6 +9,61 @@ namespace Memoria.FF8.Tests;
 public sealed class DiagnosticFreshEntryTests
 {
     [Theory]
+    [InlineData("valid")]
+    [InlineData("same-main-callback")]
+    [InlineData("wrong-hold")]
+    [InlineData("expired-budget")]
+    public void Prospective_texture_release_waits_for_genuine_later_held_admission_even_when_physically_drained(string fault)
+    {
+        BattleDiagnosticInvocationRelease release = DiagnosticInvocationReleaseTests.ProspectiveTerminalTextureReceipt();
+        BattleDiagnosticTerminalHoldReceipt basis = DiagnosticInvocationReleaseTests.TerminalTextureReceipt().TerminalTextures!.Hold.Receipts[0];
+        BattleDiagnosticTerminalHoldReceipt admission = basis with { HoldId = release.TerminalTextures!.Hold.HoldId, LifecycleId = release.LifecycleId, Callback = release.Callback + 1, Frame = release.SimulationFrame + 1 };
+        DiagnosticBattleDriverRecipe recipe = Recipe with
+        {
+            Input = new(BattleInputKind.Action, ActorId: release.Dispatch.ActorId, TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | 53),
+            ExpectedEffect = 288,
+            ExpectedNativeAction = 53,
+            ExpectedNativeCommand = 16,
+            LimitSelection = new(4, 4, 256),
+            SlotsAdmission = new(53, 256, 5),
+            TerminalHold = release.TerminalTextures.Hold.Declaration
+        };
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        driver.Advance(Observation(0, 0));
+        Assert.True(driver.Advance(Observation(0.1, 1)));
+        driver.ObserveDispatch(release.Dispatch);
+        driver.ObserveInvocationRelease(release);
+        driver.Advance(Observation(0.2, 3));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        admission = fault switch
+        {
+            "same-main-callback" => admission with { Callback = release.Callback },
+            "wrong-hold" => admission with { HoldId = Guid.NewGuid() },
+            "expired-budget" => admission with { Callback = release.Callback + 101 },
+            _ => admission
+        };
+        if (fault != "valid")
+        {
+            Assert.Throws<InvalidDataException>(() => driver.ObserveTerminalTextureAdmission(admission));
+            Assert.Null(driver.TerminalTextureAdmission);
+            Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+            return;
+        }
+        driver.ObserveTerminalTextureAdmission(admission);
+        admission.Party[0] = admission.Party[0] with { CurrentHp = 1 };
+        Assert.Equal(100, driver.TerminalTextureAdmission!.Party[0].CurrentHp);
+        driver.Advance(Observation(0.3, 4, false));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        driver.Advance(Observation(0.4, 5));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
+        driver.Advance(Observation(0.5, 6));
+        driver.Advance(Observation(0.6, 7));
+        Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
+        Assert.Same(release, driver.FocalRelease);
+        Assert.Equal(release.Timestamp, driver.FocalRelease!.Timestamp);
+    }
+
+    [Theory]
     [InlineData("pending", false)]
     [InlineData("deferred-aftercare", false)]
     [InlineData("sealed", false)]
@@ -38,7 +93,7 @@ public sealed class DiagnosticFreshEntryTests
         if (blocked)
         {
             Assert.Equal("FOCAL_TERMINAL_COMPLETION_UNSUPPORTED: terminal-texture-quiescence", driver.Blocker);
-            Assert.Equal(0, driver.Execution);
+            Assert.Equal(1, driver.Execution);
         }
     }
 

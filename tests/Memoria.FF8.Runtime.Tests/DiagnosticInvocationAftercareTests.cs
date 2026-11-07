@@ -6,6 +6,34 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class DiagnosticInvocationAftercareTests
 {
+    [Fact]
+    public void Armed_victory_seals_actual_main_frame_without_admitting_outcome_early()
+    {
+        BattleSession session = Fixture(true, true, standaloneVictory: true, prospectiveVictory: true);
+        Set(session, nameof(BattleSession.NativeHostCallbacks), 21L);
+        Pump(session);
+        EndFrame(session);
+        BattleDiagnosticInvocationRelease main = Assert.IsType<BattleDiagnosticInvocationRelease>(session.LastDiagnosticInvocationCompletion);
+        Assert.True(main.Released);
+        BattleDiagnosticTerminalTextureRelease proof = Assert.IsType<BattleDiagnosticTerminalTextureRelease>(main.TerminalTextures);
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Armed, proof.Hold.Phase);
+        Assert.Empty(proof.Hold.Receipts);
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Armed, session.DiagnosticTerminalHold!.Phase);
+        Assert.True(proof.NaturalVictory!.IsNaturalVictory);
+        Assert.Equal(main.Callback, proof.NaturalVictory.Callback);
+        Assert.Equal((ushort)1, Assert.Single(proof.NaturalVictory.Combatants.Where(actor => !actor.IsPlayer)).SavedStatus);
+        string sealedMain = NativeBattleTestSnapshots.Json(main);
+        Set(session, nameof(BattleSession.NativeHostCallbacks), 22L);
+        Call(session, "CompleteBattleIfNeeded");
+        BattleDiagnosticTerminalHoldReceipt admission = Assert.Single(session.DiagnosticTerminalHold!.Receipts);
+        Assert.Equal("held", admission.Kind);
+        Assert.True(admission.Callback > main.Callback);
+        Assert.Equal(BattleOutcome.Active, session.Outcome);
+        Assert.Equal(sealedMain, NativeBattleTestSnapshots.Json(main));
+        BattleDiagnosticInvocationRelease cold = JsonSerializer.Deserialize<BattleDiagnosticInvocationRelease>(sealedMain)!;
+        Assert.Equal(sealedMain, NativeBattleTestSnapshots.Json(cold));
+    }
+
     [Theory]
     [InlineData(true, true)]
     [InlineData(false, true)]
@@ -400,7 +428,7 @@ public sealed class DiagnosticInvocationAftercareTests
         Assert.Equal(before, NativeBattleTestSnapshots.Json(main));
     }
 
-    private static BattleSession Fixture(bool observe, bool terminalTexture, uint? passiveFlags = 0, int model = 0, ushort? targetMask = 1, bool standaloneVictory = false, bool victoryHold = true)
+    private static BattleSession Fixture(bool observe, bool terminalTexture, uint? passiveFlags = 0, int model = 0, ushort? targetMask = 1, bool standaloneVictory = false, bool victoryHold = true, bool prospectiveVictory = false)
     {
         BattleDefinition definition = new()
         {
@@ -421,7 +449,10 @@ public sealed class DiagnosticInvocationAftercareTests
             session.ConfigureDiagnosticTerminalHold(new("Single-use native victory texture cleanup", ["party"], 100) { Candidate = BattleOutcome.Victory });
             typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.CurrentHp))!.SetValue(session.Combatants[1], 0);
             typeof(BattleCombatant).GetProperty("NativeStatus0", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Combatants[1], (ushort)1);
-            Call(session, "CompleteBattleIfNeeded");
+            if (!prospectiveVictory)
+            {
+                Call(session, "CompleteBattleIfNeeded");
+            }
         }
         byte effect = standaloneVictory ? (byte)85 : (byte)1;
         ushort action = standaloneVictory ? (ushort)56 : (ushort)1;
@@ -446,6 +477,7 @@ public sealed class DiagnosticInvocationAftercareTests
         }
         NativeBattleGraphicsState graphics = new(Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 3) { ResourceFlags44 = 10, Sequence = 11 }).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0)
         {
+            EntryReady = prospectiveVictory,
             Auxiliary = auxiliary,
             ActionCallbackReady = false,
             ActionActorId = "party",

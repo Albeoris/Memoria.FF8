@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticTextureTask(int Slot, ushort Flags, ushort State, int? Next, NativeBattleAuxiliaryKind Kind, uint UnknownByteMask, int PayloadLength, uint? ModelPointer, byte? CapturedSequence, int? ProgramOffset, int? ProgramLength, byte? Deadline, int? ModelIndex, ushort? ModelFlags0, ushort? ResourceFlags44, byte? ModelSequence);
-public sealed record BattleDiagnosticTerminalTextureAttempt(BattleDiagnosticInvocationRelease Completion, BattleDiagnosticTerminalHoldState Hold, int BornCallbackCount, BattleDiagnosticNoOpPlayerCallback? BornNoOpCallback, int BoundCommands, int QueuedActions, bool ActiveAction, bool PhysicalBanksMatch, ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks, BattleDiagnosticTextureQuiescence Textures, ImmutableArray<string> FailedGuards, string Result);
+public sealed record BattleDiagnosticTerminalTextureAttempt(BattleDiagnosticInvocationRelease Completion, BattleDiagnosticTerminalHoldState Hold, int BornCallbackCount, BattleDiagnosticNoOpPlayerCallback? BornNoOpCallback, int BoundCommands, int QueuedActions, bool ActiveAction, bool PhysicalBanksMatch, ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks, BattleDiagnosticTextureQuiescence Textures, ImmutableArray<string> FailedGuards, string Result)
+{
+    public BattleDiagnosticNaturalVictory? NaturalVictory { get; init; }
+}
 
 public sealed record BattleDiagnosticTextureQuiescence(int Capacity, int PhysicalActiveCount, int? Head, int? Tail, bool Complete, ImmutableArray<BattleDiagnosticTextureTask> Tasks)
 {
@@ -37,6 +40,8 @@ public sealed partial class BattleSession
 
     private BattleDiagnosticInvocationRelease? TrySealDiagnosticTerminalTextures(BattleDiagnosticInvocationRelease release, NativeBattleGraphicsState graphics)
     {
+        BattleDiagnosticNaturalVictory? naturalVictory = DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory, Phase: BattleDiagnosticTerminalHoldPhase.Armed, Sequence: 0, Rearms: 0, HeldCallback: null, HeldFrame: null, Receipts.IsEmpty: true } ? new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, DetermineOutcome(), NativeEntryReady, HasPendingNativeOutcome, DebugOutcome is not null || nativeEscape.Completed || nativeScriptState.ScriptedExitRequested || encounterPolicies?.TerminalReached == true, combatants.Select(actor => new BattleDiagnosticVictoryCombatant(actor.Id, actor.NativeIndex, actor.IsPlayer, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.CurrentHp)).ToImmutableArray()) : null;
+        bool admittedOrProspectiveVictory = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0, Declaration.Candidate: BattleOutcome.Victory } || naturalVictory?.IsNaturalVictory == true;
         if (LastDiagnosticTerminalTextureAttempt is null && DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory } declared && diagnosticInvocationPolicy is { Command: 16, ActionId: 53 or 56 } && release.Boundary == BattleDiagnosticInvocationRelease.GraphicsFrameBoundary)
         {
             BattleDiagnosticTextureQuiescence observedTextures = CaptureDiagnosticTextureQuiescence(graphics);
@@ -50,7 +55,7 @@ public sealed partial class BattleSession
                     failures.Add(reason);
                 }
             }
-            Require(declared is { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0 }, "single-held-victory");
+            Require(admittedOrProspectiveVictory, "single-held-or-proved-prospective-victory");
             Require(release.PacketRemoved && release.ExecutingCompletion is not null && release.NativeEventCompleted && release.PresentationAcknowledged && release.HeaderCapturedBeforeReset && release.CurrentCompletionPacketGuaranteedRemoval, "same-frame-completion-witness");
             Require(release.Dispatch.NativeCommand == 16 && release.Dispatch.ActionId is 53 or 56, "slots-native-action");
             Require(declared.Declaration.PartyActorIds.Length == 1 && declared.Declaration.PartyActorIds[0] == release.Dispatch.ActorId, "declared-focal-party");
@@ -62,9 +67,9 @@ public sealed partial class BattleSession
             Require(DiagnosticNonAftercareOwnersReleased(release.Owners) && !release.Owners.ActionOrCommand, "other-native-owners-released");
             Require(observedTextures.IsTerminalQuiescent, "terminal-texture-quiescence");
             Require(observedTextures.Tasks.All(task => task.ModelIndex == release.Dispatch.NativeActorIndex), "focal-texture-model");
-            LastDiagnosticTerminalTextureAttempt = NativeBattleStorageSnapshots.Capture(new BattleDiagnosticTerminalTextureAttempt(release, declared, diagnosticFocalCallbackCount, diagnosticBornNoOpCallback, boundCommands, actions.Count, ActiveAction is not null, physicalBanksMatch, CaptureDiagnosticCommandBanks(), observedTextures, failures.ToImmutable(), "pending"));
+            LastDiagnosticTerminalTextureAttempt = NativeBattleStorageSnapshots.Capture(new BattleDiagnosticTerminalTextureAttempt(release, declared, diagnosticFocalCallbackCount, diagnosticBornNoOpCallback, boundCommands, actions.Count, ActiveAction is not null, physicalBanksMatch, CaptureDiagnosticCommandBanks(), observedTextures, failures.ToImmutable(), "pending") { NaturalVictory = naturalVictory });
         }
-        if (DiagnosticTerminalHold is not { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0, Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || diagnosticFocalCallbackCount != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any() || !DiagnosticPhysicalCommandBanksMatch(null) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticNonAftercareOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
+        if (!admittedOrProspectiveVictory || DiagnosticTerminalHold is not { Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || diagnosticFocalCallbackCount != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any() || !DiagnosticPhysicalCommandBanksMatch(null) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticNonAftercareOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
         {
             return null;
         }
@@ -73,7 +78,7 @@ public sealed partial class BattleSession
         {
             return null;
         }
-        return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold, CaptureDiagnosticCommandBanks()) });
+        return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold, CaptureDiagnosticCommandBanks()) { NaturalVictory = naturalVictory } });
     }
 
     private static BattleDiagnosticTextureQuiescence CaptureDiagnosticTextureQuiescence(NativeBattleGraphicsState graphics)

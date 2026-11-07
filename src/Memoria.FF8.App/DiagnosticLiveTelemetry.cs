@@ -19,6 +19,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticTerminalTextureAttempt? TerminalTextureAttempt { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticTerminalHoldReceipt? TerminalTextureAdmission { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticInvocationAftercareReceipt? InvocationAftercare { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public long? AftercareTailPrecedingFrame { get; init; }
@@ -266,6 +268,16 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         executions[sealedExecutionIndex] = sealedExecution with { InvocationAftercare = receipt, AftercareTailPrecedingFrame = lastPresentedFrame, AftercareTailPrecedingTimestamp = lastPresentedTimestamp };
     }
 
+    internal void ObserveTerminalTextureAdmission(BattleDiagnosticTerminalHoldReceipt admission)
+    {
+        if (Active || invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecutionIndex < 0 || sealedTailFinalized || admission.Callback > battle.NativeHostCallbacks || admission.Frame > battle.Frame || executions[sealedExecutionIndex].TerminalTextureAdmission is not null)
+        {
+            throw new InvalidDataException("Prospective texture telemetry has no genuine subsequent normal-pass admission.");
+        }
+        DiagnosticInvocationReleaseValidation.ValidateTerminalTextureAdmission(invocationRelease, admission);
+        executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { TerminalTextureAdmission = NativeBattleStorageSnapshots.Capture(admission) };
+    }
+
     internal void Complete(long frame, bool completed, int tailFrames, string? error)
     {
         if (start is null)
@@ -274,7 +286,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             {
                 DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
                 string? integrityError = sealedExecution.IntegrityError ?? error;
-                bool actualTail = completed && integrityError is null && (invocationRelease?.Aftercare is null || invocationAftercare is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
+                bool actualTail = completed && integrityError is null && (invocationRelease?.Aftercare is null || invocationAftercare is not null) && (invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecution.TerminalTextureAdmission is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
                 executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
                 sealedTailFinalized = true;
             }

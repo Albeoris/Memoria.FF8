@@ -5,7 +5,15 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticInvocationPool(uint DescriptorAddress, uint BankAddress, ushort Stride, int ActiveRows, bool Head, bool Tail);
-public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold, [property: JsonRequired] ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks);
+public sealed record BattleDiagnosticVictoryCombatant(string Id, int NativeIndex, bool IsPlayer, uint NativeFlags, ushort SavedStatus, uint BattleStatus, int CurrentHp);
+public sealed record BattleDiagnosticNaturalVictory(Guid LifecycleId, long Callback, long SimulationFrame, BattleOutcome Candidate, bool NativeReady, bool PendingOutcome, bool ExceptionalOutcome, ImmutableArray<BattleDiagnosticVictoryCombatant> Combatants)
+{
+    public bool IsNaturalVictory => LifecycleId != Guid.Empty && Callback >= 0 && SimulationFrame >= 0 && Candidate == BattleOutcome.Victory && NativeReady && !PendingOutcome && !ExceptionalOutcome && !Combatants.IsDefaultOrEmpty && Combatants.Length <= 7 && Combatants.All(actor => actor is not null && !string.IsNullOrWhiteSpace(actor.Id) && actor.NativeIndex is >= -1 and < 7 && (actor.IsPlayer ? actor.NativeIndex < 3 : actor.NativeIndex is -1 or >= 3)) && Combatants.Select(actor => actor.Id).Distinct(StringComparer.Ordinal).Count() == Combatants.Length && Combatants.Where(actor => actor.NativeIndex >= 0).Select(actor => actor.NativeIndex).Distinct().Count() == Combatants.Count(actor => actor.NativeIndex >= 0) && Combatants.Any(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3 && (actor.NativeFlags & 1) != 0 && (actor.SavedStatus & 5) == 0 && actor.CurrentHp > 0) && Combatants.Any(actor => !actor.IsPlayer) && !Combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (actor.SavedStatus & 5) == 0);
+}
+public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold, [property: JsonRequired] ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks)
+{
+    public BattleDiagnosticNaturalVictory? NaturalVictory { get; init; }
+}
 public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int NonPumpDescriptorTasks, int PendingContacts, int Effects, bool EffectHead, bool AuxiliaryHead, int Modules, bool ModuleHead, int? Files, uint? ReturnedTaskPointer, bool DetachedReturnedTask, byte CameraMask, bool SoundBusy, bool ReplacementResource, bool ActionOrCommand, bool TimedOrReaction)
 {
     public byte ActionHeaders { get; init; }

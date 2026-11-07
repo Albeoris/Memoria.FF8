@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Buffers.Binary;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects.Tests;
@@ -8,6 +10,50 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class VictoryTerminalHoldValidationTests
 {
     private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
+
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("missing-later-admission")]
+    [InlineData("different-later-admission")]
+    [InlineData("missing-natural-victory")]
+    public void Prospective_main_boundary_requires_the_actual_later_held_receipt_before_release(string fault)
+    {
+        JsonObject report = Report();
+        JsonObject execution = report["executions"]![0]!.AsObject();
+        BattleDiagnosticTerminalHoldReceipt held = report["terminal_holds"]![0]!.Deserialize<BattleDiagnosticTerminalHoldReceipt>(Json)!;
+        BattleDiagnosticTerminalHoldDeclaration declaration = report["declared_terminal_hold"]!.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(Json)!;
+        BattleDiagnosticEffectDispatch dispatch = new(1, 6, "party", BattleAbility.LimitBreak, 53, 288, 288, 16) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
+        byte[] header = new byte[20];
+        header[1] = 16;
+        header[4] = 53;
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6), 288);
+        byte[] packet = new byte[12];
+        packet[0] = 7;
+        packet[1] = 128;
+        packet[2] = 10;
+        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), 0x47DDA0);
+        BattleDiagnosticInvocationOwners owners = new(1, 0, 0, 0, false, true, 0, false, 0, 0, false, 0, false, false, false, false) { ObservedOriginalEffect = true, SelectedReturnedDescriptor = 0, OriginalPools = [] };
+        BattleDiagnosticInvocationRelease certificate = new(held.LifecycleId, 9, 9, 90, dispatch, new(header.ToImmutableArray(), 0, 0, null), new(packet.ToImmutableArray()), 0x47DDA0, 0, 0, 7, 0x47DDA0, true, true, true, true, owners, ["effect-or-auxiliary-task"]) { GraphicsCallback = 20 };
+        BattleDiagnosticTerminalHoldState armed = new(declaration, held.HoldId, BattleDiagnosticTerminalHoldPhase.Armed, 0, 0, null, null, []);
+        BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0, 32, 0x1D972C0, 21, 0, 1, 255, 0, 3, 10, 21)]);
+        ImmutableArray<BattleDiagnosticCommandBankClosure> banks = Enumerable.Range(0, 3).Select(bank => new BattleDiagnosticCommandBankClosure((byte)bank, 255, Enumerable.Range(0, 11).Select(_ => new NativeBattleCommandLink(0, 0, 0, null)).ToImmutableArray())).ToImmutableArray();
+        BattleDiagnosticNaturalVictory victory = new(held.LifecycleId, 9, 9, BattleOutcome.Victory, true, false, false, [new("party", 0, true, 1, 0, 0, 100), new("enemy", 3, false, 1, 1, 65536, 0)]);
+        BattleDiagnosticInvocationRelease main = certificate with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, PacketRemoved = true, GraphicsCallback = 21, Owners = owners with { DescriptorPackets = 0 }, ExecutingCompletion = certificate, RemovedCompletionPacket = new(packet.ToImmutableArray().SetItem(1, 0)), TerminalTextures = new(textures, armed, banks) { NaturalVictory = fault == "missing-natural-victory" ? null : victory } };
+        execution["end_callback"] = 9;
+        execution["invocation_release"] = JsonSerializer.SerializeToNode(main, Json);
+        if (fault != "missing-later-admission")
+        {
+            execution["terminal_texture_admission"] = JsonSerializer.SerializeToNode(fault == "different-later-admission" ? held with { Callback = 11 } : held, Json);
+        }
+        if (fault == "valid")
+        {
+            Validate(report);
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => Validate(report));
+        }
+    }
 
     [Fact]
     public void Single_fresh_victory_requires_real_ko_and_one_uninterrupted_held_released_path()

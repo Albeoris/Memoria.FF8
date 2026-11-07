@@ -45,15 +45,31 @@ public static class VictoryTerminalHoldValidation
         Guid lifecycle = Guid.Parse(execution.GetProperty("start_owners").GetProperty("retained_memory_owner_id").GetString()!);
         BattleDiagnosticTerminalHoldReceipt held = receipts[0];
         BattleDiagnosticTerminalHoldReceipt released = receipts[1];
+        bool prospective = false;
         if (execution.TryGetProperty("invocation_release", out JsonElement release) && release.TryGetProperty("terminal_textures", out JsonElement terminalTextures) && terminalTextures.ValueKind != JsonValueKind.Null)
         {
             BattleDiagnosticTerminalTextureRelease proof = terminalTextures.Deserialize<BattleDiagnosticTerminalTextureRelease>(Json) ?? throw new InvalidDataException("Terminal texture hold proof is absent.");
-            if (proof.Hold is null || proof.Hold.HoldId != held.HoldId || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(proof.Hold.Declaration, Json), driver.GetProperty("terminal_hold")) || proof.Hold.Receipts.IsDefault || proof.Hold.Receipts.Length != 1 || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(proof.Hold.Receipts[0], Json), JsonSerializer.SerializeToElement(held, Json)))
+            if (proof.Hold is null || proof.Hold.HoldId != held.HoldId || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(proof.Hold.Declaration, Json), driver.GetProperty("terminal_hold")) || proof.Hold.Receipts.IsDefault)
             {
                 throw new InvalidDataException("Standalone terminal textures differ from the actual declared victory hold admission.");
             }
+            prospective = proof.Hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed;
+            if (prospective)
+            {
+                BattleDiagnosticInvocationRelease main = release.Deserialize<BattleDiagnosticInvocationRelease>(Json) ?? throw new InvalidDataException("Prospective terminal textures lack their main certificate.");
+                DiagnosticInvocationReleaseValidation.Validate(main, main.Dispatch, lifecycle);
+                DiagnosticInvocationReleaseValidation.ValidateTerminalTextureAdmission(main, held);
+                if (!execution.TryGetProperty("terminal_texture_admission", out JsonElement admission) || !JsonElement.DeepEquals(admission, JsonSerializer.SerializeToElement(held, Json)))
+                {
+                    throw new InvalidDataException("Prospective terminal textures lack the genuine later held admission before tail/release.");
+                }
+            }
+            else if (proof.Hold.Receipts.Length != 1 || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(proof.Hold.Receipts[0], Json), JsonSerializer.SerializeToElement(held, Json)))
+            {
+                throw new InvalidDataException("Standalone terminal textures changed their original held admission.");
+            }
         }
-        if (held.HoldId == Guid.Empty || lifecycle == Guid.Empty || held.Frame < 0 || held.Callback < execution.GetProperty("start_callback").GetInt64() || held.Callback > execution.GetProperty("end_callback").GetInt64() || released.Callback < execution.GetProperty("end_callback").GetInt64() || released.Callback - held.Callback > config.MaximumCallbacks || released.Frame < held.Frame || !released.Drained)
+        if (held.HoldId == Guid.Empty || lifecycle == Guid.Empty || held.Frame < 0 || held.Callback < execution.GetProperty("start_callback").GetInt64() || (prospective ? held.Callback <= execution.GetProperty("end_callback").GetInt64() || held.Callback > released.Callback : held.Callback > execution.GetProperty("end_callback").GetInt64()) || released.Callback < execution.GetProperty("end_callback").GetInt64() || released.Callback - held.Callback > config.MaximumCallbacks || released.Frame < held.Frame || !released.Drained)
         {
             throw new InvalidDataException("Victory hold changed its native callback, lifetime budget or completed drain.");
         }

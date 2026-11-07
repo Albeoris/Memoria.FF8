@@ -72,14 +72,29 @@ public static class DiagnosticInvocationReleaseValidation
         BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures ?? throw new InvalidDataException("Standalone terminal texture release lacks its actual native proof.");
         BattleDiagnosticTerminalHoldState hold = proof.Hold ?? throw new InvalidDataException("Standalone terminal texture release lacks its declared victory hold.");
         hold.Declaration.Validate();
-        if (!release.PacketRemoved || release.Aftercare is not null || !release.Owners.AuxiliaryHead || HasOutstandingOwners(release.Owners with { AuxiliaryHead = false }, 0) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || focal.NativeCommand != 16 || focal.ActionId is not (53 or 56) || focal.RequestedEffect != (focal.ActionId == 53 ? 288 : 85) || hold.Declaration.Candidate != BattleOutcome.Victory || hold.Phase != BattleDiagnosticTerminalHoldPhase.Held || hold.Sequence != 1 || hold.Rearms != 0 || hold.HoldId == Guid.Empty || hold.HeldCallback is not long heldCallback || heldCallback > release.Callback || release.Callback - heldCallback > hold.Declaration.MaximumCallbacks || hold.HeldFrame is not long heldFrame || heldFrame > release.SimulationFrame || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != focal.ActorId || hold.Receipts.IsDefault || hold.Receipts.Length != 1)
+        if (!release.PacketRemoved || release.Aftercare is not null || !release.Owners.AuxiliaryHead || HasOutstandingOwners(release.Owners with { AuxiliaryHead = false }, 0) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || focal.NativeCommand != 16 || focal.ActionId is not (53 or 56) || focal.RequestedEffect != (focal.ActionId == 53 ? 288 : 85) || hold.Declaration.Candidate != BattleOutcome.Victory || hold.Rearms != 0 || hold.HoldId == Guid.Empty || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != focal.ActorId || hold.Receipts.IsDefault)
         {
             throw new InvalidDataException("Standalone terminal textures require one declared held destructive Slots victory, exact packet retirement and no other native owner.");
         }
-        BattleDiagnosticTerminalHoldReceipt admission = hold.Receipts[0];
-        if (admission is null || admission.Kind != "held" || admission.Candidate != BattleOutcome.Victory || admission.HoldId != hold.HoldId || admission.LifecycleId != lifecycle || admission.Sequence != 1 || admission.Callback != hold.HeldCallback || admission.Frame != hold.HeldFrame || admission.NativeResult is > 0 || admission.RestoreCount != 0 || admission.ResetCount != 0 || admission.Random is null || admission.Party is not { Length: 1 } || admission.Party[0] is not { } caster || caster.Id != focal.ActorId || caster.NativeIndex != focal.NativeActorIndex || caster.CurrentHp <= 0 || caster.CurrentHp > caster.MaximumHp || (caster.Statuses0 & 5) != 0 || (caster.Statuses1 & 0x80010000) != 0)
+        if (hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed)
         {
-            throw new InvalidDataException("Standalone texture victory admission changed its actual living caster or native held boundary.");
+            BattleDiagnosticNaturalVictory victory = proof.NaturalVictory ?? throw new InvalidDataException("Prospective terminal textures lack their actual native natural-victory witness.");
+            if (hold.Sequence != 0 || !hold.Receipts.IsEmpty || hold.HeldCallback is not null || hold.HeldFrame is not null || !victory.IsNaturalVictory || victory.LifecycleId != lifecycle || victory.Callback != release.Callback || victory.SimulationFrame != release.SimulationFrame || !victory.Combatants.Any(actor => actor.Id == focal.ActorId && actor.IsPlayer && actor.NativeIndex == focal.NativeActorIndex && actor.CurrentHp > 0 && (actor.SavedStatus & 5) == 0 && (actor.BattleStatus & 0x80010000) == 0))
+            {
+                throw new InvalidDataException("Prospective terminal textures changed the pristine declaration or same-frame ordinary native victory facts.");
+            }
+        }
+        else
+        {
+            if (hold.Phase != BattleDiagnosticTerminalHoldPhase.Held || hold.Sequence != 1 || hold.Receipts.Length != 1 || hold.HeldCallback is not long heldCallback || heldCallback > release.Callback || release.Callback - heldCallback > hold.Declaration.MaximumCallbacks || hold.HeldFrame is not long heldFrame || heldFrame > release.SimulationFrame || proof.NaturalVictory is not null)
+            {
+                throw new InvalidDataException("Standalone terminal textures changed their held admission boundary.");
+            }
+            ValidateTerminalTextureAdmission(release, hold.Receipts[0]);
+            if (hold.Receipts[0].Callback != hold.HeldCallback || hold.Receipts[0].Frame != hold.HeldFrame)
+            {
+                throw new InvalidDataException("Standalone terminal textures changed their actual held clocks.");
+            }
         }
         DiagnosticTextureQuiescenceValidation.Validate(proof.Textures);
         if (proof.Textures.Tasks.Any(task => task.ModelIndex != focal.NativeActorIndex))
@@ -87,6 +102,17 @@ public static class DiagnosticInvocationReleaseValidation
             throw new InvalidDataException("Standalone terminal textures cannot include a foreign model owner.");
         }
         DiagnosticInvocationAftercareValidation.ValidateEmptyCommandBanks(proof.CommandBanks);
+    }
+
+    public static void ValidateTerminalTextureAdmission(BattleDiagnosticInvocationRelease release, BattleDiagnosticTerminalHoldReceipt admission)
+    {
+        BattleDiagnosticTerminalHoldState hold = release.TerminalTextures?.Hold ?? throw new InvalidDataException("Terminal texture admission has no sealed main proof.");
+        BattleDiagnosticEffectDispatch focal = release.Dispatch;
+        bool prospective = hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed;
+        if (admission is null || admission.Kind != "held" || admission.Candidate != BattleOutcome.Victory || admission.HoldId != hold.HoldId || admission.LifecycleId != release.LifecycleId || admission.Sequence != 1 || admission.Callback < 0 || admission.Frame < 0 || (prospective ? admission.Callback <= release.Callback || admission.Frame < release.SimulationFrame || admission.Callback - release.Callback > hold.Declaration.MaximumCallbacks : admission.Callback > release.Callback || admission.Frame > release.SimulationFrame) || admission.NativeResult is > 0 || admission.RestoreCount != 0 || admission.ResetCount != 0 || admission.Random is null || admission.Party is not { Length: 1 } || admission.Party[0] is not { } caster || caster.Id != focal.ActorId || caster.NativeIndex != focal.NativeActorIndex || caster.CurrentHp <= 0 || caster.CurrentHp > caster.MaximumHp || (caster.Statuses0 & 5) != 0 || (caster.Statuses1 & 0x80010000) != 0)
+        {
+            throw new InvalidDataException("Standalone texture victory admission changed its genuine normal-pass held receipt or living caster.");
+        }
     }
 
     private static void ValidateIdentity(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)

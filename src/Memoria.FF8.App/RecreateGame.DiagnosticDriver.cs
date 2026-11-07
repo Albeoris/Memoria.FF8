@@ -152,6 +152,12 @@ internal sealed partial class RecreateGame
             else
             {
                 BattleSession active = diagnosticDriverBattle!;
+                if (driver.FocalRelease?.TerminalTextures?.Hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed && driver.TerminalTextureAdmission is null && active.DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0, Receipts.Length: 1 } admittedHold)
+                {
+                    BattleDiagnosticTerminalHoldReceipt admission = admittedHold.Receipts[0];
+                    driver.ObserveTerminalTextureAdmission(admission);
+                    diagnosticTelemetry!.ObserveTerminalTextureAdmission(admission);
+                }
                 if (active.LastDiagnosticTerminalTextureAttempt is { } textureAttempt)
                 {
                     driver.ObserveTerminalTextureAttempt(textureAttempt);

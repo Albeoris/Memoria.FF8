@@ -7,6 +7,48 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticInvocationReleaseTests
 {
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("missing-witness")]
+    [InlineData("active-outcome")]
+    [InlineData("living-enemy")]
+    [InlineData("wrong-frame")]
+    [InlineData("exceptional-outcome")]
+    [InlineData("reused-armed-hold")]
+    public void Prospective_main_texture_proof_requires_pristine_hold_and_actual_same_frame_native_victory(string fault)
+    {
+        BattleDiagnosticInvocationRelease release = ProspectiveTerminalTextureReceipt();
+        BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures!;
+        BattleDiagnosticNaturalVictory witness = proof.NaturalVictory!;
+        release = fault switch
+        {
+            "missing-witness" => release with { TerminalTextures = proof with { NaturalVictory = null } },
+            "active-outcome" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Candidate = BattleOutcome.Active } } },
+            "living-enemy" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Combatants = witness.Combatants.SetItem(1, witness.Combatants[1] with { SavedStatus = 0, CurrentHp = 100 }) } } },
+            "wrong-frame" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Callback = witness.Callback + 1 } } },
+            "exceptional-outcome" => release with { TerminalTextures = proof with { NaturalVictory = witness with { ExceptionalOutcome = true } } },
+            "reused-armed-hold" => release with { TerminalTextures = proof with { Hold = proof.Hold with { Sequence = 1 } } },
+            _ => release
+        };
+        if (fault == "valid")
+        {
+            DiagnosticInvocationReleaseValidation.Validate(release, release.Dispatch, release.LifecycleId);
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(release, release.Dispatch, release.LifecycleId));
+        }
+    }
+
+    internal static BattleDiagnosticInvocationRelease ProspectiveTerminalTextureReceipt()
+    {
+        BattleDiagnosticInvocationRelease main = TerminalTextureReceipt();
+        BattleDiagnosticTerminalTextureRelease proof = main.TerminalTextures!;
+        BattleDiagnosticTerminalHoldState armed = proof.Hold with { Phase = BattleDiagnosticTerminalHoldPhase.Armed, Sequence = 0, HeldCallback = null, HeldFrame = null, Receipts = [] };
+        BattleDiagnosticNaturalVictory witness = new(main.LifecycleId, main.Callback, main.SimulationFrame, BattleOutcome.Victory, true, false, false, [new(main.Dispatch.ActorId!, 0, true, 1, 0, 0, 100), new("enemy-0", 3, false, 1, 1, 65536, 0)]);
+        return main with { TerminalTextures = proof with { Hold = armed, NaturalVictory = witness } };
+    }
+
     [Fact]
     public void Standalone_terminal_texture_release_keeps_the_exact_main_packet_and_victory_proofs()
     {
