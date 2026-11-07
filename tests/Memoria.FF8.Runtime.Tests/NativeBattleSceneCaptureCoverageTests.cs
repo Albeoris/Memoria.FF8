@@ -49,7 +49,7 @@ public sealed class NativeBattleSceneCaptureCoverageTests
         const int y = 256;
         const int guardWidth = 322;
         byte[] stale = Enumerable.Repeat((byte)0x5A, 2 * guardWidth * (height + 2)).ToArray();
-        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(x - 1, y - 1, guardWidth, height + 2, stale);
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(x - 1, y - 1, guardWidth, checked((short)(height + 2)), stale);
         NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer().Initialize500400();
         NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.Recalculate45B6F0(new((short)x, (short)y, (uint)(x + 319), (uint)(y + height - 1), (short)x, (short)y, 0, 0, 0, null));
         uint[] handlers = new uint[256];
@@ -79,10 +79,14 @@ public sealed class NativeBattleSceneCaptureCoverageTests
     public void Ordinary_source_geometry_retains_world_domain_mapping(NativeBattleSceneCaptureKind kind)
     {
         NativeBattleSceneCapture capture = Capture(1, 232) with { Kind = kind };
+        int left = checked((int)Math.Round(capture.Source.Left));
+        int right = checked((int)Math.Round(capture.Source.Right));
+        int top = checked((int)Math.Round(capture.Source.Top + 64));
+        int bottom = checked((int)Math.Round(capture.Source.Bottom + 64));
         NativeBattleLogicalCommand command = Black(1) with
         {
             ScreenCoverage = null,
-            ProjectedCoordinates = [new(capture.Source.Left, capture.Source.Top + 64), new(capture.Source.Right, capture.Source.Top + 64), new(capture.Source.Left, capture.Source.Bottom + 64), new(capture.Source.Right, capture.Source.Bottom + 64)]
+            ProjectedCoordinates = [new(left, top), new(right, top), new(left, bottom), new(right, bottom)]
         };
         byte[] packet = Packet(command);
 

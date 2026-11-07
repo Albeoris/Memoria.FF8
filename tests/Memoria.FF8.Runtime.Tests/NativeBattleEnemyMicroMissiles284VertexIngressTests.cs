@@ -87,8 +87,8 @@ public sealed class NativeBattleEnemyMicroMissiles284VertexIngressTests
         Assert.Same(effect, actual.Effect);
         Assert.Same(frame.State, actual.State);
         Assert.Equal(frame.Random, actual.Random);
-        Assert.Equal(new NativeBattleVector(ax, ay, az), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0).Vertex);
-        Assert.Equal(new NativeBattleVector(bx, by, bz), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 8).Vertex);
+        Assert.Equal(new NativeBattleVector(checked((short)ax), checked((short)ay), checked((short)az)), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0).Vertex);
+        Assert.Equal(new NativeBattleVector(checked((short)bx), checked((short)by), checked((short)bz)), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 8).Vertex);
         Assert.Equal(firstW.Data, arena.ReadSnapshot(ScratchOffset + 6, 2).Data);
         Assert.Equal(firstW.Known, arena.ReadSnapshot(ScratchOffset + 6, 2).Known);
         Assert.Equal(secondW.Data, arena.ReadSnapshot(ScratchOffset + 14, 2).Data);

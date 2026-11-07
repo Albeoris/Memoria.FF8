@@ -77,7 +77,7 @@ public sealed class NativeBattleScenePaletteInterningTests
         {
             BinaryPrimitives.WriteUInt16LittleEndian(encoded.AsSpan(index * 2), palette[index]);
         }
-        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, palette.Length, 1, encoded).Upload45BD30(0, 1, palette.Length, 1, encoded);
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, checked((short)palette.Length), 1, encoded).Upload45BD30(0, 1, checked((short)palette.Length), 1, encoded);
         NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer().Initialize500400() with { ViewportInputs = null };
         uint[] handlers = new uint[256];
         handlers[0x02] = 0x466EF0;
@@ -92,7 +92,7 @@ public sealed class NativeBattleScenePaletteInterningTests
         execution.Cache = selected.Cache;
         NativeBattleSceneCapture capture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.ScreenSample) { X = 576, Y = 256 };
         NativeBattleLogicalCommand command = new(new("sample", 0, 0), 1, 0x26, [0x26808080, 0x00020002, (uint)clut << 16, 0x00020008, (uint)page << 16, 0x00080002, 0], 1, [], null) { SceneCapture = capture };
-        NativeBattleLogicalResolvedCommand actual = execution.RetainTexturePixels(new(command, new(page) { TextureWindowBits = 0, BlendMode = 2, TextureSelection = selected.Selection }, 1));
+        NativeBattleLogicalResolvedCommand actual = execution.RetainTexturePixels(new(command, new(page) { TextureWindowBits = 0, TextureSelection = selected.Selection }, 1));
         return Assert.IsType<NativeBattleSceneCaptureSample>(actual.DrawMode.SceneCaptureSample);
     }
 

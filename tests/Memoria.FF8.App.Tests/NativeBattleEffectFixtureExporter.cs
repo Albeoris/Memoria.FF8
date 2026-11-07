@@ -241,7 +241,7 @@ internal static class NativeBattleEffectFixtureExporter
                     throw new InvalidDataException("The ordinary Magic component requires its original command2 row, explicit party0/enemy3 target and producer budget.");
                 }
                 actors[0] = actors[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(request.ActionId, 2)], Magic = 30, NativeStatusResistances = new byte[40] };
-                actors[1] = actors[1] with { MaximumHp = 10000, CurrentHp = 10000, Spirit = 5, NativeStatusResistances = new byte[40] };
+                actors[1] = actors[1] with { MaximumHp = 10000, CurrentHp = 10000, Spirit = 5, NativeStatusResistances = new byte[40], NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(enemyPlacement.ModelId) };
             }
             // The same declared fresh cold owners as the existing Thunder and guardian components.
             // This creates an independent fixture; it never fills missing fields in a saved game.
