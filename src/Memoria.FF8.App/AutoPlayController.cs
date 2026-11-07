@@ -1381,6 +1381,16 @@ internal sealed partial class AutoPlayController
             }
             return;
         }
+        if (current.NativeCarRuntime is { EntityType: 35 } rental)
+        {
+            if (rental.Speed != 0 || rental.CameraTransition is { Flags: not 0 } || NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory))
+            {
+                Apply(new(PlayerActionKind.Wait));
+                return;
+            }
+            ParkAutoPlayRental(world.WorldScene!);
+            return;
+        }
         string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
         string signature = WorldConditionSignature(session.State);
         IReadOnlyList<WorldAutoPlayTarget> targets;
@@ -1449,6 +1459,48 @@ internal sealed partial class AutoPlayController
             }
             ClearNativeUnavailableInteraction();
         }
+    }
+
+    private void ParkAutoPlayRental(WorldMapScene scene)
+    {
+        (int X, int Z)? target = null;
+        for (int callback = 0; callback < 240; callback++)
+        {
+            bool confirm = scene.IsAutoPlayRentalParkingTerrain() && !NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory);
+            PlayerAction action;
+            if (confirm)
+            {
+                action = new(PlayerActionKind.Confirm);
+            }
+            else
+            {
+                target ??= scene.FindAutoPlayRentalParkingTerrain();
+                if (target is not { } destination)
+                {
+                    break;
+                }
+                action = scene.SteerAutoPlayRental(destination.X, destination.Z);
+            }
+            PlayerActionResult result = Apply(action);
+            if (session.State.Scene != SceneKind.WorldMap)
+            {
+                return;
+            }
+            if (scene.State.NativeFootRuntime?.ParkedCar is not null)
+            {
+                RecordRecentAction($"Native rental car disembark after {callback + 1} callbacks");
+                return;
+            }
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException($"Native rental parking input was rejected: {result.Detail}");
+            }
+            if (result.Trigger.Kind != PlayerTriggerKind.WorldMap || WorldControlWaitFrames(scene.State) > 0)
+            {
+                return;
+            }
+        }
+        throw new NotSupportedException("The native rental car could not reach an admitted parking place within the bounded approach.");
     }
 
     internal static int WorldControlWaitFrames(WorldState world)
