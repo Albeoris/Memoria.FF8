@@ -557,6 +557,7 @@ public sealed partial class EventEngine
                 else
                 {
                     actor.AdditionalControlDisabled = args[0] == 3;
+                    actor.NativeModelAdditionalControlDisabled = actor.AdditionalControlDisabled;
                 }
                 break;
             case Jsm.Opcode.UNUSE:

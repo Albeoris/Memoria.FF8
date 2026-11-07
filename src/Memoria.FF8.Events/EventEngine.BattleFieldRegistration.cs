@@ -85,6 +85,7 @@ public sealed partial class EventEngine
         foreach ((int objectId, NativeActorAnimationHeader header) in headers)
         {
             actors[objectId].NativeAnimationHeader = header;
+            actors[objectId].NativeModelAdditionalControlDisabled = actors[objectId].AdditionalControlDisabled;
             actors[objectId].NativeEyes = eyesToBind[objectId];
             //The projection receipt belongs to the replaced model draw, including hidden instances.
             actors[objectId].NativeFootstepModelOrigin = null;

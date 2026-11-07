@@ -40,7 +40,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Retained model polygon color is outside its byte domain.");
             }
             NativeActorEyes eyes = actor.NativeEyes ?? throw new NotSupportedException("Model resource restoration requires retained logical eye state.");
-            return new NativeFieldRetainedPresentation(actor.ObjectId, header.AnimationId, header.Frame, flags.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, renderer, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, eyes.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
+            return new NativeFieldRetainedPresentation(actor.ObjectId, header.AnimationId, header.Frame, flags.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, renderer, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.ResolvedModelAdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, eyes.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
         }).ToArray();
         NativeFieldRegistrationStep rebuilt = NativeFieldRegistrationMachine.RehydrateInactiveResources(source, registration, process.Memory, retained, presentation);
         NativeFieldEyeProcess next = new(process.Version, rebuilt.Memory, process.CrtRandom);

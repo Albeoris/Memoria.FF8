@@ -42,6 +42,7 @@ internal static partial class Program
                     ["remaining-control-codes"] = RemainingControlCodeContract,
                     ["remaining-dialogue-codes"] = RemainingDialogueCodeContract,
                     ["actor-mode"] = AdditionalActorControlAndGuard,
+                    ["native-actor-model-visibility"] = NativeActorModelVisibilityContract,
                     ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
                     ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
                     ["native-party-turn-replacement"] = () => NativePartyTurnReplacementContract(selectedGameDirectory),
@@ -380,6 +381,7 @@ internal static partial class Program
             ClassroomExitTransition(gameDirectory);
             MapJump3PacketAndArrival();
             AdditionalActorControlAndGuard();
+            NativeActorModelVisibilityContract();
             GardenAdditionalActorControl(gameDirectory);
             NativeAreaRequestAndGuard();
             GardenAreaRequestBoundary(gameDirectory);
@@ -1506,7 +1508,7 @@ internal static partial class Program
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         EventEngine engine = new(session) { CanDisableAdditionalControl = _ => true, AnimationFrameCount = (_, _) => 4 };
-        byte[] program = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+        byte[] program = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
         engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         engine.Step();
@@ -1516,7 +1518,7 @@ internal static partial class Program
         Require(disabled.GetRawText() == engine.Capture().GetRawText(), "ACTORMODE3 actor state did not round-trip exactly.");
         engine.Step();
         Require(!engine.Actors[0].AdditionalControlDisabled, "ACTORMODE2 failed to clear the additional-control flag.");
-        byte[] transparent = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+        byte[] transparent = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
         engine.LoadField(602, transparent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         engine.Step();
@@ -1530,7 +1532,7 @@ internal static partial class Program
         Require(!engine.Actors[0].PrimitiveTransparencyEnabled && !engine.Actors[0].AdditionalControlDisabled, "ACTORMODE1 failed to disable primitive transparency independently.");
         foreach (int mode in new[] { 4, -1, 65536, 65539, 3 })
         {
-            byte[] guarded = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mode), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+            byte[] guarded = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mode), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
             engine.CanDisableAdditionalControl = _ => false;
             engine.LoadField(601, guarded, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();

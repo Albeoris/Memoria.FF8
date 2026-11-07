@@ -104,6 +104,7 @@ public sealed partial class EventEngine
             actor.NativeAnimationHeader = RequireNativeAnimationHeader(actor) with { BoundModelId = bound, EmptyModelTerminal = bound == -1 ? emptyTerminals?[ordinal] : null };
             ordinal++;
             SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationRepeating);
+            actor.NativeModelAdditionalControlDisabled = actor.AdditionalControlDisabled;
         }
     }
 

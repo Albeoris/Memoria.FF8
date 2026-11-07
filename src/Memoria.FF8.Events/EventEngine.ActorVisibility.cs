@@ -34,5 +34,7 @@ public sealed partial class EventEngine
         actor.PushEnabled = visible;
         actor.TalkEnabled = visible;
         actor.Visible = visible;
+        // 51EAD0/51EB40 replace model byte96 with0/1, while actor DWORD352 retains ACTORMODE's bit.
+        actor.NativeModelAdditionalControlDisabled = false;
     }
 }

@@ -44,6 +44,11 @@ public sealed class ActorState
     [JsonInclude]
     public bool AdditionalControlDisabled { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? NativeModelAdditionalControlDisabled { get; internal set; }
+    [JsonIgnore]
+    public bool ResolvedModelAdditionalControlDisabled => NativeModelAdditionalControlDisabled ?? AdditionalControlDisabled;
+    [JsonInclude]
     public bool PrimitiveTransparencyEnabled { get; internal set; }
     [JsonInclude]
     public byte? NativeTurnMode580 { get; internal set; }

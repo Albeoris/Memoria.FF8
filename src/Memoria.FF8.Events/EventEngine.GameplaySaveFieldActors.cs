@@ -57,7 +57,7 @@ public sealed partial class EventEngine
             new(actor.ModelId, actor.CharacterId, actor.Active),
             new(new(actor.X, actor.Y, actor.Z), ReadNativeScriptPosition(actor) is { } raw ? new(raw.X, raw.Y, raw.Z) : null, actor.WalkmeshTriangle, actor.Direction, actor.DisplayOffset, actor.RootTranslationZ),
             new(actor.TalkEnabled, actor.PushEnabled, actor.CollisionEnabled, actor.NativeSavedCollisionDisabled16, actor.TalkRadius, actor.PushRadius, actor.MovementSpeed, actor.NativeMovementBaseSpeed, actor.NativeMovementAccelerationTarget, actor.MovementDirectionLimit, actor.MovementFlags, actor.MovementIgnoresWalkmesh, actor.NativeMovementCompletion542, actor.NativeLandingTriangle508, actor.NativeTurnAccumulator474, actor.NativeMovementGroundContact600, actor.NativeTurnMode580, actor.NativeMotionAuthority?.MovementDirection, actor.NativeMotionAuthority?.FacingHold, actor.NativePartyFlags?.AutoAnimation4, actor.NativePartyFlags?.DetachedFollow64, actor.NativeCardChallenge),
-            new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)),
+            new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)) { ModelAdditionalControlDisabled = actor.ResolvedModelAdditionalControlDisabled },
             animation, savedBackup,
             new(actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FaceLimits, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget, actor.FaceDuration, actor.FaceProgress, actor.FaceTargetPoint, actor.FirstControlRotation) { Returning = actor.FaceReturning },
             new(actor.LineStart, actor.LineEnd, actor.LineEnabled, actor.DoorLineEnabled, actor.LineContact, actor.DoorLineContact, actor.NativeLineFacingDirection, actor.NativeLineFacingContact) { ContactVersion = actor.NativeLineContactVersion, CrossingPending = actor.NativeLineCrossingPending, EntryPending = actor.DoorLineEntryPending },
@@ -111,6 +111,7 @@ public sealed partial class EventEngine
         BindNativeAnimationResources();
         foreach (GameplaySaveFieldActor savedActor in detached.Actors.Where(actor => Scene.NativeActorObjectIds.Contains(actor.ObjectId)))
         {
+            actors[savedActor.ObjectId].NativeModelAdditionalControlDisabled = savedActor.Appearance.ModelAdditionalControlDisabled;
             RestoreGameplayAnimation(actors[savedActor.ObjectId], savedActor);
             RestoreGameplayLadderRenderer(actors[savedActor.ObjectId], savedActor);
         }
@@ -163,6 +164,7 @@ public sealed partial class EventEngine
         actor.NativeLadderAnimation = saved.LadderAnimations is { } ladder ? new(ladder.Start, ladder.Loop, ladder.End) : null;
         actor.Visible = appearance.Visible;
         actor.AdditionalControlDisabled = appearance.AdditionalControlDisabled;
+        actor.NativeModelAdditionalControlDisabled = appearance.ModelAdditionalControlDisabled;
         actor.PrimitiveTransparencyEnabled = appearance.PrimitiveTransparency;
         actor.NativeRendererMode599 = appearance.RendererMode;
         actor.NativeEyeBlinkParameter611 = appearance.BlinkParameter;
@@ -300,7 +302,7 @@ public sealed partial class EventEngine
                 ActorState actor = actors[id];
                 Vector3 color = actor.PolygonColor ?? throw new NotSupportedException("Logical model restoration requires the saved polygon color.");
                 NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
-                return new NativeFieldRetainedPresentation(id, header.AnimationId, header.Frame, actor.NativePartyFlags!.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, actor.NativeRendererMode599!.Value, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeEyes!.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
+                return new NativeFieldRetainedPresentation(id, header.AnimationId, header.Frame, actor.NativePartyFlags!.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, actor.NativeRendererMode599!.Value, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.ResolvedModelAdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeEyes!.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
             }).ToArray();
             NativeBattleFieldResourceReloadResult rebuilt = NativeFieldRegistrationMachine.RestoreRetainedPresentation(registration, process.Memory, presentation, process.CrtRandom);
             PublishNativeFieldEyeProcess(new(1, rebuilt.Memory, rebuilt.CrtRandomAfter));
