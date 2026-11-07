@@ -261,7 +261,68 @@ public sealed partial class BattleSession
         {
             pending = pending.ClearRoots45D550();
         }
-        return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color, LastTextureSnapshots = textureSnapshots } };
+        frame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color, LastTextureSnapshots = textureSnapshots };
+        frame = RetainNativeOffscreenSceneSources(frame, memory.Textures, graphics.Callback, checked((byte)(buffer ^ 1)), process.TextureWindowCache);
+        return graphics with { PrimitiveFrame = frame };
+    }
+
+    private static NativeBattlePrimitiveFrame RetainNativeOffscreenSceneSources(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, long callback, byte buffer, NativeBattlePcTextureWindowCache? textureWindows)
+    {
+        var groups = frame.LastCommands.Where(command => command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source, ReplaySourceId: not null }).GroupBy(command => command.Command.SceneCapture!.ReplaySourceId!.Value).ToArray();
+        if (groups.Length == 0)
+        {
+            return frame;
+        }
+        if (textures is null)
+        {
+            throw new NotSupportedException("Scene sources require their retained texture image.");
+        }
+        ImmutableDictionary<long, NativeBattleSceneReplaySource> pool = frame.SceneReplaySources ?? ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty;
+        foreach (var group in groups)
+        {
+            NativeBattleSceneCapture capture = group.First().Command.SceneCapture!;
+            capture.Validate();
+            if (pool.ContainsKey(group.Key))
+            {
+                throw new InvalidDataException("An offscreen scene source cannot replace an existing source identifier.");
+            }
+            ImmutableArray<NativeBattlePcTextureWindowPixels>.Builder snapshots = ImmutableArray.CreateBuilder<NativeBattlePcTextureWindowPixels>();
+            Dictionary<int, int> indices = [];
+            ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder commands = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();
+            foreach (NativeBattleLogicalResolvedCommand command in group)
+            {
+                if (command.Pass == 0 || (command.Command.Opcode & 0xE0) != 0x20)
+                {
+                    continue;
+                }
+                if (command.Command.SceneCapture != capture || command.DrawMode.SceneCaptureSample is not null)
+                {
+                    throw new NotSupportedException("An offscreen source requires one exact capture domain and its own ordered material snapshots.");
+                }
+                NativeBattlePrimitiveDrawMode mode = command.DrawMode;
+                if (mode.TexturePixelSnapshot is int index)
+                {
+                    if (frame.LastTextureSnapshots is not { } retained || (uint)index >= retained.Length)
+                    {
+                        throw new InvalidDataException("An offscreen source refers outside its retained material snapshots.");
+                    }
+                    if (!indices.TryGetValue(index, out int mapped))
+                    {
+                        mapped = snapshots.Count;
+                        snapshots.Add(retained[index]);
+                        indices.Add(index, mapped);
+                    }
+                    mode = mode with { TexturePixelSnapshot = mapped };
+                }
+                commands.Add(command with { Command = command.Command with { SceneCapture = capture with { ReplaySourceId = null } }, DrawMode = mode });
+            }
+            NativeBattlePreparedPrimitiveFrame sourceFrame = NativeBattlePreparedPrimitiveFrame.From(frame) with { LastCommands = commands.ToImmutable(), LastTextureSnapshots = snapshots.ToImmutable(), LastPcRenderTail = null, SceneReplaySources = null };
+            // Buffer identifies the source DRAWENV slot; the capture packet retains its separate physical bank offset.
+            NativeBattleSceneReplaySource source = new(sourceFrame, textures with { SceneCopies = null }, capture.Source) { Callback = callback, Buffer = buffer };
+            pool = pool.Add(group.Key, source);
+        }
+        frame = frame with { SceneReplaySources = pool };
+        return frame with { SceneReplaySources = NativeBattleSceneCopyProvenance.PruneSources(frame, textures, textureWindows) };
     }
 
     private NativeBattleGraphicsState RetainNativeSceneReplaySource(NativeBattleGraphicsState graphics)

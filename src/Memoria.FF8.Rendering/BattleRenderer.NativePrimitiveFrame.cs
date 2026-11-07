@@ -177,6 +177,10 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
+            if (command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source, ReplaySourceId: not null })
+            {
+                continue;
+            }
             float actorOpacity = frame.ActorOpacity(command.PresentationActorId);
             if (actorOpacity == 0)
             {
