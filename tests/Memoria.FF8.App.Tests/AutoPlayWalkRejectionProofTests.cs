@@ -78,7 +78,7 @@ public sealed class AutoPlayWalkRejectionProofTests
     [Fact]
     public void PresentationOperationsDoNotBroadenTheExistingAbsenceProof()
     {
-        JsmProgram program = JsmProgram.Read(Program([], [], [(Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.CTURN, 0), (Jsm.Opcode.PCTURN, 0), (Jsm.Opcode.ANIMEKEEP, 1), (Jsm.Opcode.RANIMEKEEP, 1), (Jsm.Opcode.ANIMESYNC, 0), (Jsm.Opcode.EFFECTPLAY2, 1), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.RBGANIMELOOP, 0), (Jsm.Opcode.BGOFF, 0), (Jsm.Opcode.RUNENABLE, 0), (Jsm.Opcode.AMESW, 0)]));
+        JsmProgram program = JsmProgram.Read(Program([], [], [(Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.CTURN, 0), (Jsm.Opcode.CTURNL, 0), (Jsm.Opcode.CTURNR, 0), (Jsm.Opcode.PCTURN, 0), (Jsm.Opcode.ANIMEKEEP, 1), (Jsm.Opcode.RANIMEKEEP, 1), (Jsm.Opcode.ANIMESYNC, 0), (Jsm.Opcode.EFFECTPLAY2, 1), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.RBGANIMELOOP, 0), (Jsm.Opcode.BGOFF, 0), (Jsm.Opcode.RUNENABLE, 0), (Jsm.Opcode.AMESW, 0)]));
 
         Assert.True(GameWorld.CanCacheAutoPlayWalkRejectionSource(program, "600:talk:0", 0));
         Assert.False(GameWorld.CanCacheAutoPlayUnavailableSource(program, "600:talk:0", 0));
