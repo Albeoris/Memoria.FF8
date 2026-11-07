@@ -8,6 +8,11 @@ public sealed record NativeBattleChoco100ActorDraw(NativeBattleEffectArena Arena
 
 public static class NativeBattleChoco100ActorPackets
 {
+    public static NativeBattleChoco100ActorDraw Emit716DD0(NativeBattleCureActorGeometry geometry, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix contextCamera, NativeBattleCameraProjection projection, uint actorColor, NativeBattleChoco100Wave wave, NativeBattleEffectArena arena, int workArenaOffset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        return Emit716DD0(geometry.Mesh, bodyBones, contextCamera, projection, actorColor, wave, arena, workArenaOffset, geometry.AlreadyRelocated ? null : geometry.Binding, pilotIdentity);
+    }
+
     public static NativeBattleVector DeformVertex(NativeBattleVector vertex, NativeBattleChoco100Wave wave)
     {
         short amplitude = unchecked((short)(unchecked(wave.Height * unchecked((short)wave.Radius)) / 4096));

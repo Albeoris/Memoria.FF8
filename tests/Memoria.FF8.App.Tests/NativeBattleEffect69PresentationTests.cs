@@ -86,7 +86,7 @@ public sealed class NativeBattleEffect69PresentationTests
             ColdNext("completed", completed);
             NativeBattleRestorationPresentationTests.Publish(output, "visible", peak, peakPixels!);
             File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original model122 command8/action350/sequence12 startup renderer and lifecycle in formation509/stage142; zero targets and contacts; no initializer magic TIM; current stage replacement TIM upload included; no ordinary AI admission or formula replay", Effect = Effect, Callbacks = callbacks + 1, Contacts = 0, ContactGlyphs = 0, Completions = completions, ChangedRgb = changedRgb, CameraChanged = cameraChanged, StageChanged = stageChanged, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original model122 command8/action350/sequence12 startup renderer and lifecycle in formation509/stage142; one declared zero-damage SELF target/contact; no initializer magic TIM; current stage replacement TIM upload included; no ordinary AI admission or formula replay", Effect = Effect, Callbacks = callbacks + 1, Contacts = 1, ContactGlyphs = 0, Completions = completions, ChangedRgb = changedRgb, CameraChanged = cameraChanged, StageChanged = stageChanged, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
@@ -147,10 +147,14 @@ public sealed class NativeBattleEffect69PresentationTests
         byte priorActions = packets.ActionCount;
         byte priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(4, 8, 12, -1, 350, 69, null));
-        (packets, _) = packets.Publish(0);
+        // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
+        NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == definition.Id).NativeStatus!.Presentation;
+        NativeBattleContactPacket selfContact = new(new(4, 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, _) = packets.AppendContact(selfContact);
+        (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.ContactCount);
-        Assert.Equal((byte)0, packets.Headers[header].ReadByte(16));
+        Assert.Equal(priorContacts + 1, packets.ContactCount);
+        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([69])[68];
         Assert.Equal(Entry, binding.Entry);
@@ -163,7 +167,7 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
         Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics.Models));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
-        File.WriteAllText(Path.Combine(output, "declared-startup.json"), JsonSerializer.Serialize(new { Scenario = "Declared original startup component; no target, contact, AI or formula execution", Action = action, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, CurrentStageDirectory = stage, CasterModel = graphics.Models[4].ModelId4 }));
+        File.WriteAllText(Path.Combine(output, "declared-startup.json"), JsonSerializer.Serialize(new { Scenario = "Declared original startup component; declared zero-damage SELF contact; no AI or formula execution", Action = action, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, CurrentStageDirectory = stage, CasterModel = graphics.Models[4].ModelId4 }));
         return source;
     }
 

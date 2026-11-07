@@ -10,6 +10,44 @@ public sealed class NativeBattleChoco100ActorPacketTests
     private static NativeBattleCameraProjection Projection => new(null, 128, 0, 0);
 
     [Theory]
+    [InlineData(6)]
+    [InlineData(13)]
+    public void Actual_geometry_provenance_applies_nonidentity_material_relocation_exactly_once(byte slot)
+    {
+        byte?[] rows = new byte?[16];
+        rows[0] = slot;
+        NativeBattleModelTextureBinding binding = new(rows.ToImmutableArray());
+        NativeBattleRawMesh authored = Mesh() with
+        {
+            Polygons = Mesh().Polygons.Select(polygon =>
+            {
+                byte[] bytes = polygon.Bytes.ToArray();
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), (ushort)((224 << 6) | 2));
+                return polygon with { Bytes = bytes.ToImmutableArray() };
+            }).ToImmutableArray()
+        };
+        NativeBattleRawMesh relocated = authored with { Polygons = authored.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, binding) }).ToImmutableArray() };
+        Assert.All(relocated.Polygons, polygon =>
+        {
+            Assert.Equal((ushort)(((224 + slot) << 6) | 2), BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan().Slice(10)));
+            Assert.Throws<NotSupportedException>(() => NativeBattleRawGeometryPackets.Relocate507550(polygon, binding));
+        });
+        NativeBattleChoco100ActorDraw expected = Emit(relocated, NativeBattleEffectArena.Clear());
+        NativeBattleChoco100ActorDraw fromAuthored = EmitSelected(new(authored, binding));
+        NativeBattleChoco100ActorDraw fromCurrent = EmitSelected(new(relocated, binding, AlreadyRelocated: true));
+        Assert.NotEmpty(expected.Packets.Attempts);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(fromAuthored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(fromCurrent));
+        NativeBattleCureActorGeometry cold = JsonSerializer.Deserialize<NativeBattleCureActorGeometry>(JsonSerializer.Serialize(new NativeBattleCureActorGeometry(relocated, binding, AlreadyRelocated: true)))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(EmitSelected(cold)));
+
+        static NativeBattleChoco100ActorDraw EmitSelected(NativeBattleCureActorGeometry geometry)
+        {
+            return NativeBattleChoco100ActorPackets.Emit716DD0(geometry, [Identity], Identity with { Z = 1024 }, Projection, 0xFF102030, new(0, 0, 0, 0, 0), NativeBattleEffectArena.Clear(), 0x20000);
+        }
+    }
+
+    [Theory]
     [InlineData(1024, 512)]
     [InlineData(3072, -512)]
     public void Wave_uses_32768_division_after_flattening_and_preserves_XY(ushort angle, short expectedZ)

@@ -128,7 +128,9 @@ internal sealed partial class RecreateGame
             }
             if ((request.AbilityId is not null || request.SourceSnapshot is not null) && effectPreviewPresented && !effectPreviewCompleted)
             {
-                if (active.ObserveDiagnosticDrainBlockers().Count != 0)
+                bool blocked = active.ObserveDiagnosticDrainBlockers().Count != 0;
+                ObserveEffectPreviewDrain(active, blocked, false);
+                if (blocked)
                 {
                     effectPreviewDrainedFrame = null;
                     effectComponentDrainedTimestamp = null;
@@ -163,6 +165,7 @@ internal sealed partial class RecreateGame
             {
                 if (!effectPreviewCompleted)
                 {
+                    ObserveEffectPreviewDrain(active, true, true);
                     throw new TimeoutException("The complete ability did not drain its native graphics, descriptors, files and camera within the preview deadline.");
                 }
                 ExitGame();
