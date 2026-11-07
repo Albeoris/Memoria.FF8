@@ -797,7 +797,7 @@ internal sealed partial class AutoPlayController
             return;
         }
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
-        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        AutoPlayTarget[] variants = OrderAutoPlayWalkingVariants(targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id)), next.Route?.TargetId);
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         string beforeCheckpoint = $"event-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
@@ -844,6 +844,7 @@ internal sealed partial class AutoPlayController
                 RecordRecentAction("Walk " + variant.Id);
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
+                RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (walk.Interrupted)
                 {
                     BeginWalkInterruption(attempt, walk);
@@ -872,7 +873,7 @@ internal sealed partial class AutoPlayController
             }
             if (!accepted)
             {
-                planner.Block(visit, target.CoverageId, "No native walking approach reached and selected this actor with the ordinary talk query.");
+                planner.Block(visit, target.CoverageId, "No native walking approach reached and selected this actor with the ordinary talk query.", AutoPlayBlockKind.Walking);
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
                 run.ActiveEvent = null;
@@ -897,6 +898,7 @@ internal sealed partial class AutoPlayController
                 RecordRecentAction("Walk " + variant.Id);
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
+                RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (!walk.Interrupted && !walk.Arrived)
                 {
                     continue;
@@ -907,6 +909,7 @@ internal sealed partial class AutoPlayController
                     attempt = CaptureWalkAttempt(world, source, targets);
                     ActivateTarget(variant, checkpoint, source);
                     walk = world.WalkAutoPlayContact(variant, ResetIdleDeadline);
+                    RecordRecentAction($"Contact {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 }
                 bool contacted = walk.ContactTriggered || walk.GatewayIndex is int actualGateway && IsPlannedGateway(variant, actualGateway);
                 if (contacted && run.ActiveTargetId != variant.Id)
@@ -947,7 +950,7 @@ internal sealed partial class AutoPlayController
             {
                 if (!skippedInterruptedVariant)
                 {
-                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.");
+                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.", AutoPlayBlockKind.Walking);
                 }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
@@ -959,6 +962,11 @@ internal sealed partial class AutoPlayController
             }
             Apply(new(PlayerActionKind.Wait));
         }
+    }
+
+    internal static AutoPlayTarget[] OrderAutoPlayWalkingVariants(IEnumerable<AutoPlayTarget> targets, string? preferredTarget)
+    {
+        return targets.OrderBy(target => target.Id == preferredTarget ? 0 : 1).ThenBy(target => target.Order).ThenBy(target => target.Id, StringComparer.Ordinal).ToArray();
     }
 
     private PlayerActionResult ApplyContactInput(PlayerAction action)

@@ -6,6 +6,11 @@ internal enum AutoPlayEventKind
     Transition
 }
 
+internal enum AutoPlayBlockKind
+{
+    Walking
+}
+
 internal sealed record AutoPlayVisit(string Key, string Region);
 
 /// <summary>ChangesStory is supplied by script-write analysis; Order permits explicit policy overrides.</summary>
@@ -32,6 +37,7 @@ internal sealed class AutoPlayEventCoverage
     public bool Available { get; set; }
     public bool Completed { get; set; }
     public string? BlockedReason { get; set; }
+    public AutoPlayBlockKind? BlockKind { get; set; }
     public AutoPlayConditionCoverage? Conditions { get; set; }
     public bool? ObservedStoryChanged { get; set; }
     public string? ObservedConditionSignature { get; set; }
@@ -180,6 +186,7 @@ internal sealed partial class AutoPlayPlanner
                     else if (!previous.Conditions.HasExecutedEntry(signature))
                     {
                         previous.BlockedReason = null;
+                        previous.BlockKind = null;
                     }
                 }
             }
@@ -202,6 +209,7 @@ internal sealed partial class AutoPlayPlanner
         item.Completed = true;
         item.RouteNeedsRediscovery = false;
         item.BlockedReason = null;
+        item.BlockKind = null;
         item.Unavailable = false;
         string? completedAvailability = availabilityFingerprintAuthoritative ? entryAvailabilityFingerprint : item.AvailabilityFingerprint;
         if (completedAvailability is string availability)
@@ -225,12 +233,22 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
-    public void Block(string visitKey, string eventId, string reason)
+    public void Block(string visitKey, string eventId, string reason, AutoPlayBlockKind? kind = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
+        item.BlockKind = kind;
         ConsumeConditions(item, null);
+    }
+
+    internal static bool IsSoftWalkingBlock(AutoPlayEventCoverage item)
+    {
+        if (item.BlockedReason is null || item.Unavailable || item.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))
+        {
+            return false;
+        }
+        return item.BlockKind == AutoPlayBlockKind.Walking || item.BlockKind is null && item.BlockedReason is "No discovered approach selects this actor with the ordinary talk query." or "None of the discovered coordinate approaches activated a native contact callback." or "No native walking approach reached and selected this actor with the ordinary talk query." or "No native walking approach activated the intended contact callback.";
     }
 
     public void RetireTravelRoute(string visitKey, string eventId, AutoPlayEventRoute route, string actualChoiceKey, int first, int last, IReadOnlyList<AutoPlayChoiceSelection>? executedPrefix)
