@@ -100,26 +100,36 @@ internal sealed class NativeBattleMeteor223GridMemory
         return Services.Publish(Frame, unchecked((uint)packetStart), batch);
     }
 
-    private byte[] Read(int address, int length)
+    private void ReadInto(int address, Span<byte> destination)
     {
+        int length = destination.Length;
         if (packetEnd != 0 && address >= packetStart && address <= packetEnd - length)
         {
-            return Enumerable.Range(address, length).Select(index => packet.TryGetValue(index, out byte value) ? value : throw new NotSupportedException("Native Meteor grid read requires a previously written packet byte.")).ToArray();
+            for (int index = 0; index < length; index++)
+            {
+                destination[index] = packet.TryGetValue(address + index, out byte value) ? value : throw new NotSupportedException("Native Meteor grid read requires a previously written packet byte.");
+            }
+            return;
         }
         uint pointer = unchecked((uint)address);
         if (pointer >= Frame.TemporaryFrame.Address && (long)pointer - Frame.TemporaryFrame.Address <= 0x180 - length)
         {
-            return Frame.ReadTemporary(checked((int)(pointer - Frame.TemporaryFrame.Address)), length);
+            Frame.TemporaryFrame.Validate();
+            Frame.TemporaryFrame.ReadInto(checked((int)(pointer - Frame.TemporaryFrame.Address)), destination);
+            return;
         }
         if (pointer >= NativeBattleScriptedEffectMemory.Address && (long)pointer - NativeBattleScriptedEffectMemory.Address <= NativeBattleScriptedEffectMemory.Length - length)
         {
-            return Frame.Core.Read(pointer, length);
+            Frame.Core.Validate();
+            Frame.Core.Core.ReadInto(checked((int)(pointer - NativeBattleScriptedEffectMemory.Address)), destination);
+            return;
         }
         if (pointer >= NativeBattleEffectNodeMemory.ArenaAddress && (long)pointer - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - length)
         {
-            return Frame.Arena.Read(ArenaOffset(pointer, length), length);
+            Frame.Arena.ReadInto(ArenaOffset(pointer, length), destination);
+            return;
         }
-        return Services.ReadStatic(pointer, length);
+        Services.ReadStatic(pointer, length).AsSpan(0, length).CopyTo(destination);
     }
 
     private void Store(int address, ReadOnlySpan<byte> bytes)
@@ -158,8 +168,18 @@ internal sealed class NativeBattleMeteor223GridMemory
     {
         public int this[int address, int offset]
         {
-            get => BinaryPrimitives.ReadInt32LittleEndian(memory.Read(unchecked(address + offset), 4));
-            set => memory.Store(unchecked(address + offset), BitConverter.GetBytes(value));
+            get
+            {
+                Span<byte> bytes = stackalloc byte[4];
+                memory.ReadInto(unchecked(address + offset), bytes);
+                return BinaryPrimitives.ReadInt32LittleEndian(bytes);
+            }
+            set
+            {
+                Span<byte> bytes = stackalloc byte[4];
+                BinaryPrimitives.WriteInt32LittleEndian(bytes, value);
+                memory.Store(unchecked(address + offset), bytes);
+            }
         }
     }
 
@@ -167,8 +187,18 @@ internal sealed class NativeBattleMeteor223GridMemory
     {
         public ushort this[int address, int offset]
         {
-            get => BinaryPrimitives.ReadUInt16LittleEndian(memory.Read(unchecked(address + offset), 2));
-            set => memory.Store(unchecked(address + offset), BitConverter.GetBytes(value));
+            get
+            {
+                Span<byte> bytes = stackalloc byte[2];
+                memory.ReadInto(unchecked(address + offset), bytes);
+                return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
+            }
+            set
+            {
+                Span<byte> bytes = stackalloc byte[2];
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
+                memory.Store(unchecked(address + offset), bytes);
+            }
         }
     }
 
@@ -176,7 +206,12 @@ internal sealed class NativeBattleMeteor223GridMemory
     {
         public short this[int address, int offset]
         {
-            get => BinaryPrimitives.ReadInt16LittleEndian(memory.Read(unchecked(address + offset), 2));
+            get
+            {
+                Span<byte> bytes = stackalloc byte[2];
+                memory.ReadInto(unchecked(address + offset), bytes);
+                return BinaryPrimitives.ReadInt16LittleEndian(bytes);
+            }
         }
     }
 
@@ -184,8 +219,18 @@ internal sealed class NativeBattleMeteor223GridMemory
     {
         public byte this[int address, int offset]
         {
-            get => memory.Read(unchecked(address + offset), 1)[0];
-            set => memory.Store(unchecked(address + offset), new byte[] { value });
+            get
+            {
+                Span<byte> bytes = stackalloc byte[1];
+                memory.ReadInto(unchecked(address + offset), bytes);
+                return bytes[0];
+            }
+            set
+            {
+                Span<byte> bytes = stackalloc byte[1];
+                bytes[0] = value;
+                memory.Store(unchecked(address + offset), bytes);
+            }
         }
     }
 }
