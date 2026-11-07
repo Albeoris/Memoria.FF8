@@ -42,7 +42,7 @@ public sealed class NativeBattleEffect290FollowingActionTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(3, 8, 14, cameraChoice, 291, 290, null));
-        (packets, _) = packets.Publish(0);
+        packets = NativeBattleEffect290PresentationTests.PublishDeclaredSelfContact(source, packets);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
@@ -152,7 +152,7 @@ public sealed class NativeBattleEffect290FollowingActionTests
         }
         BattleSnapshot result = battle.Capture();
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-last", result, null);
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following same original109 zero-contact action after effect290 cleanup; exhausted23script counts and internalLCG retained, no source/RNG reset", Effect = 290, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, RequirePlayback = requirePlayback, Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, WarmSourceRetained = warmRetained, InternalRandomRetained = internalRandomRetained, WarmInternalRandom = warmRandom, WarmScriptCounts = NativeBattleEffect290Resources.ScriptCountAddresses.Select(address => new { Address = address, Value = resources.ReadScriptWord(result.NativeFileStaging!, address) }), ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following same original109 zero-damage SELF-contact action after effect290 cleanup; exhausted23script counts and internalLCG retained, no source/RNG reset", Effect = 290, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, RequirePlayback = requirePlayback, Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, WarmSourceRetained = warmRetained, InternalRandomRetained = internalRandomRetained, WarmInternalRandom = warmRandom, WarmScriptCounts = NativeBattleEffect290Resources.ScriptCountAddresses.Select(address => new { Address = address, Value = resources.ReadScriptWord(result.NativeFileStaging!, address) }), ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
         observer.Publish(output!);
         if (completed)
         {

@@ -58,7 +58,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         int oldAge = before?.ReadWord(12) ?? -1;
         int processed = before is not null ? oldAge : main is not null ? age - 1 : -1;
         callbacks.UnionWith(tasks.Values.Select(task => task.Callback));
-        Assert.Equal((byte)0, current.NativeActionPackets!.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(16));
+        Assert.Equal((byte)1, current.NativeActionPackets!.Headers[effect.Parameters!.HeaderIndex7C].ReadByte(16));
         Assert.Equal((byte)125, graphics.Models[3].ModelId4);
         Assert.Equal(28, graphics.Models[3].CurrentBodyBoneMatrices!.Matrices.Length);
         int row = graphics.Models[3].ActiveResourceRow100 ?? throw new InvalidDataException("Effect290 requires its current physical resource row.");

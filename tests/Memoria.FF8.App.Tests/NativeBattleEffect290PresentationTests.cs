@@ -141,7 +141,7 @@ public sealed class NativeBattleEffect290PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, "geometry-visible", geometryPeak, geometryPixels!);
             File.WriteAllBytes(Path.Combine(output, "geometry-without-effect.rgba"), geometryPlain!);
             File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original109 command8/action291/sequence14 zero-contact component; actual mutable scripts, current posed body, ACTs, fragments, smoke, vibration and native IO cleanup; companions preserved; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original109 command8/action291/sequence14 zero-damage SELF-contact component; actual mutable scripts, current posed body, ACTs, fragments, smoke, vibration and native IO cleanup; companions preserved; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
@@ -179,7 +179,7 @@ public sealed class NativeBattleEffect290PresentationTests
 
     internal static NativeEffectFixtureRequest CreateOriginalRequest() => new("effect290-original109-source", 290, 8, 291, 0, 1800, 240) { EncounterId = 431, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0, ControlledContactValue = 0 };
 
-    private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
+    internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT290_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original109 component source.");
         BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
@@ -215,10 +215,10 @@ public sealed class NativeBattleEffect290PresentationTests
         byte priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(3, 8, 14, cameraChoice, 291, 290, null));
-        (packets, _) = packets.Publish(0);
+        packets = PublishDeclaredSelfContact(original, packets);
         Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.ContactCount);
-        Assert.Equal((byte)0, packets.Headers[header].ReadByte(16));
+        Assert.Equal(priorContacts + 1, packets.ContactCount);
+        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([290])[289];
         Assert.Same(game.ReadNativeEffect290Resources(), binding.Effect290Resources);
@@ -229,8 +229,18 @@ public sealed class NativeBattleEffect290PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original109 command8/action291/sequence14 zero-contact graphics component, unchanged current pose/CPU/companions; no AI/formula admission", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 0, LogicalState = "No target, HP, saved/battle status, participant flags, presentation cache or current script bytes changed" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original109 command8/action291/sequence14 zero-damage SELF-contact graphics component, unchanged current pose/CPU/companions; no AI/formula admission", ActualCasterId = casterId, PhysicalCaster = 3, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, LogicalState = "SELF target declared; HP, saved/battle status, participant flags, presentation cache and current script bytes preserved" }));
         return source;
+    }
+
+    internal static NativeBattleActionPacketsState PublishDeclaredSelfContact(BattleSnapshot source, NativeBattleActionPacketsState packets)
+    {
+        string casterId = source.NativeGraphics!.ActorIds[3] ?? throw new InvalidDataException("The declared self contact requires its current original109 caster.");
+        BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.Id == casterId);
+        NativeBattleStatusMirror status = self.NativeStatus!.Presentation;
+        NativeBattleContactPacket contact = new(new(3, 0, 0, 0, status.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, status.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, _) = packets.AppendContact(contact);
+        return packets.Publish(1).State;
     }
 
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 290, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
