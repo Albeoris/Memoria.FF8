@@ -160,6 +160,7 @@ internal sealed partial class GameWorld
         DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null);
         DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture, NativeItemOrderAliases.From(session.State));
         DiagnosticLimitPreparationResult? limits = request.Fixture?.Limits is { } limitRecipe ? PrepareDiagnosticLimits(session.State.LimitProgress ?? throw new NotSupportedException("Diagnostic Limit preparation requires the actual initialized saved progress owner."), limitRecipe) : null;
+        DiagnosticPocketStationPreparationResult? pocketStation = request.Fixture?.PocketStation is { } pocketRecipe ? PrepareDiagnosticPocketStation(session.State.PocketStation ?? throw new NotSupportedException("Diagnostic PocketStation preparation requires its initialized saved owner."), pocketRecipe) : null;
         Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
         PreparedNativeBattleMusicEntry preparedMusic = Events.PrepareNativeDiagnosticBattleMusicEntry(checked((ushort)request.Encounter), request.Flags, BattleMusicEntryResources, request.BattleMusic, request.PrimaryMusicChannel, request.MusicFieldWord, retained.MusicProcess?.ReturnChannel);
         diagnosticBattle = new(request, Guid.NewGuid());
@@ -177,6 +178,10 @@ internal sealed partial class GameWorld
             {
                 session.SetLimitProgress(limits.Progress);
             }
+            if (pocketStation is not null)
+            {
+                session.SetDiagnosticPocketStation(pocketStation.State);
+            }
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);
             prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Prelude?.Input.ActorId ?? request.Driver?.Input.ActorId);
             if (request.Driver?.TerminalHold is { } terminalHold)
@@ -186,7 +191,7 @@ internal sealed partial class GameWorld
             battle = CommitPreparedBattleEntry(prepared);
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
-            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? []] };
+            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? []] };
             DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge, FreshEntryHost = request.Driver?.FreshEntry is null ? null : DiagnosticFreshEntryHost.Capture(assets.GameDirectory, request.Driver.FreshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, battle.DiagnosticLifecycleId) };
             if (request.Driver?.SlotsAdmission is not null)
             {

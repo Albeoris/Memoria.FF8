@@ -9,7 +9,7 @@ namespace Memoria.FF8.BattleEffects;
 
 public static partial class ScenarioDiscovery
 {
-    public static bool TryConfigurePlayerStatusExecutionProfile(JsonObject recipe, BattleNativeAction action, string gameDirectory, out string? blocker)
+    public static bool TryConfigurePlayerStatusExecutionProfile(JsonObject recipe, BattleNativeAction action, string gameDirectory, out string? blocker, IDictionary<string, DiagnosticFreshEntryDeclaration>? sourcePins = null)
     {
         blocker = null;
         JsonObject driver = recipe["driver"]!.AsObject();
@@ -18,9 +18,22 @@ public static partial class ScenarioDiscovery
         {
             return true;
         }
+        return TryConfigureFreshEntryExecutionProfile(recipe, gameDirectory, out blocker, sourcePins);
+    }
+
+    public static bool TryConfigureFreshEntryExecutionProfile(JsonObject recipe, string gameDirectory, out string? blocker, IDictionary<string, DiagnosticFreshEntryDeclaration>? sourcePins = null)
+    {
+        blocker = null;
+        JsonObject driver = recipe["driver"]!.AsObject();
         try
         {
             string root = Path.GetFullPath(gameDirectory);
+            if (sourcePins is not null && sourcePins.TryGetValue(root, out DiagnosticFreshEntryDeclaration? cached))
+            {
+                cached.Validate();
+                Configure(cached);
+                return true;
+            }
             if (File.Exists(Path.Combine(root, "main.zzz")))
             {
                 throw new InvalidDataException("This source pin profile requires the actual Classic archive layout.");
@@ -53,6 +66,18 @@ public static partial class ScenarioDiscovery
             }
             DiagnosticFreshEntryDeclaration declaration = new(DiagnosticFreshEntryDeclaration.SingleUse, pins.ToImmutable());
             declaration.Validate();
+            sourcePins?.Add(root, declaration);
+            Configure(declaration);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
+        {
+            blocker = "FRESH_ENTRY_SOURCE_PRECONDITION: " + exception.Message;
+            return false;
+        }
+
+        void Configure(DiagnosticFreshEntryDeclaration declaration)
+        {
             driver.Remove("repairs");
             driver.Remove("terminal_hold");
             driver["fresh_entry"] = JsonSerializer.SerializeToNode(declaration, RecordJson.Options);
@@ -62,12 +87,6 @@ public static partial class ScenarioDiscovery
             {
                 recipe.Add(name, value?.DeepClone());
             }
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
-        {
-            blocker = "FRESH_ENTRY_SOURCE_PRECONDITION: " + exception.Message;
-            return false;
         }
     }
 

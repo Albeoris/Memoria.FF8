@@ -48,6 +48,7 @@ internal sealed record DiagnosticCharacterPreparation([property: JsonRequired] i
     public ImmutableArray<DiagnosticCommandPreparation> Commands { get; init; } = [];
     public ImmutableArray<DiagnosticMagicJunctionPreparation> MagicJunctions { get; init; } = [];
     public ushort? HitPoints { get; init; }
+    public bool KnockedOut { get; init; }
     public int? Level { get; init; }
     public byte? Weapon { get; init; }
 }
@@ -57,11 +58,13 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
 {
     public ImmutableArray<DiagnosticItemPreparation> Items { get; init; } = [];
     public DiagnosticLimitPreparation? Limits { get; init; }
+    public DiagnosticPocketStationPreparation? PocketStation { get; init; }
     public ImmutableArray<byte> CombatParty { get; init; } = [];
 
     internal void Validate()
     {
         Limits?.Validate();
+        PocketStation?.Validate();
         if (CombatParty.IsDefault || !CombatParty.IsEmpty && (CombatParty.Length != 3 || CombatParty.All(row => row == 255) || CombatParty.Any(row => row != 255 && row >= 8) || CombatParty.Where(row => row != 255).Distinct().Count() != CombatParty.Count(row => row != 255)))
         {
             throw new InvalidDataException("Diagnostic combat party requires three native saved-row selectors, at least one character and no duplicate selected rows.");
@@ -83,9 +86,9 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
         }
         foreach (DiagnosticCharacterPreparation character in Characters)
         {
-            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 32 || character.Stocks.Any(stock => stock is null || stock.Action is < 1 or >= 64 || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.HitPoints == 0)
+            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 32 || character.Stocks.Any(stock => stock is null || stock.Action is < 1 or >= 64 || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.KnockedOut != (character.HitPoints == 0))
             {
-                throw new InvalidDataException("Diagnostic preparation requires native magic stock identities, at most32 distinct stocks of2..100, distinct GF assignments and positive HP.");
+                throw new InvalidDataException("Diagnostic preparation requires native magic stock identities, at most32 distinct stocks of2..100, distinct GF assignments and positive HP, or explicitly declared KO with zero HP.");
             }
             if (character.MagicCommand is { } magicCommand && (magicCommand.Slot is < 0 or >= 3 || magicCommand.Ability is < 20 or >= 39))
             {
@@ -285,6 +288,11 @@ internal sealed partial class GameWorld
                     throw new InvalidOperationException("Diagnostic HP exceeds the character's actual derived maximum.");
                 }
                 next = next.WithSavedHitPoints(character.Row, hitPoints);
+                if (character.KnockedOut)
+                {
+                    NativeCharacterVital record = next.Records[character.Row];
+                    next.Records[character.Row] = record with { Status = (ushort)(record.Status | 1) };
+                }
             }
         }
         next = next.RebuildParty();

@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "reconcile-coverage --input --catalog --output [--history] [--require-full true]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -59,6 +59,32 @@ public static class Program
             if (args[0] == "discover")
             {
                 Print(ScenarioDiscovery.Generate(Get("game-dir"), Get("output"), Optional("fixture"), Optional("source-commit"), Optional("patch-hash")));
+                return 0;
+            }
+
+            if (args[0] == "reconcile-coverage")
+            {
+                SchemaValidation.ValidateFile(Get("input"), "pilot");
+                PilotManifest manifest = RecordJson.Read<PilotManifest>(Get("input"));
+                string catalogPath = Path.GetFullPath(Get("catalog"));
+                InstalledScenarioInventory catalog = RecordJson.Read<InstalledScenarioInventory>(catalogPath);
+                if (catalog.SchemaVersion != 1 || catalog.Bindings is null || catalog.Bindings.Any(binding => binding is null) || catalog.Bindings.Select(binding => binding.EffectId).Distinct().Count() != catalog.Bindings.Length)
+                {
+                    throw new InvalidDataException("Coverage requires the discovered installed binding catalog with unique effect identities.");
+                }
+                string output = Path.GetFullPath(Get("output"));
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(output)!);
+                string? history = Optional("history") is { } historyPath ? Path.GetFullPath(historyPath) : null;
+                bool requireFull = bool.Parse(Optional("require-full") ?? "false");
+                PilotFpsMeasurement? measured = history is null ? null : PilotSlowEffects.Measure(manifest, history);
+                int[] completed = measured is null ? [] : measured.Cases.Select(item => item.Source.Case.EffectId!.Value).ToArray();
+                EffectCoverageReport coverage = EffectCoverageReconciliation.Create(catalog.Bindings, manifest.Cases.Where(item => item.Status == "RUNNABLE" && item.EffectId.HasValue).Select(item => item.EffectId!.Value), completed);
+                OwnedChildSupervisor.PublishTransientImmutable(output, JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, phase = history is null ? "preparation" : "authenticated_execution", manifest = Path.GetFullPath(Get("input")), catalog = catalogPath, history, authenticated_cases = measured?.Cases.Length ?? 0, diagnostics = measured?.Diagnostics ?? [], coverage }, RecordJson.Options));
+                Print(new { output, catalog_effects = coverage.Catalog.Count, runnable_effects = coverage.Runnable.Count, completed_effects = coverage.Completed.Count, blocked_effects = coverage.Blocked.Count, missing_effects = coverage.Missing.Count, coverage.FullPreparationComplete, coverage.FullExecutionComplete, launched = false });
+                if (requireFull)
+                {
+                    EffectCoverageReconciliation.RequireFullExecution(coverage);
+                }
                 return 0;
             }
 

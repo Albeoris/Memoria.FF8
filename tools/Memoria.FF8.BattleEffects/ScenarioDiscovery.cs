@@ -87,6 +87,7 @@ public static partial class ScenarioDiscovery
         Directory.CreateDirectory(output);
         Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleEnemyBands = [];
         Dictionary<int, NativeCharacterVitals> preparedLevels = [];
+        Dictionary<string, DiagnosticFreshEntryDeclaration> freshEntrySourcePins = new(StringComparer.OrdinalIgnoreCase);
         foreach (DiscoveredAction action in actions)
         {
             BattleNativeAction native = action.Native;
@@ -123,15 +124,27 @@ public static partial class ScenarioDiscovery
                 blockers.Clear();
                 targetPolicy = "Installed BattleActionDefinition.Allies and NativeBattleLimitRules.PlayerTargetMask: target=" + recipe["driver"]!["input"]!["target_id"]!.GetValue<string>() + $"; mask=0x{targetMask:X4}; template-sha256={Hash(File.ReadAllBytes(sourceRecipe))}; initialHP is the original character maximum at the declared prepared level, except positive-power party healing starts at1HP.";
             }
-            if (ordinaryMagic && requiresRevival)
+            if (recipePath is null && templatePath is not null && requiresRevival && native.KernelSection is 1 or 7)
             {
                 blockers.Clear();
-                blockers.Add("REVIVAL_REPEAT_PRECONDITION: a legal KO party recipient and a narrow typed rearm to recreate KO after execution one are unavailable; current typed fixture accepts positive HP only. Do not target a living enemy or kill Squall merely to fabricate invocation.");
+                if (TryPrepareRevivalRecipe(assets, initialVitals, native, templatePath, out JsonObject? revivalRecipe, out string? revivalBlocker) && TryConfigureFreshEntryExecutionProfile(revivalRecipe!, gameDirectory, out revivalBlocker, freshEntrySourcePins))
+                {
+                    string copied = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
+                    File.WriteAllText(copied, revivalRecipe!.ToJsonString(RecordJson.Options));
+                    recipePath = copied;
+                    freshEntryPair = true;
+                    targetPolicy = "Original living caster and distinct saved KO party recipient; explicit saved HP0 and KO bit; ordinary Magic/Item admission in two pinned fresh entries.";
+                }
+                else
+                {
+                    blockers.Add(revivalBlocker ?? "REVIVAL_PRECONDITION: original KO recipient preparation is unavailable.");
+                }
             }
             if (recipePath is null && templatePath is not null && native.KernelSection is 2 or 7 or 10)
             {
                 blockers.Clear();
-                if (TryPrepareOrdinaryPlayerRecipe(assets, initialVitals, native, templatePath, out JsonObject? ordinaryRecipe, out string? ordinaryBlocker) && TryConfigurePlayerStatusExecutionProfile(ordinaryRecipe!, native, gameDirectory, out ordinaryBlocker))
+                if (TryPrepareOrdinaryPlayerRecipe(assets, initialVitals, native, templatePath, out JsonObject? ordinaryRecipe, out string? ordinaryBlocker) && TryConfigurePlayerStatusExecutionProfile(ordinaryRecipe!, native, gameDirectory, out ordinaryBlocker, freshEntrySourcePins))
                 {
                     string copied = Path.Combine(output, "recipes", caseId + ".json");
                     Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
@@ -163,6 +176,39 @@ public static partial class ScenarioDiscovery
                 else
                 {
                     blockers.Add(blueBlocker ?? "BLUE_MAGIC_PRECONDITION: original crisis/learned/target prerequisites remain unresolved.");
+                }
+            }
+            if (recipePath is null && templatePath is not null && native.KernelSection == 9 && native.Command == 244)
+            {
+                blockers.Clear();
+                if (TryPrepareIndependentGuardianRecipe(assets, initialVitals, native, templatePath, out JsonObject? guardianRecipe, out string? guardianBlocker))
+                {
+                    string copied = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
+                    File.WriteAllText(copied, guardianRecipe!.ToJsonString(RecordJson.Options));
+                    recipePath = copied;
+                    targetPolicy = "Original ordinary Item dispatch and installed independent guardian child; saved PocketStation selector is explicit for Gysahl Greens.";
+                }
+                else
+                {
+                    blockers.Add(guardianBlocker ?? "INDEPENDENT_GF_PRECONDITION: original item producer remains unresolved.");
+                }
+            }
+            if (recipePath is null && templatePath is not null && IsTypedLimitScenario(native))
+            {
+                blockers.Clear();
+                if (TryPrepareTypedLimitRecipe(assets, initialVitals, experienceDefinition, native, templatePath, gameDirectory, out JsonObject? limitRecipe, out string? limitBlocker, freshEntrySourcePins))
+                {
+                    string copied = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
+                    File.WriteAllText(copied, limitRecipe!.ToJsonString(RecordJson.Options));
+                    recipePath = copied;
+                    freshEntryPair = limitRecipe["driver"]!["fresh_entry"] is not null;
+                    targetPolicy = "Original character-owned Limit selection and typed " + (native.Command == 16 ? "Slots roll/Do admission in two independently pinned fresh entries" : "Shot opening/firing/ending cycles with actual ammunition consumption") + "; actual target=" + limitRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
+                }
+                else
+                {
+                    blockers.Add(limitBlocker ?? "LIMIT_PROTOCOL_PRECONDITION: original owner or native admission remains unresolved.");
                 }
             }
             bool enemy = native.KernelSection == 3;
