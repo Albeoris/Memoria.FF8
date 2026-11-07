@@ -20,9 +20,7 @@ internal sealed partial class AutoPlayController
         }
         if (!fullCombat && world.Battle?.CanReturnToField == true)
         {
-            SaveBundle($"battle-outcome-{run.Steps:D10}", CaptureState());
             world.ApplyBattleInput(new(BattleInputKind.Return));
-            SaveBundle($"battle-return-{run.Steps:D10}", CaptureState());
             ResetIdleDeadline();
         }
     }
@@ -54,16 +52,11 @@ internal sealed partial class AutoPlayController
             }
             Status = $"Battle {active.EncounterId} · frame {active.Frame} · {run.Steps} steps";
             BattleInput input = PlanBattleInput(active);
-            if (input.Kind == BattleInputKind.Return)
-            {
-                SaveBundle($"battle-outcome-{run.Steps:D10}", CaptureState());
-            }
             var before = BattleProgress(active);
             world.ApplyBattleInput(input);
             if (!ReferenceEquals(world.Battle, active))
             {
                 ResetIdleDeadline();
-                SaveBundle($"battle-return-{run.Steps:D10}", CaptureState());
                 return true;
             }
             if (input.Kind != BattleInputKind.Tick || before != BattleProgress(active))

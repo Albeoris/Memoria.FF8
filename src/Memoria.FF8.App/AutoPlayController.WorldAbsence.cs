@@ -33,7 +33,6 @@ internal sealed partial class AutoPlayController
             throw new NotSupportedException("The unavailable world request lacks its exact active native source and packet provenance.");
         }
         GameState diagnostic = CaptureState();
-        SaveBundle($"world-unavailable-{run.Steps:D10}", diagnostic);
         GameState before = ReadCheckpoint(Path.Combine(runDirectory!, checkpoint));
         try
         {
@@ -67,7 +66,6 @@ internal sealed partial class AutoPlayController
         }
         RefreshUnavailable(getWorld());
         ClearNativeUnavailableInteraction();
-        SaveBundle($"world-unavailable-return-{run.Steps:D10}", CaptureState());
         Status = "Restored the authentic pre-event state; the requested native world body is absent under the observed allocation conditions.";
     }
 }

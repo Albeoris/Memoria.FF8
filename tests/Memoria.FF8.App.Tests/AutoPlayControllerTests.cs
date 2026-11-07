@@ -53,49 +53,15 @@ public sealed class AutoPlayControllerTests
     }
 
     [Fact]
-    public void RollbackRetainsExactCompactBytesThroughStateMutationAndFailedReplacement()
+    public void AutomaticRecoveryBoundaryChangesOnlyOnLocationEntry()
     {
-        using TestRun run = new();
-        AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Resources are unavailable."));
-        controller.State.Steps = 17;
-        JsonSerializerOptions compact = new(AutoPlayController.JsonOptions) { WriteIndented = false };
-        byte[] expected = JsonSerializer.SerializeToUtf8Bytes(controller.State, compact);
-        ReadOnlyMemory<byte> retained = controller.CaptureControllerRollback();
-        controller.State.Steps = 18;
-        controller.State.ObservedMessages.Add("A later native callback.");
-
-        Assert.Equal(expected, retained.ToArray());
-        controller.State.ActiveTravelRoute = new("destination", null, null, new ThrowingSelections());
-        Assert.Throws<InvalidOperationException>(() => controller.CaptureControllerRollback());
-        Assert.Equal(expected, retained.ToArray());
-
-        controller.State.ActiveTravelRoute = null;
-        ReadOnlyMemory<byte> replacement = controller.CaptureControllerRollback();
-        AutoPlayRunState restored = JsonSerializer.Deserialize<AutoPlayRunState>(replacement.Span, AutoPlayController.JsonOptions)!;
-        Assert.Equal(18, restored.Steps);
-        Assert.Contains("A later native callback.", restored.ObservedMessages);
-        Assert.Equal(expected, retained.ToArray());
-    }
-
-    [Fact]
-    public void WarmRollbackBuffersAvoidAllocatingAnotherManifestSizedArray()
-    {
-        using TestRun run = new();
-        AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Resources are unavailable."));
-        controller.State.Error = new string('x', 256 * 1024);
-        controller.CaptureControllerRollback();
-        controller.CaptureControllerRollback();
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        ReadOnlyMemory<byte> snapshot = default;
-        for (int capture = 0; capture < 4; capture++)
-        {
-            snapshot = controller.CaptureControllerRollback();
-        }
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        Assert.True(allocated < snapshot.Length, $"Four warmed captures allocated {allocated} bytes for a {snapshot.Length}-byte manifest.");
-        AutoPlayRunState restored = JsonSerializer.Deserialize<AutoPlayRunState>(snapshot.Span, AutoPlayController.JsonOptions)!;
-        Assert.Equal(controller.State.Error, restored.Error);
+        GameState field = new() { Scene = SceneKind.Field, FieldId = 130, FieldLoadContext = NativeFieldLoadContext.FromFieldRequest(130) };
+        Assert.False(AutoPlayController.EnteredLocation(field, field with { X = 10 }));
+        Assert.False(AutoPlayController.EnteredLocation(field, field with { Scene = SceneKind.Movie }));
+        Assert.False(AutoPlayController.EnteredLocation(field with { Scene = SceneKind.Movie }, field));
+        Assert.True(AutoPlayController.EnteredLocation(field, field with { FieldId = 131 }));
+        Assert.True(AutoPlayController.EnteredLocation(field, field with { Scene = SceneKind.WorldMap }));
+        Assert.True(AutoPlayController.EnteredLocation(field, field with { FieldLoadContext = NativeFieldLoadContext.FromFieldRequest(130) }));
     }
 
     [Theory]
@@ -110,7 +76,7 @@ public sealed class AutoPlayControllerTests
     }
 
     [Fact]
-    public void PresentationFailureStopsTheControllerAndPreservesItsCurrentStandaloneState()
+    public void PresentationFailureStopsTheControllerAndPreservesTheEntryStandalone()
     {
         using TestRun run = new();
         AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Capture unavailable."));
@@ -121,7 +87,7 @@ public sealed class AutoPlayControllerTests
         Assert.Contains("Synthetic rasterizer fault.", controller.Error);
         Assert.NotNull(controller.ReproductionPath);
         AutoPlayRunState saved = ReadManifest(controller.ReproductionPath);
-        Assert.Equal(17, saved.Steps);
+        Assert.Equal(0, saved.Steps);
         Assert.Equal(74, GameSession.Load(Path.Combine(Path.GetDirectoryName(controller.ReproductionPath)!, saved.Snapshot!)).FieldId);
     }
 
@@ -278,7 +244,7 @@ public sealed class AutoPlayControllerTests
     }
 
     [Fact]
-    public void PausedControllerDoesNotTouchResourcesEvenWhenMinuteCheckpointIsDue()
+    public void PausedControllerDoesNotTouchResourcesOrWriteAnotherCheckpoint()
     {
         using TestRun run = new();
         ManualClock clock = new();
@@ -299,72 +265,6 @@ public sealed class AutoPlayControllerTests
         controller.Advance(1);
         Assert.True(requests > 0);
         Assert.False(controller.Running);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RollbackSerializationExcludesPassiveTimeWithoutForgivingActiveWork(bool serializationFails)
-    {
-        using TestRun run = new();
-        ManualClock clock = new();
-        AutoPlayController controller = new(run.Session, () => throw new InvalidOperationException("No native execution is needed."), run.Session.Restore, run.Directory, deadlineTime: clock);
-        controller.CheckIdleDeadline();
-        clock.Advance(TimeSpan.FromSeconds(4));
-        controller.State.ActiveTravelRoute = new("destination", null, null, new TimedSelections(() =>
-        {
-            clock.Advance(TimeSpan.FromSeconds(30));
-            if (serializationFails)
-            {
-                throw new InvalidOperationException("Synthetic serialization failure.");
-            }
-        }));
-        if (serializationFails)
-        {
-            Assert.Throws<InvalidOperationException>(() => controller.CaptureControllerRollback());
-        }
-        else
-        {
-            controller.CaptureControllerRollback();
-        }
-        controller.CheckIdleDeadline();
-        clock.Advance(TimeSpan.FromSeconds(5));
-        controller.CheckIdleDeadline();
-        clock.Advance(TimeSpan.FromSeconds(1));
-        Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
-    }
-
-    private sealed class TimedSelections(Action onEnumeration) : IReadOnlyList<AutoPlayChoiceSelection>
-    {
-        public int Count => 1;
-        public AutoPlayChoiceSelection this[int index] => new("choice", 0);
-
-        public IEnumerator<AutoPlayChoiceSelection> GetEnumerator()
-        {
-            onEnumeration();
-            yield return new("choice", 0);
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-    }
-
-    private sealed class ThrowingSelections : IReadOnlyList<AutoPlayChoiceSelection>
-    {
-        public int Count => 1;
-        public AutoPlayChoiceSelection this[int index] => throw new InvalidOperationException("Synthetic serialization failure.");
-
-        public IEnumerator<AutoPlayChoiceSelection> GetEnumerator()
-        {
-            throw new InvalidOperationException("Synthetic serialization failure.");
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
     }
 
     private static AutoPlayRunState ReadManifest(string path)

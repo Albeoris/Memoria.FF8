@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8;
 
 internal sealed record AutoPlayRecentAction(long Step, int Field, string Scene, string Action);
@@ -5,19 +7,57 @@ internal sealed record AutoPlayRecentAction(long Step, int Field, string Scene, 
 internal sealed partial class AutoPlayController
 {
     private bool captureDirty;
+    private bool pendingLocationCheckpoint;
     private const long MaximumCaptureBytes = 128L * 1024 * 1024;
     private sealed record CaptureRootSet(string[] Dependencies, string? Snapshot);
-    private CaptureRootSet? rollbackCaptureRoots;
     private CaptureRootSet? bundleCaptureRoots;
-    private CaptureRootSet? failureCaptureRoots;
+    private (string Name, GameState State)? stagedAttempt;
 
     private static CaptureRootSet FreezeCaptureRoots(AutoPlayRunState state) => new(CaptureDependencies(state).ToArray(), state.Snapshot);
 
     private void ResetCaptureRoots()
     {
-        rollbackCaptureRoots = null;
         bundleCaptureRoots = null;
-        failureCaptureRoots = null;
+        stagedAttempt = null;
+        pendingLocationCheckpoint = false;
+    }
+
+    internal static bool EnteredLocation(GameState before, GameState after)
+    {
+        return after.Scene is SceneKind.Field or SceneKind.WorldMap
+            && (before.FieldId != after.FieldId
+                || (before.Scene == SceneKind.WorldMap) != (after.Scene == SceneKind.WorldMap)
+                || after.Scene == SceneKind.Field && after.EventState is null && !ReferenceEquals(before.FieldLoadContext, after.FieldLoadContext));
+    }
+
+    private void SaveLocationEntry()
+    {
+        if (pendingLocationCheckpoint)
+        {
+            SaveBundle($"entry-{run.Steps:D10}", CaptureState());
+        }
+    }
+
+    internal string StageAttempt(string name, GameState state)
+    {
+        // The rejected variant no longer owns the active attempt. A search that
+        // still references its source keeps it through the regular dependencies.
+        run.ActiveBeforeCheckpoint = null;
+        MaterializeAttempt();
+        stagedAttempt = (name, state);
+        return name;
+    }
+
+    private void MaterializeAttempt()
+    {
+        if (stagedAttempt is { } staged && CaptureDependencies(run).Contains(staged.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            string path = Path.Combine(runDirectory!, staged.Name);
+            if (!File.Exists(path))
+            {
+                SaveGame(path, staged.State);
+            }
+        }
     }
 
     private void RecordRecentAction(string action)
@@ -86,16 +126,15 @@ internal sealed partial class AutoPlayController
         {
             standalone.Add(run.Snapshot);
         }
-        KeepStandalone(rollbackCaptureRoots);
         KeepStandalone(bundleCaptureRoots);
-        KeepStandalone(failureCaptureRoots);
         HashSet<string> manifests = new(StringComparer.OrdinalIgnoreCase) { "latest.run.json" };
-        foreach (string? manifest in new[] { latestBundleManifest, failureBeforeManifest })
+        if (latestBundleManifest is not null)
         {
-            if (manifest is not null)
-            {
-                manifests.Add(Path.GetFileName(manifest));
-            }
+            manifests.Add(Path.GetFileName(latestBundleManifest));
+        }
+        if (stagedAttempt is { } staged && !File.Exists(Path.Combine(runDirectory, staged.Name)))
+        {
+            retained.Remove(staged.Name);
         }
         foreach (string reference in retained)
         {

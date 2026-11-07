@@ -42,40 +42,24 @@ public sealed class AutoPlayCaptureRootCacheTests
         Assert.False(File.Exists(committed));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RollbackDependenciesSurviveMutationAndFailedSerializationOrDependencyCollection(bool failDependencies)
+    [Fact]
+    public void AnAttemptRemainsInMemoryUntilACommittedLocationNeedsIt()
     {
         using TestRun test = new();
-        string dependency = test.WriteDependency("rollback-before.json");
-        test.Controller.State.ActiveBeforeCheckpoint = Path.GetFileName(dependency);
-        ReadOnlyMemory<byte> rollback = test.Controller.CaptureControllerRollback();
-        byte[] retained = rollback.ToArray();
-        test.Controller.State.ActiveBeforeCheckpoint = null;
-        if (failDependencies)
-        {
-            test.Controller.State.Coverage.Choices.Add(new() { Key = "invalid-policy", PolicyCheckpoints = null! });
-            Assert.Throws<NullReferenceException>(() => test.Controller.CaptureControllerRollback());
-            test.Controller.State.Coverage.Choices.Clear();
-        }
-        else
-        {
-            test.Controller.State.ActiveTravelRoute = new("destination", null, null, new ThrowingSelections());
-            Assert.Throws<InvalidOperationException>(() => test.Controller.CaptureControllerRollback());
-            test.Controller.State.ActiveTravelRoute = null;
-        }
-        Assert.Equal(retained, rollback.ToArray());
-        test.Controller.SaveBundle("after-failure", test.Session.State);
-
+        GameState original = test.Session.State with { X = 42 };
+        string name = test.Controller.StageAttempt("attempt.json", original);
+        test.Controller.State.ActiveBeforeCheckpoint = name;
+        string path = Path.Combine(test.RunDirectory, name);
         test.Controller.MaintainCapture();
+        Assert.False(File.Exists(path));
 
-        Assert.True(File.Exists(dependency));
-        Assert.Equal(test.Session.State.FieldId, AutoPlayCheckpointStore.Load(dependency).FieldId);
-        test.Controller.CaptureControllerRollback();
-        test.Controller.SaveBundle("after-replacement", test.Session.State);
+        string manifest = test.Controller.SaveBundle("entry", test.Session.State);
         test.Controller.MaintainCapture();
-        Assert.False(File.Exists(dependency));
+        Assert.Equal(42, AutoPlayCheckpointStore.Load(path).X);
+
+        test.Controller.ResumeFrom(manifest);
+        string resumedDirectory = Path.GetDirectoryName(Assert.Single(Directory.GetFiles(test.Directory, "resume-start.run.json", SearchOption.AllDirectories)))!;
+        Assert.Equal(42, AutoPlayCheckpointStore.Load(Path.Combine(resumedDirectory, test.Controller.State.ActiveBeforeCheckpoint!)).X);
     }
 
     [Theory]
@@ -87,7 +71,6 @@ public sealed class AutoPlayCaptureRootCacheTests
         string dependency = test.WriteDependency("previous-run-before.json");
         test.Controller.State.ActiveBeforeCheckpoint = Path.GetFileName(dependency);
         string manifest = test.Controller.SaveBundle("previous-run", test.Session.State);
-        test.Controller.CaptureControllerRollback();
         string previousDirectory = test.RunDirectory;
         if (resume)
         {
@@ -103,22 +86,6 @@ public sealed class AutoPlayCaptureRootCacheTests
         Assert.True(File.Exists(dependency));
         Assert.Contains(Directory.EnumerateDirectories(test.Directory), directory => directory != previousDirectory);
         Assert.Null(test.Controller.Error);
-    }
-
-    private sealed class ThrowingSelections : IReadOnlyList<AutoPlayChoiceSelection>
-    {
-        public int Count => 1;
-        public AutoPlayChoiceSelection this[int index] => throw new InvalidOperationException("Synthetic serialization failure.");
-
-        public IEnumerator<AutoPlayChoiceSelection> GetEnumerator()
-        {
-            throw new InvalidOperationException("Synthetic serialization failure.");
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
     }
 
     private sealed class TestRun : IDisposable

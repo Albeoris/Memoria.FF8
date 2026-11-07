@@ -91,7 +91,11 @@ internal static class AutoPlayCommand
                     controller.ReportHostFailure(exception);
                     break;
                 }
-                controller.Advance(4096);
+                long remaining = maxSteps is long ceiling ? ceiling - controller.State.Steps : 4096;
+                if (remaining > 0)
+                {
+                    controller.Advance((int)Math.Min(4096, remaining));
+                }
                 if (maxSteps is long limit && controller.State.Steps >= limit)
                 {
                     controller.SaveAndStop();

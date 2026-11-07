@@ -403,24 +403,13 @@ internal sealed partial class AutoPlayController
         }
         AutoPlayInputSearch? search = run.InputSearch;
         AutoPlayInputSearchFrame? frame = search?.Frames.SingleOrDefault(candidate => candidate.Id == search.ActiveFrameId);
-        string diagnostic = $"native-loss-{run.Steps:D10}";
         if (frame?.ActiveTrial is not int trialIndex || search is null || search.Closed)
         {
-            SaveBundle(diagnostic, CaptureState());
             throw new NotSupportedException("A confirmed native loss has no authenticated local input checkpoint with an untried alternative.");
         }
         AutoPlayInputSearchTrial failed = frame.Trials[trialIndex];
         failed.Outcome = AutoPlayInputTrialOutcome.NativeLoss;
         failed.Loss = receipt;
-        failed.Diagnostic = diagnostic;
-        SaveBundle(diagnostic, CaptureState());
-        if (beforeStep is not null && beforeController is not null)
-        {
-            AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController.Value.Span, JsonOptions)!;
-            before.Snapshot = diagnostic + "-before.json";
-            SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
-            AtomicWrite(Path.Combine(runDirectory!, diagnostic + "-before.run.json"), JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
-        }
         AutoPlayInputSearchFrame? next = SelectInputSearchRecoveryFrame(search, frame);
         if (next is not null)
         {

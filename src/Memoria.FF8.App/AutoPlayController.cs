@@ -86,15 +86,9 @@ internal sealed partial class AutoPlayController
     private readonly TimeProvider time;
     private readonly AutoPlayIdleDeadline idleDeadline;
     private readonly AutoPlayPerformanceProfile performance = new();
-    private long lastSave;
     private string? latestBundleManifest;
-    private string? failureBeforeManifest;
     private AutoPlayRunState run = new();
     private AutoPlayPlanner planner = new();
-    private GameState? beforeStep;
-    private ReadOnlyMemory<byte>? beforeController;
-    private MemoryStream controllerRollbackBuffer = new();
-    private MemoryStream controllerRollbackScratch = new();
     private string? runDirectory;
     private readonly HashSet<GameWorld> watchedWorlds = [];
     private bool advancing;
@@ -202,9 +196,6 @@ internal sealed partial class AutoPlayController
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
-        beforeController = null;
-        beforeStep = null;
-        failureBeforeManifest = null;
         latestBundleManifest = null;
         captureDirty = false;
         ResetCaptureRoots();
@@ -212,7 +203,6 @@ internal sealed partial class AutoPlayController
         Paused = false;
         Error = null;
         ReproductionPath = null;
-        lastSave = time.GetTimestamp();
         Status = status;
         ResetIdleDeadline();
         // This initial standalone also reproduces field allocation failures.
@@ -264,16 +254,6 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        beforeController = CaptureControllerRollback();
-        beforeStep = session.State;
-        try
-        {
-            beforeStep = CaptureState();
-        }
-        catch
-        {
-            // Retain the last serializable session if presentation also prevents capture.
-        }
         Fail(exception);
     }
 
@@ -316,9 +296,6 @@ internal sealed partial class AutoPlayController
         string directory = Path.GetDirectoryName(manifest)!;
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
         Directory.CreateDirectory(runDirectory);
-        beforeController = null;
-        beforeStep = null;
-        failureBeforeManifest = null;
         latestBundleManifest = null;
         captureDirty = false;
         ResetCaptureRoots();
@@ -381,7 +358,6 @@ internal sealed partial class AutoPlayController
         Paused = false;
         Error = null;
         ReproductionPath = manifest;
-        lastSave = time.GetTimestamp();
         Status = $"Resumed at step {run.Steps}.";
         ResetIdleDeadline();
         SaveBundle("resume-start", session.State);
@@ -403,13 +379,15 @@ internal sealed partial class AutoPlayController
             {
                 using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.Step");
                 advancing = true;
-                beforeController = CaptureControllerRollback();
-                beforeStep = session.State;
-                beforeStep = CaptureState();
+                GameState location = session.State;
                 CheckIdleDeadline();
                 Tick();
                 RecoverNativeInputSearchLoss();
                 run.Steps++;
+                if (Running && EnteredLocation(location, session.State))
+                {
+                    pendingLocationCheckpoint = true;
+                }
                 MaintainCapture();
                 int score = ProgressScore(run);
                 if (score != run.LastProgressScore)
@@ -421,11 +399,6 @@ internal sealed partial class AutoPlayController
                 else if (Running && run.Steps - run.LastProgressStep > 10000)
                 {
                     throw new TimeoutException("No new location, event or choice coverage in 10000 controller steps. A reproducible loop was preserved.");
-                }
-                if (time.GetElapsedTime(lastSave) >= TimeSpan.FromMinutes(1))
-                {
-                    SaveBundle($"minute-{run.Steps:D10}", CaptureState());
-                    lastSave = time.GetTimestamp();
                 }
             }
             catch (AutoPlayWorldAbsenceException exception)
@@ -498,7 +471,7 @@ internal sealed partial class AutoPlayController
         }
         if (idleDeadline.Expired)
         {
-            throw new TimeoutException("Automatic play made no new scene, dialogue, event or branch progress for 10 seconds. The pre-failure state is preserved.");
+            throw new TimeoutException("Automatic play made no new scene, dialogue, event or branch progress for 10 seconds. Resume from the last location checkpoint.");
         }
     }
 
@@ -554,7 +527,6 @@ internal sealed partial class AutoPlayController
         AutoPlayDirectCodeEntryState direct = run.DirectCodeEntry;
         if (session.State.NativeGameOver is not null && direct.TrainRetryCheckpoint is not null)
         {
-            SaveBundle($"direct-train-loss-{run.Steps:D10}", CaptureState());
             direct.TrainNativeLosses++;
             throw new NotSupportedException("Automatic train traversal reached a native loss; the unchanged checkpoint will not be retried indefinitely.");
         }
@@ -786,6 +758,7 @@ internal sealed partial class AutoPlayController
             run.ActiveAbsenceGuardKey = null;
             run.ActiveAvailabilityFingerprint = null;
         }
+        SaveLocationEntry();
         if (world.CaptureAutoPlayVisitGuard(targets) is { } guard)
         {
             run.VisitGuards[navigation] = guard;
@@ -801,20 +774,11 @@ internal sealed partial class AutoPlayController
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
         AutoPlayTarget[] variants = OrderAutoPlayWalkingVariants(targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id)), next.Route?.TargetId);
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
-        string beforeCheckpoint = $"event-{run.Steps:D10}.json";
-        SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
         int variantAttempt = 0;
         string BeforeVariant()
         {
-            RefreshUnavailable(world);
             BeginSurveySegment(world);
-            if (variantAttempt++ == 0)
-            {
-                return beforeCheckpoint;
-            }
-            string name = $"event-{run.Steps:D10}-attempt-{variantAttempt}";
-            SaveBundle(name, CaptureState());
-            return name + ".json";
+            return StageAttempt($"event-{run.Steps:D10}-attempt-{++variantAttempt}.json", CaptureState());
         }
         void ActivateTarget(AutoPlayTarget selected, string checkpoint, AutoPlayContactSource source)
         {
@@ -857,13 +821,14 @@ internal sealed partial class AutoPlayController
             }
             foreach (AutoPlayTarget variant in variants)
             {
-                string checkpoint = BeforeVariant();
+                RefreshUnavailable(world);
                 AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
                 if (IsContactInterrupted(source, run.ContactInterruptions))
                 {
                     skippedInterruptedVariant = true;
                     continue;
                 }
+                string checkpoint = BeforeVariant();
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
                 int? selectedActor = world.Events.SelectInteractionTarget();
                 if (selectedActor != variant.ObjectId && world.IsAutoPlayTalkInReach(variant.ObjectId))
@@ -928,13 +893,14 @@ internal sealed partial class AutoPlayController
             bool skippedInterruptedVariant = false;
             foreach (AutoPlayTarget variant in variants)
             {
-                string checkpoint = BeforeVariant();
+                RefreshUnavailable(world);
                 AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
                 if (IsContactInterrupted(source, run.ContactInterruptions))
                 {
                     skippedInterruptedVariant = true;
                     continue;
                 }
+                string checkpoint = BeforeVariant();
                 RecordRecentAction("Walk " + variant.Id);
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
@@ -1039,6 +1005,11 @@ internal sealed partial class AutoPlayController
     private void WaitForNativeFrontier()
     {
         GameWorld world = getWorld();
+        if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline))
+        {
+            RecordRecentAction($"Walk into native position gate R{gate.Register} < {gate.ExclusiveUpperBound}");
+            return;
+        }
         int field = session.State.FieldId;
         ScriptedInputMetadata? observedInput = null;
         int observedObject = -1;
@@ -1415,11 +1386,11 @@ internal sealed partial class AutoPlayController
         run.ActiveAbsenceGuardKey = null;
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
+        SaveLocationEntry();
         AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex)) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
-        string beforeCheckpoint = $"world-{run.Steps:D10}.json";
-        SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
+        string beforeCheckpoint = StageAttempt($"world-{run.Steps:D10}.json", CaptureState());
         BeginSurveySegment(world);
         planner.BeginEvent(visit, target.Id);
         run.ActiveVisit = visit;
@@ -1862,7 +1833,6 @@ internal sealed partial class AutoPlayController
         run.ActiveAbsenceGuardKey = guardKey;
         GameState unavailable = CaptureState();
         string destinationVisit = VisitKey();
-        SaveBundle($"unavailable-{run.Steps:D10}", unavailable);
         GameState before = ReadCheckpoint(Path.Combine(runDirectory!, beforeCheckpoint));
         try
         {
@@ -1887,7 +1857,6 @@ internal sealed partial class AutoPlayController
         planner.MarkUnavailable(sourceVisit, eventId, new(sourceSignature, destinationVisit, guardKey, receipt.Fingerprint, run.ActiveTargetId));
         RefreshUnavailable(getWorld());
         ClearNativeUnavailableInteraction();
-        SaveBundle($"unavailable-return-{run.Steps:D10}", CaptureState());
         Status = "Restored the actual pre-event checkpoint; the native unavailable destination is deferred under its observed conditions.";
         return true;
     }
@@ -2024,6 +1993,7 @@ internal sealed partial class AutoPlayController
     internal string SaveBundle(string name, GameState state)
     {
         using IDisposable suspended = idleDeadline.Suspend();
+        MaterializeAttempt();
         string snapshot = name + ".json";
         SaveGame(Path.Combine(runDirectory!, snapshot), state, standalone: true);
         run.Snapshot = snapshot;
@@ -2035,6 +2005,7 @@ internal sealed partial class AutoPlayController
         AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), content);
         latestBundleManifest = manifest;
         bundleCaptureRoots = roots;
+        pendingLocationCheckpoint = false;
         captureDirty = true;
         return manifest;
     }
@@ -2045,39 +2016,24 @@ internal sealed partial class AutoPlayController
         Error = exception.ToString();
         Status = $"Failed at step {run.Steps}: {exception.Message}";
         run.Error = Error;
+        ReproductionPath = latestBundleManifest ?? ReproductionPath;
         try
         {
-            if (beforeStep is not null && beforeController is not null)
+            if (runDirectory is not null)
             {
-                AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController.Value.Span, JsonOptions)!;
-                before.Snapshot = $"failure-{run.Steps:D10}-before.json";
-                SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep, standalone: true);
-                ReproductionPath = Path.Combine(runDirectory!, $"failure-{run.Steps:D10}.run.json");
-                CaptureRootSet roots = FreezeCaptureRoots(before);
-                AtomicWrite(ReproductionPath, JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
-                failureBeforeManifest = ReproductionPath;
-                failureCaptureRoots = roots;
+                AtomicWrite(Path.Combine(runDirectory, "failure.txt"), Error + Environment.NewLine + JsonSerializer.Serialize(run.RecentActions, BeforeSnapshotJsonOptions));
             }
-            SaveBundle($"failure-{run.Steps:D10}-fault", CaptureState());
         }
-        catch (Exception saveError)
+        catch (Exception saveError) when (saveError is IOException or UnauthorizedAccessException)
         {
-            Error += Environment.NewLine + "Failure snapshot: " + saveError;
-        }
-        try
-        {
-            MaintainCapture();
-        }
-        catch (Exception cleanupError)
-        {
-            Error += Environment.NewLine + "Capture retention: " + cleanupError.Message;
+            // The last published location remains available when diagnostic output cannot be written.
         }
     }
 
     private GameState ReadCheckpoint(string path)
     {
         using IDisposable suspended = idleDeadline.Suspend();
-        return AutoPlayCheckpointStore.Load(path);
+        return stagedAttempt is { } staged && Path.GetFileName(path) == staged.Name ? staged.State : AutoPlayCheckpointStore.Load(path);
     }
 
     private void SaveGame(string path, GameState state, bool standalone = false)
@@ -2102,21 +2058,6 @@ internal sealed partial class AutoPlayController
         {
             File.Delete(temporary);
         }
-    }
-
-    // Consume this view before another successful capture; later captures reuse its backing storage.
-    internal ReadOnlyMemory<byte> CaptureControllerRollback()
-    {
-        using IDisposable suspended = idleDeadline.Suspend();
-        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.RollbackJson");
-        controllerRollbackScratch.SetLength(0);
-        controllerRollbackScratch.Position = 0;
-        JsonSerializer.Serialize(controllerRollbackScratch, run, BeforeSnapshotJsonOptions);
-        CaptureRootSet roots = FreezeCaptureRoots(run);
-        // Keep the last completed rollback intact until its replacement is fully written.
-        (controllerRollbackBuffer, controllerRollbackScratch) = (controllerRollbackScratch, controllerRollbackBuffer);
-        rollbackCaptureRoots = roots;
-        return controllerRollbackBuffer.GetBuffer().AsMemory(0, checked((int)controllerRollbackBuffer.Length));
     }
 
     private void AdvanceInputFrame(GameWorld world)

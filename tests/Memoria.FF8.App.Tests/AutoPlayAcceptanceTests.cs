@@ -342,7 +342,7 @@ public sealed class AutoPlayAcceptanceTests
     }
 
     [Fact]
-    public void MinuteCheckpointLoadsStandaloneAndResumePreservesTheSourceBundle()
+    public void ExplicitStopLoadsStandaloneAndResumePreservesTheSourceBundle()
     {
         string gameDirectory = TestResources.GameDirectory;
         ManualClock clock = new();
@@ -353,7 +353,9 @@ public sealed class AutoPlayAcceptanceTests
         run.Pump();
         run.Controller.Advance(1);
         Assert.Null(run.Controller.Error);
-        string manifestPath = Assert.Single(Directory.GetFiles(run.OutputDirectory, "minute-*.run.json", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(run.OutputDirectory, "minute-*.run.json", SearchOption.AllDirectories));
+        run.Controller.SaveAndStop();
+        string manifestPath = run.Controller.ReproductionPath!;
         string sourceDirectory = Path.GetDirectoryName(manifestPath)!;
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(manifestPath), AutoPlayController.JsonOptions)!;
         Assert.Equal(1, saved.Steps);

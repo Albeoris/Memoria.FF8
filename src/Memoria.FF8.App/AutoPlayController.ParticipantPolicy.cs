@@ -70,10 +70,6 @@ internal sealed partial class AutoPlayController
         }
         AutoPlayChoiceSelection[] selections = run.ActiveSelections.ToArray();
         ScriptedInputMetadata[] selectedInputs = selections.Where(selection => run.ScriptedChoiceInputs.ContainsKey(selection.Key)).Select(selection => run.ScriptedChoiceInputs[selection.Key]).ToArray();
-        GameState diagnostic = CaptureState();
-        run.ParticipantPolicyDiagnosticOnly = true;
-        SaveBundle($"participant-policy-before-request-{run.Steps:D10}", diagnostic);
-        run.ParticipantPolicyDiagnosticOnly = false;
         string checkpoint = choice?.BeforeCheckpoint ?? beforeEvent;
         restore(ReadCheckpoint(Path.Combine(runDirectory!, checkpoint)));
         GameWorld source = getWorld();
@@ -126,7 +122,6 @@ internal sealed partial class AutoPlayController
             if (next.Selection is not null)
             {
                 run.ParticipantPolicyResumeChoice = choice.Key;
-                SaveBundle($"participant-policy-choice-return-{run.Steps:D10}", CaptureState());
                 Status = "Participant action deferred; restored the authentic pre-choice checkpoint for another native alternative.";
                 return;
             }
@@ -141,7 +136,6 @@ internal sealed partial class AutoPlayController
                 {
                     throw new NotSupportedException("A completed alternative has no authenticated canonical continuation.");
                 }
-                SaveBundle($"participant-policy-canonical-return-{run.Steps:D10}", CaptureState());
                 return;
             }
             planner.FinishPolicyDeferredChoice(choice.Key);
@@ -150,7 +144,6 @@ internal sealed partial class AutoPlayController
         getWorld().EnsureField();
         ClearParticipantPolicyAttempt();
         RefreshParticipantPolicies(getWorld());
-        SaveBundle($"participant-policy-event-return-{run.Steps:D10}", CaptureState());
         Status = "Participant actions are policy-deferred under their observed guards; restored the authentic pre-event checkpoint without completion credit.";
     }
 
