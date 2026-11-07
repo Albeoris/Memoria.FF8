@@ -4,7 +4,7 @@ using Memoria.FF8.Events;
 
 namespace Memoria.FF8;
 
-internal sealed record AutoPlayWalkResult(bool Arrived, bool Interrupted, int? GatewayIndex = null, bool ContactTriggered = false);
+internal sealed record AutoPlayWalkResult(bool Arrived, bool Interrupted, int? GatewayIndex = null, bool ContactTriggered = false, int? InterruptingObjectId = null);
 
 internal sealed partial class GameWorld
 {
@@ -112,8 +112,9 @@ internal sealed partial class GameWorld
         (bool? accepted, int? gateway) = Events.ObserveAutoPlayMovement(() => Apply(new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y)));
         moved = accepted == true;
         bool contacted = contact is { ObjectId: >= 0 } && Events.HasPendingAutoPlayInteraction(contact.ObjectId);
-        bool interrupted = contacted || gateway is not null || Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput || Events.Actors.Any(actor => actor.ObjectId != approachObjectId && !pending.Contains(actor.ObjectId) && Events.HasPendingAutoPlayInteraction(actor.ObjectId));
-        return new(false, interrupted, gateway, contacted);
+        int[] owners = Events.Actors.Where(actor => actor.ObjectId != approachObjectId && !pending.Contains(actor.ObjectId) && Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToArray();
+        bool interrupted = contacted || gateway is not null || Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput || owners.Length != 0;
+        return new(false, interrupted, gateway, contacted, owners.Length == 1 ? owners[0] : null);
     }
 
     public AutoPlayWalkResult FaceAutoPlayTarget(AutoPlayTarget target)

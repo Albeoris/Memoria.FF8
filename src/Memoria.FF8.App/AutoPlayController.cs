@@ -60,6 +60,8 @@ internal sealed class AutoPlayRunState
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayNavigationReceipt> NavigationReceipts { get; set; } = new(StringComparer.Ordinal);
     public List<AutoPlayContactInterruption> ContactInterruptions { get; set; } = [];
+    public List<AutoPlayWalkRejection> WalkRejections { get; set; } = [];
+    public AutoPlayPendingWalkInterruption? PendingWalkInterruption { get; set; }
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ExhaustedSurveyInspections { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayExhaustedSurveyRequest? PendingExhaustedSurvey { get; set; }
@@ -478,7 +480,7 @@ internal sealed partial class AutoPlayController
 
     internal static int ProgressScore(AutoPlayRunState state)
     {
-        return state.ObservedScenes.Count + state.ObservedMessages.Count + state.Coverage.Visits.Count + state.Coverage.NavigationVisits.Count + state.Coverage.NavigationRoutes.Count + state.Coverage.NavigationRetirements.Count + state.Coverage.Choices.Count + state.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count + (item.Conditions?.ConsumedEntries.Count ?? 0))) + state.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+        return state.ObservedScenes.Count + state.ObservedMessages.Count + state.Coverage.Visits.Count + state.Coverage.NavigationVisits.Count + state.Coverage.NavigationRoutes.Count + state.Coverage.NavigationRetirements.Count + state.Coverage.Choices.Count + state.WalkRejections.Count + state.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count + (item.Conditions?.ConsumedEntries.Count ?? 0))) + state.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
     }
 
     internal void ResetIdleDeadline()
@@ -729,7 +731,7 @@ internal sealed partial class AutoPlayController
             DriveWhenQueried(input, false, null);
             return;
         }
-        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId))
+        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
         {
             run.SettleFrames = 0;
             if (run.SceneFrames > 180000)
@@ -747,12 +749,14 @@ internal sealed partial class AutoPlayController
         }
         run.SceneFrames = 0;
         run.ScriptedInputSteps = 0;
+        FinishWalkInterruption(world);
         string visit = VisitKey();
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         if (run.ContactInterruptions.Count != 0)
         {
             targets = FilterInterruptedContactTargets(world, visit, CurrentNavigationKey(world, visit), targets);
         }
+        targets = FilterRejectedWalkTargets(world, visit, CurrentNavigationKey(world, visit), targets);
         planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group =>
         {
             AutoPlayTarget target = group.First();
@@ -838,9 +842,11 @@ internal sealed partial class AutoPlayController
             {
                 string checkpoint = BeforeVariant();
                 RecordRecentAction("Walk " + variant.Id);
+                AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
                 if (walk.Interrupted)
                 {
+                    BeginWalkInterruption(attempt, walk);
                     Apply(new(PlayerActionKind.Wait));
                     return;
                 }
@@ -848,8 +854,11 @@ internal sealed partial class AutoPlayController
                 {
                     continue;
                 }
-                if (world.FaceAutoPlayTarget(variant).Interrupted)
+                attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
+                AutoPlayWalkResult facing = world.FaceAutoPlayTarget(variant);
+                if (facing.Interrupted)
                 {
+                    BeginWalkInterruption(attempt, facing);
                     Apply(new(PlayerActionKind.Wait));
                     return;
                 }
@@ -886,6 +895,7 @@ internal sealed partial class AutoPlayController
                     continue;
                 }
                 RecordRecentAction("Walk " + variant.Id);
+                AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
                 if (!walk.Interrupted && !walk.Arrived)
                 {
@@ -894,6 +904,7 @@ internal sealed partial class AutoPlayController
                 if (!walk.Interrupted)
                 {
                     source = CaptureContactSource(world, visit, navigation, variant);
+                    attempt = CaptureWalkAttempt(world, source, targets);
                     ActivateTarget(variant, checkpoint, source);
                     walk = world.WalkAutoPlayContact(variant, ResetIdleDeadline);
                 }
@@ -904,6 +915,7 @@ internal sealed partial class AutoPlayController
                 }
                 if (walk.Interrupted && !contacted)
                 {
+                    BeginWalkInterruption(attempt, walk);
                     run.ActiveVisit = null;
                     run.ActiveNavigationKey = null;
                     run.ActiveEvent = null;

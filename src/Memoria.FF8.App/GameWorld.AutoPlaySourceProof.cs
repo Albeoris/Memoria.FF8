@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -6,6 +8,10 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
+    private byte[]? autoPlayWalkRejectionProofSource;
+    private sealed record AutoPlayWalkSourceProof(bool Proved, int[] Operations);
+    private readonly Dictionary<(string Event, int Object, int FirstActor, int SecondActor, int ThirdActor), AutoPlayWalkSourceProof> autoPlayWalkRejectionProofs = [];
+
     internal bool CanCacheAutoPlayUnavailableSource(string eventId, int objectId)
     {
         return Field is not null && HasCurrentFieldAllocation && CanCacheAutoPlayUnavailableSource(JsmProgram.Read(Field.Jsm), eventId, objectId) && ReadAutoPlayConditions(eventId, objectId).DeferredOperations.Count == 0;
@@ -14,6 +20,108 @@ internal sealed partial class GameWorld
     internal static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId)
     {
         return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null);
+    }
+
+    internal bool CanCacheAutoPlayWalkRejectionSource(string eventId, int objectId)
+    {
+        return ReadAutoPlayWalkRejectionState(eventId, objectId) is not null;
+    }
+
+    internal string? ReadAutoPlayWalkRejectionState(string eventId, int objectId)
+    {
+        if (Field is null || !HasCurrentFieldAllocation)
+        {
+            return null;
+        }
+        EnsureAutoPlayConditionSource();
+        if (!ReferenceEquals(autoPlayWalkRejectionProofSource, Field.Jsm))
+        {
+            autoPlayWalkRejectionProofs.Clear();
+            autoPlayWalkRejectionProofSource = Field.Jsm;
+        }
+        int[] boundPartyActors = Enumerable.Range(0, 3).Select(slot => NativeFieldPartyBinding.TryGetObjectId(Events.Scene, slot, out int actor) ? actor : -1).ToArray();
+        var key = (eventId, objectId, boundPartyActors[0], boundPartyActors[1], boundPartyActors[2]);
+        if (!autoPlayWalkRejectionProofs.TryGetValue(key, out AutoPlayWalkSourceProof? proof))
+        {
+            HashSet<int> operations = [];
+            bool proved = CanCacheAutoPlayWalkRejectionSource(autoPlayConditionProgram!, eventId, objectId, boundPartyActors, operations);
+            proof = new(proved, proved ? operations.Order().ToArray() : []);
+            autoPlayWalkRejectionProofs.Add(key, proof);
+        }
+        return proof.Proved ? ReadAutoPlayWalkRejectionState(Events, autoPlayConditionProgram!, proof.Operations, boundPartyActors) : null;
+    }
+
+    internal static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId)
+    {
+        return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null, walkRejection: true);
+    }
+
+    internal static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId, IReadOnlyList<int> boundPartyActors)
+    {
+        return CanCacheAutoPlayWalkRejectionSource(program, eventId, objectId, boundPartyActors, null);
+    }
+
+    private static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId, IReadOnlyList<int> boundPartyActors, ISet<int>? inspectedOperations)
+    {
+        int[] nativeActors = program.NativeObjects.Take(program.NativeActorCount).ToArray();
+        if (boundPartyActors.Count != 3 || boundPartyActors.Any(actor => actor < -1 || actor >= 0 && !nativeActors.Contains(actor)) || boundPartyActors.Where(actor => actor >= 0).Distinct().Count() != boundPartyActors.Count(actor => actor >= 0))
+        {
+            return false;
+        }
+        return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null, walkRejection: true, boundPartyActors, inspectedOperations);
+    }
+
+    internal static string? ReadAutoPlayWalkRejectionState(EventEngine events, JsmProgram program, IReadOnlyCollection<int> inspectedOperations, IReadOnlyList<int> boundPartyActors)
+    {
+        List<int> reads = [];
+        List<EventPredicateValue> temporary = [];
+        foreach (int index in inspectedOperations.Distinct().Order())
+        {
+            JsmOperation operation = program.Operations[index];
+            bool write = operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
+            bool read = operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L;
+            if (!read && !write)
+            {
+                continue;
+            }
+            int width = operation.Opcode switch
+            {
+                Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
+                Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
+                _ => 4
+            };
+            if (operation.Parameter >= 1024 && operation.Parameter <= 1280 - width)
+            {
+                try
+                {
+                    bool signed = operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHSM_L;
+                    NativeScalarValue value = events.EventMemory.Read(operation.Parameter, width, signed);
+                    if (!value.IsExact)
+                    {
+                        return null;
+                    }
+                    temporary.Add(new(index, operation.Opcode.ToString(), operation.Parameter, width, value.RequireExact()));
+                }
+                catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    return null;
+                }
+            }
+            else if (read)
+            {
+                reads.Add(index);
+            }
+            else
+            {
+                return null;
+            }
+        }
+        EventPredicateState state = events.ReadPredicateState(reads);
+        if (state.DeferredOperations.Count != 0)
+        {
+            return null;
+        }
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { state.Fingerprint, PartyActors = boundPartyActors, Temporary = temporary })));
     }
 
     internal bool CanCacheAutoPlayWorldUnavailableSource(string eventId, int objectId, NativeWorldTransitionRequest request)
@@ -31,12 +139,12 @@ internal sealed partial class GameWorld
         return script is not null && TryReadAutoPlayWorldPacket(program, script, sourceOperation, out WorldTransition? packet) && packet == request.Transition && CanCacheAutoPlayUnavailableSource(program, eventId, objectId, script);
     }
 
-    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource)
+    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource, bool walkRejection = false, IReadOnlyList<int>? boundPartyActors = null, ISet<int>? inspectedOperations = null)
     {
         string kind = eventId.Split(':').ElementAtOrDefault(1) ?? string.Empty;
         if (kind == "gateway")
         {
-            return worldSource is null && objectId == -1;
+            return !walkRejection && worldSource is null && objectId == -1;
         }
         if ((uint)objectId >= program.Objects.Count || kind is not ("talk" or "push" or "line" or "line-action" or "area"))
         {
@@ -50,7 +158,7 @@ internal sealed partial class GameWorld
         }
         Queue<EventScript> pending = new(roots);
         HashSet<EventScript> inspected = [];
-        int[] possibleActors = program.NativeObjects.Take(program.NativeActorCount).ToArray();
+        int[] possibleActors = boundPartyActors is null ? program.NativeObjects.Take(program.NativeActorCount).ToArray() : boundPartyActors.Where(actor => actor >= 0).ToArray();
         while (pending.TryDequeue(out EventScript? script))
         {
             if (!inspected.Add(script))
@@ -59,6 +167,7 @@ internal sealed partial class GameWorld
             }
             foreach (int index in script.ReachableOperations)
             {
+                inspectedOperations?.Add(index);
                 JsmOperation operation = program.Operations[index];
                 bool partyRequest = operation.Opcode is Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
                 bool objectRequest = operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW;
@@ -73,7 +182,16 @@ internal sealed partial class GameWorld
                         return false;
                     }
                     int selector = program.Operations[index - 1].Parameter;
-                    EventObject[] targets = partyRequest ? program.NativeObjects.Take(program.NativeActorCount).Select(id => program.Objects[id]).ToArray() : [program.Objects[program.NativeObjects[operation.Parameter]]];
+                    EventObject[] targets;
+                    if (partyRequest && boundPartyActors is not null)
+                    {
+                        int actor = boundPartyActors[operation.Parameter];
+                        targets = actor < 0 ? [] : [program.Objects[actor]];
+                    }
+                    else
+                    {
+                        targets = partyRequest ? possibleActors.Select(id => program.Objects[id]).ToArray() : [program.Objects[program.NativeObjects[operation.Parameter]]];
+                    }
                     if (targets.Length == 0)
                     {
                         return false;
@@ -118,7 +236,7 @@ internal sealed partial class GameWorld
                         return false;
                     }
                 }
-                else if (!IsAutoPlayUnavailableSourceOperation(operation.Opcode))
+                else if (walkRejection ? !IsAutoPlayWalkRejectionSourceOperation(operation) : !IsAutoPlayUnavailableSourceOperation(operation.Opcode))
                 {
                     return false;
                 }
@@ -167,5 +285,21 @@ internal sealed partial class GameWorld
     private static bool IsAutoPlayUnavailableSourceOperation(Jsm.Opcode opcode)
     {
         return opcode is Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.WAIT or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.BATTLEON or Jsm.Opcode.BATTLEOFF;
+    }
+
+    private static bool IsAutoPlayWalkRejectionSourceOperation(JsmOperation operation)
+    {
+        int width = operation.Opcode switch
+        {
+            Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.POPM_W => 2,
+            Jsm.Opcode.POPM_L => 4,
+            _ => 0
+        };
+        if (width != 0)
+        {
+            return operation.Parameter >= 1024 && operation.Parameter <= 1280 - width;
+        }
+        return operation.Opcode is Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHAC or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.WAIT or Jsm.Opcode.AMESW or Jsm.Opcode.CTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MOVE or Jsm.Opcode.JOIN or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.BGOFF or Jsm.Opcode.RUNENABLE;
     }
 }
