@@ -63,7 +63,8 @@ public static class NativeBattleEffectOverlayPackets
         if (pilotIdentity is { } identity)
         {
             Vector3 world = new(anchor.X, anchor.Y, anchor.Z);
-            primitive = primitive with { PilotGeometry = new(identity, world, world, world, world, 4) { ScreenScale = 0.125f, ScreenOffsets = [new(-halfWidth, -height), new(halfWidth, -height), new(-halfWidth, 0), new(halfWidth, 0)] } };
+            // World projection is already in eighth-pixels; flags20=1 converts it once, together with these authored pixel offsets.
+            primitive = primitive with { PilotGeometry = new(identity, world, world, world, world, 4) { ScreenOffsets = [new(-halfWidth * 8, -height * 8), new(halfWidth * 8, -height * 8), new(-halfWidth * 8, 0), new(halfWidth * 8, 0)] } };
         }
         return new([packet.Attempt(primitive)], 40);
 

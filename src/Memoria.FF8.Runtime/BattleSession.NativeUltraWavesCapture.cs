@@ -82,17 +82,19 @@ public sealed partial class BattleSession
         int staticOffset = buffer * 24;
         byte[] packet = capturePackets.Read(staticOffset, 24);
         ImmutableArray<uint> words = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4))).ToImmutableArray();
-        using NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
-        NativeBattlePrimitiveReference reference = new(captureBank, 0, staticOffset);
-        links.InvalidatePacketRange(reference, 24);
-        bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-        links.Prepend(0x1121, reference, words, 1, [0, 0, 0, 0], screenCoverage: NativeBattleScreenCoverage.Full);
-        if (linked)
+        using (NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending))
         {
-            NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).CopyTo(packet, 0);
+            NativeBattlePrimitiveReference reference = new(captureBank, 0, staticOffset);
+            links.InvalidatePacketRange(reference, 24);
+            bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            links.Prepend(0x1121, reference, words, 1, [0, 0, 0, 0]);
+            if (linked)
+            {
+                NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).CopyTo(packet, 0);
+            }
+            capturePackets = capturePackets.Write(staticOffset, packet);
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = links.ToImmutable() } };
         }
-        capturePackets = capturePackets.Write(staticOffset, packet);
-        graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = links.ToImmutable() } };
         Append(NativeBattleUltraWavesEnvironmentPackets.Environment(NativeBattleDrawEnvironmentPackets.Area45C940(packets.Read(cursor, 12).ToImmutableArray(), 384, 256, 320, 216), 12, 12, 0x1121));
         Append(NativeBattleUltraWavesEnvironmentPackets.Environment(NativeBattleDrawEnvironmentPackets.Offset45C9B0(packets.Read(cursor, 8).ToImmutableArray(), 384, 256), 12, 8, 0x1121));
         return new(graphics, packets, capturePackets, cursor);

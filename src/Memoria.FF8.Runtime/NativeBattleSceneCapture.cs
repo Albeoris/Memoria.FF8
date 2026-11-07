@@ -61,12 +61,7 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
     internal void MapSourcePacket(NativeBattleLogicalCommand command, Span<byte> packet)
     {
         Validate();
-        if (Kind is not (NativeBattleSceneCaptureKind.Source or NativeBattleSceneCaptureKind.SourceEnvironment) || (command.Opcode & 0xE0) != 0x20)
-        {
-            return;
-        }
-        bool fullCoverage = command.ScreenCoverage == NativeBattleScreenCoverage.Full;
-        if (!fullCoverage && Source == BattleSceneVisibleArea.Native)
+        if (Kind is not (NativeBattleSceneCaptureKind.Source or NativeBattleSceneCaptureKind.SourceEnvironment) || Source == BattleSceneVisibleArea.Native || (command.Opcode & 0xE0) != 0x20)
         {
             return;
         }
@@ -77,21 +72,10 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
         bool pixels = (command.Flags20 & 1) != 0;
         int step = 4 + ((command.Opcode & 4) != 0 ? 4 : 0) + ((command.Opcode & 16) != 0 ? 4 : 0);
         int count = (command.Opcode & 8) != 0 ? 4 : 3;
-        if ((fullCoverage && (count != 4 || (command.Opcode & 4) != 0)) || packet.Length < 8 + (count - 1) * step + 4)
-        {
-            throw new InvalidDataException("Scene source coverage requires its complete polygon packet and an untextured quad for full coverage.");
-        }
         ImmutableArray<BattleSceneScreenPoint>? coordinates = command.ProjectedCoordinates;
         for (int corner = 0; corner < count; corner++)
         {
             int offset = 8 + corner * step;
-            if (fullCoverage)
-            {
-                int coordinateScale = pixels ? 1 : 8;
-                BinaryPrimitives.WriteInt16LittleEndian(packet.Slice(offset, 2), checked((short)((corner & 1) == 0 ? 0 : Width * coordinateScale)));
-                BinaryPrimitives.WriteInt16LittleEndian(packet.Slice(offset + 2, 2), checked((short)(corner < 2 ? 0 : Height * coordinateScale)));
-                continue;
-            }
             double x = coordinates is { } points ? points[corner].X : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset, 2)) * (pixels ? 8d : 1d);
             double y = coordinates is { } values ? values[corner].Y : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset + 2, 2)) * (pixels ? 8d : 1d);
             double scale = pixels ? 8d : 1d;
