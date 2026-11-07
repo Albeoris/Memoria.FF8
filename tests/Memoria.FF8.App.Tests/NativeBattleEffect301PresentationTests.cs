@@ -118,7 +118,7 @@ public sealed class NativeBattleEffect301PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, "geometry-visible", geometryPeak, geometryPixels!);
             File.WriteAllBytes(Path.Combine(output, "geometry-without-effect.rgba"), geometryPlain!);
             File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original94 command8/action265/sequence16 contact-free graphics component; current body, script records, geometry, camera and native lifecycle; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original94 command8/action265/sequence16 zero-damage SELF-contact graphics component; current body, script records, geometry, camera and native lifecycle; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
@@ -156,7 +156,7 @@ public sealed class NativeBattleEffect301PresentationTests
 
     internal static NativeEffectFixtureRequest CreateOriginalRequest() => new("effect301-original54-baseline", 45, 8, 84, 0, 1200, 180) { EncounterId = 436, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0, ControlledContactValue = 0 };
 
-    private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
+    internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT301_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original94 component source.");
         BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
@@ -200,9 +200,14 @@ public sealed class NativeBattleEffect301PresentationTests
         byte priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(checked((byte)casterIndex), 8, 16, cameraChoice, 265, 301, null));
-        (packets, _) = packets.Publish(0);
+        // Original INIT selector200 is SELF; use the actual allocated actor, never its dormant scene prototype.
+        NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == casterId).NativeStatus!.Presentation;
+        NativeBattleContactPacket selfContact = new(new(checked((byte)casterIndex), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, _) = packets.AppendContact(selfContact);
+        (packets, _) = packets.Publish(1);
         Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.ContactCount);
+        Assert.Equal(priorContacts + 1, packets.ContactCount);
+        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([301])[300];
         Assert.Same(game.ReadNativeEffect301Resources(), binding.Effect301Resources);
@@ -213,7 +218,7 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original94 command8/action265/sequence16 graphics component after authentic scene3 allocation/102/113; no contacts or ordinary three-death/AI/formula claim", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 0, SourceBoundary = "allocation-ready-source" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original94 command8/action265/sequence16 graphics component after authentic scene3 allocation/102/113; neutral zero-damage SELF contact; no ordinary three-death/AI/formula claim", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceBoundary = "allocation-ready-source" }));
         return source;
     }
 
