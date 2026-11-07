@@ -58,6 +58,28 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
+    internal void RetireObservedGatewayDestination(string sourceNavigationKey, string eventId, AutoPlayEventRoute route, string actualDestinationNavigationKey)
+    {
+        AutoPlayNavigationVisit source = FindNavigationVisit(sourceNavigationKey);
+        AutoPlayNavigationVisit destination = FindNavigationVisit(actualDestinationNavigationKey);
+        AutoPlayEventCoverage item = FindEvent(source.VisitKey, eventId);
+        AutoPlayEventRoute? recorded = item.Routes.SingleOrDefault(candidate => SameTravelRoute(candidate, route));
+        if (recorded is null || recorded.DestinationVisitKey == destination.VisitKey)
+        {
+            throw new InvalidOperationException("A gateway destination correction requires an exact recorded route to a different destination.");
+        }
+        foreach (AutoPlayNavigationRoute previous in State.NavigationRoutes.Where(edge => edge.EventId == eventId && FindNavigationVisit(edge.SourceKey).VisitKey == source.VisitKey && SameTravelRoute(edge.Route, recorded)).ToArray())
+        {
+            AutoPlayRetiredNavigationRoute retirement = new(previous, actualDestinationNavigationKey);
+            if (!State.NavigationRetirements.Contains(retirement))
+            {
+                State.NavigationRetirements.Add(retirement);
+            }
+            State.NavigationRoutes.Remove(previous);
+        }
+        item.Routes.Remove(recorded);
+    }
+
     public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null)
     {
         FindNavigationVisit(currentNavigationKey);

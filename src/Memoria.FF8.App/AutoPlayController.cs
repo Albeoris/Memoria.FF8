@@ -480,7 +480,7 @@ internal sealed partial class AutoPlayController
 
     internal static int ProgressScore(AutoPlayRunState state)
     {
-        return state.ObservedScenes.Count + state.ObservedMessages.Count + state.Coverage.Visits.Count + state.Coverage.NavigationVisits.Count + state.Coverage.NavigationRoutes.Count + state.Coverage.NavigationRetirements.Count + state.Coverage.Choices.Count + state.WalkRejections.Count + state.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count + (item.Conditions?.ConsumedEntries.Count ?? 0))) + state.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+        return state.ObservedScenes.Count + state.ObservedMessages.Count + state.Coverage.Visits.Count + state.Coverage.NavigationVisits.Count + state.Coverage.NavigationRoutes.Count + state.Coverage.NavigationRetirements.Count + state.Coverage.Choices.Count + state.WalkRejections.Count + state.ContactInterruptions.Count + state.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count + (item.Conditions?.ConsumedEntries.Count ?? 0))) + state.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
     }
 
     internal void ResetIdleDeadline()
@@ -766,6 +766,7 @@ internal sealed partial class AutoPlayController
         RefreshUnavailable(world);
         RefreshParticipantPolicies(world);
         InspectSurveyVisit(navigation);
+        RefreshWalkingSearchRevision(run, navigation);
         if (FinishChoices())
         {
             return;
@@ -796,6 +797,7 @@ internal sealed partial class AutoPlayController
             WaitForNativeFrontier();
             return;
         }
+        RecordRecentAction($"Plan {next.Event.Id}: destination={next.Route?.DestinationVisitKey}; refresh={next.RefreshVisitKey}");
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
         AutoPlayTarget[] variants = OrderAutoPlayWalkingVariants(targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id)), next.Route?.TargetId);
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
@@ -838,17 +840,55 @@ internal sealed partial class AutoPlayController
         if (target.Kind == AutoPlayTargetKind.Talk)
         {
             bool accepted = false;
+            bool skippedInterruptedVariant = false;
+            void PauseTalkWalk(AutoPlayWalkAttempt attempt, AutoPlayWalkResult walk)
+            {
+                BeginWalkInterruption(attempt, walk);
+                if (walk.GatewayIndex is int gateway)
+                {
+                    RecordContactInterruption(world, attempt.Source, gateway);
+                }
+                Apply(new(PlayerActionKind.Wait));
+            }
+            bool Interact(AutoPlayTarget variant, string checkpoint)
+            {
+                ActivateTarget(variant, checkpoint, CaptureContactSource(world, visit, navigation, variant));
+                return world.Apply(new(PlayerActionKind.Interact, variant.ObjectId)).Accepted;
+            }
             foreach (AutoPlayTarget variant in variants)
             {
                 string checkpoint = BeforeVariant();
+                AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                if (IsContactInterrupted(source, run.ContactInterruptions))
+                {
+                    skippedInterruptedVariant = true;
+                    continue;
+                }
+                AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
+                int? selectedActor = world.Events.SelectInteractionTarget();
+                if (selectedActor != variant.ObjectId && world.IsAutoPlayTalkInReach(variant.ObjectId))
+                {
+                    AutoPlayWalkResult turn = world.FaceAutoPlayActor(variant.ObjectId);
+                    if (turn.Interrupted)
+                    {
+                        PauseTalkWalk(attempt, turn);
+                        return;
+                    }
+                    selectedActor = world.Events.SelectInteractionTarget();
+                    attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
+                }
+                if (selectedActor == variant.ObjectId && Interact(variant, checkpoint))
+                {
+                    RecordRecentAction("Talk from current position " + variant.Id);
+                    accepted = true;
+                    break;
+                }
                 RecordRecentAction("Walk " + variant.Id);
-                AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (walk.Interrupted)
                 {
-                    BeginWalkInterruption(attempt, walk);
-                    Apply(new(PlayerActionKind.Wait));
+                    PauseTalkWalk(attempt, walk);
                     return;
                 }
                 if (!walk.Arrived)
@@ -859,13 +899,10 @@ internal sealed partial class AutoPlayController
                 AutoPlayWalkResult facing = world.FaceAutoPlayTarget(variant);
                 if (facing.Interrupted)
                 {
-                    BeginWalkInterruption(attempt, facing);
-                    Apply(new(PlayerActionKind.Wait));
+                    PauseTalkWalk(attempt, facing);
                     return;
                 }
-                ActivateTarget(variant, checkpoint, CaptureContactSource(world, visit, navigation, variant));
-                PlayerActionResult result = world.Apply(new(PlayerActionKind.Interact, variant.ObjectId));
-                if (result.Accepted)
+                if (Interact(variant, checkpoint))
                 {
                     accepted = true;
                     break;
@@ -873,7 +910,10 @@ internal sealed partial class AutoPlayController
             }
             if (!accepted)
             {
-                planner.Block(visit, target.CoverageId, "No native walking approach reached and selected this actor with the ordinary talk query.", AutoPlayBlockKind.Walking);
+                if (!skippedInterruptedVariant)
+                {
+                    planner.Block(visit, target.CoverageId, "No native walking approach reached and selected this actor with the ordinary talk query.", AutoPlayBlockKind.Walking);
+                }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
                 run.ActiveEvent = null;
@@ -1895,7 +1935,8 @@ internal sealed partial class AutoPlayController
             return;
         }
         string destination = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
-        if (run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination)
+        bool changedDestination = run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination;
+        if (changedDestination && !CanCorrectNativeGatewayDestination())
         {
             throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
         }
@@ -1905,6 +1946,11 @@ internal sealed partial class AutoPlayController
         }
         GameWorld world = getWorld();
         string destinationNavigation = CurrentNavigationKey(world, destination);
+        if (changedDestination)
+        {
+            planner.RetireObservedGatewayDestination(run.ActiveNavigationKey!, eventId, run.ActiveTravelRoute!, destinationNavigation);
+            RecordRecentAction($"Correct gateway destination {eventId}: {run.ActiveTravelRoute!.DestinationVisitKey} -> {destination}");
+        }
         if (run.SurveyInvalidationUnknown)
         {
             run.InspectedVisitsSinceProgress.Clear();

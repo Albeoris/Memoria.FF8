@@ -50,14 +50,7 @@ internal sealed partial class AutoPlayController
                     state.ExhaustedSurveyInspections.Add(SoftWalkingSurveySignature(navigation, guard!, current, blocks));
                     foreach (AutoPlayEventCoverage item in blocks)
                     {
-                        string? signature = item.Event.ConditionSignature;
-                        bool completedEntry = item.Completed && (item.ObservedConditionSignature == signature || item.Routes.Any(route => route.ConditionSignature == signature) || item.ObservedConditionSignature is null && item.Routes.Count == 0);
-                        if (signature is not null && !completedEntry)
-                        {
-                            item.Conditions?.ConsumedEntries.Remove(signature);
-                        }
-                        item.BlockedReason = null;
-                        item.BlockKind = null;
+                        ReleaseWalkingSearchBlock(item);
                     }
                 }
             }
@@ -116,6 +109,27 @@ internal sealed partial class AutoPlayController
         AutoPlayNavigationVisit? observed = state.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == navigation);
         AutoPlayVisitCoverage? shared = observed is null ? null : state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observed.VisitKey);
         return shared is null ? [] : shared.Events.Where(item => AutoPlayPlanner.IsSoftWalkingBlock(item) && observed!.Events.Any(known => known.Id == item.Event.Id && known.ConditionSignature == item.Event.ConditionSignature)).OrderBy(item => item.Event.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    internal static void RefreshWalkingSearchRevision(AutoPlayRunState state, string navigation)
+    {
+        foreach (AutoPlayEventCoverage item in SoftWalkingBlocks(state, navigation).Where(item => (item.WalkingSearchRevision ?? 0) < AutoPlayPlanner.CurrentWalkingSearchRevision))
+        {
+            ReleaseWalkingSearchBlock(item);
+        }
+    }
+
+    private static void ReleaseWalkingSearchBlock(AutoPlayEventCoverage item)
+    {
+        string? signature = item.Event.ConditionSignature;
+        bool completedEntry = item.Completed && (item.ObservedConditionSignature == signature || item.Routes.Any(route => route.ConditionSignature == signature) || item.ObservedConditionSignature is null && item.Routes.Count == 0);
+        if (signature is not null && !completedEntry)
+        {
+            item.Conditions?.ConsumedEntries.Remove(signature);
+        }
+        item.BlockedReason = null;
+        item.BlockKind = null;
+        item.WalkingSearchRevision = null;
     }
 
     private static string SoftWalkingSurveySignature(string navigation, AutoPlayVisitGuard guard, string fingerprint, IReadOnlyList<AutoPlayEventCoverage> blocks)

@@ -38,6 +38,7 @@ internal sealed class AutoPlayEventCoverage
     public bool Completed { get; set; }
     public string? BlockedReason { get; set; }
     public AutoPlayBlockKind? BlockKind { get; set; }
+    public int? WalkingSearchRevision { get; set; }
     public AutoPlayConditionCoverage? Conditions { get; set; }
     public bool? ObservedStoryChanged { get; set; }
     public string? ObservedConditionSignature { get; set; }
@@ -104,6 +105,7 @@ internal sealed class AutoPlayPlannerState
 /// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>
 internal sealed partial class AutoPlayPlanner
 {
+    internal const int CurrentWalkingSearchRevision = 1;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
 
@@ -187,6 +189,7 @@ internal sealed partial class AutoPlayPlanner
                     {
                         previous.BlockedReason = null;
                         previous.BlockKind = null;
+                        previous.WalkingSearchRevision = null;
                     }
                 }
             }
@@ -210,6 +213,7 @@ internal sealed partial class AutoPlayPlanner
         item.RouteNeedsRediscovery = false;
         item.BlockedReason = null;
         item.BlockKind = null;
+        item.WalkingSearchRevision = null;
         item.Unavailable = false;
         string? completedAvailability = availabilityFingerprintAuthoritative ? entryAvailabilityFingerprint : item.AvailabilityFingerprint;
         if (completedAvailability is string availability)
@@ -239,6 +243,7 @@ internal sealed partial class AutoPlayPlanner
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
         item.BlockKind = kind;
+        item.WalkingSearchRevision = kind == AutoPlayBlockKind.Walking ? CurrentWalkingSearchRevision : null;
         ConsumeConditions(item, null);
     }
 

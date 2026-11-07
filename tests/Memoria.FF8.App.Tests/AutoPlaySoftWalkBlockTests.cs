@@ -172,6 +172,67 @@ public sealed class AutoPlaySoftWalkBlockTests
         Assert.False(legacy.RetryWalkingBlocks);
     }
 
+    [Fact]
+    public void ANewWalkingSearchOnlyReopensObsoleteBlocksInTheActuallyObservedNavigation()
+    {
+        var test = Create();
+        test.Blocked.WalkingSearchRevision = null;
+        string routes = JsonSerializer.Serialize(test.Blocked.Routes);
+        string[] consumed = test.Blocked.Conditions!.ConsumedEntries.ToArray();
+
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "source-nav");
+        Assert.NotNull(test.Blocked.BlockedReason);
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav");
+
+        Assert.Null(test.Blocked.BlockedReason);
+        Assert.True(test.Blocked.Completed);
+        Assert.Equal(routes, JsonSerializer.Serialize(test.Blocked.Routes));
+        Assert.Equal(consumed, test.Blocked.Conditions.ConsumedEntries);
+        test.Planner.Block("hub", "to-frontier", "search failed again", AutoPlayBlockKind.Walking);
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav");
+        Assert.NotNull(test.Blocked.BlockedReason);
+        Assert.Equal(AutoPlayPlanner.CurrentWalkingSearchRevision, test.Blocked.WalkingSearchRevision);
+    }
+
+    [Fact]
+    public void SearchRevisionReleasesOnlyTheUncompletedFailedEntry()
+    {
+        var test = Create();
+        test.Blocked.WalkingSearchRevision = 0;
+        test.Blocked.Completed = false;
+        test.Blocked.Routes.Clear();
+        test.Blocked.Conditions!.ConsumedEntries.Add("previous-entry");
+
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav");
+
+        Assert.Null(test.Blocked.BlockedReason);
+        Assert.False(test.Blocked.Completed);
+        Assert.DoesNotContain("hub-condition", test.Blocked.Conditions.ConsumedEntries);
+        Assert.Contains("previous-entry", test.Blocked.Conditions.ConsumedEntries);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SearchRevisionCannotReleaseNativeUnavailabilityOrUnknownFailures(bool nativeUnavailable)
+    {
+        var test = Create();
+        test.Blocked.WalkingSearchRevision = null;
+        if (nativeUnavailable)
+        {
+            test.Blocked.Unavailable = true;
+        }
+        else
+        {
+            test.Planner.Block("hub", "to-frontier", "Unsupported execution contract.");
+        }
+        string before = JsonSerializer.Serialize(test.State.Coverage);
+
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav");
+
+        Assert.Equal(before, JsonSerializer.Serialize(test.State.Coverage));
+    }
+
     private static AutoPlayPlanStep? Plan((AutoPlayRunState State, AutoPlayPlanner Planner, AutoPlayEventCoverage Blocked) test, string fingerprint = "A")
     {
         return AutoPlayController.PlanWithExhaustedSurvey(test.State, test.Planner, "source-nav", _ => false, _ => true, _ => fingerprint);

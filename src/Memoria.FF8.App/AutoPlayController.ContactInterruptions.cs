@@ -36,7 +36,7 @@ internal sealed partial class AutoPlayController
         {
             throw new InvalidDataException("Unsupported automatic contact interruption receipt.");
         }
-        return targets.Where(target => target.Kind == AutoPlayTargetKind.Talk || !run.ContactInterruptions.Any(attempt => attempt.Source.NavigationKey == navigation && attempt.Source.Target == target) || !IsContactInterrupted(CaptureContactSource(world, visit, navigation, target), run.ContactInterruptions)).ToArray();
+        return targets.Where(target => !run.ContactInterruptions.Any(attempt => attempt.Source.NavigationKey == navigation && attempt.Source.Target == target) || !IsContactInterrupted(CaptureContactSource(world, visit, navigation, target), run.ContactInterruptions)).ToArray();
     }
 
     internal static bool IsContactInterrupted(AutoPlayContactSource source, IReadOnlyList<AutoPlayContactInterruption> attempts)

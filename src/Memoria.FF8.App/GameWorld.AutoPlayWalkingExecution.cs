@@ -31,12 +31,12 @@ internal sealed partial class GameWorld
             FieldFixedPosition position = Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("Autoplay approach requires a retained native player position.");
             Vector2 location = new(position.X / 4096f, position.Y / 4096f);
             float distance = Vector2.DistanceSquared(location, destination);
-            NativePlayerMovementResult proposal = Events.ProbeAutoPlayMovement(position, Events.PlayerActor!.WalkmeshTriangle, destination - location);
-            if (!proposal.Accepted || Vector2.DistanceSquared(new(proposal.FixedX / 4096f, proposal.FixedY / 4096f), destination) >= distance)
+            Vector2? advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Events.ProbeAutoPlayMovement);
+            if (advance is null)
             {
                 return new(false, false);
             }
-            AutoPlayWalkResult step = StepAutoPlayWalking(destination - location, field, pending, approachObjectId, contactTarget, out bool moved);
+            AutoPlayWalkResult step = StepAutoPlayWalking(advance.Value, field, pending, approachObjectId, contactTarget, out bool moved);
             if (step.Interrupted)
             {
                 return step;
@@ -49,6 +49,32 @@ internal sealed partial class GameWorld
             onProgress();
         }
         throw new NotSupportedException("Autoplay approach exceeded its bounded movement callback budget.");
+    }
+
+    internal static Vector2? FindAutoPlayWalkingAdvance(FieldFixedPosition position, int triangle, Vector2 destination, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult> probe)
+    {
+        Vector2 location = new(position.X / 4096f, position.Y / 4096f);
+        Vector2 direct = destination - location;
+        float originalDistance = Vector2.DistanceSquared(location, destination);
+        float Distance(NativePlayerMovementResult result) => result.Accepted ? Vector2.DistanceSquared(new(result.FixedX / 4096f, result.FixedY / 4096f), destination) : float.PositiveInfinity;
+        if (Distance(probe(position, triangle, direct)) < originalDistance)
+        {
+            return direct;
+        }
+        Vector2? selected = null;
+        float bestDistance = originalDistance;
+        for (int direction = 0; direction <= byte.MaxValue; direction++)
+        {
+            float angle = direction * MathF.PI / 128;
+            Vector2 delta = new(MathF.Sin(angle), -MathF.Cos(angle));
+            float distance = Distance(probe(position, triangle, delta));
+            if (distance < bestDistance)
+            {
+                selected = delta;
+                bestDistance = distance;
+            }
+        }
+        return selected;
     }
 
     public AutoPlayWalkResult WalkAutoPlayRoute(AutoPlayWalkingRoute route, Action onProgress, int approachObjectId = -1, AutoPlayTarget? contact = null, AutoPlayTarget? approachTarget = null)
@@ -117,13 +143,36 @@ internal sealed partial class GameWorld
         return new(false, interrupted, gateway, contacted, owners.Length == 1 ? owners[0] : null);
     }
 
+    public bool IsAutoPlayTalkInReach(int objectId)
+    {
+        ActorState player = Events.PlayerActor!;
+        ActorState actor = Events.Actors[objectId];
+        long dx = (long)MathF.Floor(actor.X) - (long)MathF.Floor(player.X);
+        long dy = (long)MathF.Floor(actor.Y) - (long)MathF.Floor(player.Y);
+        int dz = (int)MathF.Floor(player.Z) - (int)MathF.Floor(actor.Z);
+        long squared = dx * dx + dy * dy;
+        return squared is > 0 and <= int.MaxValue && dz is > -256 and < 256 && (int)Math.Sqrt(squared) < (ushort)player.PushRadius + (ushort)actor.TalkRadius;
+    }
+
+    public AutoPlayWalkResult FaceAutoPlayActor(int objectId)
+    {
+        ActorState player = Events.PlayerActor!;
+        ActorState actor = Events.Actors[objectId];
+        return FaceAutoPlayDirection(new(actor.X - player.X, actor.Y - player.Y), objectId);
+    }
+
     public AutoPlayWalkResult FaceAutoPlayTarget(AutoPlayTarget target)
     {
         float angle = target.Direction * MathF.PI / 128;
+        return FaceAutoPlayDirection(new(MathF.Sin(angle), -MathF.Cos(angle)), target.ObjectId);
+    }
+
+    private AutoPlayWalkResult FaceAutoPlayDirection(Vector2 delta, int objectId)
+    {
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
         // The ordinary talk query arbitrates this actor's slot7 against its own
         // push slot6; unrelated contacts still interrupt the facing step.
-        return StepAutoPlayWalking(new(MathF.Sin(angle), -MathF.Cos(angle)), Events.FieldId, pending, target.ObjectId, null, out _);
+        return StepAutoPlayWalking(delta, Events.FieldId, pending, objectId, null, out _);
     }
 
     public AutoPlayWalkResult WalkAutoPlayContact(AutoPlayTarget target, Action onProgress)
