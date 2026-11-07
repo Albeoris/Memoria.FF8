@@ -24,12 +24,13 @@ public sealed class Holy175CapturePresentationTests
         using GameAssets game = new(gameDirectory);
         NativeBattleHoly175Resources resources = game.ReadNativeHoly175Resources();
         BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattlePrimitiveProcess retained = snapshot.NativeEffectMemory!.PrimitiveProcess!;
+        BattleSnapshot working = NativeBattleStorageSnapshots.Restore(snapshot);
+        NativeBattlePrimitiveProcess retained = working.NativeEffectMemory!.PrimitiveProcess!;
         NativeBattleSoftwarePrimitiveState software = retained.Software! with { ViewportInputs = new(640, 480, 0, 0) };
         NativeBattlePrimitiveProcess process = (retained with { Software = software }).Reset500900(4);
-        NativeBattleCameraProjection projection = snapshot.NativeCamera!.Projection!;
-        NativeBattleGraphicsDefinition graphics = snapshot.Definition.NativeGraphics!;
-        Component initial = new(process, snapshot.NativeStage!, snapshot.NativeEffectMemory.Textures!, new(resources.CaptureBlackPackets!.Data, 0, 0), resources, snapshot.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("Native Holy capture requires its retained stage geometry."), projection.View!, projection, graphics.Rules.SummonColors!, graphics.PrimitiveTables!, graphics.SoftwarePrimitiveTable!, graphics.PrimitiveCapabilities!);
+        NativeBattleCameraProjection projection = working.NativeCamera!.Projection!;
+        NativeBattleGraphicsDefinition graphics = working.Definition.NativeGraphics!;
+        Component initial = NativeBattleStorageSnapshots.Capture(new Component(process, working.NativeStage!, working.NativeEffectMemory.Textures!, new(resources.CaptureBlackPackets!.Data, 0, 0), resources, working.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("Native Holy capture requires its retained stage geometry."), projection.View!, projection, graphics.Rules.SummonColors!, graphics.PrimitiveTables!, graphics.SoftwarePrimitiveTable!, graphics.PrimitiveCapabilities!));
         Prepared? prepared = null;
         Executed? executed = null;
         int changed = 0;
@@ -92,7 +93,7 @@ public sealed class Holy175CapturePresentationTests
             throw;
         }
 
-        void Write<T>(string name, T value) => File.WriteAllText(Path.Combine(output, name), JsonSerializer.Serialize(value));
+        void Write<T>(string name, T value) => File.WriteAllText(Path.Combine(output, name), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value)));
         void Report(string status, string? blocker, byte[]? rgba)
         {
             object report = new { Status = status, FirstBlocker = blocker, Scenario = "Independent Holy capture component cloned from declared stage snapshot with explicitly selected640x480 native viewport; no Holy175 dispatch or gameplay continuation", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), StagePackets = prepared?.StagePackets, TargetRectangle = new { X = 576, Y = 256, Width = 320, Height = 232 }, ChangedTargetPixels = changed, NonzeroTargetPixels = nonzero, ExecutedCommands = executed?.Frame.LastCommands.Length, NormalCommandsWithViewport = executed?.Frame.LastCommands.Count(command => command.Pass > 0 && command.DrawMode.NormalViewport is not null), SoftwareMode = executed?.State.Process.Software?.Environment.Derived?.Mode, Boundaries = new[] { "Produced complete component cold execution", "Post-capture complete component next-capture JSON/RGBA" }, RgbaSha256 = rgba is null ? null : Convert.ToHexString(SHA256.HashData(rgba)), BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole Holy175 entry/lifecycle", "Original native capture pixel differential", "Other source stages and viewport inputs" } };
@@ -102,14 +103,16 @@ public sealed class Holy175CapturePresentationTests
 
     private static Prepared Prepare(Component component)
     {
+        component = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(component));
         NativeBattlePrimitiveProcess process = component.Process.Reset500900(4);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear(process.Buffer80!.Value);
         NativeBattleHoly175CaptureWrite written = NativeBattleHoly175CapturePackets.Write5D29E0(process, ordering, component.Stage, component.Geometry, component.View, component.Projection, component.Colors, component.Resources, component.Memory);
-        return new(component with { Process = written.Process, Stage = written.Stage, Memory = written.Memory }, written.Ordering, written.StagePackets);
+        return NativeBattleStorageSnapshots.Capture(new Prepared(component with { Process = written.Process, Stage = written.Stage, Memory = written.Memory }, written.Ordering, written.StagePackets));
     }
 
     private static Executed Execute(Prepared prepared)
     {
+        prepared = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(prepared));
         Component component = prepared.State;
         NativeBattlePrimitiveProcess process = component.Process;
         byte buffer = process.Buffer80!.Value;
@@ -118,7 +121,7 @@ public sealed class Holy175CapturePresentationTests
         var result = NativeBattleLogicalPasses.Execute(prepared.Ordering.SelectTable(buffer), component.Tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, execution, ReadPhysical);
         NativeBattlePrimitiveFrame frame = new(prepared.Ordering.ResetAfterDraw45D080().ClearRoots45D550(), result.Commands, []) { LastDescriptorPerspective = process.TablePerspective[buffer], LastDepthState = process.Depth, LastColorState = process.Color, LastTextureSnapshots = execution.TextureSnapshots };
         process = process with { TexturePage = result.Final.TexturePage, TextureWindowBits = result.Final.TextureWindowBits, TextureWindowCache = result.Cache, Software = execution.State };
-        return new(component with { Process = process.Reset500900(4), Textures = execution.Textures }, frame);
+        return NativeBattleStorageSnapshots.Capture(new Executed(component with { Process = process.Reset500900(4), Textures = execution.Textures }, frame));
 
         byte[] ReadPhysical(NativeBattlePrimitiveReference reference, int count)
         {

@@ -221,6 +221,7 @@ try {
             if ($null -ne $result.minimum_cast_fps) { $result.below_threshold = $result.minimum_cast_fps -lt $BelowFps }
         }
         catch {
+            $result.completed = $false
             $result.error = $_.Exception.Message
             if ($_.Exception.Data['StopCatalog']) {
                 Write-Json (Join-Path $caseRoot 'result.json') $result
@@ -232,7 +233,7 @@ try {
         }
         $results.Add([pscustomobject]$result)
         Write-Json (Join-Path $caseRoot 'result.json') $result
-        $completed = @($results | Where-Object completed | ForEach-Object effect_id)
+        $completed = @($results | Where-Object { $_.completed -and $null -eq $_.error } | ForEach-Object effect_id)
         $prepared = @($results | Where-Object { $_.prepared -and $null -eq $_.error } | ForEach-Object effect_id)
         $unprepared = @($selected | Where-Object { $_ -notin $prepared })
         $missing = @($selected | Where-Object { $_ -notin $completed })
@@ -243,6 +244,9 @@ try {
         $summary.full_preparation_complete = $selected.Count -eq $catalogIds.Count -and $unprepared.Count -eq 0
         $summary.selected_preparation_complete = $unprepared.Count -eq 0
         $summary.selected_execution_complete = $missing.Count -eq 0
+        $summary.error_effect_ids = @($results | Where-Object { $null -ne $_.error } | ForEach-Object effect_id)
+        $summary.selected_performance_passed = $summary.selected_execution_complete -and $summary.fps_available_count -eq $selected.Count -and $summary.below_threshold_effect_ids.Count -eq 0
+        $summary.full_catalog_performance_passed = $summary.full_execution_complete -and $summary.selected_performance_passed
         Write-Json (Join-Path $OutputRoot 'summary.json') $summary
         Write-Host ("Effect {0}: prepared={1}, completed={2}, route={3}, minimum cast FPS={4}, error={5}" -f $effect,$result.prepared,$result.completed,$result.route,$result.minimum_cast_fps,$result.error)
         $retainedBytes = (Get-ChildItem -LiteralPath $OutputRoot -File -Recurse | Measure-Object Length -Sum).Sum
@@ -255,4 +259,4 @@ finally {
 if ($PrepareSourcesOnly) {
     if (@($results | Where-Object { -not $_.prepared -or $null -ne $_.error }).Count) { throw 'Catalog source preparation has missing or failed effects; see summary.json.' }
 }
-elseif (@($results | Where-Object { -not $_.completed }).Count) { throw 'Catalog execution has missing or failed effects; see summary.json.' }
+elseif (@($results | Where-Object { -not $_.completed -or $null -ne $_.error }).Count) { throw 'Catalog execution has missing or failed effects; see summary.json.' }

@@ -64,6 +64,10 @@ public static partial class ScenarioDiscovery
         fixture["hold_enemy_commands"] = true;
         string actor = $"party-{row}";
         bool party = slots && ((native.TargetFlags.Value & 0x40) == 0 || NativeBattleLimitRules.IsFixedAllyTarget(native.TargetFlags.Value));
+        if (slots && !party && !TryPrepareDestructiveSlotsRecipient(assets, native, prepared, result, out blocker))
+        {
+            return false;
+        }
         (string target, int targetIndex) = ResolveRecipeRecipient(result, party, actor);
         _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags.Value, targetIndex);
         JsonObject driver = result["driver"]!.AsObject();

@@ -47,6 +47,24 @@ public sealed class FreshEntryRecipeCanonicalizationTests
         Assert.False(JsonNode.DeepEquals(defaults, FreshEntryRecipeCanonicalization.Canonicalize(pocket)));
     }
 
+    [Fact]
+    public void Explicit_nested_values_and_unsupported_properties_are_not_erased_by_default_completion()
+    {
+        JsonObject recipe = Recipe();
+        JsonObject driver = recipe["driver"]!.AsObject();
+        driver["enemy_ability"] = JsonNode.Parse("""{"model":1,"scene_slot":0,"level_band":0,"ability_slot":0,"command":8,"action_id":82,"sequence":11,"target_selector":0,"use_turn_script":true,"unsupported_selector":7}""");
+        driver["presentation"] = JsonNode.Parse("""{"signal_path":"signal.json","receipt_directory":"receipts","run_id":"roundtrip","tail_seconds":0,"fill_selected_actor_atb":false,"visual_signal_path":"visual.json"}""");
+        driver["repairs"] = JsonNode.Parse("""[{"actor_id":"party-0","hit_points":1,"revive":true,"remove_statuses0":2,"remove_statuses1":4}]""");
+        driver["input"]!["unsupported_input"] = true;
+        JsonObject canonical = FreshEntryRecipeCanonicalization.Canonicalize(recipe);
+        foreach (string name in new[] { "enemy_ability", "presentation", "repairs" })
+        {
+            Assert.True(JsonNode.DeepEquals(driver[name], canonical["driver"]![name]));
+        }
+        Assert.True(canonical["driver"]!["input"]!["unsupported_input"]!.GetValue<bool>());
+        Assert.True(canonical["driver"]!["enemy_ability"]!["use_turn_script"]!.GetValue<bool>());
+    }
+
     private static JsonObject Recipe()
     {
         return JsonNode.Parse("""{"driver":{"input":{"kind":"Action"}},"fixture":{"guardian_forces":[],"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[]}],"hold_enemy_commands":true}}""")!.AsObject();

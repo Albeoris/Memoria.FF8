@@ -40,7 +40,45 @@ public sealed class ScenarioTypedLimitRecipeTests
             Assert.Empty(driver["repairs"]!.AsArray());
             Assert.Null(driver["terminal_hold"]);
             Assert.Null(driver["shot_cycle"]);
-            Assert.Null(recipe["fixture"]!["limits"]!["borrow_blue_magic_for_squall"]);
+            Assert.False(recipe["fixture"]!["limits"]!["borrow_blue_magic_for_squall"]!.GetValue<bool>());
+            if (actionId is 53 or 56)
+            {
+                BattleEncounter formation = fixture.Assets.LoadEncounter(recipe["encounter"]!.GetValue<int>());
+                BattleEnemyPlacement target = Assert.Single(formation.Enemies, candidate => candidate.Enabled);
+                Assert.False(target.Hidden);
+                Assert.False(target.InitiallySuspended);
+                Assert.False(target.Untargetable);
+                Assert.Equal(target.ModelId, recipe["target"]!["model"]!.GetValue<int>());
+                Assert.Equal(target.Slot, recipe["target"]!["scene_slot"]!.GetValue<int>());
+                Assert.Equal(formation.StageId, recipe["target"]!["stage"]!.GetValue<int>());
+                Assert.Equal($"enemy-{target.Slot}", input.TargetId);
+                Assert.Equal(3, recipe["target"]!["physical_index"]!.GetValue<int>());
+                Assert.Null(recipe["target"]!["opening_action"]);
+                Assert.Null(recipe["target"]!["opening_effect"]);
+                NativeBattleAiDefinition ai = fixture.Assets.ReadEnemyAi(target.ModelId, 1);
+                Assert.NotEmpty(ai.Scripts[0]);
+                Assert.All(ai.Scripts[0], value => Assert.Equal((byte)0, value));
+                Assert.NotEmpty(ai.Scripts[3]);
+                Assert.All(ai.Scripts[3], value => Assert.Equal((byte)0, value));
+                Assert.Equal(0x10u, fixture.Assets.ReadEnemyNativeCombatantFlags(target.ModelId));
+                NativeBattleStatusAllocation status = fixture.Assets.ReadEnemyNativeStatusData(target.ModelId);
+                Assert.Equal((ushort)0, status.Saved);
+                Assert.Equal(0u, status.Battle);
+                if (actionId == 53)
+                {
+                    Assert.Equal(0x10000u, action.Statuses1);
+                    Assert.True(status.Resistances[24] < 200);
+                    foreach (int level in Enumerable.Range(1, 100))
+                    {
+                        Assert.True(action.StatusAttack - fixture.Assets.ReadEnemyNativeStats(target.ModelId).Project(level).Spirit / 4 - status.Resistances[24] > 0);
+                    }
+                }
+                else
+                {
+                    Assert.Equal((byte)255, action.StatusAttack);
+                    Assert.Equal((ushort)1, action.Statuses0);
+                }
+            }
         }
         Assert.Single(pins);
     }
