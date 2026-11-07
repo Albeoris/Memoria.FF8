@@ -564,6 +564,12 @@ public static class LiveEvidenceValidation
         }
         BattleDiagnosticTerminalHoldDeclaration config = declaration.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(Json) ?? throw new InvalidDataException("Missing terminal hold declaration.");
         config.Validate();
+        if (config.Candidate == BattleOutcome.Victory)
+        {
+            VictoryTerminalHoldValidation.Validate(report);
+            diagnostics.Add("CONTROLLED_VICTORY_HOLD_REQUIRES_SEPARATE_NATURAL_TERMINAL_CHECK");
+            return;
+        }
         bool hasRepairs = report.TryGetProperty("repairs", out JsonElement reportRepairs);
         JsonElement repairs = repairOverride ?? reportRepairs;
         if (!hasReceipts || receipts.GetArrayLength() is < 1 or > 4 || executions.GetArrayLength() != 2 || !hasRepairs || repairs.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) || declaredRepairs.ValueKind != JsonValueKind.Array || declaredRepairs.GetArrayLength() != config.PartyActorIds.Length || !declaredRepairs.EnumerateArray().Select(repair => Text(repair, "actor_id")).ToHashSet(StringComparer.Ordinal).SetEquals(config.PartyActorIds))

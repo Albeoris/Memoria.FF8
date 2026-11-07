@@ -38,7 +38,17 @@ public sealed class ScenarioTypedLimitRecipeTests
             Assert.Equal(4, driver["limit_selection"]!["minimum_crisis_level"]!.GetValue<int>());
             Assert.Equal(DiagnosticFreshEntryDeclaration.SingleUse, driver["fresh_entry"]!["kind"]!.GetValue<string>());
             Assert.Empty(driver["repairs"]!.AsArray());
-            Assert.Null(driver["terminal_hold"]);
+            if (actionId is 53 or 56)
+            {
+                BattleDiagnosticTerminalHoldDeclaration hold = driver["terminal_hold"]!.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(InputJson)!;
+                hold.Validate();
+                Assert.Equal(BattleOutcome.Victory, hold.Candidate);
+                Assert.Equal(new[] { input.ActorId }, hold.PartyActorIds);
+            }
+            else
+            {
+                Assert.Null(driver["terminal_hold"]);
+            }
             Assert.Null(driver["shot_cycle"]);
             Assert.False(recipe["fixture"]!["limits"]!["borrow_blue_magic_for_squall"]!.GetValue<bool>());
             if (actionId is 53 or 56)

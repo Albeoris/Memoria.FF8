@@ -47,7 +47,13 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Presentation requires one ordinary invocation without composed cycles, fresh-entry scoring or rearm protocols.");
         }
         FreshEntry?.Validate();
-        if (FreshEntry is not null && (ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0 || Repairs is null || Repairs.Length != 0 || TerminalHold is not null || ExpectedNativeCommand == 250))
+        TerminalHold?.Validate();
+        bool victoryHold = TerminalHold is { Candidate: BattleOutcome.Victory } && FreshEntry is not null && SlotsAdmission is { MagicAction: 53 or 56 } && Repairs is { Length: 0 } && TerminalHold.PartyActorIds.Length == 1 && TerminalHold.PartyActorIds[0] == Input.ActorId && ExpectedNativeCommand == 16 && ExpectedNativeAction == SlotsAdmission.MagicAction && ExpectedEffect == SlotsAdmission.Effect;
+        if (TerminalHold?.Candidate == BattleOutcome.Victory && !victoryHold)
+        {
+            throw new InvalidDataException("A victory hold requires one fresh destructive Slots invocation, its explicit caster and no repairs.");
+        }
+        if (FreshEntry is not null && (ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0 || Repairs is null || Repairs.Length != 0 || TerminalHold is not null && !victoryHold || ExpectedNativeCommand == 250))
         {
             throw new InvalidDataException("Fresh entry requires one ordinary native invocation without repairs, rearm, hold or composed cycle protocols.");
         }
@@ -74,7 +80,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             }
         }
         SlotsAdmission?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
-        if (SlotsAdmission is not null && (LimitSelection is null || ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null))
+        if (SlotsAdmission is not null && (LimitSelection is null || ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null && !victoryHold))
         {
             throw new InvalidDataException("Slots admission requires its real Limit selection and cannot use other protocols, supporting invocations, repairs or terminal holds.");
         }
@@ -84,8 +90,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         {
             throw new InvalidDataException("Shot cycles require their real Limit selection and cannot use supporting-effect bypasses, repairs or terminal holds.");
         }
-        TerminalHold?.Validate();
-        if (TerminalHold is not null && (Repairs.Length == 0 || TerminalHold.PartyActorIds.Any(actorId => !Repairs.Any(repair => string.Equals(repair.ActorId, actorId, StringComparison.Ordinal)))))
+        if (TerminalHold is { Candidate: BattleOutcome.Defeat } && (Repairs.Length == 0 || TerminalHold.PartyActorIds.Any(actorId => !Repairs.Any(repair => string.Equals(repair.ActorId, actorId, StringComparison.Ordinal)))))
         {
             throw new InvalidDataException("Diagnostic terminal hold requires explicit between-execution repairs for every declared party actor.");
         }

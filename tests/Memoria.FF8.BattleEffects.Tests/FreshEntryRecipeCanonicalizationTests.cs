@@ -65,6 +65,21 @@ public sealed class FreshEntryRecipeCanonicalizationTests
         Assert.True(canonical["driver"]!["enemy_ability"]!["use_turn_script"]!.GetValue<bool>());
     }
 
+    [Fact]
+    public void Terminal_hold_defaults_to_defeat_without_merging_an_explicit_victory_candidate()
+    {
+        JsonObject omitted = Recipe();
+        omitted["driver"]!["terminal_hold"] = JsonNode.Parse("""{"reason":"bounded hold","party_actor_ids":["party-0"],"maximum_callbacks":100}""");
+        JsonObject defeat = FreshEntryRecipeCanonicalization.Canonicalize(omitted);
+        Assert.Equal("Defeat", defeat["driver"]!["terminal_hold"]!["candidate"]!.GetValue<string>());
+        Assert.False(omitted["driver"]!["terminal_hold"]!.AsObject().ContainsKey("candidate"));
+        JsonObject victory = omitted.DeepClone().AsObject();
+        victory["driver"]!["terminal_hold"]!["candidate"] = "Victory";
+        JsonObject canonicalVictory = FreshEntryRecipeCanonicalization.Canonicalize(victory);
+        Assert.Equal("Victory", canonicalVictory["driver"]!["terminal_hold"]!["candidate"]!.GetValue<string>());
+        Assert.False(JsonNode.DeepEquals(defeat, canonicalVictory));
+    }
+
     private static JsonObject Recipe()
     {
         return JsonNode.Parse("""{"driver":{"input":{"kind":"Action"}},"fixture":{"guardian_forces":[],"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[]}],"hold_enemy_commands":true}}""")!.AsObject();

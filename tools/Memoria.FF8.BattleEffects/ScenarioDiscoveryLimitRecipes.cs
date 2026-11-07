@@ -91,6 +91,16 @@ public static partial class ScenarioDiscovery
             }
             fixture["limits"] = new JsonObject { ["learn_special_magic"] = 1 << (native.ActionId - 51) };
             driver["slots_admission"] = JsonSerializer.SerializeToNode(declaration, RecordJson.Options);
+            if (!party && ((native.Statuses0 & 1) != 0 || (native.Statuses1 & 0x10000) != 0))
+            {
+                driver["terminal_hold"] = new JsonObject
+                {
+                    ["reason"] = "Single fresh destructive Slots invocation: prospectively hold native victory while its genuine presentation and resource owners drain.",
+                    ["party_actor_ids"] = new JsonArray(actor),
+                    ["maximum_callbacks"] = 1800,
+                    ["candidate"] = nameof(BattleOutcome.Victory)
+                };
+            }
             if (!TryConfigureFreshEntryExecutionProfile(result, gameDirectory, out blocker, sourcePins))
             {
                 return false;

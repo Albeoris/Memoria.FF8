@@ -34,6 +34,12 @@ public static class FreshEntryRecipeCanonicalization
         {
             Defaults(repair, """{"revive":false,"remove_statuses0":0,"remove_statuses1":0}""");
         }
+        if (driver["terminal_hold"] is JsonObject terminalHold)
+        {
+            Defaults(terminalHold, """{"candidate":"Defeat"}""");
+            BattleOutcome candidate = terminalHold["candidate"]!.Deserialize<BattleOutcome>(Json);
+            terminalHold["candidate"] = JsonSerializer.SerializeToNode(candidate, Json);
+        }
         CompleteInput(driver["input"]!.AsObject());
         if (recipe["prelude"] is JsonObject prelude)
         {

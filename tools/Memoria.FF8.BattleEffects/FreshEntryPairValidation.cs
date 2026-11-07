@@ -32,7 +32,7 @@ public static class FreshEntryPairValidation
         typed.Validate();
         Require(initialization.GetProperty("initializer_version").GetString() == "direct-new-game-v2" && initialization.GetProperty("battle_instance_id").GetString() == report.GetProperty("battle_instance_id").GetString(), "Fresh entry requires its actual ordinary initialized battle.");
         Require(!Present(initialization.GetProperty("preparation"), "prelude"), "Fresh entry cannot warm its focal native effect through a prelude.");
-        foreach (string name in new[] { "shot_cycle", "counter_cycle", "enemy_ability", "terminal_hold" })
+        foreach (string name in new[] { "shot_cycle", "counter_cycle", "enemy_ability" })
         {
             Require(!Present(driver, name), "Fresh entry cannot compose another cycle, owner adapter or terminal hold.");
         }
@@ -40,7 +40,9 @@ public static class FreshEntryPairValidation
         {
             Require(driver.GetProperty(name).GetArrayLength() == 0, "Fresh entry cannot repair, rearm or substitute its native invocation.");
         }
-        Require(report.GetProperty("declared_repairs").GetArrayLength() == 0 && !Present(report, "declared_terminal_hold") && report.GetProperty("supporting_effects").GetArrayLength() == 0 && report.GetProperty("supporting_invocations").GetArrayLength() == 0, "Fresh-entry observed protocol differs from its native single-use declaration.");
+        BattleDiagnosticTerminalHoldDeclaration? victoryHold = VictoryTerminalHoldValidation.ValidateDeclaration(driver);
+        Require((victoryHold is not null) == Present(report, "declared_terminal_hold") && (victoryHold is null || JsonElement.DeepEquals(driver.GetProperty("terminal_hold"), report.GetProperty("declared_terminal_hold"))), "Fresh-entry terminal hold differs from its exact initialized victory declaration.");
+        Require(report.GetProperty("declared_repairs").GetArrayLength() == 0 && report.GetProperty("supporting_effects").GetArrayLength() == 0 && report.GetProperty("supporting_invocations").GetArrayLength() == 0, "Fresh-entry observed protocol differs from its native single-use declaration.");
         Require(!Present(driver, "expected_native_command") || driver.GetProperty("expected_native_command").GetInt32() != 250, "Fresh entry does not provide an automatic or Renzokuken observation adapter.");
         Require(JsonElement.DeepEquals(driver.GetProperty("input"), report.GetProperty("input")) && JsonElement.DeepEquals(driver.GetProperty("expected_effect"), report.GetProperty("expected_effect")), "Fresh-entry input or effect differs from its initialized driver.");
         foreach (string name in new[] { "expected_native_action", "expected_native_command" })

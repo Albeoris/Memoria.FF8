@@ -10,11 +10,14 @@ param(
     [string]$ExecutionStackProfile,
     [int[]]$EffectId = @(),
     [switch]$PrepareSourcesOnly,
+    [switch]$DisableVSync,
     [ValidateRange(1, 1000)][double]$BelowFps = 50,
     [ValidateRange(1, 16384)][int]$MaximumRetainedMiB = 1024
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$presentationVSync = -not [bool]$DisableVSync
+$expectedPresentationInterval = if ($presentationVSync) { 'One' } else { 'Immediate' }
 $measurementSlotPath = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Memoria.FF8/Validation/measurement.lock'
 
 function Write-Json([string]$Path, [object]$Value) {
@@ -114,7 +117,7 @@ foreach ($file in Get-ChildItem -LiteralPath (Split-Path -Parent $HostExecutable
     $binaryHashes[$file.Name] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 if ($selected.Count -eq 0) { throw 'The selected catalog contains no native effects.' }
-Write-Json (Join-Path $OutputRoot 'inputs.json') @{ prepare_sources_only=[bool]$PrepareSourcesOnly; execution_stack_profile=$profileIdentity; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; executable_sha256=$catalog.executable_sha256; kernel_sha256=$catalog.kernel_sha256; binaries=$binaryHashes; tool_sha256=(Get-FileHash -LiteralPath $ToolAssembly -Algorithm SHA256).Hash.ToLowerInvariant(); source_test_sha256=(Get-FileHash -LiteralPath $TestExecutable -Algorithm SHA256).Hash.ToLowerInvariant(); pacing='normal-real-time'; presentation_v_sync=$false; resolution='1920x1080'; target_fps=60; below_fps=$BelowFps }
+Write-Json (Join-Path $OutputRoot 'inputs.json') @{ prepare_sources_only=[bool]$PrepareSourcesOnly; disable_v_sync=[bool]$DisableVSync; execution_stack_profile=$profileIdentity; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; executable_sha256=$catalog.executable_sha256; kernel_sha256=$catalog.kernel_sha256; binaries=$binaryHashes; tool_sha256=(Get-FileHash -LiteralPath $ToolAssembly -Algorithm SHA256).Hash.ToLowerInvariant(); source_test_sha256=(Get-FileHash -LiteralPath $TestExecutable -Algorithm SHA256).Hash.ToLowerInvariant(); pacing='normal-real-time'; presentation_v_sync=$presentationVSync; resolution='1920x1080'; target_fps=60; below_fps=$BelowFps }
 $oldEnvironment = @{}
 foreach ($name in @('MEMORIA_FF8_GAME_DIR', 'MEMORIA_FF8_COMPONENT_EFFECT_ID', 'MEMORIA_FF8_COMPONENT_SOURCE_OUTPUT', 'MEMORIA_FF8_COMPONENT_SOURCE_ONLY', 'MEMORIA_FF8_EXECUTION_STACK_PROFILE')) {
     $oldEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
@@ -139,7 +142,7 @@ try {
                 }
                 else {
                     $manifestPath = Join-Path $caseRoot 'manifest.json'
-                    $manifest = @{ schema_version=1; executable=$HostExecutable; working_directory=(Split-Path -Parent $HostExecutable); game_dir=$GameDirectory; output_root=(Join-Path $caseRoot 'results'); mute_output=$true; presentation_v_sync=$false; budgets=@{ initialization_ms=180000; action_one_ms=180000; cleanup_rearm_ms=60000; action_two_ms=180000; teardown_ms=15000; total_ms=600000; no_progress_ms=60000 }; cases=$ordinary }
+                    $manifest = @{ schema_version=1; executable=$HostExecutable; working_directory=(Split-Path -Parent $HostExecutable); game_dir=$GameDirectory; output_root=(Join-Path $caseRoot 'results'); mute_output=$true; presentation_v_sync=$presentationVSync; budgets=@{ initialization_ms=180000; action_one_ms=180000; cleanup_rearm_ms=60000; action_two_ms=180000; teardown_ms=15000; total_ms=600000; no_progress_ms=60000 }; cases=$ordinary }
                     if ($ExecutionStackProfile) { $manifest.execution_stack_profile = $ExecutionStackProfile }
                     Write-Json $manifestPath $manifest
                     $runExit = Invoke-OwnedProcess 'dotnet' @($ToolAssembly, 'run', '--input', $manifestPath) (Join-Path $caseRoot 'run-log')
@@ -188,7 +191,7 @@ try {
                     foreach ($entry in 1..2) {
                         $entryRoot = Join-Path $caseRoot "entry-$entry"
                         [IO.Directory]::CreateDirectory((Join-Path $entryRoot 'settings')) | Out-Null
-                        Write-Json (Join-Path $entryRoot 'settings/ui-settings.json') @{ MusicVolume=0; SoundVolume=0; VoiceVolume=0; VSync=$false }
+                        Write-Json (Join-Path $entryRoot 'settings/ui-settings.json') @{ MusicVolume=0; SoundVolume=0; VoiceVolume=0; VSync=$presentationVSync }
                         $requestPath = Join-Path $entryRoot 'request.json'
                         Write-Json $requestPath @{ enemy_id=0; ally_id=0; effect_id=$effect; source_snapshot=$sourcePath; source_sha256=$sourceHash; duration_seconds=300 }
                         $control = Join-Path $entryRoot 'control'
@@ -206,7 +209,7 @@ try {
                             $identityMatches = $measurement.native_admission.effect -eq $effect
                         }
                         if ($measurement.scope -ne 'installed-source-controlled-component-gpu-presentation' -or $measurement.effect -ne $effect -or $measurement.source_sha256 -ne $sourceHash -or -not $measurement.drained -or $measurement.tail_presented_frames -lt 2 -or -not $identityMatches) { throw 'Component execution identity, cleanup or tail evidence is inconsistent.' }
-                        if ($measurement.host.vsync -ne $false -or $measurement.host.presentation_interval -ne 'Immediate' -or $measurement.host.frame_limit -ne 60 -or $measurement.host.width -ne 1920 -or $measurement.host.height -ne 1080) { throw 'The actual component host differs from the declared real-time 60-FPS VSync-off presentation profile.' }
+                        if ($measurement.host.vsync -ne $presentationVSync -or $measurement.host.presentation_interval -ne $expectedPresentationInterval -or $measurement.host.frame_limit -ne 60 -or $measurement.host.width -ne 1920 -or $measurement.host.height -ne 1080) { throw 'The actual component host differs from the declared real-time 60-FPS selected VSync presentation profile.' }
                         $metrics = $measurement.measurements
                         if ($metrics.scope -ne $measurement.scope -or $metrics.interval_count -lt 1 -or -not [double]::IsFinite($metrics.interval_milliseconds) -or $metrics.interval_milliseconds -le 0 -or -not [double]::IsFinite($metrics.effective_fps) -or $metrics.effective_fps -le 0 -or [Math]::Abs($metrics.effective_fps - 1000.0 * $metrics.interval_count / $metrics.interval_milliseconds) -gt 0.000001 -or $metrics.target_fps -ne 60) { throw 'Component FPS lacks consistent positive whole successful-present intervals at the declared target.' }
                         $entries.Add($measurement)

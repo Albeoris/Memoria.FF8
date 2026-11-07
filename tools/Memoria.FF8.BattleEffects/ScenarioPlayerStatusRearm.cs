@@ -78,9 +78,17 @@ public static partial class ScenarioDiscovery
 
         void Configure(DiagnosticFreshEntryDeclaration declaration)
         {
-            driver.Remove("repairs");
-            driver.Remove("terminal_hold");
             driver["fresh_entry"] = JsonSerializer.SerializeToNode(declaration, RecordJson.Options);
+            if (driver["terminal_hold"] is JsonObject hold && hold["candidate"] is JsonValue candidate && candidate.TryGetValue<string>(out string? selected) && selected == nameof(BattleOutcome.Victory))
+            {
+                using JsonDocument original = JsonDocument.Parse(driver.ToJsonString());
+                _ = VictoryTerminalHoldValidation.ValidateDeclaration(original.RootElement);
+            }
+            else
+            {
+                driver.Remove("terminal_hold");
+            }
+            driver.Remove("repairs");
             JsonObject canonical = FreshEntryRecipeCanonicalization.Canonicalize(recipe);
             recipe.Clear();
             foreach ((string name, JsonNode? value) in canonical)

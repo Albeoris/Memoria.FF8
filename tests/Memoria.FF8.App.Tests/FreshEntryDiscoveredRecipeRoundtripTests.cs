@@ -116,6 +116,8 @@ public sealed class FreshEntryDiscoveredRecipeRoundtripTests
     [InlineData("presentation", """{"signal_path":"signal.json","receipt_directory":"receipts","run_id":"roundtrip"}""")]
     [InlineData("slots_admission", """{"magic_action":51,"maximum_rolls":4,"maximum_seconds":1}""")]
     [InlineData("repairs", """[{"actor_id":"party-0","hit_points":1}]""")]
+    [InlineData("terminal_hold", """{"reason":"bounded diagnostic hold","party_actor_ids":["party-0"],"maximum_callbacks":100}""")]
+    [InlineData("terminal_hold", """{"reason":"bounded diagnostic hold","party_actor_ids":["party-0"],"maximum_callbacks":100,"candidate":"Victory"}""")]
     [InlineData("prelude", """{"input":{"kind":"Action","actor_id":"party-0","target_id":"enemy-0"},"defeated_model":1,"defeated_scene_slot":0,"death_script_sha256":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","require_native_allocation":true}""")]
     public void Optional_nested_DTO_defaults_match_actual_host_serialization(string owner, string payload)
     {

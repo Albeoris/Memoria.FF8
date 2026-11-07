@@ -983,7 +983,11 @@ public sealed partial class BattleSession
             return;
         }
         // A latched diagnostic decision must not repeat the natural Phoenix admission or its RNG.
-        if (outcome == BattleOutcome.Defeat && DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held && DeferDiagnosticDefeat())
+        if (DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } held && outcome == held.Declaration.Candidate && DeferDiagnosticTerminalOutcome(outcome))
+        {
+            return;
+        }
+        if (outcome == BattleOutcome.Victory && DeferDiagnosticTerminalOutcome(outcome))
         {
             return;
         }
@@ -1004,7 +1008,7 @@ public sealed partial class BattleSession
             {
                 return;
             }
-            if (DeferDiagnosticDefeat())
+            if (DeferDiagnosticTerminalOutcome(BattleOutcome.Defeat))
             {
                 return;
             }
@@ -1354,7 +1358,7 @@ public sealed partial class BattleSession
         BattleOutcome expectedOutcome = DetermineOutcome();
         // Native graphics can release the last action after this host frame's outcome admission pass.
         bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is not null && NativeGraphics.NativeOutcome?.ResultByte6E7 is null or 0 && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
-        bool awaitingDiagnosticRearm = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == BattleOutcome.Defeat;
+        bool awaitingDiagnosticRearm = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } heldOutcome && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == heldOutcome.Declaration.Candidate;
         if ((!awaitingNativeOutcomeAdmission && !awaitingDiagnosticRearm && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
             throw new InvalidDataException("Battle outcome contradicts living actors or outstanding actions.");
