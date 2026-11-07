@@ -71,7 +71,7 @@ internal sealed partial class NativeTutorialPlayer
                 continue;
             }
             bool learned = (limits.AngeloFlags & (1 << index)) != 0;
-            bool selected = settings["Angelo learning"] == index.ToString(CultureInfo.InvariantCulture);
+            bool selected = !learned && settings["Angelo learning"] == index.ToString(CultureInfo.InvariantCulture);
             details.Add($"{OriginalAngeloName(index)}   {(learned ? Menu.SystemText("tutorial.angelo.complete", "Complete") : Menu.FormatSystemText("tutorial.angelo.counter", "Counter {0}", limits.TrainingCounters[index]))}{(selected ? Menu.SystemText("tutorial.angelo.learning", "   Learning") : "")}");
         }
         return details;
@@ -81,10 +81,18 @@ internal sealed partial class NativeTutorialPlayer
     {
         UiGrid root = new() { Columns = 1, Gap = 8 };
         root.RowDefinitions.Add(UiGridLength.Pixel(82));
-        root.RowDefinitions.Add(UiGridLength.Pixel(54));
+        if (section != "angelo")
+        {
+            root.RowDefinitions.Add(UiGridLength.Pixel(54));
+        }
         root.RowDefinitions.Add(UiGridLength.Star());
         root.Children.Add(new UiPanel { GridRow = 0, Caption = Menu.SystemText("tutorial.ui.buildtutorialstatuspresentation.status", "Status"), CaptionFontSize = UiTheme.DefaultCaptionFontSize * menu.TextScale, CaptionHeight = 26, Padding = new UiThickness(10), Children = { new UiLabel { Text = Menu.FormatSystemText("tutorial.ui.buildtutorialstatuspresentation.lv.hp", "{0}   Lv {1}   HP {2}/{3}", menu.Character?.Name, menu.Character?.Level, menu.Character?.CurrentHp, menu.Character?.MaximumHp), FontSize = 26 } } });
         UiList commands = new() { Id = "commands", GridRow = 1, Items = menu.Entries.Select(entry => entry.Label).ToList(), SelectedIndex = menu.SelectedIndex, RowHeight = 42, FontSize = 24, HighlightSelection = false, PointerSize = 20, TextInset = 35, SelectionChanged = index => menu.SelectEntry(menu.ScreenId, menu.Entries[index].Id), Confirmed = index => ConfirmTutorialStatusEntry(menu, index) };
+        if (section == "angelo")
+        {
+            root.Children.Add(BuildTutorialAngeloTraining(commands));
+            return root;
+        }
         root.Children.Add(commands);
         var details = menu.CurrentScreen.Details(menu);
         UiGrid body = new() { GridRow = 2, Columns = section == "elements" ? 2 : 1, Gap = 16 };
@@ -95,11 +103,34 @@ internal sealed partial class NativeTutorialPlayer
         }
         else
         {
-            string caption = section switch { "gf" => Menu.FormatNativeTutorialText(catalog.StatusLabels[29].Value, names), "duel" => "Duel", "angelo" => "Angelo", _ => section };
+            string caption = section switch { "gf" => Menu.FormatNativeTutorialText(catalog.StatusLabels[29].Value, names), "duel" => "Duel", _ => section };
             body.Children.Add(StatusPanel(caption, details, 0, menu.TextScale));
         }
         root.Children.Add(body);
         return root;
+    }
+
+    private UiElement BuildTutorialAngeloTraining(UiList commands)
+    {
+        NativeLimitProgress limits = catalog.CreateIsolatedLimitProgress(definition.Id);
+        var gauges = new UiGrid { Columns = 1, GridColumn = 1, Gap = 0 };
+        var markers = new List<UiImageSource?>();
+        foreach (MenuEntry entry in Menu.Entries)
+        {
+            int index = int.Parse(entry.Id, CultureInfo.InvariantCulture);
+            bool learned = (limits.AngeloFlags & (1 << index)) != 0;
+            int progress = LiveMenuCatalog.AngeloTrainingProgress(menuCatalog.AngeloMove(index).TrainingTotal, limits.TrainingCounters[index], learned);
+            bool training = !learned && entry.Id == settings["Angelo learning"];
+            markers.Add(training ? new UiImageSource(UiImageKind.Icon, 207) : null);
+            int row = gauges.Children.Count;
+            gauges.RowDefinitions.Add(UiGridLength.Pixel(commands.RowHeight));
+            gauges.Children.Add(new UiProgressBar { Id = $"angelo-training-{entry.Id}", GridRow = row, Max = 64, Value = progress, Height = 12, VerticalAlignment = UiAlignment.Center });
+        }
+        commands.GridRow = 0;
+        commands.TextFlow = UiTextFlow.SingleLine;
+        commands.LeadingImages = markers;
+        var trainingList = new UiGrid { Columns = 2, Gap = 16, Children = { commands, gauges } };
+        return new UiPanel { GridRow = 1, Caption = Menu.SystemText("ui.buildnativeangelostatus.panel.ability", "ABILITY"), CaptionHeight = 30, Padding = new UiThickness(12), Children = { trainingList } };
     }
 
     private static void ConfirmTutorialStatusEntry(MenuController menu, int index)

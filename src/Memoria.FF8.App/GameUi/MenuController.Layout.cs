@@ -40,7 +40,10 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(junctionModal);
         }
-        AddTutorialMessage(anchored);
+        if (!(IsJunctionDashboard && IsJunctionTutorial) && BuildTutorialMessage() is { } tutorialMessage)
+        {
+            anchored.Children.Add(tutorialMessage);
+        }
         _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor || ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         if (IsJunctionDashboard)

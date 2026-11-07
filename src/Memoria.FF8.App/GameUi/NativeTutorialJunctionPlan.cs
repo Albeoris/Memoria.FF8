@@ -207,10 +207,14 @@ internal static class NativeTutorialJunctionPlan
 
     private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition, string firstPortrait)
     {
-        NativeTutorialMenuStep Target(string control, NativeTutorialPress press = NativeTutorialPress.Select, params string[] preparation) => new("junction-dashboard", control, press, step.CharacterId, DashboardPreparation: preparation);
+        NativeTutorialMenuStep Target(string? control, NativeTutorialPress press = NativeTutorialPress.Select, params string[] preparation) => new("junction-dashboard", control, press, step.CharacterId, DashboardPreparation: preparation);
         if (step.Press == NativeTutorialPress.Cancel)
         {
-            return Target(step.ScreenId switch { "junction-element" => "slot-Elem-Atk", "junction-status" => "slot-ST-Atk", "junction-gf" or "gf-abilities" => firstPortrait, _ => "slot-HP" });
+            if (step.ScreenId == "junction-stock")
+            {
+                return Target(null, NativeTutorialPress.Cancel);
+            }
+            return Target(step.ScreenId switch { "junction-element" => "slot-Elem-Atk", "junction-status" => "slot-ST-Atk", "gf-abilities" => firstPortrait, _ when step.Destination == "junction-command" => "command-0", _ => "slot-HP" });
         }
         if (step.ScreenId == "junction-stock")
         {
@@ -236,19 +240,21 @@ internal static class NativeTutorialJunctionPlan
         {
             return Target("slot-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.Confirm : NativeTutorialPress.Select);
         }
-        if (step.ScreenId == "junction-off")
-        {
-            return Target(step.EntryId == "All" ? "remove-junctions" : "clear-magic", NativeTutorialPress.ApplyDashboard, "junction-actions");
-        }
         if (step.ScreenId == "junction-auto")
         {
             string priority = step.EntryId switch { "magic" => "Magic", "defense" => "Defense", _ => "Attack" };
-            return Target("priority-" + priority, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "junction-actions", "optimize");
+            return step.Press == NativeTutorialPress.Confirm
+                ? Target("junction-apply", NativeTutorialPress.ApplyDashboard, "junction-actions", "optimize", "priority-" + priority)
+                : Target("priority-" + priority, NativeTutorialPress.Select, "junction-actions", "optimize");
         }
         if (step.EntryId == "junction-off")
         {
             return Target("clear-magic", NativeTutorialPress.Select, "junction-actions");
         }
-        return Target(step.EntryId switch { "junction-gf" or "junction-options" => firstPortrait, "junction-auto" => "optimize", "junction-off" => "junction-actions", _ => "slot-HP" }, NativeTutorialPress.Select, step.EntryId == "junction-auto" ? ["junction-actions"] : []);
+        if (step.EntryId == "junction-auto")
+        {
+            return Target("optimize", step.Press, "junction-actions");
+        }
+        return Target(step.EntryId is "junction-gf" or "junction-options" ? firstPortrait : "slot-HP");
     }
 }

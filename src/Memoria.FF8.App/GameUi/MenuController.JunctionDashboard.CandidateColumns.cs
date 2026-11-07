@@ -32,7 +32,11 @@ public sealed partial class MenuController
         Dictionary<string, int> stock = JunctionMagicInventory.Where(spell => spell.CharacterId == Character?.Id).ToDictionary(spell => spell.Id, spell => spell.Quantity);
         foreach (JunctionCandidate candidate in candidates)
         {
-            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id), candidate.Enabled);
+            UiButton row = JunctionButton("candidate-" + candidate.Id, "", () => ActivateJunctionCandidate(candidate.Id), candidate.Enabled || IsJunctionTutorial);
+            if (!candidate.Enabled)
+            {
+                row.Click = null;
+            }
             row.DrawBackground = false;
             row.Hover = () =>
             {
@@ -52,7 +56,7 @@ public sealed partial class MenuController
             };
             UiImageSource? source = magic ? JunctionCandidateMagic(candidate.Id)?.OwnerIcon : candidate.Icon;
             UiImage? icon = source is { } image ? new() { Source = image } : null;
-            columns.Add(row, JunctionLabel(candidate.Name, 16), JunctionLabel(magic && stock.TryGetValue(candidate.Id, out int quantity) ? Number(quantity) : "", 16), icon);
+            columns.Add(row, JunctionLabel(candidate.Name, 16, !candidate.Enabled), JunctionLabel(magic && stock.TryGetValue(candidate.Id, out int quantity) ? Number(quantity) : "", 16, !candidate.Enabled), icon);
         }
         Place(body, columns, 2);
         return body;

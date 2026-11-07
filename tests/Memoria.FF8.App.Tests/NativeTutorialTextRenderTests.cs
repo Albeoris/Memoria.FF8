@@ -157,9 +157,7 @@ public sealed class NativeTutorialTextRenderTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = TestResources.GameDirectory;
-        Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Installed original tutorial resources are required.");
-        return new GameAssets(directory);
+        return new GameAssets(TestResources.GameDirectory);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement element)

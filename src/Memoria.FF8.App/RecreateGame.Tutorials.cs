@@ -45,8 +45,9 @@ internal sealed partial class RecreateGame
         if (current is not null)
         {
             PresentTutorial(current);
+            current.Menu.PrepareViewport(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
             PlayerActionKind pressed = input.Cancel || keyboard.UiCancelRequested ? PlayerActionKind.Cancel : input.Confirm || keyboard.UiConfirmRequested ? PlayerActionKind.Confirm : PlayerActionKind.Wait;
-            if (pressed != PlayerActionKind.Wait)
+            if (pressed != PlayerActionKind.Wait && current.WaitingForInput)
             {
                 ApplyTutorialInput(new PlayerAction(pressed));
             }
@@ -108,6 +109,7 @@ internal sealed partial class RecreateGame
             gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
         }
         gameMenus.ConnectReadOnlyTutorialControls(() => keyboard.Profile, () => keyboard.ControllerPresentation, () => keyboard.LastInputDevice);
+        gameMenus.ConnectPreferences(ReadCurrentUiPreferences);
         current.RefreshPresentation();
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         tutorialSeconds = 0;

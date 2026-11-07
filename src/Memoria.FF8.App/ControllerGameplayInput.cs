@@ -1,4 +1,5 @@
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -7,6 +8,11 @@ internal static class ControllerGameplayInput
 {
     public static PlayerAction CreateWorldAction(InputFrame input, GameState state, ushort buttons)
     {
+        // The dialogue UI handles Confirm separately. Keep advancing text while the tutorial owns world input.
+        if (state.Scene == SceneKind.WorldMap && state.World?.EventUi is { ScriptMode: 14 } tutorial && tutorial.Windows.Any(window => window.WindowId is 9 or 11))
+        {
+            return new PlayerAction(PlayerActionKind.Wait);
+        }
         if (state.Scene == SceneKind.WorldMap && state.World is { NativeFootRuntime: null } world && (world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null))
         {
             // Pause is consumed by the host before world simulation.
@@ -36,5 +42,21 @@ internal static class ControllerGameplayInput
         float horizontal = (buttons & 0xF000) != 0 ? -digital.Steering13 / 127f : steering;
         float vertical = (buttons & 0x90) != 0 ? -digital.Throttle11 / 127f : throttle;
         return (horizontal, vertical);
+    }
+
+    internal static ushort WorldTutorialButton(GameDataEdition edition, int messageId, ushort button)
+    {
+        if (edition != GameDataEdition.Remastered)
+        {
+            return button;
+        }
+
+        // Remastered's world text uses its own glyph slots for reverse and cockpit.
+        return (messageId, button) switch
+        {
+            (49 or 50 or 52, 0x20) => 0x10,
+            (50 or 52, 0x10) => 0x20,
+            _ => button
+        };
     }
 }

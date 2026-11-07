@@ -184,6 +184,30 @@ public sealed class NativeTutorialExamUiTests
         Assert.Equal(original, JsonSerializer.Serialize(source));
     }
 
+    [Theory]
+    [InlineData(0, 8, "no")]
+    [InlineData(8, 8, "back")]
+    public void LeavingTheWrittenTestPromptReturnsThroughTheExistingTutorialMenu(int passedTests, int level, string entryId)
+    {
+        using GameAssets assets = InstalledAssets();
+        MenuController menu = new();
+        menu.ConnectNativeTutorials(assets.ReadNativeTutorialCatalog(), assets.ReadNativeTutorialBrowserCatalog(), () => new HashSet<int>(), _ => { });
+        menu.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () => new(passedTests, 7, level));
+        menu.Open("main");
+        menu.SelectEntry("main", "tutorial");
+        menu.Navigate(MenuInput.Confirm);
+        menu.SelectEntry("tutorial", "category-3");
+        menu.Navigate(MenuInput.Confirm);
+
+        menu.SelectEntry("tutorial-native-test", entryId);
+        menu.Navigate(MenuInput.Confirm);
+
+        Assert.Equal("tutorial", menu.ScreenId);
+        Assert.Equal("category-3", menu.SelectedEntry?.Id);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("main", menu.ScreenId);
+    }
+
     [Fact]
     public void InformationFollowsAnOriginalLinkAndReturnsToItsOriginalParent()
     {
@@ -259,8 +283,6 @@ public sealed class NativeTutorialExamUiTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = TestResources.GameDirectory;
-        Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Installed original tutorial resources are required.");
-        return new GameAssets(directory);
+        return new GameAssets(TestResources.GameDirectory);
     }
 }

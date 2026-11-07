@@ -51,7 +51,7 @@ public sealed partial class MenuController
     internal void ConnectPendingEncounter(Func<bool> read) => hasPendingEncounter = read;
     internal void ConnectBattleSource(Func<string> read) => battleSource = read;
 
-    internal void ConnectPreferences(Func<UiPreferences> read, Action<MenuAction> write)
+    internal void ConnectPreferences(Func<UiPreferences> read, Action<MenuAction>? write = null)
     {
         _readPreferences = read;
         _writePreferences = write;

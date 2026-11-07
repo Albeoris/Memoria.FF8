@@ -1,5 +1,6 @@
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 
@@ -22,7 +23,8 @@ internal sealed partial class RecreateGame
         }
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
         window = LocalizedWindow(dialogue, window);
-        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(display.Text, events!.MessageVariables), keyboard.NativeButtonBindingPrompt);
+        string ButtonPrompt(ushort button) => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button));
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(display.Text, events!.MessageVariables), ButtonPrompt);
         foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
         {
             expanded += "\u0001" + name.Key + "=" + name.Value;
@@ -32,7 +34,7 @@ internal sealed partial class RecreateGame
         string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation + "\u0004" + uiPreferences.TextFontMode + ":" + uiPreferences.TextLayoutMode + ":" + nativeTextFont?.ProfileFor(NativeDialogueContext)?.Id + ":" + nativeTextFont?.Revision + "\u0005" + window?.Width + "," + window?.Height;
         IReadOnlyList<DialogueVisualPage> CreatePresentation()
         {
-            var document = authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && authoringDraftPreview.Length > 0 ? ParseAuthoringPreview(authoringDraftPreview, OriginalTextLayout) : DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, terms, originalCompatible: OriginalTextLayout);
+            var document = authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && authoringDraftPreview.Length > 0 ? ParseAuthoringPreview(authoringDraftPreview, OriginalTextLayout) : DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, ButtonPrompt, terms, originalCompatible: OriginalTextLayout);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             if (NativeGameFonts)
@@ -69,6 +71,13 @@ internal sealed partial class RecreateGame
             presentation.Pager.UpdateReveal(TimeSpan.Zero, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: true);
         }
         return presentation;
+    }
+
+    private ushort DialogueButtonMask(DialogueState dialogue, ushort button)
+    {
+        return session.State.Scene == SceneKind.WorldMap && resourceHost?.Resources.Source.Edition is GameDataEdition edition
+            ? ControllerGameplayInput.WorldTutorialButton(edition, dialogue.MessageId, button)
+            : button;
     }
 
     private IEnumerable<DialogueState> VisibleDialogues
@@ -162,7 +171,7 @@ internal sealed partial class RecreateGame
         PixelBounds nativeOrigin = panelBounds;
         if (localizationWorkbench.Enabled && nativeTextFont?.Ready == true)
         {
-            DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, events!.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, world!.TextTerms, originalCompatible: true);
+            DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, events!.Scene.Names, events.MessageVariables, button => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button)), world!.TextTerms, originalCompatible: true);
             DialogueVisualPage nativePage = DialogueLayout.CreateNative(nativeDocument, display, window, NativeDialogueLineHeight, value => nativeTextFont.Measure(value, NativeDialogueContext))[0];
             nativeOrigin = DialoguePresentation.Bounds(display, window, viewport, nativePage.Width * scale, nativePage.Height * scale);
         }

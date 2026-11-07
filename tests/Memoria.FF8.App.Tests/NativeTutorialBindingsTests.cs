@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
@@ -53,12 +54,19 @@ public sealed class NativeTutorialBindingsTests
         }
         Assert.True(reached);
         Assert.Equal("10", player.Menu.SelectedEntry!.Id);
+        JsonObject earlier = JsonNode.Parse(player.Capture().GetRawText())!.AsObject();
+        Assert.True(earlier.Remove("ActionDelay"));
+        NativeTutorialPlayer legacy = new(catalog, LiveMenuCatalog.ReadInstalled(assets), 4, JsonSerializer.SerializeToElement(earlier));
+        Assert.Equal((byte)83, legacy.Party.GuardianForces[1].Learning);
+        Assert.Equal("10", legacy.Menu.SelectedEntry!.Id);
+        Assert.True(legacy.Apply(new PlayerAction(PlayerActionKind.Wait)));
+        Assert.Equal((byte)10, legacy.Party.GuardianForces[1].Learning);
         MenuScreenDefinition original = player.Menu.Definitions.Single(screen => screen.Id == "gf-learn");
         player.Menu.Register(new MenuScreenDefinition { Id = original.Id, Title = original.Title, Help = original.Help, Layout = original.Layout, Columns = original.Columns, MainCommand = original.MainCommand, Details = original.Details, BuildContent = original.BuildContent, Entries = controller => original.Entries(controller).Reverse().ToArray() });
         Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Wait)));
         Assert.Equal("10", player.Menu.SelectedEntry!.Id);
         Assert.Equal((byte)83, player.Party.GuardianForces[1].Learning);
-        Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Wait)));
+        Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 17)));
         Assert.Equal((byte)10, player.Party.GuardianForces[1].Learning);
     }
     [Fact]

@@ -9,8 +9,9 @@ namespace Memoria.FF8.GameUi;
 /// <summary>4BE100's original WORD program, presented through semantic menu targets and an exclusively owned tutorial party.</summary>
 internal sealed partial class NativeTutorialPlayer
 {
-    // Tutorial WORD delays count menu callbacks, independently of the field simulation.
+    // Tutorial presentation uses the menu clock, independently of the field simulation.
     internal const int CallbacksPerSecond = 60;
+    private const int MenuActionCallbacks = CallbacksPerSecond * 3 / 10;
     private readonly NativeTutorialCatalog catalog;
     private readonly LiveMenuCatalog menuCatalog;
     private readonly NativeTutorialDefinition definition;
@@ -20,6 +21,7 @@ internal sealed partial class NativeTutorialPlayer
     private int pc;
     private long frame;
     private int delay;
+    private int actionDelay;
     private int textId;
     private int centerX = 192;
     private int centerY = 104;
@@ -40,15 +42,11 @@ internal sealed partial class NativeTutorialPlayer
         this.menuCatalog = menuCatalog;
         this.names = names is null ? [] : new Dictionary<int, string>(names);
         definition = catalog.Get(tutorialId);
-        party = catalog.CreateIsolatedParty(tutorialId);
-        if (tutorialId <= 3)
-        {
-            party = AdaptDashboardCommands(party);
-        }
+        party = MapTutorialCommandAbilities(catalog.CreateIsolatedParty(tutorialId));
         visibleRows = party.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, party.Records.Length).Where(row => (party.Records[row].MemberFlags & 1) != 0)).ToHashSet();
         steps = tutorialId <= 3 ? NativeTutorialJunctionPlan.Create(tutorialId, definition, party) : NativeTutorialOtherPlan.Create(tutorialId, definition, party);
         ValidatePlan();
-        Menu = new MenuController(BuildData, ApplyMenuAction) { ShowUnavailableJunctionMagic = true };
+        Menu = new MenuController(BuildData, ApplyMenuAction) { IsJunctionTutorial = tutorialId <= 3 };
         RegisterTutorialScreens();
         Menu.Open(definition.Descriptor.CallbackMode switch { 18 => "junction", 24 => "gf", 28 => "status", 29 => "switch", _ => throw new InvalidDataException("Unsupported native tutorial callback.") });
         Menu.Execute(new MenuAction("select-character", $"character-{definition.Descriptor.CharacterId}"));
@@ -61,7 +59,7 @@ internal sealed partial class NativeTutorialPlayer
 
     public MenuController Menu { get; }
 
-    private static NativeCharacterVitals AdaptDashboardCommands(NativeCharacterVitals original)
+    private static NativeCharacterVitals MapTutorialCommandAbilities(NativeCharacterVitals original)
     {
         NativeCharacterVitals result = original.DeepCopy();
         for (int row = 0; row < result.Records.Length; row++)
@@ -86,8 +84,8 @@ internal sealed partial class NativeTutorialPlayer
         return result;
     }
     public bool IsComplete => complete;
-    public bool WaitingForInput => !complete && delay == 0 && definition.Inputs[pc] >> 12 == 8;
-    public object Status => new { TutorialId = definition.Id, Frame = frame, ProgramCounter = pc, Delay = delay, TextId = textId, MessageVisible = messageVisible, WaitingForInput, IsComplete, Menu.ScreenId, Menu.SelectedIndex, SelectedEntry = Menu.SelectedEntry?.Id };
+    public bool WaitingForInput => !complete && messageVisible && delay == 0 && definition.Inputs[pc] >> 12 == 8;
+    public object Status => new { TutorialId = definition.Id, Frame = frame, ProgramCounter = pc, Delay = delay, ActionDelay = actionDelay, TextId = textId, MessageVisible = messageVisible, WaitingForInput, IsComplete, Menu.ScreenId, Menu.SelectedIndex, SelectedEntry = Menu.SelectedEntry?.Id };
     internal NativeCharacterVitals Party => party.DeepCopy();
     internal void RefreshPresentation() => UpdateMessage();
     internal event Action<int, ushort>? OperationExecuted;
@@ -111,6 +109,10 @@ internal sealed partial class NativeTutorialPlayer
 
     private void Tick(PlayerActionKind input)
     {
+        if (!WaitingForInput)
+        {
+            input = PlayerActionKind.Wait;
+        }
         frame++;
         if (delay > 0)
         {
@@ -130,37 +132,32 @@ internal sealed partial class NativeTutorialPlayer
             {
                 case 1:
                     NativeTutorialMenuStep step = steps[pc];
-                    if (inputPrepared && (Menu.ScreenId != step.ScreenId || step.EntryId is string target && Menu.SelectedEntry?.Id != target))
-                    {
-                        PrepareMenuInput(step);
-                        return;
-                    }
-                    if (!inputPrepared)
+                    if (!inputPrepared || Menu.ScreenId != step.ScreenId || step.EntryId is string target && Menu.SelectedEntry?.Id != target)
                     {
                         PrepareMenuInput(step);
                         inputPrepared = true;
-                        // Selection is visible for a full presentation callback before the emulated press.
-                        if (step.Press != NativeTutorialPress.Select)
-                        {
-                            return;
-                        }
+                        actionDelay = MenuActionCallbacks - 1;
+                        return;
+                    }
+                    if (actionDelay > 0 && --actionDelay > 0)
+                    {
+                        return;
                     }
                     PressMenuInput(step);
                     inputPrepared = false;
                     OperationExecuted?.Invoke(pc, word);
                     pc++;
-                    continue;
+                    return;
                 case 2:
-                    OperationExecuted?.Invoke(pc, word);
-                    pc++;
-                    return;
+                    break;
                 case 3:
-                    messageVisible = true;
-                    messagePresentationId++;
-                    UpdateMessage();
-                    OperationExecuted?.Invoke(pc, word);
-                    pc++;
-                    return;
+                    messageVisible = definition.Id > 3 || DashboardMessage() is not null;
+                    if (messageVisible)
+                    {
+                        messagePresentationId++;
+                        UpdateMessage();
+                    }
+                    break;
                 case 4:
                     messageVisible = false;
                     UpdateMessage();
@@ -175,6 +172,10 @@ internal sealed partial class NativeTutorialPlayer
                     centerY = operand;
                     break;
                 case 8:
+                    if (!messageVisible)
+                    {
+                        break;
+                    }
                     if (input == PlayerActionKind.Cancel)
                     {
                         complete = true;
@@ -193,6 +194,12 @@ internal sealed partial class NativeTutorialPlayer
                     if (operand == 0)
                     {
                         throw new InvalidDataException("A native tutorial delay must make progress.");
+                    }
+                    // Every scripted menu action already has its own pointer dwell.
+                    // Dashboard guidance also omits padding between the original text pages.
+                    if (steps.ContainsKey(pc - 1) || steps.ContainsKey(pc + 1) || definition.Id <= 3 && pc > 3)
+                    {
+                        break;
                     }
                     delay = operand;
                     OperationExecuted?.Invoke(pc, word);
@@ -218,36 +225,23 @@ internal sealed partial class NativeTutorialPlayer
 
     private void PrepareMenuInput(NativeTutorialMenuStep step)
     {
-        if (step.ScreenId == "junction-dashboard")
-        {
-            Menu.Open("junction");
-        }
         if (Menu.ScreenId != step.ScreenId || !Menu.IsOpen)
         {
-            Menu.Open(step.ScreenId);
+            Menu.Open(step.ScreenId == "junction-dashboard" ? "junction" : step.ScreenId);
         }
         if (step.CharacterId is string character)
         {
             Menu.Execute(new MenuAction("select-character", character));
         }
+        if (step.ScreenId == "junction-dashboard")
+        {
+            Menu.PrepareTutorialJunctionStep(step);
+            UpdateMessage();
+            return;
+        }
         if (step.Context is MenuAction context)
         {
             Menu.Execute(context);
-        }
-        foreach (string control in step.DashboardPreparation ?? [])
-        {
-            if (control.StartsWith("gf-portrait-", StringComparison.Ordinal))
-            {
-                Menu.SelectEntry("junction-dashboard", control);
-            }
-            else if (control == "junction-actions")
-            {
-                Menu.Navigate(MenuInput.Alternate);
-            }
-            else
-            {
-                Menu.Execute(new MenuAction("junction-ui", control));
-            }
         }
         if (step.ScreenId == "junction-stock" && step.EntryId is string magic)
         {
@@ -266,6 +260,7 @@ internal sealed partial class NativeTutorialPlayer
         switch (step.Press)
         {
             case NativeTutorialPress.Confirm:
+            case NativeTutorialPress.ApplyDashboard:
                 Menu.Navigate(MenuInput.Confirm);
                 break;
             case NativeTutorialPress.Cancel:
@@ -273,13 +268,6 @@ internal sealed partial class NativeTutorialPlayer
                 break;
             case NativeTutorialPress.Inspect:
                 Menu.Push("gf-abilities");
-                break;
-            case NativeTutorialPress.ApplyDashboard:
-                if (step.EntryId is string control && !control.StartsWith("candidate-", StringComparison.Ordinal) && !control.StartsWith("gf-portrait-", StringComparison.Ordinal))
-                {
-                    Menu.Execute(new MenuAction("junction-ui", control));
-                }
-                Menu.Navigate(MenuInput.Confirm);
                 break;
         }
         if (step.Destination is string destination)
@@ -303,6 +291,11 @@ internal sealed partial class NativeTutorialPlayer
             Menu.ShowTutorialMessage(DashboardMessage(), centerX, centerY);
             return;
         }
+        if (definition.Id == 4 && GuardianForceLessonMessage() is string guardianForceMessage)
+        {
+            Menu.ShowTutorialMessage(guardianForceMessage, centerX, centerY);
+            return;
+        }
         string file = $"mngrp_slot{definition.Descriptor.TextResource:000}_table";
         string source = definition.Texts[textId].Value;
         var bound = Menu.BindNativeTutorial(file, textId, source);
@@ -321,24 +314,47 @@ internal sealed partial class NativeTutorialPlayer
         Menu.ShowTutorialMessage(rendered, centerX, centerY);
     }
 
-    private string DashboardMessage()
+    private string? DashboardMessage()
     {
-        (string Key, string Text) message = definition.Id switch
+        (string Key, string Text)? message = (definition.Id, textId) switch
         {
-            0 when pc < 136 => ("gfs", "All junction assignments stay on this dashboard. Select an acquired GF portrait to inspect that GF and preview attaching it."),
-            0 when pc < 303 => ("commands", "Attaching a GF unlocks learned capabilities. Commands are separate assignments: choose each command position and inspect its choices."),
-            0 when pc < 379 => ("command-preview", "A highlighted choice is a preview. Confirm equips it; Cancel keeps the current command. The fixed basic action is separate from the three configurable commands."),
-            0 => ("passives", "Passive abilities occupy their own stable positions. Choose a learned passive, inspect its consequences and confirm it."),
-            1 when pc < 115 => ("stats", "Select a stat to open its magic picker. Highlight a spell to preview the complete change. Current assignments and values stay visible until Confirm."),
-            1 when pc < 169 => ("stat-assigned", "Apply commits the selected magic. Every stat and effect assignment remains visible; Cancel closes the picker without changing the character."),
-            1 when pc < 181 => ("clear", "The Actions menu can clear this character's magic junctions. Review the complete removal before applying it."),
-            1 => ("optimize", "Actions → Optimize stats offers Attack, Magic or Defense priority. Review and Apply the proposal. Only unpinned stat magic changes; GFs, commands, passives and effect junctions stay configured."),
-            2 when pc < 152 => ("element-attack", "Elemental attack is an optional manual choice. None adds no element. Preview the affected elements and absorption warning before applying; an enemy may absorb that element."),
-            2 => ("element-defense", "Elemental defense combines every defense position. The permanent table shows all eight elements. Attack / Defense inspection changes the readout without changing assignments."),
-            3 when pc < 157 => ("status-attack", "Status attack is an optional manual choice. Preview its potency in the permanent status table. Actual success also depends on the target; Cancel leaves the current assignment unchanged."),
-            _ => ("status-defense", "Status defense combines all defense positions and relevant passive protection. Keep all thirteen readouts visible while choosing magic, then review and Apply the proposal.")
+            (0, 0) => ("junction-intro", "Junction lets a character use a GF's learned abilities. This dashboard shows the character's assignments in one place."),
+            (0, 13) => ("gfs", "Highlight an acquired GF portrait to see the abilities it has learned and preview which Junction slots it can unlock."),
+            (0, 15) => ("attach-gf", "Confirm a GF portrait to junction that GF to the character."),
+            (0, 18) => ("unlocked-slots", "The GF's learned HP-J and Vit-J abilities unlock the HP and Vit magic slots."),
+            (0, 22) => ("commands", "The basic action has its own row. The three positions below it hold configurable battle commands."),
+            (0, 23) => ("passives", "Passive abilities occupy separate positions. Some GFs can unlock additional positions."),
+            (0, 35) => ("command-preview", "Open an empty command position and highlight a choice to preview it. Confirm equips the choice."),
+            (0, 37) => ("draw-command", "Equip Draw so the character can acquire magic during battle."),
+            (0, 39) => ("remaining-commands", "Equip the GF and Item commands in the two remaining command positions."),
+            (0, 44) => ("passive-preview", "Open the first passive position and equip Mag+20% to raise the character's Magic."),
+            (0, 49) => ("junction-end", "The character now has a GF, three battle commands and a passive ability."),
+            (1, 0) => ("magic-intro", "Junctioning stocked magic can raise a character's stats."),
+            (1, 9) => ("stats", "Highlight a stat that its attached GF has unlocked. Confirm to open the magic picker for that stat."),
+            (1, 12) => ("stat-preview", "Highlight a spell to preview how much it changes the stat. The current value stays visible beside the proposed value."),
+            (1, 14) => ("stat-assigned", "Confirm to assign the spell. The dashboard now shows the spell beside the updated stat."),
+            (1, 18) => ("optimize-entry", "Open Actions and choose Optimize stats to propose several stat junctions at once."),
+            (1, 20) => ("optimize", "Optimize stats offers Attack, Magic and Defense priorities. It adjusts unpinned stat junctions."),
+            (1, 25) => ("optimize-review", "Choose Attack to favor Strength. Review the proposed values on the dashboard before applying them."),
+            (1, 27) => ("magic-end", "The dashboard now shows the new stat junctions together."),
+            (2, 0) => ("element-intro", "An attached GF with learned elemental Junction abilities unlocks elemental attack or defense slots."),
+            (2, 8) => ("element-picker", "Confirm an unlocked elemental slot to open its magic picker. Highlight a spell to preview its effect."),
+            (2, 11) => ("element-ineligible", "Spells without an elemental effect, such as Cure, cannot be assigned to Elem-Atk. Cancel closes the picker and keeps the current assignment."),
+            (2, 12) => ("element-attack", "Elem-Atk gives the character's attacks an element. The attack percentage shows how much of the attack uses that element. An enemy may absorb it."),
+            (2, 17) => ("element-defense", "Elem-Def reduces damage from its element. At 100%, that element deals no damage."),
+            (2, 21) => ("element-absorption", "Elemental defense above 100% absorbs damage from that element and restores HP."),
+            (2, 25) => ("element-combined", "Elemental defense adds the contributions from all equipped defense spells. The table shows the resulting values for all eight elements."),
+            (2, 28) => ("element-end", "Use the table's Attack and Defense controls to inspect either set of elemental values."),
+            (3, 0) => ("status-intro", "An attached GF with learned status Junction abilities unlocks status attack or defense slots."),
+            (3, 7) => ("status-picker", "Confirm an unlocked status slot and highlight a spell to preview its effect in the status table."),
+            (3, 10) => ("status-ineligible", "Spells that cause no status change, such as Fire, cannot be assigned to ST-Atk. Cancel closes the picker and keeps the current assignment."),
+            (3, 12) => ("status-attack", "ST-Atk gives normal attacks a chance to inflict a status. The target's resistance also affects the outcome."),
+            (3, 17) => ("status-defense", "ST-Def reduces the chance of receiving a status. The defense column combines contributions across equipped spells."),
+            (3, 23) => ("status-combined", "Some spells defend against several statuses at once. Highlight Esuna to see which rows change before confirming."),
+            (3, 25) => ("status-end", "Use the table's Attack and Defense controls to inspect either set of status values."),
+            _ => null
         };
-        return Menu.SystemText("tutorial.junction-dashboard." + message.Key, message.Text);
+        return message is { } dialog ? Menu.SystemText("tutorial.junction-dashboard." + dialog.Key, dialog.Text) : null;
     }
 
     private MenuData BuildData()
@@ -394,7 +410,7 @@ internal sealed partial class NativeTutorialPlayer
         party.Validate();
     }
 
-    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(2, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), new(settings, StringComparer.Ordinal), new(names)));
+    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(2, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), new(settings, StringComparer.Ordinal), new(names)) { ActionDelay = actionDelay });
 
     private void Restore(JsonElement element)
     {
@@ -403,6 +419,10 @@ internal sealed partial class NativeTutorialPlayer
         if (saved.Version is not (1 or 2) || saved.ResourceHash != catalog.ResourceHash || saved.TutorialId != definition.Id || saved.ProgramCounter < 0 || saved.ProgramCounter > terminal || saved.Frame < 0 || saved.Delay < 0 || saved.Delay > 4095 || saved.TextId < 0 || saved.TextId >= definition.Texts.Length || saved.CenterX is < 0 or > 4095 || saved.CenterY is < 0 or > 4095 || saved.Delay > 0 && (definition.Inputs[saved.ProgramCounter] >> 12 != 9 || saved.Delay > (definition.Inputs[saved.ProgramCounter] & 4095)) || saved.InputPrepared && definition.Inputs[saved.ProgramCounter] >> 12 != 1 || saved.Complete && definition.Inputs[saved.ProgramCounter] >> 12 is not (8 or 15) || saved.Party is null || saved.Navigation is null || saved.Settings is null || saved.Party.InitOutSha256 != party.InitOutSha256 || saved.Party.KernelSha256 != party.KernelSha256)
         {
             throw new InvalidDataException("Native tutorial playback changed its resource, program boundary or isolated initialization provenance.");
+        }
+        if (saved.ActionDelay is < 0 or >= MenuActionCallbacks || saved.ActionDelay > 0 && (!saved.InputPrepared || saved.Complete))
+        {
+            throw new InvalidDataException("Saved tutorial pointer timing is outside its prepared menu action.");
         }
         if (saved.Names is null || saved.Names.Values.Any(value => value is null))
         {
@@ -418,14 +438,15 @@ internal sealed partial class NativeTutorialPlayer
         {
             throw new InvalidDataException("Saved tutorial changed its immutable original kernel definitions.");
         }
-        party = saved.Version == 1 && definition.Id <= 3 ? AdaptDashboardCommands(saved.Party) : saved.Party.DeepCopy();
+        party = MapTutorialCommandAbilities(saved.Party);
         pc = saved.ProgramCounter;
         frame = saved.Frame;
         delay = saved.Delay;
+        actionDelay = saved.ActionDelay;
         textId = saved.TextId;
         centerX = saved.CenterX;
         centerY = saved.CenterY;
-        messageVisible = saved.MessageVisible;
+        messageVisible = saved.MessageVisible && (definition.Id > 3 || DashboardMessage() is not null);
         inputPrepared = saved.InputPrepared;
         complete = saved.Complete;
         settings.Clear();
@@ -447,7 +468,7 @@ internal sealed partial class NativeTutorialPlayer
         {
             Menu.RestoreNavigation(AdaptGuardianPortraitNavigation(saved.Navigation));
         }
-        if (Menu.Entries.Count > 0 && Menu.SelectedIndex >= Menu.Entries.Count || Menu.IsSelectingCharacter && Menu.CharacterSelectionIndex >= Menu.CharacterChoices.Count)
+        if (!Menu.IsJunctionDashboard && Menu.Entries.Count > 0 && Menu.SelectedIndex >= Menu.Entries.Count || Menu.IsSelectingCharacter && Menu.CharacterSelectionIndex >= Menu.CharacterChoices.Count)
         {
             throw new InvalidDataException("Saved tutorial cursor is outside its current command or character choices.");
         }
@@ -523,4 +544,7 @@ internal sealed partial class NativeTutorialPlayer
     }
 }
 
-internal sealed record NativeTutorialSnapshot(int Version, string ResourceHash, int TutorialId, int ProgramCounter, long Frame, int Delay, int TextId, int CenterX, int CenterY, bool MessageVisible, bool InputPrepared, bool Complete, NativeCharacterVitals Party, MenuNavigationState Navigation, Dictionary<string, string> Settings, Dictionary<int, string> Names);
+internal sealed record NativeTutorialSnapshot(int Version, string ResourceHash, int TutorialId, int ProgramCounter, long Frame, int Delay, int TextId, int CenterX, int CenterY, bool MessageVisible, bool InputPrepared, bool Complete, NativeCharacterVitals Party, MenuNavigationState Navigation, Dictionary<string, string> Settings, Dictionary<int, string> Names)
+{
+    public int ActionDelay { get; init; }
+}

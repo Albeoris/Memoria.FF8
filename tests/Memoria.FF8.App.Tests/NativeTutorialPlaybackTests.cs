@@ -9,6 +9,21 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTutorialPlaybackTests
 {
     [Fact]
+    public void ConfirmBeforeTheDialogAppearsDoesNotCarryOver()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeTutorialPlayer player = new(assets.ReadNativeTutorialCatalog(), LiveMenuCatalog.ReadInstalled(assets), 4);
+        Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 30)));
+        Assert.False(player.WaitingForInput);
+        Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Confirm, Frames: 120)));
+        Assert.True(player.WaitingForInput);
+        Assert.Equal(0, player.Capture().GetProperty("TextId").GetInt32());
+        Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Confirm, Frames: 120)));
+        Assert.True(player.WaitingForInput);
+        Assert.Equal(1, player.Capture().GetProperty("TextId").GetInt32());
+    }
+
+    [Fact]
     public void OriginalSixtyCallbackPauseLastsOneMenuSecond()
     {
         string directory = TestResources.GameDirectory;
@@ -98,6 +113,7 @@ public sealed class NativeTutorialPlaybackTests
         NativeTutorialPlayer restored = new(catalog, menuCatalog, id);
         List<int> executed = [];
         List<ushort> callbackWords = [];
+        int? pointerPreparedAt = null;
         player.OperationExecuted += (pc, word) =>
         {
             executed.Add(pc);
@@ -108,6 +124,15 @@ public sealed class NativeTutorialPlaybackTests
         for (ticks = 0; ticks < 30000 && !player.IsComplete; ticks++)
         {
             callbackWords.Clear();
+            if (player.WaitingForInput)
+            {
+                JsonElement dialog = player.Capture();
+                Assert.True(player.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 120)));
+                Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 120)));
+                Assert.True(player.WaitingForInput);
+                Assert.Equal(dialog.GetProperty("ProgramCounter").GetInt32(), player.Capture().GetProperty("ProgramCounter").GetInt32());
+                Assert.Empty(callbackWords);
+            }
             PlayerAction action = new(player.WaitingForInput ? PlayerActionKind.Confirm : PlayerActionKind.Wait);
             Assert.True(player.Apply(action));
             Assert.True(restored.Apply(action));
@@ -118,13 +143,26 @@ public sealed class NativeTutorialPlaybackTests
                 Assert.Equal(8, player.Menu.Character!.JunctionEffects!.Elements.Count);
                 Assert.Equal(13, player.Menu.Character.JunctionEffects.Statuses.Count);
             }
-            Assert.True(JsonElement.DeepEquals(player.Capture(), restored.Capture()), $"Tutorial{id} diverged after restored callback{ticks}, {JsonSerializer.Serialize(player.Status)}.");
-            bool meaningful = callbackWords.Any(word => word >> 12 is 1 or 9) || player.WaitingForInput || player.IsComplete;
+            JsonElement snapshot = player.Capture();
+            Assert.True(JsonElement.DeepEquals(snapshot, restored.Capture()), $"Tutorial{id} diverged after restored callback{ticks}, {JsonSerializer.Serialize(player.Status)}.");
+            int pointerDelay = snapshot.GetProperty("ActionDelay").GetInt32();
+            bool pointerPrepared = pointerDelay == 17;
+            if (pointerPrepared)
+            {
+                Assert.Null(pointerPreparedAt);
+                pointerPreparedAt = ticks;
+            }
+            if (callbackWords.Any(word => word >> 12 == 1))
+            {
+                Assert.Equal(ticks - 17, pointerPreparedAt);
+                pointerPreparedAt = null;
+            }
+            bool meaningful = pointerPrepared || callbackWords.Any(word => word >> 12 is 1 or 9) || player.WaitingForInput || player.IsComplete;
             if (meaningful)
             {
-                JsonElement snapshot = player.Capture();
                 restored = new NativeTutorialPlayer(catalog, menuCatalog, id, snapshot);
-                Assert.True(JsonElement.DeepEquals(snapshot, restored.Capture()), $"Tutorial{id} lost its exact menu/input/delay boundary.");
+                JsonElement restoredSnapshot = restored.Capture();
+                Assert.True(JsonElement.DeepEquals(snapshot, restoredSnapshot), $"Tutorial {id} lost its exact boundary at {JsonSerializer.Serialize(player.Status)}. Navigation: {snapshot.GetProperty("Navigation")} -> {restoredSnapshot.GetProperty("Navigation")}.");
                 Assert.Equal(player.Menu.ScreenId, restored.Menu.ScreenId);
                 Assert.Equal(player.Menu.SelectedEntry?.Id, restored.Menu.SelectedEntry?.Id);
                 Assert.True(JsonElement.DeepEquals(liveBefore, JsonSerializer.SerializeToElement(live.State)), "Tutorial menu actions changed a live game owner.");

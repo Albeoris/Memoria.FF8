@@ -172,7 +172,7 @@ public sealed partial class MenuController
         {
             junctionFocus = JunctionGfFocusId;
         }
-        if (junctionEditor.Length == 0 && junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal))
+        if (!IsJunctionTutorial && junctionEditor.Length == 0 && junctionFocus.StartsWith("gf-portrait-", StringComparison.Ordinal))
         {
             PreviewGuardian(junctionFocus[12..]);
         }
@@ -188,7 +188,12 @@ public sealed partial class MenuController
         }
         bool accessible = JunctionAccessible;
         float dockHeight = 166 * TextScale + 10;
-        UiGrid page = JunctionRows(accessible ? [44 * TextScale, 0, dockHeight] : [44, 76, 0, dockHeight], [1], 8);
+        float[] rows = accessible ? [44 * TextScale, 0, dockHeight] : [44, 76, 0, dockHeight];
+        if (IsJunctionTutorial)
+        {
+            rows = [.. rows, (accessible ? 104 : 76) * TextScale];
+        }
+        UiGrid page = JunctionRows(rows, [1], 8);
         page.Id = "junction-dashboard";
         Place(page, BuildJunctionHeader(), 0);
         if (!accessible)
@@ -226,6 +231,10 @@ public sealed partial class MenuController
             Place(page, dashboard, 2);
         }
         Place(page, BuildJunctionDock(), accessible ? 2 : 3);
+        if (IsJunctionTutorial && BuildTutorialMessage(inDashboard: true) is { } message)
+        {
+            Place(page, message, rows.Length - 1);
+        }
         return page;
     }
 

@@ -232,9 +232,9 @@ public sealed partial class MenuController
     {
         if (_nativeExamProgress is null || _nativeExamProgress.PassedTests >= 30 || (_nativeExamProgress.SeeDRank != 31 && _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel) || _nativeExamProgress.SeeDRank < 0)
         {
-            return [new MenuEntry("back", "GO BACK", "GO BACK", "tutorial")];
+            return [new MenuEntry("back", "GO BACK", "GO BACK", Action: new MenuAction("menu-back"))];
         }
-        return [new MenuEntry("yes", "YES", "YES", "tutorial-native-exam-question", new MenuAction("native-exam-begin", (_nativeExamProgress.PassedTests + 1).ToString(CultureInfo.InvariantCulture))), new MenuEntry("no", "NO", "NO", "tutorial")];
+        return [new MenuEntry("yes", "YES", "YES", "tutorial-native-exam-question", new MenuAction("native-exam-begin", (_nativeExamProgress.PassedTests + 1).ToString(CultureInfo.InvariantCulture))), new MenuEntry("no", "NO", "NO", Action: new MenuAction("menu-back"))];
     }
 
     private string NativeExamStartText()

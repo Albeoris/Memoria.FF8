@@ -2,22 +2,32 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeWorldTutorialTextTests
 {
-    [Fact]
-    public void Original_driving_tutorial_resolves_reverse_and_forward_to_the_native_motor_buttons()
+    [Theory]
+    [InlineData(49)]
+    [InlineData(50)]
+    [InlineData(52)]
+    public void Original_driving_tutorial_resolves_reverse_and_forward_to_the_native_motor_buttons(int message)
     {
-        using WorldAssets assets = new(TestResources.GameDirectory);
-        string text = assets.ReadWorldMessage(49);
-        string formatted = DialogueTextFormatter.Format(text, buttonBindingHint: buttons => $"[{buttons:X4}]");
+        string directory = TestResources.GameDirectory;
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        using WorldAssets assets = new(directory, new ResourceService(source));
+        string text = assets.ReadWorldMessage(message);
+        string formatted = DialogueTextFormatter.Format(text, buttonBindingHint: buttons => $"[{ControllerGameplayInput.WorldTutorialButton(source.Descriptor.Edition, message, buttons):X4}]");
         Assert.Contains("[0010]:Back", formatted, StringComparison.Ordinal);
         Assert.Contains("[0080]:Forward", formatted, StringComparison.Ordinal);
         Assert.Contains("[0040]:Get on/off", formatted, StringComparison.Ordinal);
         Assert.Contains("[0002]:Change POV", formatted, StringComparison.Ordinal);
+        if (message != 49)
+        {
+            Assert.Contains("[0020]:To cockpit", formatted, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -65,6 +75,11 @@ public sealed class NativeWorldTutorialTextTests
         Assert.True(staged.EventUi!.MatchesTextComplete(9, 1));
         NativeWorldEventUi restored = JsonSerializer.Deserialize<NativeWorldEventUi>(JsonSerializer.Serialize(staged.EventUi))!;
         Assert.True(restored.MatchesTextComplete(9, 1));
+        GameState interactive = new() { Scene = SceneKind.WorldMap, World = new() { EventUi = restored } };
+        PlayerAction heldDirection = ControllerGameplayInput.CreateWorldAction(new InputFrame(1, 0, false, false, false, false), interactive, 0x8000);
+        Assert.Equal(new PlayerAction(PlayerActionKind.Wait), heldDirection);
+        Select(heldDirection.WorldButtons);
+        Assert.Equal(14, staged.EventUi!.ScriptMode);
         Select(0x8000);
         Assert.Empty(staged.EventUi!.Windows);
         Assert.Equal(0, staged.EventUi.ScriptMode);

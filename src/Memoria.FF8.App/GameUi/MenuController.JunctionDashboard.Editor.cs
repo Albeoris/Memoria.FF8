@@ -7,7 +7,6 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private sealed record JunctionCandidate(string Id, string Name, string Detail, MenuAction Action, UiImageSource? Icon = null, bool Enabled = true);
-    internal bool ShowUnavailableJunctionMagic { get; init; }
     private string junctionSort = "benefit";
     private readonly Dictionary<string, int> junctionBenefits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MenuJunctionPlan> junctionPreviewCache = new(StringComparer.Ordinal);
@@ -75,7 +74,7 @@ public sealed partial class MenuController
             foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
             {
                 bool enabled = Data.JunctionPlanner is not { } planner || spell.SpellId is int spellId && planner.IsMagicCandidate(actor.Id, spellId, _junctionSlot);
-                if (!enabled && !ShowUnavailableJunctionMagic)
+                if (!enabled && !IsJunctionTutorial)
                 {
                     continue;
                 }
