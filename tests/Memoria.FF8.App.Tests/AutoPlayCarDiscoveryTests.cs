@@ -38,13 +38,15 @@ public sealed class AutoPlayCarDiscoveryTests
         uint flags = triangle.GroundType | (uint)triangle.TextureFlags << 8 | (uint)triangle.VertexFlags << 16;
         Assert.True(NativeWorldTerrain.CanTraverse(flags, candidate.NativeCarRuntime.EntityType));
 
-        PlayerActionResult result = world.ExecuteAutoPlayWorldTarget(entrance);
+        WorldAutoPlayTravelResult travel = world.ExecuteAutoPlayWorldTarget(entrance);
+        Assert.True(travel.MatchedTarget, travel.Action.Detail);
+        PlayerActionResult result = travel.Action;
         Assert.True(result.Accepted);
         Assert.Equal(PlayerTriggerKind.Dialogue, result.Trigger.Kind);
         Assert.Equal(49, result.Trigger.MessageId);
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
         Assert.Equal(before.FieldId, session.State.FieldId);
-        Assert.Equal(24, session.State.World!.Frame);
+        Assert.True(session.State.World!.Frame >= 24);
         Assert.Null(session.State.World.NativeFootRuntime);
         Assert.Equal(33, session.State.World.NativeCarRuntime!.EntityType);
         Assert.Equal((byte)14, session.State.World.EventUi!.ScriptMode);

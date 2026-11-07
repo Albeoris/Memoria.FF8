@@ -1394,6 +1394,7 @@ internal sealed partial class AutoPlayController
         string navigation = ObserveNavigation(world, visit);
         RefreshUnavailable(world);
         InspectSurveyVisit(navigation);
+        RefreshWalkingSearchRevision(run, navigation);
         if (FinishChoices())
         {
             return;
@@ -1436,7 +1437,16 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
-        world.ExecuteAutoPlayWorldTarget(target);
+        WorldAutoPlayTravelResult travel = world.ExecuteAutoPlayWorldTarget(target, ResetIdleDeadline);
+        RecordRecentAction($"World walk {target.Id}: {travel.Action.Trigger.Kind} field={travel.Action.Trigger.FieldId}; callbacks={travel.Action.FramesAdvanced}; {travel.Action.Detail}");
+        if (!travel.MatchedTarget)
+        {
+            if (!travel.Action.Accepted || travel.Action.Trigger.Kind == PlayerTriggerKind.FieldTransition)
+            {
+                planner.Block(visit, target.Id, travel.Action.Detail ?? "Ordinary world movement reached a different native entrance.", AutoPlayBlockKind.Walking);
+            }
+            ClearNativeUnavailableInteraction();
+        }
     }
 
     internal static int WorldControlWaitFrames(WorldState world)

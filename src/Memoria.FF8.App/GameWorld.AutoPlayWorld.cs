@@ -4,6 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 internal sealed record WorldAutoPlayTarget(string Id, int X, int RawZ, int DestinationField, int Order);
+internal sealed record WorldAutoPlayTravelResult(PlayerActionResult Action, bool MatchedTarget);
 
 internal sealed partial class GameWorld
 {
@@ -17,7 +18,7 @@ internal sealed partial class GameWorld
         return worldScene.DiscoverAutoPlayEntrances();
     }
 
-    public PlayerActionResult ExecuteAutoPlayWorldTarget(WorldAutoPlayTarget target)
+    public WorldAutoPlayTravelResult ExecuteAutoPlayWorldTarget(WorldAutoPlayTarget target, Action? onProgress = null)
     {
         EnsureField();
         WorldMapScene scene = worldScene ?? throw new InvalidOperationException("World automatic travel requires the current world scene.");
@@ -26,21 +27,88 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("The requested world entrance differs from its current discovery.");
         }
-        scene.DebugTeleportToEntrance(target);
-        int frames = Math.Max(1, NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0));
-        PlayerActionResult result = Apply(new PlayerAction(PlayerActionKind.Wait, Frames: frames));
-        if (result.Trigger.Kind == PlayerTriggerKind.FieldTransition)
+        IReadOnlyList<(int X, int RawZ)> path = scene.GetAutoPlayEntrancePath(current);
+        int callbacks = 0;
+        int entryHold = NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0);
+        if (entryHold > 0)
         {
-            if (result.Trigger.FieldId != target.DestinationField)
+            PlayerActionResult wait = Apply(new PlayerAction(PlayerActionKind.Wait, Frames: entryHold));
+            callbacks = wait.FramesAdvanced;
+            if (!wait.Accepted || wait.Trigger.Kind != PlayerTriggerKind.WorldMap || scene.State.EventUi is { ScriptMode: not 0 })
             {
-                throw new NotSupportedException("The actual world entrance callback entered a different destination from its discovery.");
+                return FinishWorldTravel(scene, target, wait);
             }
-            return result;
         }
-        if (result.Accepted && (result.Trigger.Kind is PlayerTriggerKind.Dialogue or PlayerTriggerKind.Battle or PlayerTriggerKind.Movie or PlayerTriggerKind.PartyMenu or PlayerTriggerKind.Tutorial || result.Trigger.Kind == PlayerTriggerKind.WorldMap && scene.State.EventUi is { ScriptMode: not 0 }))
+        int stride = 1;
+        for (int waypoint = 0; waypoint < path.Count; waypoint++)
         {
-            return result;
+            int stalled = 0;
+            long bestDistance = long.MaxValue;
+            while (true)
+            {
+                WorldState before = scene.State;
+                int x = WorldMapScene.NearWrapped(path[waypoint].X, before.X, 262144);
+                int z = WorldMapScene.NearWrapped(path[waypoint].RawZ, before.Z, 196608);
+                long distance = WorldDistanceSquared(before.X, before.Z, x, z);
+                if (distance <= (long)stride * stride)
+                {
+                    break;
+                }
+                if (callbacks >= 30_000)
+                {
+                    return WorldTravelBlocked(scene, callbacks, "Ordinary world movement exceeded its bounded route callbacks.");
+                }
+                PlayerActionResult result = Apply(WorldNavigationGuide.Next(before, x, z));
+                callbacks += result.FramesAdvanced;
+                if (!result.Accepted || result.FramesAdvanced == 0 || result.Trigger.Kind != PlayerTriggerKind.WorldMap || scene.State.EventUi is { ScriptMode: not 0 })
+                {
+                    return FinishWorldTravel(scene, target, result with { FramesAdvanced = callbacks });
+                }
+                WorldState after = scene.State;
+                int nextX = WorldMapScene.NearWrapped(after.X, before.X, 262144);
+                int nextZ = WorldMapScene.NearWrapped(after.Z, before.Z, 196608);
+                long traveled = WorldDistanceSquared(before.X, before.Z, nextX, nextZ);
+                if (traveled != 0)
+                {
+                    stride = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(traveled)));
+                }
+                long remaining = WorldDistanceSquared(nextX, nextZ, x, z);
+                if (remaining < Math.Min(bestDistance, distance))
+                {
+                    bestDistance = remaining;
+                    stalled = 0;
+                    onProgress?.Invoke();
+                }
+                else if (++stalled >= 8)
+                {
+                    return WorldTravelBlocked(scene, callbacks, "Ordinary world movement could not approach the next terrain crossing.");
+                }
+            }
         }
-        throw new NotSupportedException("The actual world entrance callback neither entered its destination nor yielded to a native scene owner.");
+        int frames = Math.Max(1, NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0));
+        PlayerActionResult arrival = Apply(new PlayerAction(PlayerActionKind.Wait, Frames: frames));
+        if (arrival.Accepted && arrival.Trigger.Kind == PlayerTriggerKind.WorldMap && scene.State.EventUi is not { ScriptMode: not 0 })
+        {
+            return WorldTravelBlocked(scene, callbacks + arrival.FramesAdvanced, "The native terrain crossing did not activate a world entrance.");
+        }
+        return FinishWorldTravel(scene, target, arrival with { FramesAdvanced = callbacks + arrival.FramesAdvanced });
+    }
+
+    private WorldAutoPlayTravelResult FinishWorldTravel(WorldMapScene scene, WorldAutoPlayTarget target, PlayerActionResult result)
+    {
+        bool matched = result.Accepted && (result.Trigger.Kind == PlayerTriggerKind.FieldTransition ? result.Trigger.FieldId == target.DestinationField : result.Trigger.Kind != PlayerTriggerKind.Battle && session.State.Scene == SceneKind.WorldMap && scene.IsAtAutoPlayEntrance(target));
+        return new(result, matched);
+    }
+
+    private WorldAutoPlayTravelResult WorldTravelBlocked(WorldMapScene scene, int frames, string detail)
+    {
+        return new(new(false, new(PlayerTriggerKind.WorldMap, session.State.FieldId, scene.State.Frame, null, null), frames, detail), false);
+    }
+
+    private static long WorldDistanceSquared(int x, int z, int targetX, int targetZ)
+    {
+        long dx = targetX - (long)x;
+        long dz = targetZ - (long)z;
+        return dx * dx + dz * dz;
     }
 }

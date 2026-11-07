@@ -1091,7 +1091,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private static int WrapYaw(int yaw) => (yaw % 4096 + 4096) % 4096;
 
-    private static int NearWrapped(int value, int reference, int period)
+    internal static int NearWrapped(int value, int reference, int period)
     {
         if (value - reference > period / 2)
         {
