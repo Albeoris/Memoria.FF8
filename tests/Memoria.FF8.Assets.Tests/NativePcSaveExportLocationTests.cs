@@ -6,6 +6,30 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed partial class NativePcSaveConverterTests
 {
+    [Fact]
+    public void Field_export_keeps_party_members_without_field_actors_and_reconstructs_their_dormant_pose_lanes()
+    {
+        GameState source = Defaults() with
+        {
+            EventState = JsonSerializer.SerializeToElement(new
+            {
+                Scene = new { Party = new[] { 0, 4, 3 }, NativeFieldInitialization = new { Stage = "Completed" } },
+                Actors = new[]
+                {
+                    new { CharacterId = 0, Active = true, X = -950, Y = -741, WalkmeshTriangle = 0, Direction = 23 },
+                    new { CharacterId = 3, Active = true, X = 123, Y = 456, WalkmeshTriangle = 3, Direction = 67 }
+                }
+            })
+        };
+        NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(source));
+        Assert.Equal(new byte[] { 0, 4, 3 }, data.FieldParty);
+        Assert.Equal(new NativeFieldLocationPose(-950, -741, 0, 23), data.ReadFieldPartyPosition(0));
+        Assert.Equal(new NativeFieldLocationPose(0, 0, 0, 0), data.ReadFieldPartyPosition(1));
+        Assert.Equal(new NativeFieldLocationPose(123, 456, 3, 67), data.ReadFieldPartyPosition(2));
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
+        Assert.Equal(new FieldTransition(source.FieldId, -950, -741, 0, 23), imported.FieldArrival);
+    }
+
     [Theory]
     [InlineData(48)]
     [InlineData(50)]

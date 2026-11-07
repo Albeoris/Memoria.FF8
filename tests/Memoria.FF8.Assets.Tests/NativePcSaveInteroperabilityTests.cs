@@ -78,7 +78,7 @@ public sealed partial class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void Native_export_preserves_unknown_terrain_bits_from_explicit_baseline_and_rejects_missing_history()
+    public void Native_export_preserves_unknown_terrain_bits_from_explicit_baseline_and_reconstructs_missing_reserved_bits()
     {
         NativePcSaveData original = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(Defaults()));
         original.Block[5197] = 0xA5;
@@ -87,10 +87,35 @@ public sealed partial class NativePcSaveConverterTests
         NativePcSaveData exported = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(partial));
         Assert.Equal((byte)0xA3, exported.Block[5197]);
         GameState missing = partial with { NativeSaveInteroperability = partial.NativeSaveInteroperability! with { Terrain109Baseline = null } };
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(missing));
+        exported = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(missing));
+        Assert.Equal((byte)0x03, exported.Block[5197]);
         GameState exact = missing with { SavedWorld = missing.SavedWorld! with { TerrainFlags109 = NativeWorldTerrainFlags109.Exact(0x19) } };
         exported = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(exact));
         Assert.Equal((byte)0x19, exported.Block[5197]);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(0x81, 0x81)]
+    public void Native_export_reconstructs_unrecorded_reserved_terrain_bits_without_changing_the_saved_owner(byte value, byte knownMask)
+    {
+        NativeWorldTerrainFlags109 terrain = new(value, knownMask);
+        GameState source = Defaults() with { SavedWorld = NativeSavedWorldState.CreateNewGame() with { TerrainFlags109 = terrain } };
+        Assert.Null(source.OriginalSave);
+        Assert.Null(source.NativeSaveInteroperability);
+        NativePcSaveData exported = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(source));
+        Assert.Equal(value, exported.Block[5197]);
+        Assert.Equal(terrain, source.SavedWorld!.TerrainFlags109);
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(exported), Defaults(), _ => "fixture", "en");
+        Assert.Equal(NativeWorldTerrainFlags109.Exact(value), imported.SavedWorld!.TerrainFlags109);
+    }
+
+    [Fact]
+    public void Native_export_rejects_an_unknown_gameplay_terrain_flag_without_a_baseline()
+    {
+        GameState source = Defaults() with { SavedWorld = NativeSavedWorldState.CreateNewGame() with { TerrainFlags109 = new(0, 0xFE) } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
     }
 
     [Fact]

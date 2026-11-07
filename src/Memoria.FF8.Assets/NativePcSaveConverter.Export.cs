@@ -522,10 +522,12 @@ public static partial class NativePcSaveConverter
             }
             if (pose is null)
             {
-                if (state.Scene != SceneKind.WorldMap && party[slot] != 255)
+                if (state.Scene != SceneKind.WorldMap && slot == 0)
                 {
-                    throw new NotSupportedException("Original FF8 export requires a current field pose for every present party member.");
+                    throw new NotSupportedException("Original FF8 export requires a current field leader pose.");
                 }
+                // Native field loading restores only the leader pose. Unrecorded follower lanes
+                // are dormant storage, including occupied party slots with no field actor.
                 block.AsSpan(Main + 3318 + 2 * slot, 2).Clear();
                 block.AsSpan(Main + 3324 + 2 * slot, 2).Clear();
                 block.AsSpan(Main + 3330 + 2 * slot, 2).Clear();
@@ -679,10 +681,12 @@ public static partial class NativePcSaveConverter
             if (saved.TerrainFlags109 is { } terrain)
             {
                 terrain.Validate();
-                if (terrain.KnownMask != byte.MaxValue && state.NativeSaveInteroperability?.Terrain109Baseline is null && state.OriginalSave is null)
+                if ((terrain.KnownMask & 1) == 0 && state.NativeSaveInteroperability?.Terrain109Baseline is null && state.OriginalSave is null)
                 {
-                    throw new NotSupportedException("Original FF8 export requires a retained terrain byte when its current owner has unknown bits.");
+                    throw new NotSupportedException("Original FF8 export requires a known terrain entrance flag or a retained terrain byte.");
                 }
+                // Only bit 0 has gameplay meaning. Preserve imported reserved bits when available;
+                // otherwise reconstruct them from the native New Game template.
                 byte baseline = state.NativeSaveInteroperability?.Terrain109Baseline ?? state.OriginalSave?.Block[World + 109] ?? block[World + 109];
                 block[World + 109] = (byte)((baseline & ~terrain.KnownMask) | (terrain.Value & terrain.KnownMask));
             }
