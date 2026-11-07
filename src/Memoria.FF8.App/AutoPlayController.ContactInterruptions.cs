@@ -12,13 +12,18 @@ internal sealed partial class AutoPlayController
 {
     private AutoPlayContactSource CaptureContactSource(GameWorld world, string visit, string navigation, AutoPlayTarget target)
     {
+        return CaptureContactSourceIfCurrent(world, visit, navigation, target) ?? throw new NotSupportedException("An automatic contact source must match its actual field, story and navigation component.");
+    }
+
+    private AutoPlayContactSource? CaptureContactSourceIfCurrent(GameWorld world, string visit, string navigation, AutoPlayTarget target)
+    {
         if (!world.HasCurrentFieldAllocation || world.Field is null || world.Events.PlayerActor is not ActorState player)
         {
-            throw new NotSupportedException("An automatic contact attempt requires its authentic current field source before placement.");
+            return null;
         }
         if (world.Field.Id != world.Events.FieldId || visit != $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}" || world.CaptureAutoPlayNavigationReceipt().Key(visit) != navigation)
         {
-            throw new NotSupportedException("An automatic contact source must match its actual field, story and navigation component.");
+            return null;
         }
         string signature = world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint;
         string? availability = run.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == visit)?.Events.SingleOrDefault(item => item.Event.Id == target.CoverageId)?.AvailabilityFingerprint;

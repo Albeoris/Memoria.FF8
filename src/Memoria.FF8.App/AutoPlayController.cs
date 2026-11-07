@@ -814,15 +814,18 @@ internal sealed partial class AutoPlayController
                 }
                 Apply(new(PlayerActionKind.Wait));
             }
-            bool Interact(AutoPlayTarget variant, string checkpoint)
+            bool Interact(AutoPlayTarget variant, string checkpoint, AutoPlayContactSource source)
             {
-                ActivateTarget(variant, checkpoint, CaptureContactSource(world, visit, navigation, variant));
+                ActivateTarget(variant, checkpoint, source);
                 return world.Apply(new(PlayerActionKind.Interact, variant.ObjectId)).Accepted;
             }
             foreach (AutoPlayTarget variant in variants)
             {
                 RefreshUnavailable(world);
-                AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } source)
+                {
+                    return;
+                }
                 if (IsContactInterrupted(source, run.ContactInterruptions))
                 {
                     skippedInterruptedVariant = true;
@@ -840,9 +843,14 @@ internal sealed partial class AutoPlayController
                         return;
                     }
                     selectedActor = world.Events.SelectInteractionTarget();
-                    attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
+                    if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } turnedSource)
+                    {
+                        return;
+                    }
+                    source = turnedSource;
+                    attempt = CaptureWalkAttempt(world, source, targets);
                 }
-                if (selectedActor == variant.ObjectId && Interact(variant, checkpoint))
+                if (selectedActor == variant.ObjectId && Interact(variant, checkpoint, source))
                 {
                     RecordRecentAction("Talk from current position " + variant.Id);
                     accepted = true;
@@ -860,14 +868,22 @@ internal sealed partial class AutoPlayController
                 {
                     continue;
                 }
-                attempt = CaptureWalkAttempt(world, CaptureContactSource(world, visit, navigation, variant), targets);
+                if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } approachedSource)
+                {
+                    return;
+                }
+                attempt = CaptureWalkAttempt(world, approachedSource, targets);
                 AutoPlayWalkResult facing = world.FaceAutoPlayTarget(variant);
                 if (facing.Interrupted)
                 {
                     PauseTalkWalk(attempt, facing);
                     return;
                 }
-                if (Interact(variant, checkpoint))
+                if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } facingSource)
+                {
+                    return;
+                }
+                if (Interact(variant, checkpoint, facingSource))
                 {
                     accepted = true;
                     break;
@@ -894,7 +910,10 @@ internal sealed partial class AutoPlayController
             foreach (AutoPlayTarget variant in variants)
             {
                 RefreshUnavailable(world);
-                AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } source)
+                {
+                    return;
+                }
                 if (IsContactInterrupted(source, run.ContactInterruptions))
                 {
                     skippedInterruptedVariant = true;
@@ -911,7 +930,11 @@ internal sealed partial class AutoPlayController
                 }
                 if (!walk.Interrupted)
                 {
-                    source = CaptureContactSource(world, visit, navigation, variant);
+                    if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } approachedSource)
+                    {
+                        return;
+                    }
+                    source = approachedSource;
                     attempt = CaptureWalkAttempt(world, source, targets);
                     ActivateTarget(variant, checkpoint, source);
                     walk = world.WalkAutoPlayContact(variant, ResetIdleDeadline);
