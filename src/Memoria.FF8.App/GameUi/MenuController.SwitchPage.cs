@@ -80,21 +80,13 @@ public sealed partial class MenuController
         return page;
     }
 
-    internal UiElement BuildTutorialJunctionExchangePrompt(string message)
-    {
-        var content = Grid([3, 2], [1], 12);
-        Place(content, Label(message, 24, UiTextFlow.Wrap), 0);
-        Place(content, Commands(36, 24), 1);
-        return Panel(SystemText("junction.exchange.title", "Junction Exchange"), content);
-    }
-
     private MenuCharacter? NativeSwitchCharacter(MenuEntry? entry)
     {
         if (entry is null)
         {
             return null;
         }
-        string id = entry.Action?.Kind is "party-switch" or "junction-exchange" or "tutorial-party" or "tutorial-exchange-preview" ? entry.Action.TargetId : entry.Action?.SubjectId ?? entry.Id;
+        string id = entry.Action?.Kind is "party-switch" or "junction-exchange" ? entry.Action.TargetId : entry.Action?.SubjectId ?? entry.Id;
         return Data.Characters.FirstOrDefault(character => character.Id == id);
     }
 

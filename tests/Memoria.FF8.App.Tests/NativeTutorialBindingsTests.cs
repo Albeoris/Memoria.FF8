@@ -104,7 +104,7 @@ public sealed class NativeTutorialBindingsTests
     }
 
     [Fact]
-    public void DashboardCureElementPreviewKeepsCommittedAssignmentUntilCancel()
+    public void DashboardOmitsIneligibleCureAndKeepsCommittedAssignmentUntilCancel()
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
@@ -121,7 +121,8 @@ public sealed class NativeTutorialBindingsTests
         Assert.Equal(thunder, before.Records[0].Junction.MagicJunctions[9]);
         Assert.Equal((byte)0, catalog.ReadStatRules(before, 0).MagicRecords[cure][0x20]);
         AdvanceUntilOperation(player, 102);
-        Assert.Equal($"candidate-magic-0-{cure}", player.Menu.SelectedEntry!.Id);
+        Assert.DoesNotContain(player.Menu.Entries, entry => entry.Id == $"candidate-magic-0-{cure}");
+        Assert.Equal($"candidate-magic-0-{thunder}", player.Menu.SelectedEntry!.Id);
         Assert.Equal(menus.MagicName(thunder), player.Menu.Character!.Junctions["Elem-Atk"]);
         Assert.True(JsonElement.DeepEquals(original, JsonSerializer.SerializeToElement(player.Party)));
         NativeTutorialPlayer restored = new(catalog, menus, 2, player.Capture());
@@ -242,7 +243,7 @@ public sealed class NativeTutorialBindingsTests
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
         NativeCharacterVitals party = catalog.CreateIsolatedParty(0);
-        IReadOnlyDictionary<int, NativeTutorialMenuStep> steps = NativeTutorialJunctionPlan.Create(0, catalog.Get(0), party);
+        IReadOnlyDictionary<int, NativeTutorialMenuStep> steps = NativeTutorialJunctionPlan.Create(0, catalog.Get(0), party, LiveMenuCatalog.ReadInstalled(assets));
         Assert.DoesNotContain(steps.Values, step => step.EntryId == "manage-gfs" || step.DashboardPreparation?.Contains("manage-gfs") == true);
         Assert.Equal("gf-portrait-gf-0", steps[58].EntryId);
         Assert.Equal("gf-portrait-gf-1", steps[122].EntryId);

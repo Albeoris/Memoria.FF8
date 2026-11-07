@@ -74,7 +74,7 @@ public sealed partial class MenuController
             foreach (MenuMagic spell in JunctionMagicInventory.Where(spell => spell.CharacterId == actor.Id && spell.Quantity > 0))
             {
                 bool enabled = Data.JunctionPlanner is not { } planner || spell.SpellId is int spellId && planner.IsMagicCandidate(actor.Id, spellId, _junctionSlot);
-                if (!enabled && !IsJunctionTutorial)
+                if (!enabled)
                 {
                     continue;
                 }

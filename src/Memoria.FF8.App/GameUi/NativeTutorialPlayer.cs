@@ -28,7 +28,6 @@ internal sealed partial class NativeTutorialPlayer
     private bool messageVisible;
     private bool inputPrepared;
     private bool complete;
-    private readonly Dictionary<string, string> settings = new(StringComparer.Ordinal);
     private readonly Dictionary<int, string> names;
     private readonly string messageOccurrenceSession = Guid.NewGuid().ToString("N");
     private long messagePresentationId;
@@ -44,13 +43,28 @@ internal sealed partial class NativeTutorialPlayer
         definition = catalog.Get(tutorialId);
         party = MapTutorialCommandAbilities(catalog.CreateIsolatedParty(tutorialId));
         visibleRows = party.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, party.Records.Length).Where(row => (party.Records[row].MemberFlags & 1) != 0)).ToHashSet();
-        steps = tutorialId <= 3 ? NativeTutorialJunctionPlan.Create(tutorialId, definition, party) : NativeTutorialOtherPlan.Create(tutorialId, definition, party);
+        if (tutorialId == 8)
+        {
+            party = PrepareSwitchLessonParty(party);
+        }
+        InitializeStatusLesson();
+        steps = tutorialId <= 3 ? NativeTutorialJunctionPlan.Create(tutorialId, definition, party, menuCatalog) : NativeTutorialOtherPlan.Create(tutorialId, definition, party);
         ValidatePlan();
-        Menu = new MenuController(BuildData, ApplyMenuAction) { IsJunctionTutorial = tutorialId <= 3 };
-        RegisterTutorialScreens();
-        Menu.Open(definition.Descriptor.CallbackMode switch { 18 => "junction", 24 => "gf", 28 => "status", 29 => "switch", _ => throw new InvalidDataException("Unsupported native tutorial callback.") });
+        Menu = new MenuController(BuildData, ApplyMenuAction);
+        if (tutorialId == 4)
+        {
+            Menu.Open("main");
+            Menu.Push("gf");
+        }
+        else
+        {
+            Menu.Open(definition.Descriptor.CallbackMode switch { 18 => "junction", 28 => "status", 29 => "switch", _ => throw new InvalidDataException("Unsupported native tutorial callback.") });
+        }
         Menu.Execute(new MenuAction("select-character", $"character-{definition.Descriptor.CharacterId}"));
-        InitializeSettings();
+        if (tutorialId == 8)
+        {
+            InitializeSwitchLessonNavigation();
+        }
         if (saved is JsonElement snapshot)
         {
             Restore(snapshot);
@@ -227,7 +241,7 @@ internal sealed partial class NativeTutorialPlayer
     {
         if (Menu.ScreenId != step.ScreenId || !Menu.IsOpen)
         {
-            Menu.Open(step.ScreenId == "junction-dashboard" ? "junction" : step.ScreenId);
+            throw new InvalidOperationException($"Tutorial {definition.Id} expected menu '{step.ScreenId}' at instruction {pc}, found '{Menu.ScreenId}'.");
         }
         if (step.CharacterId is string character)
         {
@@ -235,17 +249,9 @@ internal sealed partial class NativeTutorialPlayer
         }
         if (step.ScreenId == "junction-dashboard")
         {
-            Menu.PrepareTutorialJunctionStep(step);
+            PrepareJunctionInput(step);
             UpdateMessage();
             return;
-        }
-        if (step.Context is MenuAction context)
-        {
-            Menu.Execute(context);
-        }
-        if (step.ScreenId == "junction-stock" && step.EntryId is string magic)
-        {
-            Menu.Execute(new MenuAction("select-magic", magic));
         }
         Menu.InvalidateLiveData();
         if (step.EntryId is string entry)
@@ -266,15 +272,7 @@ internal sealed partial class NativeTutorialPlayer
             case NativeTutorialPress.Cancel:
                 Menu.Navigate(MenuInput.Cancel);
                 break;
-            case NativeTutorialPress.Inspect:
-                Menu.Push("gf-abilities");
-                break;
         }
-        if (step.Destination is string destination)
-        {
-            Menu.Open(destination);
-        }
-        Menu.ClearTutorialActionReceipt();
         UpdateMessage();
     }
 
@@ -294,6 +292,16 @@ internal sealed partial class NativeTutorialPlayer
         if (definition.Id == 4 && GuardianForceLessonMessage() is string guardianForceMessage)
         {
             Menu.ShowTutorialMessage(guardianForceMessage, centerX, centerY);
+            return;
+        }
+        if (StatusLessonMessage() is string statusMessage)
+        {
+            Menu.ShowTutorialMessage(statusMessage, centerX, centerY);
+            return;
+        }
+        if (definition.Id == 8 && SwitchLessonMessage() is string switchMessage)
+        {
+            Menu.ShowTutorialMessage(switchMessage, centerX, centerY);
             return;
         }
         string file = $"mngrp_slot{definition.Descriptor.TextResource:000}_table";
@@ -321,8 +329,7 @@ internal sealed partial class NativeTutorialPlayer
             (0, 0) => ("junction-intro", "Junction lets a character use a GF's learned abilities. This dashboard shows the character's assignments in one place."),
             (0, 13) => ("gfs", "Highlight an acquired GF portrait to see the abilities it has learned and preview which Junction slots it can unlock."),
             (0, 15) => ("attach-gf", "Confirm a GF portrait to junction that GF to the character."),
-            (0, 18) => ("unlocked-slots", "The GF's learned HP-J and Vit-J abilities unlock the HP and Vit magic slots."),
-            (0, 22) => ("commands", "The basic action has its own row. The three positions below it hold configurable battle commands."),
+            (0, 22) => ("commands", "The GF's learned HP-J and Vit-J abilities unlock the HP and Vit slots. The three positions below the basic action hold configurable battle commands."),
             (0, 23) => ("passives", "Passive abilities occupy separate positions. Some GFs can unlock additional positions."),
             (0, 35) => ("command-preview", "Open an empty command position and highlight a choice to preview it. Confirm equips the choice."),
             (0, 37) => ("draw-command", "Equip Draw so the character can acquire magic during battle."),
@@ -339,7 +346,7 @@ internal sealed partial class NativeTutorialPlayer
             (1, 27) => ("magic-end", "The dashboard now shows the new stat junctions together."),
             (2, 0) => ("element-intro", "An attached GF with learned elemental Junction abilities unlocks elemental attack or defense slots."),
             (2, 8) => ("element-picker", "Confirm an unlocked elemental slot to open its magic picker. Highlight a spell to preview its effect."),
-            (2, 11) => ("element-ineligible", "Spells without an elemental effect, such as Cure, cannot be assigned to Elem-Atk. Cancel closes the picker and keeps the current assignment."),
+            (2, 11) => ("element-ineligible", "The picker omits spells without an elemental effect, such as Cure. Cancel closes it and keeps the current assignment."),
             (2, 12) => ("element-attack", "Elem-Atk gives the character's attacks an element. The attack percentage shows how much of the attack uses that element. An enemy may absorb it."),
             (2, 17) => ("element-defense", "Elem-Def reduces damage from its element. At 100%, that element deals no damage."),
             (2, 21) => ("element-absorption", "Elemental defense above 100% absorbs damage from that element and restores HP."),
@@ -347,7 +354,7 @@ internal sealed partial class NativeTutorialPlayer
             (2, 28) => ("element-end", "Use the table's Attack and Defense controls to inspect either set of elemental values."),
             (3, 0) => ("status-intro", "An attached GF with learned status Junction abilities unlocks status attack or defense slots."),
             (3, 7) => ("status-picker", "Confirm an unlocked status slot and highlight a spell to preview its effect in the status table."),
-            (3, 10) => ("status-ineligible", "Spells that cause no status change, such as Fire, cannot be assigned to ST-Atk. Cancel closes the picker and keeps the current assignment."),
+            (3, 10) => ("status-ineligible", "The picker omits spells that cause no status change, such as Fire. Cancel closes it and keeps the current assignment."),
             (3, 12) => ("status-attack", "ST-Atk gives normal attacks a chance to inflict a status. The target's resistance also affects the outcome."),
             (3, 17) => ("status-defense", "ST-Def reduces the chance of receiving a status. The defense column combines contributions across equipped spells."),
             (3, 23) => ("status-combined", "Some spells defend against several statuses at once. Highlight Esuna to see which rows change before confirming."),
@@ -359,58 +366,29 @@ internal sealed partial class NativeTutorialPlayer
 
     private MenuData BuildData()
     {
-        NativeCharacterVitals displayedParty = party;
-        MenuData result = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = displayedParty }, names, menuCatalog, visibleCharacterRows: visibleRows);
-        result.SourceDescription = Menu.SystemText("tutorial.source.initialization", "Original tutorial initialization");
-        foreach (MenuCharacter character in result.Characters)
-        {
-            BattlePlayerStats stats = catalog.ReadStatistics(displayedParty, int.Parse(character.Id.AsSpan("character-".Length), CultureInfo.InvariantCulture));
-            character.Stats["HP"] = character.MaximumHp ?? 0;
-            character.Stats["Str"] = stats.Strength;
-            character.Stats["Vit"] = stats.Vitality;
-            character.Stats["Mag"] = stats.Magic;
-            character.Stats["Spr"] = stats.Spirit;
-            character.Stats["Spd"] = stats.Speed;
-            character.Stats["Luck"] = stats.Luck;
-            character.Stats["Hit"] = stats.Hit;
-            character.Stats["Eva"] = stats.Evasion;
-            character.LimitBreak = character.NativeId switch { 0 => "Renzokuken", 1 => "Duel", 4 => "Combine", _ => character.LimitBreak };
-            foreach ((string key, string value) in settings)
-            {
-                character.LimitSettings[key] = value;
-                if (key is "Auto" or "Indicator" or "Duel-Auto")
-                {
-                    character.LimitToggles[key] = value == "On";
-                }
-            }
-        }
-        result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "junction-edit", "gf-learn", "tutorial-setting", "tutorial-party", "tutorial-exchange", "tutorial-exchange-preview"]);
-        return result;
+        var state = new GameState { Scene = SceneKind.Field, CharacterVitals = party, LimitProgress = StatusLessonProgress, WorldControls = definition.Id == 8 ? SwitchLessonControls : null };
+        return LiveMenuData.Build(state, names, menuCatalog, visibleCharacterRows: visibleRows);
     }
 
     private void ApplyMenuAction(MenuAction action)
     {
+        if (action.Kind == "angelo-learn")
+        {
+            ApplyStatusLessonAction(action);
+            return;
+        }
         int Number(string value, string prefix = "") => int.Parse(value.AsSpan(prefix.Length), CultureInfo.InvariantCulture);
-        int row = action.TargetId.StartsWith("character-", StringComparison.Ordinal) ? Number(action.TargetId, "character-") : definition.Descriptor.CharacterId;
         party = action.Kind switch
         {
-            "junction-gf" => party.ToggleGuardianForceJunction(row, Number(action.SubjectId, "gf-")),
-            "junction-command" => party.SetJunctionAbility(row, Number(action.Value), Number(action.SubjectId), command: true),
-            "junction-ability" => party.SetJunctionAbility(row, Number(action.Value), Number(action.SubjectId), command: false),
-            "junction-magic" => party.SetJunctionMagic(row, Enumerable.Range(0, 19).Single(slot => LiveMenuData.JunctionSlotName(slot) == action.Value), action.SubjectId == "0" ? 0 : Number(action.SubjectId, $"magic-{row}-")),
-            "junction-off" => party.RemoveJunctions(row, action.Value == "All"),
             "gf-learn" => party.SelectGuardianForceLearning(Number(action.TargetId, "gf-"), Number(action.SubjectId)),
-            "tutorial-setting" => ApplySetting(action),
-            "tutorial-party" => SwitchParty(action),
-            "tutorial-exchange" => ExchangeJunctions(action),
-            "tutorial-exchange-preview" => PreviewExchange(action),
-            "junction-edit" => NativeJunctionMenuInput.Apply(party, NativeJunctionMenuProjection.PlayerAction(action)),
+            "party-switch" => ApplySwitchLessonPartyAction(action),
+            "junction-exchange" or "junction-edit" => NativeJunctionMenuInput.Apply(party, NativeJunctionMenuProjection.PlayerAction(action)),
             _ => throw new InvalidOperationException($"Tutorial cannot dispatch '{action.Kind}' to a live owner.")
         };
         party.Validate();
     }
 
-    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(2, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), new(settings, StringComparer.Ordinal), new(names)) { ActionDelay = actionDelay });
+    public JsonElement Capture() => JsonSerializer.SerializeToElement(new NativeTutorialSnapshot(2, catalog.ResourceHash, definition.Id, pc, frame, delay, textId, centerX, centerY, messageVisible, inputPrepared, complete, party.DeepCopy(), Menu.CaptureNavigation(), [], new(names)) { ActionDelay = actionDelay, StatusProgress = StatusLessonProgress });
 
     private void Restore(JsonElement element)
     {
@@ -428,8 +406,7 @@ internal sealed partial class NativeTutorialPlayer
         {
             throw new InvalidDataException("Saved tutorial names are incomplete.");
         }
-        string[] requiredSettings = ["Auto", "Indicator", "Duel-Auto", "Angelo learning"];
-        if (requiredSettings.Any(key => !saved.Settings.ContainsKey(key)) || saved.Settings.Values.Any(value => value is null) || saved.Settings.Any(pair => pair.Key is not ("Auto" or "Indicator" or "Duel-Auto" or "Angelo learning" or "Exchange source" or "Exchange target")) || requiredSettings.Take(3).Any(key => saved.Settings[key] is not ("On" or "Off")) || !int.TryParse(saved.Settings["Angelo learning"], out int training) || training is < 0 or > 7 || saved.Settings.Where(pair => pair.Key is "Exchange source" or "Exchange target").Any(pair => !pair.Value.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(pair.Value.AsSpan("character-".Length), out int row) || !visibleRows.Contains(row)))
+        if (saved.Settings.Values.Any(value => value is null) || saved.Settings.Any(pair => pair.Key is not ("Auto" or "Indicator" or "Duel-Auto" or "Angelo learning" or "Exchange source" or "Exchange target")) || saved.Settings.Where(pair => pair.Key is "Auto" or "Indicator" or "Duel-Auto").Any(pair => pair.Value is not ("On" or "Off")) || saved.Settings.TryGetValue("Angelo learning", out string? learning) && (!int.TryParse(learning, out int training) || training is < 0 or > 7) || saved.Settings.Where(pair => pair.Key is "Exchange source" or "Exchange target").Any(pair => !pair.Value.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(pair.Value.AsSpan("character-".Length), out int row) || !visibleRows.Contains(row)))
         {
             throw new InvalidDataException("Saved tutorial settings changed their native option or character domains.");
         }
@@ -439,6 +416,10 @@ internal sealed partial class NativeTutorialPlayer
             throw new InvalidDataException("Saved tutorial changed its immutable original kernel definitions.");
         }
         party = MapTutorialCommandAbilities(saved.Party);
+        if (definition.Id == 8)
+        {
+            party = PrepareSwitchLessonParty(party);
+        }
         pc = saved.ProgramCounter;
         frame = saved.Frame;
         delay = saved.Delay;
@@ -449,24 +430,30 @@ internal sealed partial class NativeTutorialPlayer
         messageVisible = saved.MessageVisible && (definition.Id > 3 || DashboardMessage() is not null);
         inputPrepared = saved.InputPrepared;
         complete = saved.Complete;
-        settings.Clear();
-        foreach ((string key, string value) in saved.Settings)
-        {
-            settings.Add(key, value);
-        }
         names.Clear();
         foreach ((int key, string value) in saved.Names)
         {
             names.Add(key, value);
         }
+        RestoreStatusLesson(saved);
         Menu.InvalidateLiveData();
         if (saved.Version == 1 && definition.Id <= 3 && saved.Navigation.JunctionDashboard is null)
         {
             RestoreLegacyJunctionNavigation(saved.Navigation);
         }
+        else if (definition.Id == 8)
+        {
+            RestoreSwitchLessonNavigation(saved);
+        }
         else
         {
-            Menu.RestoreNavigation(AdaptGuardianPortraitNavigation(saved.Navigation));
+            MenuNavigationState navigation = AdaptStatusLessonNavigation(saved, AdaptGuardianPortraitNavigation(saved.Navigation));
+            if (definition.Id == 4 && saved.Settings.Count != 0 && navigation.ScreenId is "gf" or "gf-learn")
+            {
+                navigation = navigation with { History = navigation.ScreenId == "gf" ? ["main"] : ["main", "gf"] };
+            }
+            Menu.RestoreNavigation(navigation);
+            RestoreJunctionPicker();
         }
         if (!Menu.IsJunctionDashboard && Menu.Entries.Count > 0 && Menu.SelectedIndex >= Menu.Entries.Count || Menu.IsSelectingCharacter && Menu.CharacterSelectionIndex >= Menu.CharacterChoices.Count)
         {
@@ -501,7 +488,8 @@ internal sealed partial class NativeTutorialPlayer
             throw new InvalidDataException("This earlier Junction tutorial snapshot has no supported dashboard navigation migration.");
         }
         NativeTutorialMenuStep? step = inputPrepared ? steps.GetValueOrDefault(pc) : steps.Where(pair => pair.Key < pc).OrderBy(pair => pair.Key).LastOrDefault().Value;
-        if (saved.ScreenId == "junction-stock" && (step is null || step.EntryId is not string candidate || !candidate.StartsWith("candidate-magic-", StringComparison.Ordinal) || saved.MagicId != candidate[10..] || step.DashboardPreparation?.Contains("slot-" + saved.JunctionSlot, StringComparer.Ordinal) != true))
+        string? magic = step?.EntryId is string candidate && candidate.StartsWith("candidate-magic-", StringComparison.Ordinal) ? candidate[10..] : step?.Context is { Kind: "select-magic" } omitted ? omitted.SubjectId : null;
+        if (saved.ScreenId == "junction-stock" && (saved.MagicId != magic || step?.DashboardPreparation?.Contains("slot-" + saved.JunctionSlot, StringComparer.Ordinal) != true))
         {
             throw new InvalidDataException("The earlier tutorial magic picker cannot be mapped to one explicit dashboard candidate and destination.");
         }
@@ -547,4 +535,5 @@ internal sealed partial class NativeTutorialPlayer
 internal sealed record NativeTutorialSnapshot(int Version, string ResourceHash, int TutorialId, int ProgramCounter, long Frame, int Delay, int TextId, int CenterX, int CenterY, bool MessageVisible, bool InputPrepared, bool Complete, NativeCharacterVitals Party, MenuNavigationState Navigation, Dictionary<string, string> Settings, Dictionary<int, string> Names)
 {
     public int ActionDelay { get; init; }
+    public NativeLimitProgress? StatusProgress { get; init; }
 }

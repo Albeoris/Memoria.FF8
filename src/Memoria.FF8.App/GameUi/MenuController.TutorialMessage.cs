@@ -8,7 +8,6 @@ public sealed partial class MenuController
     private string? _tutorialMessage;
     private float _tutorialMessageX;
     private float _tutorialMessageY;
-    internal bool IsJunctionTutorial { get; init; }
 
     internal void ShowTutorialMessage(string? text, int centerX, int centerY)
     {
@@ -25,7 +24,7 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private UiTextPopup? BuildTutorialMessage(bool inDashboard = false)
+    private UiTextPopup? BuildTutorialMessage()
     {
         if (_tutorialMessage is null)
         {
@@ -35,12 +34,12 @@ public sealed partial class MenuController
         {
             Id = "native-tutorial-message",
             Text = _tutorialMessage,
-            FontSize = (inDashboard ? 20 : 25) * TextScale,
-            CenterX = inDashboard ? 0.5f : _tutorialMessageX,
-            CenterY = inDashboard ? 0.5f : _tutorialMessageY,
+            FontSize = 25 * TextScale,
+            CenterX = _tutorialMessageX,
+            CenterY = _tutorialMessageY,
             MinimumWidth = 300,
-            MaximumWidth = inDashboard ? 1000 : 870,
-            Padding = new UiThickness(24, inDashboard ? 10 : 15)
+            MaximumWidth = 870,
+            Padding = new UiThickness(24, 15)
         };
     }
 }

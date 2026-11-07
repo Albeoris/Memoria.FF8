@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
@@ -10,11 +11,12 @@ public sealed class NativeTutorialJunctionPlaybackTests
     [Theory]
     [InlineData(2, 3, 100, 111, "Elem-Atk")]
     [InlineData(3, 0, 97, 108, "ST-Atk")]
-    public void IneligibleMagicHasVisibleFocusAndCancelKeepsTheAssignment(int id, int inventoryIndex, int reopenPc, int cancelPc, string slot)
+    public void DemonstrationUsesRegularMagicChoicesAndCancelKeepsTheAssignment(int id, int inventoryIndex, int reopenPc, int cancelPc, string slot)
     {
         using GameAssets assets = OpenInstalledAssets();
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
-        NativeTutorialPlayer player = new(catalog, LiveMenuCatalog.ReadInstalled(assets), id);
+        LiveMenuCatalog menus = LiveMenuCatalog.ReadInstalled(assets);
+        NativeTutorialPlayer player = new(catalog, menus, id);
         int row = catalog.Get(id).Descriptor.CharacterId;
         int spell = player.Party.Records[row].MagicInventory[inventoryIndex].SpellId;
         string candidate = $"candidate-magic-{row}-{spell}";
@@ -25,13 +27,37 @@ public sealed class NativeTutorialJunctionPlaybackTests
             reopened |= pc == reopenPc;
             canceled |= pc == cancelPc;
         };
-        AdvanceUntil(player, () => reopened && player.Menu.BuildView().FocusedElement?.Id == candidate);
+        AdvanceUntil(player, () => reopened && player.WaitingForInput);
+
+        MenuController ordinary = new(() => player.Menu.Data);
+        ordinary.Open("junction");
+        ordinary.Execute(new MenuAction("select-character", $"character-{row}"));
+        ordinary.SelectEntry("junction-dashboard", "slot-" + slot);
+        ordinary.Navigate(MenuInput.Confirm);
 
         UiButton focused = Assert.IsType<UiButton>(player.Menu.BuildView().FocusedElement);
         Assert.True(focused.IsFocused);
         Assert.False(focused.Bounds.IsEmpty);
-        Assert.Null(focused.Click);
-        Assert.Equal("magic", player.Menu.CaptureJunctionDashboard().Editor);
+        Assert.Equal(ordinary.BuildView().FocusedElement?.Id, focused.Id);
+        Assert.Equal(ordinary.BuildView().FocusedElement?.Bounds, focused.Bounds);
+        Assert.Equal(ordinary.Entries.Select(entry => entry.Id), player.Menu.Entries.Select(entry => entry.Id));
+        Assert.Equal(ordinary.Entries.Where(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal)), player.Menu.Entries.Where(entry => entry.Id.StartsWith("candidate-", StringComparison.Ordinal)));
+        Assert.DoesNotContain(player.Menu.Entries, entry => entry.Id == candidate);
+
+        NativeTutorialSnapshot saved = player.Capture().Deserialize<NativeTutorialSnapshot>()!;
+        JunctionDashboardNavigationState oldPicker = saved.Navigation.JunctionDashboard! with { Candidate = candidate[10..], Focus = candidate };
+        NativeTutorialSnapshot earlier = saved with { Navigation = saved.Navigation with { JunctionDashboard = oldPicker } };
+        NativeTutorialPlayer restored = new(catalog, menus, id, JsonSerializer.SerializeToElement(earlier));
+        Assert.Equal(focused.Id, restored.Menu.BuildView().FocusedElement?.Id);
+        Assert.Equal(saved.ProgramCounter, restored.Capture().Deserialize<NativeTutorialSnapshot>()!.ProgramCounter);
+        Assert.Equal(player.Party.Records[row].Junction.MagicJunctions, restored.Party.Records[row].Junction.MagicJunctions);
+
+        NativeTutorialSnapshot legacy = saved with { Version = 1, Navigation = saved.Navigation with { ScreenId = "junction-stock", MagicId = candidate[10..], JunctionSlot = slot, JunctionDashboard = null } };
+        NativeTutorialPlayer restoredLegacy = new(catalog, menus, id, JsonSerializer.SerializeToElement(legacy));
+        Assert.Equal(focused.Id, restoredLegacy.Menu.BuildView().FocusedElement?.Id);
+        Assert.Equal(saved.ProgramCounter, restoredLegacy.Capture().Deserialize<NativeTutorialSnapshot>()!.ProgramCounter);
+        Assert.Equal(player.Party.Records[row].Junction.MagicJunctions, restoredLegacy.Party.Records[row].Junction.MagicJunctions);
+
         byte[] assigned = player.Party.Records[row].Junction.MagicJunctions.ToArray();
         AdvanceUntil(player, () => canceled);
 
@@ -59,24 +85,6 @@ public sealed class NativeTutorialJunctionPlaybackTests
         Assert.False(assigned.SequenceEqual(player.Party.Records[row].Junction.MagicJunctions));
     }
 
-    [Theory]
-    [InlineData(1280, 720)]
-    [InlineData(640, 480)]
-    public void JunctionLessonDialogLeavesTheDashboardFocusUncovered(int width, int height)
-    {
-        using GameAssets assets = OpenInstalledAssets();
-        NativeTutorialPlayer player = new(assets.ReadNativeTutorialCatalog(), LiveMenuCatalog.ReadInstalled(assets), 0);
-        player.Menu.PrepareViewport(width, height);
-        AdvanceUntil(player, () => player.WaitingForInput);
-
-        UiView view = player.Menu.BuildView();
-        UiElement focused = Assert.IsAssignableFrom<UiElement>(view.FocusedElement);
-        UiTextPopup message = Assert.Single(Descendants(view.Root).OfType<UiTextPopup>());
-        Assert.Equal("native-tutorial-message", message.Id);
-        Assert.False(message.Bounds.IsEmpty);
-        Assert.True(message.Bounds.Intersect(focused.Bounds).IsEmpty);
-    }
-
     private static GameAssets OpenInstalledAssets()
     {
         string directory = TestResources.GameDirectory;
@@ -95,17 +103,5 @@ public sealed class NativeTutorialJunctionPlaybackTests
             player.Apply(new PlayerAction(player.WaitingForInput ? PlayerActionKind.Confirm : PlayerActionKind.Wait));
         }
         Assert.Fail($"The Junction lesson did not reach the expected presentation boundary: {player.Status}.");
-    }
-
-    private static IEnumerable<UiElement> Descendants(UiElement root)
-    {
-        yield return root;
-        foreach (UiElement child in root.Children)
-        {
-            foreach (UiElement descendant in Descendants(child))
-            {
-                yield return descendant;
-            }
-        }
     }
 }

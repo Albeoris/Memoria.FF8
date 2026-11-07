@@ -8,13 +8,13 @@ internal static class NativeTutorialOtherPlan
     public static IReadOnlyDictionary<int, NativeTutorialMenuStep> Create(int id, NativeTutorialDefinition definition, NativeCharacterVitals party)
     {
         Dictionary<int, NativeTutorialMenuStep> result = [];
-        void Bind(int pc, ushort input, string screen, string? entry = null, NativeTutorialPress press = NativeTutorialPress.Select, string? destination = null, MenuAction? context = null)
+        void Bind(int pc, ushort input, string screen, string? entry = null, NativeTutorialPress press = NativeTutorialPress.Select)
         {
             if (definition.Inputs[pc] != input)
             {
                 throw new InvalidDataException($"Original tutorial{id} input changed at{pc}.");
             }
-            result.Add(pc, new NativeTutorialMenuStep(screen, entry, press, Context: context, Destination: destination));
+            result.Add(pc, new NativeTutorialMenuStep(screen, entry, press));
         }
         switch (id)
         {
@@ -39,41 +39,41 @@ internal static class NativeTutorialOtherPlan
                     Bind(position, word, "gf-learn", ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
                 Bind(213, 0x1006, "gf-learn", "10", NativeTutorialPress.Confirm);
-                Bind(279, 0x1004, "gf-learn", press: NativeTutorialPress.Cancel, destination: "gf");
+                Bind(279, 0x1004, "gf-learn", press: NativeTutorialPress.Cancel);
                 Bind(290, 0x1004, "gf");
-                Bind(292, 0x1004, "gf", press: NativeTutorialPress.Cancel, destination: "main");
-                Bind(294, 0x1004, "main", press: NativeTutorialPress.Cancel, destination: "main");
+                Bind(292, 0x1004, "gf", press: NativeTutorialPress.Cancel);
+                Bind(294, 0x1004, "main", press: NativeTutorialPress.Cancel);
                 break;
             case 5:
-                StatusPages([19, 28, 39], "status-renzokuken");
-                Bind(75, 0x100F, "status-renzokuken", "Auto", NativeTutorialPress.Confirm);
-                Bind(91, 0x100D, "status-renzokuken", "Auto", NativeTutorialPress.Confirm);
-                Bind(107, 0x100E, "status-renzokuken", "Indicator");
-                Bind(116, 0x100D, "status-renzokuken", "Indicator", NativeTutorialPress.Confirm);
-                Bind(130, 0x100C, "status-renzokuken", "Auto");
-                Bind(132, 0x100F, "status-renzokuken", "Auto", NativeTutorialPress.Confirm);
+                StatusPages([19, 28, 39]);
+                Bind(75, 0x100F, "status-limit", "status-renzokuken", NativeTutorialPress.Confirm);
+                Bind(91, 0x100D, "status-renzokuken", "finisher-1");
+                Bind(107, 0x100E, "status-renzokuken", "finisher-2");
+                Bind(116, 0x100D, "status-renzokuken", "finisher-3");
+                Bind(130, 0x100C, "status-renzokuken", "finisher-2");
+                Bind(132, 0x100F, "status-renzokuken", "finisher-1");
                 CloseStatus([146, 148, 150], "status-renzokuken");
                 break;
             case 6:
-                StatusPages([10, 12, 14], "status-duel");
-                Bind(32, 0x100F, "status-duel", "Duel-Auto", NativeTutorialPress.Confirm);
+                StatusPages([10, 12, 14]);
+                Bind(32, 0x100F, "status-limit", "status-duel", NativeTutorialPress.Confirm);
                 CloseStatus([53, 55], "status-duel");
                 break;
             case 7:
-                StatusPages([17, 19, 21], "status-angelo");
-                Bind(46, 0x100E, "status-angelo", "1");
-                Bind(69, 0x1006, "status-angelo", "1", NativeTutorialPress.Confirm);
-                Bind(85, 0x100C, "status-angelo", "0");
-                Bind(87, 0x1006, "status-angelo", "0", NativeTutorialPress.Confirm);
-                Bind(96, 0x1004, "status-angelo", press: NativeTutorialPress.Cancel, destination: "status-angelo-warning");
-                Bind(105, 0x1006, "status-angelo-warning", "ok", NativeTutorialPress.Confirm);
-                Bind(107, 0x100E, "status-angelo", "1");
-                Bind(109, 0x1006, "status-angelo", "1", NativeTutorialPress.Confirm);
+                StatusPages([17, 19, 21]);
+                Bind(46, 0x100E, "status-limit", "status-angelo", NativeTutorialPress.Confirm);
+                Bind(69, 0x1006, "status-angelo", "limit-1", NativeTutorialPress.Confirm);
+                Bind(85, 0x100C, "status-angelo", "limit-0");
+                Bind(87, 0x1006, "status-angelo", "limit-0", NativeTutorialPress.Confirm);
+                Bind(96, 0x1004, "status-angelo-warning", "yes");
+                Bind(105, 0x1006, "status-angelo-warning", "yes", NativeTutorialPress.Confirm);
+                Bind(107, 0x100E, "status-angelo", "limit-1");
+                Bind(109, 0x1006, "status-angelo", "limit-1", NativeTutorialPress.Confirm);
                 CloseStatus([132, 134], "status-angelo");
                 break;
             case 8:
-                Bind(3, 0x1004, "switch-party", press: NativeTutorialPress.Cancel, destination: "switch");
-                Bind(40, 0x1006, "switch", "members", NativeTutorialPress.Confirm);
+                Bind(3, 0x1004, "switch-party", press: NativeTutorialPress.Cancel);
+                Bind(40, 0x1006, "switch", "switch-party", NativeTutorialPress.Confirm);
                 Bind(42, 0x100D, "switch-party", "character-3");
                 Bind(44, 0x1006, "switch-party", "character-3", NativeTutorialPress.Confirm);
                 Bind(53, 0x100F, "switch-party-target", "character-1");
@@ -82,37 +82,37 @@ internal static class NativeTutorialOtherPlan
                 Bind(59, 0x100C, "switch-party-target", "character-0");
                 Bind(61, 0x100C, "switch-party-target", "character-1");
                 Bind(63, 0x1006, "switch-party-target", "character-1", NativeTutorialPress.Confirm);
-                Bind(100, 0x1004, "switch-party", press: NativeTutorialPress.Cancel, destination: "switch");
-                Bind(102, 0x100D, "switch", "junction");
-                Bind(153, 0x1006, "switch", "junction", NativeTutorialPress.Confirm);
+                Bind(100, 0x1004, "switch-party", press: NativeTutorialPress.Cancel);
+                Bind(102, 0x100D, "switch", "switch-junction");
+                Bind(153, 0x1006, "switch", "switch-junction", NativeTutorialPress.Confirm);
                 Bind(155, 0x100D, "switch-junction", "character-1");
                 Bind(157, 0x1006, "switch-junction", "character-1", NativeTutorialPress.Confirm);
                 Bind(166, 0x100F, "switch-junction-target", "character-3");
                 Bind(180, 0x1006, "switch-junction-target", "character-3", NativeTutorialPress.Confirm);
                 Bind(182, 0x100C, "switch-junction-confirm", "yes");
                 Bind(184, 0x1006, "switch-junction-confirm", "yes", NativeTutorialPress.Confirm);
-                Bind(198, 0x1004, "switch-junction", press: NativeTutorialPress.Cancel, destination: "switch");
-                Bind(200, 0x1004, "switch", press: NativeTutorialPress.Cancel, destination: "main");
-                Bind(202, 0x1004, "main", press: NativeTutorialPress.Cancel, destination: "main");
+                Bind(198, 0x1004, "switch-junction", press: NativeTutorialPress.Cancel);
+                Bind(200, 0x1004, "switch", press: NativeTutorialPress.Cancel);
+                Bind(202, 0x1004, "main", press: NativeTutorialPress.Cancel);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(id));
         }
         return result;
 
-        void StatusPages(int[] positions, string limitScreen)
+        void StatusPages(int[] positions)
         {
-            Bind(positions[0], 0x1006, "status", "next", NativeTutorialPress.Confirm);
-            Bind(positions[1], 0x1006, "status-elements", "next", NativeTutorialPress.Confirm);
-            Bind(positions[2], 0x1006, "status-gf", "next", NativeTutorialPress.Confirm, destination: limitScreen);
+            Bind(positions[0], 0x1006, "status", "status-stats", NativeTutorialPress.Confirm);
+            Bind(positions[1], 0x1006, "status-stats", press: NativeTutorialPress.Cancel);
+            Bind(positions[2], 0x1006, "status", "status-limit", NativeTutorialPress.Confirm);
         }
         void CloseStatus(int[] positions, string limitScreen)
         {
-            Bind(positions[0], 0x1004, limitScreen, press: NativeTutorialPress.Cancel, destination: "status");
-            Bind(positions[1], 0x1004, "status", press: NativeTutorialPress.Cancel, destination: "main");
+            Bind(positions[0], 0x1004, limitScreen, press: NativeTutorialPress.Cancel);
+            Bind(positions[1], 0x1004, "status-limit", press: NativeTutorialPress.Cancel);
             if (positions.Length == 3)
             {
-                Bind(positions[2], 0x1004, "main", press: NativeTutorialPress.Cancel, destination: "main");
+                Bind(positions[2], 0x1004, "status", press: NativeTutorialPress.Cancel);
             }
         }
     }

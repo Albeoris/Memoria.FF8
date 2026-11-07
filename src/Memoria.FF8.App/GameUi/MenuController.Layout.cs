@@ -40,7 +40,7 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(junctionModal);
         }
-        if (!(IsJunctionDashboard && IsJunctionTutorial) && BuildTutorialMessage() is { } tutorialMessage)
+        if (BuildTutorialMessage() is { } tutorialMessage)
         {
             anchored.Children.Add(tutorialMessage);
         }

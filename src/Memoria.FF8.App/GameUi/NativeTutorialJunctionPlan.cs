@@ -6,7 +6,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Original A8..AB input PCs resolved against the native Junction graph, independently of the managed menu geometry.</summary>
 internal static class NativeTutorialJunctionPlan
 {
-    public static IReadOnlyDictionary<int, NativeTutorialMenuStep> Create(int id, NativeTutorialDefinition definition, NativeCharacterVitals party)
+    public static IReadOnlyDictionary<int, NativeTutorialMenuStep> Create(int id, NativeTutorialDefinition definition, NativeCharacterVitals party, LiveMenuCatalog menuCatalog)
     {
         if (id != definition.Id || id is < 0 or > 3)
         {
@@ -190,6 +190,7 @@ internal static class NativeTutorialJunctionPlan
         string firstPortrait = $"gf-portrait-gf-{firstGuardianForce}";
         string commandPosition = "1";
         string passivePosition = "0";
+        MenuJunctionPlanner? planner = id >= 2 ? new MenuJunctionPlanner(new GameState { Scene = SceneKind.Field, CharacterVitals = party }, catalog: menuCatalog) : null;
         foreach ((int position, NativeTutorialMenuStep step) in steps.OrderBy(pair => pair.Key))
         {
             if (step.ScreenId == "junction-command" && step.EntryId is string command)
@@ -200,12 +201,12 @@ internal static class NativeTutorialJunctionPlan
             {
                 passivePosition = passive;
             }
-            dashboard.Add(position, Dashboard(step, step.ScreenId == "junction-command-choice" ? commandPosition : passivePosition, firstPortrait));
+            dashboard.Add(position, Dashboard(step, step.ScreenId == "junction-command-choice" ? commandPosition : passivePosition, firstPortrait, planner));
         }
         return dashboard;
     }
 
-    private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition, string firstPortrait)
+    private static NativeTutorialMenuStep Dashboard(NativeTutorialMenuStep step, string? priorAbilityPosition, string firstPortrait, MenuJunctionPlanner? planner)
     {
         NativeTutorialMenuStep Target(string? control, NativeTutorialPress press = NativeTutorialPress.Select, params string[] preparation) => new("junction-dashboard", control, press, step.CharacterId, DashboardPreparation: preparation);
         if (step.Press == NativeTutorialPress.Cancel)
@@ -218,7 +219,18 @@ internal static class NativeTutorialJunctionPlan
         }
         if (step.ScreenId == "junction-stock")
         {
-            return Target("candidate-" + step.EntryId, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "slot-" + step.Context!.SubjectId);
+            string slot = step.Context!.SubjectId;
+            string magic = step.EntryId!;
+            int spell = int.Parse(magic.AsSpan(magic.LastIndexOf('-') + 1), System.Globalization.CultureInfo.InvariantCulture);
+            if (planner is not null && !planner.IsMagicCandidate(step.CharacterId!, spell, slot))
+            {
+                if (step.Press != NativeTutorialPress.Select)
+                {
+                    throw new InvalidDataException($"The Junction lesson cannot equip '{magic}' to '{slot}'.");
+                }
+                return Target(null, NativeTutorialPress.Select, "slot-" + slot) with { Context = new MenuAction("select-magic", magic) };
+            }
+            return Target("candidate-" + magic, step.Press == NativeTutorialPress.Confirm ? NativeTutorialPress.ApplyDashboard : NativeTutorialPress.Select, "slot-" + slot);
         }
         if (step.ScreenId == "junction-gf")
         {

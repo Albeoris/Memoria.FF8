@@ -64,59 +64,6 @@ public sealed partial class MenuController
         return true;
     }
 
-    internal void PrepareTutorialJunctionStep(NativeTutorialMenuStep step)
-    {
-        if (step.Press == NativeTutorialPress.Cancel)
-        {
-            return;
-        }
-        string[] preparation = step.DashboardPreparation ?? [];
-        if (preparation.Length == 0 && JunctionHasActiveScope)
-        {
-            CancelJunctionEditor();
-        }
-        foreach (string control in preparation)
-        {
-            if (control == "junction-actions")
-            {
-                if (junctionEditor is not ("actions" or "optimize"))
-                {
-                    if (JunctionHasActiveScope)
-                    {
-                        CancelJunctionEditor();
-                    }
-                    Navigate(MenuInput.Actions);
-                }
-            }
-            else if (control == "optimize")
-            {
-                if (junctionEditor != "optimize")
-                {
-                    Execute(new MenuAction("junction-ui", control));
-                }
-            }
-            else if (control.StartsWith("priority-", StringComparison.Ordinal))
-            {
-                if (!junctionReview)
-                {
-                    Execute(new MenuAction("junction-ui", control));
-                }
-            }
-            else if (junctionEditor is not ("magic" or "command" or "passive") || junctionOrigin != control)
-            {
-                if (JunctionHasActiveScope)
-                {
-                    CancelJunctionEditor();
-                }
-                Execute(new MenuAction("junction-ui", control));
-            }
-        }
-        if (step.EntryId is string entry)
-        {
-            SelectJunctionControl(entry, allowDisabled: step.Press == NativeTutorialPress.Select);
-        }
-    }
-
     private void SelectJunctionControl(string id, bool allowDisabled)
     {
         UiView view = BuildView();

@@ -2,14 +2,6 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    internal string TutorialExchangeId => _exchangeId;
-
-    internal void ClearTutorialActionReceipt()
-    {
-        Message = "";
-        _view = null;
-    }
-
     public void SelectCharacter(string characterId)
     {
         if (!IsOpen || !IsSelectingCharacter)
@@ -25,7 +17,7 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    internal MenuNavigationState CaptureNavigation() => new(ScreenId, _history.Reverse().ToArray(), new(_selections, StringComparer.Ordinal), _characterId, _gfId, _magicId, _exchangeId, _junctionSlot, _commandSlot, _abilitySlot, _characterSelectionDestination, _characterSelectionIndex, IsJunctionDashboard ? CaptureJunctionDashboard() : null);
+    internal MenuNavigationState CaptureNavigation() => new(ScreenId, _history.Reverse().ToArray(), new(_selections, StringComparer.Ordinal), _characterId, _gfId, _magicId, _exchangeId, _junctionSlot, _commandSlot, _abilitySlot, _characterSelectionDestination, _characterSelectionIndex, IsJunctionDashboard ? CaptureJunctionDashboard() : null, ScreenId == "status-angelo-warning" ? PendingAngeloMove : null);
 
     internal void RestoreNavigation(MenuNavigationState saved)
     {
@@ -53,6 +45,7 @@ public sealed partial class MenuController
         _abilitySlot = saved.AbilitySlot;
         _characterSelectionDestination = saved.CharacterSelectionDestination;
         _characterSelectionIndex = saved.CharacterSelectionIndex;
+        PendingAngeloMove = saved.PendingAngeloMove ?? "";
         if (saved.JunctionDashboard is { } junction)
         {
             RestoreJunctionDashboard(junction);
@@ -98,4 +91,4 @@ public sealed partial class MenuController
     }
 }
 
-internal sealed record MenuNavigationState(string ScreenId, string[] History, Dictionary<string, int> Selections, string CharacterId, string GuardianForceId, string MagicId, string ExchangeId, string JunctionSlot, int CommandSlot, int AbilitySlot, string CharacterSelectionDestination, int CharacterSelectionIndex, JunctionDashboardNavigationState? JunctionDashboard = null);
+internal sealed record MenuNavigationState(string ScreenId, string[] History, Dictionary<string, int> Selections, string CharacterId, string GuardianForceId, string MagicId, string ExchangeId, string JunctionSlot, int CommandSlot, int AbilitySlot, string CharacterSelectionDestination, int CharacterSelectionIndex, JunctionDashboardNavigationState? JunctionDashboard = null, string? PendingAngeloMove = null);

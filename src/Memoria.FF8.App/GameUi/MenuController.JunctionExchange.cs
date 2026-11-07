@@ -7,6 +7,11 @@ public sealed partial class MenuController
     private MenuAction? pendingJunctionExchange;
     private bool junctionExchangeConfirmed;
 
+    internal bool RestoreJunctionExchangeConfirmation(string targetId)
+    {
+        return ScreenId == "switch-junction-target" && ExecuteJunctionExchangeConfirmation(new MenuAction("junction-exchange", TargetId: targetId));
+    }
+
     private bool ExecuteJunctionExchangeConfirmation(MenuAction action)
     {
         if (action.Kind == "switch-junction-confirm")
@@ -38,6 +43,14 @@ public sealed partial class MenuController
             return false;
         }
         pendingJunctionExchange = action with { SubjectId = ExchangeId };
+        RegisterJunctionExchangeConfirmation();
+        Push("switch-junction-confirm");
+        Select(0, Entries.Count);
+        return true;
+    }
+
+    internal void RegisterJunctionExchangeConfirmation()
+    {
         Register(new MenuScreenDefinition
         {
             Id = "switch-junction-confirm",
@@ -59,8 +72,5 @@ public sealed partial class MenuController
                 root.Children.Add(menus.Panel(menus.SystemText("junction.exchange.title", "Junction Exchange"), content));
             }
         });
-        Push("switch-junction-confirm");
-        Select(0, Entries.Count);
-        return true;
     }
 }
