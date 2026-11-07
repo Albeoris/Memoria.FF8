@@ -28,6 +28,7 @@ public sealed class NativeBattleMeteor223GridMemoryTests
         Assert.Equal((byte)0x21, memory.Bytes[address, 0]);
         memory.Words[address, 1] = 0xFEDC;
         memory.Bytes[address, 3] = 0xAB;
+        Assert.Same(frame, memory.Frame);
         Assert.Equal(unchecked((int)0xABFEDC21), memory.Dwords[address, 0]);
         if (route == 3)
         {

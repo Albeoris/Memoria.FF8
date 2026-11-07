@@ -152,15 +152,15 @@ internal sealed class NativeBattleMeteor223GridMemory
         uint pointer = unchecked((uint)address);
         if (pointer >= Frame.TemporaryFrame.Address && (long)pointer - Frame.TemporaryFrame.Address <= 0x180 - bytes.Length)
         {
-            Frame = Frame.WriteTemporary(checked((int)(pointer - Frame.TemporaryFrame.Address)), bytes);
+            Frame.WriteTemporary(checked((int)(pointer - Frame.TemporaryFrame.Address)), bytes);
         }
         else if (pointer >= NativeBattleScriptedEffectMemory.Address && (long)pointer - NativeBattleScriptedEffectMemory.Address <= NativeBattleScriptedEffectMemory.Length - bytes.Length)
         {
-            Frame = Frame with { Core = Frame.Core.Write(pointer, bytes) };
+            Frame.Core.Write(pointer, bytes);
         }
         else
         {
-            Frame = Frame with { Arena = Frame.Arena.Write(ArenaOffset(pointer, bytes.Length), bytes) };
+            Frame.Arena.Write(ArenaOffset(pointer, bytes.Length), bytes);
         }
     }
 
