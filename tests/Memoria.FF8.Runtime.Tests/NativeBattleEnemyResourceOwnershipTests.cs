@@ -5,6 +5,50 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEnemyResourceOwnershipTests
 {
+    [Fact]
+    public void Released_rows_retain_their_section_owners_until_replacement_including_independent_json_restore()
+    {
+        NativeBattleModelDatSource source = Source();
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 };
+        cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0] with { LinkedPhysicalIndex36 = 255 }) };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
+        NativeBattleModelTextureBinding binding = new(Enumerable.Repeat<byte?>(null, 16).ToImmutableArray());
+        for (int index = 0; index < 2; index++)
+        {
+            (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, index, index == 0 ? null : 0, false);
+            cache = cache with { Rows = cache.Rows.SetItem(index, new(3, source.ModelId, 0, binding)) };
+        }
+        NativeBattleModelCpuReference skeleton = cpu.Rows[0].Require(12);
+        NativeBattleModelCpuReference geometry = cpu.Rows[0].Require(16);
+        byte[] expectedSkeleton = NativeBattleModelEnemyHeap.Read(cpu, staging, skeleton, cpu.Rows[0].PrivateLength4!.Value);
+        byte[] expectedGeometry = NativeBattleModelEnemyHeap.Read(cpu, staging, geometry, cpu.Rows[0].Lengths[16]);
+        int cursorBeforeRelease = cpu.EnemyCursor!.Value;
+        for (int index = 0; index < 2; index++)
+        {
+            (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, index);
+            cache = cache.Release5080D0(index);
+            Saved independent = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(cpu, staging)));
+            Assert.Equal(expectedSkeleton, NativeBattleModelEnemyHeap.Read(independent.Cpu, independent.Staging, skeleton, expectedSkeleton.Length));
+            Assert.Equal(expectedGeometry, NativeBattleModelEnemyHeap.Read(independent.Cpu, independent.Staging, geometry, expectedGeometry.Length));
+            cpu = independent.Cpu;
+            staging = independent.Staging;
+        }
+        Assert.Equal(cursorBeforeRelease - expectedSkeleton.Length * 2 - cpu.Rows[0].SharedLength8!.Value, cpu.EnemyCursor);
+        Assert.Equal(2, cpu.EnemyResources!.Count);
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 0, null, false);
+        Assert.Contains(skeleton.EnemyResourceId!.Value, cpu.EnemyResources!.Keys);
+        Assert.Equal(expectedGeometry, NativeBattleModelEnemyHeap.Read(cpu, staging, geometry, expectedGeometry.Length));
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 1, 0, false);
+        Assert.DoesNotContain(skeleton.EnemyResourceId.Value, cpu.EnemyResources!.Keys);
+        Assert.Equal(2, cpu.EnemyResources.Count);
+        for (int index = 0; index < 8; index++)
+        {
+            (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 0, null, false);
+            Assert.Equal(3, cpu.EnemyResources!.Count);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

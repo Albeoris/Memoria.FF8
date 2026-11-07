@@ -109,6 +109,11 @@ public static class NativeBattleModelEnemyHeap
             cursor = checked(cursor + end - first);
         }
         cpu = cpu with { Rows = cpu.Rows.SetItem(destination, row), EnemyCursor = cursor, LastModel142Row = special143 && sharedRow is int shared ? shared : cpu.LastModel142Row };
+        if (cpu.EnemyResources is { } resources)
+        {
+            HashSet<int> retained = cpu.Rows.SelectMany(candidate => candidate.Fields.Values).Where(pointer => pointer?.EnemyResourceId is not null).Select(pointer => pointer!.EnemyResourceId!.Value).ToHashSet();
+            cpu = cpu with { EnemyResources = resources.Where(item => retained.Contains(item.Key)).ToImmutableDictionary() };
+        }
         return (cpu, staging);
 
         NativeBattleModelCpuReference At(int section) => new(3, checked((cpu.EnemyCursor ?? 0) + source.Section(section) - source.Section(0))) { EnemyResourceId = ownerId, ResourceOffset = ownerId is not null ? source.Section(section) - source.Section(0) : 0 };
@@ -140,11 +145,8 @@ public static class NativeBattleModelEnemyHeap
                 cpu = cpu with { EnemyLinkedSlots = unchecked((byte)((cpu.EnemyLinkedSlots ?? throw new NotSupportedException("Native5080D0 requires its retained slot mask.")) & ~(1 << slot))) };
             }
         }
-        if (cpu.EnemyResources is { } resources)
-        {
-            HashSet<int> retained = cpu.Rows.Where((_, index) => index != resource && cache.Rows[index].Kind == 3).SelectMany(candidate => candidate.Fields.Values).Where(pointer => pointer?.EnemyResourceId is not null).Select(pointer => pointer!.EnemyResourceId!.Value).ToHashSet();
-            cpu = cpu with { EnemyResources = resources.Where(item => retained.Contains(item.Key)).ToImmutableDictionary() };
-        }
+        //5080D0 retains the row's section pointers. Effect callbacks can still read them after model removal;
+        //their immutable owners retire only when a subsequent load replaces the last row reference.
         return (cpu, staging);
 
         void Compact(NativeBattleModelCpuReference address, int length)
