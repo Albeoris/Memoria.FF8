@@ -226,10 +226,6 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             textureSnapshotIndices.Add(pixels, index);
         }
         NativeBattlePrimitiveDrawMode retainedMode = normal is null ? command.DrawMode with { TexturePixelSnapshot = index } : command.DrawMode with { TexturePixelSnapshot = index, NormalViewport = normal, ViewportInputs = inputs };
-        if (command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Image, ReplaySourceId: not null } imageCapture && (command.Command.Opcode & 0xE4) == 0x24)
-        {
-            retainedMode = retainedMode with { SceneCaptureSample = RetainSceneCapture(imageCapture, command) };
-        }
         if (command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } capture && (command.Command.Opcode & 0xE4) == 0x24)
         {
             retainedMode = retainedMode with { SceneCaptureSample = RetainSceneCapture(capture, command) };

@@ -76,7 +76,7 @@ public static class NativeBattleHoly175CapturePackets
             ImmutableArray<uint> blackWords = Words(black);
             System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
             NativeBattlePilotVisualGeometry blackGeometry = new(new(0, 0, 0, buffer, 0x28), Point(blackWords[2]), Point(blackWords[3]), Point(blackWords[4]), Point(blackWords[5]), 4, false) { ScreenSpace = true, ScreenScale = 8 };
-            blackLinks.Prepend(4385, blackReference, blackWords, 1, [0, 0, 0, 0], pilotGeometry: blackGeometry);
+            blackLinks.Prepend(4385, blackReference, blackWords, 1, [0, 0, 0, 0], pilotGeometry: blackGeometry, screenCoverage: NativeBattleScreenCoverage.Full);
             if (blackLinked)
             {
                 byte[] updated = retained.BlackPackets.ToArray();

@@ -5,19 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeUltraWavesCaptureResult(NativeBattleGraphicsState Graphics, NativeBattleEffectArena Packets, NativeBattleEffectArena CapturePackets, int Cursor, NativeBattleSceneCapture Capture);
+    private sealed record NativeUltraWavesCaptureResult(NativeBattleGraphicsState Graphics, NativeBattleEffectArena Packets, NativeBattleEffectArena CapturePackets, int Cursor);
 
     private NativeUltraWavesCaptureResult CaptureNativeUltraWaves(NativeBattleGraphicsState graphics, NativeBattleEffectArena packets, NativeBattleEffectArena capturePackets, int cursor, string packetBank, string captureBank, ImmutableArray<int> directory, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattlePrimitiveFrame captureFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Ultra Waves capture requires its current ordering table.");
-        long sourceId = captureFrame.NextSceneReplaySourceId ?? checked((captureFrame.SceneReplaySources?.Keys.DefaultIfEmpty(0).Max() ?? 0) + 1);
-        if (sourceId <= 0 || captureFrame.SceneReplaySources?.ContainsKey(sourceId) == true)
-        {
-            throw new InvalidDataException("Scene source identifiers must be positive and cannot reuse a retained source identifier.");
-        }
-        graphics = graphics with { PrimitiveFrame = captureFrame with { NextSceneReplaySourceId = checked(sourceId + 1) } };
-        NativeBattleSceneCapture sourceCapture = new(BattleSceneVisibleArea.Current, NativeBattleSceneCaptureKind.Source) { X = 384, Y = 256, ReplaySourceId = sourceId };
-        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(sourceCapture);
+        using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source, 384, 256);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ultra Waves capture requires its process memory.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Ultra Waves capture requires its primitive process.");
         byte buffer = process.Buffer80 ?? throw new NotSupportedException("Ultra Waves capture requires its display buffer.");
@@ -94,7 +86,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveReference reference = new(captureBank, 0, staticOffset);
         links.InvalidatePacketRange(reference, 24);
         bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-        links.Prepend(0x1121, reference, words, 1, [0, 0, 0, 0], sceneCapture: sourceCapture);
+        links.Prepend(0x1121, reference, words, 1, [0, 0, 0, 0], screenCoverage: NativeBattleScreenCoverage.Full);
         if (linked)
         {
             NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).CopyTo(packet, 0);
@@ -103,7 +95,7 @@ public sealed partial class BattleSession
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = links.ToImmutable() } };
         Append(NativeBattleUltraWavesEnvironmentPackets.Environment(NativeBattleDrawEnvironmentPackets.Area45C940(packets.Read(cursor, 12).ToImmutableArray(), 384, 256, 320, 216), 12, 12, 0x1121));
         Append(NativeBattleUltraWavesEnvironmentPackets.Environment(NativeBattleDrawEnvironmentPackets.Offset45C9B0(packets.Read(cursor, 8).ToImmutableArray(), 384, 256), 12, 8, 0x1121));
-        return new(graphics, packets, capturePackets, cursor, sourceCapture);
+        return new(graphics, packets, capturePackets, cursor);
 
         NativeBattleEffectArena View(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
 

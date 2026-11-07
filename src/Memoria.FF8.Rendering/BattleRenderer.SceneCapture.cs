@@ -20,7 +20,6 @@ public sealed partial class BattleRenderer
         {
             return image;
         }
-        ushort[]? replay = sample.Capture.ReplaySourceId is long sourceId ? ReplaySceneWords(frame, sourceId, capabilities) : null;
         int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         int paletteLength = depth == 0 ? 16 : depth == 1 ? 256 : 0;
         ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots ?? throw new InvalidDataException("Scene sampling requires retained ordered texture snapshots.");
@@ -48,9 +47,7 @@ public sealed partial class BattleRenderer
             {
                 for (int x = 0; x < pixels.Width; x++)
                 {
-                    ushort word = replay is not null && y >= sample.Capture.PaddingTop && y < sample.Capture.Height - sample.Capture.PaddingBottom
-                        ? replay[(y - sample.Capture.PaddingTop) * 320 + left + x]
-                        : pixels.ReadWord(pixels.X + x, pixels.Y + y);
+                    ushort word = pixels.ReadWord(pixels.X + x, pixels.Y + y);
                     for (int subpixel = 0; subpixel < pixelsPerWord; subpixel++)
                     {
                         ushort color = depth == 2 ? word : sample.Palette[word >> (subpixel * (16 / pixelsPerWord)) & mask];

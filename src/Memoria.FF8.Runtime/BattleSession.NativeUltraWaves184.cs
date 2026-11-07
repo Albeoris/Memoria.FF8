@@ -15,7 +15,6 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ultra Waves requires its process memory.");
         NativeBattleUltraWaves184Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Ultra Waves requires its CRT stream."), memory.UltraWaves184 ?? throw new NotSupportedException("Ultra Waves requires its retained native banks.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Ultra Waves requires its addressed temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Ultra Waves requires its interpolation constants.");
-        NativeBattleSceneCapture? gridCapture = null;
         NativeBattleUltraWaves184Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Ultra Waves requires its caster world matrix."), Anchor, InitializeGrid, Emitter, Execute);
         frame = initialize ? NativeBattleUltraWaves184Controller.Initialize(frame, resources, inputs) : NativeBattleUltraWaves184Controller.Advance(frame, resources, inputs);
         Publish(frame);
@@ -120,13 +119,12 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleUltraWaves184CaptureStage capture:
                     NativeUltraWavesCaptureResult captured = CaptureNativeUltraWaves(graphics, current.State.Packets, current.State.CapturePackets, checked((int)(current.State.ReadCursor() - PacketAddress)), "22DB3C4", "D34868", resources.StageDraw, pilotIdentity: capture.PilotIdentity);
-                    gridCapture = captured.Capture with { Kind = NativeBattleSceneCaptureKind.Image };
                     graphics = captured.Graphics;
                     current = Import(current);
                     NativeBattleEffectArena offsets = current.State.ReadView(0x22DB3C0, 4).Write(0, BitConverter.GetBytes((short)384)).Write(2, BitConverter.GetBytes((short)256));
                     return current with { State = (current.State with { Packets = captured.Packets, CapturePackets = captured.CapturePackets }).WriteCursor(checked(PacketAddress + (uint)captured.Cursor)).WriteView(0x22DB3C0, offsets, 4) };
                 case NativeBattleUltraWaves184DrawGrid draw:
-                    NativeBattleUltraWavesGridDraw drawn = NativeBattleUltraWavesGrid.Draw(current.Memory, NativeBattleUltraWavesGrid.Wave(current.State.Grid, draw.Age), current.State.Quads, GridAddress, QuadsAddress, graphics.PrimitiveFrame!.Pending, Camera().Projection!, Camera().FocalLength ?? throw new NotSupportedException("Ultra Waves requires its current focal shadow."), current.Memory.PrimitiveProcess!.Buffer80 ?? throw new NotSupportedException("Ultra Waves requires its current display buffer."), draw.Color, pilotIdentity: draw.PilotIdentity, sceneCapture: gridCapture ?? throw new NotSupportedException("A scene warp requires its current ordered stage capture."));
+                    NativeBattleUltraWavesGridDraw drawn = NativeBattleUltraWavesGrid.Draw(current.Memory, NativeBattleUltraWavesGrid.Wave(current.State.Grid, draw.Age), current.State.Quads, GridAddress, QuadsAddress, graphics.PrimitiveFrame!.Pending, Camera().Projection!, Camera().FocalLength ?? throw new NotSupportedException("Ultra Waves requires its current focal shadow."), current.Memory.PrimitiveProcess!.Buffer80 ?? throw new NotSupportedException("Ultra Waves requires its current display buffer."), draw.Color, pilotIdentity: draw.PilotIdentity);
                     graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = drawn.Ordering } };
                     return current with { Memory = drawn.Memory, State = current.State with { Grid = drawn.Grid, Quads = drawn.Quads } };
                 case NativeBattleUltraWaves184RestoreTexture restore:
