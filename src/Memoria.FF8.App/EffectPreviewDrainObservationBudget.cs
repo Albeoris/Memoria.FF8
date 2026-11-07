@@ -2,6 +2,8 @@ namespace Memoria.FF8;
 
 internal sealed class EffectPreviewDrainObservationBudget
 {
+    internal static bool Supports(ushort effect) => effect is 77 or 101 or 211;
+
     private bool observedLiveModule;
     private bool firstStallRecorded;
     private bool timeoutRecorded;

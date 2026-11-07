@@ -140,7 +140,7 @@ public sealed class NativeBattleEffect227PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, "geometry-visible", geometryPeak, geometryPixels!);
             File.WriteAllBytes(Path.Combine(output, "geometry-without-effect.rgba"), geometryPlain!);
             File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original121 command8/action339/sequence13 zero-contact component; actual texts, vibration, programmes, particles and native lifecycle; original123 companion preserved; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original121 command8/action339/sequence13 zero-damage SELF-contact component; actual texts, vibration, programmes, particles and native lifecycle; original123 companion preserved; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
@@ -177,7 +177,7 @@ public sealed class NativeBattleEffect227PresentationTests
 
     internal static NativeEffectFixtureRequest CreateOriginalRequest() => new("effect227-original121-source", 227, 8, 339, 0, 1800, 240) { EncounterId = 511, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0, ControlledContactValue = 0 };
 
-    private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
+    internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original121 component source.");
         BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
@@ -237,10 +237,10 @@ public sealed class NativeBattleEffect227PresentationTests
         byte priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(3, 8, 13, cameraChoice, 339, 227, null));
-        (packets, _) = packets.Publish(0);
+        packets = PublishDeclaredSelfContact(original, packets);
         Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts, packets.ContactCount);
-        Assert.Equal((byte)0, packets.Headers[header].ReadByte(16));
+        Assert.Equal(priorContacts + 1, packets.ContactCount);
+        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([227])[226];
         Assert.Same(game.ReadNativeEffect227Resources(), binding.Effect227Resources);
@@ -252,8 +252,18 @@ public sealed class NativeBattleEffect227PresentationTests
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original121 command8/action339/sequence13 zero-contact component; original123 companion preserved; ordinary AI/formula excluded", ActualCasterId = casterId, ActualCompanionId = companionId, PhysicalCaster = 3, PhysicalCompanion = 4, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 0, TextBankPreparation = new { Path = "Definition.NativeGraphics.Bindings[" + bindingIndex + "].Resource.TextBank", Before = originalCasterBinding.Resource.TextBank, After = preparedResource.TextBank, Hydrated = originalCasterBinding.Resource.TextBank is null, Producer = "Actor-original selected121 DAT section8 text decoder; no current pose override or AI admission", NativeAiBefore = caster.NativeAi, NativeAiAfter = caster.NativeAi }, LogicalState = "No target, HP, saved/battle status or presentation cache changed" }));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original121 command8/action339/sequence13 zero-damage SELF-contact component; original123 companion preserved; ordinary AI/formula excluded", ActualCasterId = casterId, ActualCompanionId = companionId, PhysicalCaster = 3, PhysicalCompanion = 4, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, TextBankPreparation = new { Path = "Definition.NativeGraphics.Bindings[" + bindingIndex + "].Resource.TextBank", Before = originalCasterBinding.Resource.TextBank, After = preparedResource.TextBank, Hydrated = originalCasterBinding.Resource.TextBank is null, Producer = "Actor-original selected121 DAT section8 text decoder; no current pose override or AI admission", NativeAiBefore = caster.NativeAi, NativeAiAfter = caster.NativeAi }, LogicalState = "SELF target declared; HP, saved/battle status and presentation cache preserved" }));
         return source;
+    }
+
+    internal static NativeBattleActionPacketsState PublishDeclaredSelfContact(BattleSnapshot source, NativeBattleActionPacketsState packets)
+    {
+        string casterId = source.NativeGraphics!.ActorIds[3] ?? throw new InvalidDataException("The declared self contact requires its current original121 caster.");
+        BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.Id == casterId);
+        NativeBattleStatusMirror status = self.NativeStatus!.Presentation;
+        NativeBattleContactPacket contact = new(new(3, 0, 0, 0, status.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, status.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
+        (packets, _) = packets.AppendContact(contact);
+        return packets.Publish(1).State;
     }
 
     private static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 227, ReturnedDescriptor: 0 } effect && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;

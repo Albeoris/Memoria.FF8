@@ -17,6 +17,8 @@ public sealed partial class BattleSession
             Outcome,
             NativeOutcome = graphics?.NativeOutcome,
             GraphicsCallback = graphics?.Callback,
+            GraphicsFlags = graphics?.Flags,
+            ScriptPassPaused = graphics is null ? (bool?)null : (graphics.Flags & 1) != 0,
             NativeActive = NativeEffectMemory?.Active,
             Files = NativeFileIo?.ActiveCount,
             CameraMask = NativeCamera?.Mask,
@@ -38,7 +40,7 @@ public sealed partial class BattleSession
                 SequenceState = model.SequenceState is { } sequence ? new { sequence.Offset46, sequence.Wait1, sequence.Pending3, sequence.Callback42, sequence.Header40 } : null
             }).ToArray(),
             Effect101 = effect?.RequestedEffect == 101 ? ObserveEffect101PreviewOwners(effect) : null,
-            Effect77 = effect?.RequestedEffect == 77 ? ObserveEffect77PreviewOwners() : null
+            ScriptedEffect = effect?.RequestedEffect is 77 or 211 ? ObserveScriptedPreviewOwners() : null
         };
     }
 
@@ -65,7 +67,7 @@ public sealed partial class BattleSession
         };
     }
 
-    private object ObserveEffect77PreviewOwners()
+    private object ObserveScriptedPreviewOwners()
     {
         NativeBattleScriptedEffectMemory? core = NativeEffectMemory?.ScriptedEffects;
         uint? Core(uint address)
@@ -99,6 +101,62 @@ public sealed partial class BattleSession
         }
         uint? manager = Core(0x27973EC);
         uint? node = Core(0x27973E8);
+        byte[]? ArenaKnown(uint? address, int relative, int length)
+        {
+            if (address is not uint pointer || NativeEffectMemory?.Arena is not { } arena)
+            {
+                return null;
+            }
+            long offset = (long)pointer + relative - NativeBattleEffectNodeMemory.ArenaAddress;
+            if (offset < 0 || offset + length > NativeBattleEffectArena.Length)
+            {
+                return null;
+            }
+            (byte[] bytes, bool[] known) = arena.ReadSnapshot((int)offset, length);
+            return known.All(value => value) ? bytes : null;
+        }
+        ushort? ArenaWord(uint? address, int relative) => ArenaKnown(address, relative, 2) is { } bytes ? BinaryPrimitives.ReadUInt16LittleEndian(bytes) : null;
+        object? Breakup()
+        {
+            if (NativeGraphics?.OriginalEffect?.RequestedEffect != 211 || ArenaKnown(node, 0x1C, 1) is not { } draw || draw[0] != 22)
+            {
+                return null;
+            }
+            uint? payload = Arena(node, 0xB8);
+            ushort? mode = ArenaWord(payload, 8);
+            if (mode is not (2 or 7))
+            {
+                return null;
+            }
+            uint? work = Arena(node, 0xC0);
+            uint? pool = Arena(node, 0xA0);
+            ushort? capacity = ArenaWord(payload, 0x2E);
+            int? active = null;
+            int? knownFlags = null;
+            if (capacity is >= 0 and <= 512 && pool is uint pointer && NativeEffectMemory?.Arena is { } arena)
+            {
+                long offset = (long)pointer - NativeBattleEffectNodeMemory.ArenaAddress;
+                int length = capacity.Value * NativeBattleCinematicBreakupAuxiliary.RecordSize;
+                if (offset >= 0 && offset + length <= NativeBattleEffectArena.Length)
+                {
+                    (byte[] bytes, bool[] known) = arena.ReadSnapshot((int)offset, length);
+                    int flags = 0;
+                    int live = 0;
+                    for (int index = 0; index < capacity.Value; index++)
+                    {
+                        int flag = index * NativeBattleCinematicBreakupAuxiliary.RecordSize + 24;
+                        if (known[flag])
+                        {
+                            flags++;
+                            live += bytes[flag] == 0 ? 0 : 1;
+                        }
+                    }
+                    knownFlags = flags;
+                    active = flags == capacity.Value ? live : null;
+                }
+            }
+            return new { Scope = "current-draw-node", Mode = mode, Payload = payload, Work = work, AuxiliaryPool = pool, Capacity = capacity, KnownActiveFlags = knownFlags, Active = active, EmissionCounter = ArenaWord(work, 0x1C) };
+        }
         uint? Manager(int relative) => manager is uint pointer && (ulong)pointer + (uint)relative <= uint.MaxValue ? Core(pointer + (uint)relative) : null;
         byte? ManagerByte(int relative)
         {
@@ -112,7 +170,7 @@ public sealed partial class BattleSession
                 return known[0] ? (byte?)bytes[0] : null;
             });
         }
-        return new { Manager = manager, Node = node, GlobalPc = Core(0x2797450), Bank = Manager(0x90), MainRoot = Manager(0x94), HeaderIndex = ManagerByte(0xD0), HeaderCount = ManagerByte(0xD1), NodePc0 = Arena(node, 0), NodePc1 = Arena(node, 4), NodePc2 = Arena(node, 8) };
+        return new { Manager = manager, Node = node, GlobalPc = Core(0x2797450), Bank = Manager(0x90), MainRoot = Manager(0x94), HeaderIndex = ManagerByte(0xD0), HeaderCount = ManagerByte(0xD1), Pause35 = ManagerByte(0x35), NodePc0 = Arena(node, 0), NodePc1 = Arena(node, 4), NodePc2 = Arena(node, 8), CurrentNodeBreakup = Breakup() };
     }
 
     private static T? PreviewScalar<T>(Func<T?> read) where T : struct

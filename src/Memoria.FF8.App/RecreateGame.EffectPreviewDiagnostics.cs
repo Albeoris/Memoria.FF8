@@ -9,7 +9,7 @@ internal sealed partial class RecreateGame
 
     private void ObserveEffectPreviewDrain(BattleSession active, bool blocked, bool timeout)
     {
-        if (effectPreview?.SourceSnapshot is null || effectPreviewExpectedEffect is not (77 or 101))
+        if (effectPreview?.SourceSnapshot is null || !EffectPreviewDrainObservationBudget.Supports(effectPreviewExpectedEffect))
         {
             return;
         }

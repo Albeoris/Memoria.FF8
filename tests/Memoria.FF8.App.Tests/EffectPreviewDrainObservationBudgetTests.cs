@@ -2,6 +2,16 @@ namespace Memoria.FF8.Tests;
 
 public sealed class EffectPreviewDrainObservationBudgetTests
 {
+    [Theory]
+    [InlineData(77, true)]
+    [InlineData(101, true)]
+    [InlineData(211, true)]
+    [InlineData(2, false)]
+    public void Only_selected_component_diagnostics_share_the_bounded_report_budget(ushort effect, bool supported)
+    {
+        Assert.Equal(supported, EffectPreviewDrainObservationBudget.Supports(effect));
+    }
+
     [Fact]
     public void Only_live_to_returned_blocked_boundary_and_timeout_are_recorded_once()
     {

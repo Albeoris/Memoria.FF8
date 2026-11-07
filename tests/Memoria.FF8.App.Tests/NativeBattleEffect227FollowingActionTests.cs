@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleEffect227FollowingActionTests
 {
     [Fact]
-    public void Completed_component_restarts_no_contact_camera_texts_and_retained_banks_before_separate_cleanup()
+    public void Completed_component_restarts_neutral_self_contact_camera_texts_and_retained_banks_before_separate_cleanup()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_FOLLOWING_SOURCE_SNAPSHOT");
@@ -45,8 +45,8 @@ public sealed class NativeBattleEffect227FollowingActionTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(3, 8, 13, cameraChoice, 339, 227, null));
-        (packets, _) = packets.Publish(0);
-        Assert.Equal(source.NativeActionPackets!.ContactCount, packets.ContactCount);
+        packets = NativeBattleEffect227PresentationTests.PublishDeclaredSelfContact(source, packets);
+        Assert.Equal(source.NativeActionPackets!.ContactCount + 1, packets.ContactCount);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = originalGraphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
@@ -142,7 +142,7 @@ public sealed class NativeBattleEffect227FollowingActionTests
         }
         BattleSnapshot result = battle.Capture();
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-last", result, null);
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original121 zero-contact action after effect227 cleanup; original123 companion and actual retained banks preserved", Effect = 227, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Texts = textIndices.Order(), Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original121 zero-damage SELF-contact action after effect227 cleanup; original123 companion and actual retained banks preserved", Effect = 227, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Texts = textIndices.Order(), Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
         Assert.True(registered);
         Assert.True(cameraTrack);
         Assert.True(returnedEdge);
