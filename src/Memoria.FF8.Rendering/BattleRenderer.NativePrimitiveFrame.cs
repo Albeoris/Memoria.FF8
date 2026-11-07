@@ -849,8 +849,16 @@ public sealed partial class BattleRenderer
         int bottom = Math.Min(triangle.Bottom, stripeBottom);
         for (int y = top; y <= bottom; y++)
         {
+            if (sceneReplaySampleRows is { } sampleRows && !sampleRows[y])
+            {
+                continue;
+            }
             for (int x = left; x <= right; x++)
             {
+                if (sceneReplaySampleColumns is { } sampleColumns && !sampleColumns[x])
+                {
+                    continue;
+                }
                 //The PC's -.5 transformed-vertex bias and integer pixel centers are equivalent to these half-pixel samples.
                 float ea = Edge(b, c, x + 0.5f, y + 0.5f);
                 float eb = Edge(c, a, x + 0.5f, y + 0.5f);

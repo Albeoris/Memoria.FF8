@@ -92,20 +92,30 @@ public sealed class NativeBattleSceneReplayMemoTests
         Assert.Equal(4, source.Replays);
     }
 
-    [Fact]
-    public void More_than_64_separate_roots_do_not_change_the_per_render_graph_limit()
+    [Theory]
+    [InlineData(64)]
+    [InlineData(66)]
+    public void Bounded_pools_cache_every_root_and_larger_pools_bypass_persistent_words(int count)
     {
         Fixture fixture = Create();
-        var pool = Enumerable.Range(1, 66).ToImmutableDictionary(id => (long)id, _ => fixture.Frame.SceneReplaySources![1]);
+        var pool = Enumerable.Range(1, count).ToImmutableDictionary(id => (long)id, _ => fixture.Frame.SceneReplaySources![1]);
         Capture capture = new();
         BattleRenderer renderer = Renderer(capture);
         CountingSource source = new(fixture.SourceTextures);
-        for (int id = 1; id <= 66; id++)
+        for (int id = 1; id <= count; id++)
         {
             Render(renderer, Consumer(pool, id), source);
         }
-        Assert.Equal(66, source.Replays);
-        object memo = typeof(BattleRenderer).GetField("sceneReplayMemo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
+        Assert.Equal(count, source.Replays);
+        object? memo = typeof(BattleRenderer).GetField("sceneReplayMemo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer);
+        if (count > 64)
+        {
+            Assert.Null(memo);
+            Render(renderer, Consumer(pool, 1), source);
+            Assert.Equal(count + 1, source.Replays);
+            return;
+        }
+        Assert.NotNull(memo);
         object roots = memo.GetType().GetField("Roots", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(memo)!;
         Assert.Equal(64, (int)roots.GetType().GetProperty("Count")!.GetValue(roots)!);
         long retainedBytes = 0;
@@ -116,11 +126,75 @@ public sealed class NativeBattleSceneReplayMemoTests
         }
         Assert.Equal(64L * 320 * 216 * sizeof(ushort), retainedBytes);
         Render(renderer, Consumer(pool, 1), source);
-        Assert.Equal(67, source.Replays);
+        Assert.Equal(count, source.Replays);
     }
 
     [Fact]
-    public void Cached_branch_dependencies_still_enforce_the_current_render_union_limit()
+    public void Three_roots_with_mixed_warm_and_cold_sources_match_independent_replays()
+    {
+        Fixture fixture = Create();
+        NativeBattleSceneReplaySource first = fixture.Frame.SceneReplaySources![1];
+        var pool = ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty.Add(1, first).Add(2, WithColor(first, 0x03E0)).Add(3, WithColor(first, 0x7C00));
+        Capture capture = new();
+        BattleRenderer renderer = Renderer(capture);
+        CountingSource source = new(fixture.SourceTextures);
+        Render(renderer, Consumer(pool, 1), source);
+        Assert.Equal(1, source.Replays);
+        foreach (long[] order in new long[][] { [1, 2, 3], [3, 1, 2] })
+        {
+            NativeBattlePreparedPrimitiveFrame frame = Combine(order.Select(id => Consumer(pool, id)).ToArray());
+            Render(renderer, frame, source);
+            Capture cold = new();
+            Render(Renderer(cold), frame, new(fixture.SourceTextures));
+            Assert.Equal(3, capture.Images.Count);
+            Assert.Equal(cold.Images.Count, capture.Images.Count);
+            for (int index = 0; index < capture.Images.Count; index++)
+            {
+                Assert.Equal(cold.Images[index].Pixels, capture.Images[index].Pixels);
+                Rgba32 expected = order[index] == 1 ? new(255, 0, 0, 255) : order[index] == 2 ? new(0, 255, 0, 255) : new(0, 0, 255, 255);
+                Assert.Equal(expected, capture.Images[index][100, 100]);
+            }
+            Assert.Equal(3, source.Replays);
+        }
+    }
+
+    [Fact]
+    public void Warm_roots_cannot_mask_missing_sources_cycles_or_excessive_dependency_depth()
+    {
+        Fixture fixture = Create();
+        var pool = fixture.Frame.SceneReplaySources!.Add(2, new(Consumer(ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty, 2), fixture.SourceTextures, BattleSceneVisibleArea.Native));
+        BattleRenderer renderer = Renderer(new());
+        Render(renderer, Consumer(pool, 1), null);
+        InvalidDataException missing = Assert.Throws<InvalidDataException>(() => Render(renderer, Consumer(pool, 3), null));
+        Assert.Contains("missing retained source", missing.Message);
+        Assert.Throws<InvalidDataException>(() => Render(renderer, Consumer(pool, 2), null));
+        var deep = Enumerable.Range(1, 65).ToImmutableDictionary(id => (long)id, id => new NativeBattleSceneReplaySource(id == 65 ? SolidFrame(0x280000FF) : Consumer(ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty, id + 1), fixture.SourceTextures, BattleSceneVisibleArea.Native));
+        Assert.Throws<InvalidDataException>(() => Render(renderer, Consumer(deep, 1), null));
+    }
+
+    private static NativeBattlePreparedPrimitiveFrame Combine(NativeBattlePreparedPrimitiveFrame[] frames)
+    {
+        return frames[0] with
+        {
+            LastCommands = frames.Select((frame, index) => frame.LastCommands[0] with { DrawMode = frame.LastCommands[0].DrawMode with { TexturePixelSnapshot = index } }).ToImmutableArray(),
+            LastTextureSnapshots = frames.Select(frame => frame.LastTextureSnapshots!.Value[0]).ToImmutableArray()
+        };
+    }
+
+    private static NativeBattleSceneReplaySource WithColor(NativeBattleSceneReplaySource source, ushort word)
+    {
+        NativeBattlePcTextureWindowPixels pixels = source.Frame.LastTextureSnapshots!.Value[0];
+        byte[] bytes = pixels.Data.ToArray();
+        for (int offset = 0; offset < bytes.Length; offset += 2)
+        {
+            bytes[offset] = (byte)word;
+            bytes[offset + 1] = (byte)(word >> 8);
+        }
+        return source with { Frame = source.Frame with { LastTextureSnapshots = [pixels with { Data = bytes.ToImmutableArray() }] } };
+    }
+
+    [Fact]
+    public void Large_pools_preserve_the_current_render_dependency_union_limit()
     {
         Fixture fixture = Create();
         var builder = ImmutableDictionary.CreateBuilder<long, NativeBattleSceneReplaySource>();
@@ -243,15 +317,21 @@ public sealed class NativeBattleSceneReplayMemoTests
     private sealed class Capture : ITriangleRenderer
     {
         internal PixelImage? Image;
+        internal List<PixelImage> Images { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
             Image = null;
+            Images.Clear();
         }
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Image ??= material.Texture;
+            if (material.Texture is { } texture && (Images.Count == 0 || !ReferenceEquals(Images[^1], texture)))
+            {
+                Images.Add(texture);
+            }
         }
 
         public void End()

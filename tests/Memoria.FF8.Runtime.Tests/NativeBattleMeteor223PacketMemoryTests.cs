@@ -7,6 +7,34 @@ public sealed class NativeBattleMeteor223PacketMemoryTests
     private const int PacketStart = (int)NativeBattleEffectNodeMemory.ArenaAddress + 0x8000;
 
     [Fact]
+    public void Shared_full_store_and_link_masks_preserve_distinct_payloads_and_sparse_following_stores()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryDword(0x14C, 0x1000);
+        NativeBattleGfGeometryBatch? published = null;
+        NativeBattleMeteor223GridMemory memory = Memory(frame, batch => published = batch);
+        memory.BeginPackets(PacketStart, 1, 1);
+        memory.Dwords[PacketStart, 4] = 0x11223344;
+        memory.Dwords[PacketStart, 8] = 0x55667788;
+        memory.Link(0x1004, PacketStart, 0, 0);
+        memory.Bytes[PacketStart, 5] = 0xAA;
+        memory.Link(0x1004, PacketStart, 0, 0);
+        memory.Publish(PacketStart + 0x44);
+        NativeBattleGfGeometryAttempt[] attempts = published!.Attempts.ToArray();
+        Assert.Equal(5, attempts.Length);
+        Assert.True(attempts[0].WriteMask.Equals(attempts[1].WriteMask));
+        Assert.All(attempts[0].WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Known, value));
+        Assert.Equal(new byte[] { 0x44, 0x33, 0x22, 0x11 }, attempts[0].Data.ToArray());
+        Assert.Equal(new byte[] { 0x88, 0x77, 0x66, 0x55 }, attempts[1].Data.ToArray());
+        Assert.True(attempts[2].WriteMask.Equals(attempts[4].WriteMask));
+        Assert.All(attempts[2].WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
+        Assert.Equal(0x11223344u, attempts[2].Primitive!.Words[1]);
+        Assert.Equal(0x1122AA44u, attempts[4].Primitive!.Words[1]);
+        Assert.Equal(new[] { NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Untouched }, attempts[3].WriteMask.ToArray());
+        Assert.All(attempts[0].WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Known, value));
+        Assert.Throws<NotSupportedException>(() => memory.Bytes[PacketStart, 0]);
+    }
+
+    [Fact]
     public void Packet_overlap_preserves_little_endian_lanes_and_rejects_unwritten_native_holes()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();

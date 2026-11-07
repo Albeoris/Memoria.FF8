@@ -18,6 +18,8 @@ public sealed record NativeBattleMeteor223GridServices(Func<NativeBattleWaterExe
 
 internal sealed class NativeBattleMeteor223GridMemory
 {
+    private static readonly ImmutableArray<NativeBattleGfPacketByteState> KnownDwordMask = [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known];
+    private static readonly ImmutableArray<NativeBattleGfPacketByteState> UntouchedLinkMask = ImmutableCollectionsMarshal.AsImmutableArray(new NativeBattleGfPacketByteState[0x44]);
     internal NativeBattleWaterExecutionFrame Frame;
     internal readonly NativeBattleMeteor223GridServices Services;
     internal int Workspace => unchecked((int)Frame.TemporaryFrame.Address);
@@ -95,7 +97,7 @@ internal sealed class NativeBattleMeteor223GridMemory
         {
             primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (row << 16) + column) }, worldVertices[(row, column)], worldVertices[(row, column + 1)], worldVertices[(row + 1, column)], worldVertices[(row + 1, column + 1)], 4) };
         }
-        attempts.Add(new(packetOffset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, bytes.Length).ToImmutableArray(), primitive));
+        attempts.Add(new(packetOffset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), UntouchedLinkMask, primitive));
     }
 
     internal NativeBattleWaterExecutionFrame Publish(int cursor)
@@ -147,15 +149,21 @@ internal sealed class NativeBattleMeteor223GridMemory
             int aligned = address & ~3;
             int length = (address - aligned + bytes.Length + 3) & ~3;
             byte[] data = new byte[length];
-            NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[length];
-            for (int index = 0; index < bytes.Length; index++)
+            ImmutableArray<NativeBattleGfPacketByteState> retainedMask;
+            if (bytes.Length == 4 && address == aligned)
             {
-                data[address - aligned + index] = bytes[index];
-                mask[address - aligned + index] = NativeBattleGfPacketByteState.Known;
+                retainedMask = KnownDwordMask;
             }
+            else
+            {
+                NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[length];
+                Array.Fill(mask, NativeBattleGfPacketByteState.Known, address - aligned, bytes.Length);
+                retainedMask = ImmutableCollectionsMarshal.AsImmutableArray(mask);
+            }
+            bytes.CopyTo(data.AsSpan(address - aligned));
             bytes.CopyTo(packet.AsSpan(packetOffset));
             packetKnown.AsSpan(packetOffset, bytes.Length).Fill(true);
-            attempts.Add(new(checked(aligned - packetStart), ImmutableCollectionsMarshal.AsImmutableArray(data), ImmutableCollectionsMarshal.AsImmutableArray(mask), null));
+            attempts.Add(new(checked(aligned - packetStart), ImmutableCollectionsMarshal.AsImmutableArray(data), retainedMask, null));
             return;
         }
         uint pointer = unchecked((uint)address);

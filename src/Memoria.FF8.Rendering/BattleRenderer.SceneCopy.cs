@@ -21,10 +21,11 @@ public sealed partial class BattleRenderer
         internal required NativeBattlePrimitiveCapabilities? Capabilities;
         internal required INativeBattleEffectTextureSource? TextureSource;
         internal required long TextureGeneration;
+        internal required long[] Dependencies;
         internal readonly Dictionary<long, (ushort[] Words, long[] Dependencies)> Roots = [];
         internal readonly Queue<long> Order = [];
 
-        internal void Add(long id, ushort[] words, long[] dependencies)
+        internal void Add(long id, ushort[] words)
         {
             if (Roots.ContainsKey(id))
             {
@@ -34,25 +35,59 @@ public sealed partial class BattleRenderer
             {
                 Roots.Remove(Order.Dequeue());
             }
-            Roots.Add(id, (words, dependencies));
+            Roots.Add(id, (words, Dependencies));
             Order.Enqueue(id);
         }
     }
 
     private SceneReplayContext sceneReplayContext = new();
     private SceneReplayMemo? sceneReplayMemo;
+    private bool[]? sceneReplaySampleColumns;
+    private bool[]? sceneReplaySampleRows;
     private bool isSceneReplay;
     private Func<int, int, bool, PixelImage>? sceneCopyUiTexture;
     private readonly record struct SceneCopyTextureKey(PixelImage Image, ImmutableArray<NativeBattleSceneCopyRegion> Regions, NativeBattlePcTextureWindowSelection Window, ushort Page, ImmutableArray<ushort> Palette, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift);
     private readonly Dictionary<SceneCopyTextureKey, PixelImage> sceneCopyImages = [];
     private long sceneCopyImageBytes;
 
+    private void ConfigureSceneReplaySampling(NativeBattlePreparedPrimitiveFrame frame)
+    {
+        if (!isSceneReplay || frame.LastPcRenderTail is not null || frame.LastCommands.Any(HasUnprovedReplayMaterial))
+        {
+            return;
+        }
+        sceneReplaySampleColumns = new bool[Width];
+        sceneReplaySampleRows = new bool[Height];
+        for (int x = 0; x < 320; x++)
+        {
+            int px = Math.Min(Width - 1, (int)(((long)x * 2 + 1) * Width / (320 * 2L)));
+            sceneReplaySampleColumns[px] = true;
+        }
+        for (int y = 0; y < 216; y++)
+        {
+            int py = Math.Min(Height - 1, (int)(((long)y * 2 + 1) * Height / (216 * 2L)));
+            sceneReplaySampleRows[py] = true;
+        }
+    }
+
+    private static bool HasUnprovedReplayMaterial(NativeBattleLogicalResolvedCommand resolved)
+    {
+        byte opcode = resolved.Command.Opcode;
+        bool drawable = (opcode & 0xE0) == 0x20 || opcode is 0x40 or 0x42 or 0x50 or 0x52 or 0x64 or 0x66 || (opcode & 0xFC) is 0x60 or 0x68;
+        bool semi = (opcode & 2) != 0;
+        if (!drawable || resolved.Pass == 0 || resolved.Pass == 1 && semi || resolved.Pass == 2 && !semi)
+        {
+            return false;
+        }
+        return resolved.DrawMode.BlendMode is not (>= 0 and <= 3);
+    }
+
     private void BeginSceneReplay(NativeBattlePreparedPrimitiveFrame frame, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, INativeBattleEffectTextureSource? textureSource)
     {
         sceneReplayContext = new();
         ImmutableDictionary<long, NativeBattleSceneReplaySource>? sources = frame.SceneReplaySources;
         bool populatedUi = sources?.Values.Any(source => source.UiFrame is { } ui && (!ui.Opaque.IsEmpty || ui.Semi.Any(batch => !batch.Quads.IsEmpty))) == true;
-        if (sources is null || replacements is { Count: > 0 } || populatedUi)
+        if (sources is null || sources.Count > 64 || replacements is { Count: > 0 } || populatedUi)
         {
             sceneReplayMemo = null;
             return;
@@ -65,7 +100,9 @@ public sealed partial class BattleRenderer
                 Sources = new(sources),
                 Capabilities = capabilities,
                 TextureSource = textureSource,
-                TextureGeneration = generation
+                TextureGeneration = generation,
+                // With at most64 pool IDs this conservative footprint cannot exceed a valid render's source bound.
+                Dependencies = sources.Keys.ToArray()
             };
         }
         sceneReplayContext.Memo = sceneReplayMemo;
@@ -168,9 +205,12 @@ public sealed partial class BattleRenderer
         {
             return cached;
         }
+        ImmutableDictionary<long, NativeBattleSceneReplaySource> sources = frame.SceneReplaySources ?? throw new InvalidDataException("Scene texture sampling requires its retained source pool.");
+        if (!sources.TryGetValue(id, out NativeBattleSceneReplaySource? source))
+        {
+            throw new InvalidDataException("Scene texture sampling refers to a missing retained source.");
+        }
         bool root = sceneReplayContext.Active.Count == 0;
-        // Only the first completed root owns the full dependency set without unrelated earlier requests.
-        bool admit = root && sceneReplayContext.Requested.Count == 0;
         if (root && sceneReplayContext.Memo is { } memo && memo.Roots.TryGetValue(id, out var retained))
         {
             sceneReplayContext.Requested.UnionWith(retained.Dependencies);
@@ -188,11 +228,6 @@ public sealed partial class BattleRenderer
         }
         try
         {
-            ImmutableDictionary<long, NativeBattleSceneReplaySource> sources = frame.SceneReplaySources ?? throw new InvalidDataException("Scene texture sampling requires its retained source pool.");
-            if (!sources.TryGetValue(id, out NativeBattleSceneReplaySource? source))
-            {
-                throw new InvalidDataException("Scene texture sampling refers to a missing retained source.");
-            }
             BattleSceneVisibleArea area = source.VisibleArea;
             if (!double.IsFinite(area.Left) || !double.IsFinite(area.Top) || !double.IsFinite(area.Right) || !double.IsFinite(area.Bottom) || area.Right <= area.Left || area.Bottom <= area.Top)
             {
@@ -208,6 +243,7 @@ public sealed partial class BattleRenderer
                 sceneReplayContext = sceneReplayContext
             };
             NativeBattlePreparedPrimitiveFrame sourceFrame = source.Frame with { SceneReplaySources = sources };
+            renderer.ConfigureSceneReplaySampling(sourceFrame);
             byte[] rgba = renderer.RenderNativePrimitiveFrame(sourceFrame, source.Textures, capabilities: capabilities, replacements: nativeModelReplacements, uiFrame: source.UiFrame, uiTexture: sceneCopyUiTexture, effectTextureSource: nativeEffectTextureSource);
             ushort[] words = new ushort[320 * 216];
             for (int y = 0; y < 216; y++)
@@ -221,9 +257,9 @@ public sealed partial class BattleRenderer
                 }
             }
             sceneReplayContext.Words.Add(id, words);
-            if (admit)
+            if (root)
             {
-                sceneReplayContext.Memo?.Add(id, words, sceneReplayContext.Requested.ToArray());
+                sceneReplayContext.Memo?.Add(id, words);
             }
             return words;
         }
