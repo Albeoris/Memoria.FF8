@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticInvocationPool(uint DescriptorAddress, uint BankAddress, ushort Stride, int ActiveRows, bool Head, bool Tail);
+public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold, [property: JsonRequired] ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks);
 public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int NonPumpDescriptorTasks, int PendingContacts, int Effects, bool EffectHead, bool AuxiliaryHead, int Modules, bool ModuleHead, int? Files, uint? ReturnedTaskPointer, bool DetachedReturnedTask, byte CameraMask, bool SoundBusy, bool ReplacementResource, bool ActionOrCommand, bool TimedOrReaction)
 {
     public byte ActionHeaders { get; init; }
@@ -20,13 +22,15 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
     public const string ExecutingBoundary = "executing-completion";
     public const string GraphicsFrameBoundary = "completed-graphics-frame";
     public const string AftercareBoundary = "completed-graphics-frame-aftercare";
+    public const string TerminalTextureBoundary = "completed-graphics-frame-terminal-textures";
     public BattleDiagnosticInvocationAftercarePlan? Aftercare { get; init; }
+    public BattleDiagnosticTerminalTextureRelease? TerminalTextures { get; init; }
     public string Boundary { get; init; } = ExecutingBoundary;
     public bool PacketRemoved { get; init; }
     public long? GraphicsCallback { get; init; }
     public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
     public BattleDiagnosticInvocationRelease? ExecutingCompletion { get; init; }
-    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || Aftercare is not null);
+    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || Aftercare is not null || TerminalTextures is not null);
 }
 
 public sealed partial class BattleSession
@@ -148,7 +152,7 @@ public sealed partial class BattleSession
         };
         if (frameEnd && !LastDiagnosticInvocationCompletion.Released)
         {
-            BattleDiagnosticInvocationRelease? scoped = TrySealDiagnosticInvocationAftercare(attempt, LastDiagnosticInvocationCompletion, graphics);
+            BattleDiagnosticInvocationRelease? scoped = TrySealDiagnosticTerminalTextures(LastDiagnosticInvocationCompletion, graphics) ?? TrySealDiagnosticInvocationAftercare(attempt, LastDiagnosticInvocationCompletion, graphics);
             if (scoped is not null)
             {
                 LastDiagnosticInvocationCompletion = scoped;

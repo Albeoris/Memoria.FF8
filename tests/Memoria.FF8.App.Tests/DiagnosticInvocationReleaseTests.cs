@@ -7,6 +7,66 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticInvocationReleaseTests
 {
+    [Fact]
+    public void Standalone_terminal_texture_release_keeps_the_exact_main_packet_and_victory_proofs()
+    {
+        BattleDiagnosticInvocationRelease release = TerminalTextureReceipt();
+        DiagnosticInvocationReleaseValidation.Validate(release, release.Dispatch, release.LifecycleId);
+        Assert.True(release.Released);
+        Assert.Null(release.Aftercare);
+        Assert.NotNull(release.ExecutingCompletion);
+        Assert.Single(release.TerminalTextures!.Textures.Tasks);
+    }
+
+    [Theory]
+    [InlineData("foreign-texture")]
+    [InlineData("nonterminal-byte")]
+    [InlineData("missing-hold")]
+    [InlineData("wrong-candidate")]
+    [InlineData("rearmed")]
+    [InlineData("held-lifecycle")]
+    [InlineData("command")]
+    [InlineData("unbound-bank")]
+    [InlineData("missing-certificate")]
+    [InlineData("ordinary-boundary")]
+    public void Standalone_texture_release_rejects_foreign_or_unproved_owners(string fault)
+    {
+        BattleDiagnosticInvocationRelease original = TerminalTextureReceipt();
+        BattleDiagnosticTerminalTextureRelease proof = original.TerminalTextures!;
+        BattleDiagnosticTextureQuiescence textures = proof.Textures;
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "foreign-texture" => original with { TerminalTextures = proof with { Textures = textures with { Tasks = textures.Tasks.SetItem(0, textures.Tasks[0] with { ModelIndex = 3, ModelPointer = 0x1D972C0u + 156u * 3 }) } } },
+            "nonterminal-byte" => original with { TerminalTextures = proof with { Textures = textures with { Tasks = textures.Tasks.SetItem(0, textures.Tasks[0] with { Deadline = 254 }) } } },
+            "missing-hold" => original with { TerminalTextures = proof with { Hold = null! } },
+            "wrong-candidate" => original with { TerminalTextures = proof with { Hold = proof.Hold with { Declaration = proof.Hold.Declaration with { Candidate = BattleOutcome.Defeat } } } },
+            "rearmed" => original with { TerminalTextures = proof with { Hold = proof.Hold with { Rearms = 1 } } },
+            "held-lifecycle" => original with { TerminalTextures = proof with { Hold = proof.Hold with { Receipts = [proof.Hold.Receipts[0] with { LifecycleId = Guid.NewGuid() }] } } },
+            "command" => original with { Owners = original.Owners with { ActionOrCommand = true } },
+            "unbound-bank" => original with { TerminalTextures = proof with { CommandBanks = proof.CommandBanks.SetItem(0, proof.CommandBanks[0] with { Links = proof.CommandBanks[0].Links.SetItem(0, new(0, 0, 1, null)) }) } },
+            "missing-certificate" => original with { ExecutingCompletion = null },
+            "ordinary-boundary" => original with { Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, invalid.Dispatch, invalid.LifecycleId));
+    }
+
+    internal static BattleDiagnosticInvocationRelease TerminalTextureReceipt()
+    {
+        BattleDiagnosticInvocationRelease basis = PostFrameReceipt();
+        BattleDiagnosticEffectDispatch focal = basis.Dispatch with { Ability = BattleAbility.LimitBreak, NativeCommand = 16, ActionId = 53, RequestedEffect = 288, ExecutedEffect = 288 };
+        NativeBattleActionHeaderSlot header = basis.Header with { Payload = basis.Header.Payload.SetItem(1, 16).SetItem(4, 53).SetItem(6, 32).SetItem(7, 1) };
+        BattleDiagnosticInvocationRelease certificate = basis.ExecutingCompletion! with { Dispatch = focal, Header = header, Owners = basis.ExecutingCompletion.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"] };
+        BattleDiagnosticCombatant caster = new(focal.ActorId!, 100, 100, 0, 0, []) { NativeIndex = focal.NativeActorIndex, ModelId = 5 };
+        BattleDiagnosticTerminalHoldDeclaration declaration = new("Single-use native victory texture cleanup", [focal.ActorId!], 100) { Candidate = BattleOutcome.Victory };
+        BattleDiagnosticTerminalHoldReceipt admission = new(Guid.NewGuid(), basis.LifecycleId, "held", 1, basis.SimulationFrame, basis.Callback, BattleOutcome.Victory, null, false, 0, 0, new(NativeBattleRandomState.Initialize(0), null, null, null), [caster]);
+        BattleDiagnosticTerminalHoldState hold = new(declaration, admission.HoldId, BattleDiagnosticTerminalHoldPhase.Held, 1, 0, admission.Frame, admission.Callback, [admission]);
+        BattleDiagnosticTextureTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0, 32, 0x1D972C0, 21, 0, 1, 255, 0, 3, 10, 21);
+        BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [task]);
+        ImmutableArray<BattleDiagnosticCommandBankClosure> banks = Enumerable.Range(0, 3).Select(bank => new BattleDiagnosticCommandBankClosure((byte)bank, 255, Enumerable.Range(0, 11).Select(_ => new NativeBattleCommandLink(0, 0, 0, null)).ToImmutableArray())).ToImmutableArray();
+        return basis with { Dispatch = focal, Header = header, Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, ExecutingCompletion = certificate, Owners = basis.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"], TerminalTextures = new(textures, hold, banks) };
+    }
+
     internal static BattleDiagnosticInvocationRelease Receipt(long callback = 3, long timestamp = 300)
     {
         BattleDiagnosticEffectDispatch dispatch = new(1, 1, "party-0", BattleAbility.Magic, 1, 2, 2, 2) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };

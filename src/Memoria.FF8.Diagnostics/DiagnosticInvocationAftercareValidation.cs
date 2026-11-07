@@ -5,6 +5,11 @@ namespace Memoria.FF8.BattleEffects;
 
 public static class DiagnosticInvocationAftercareValidation
 {
+    internal static void ValidateEmptyCommandBanks(ImmutableArray<BattleDiagnosticCommandBankClosure> banks)
+    {
+        ValidateCommandBanks(banks, null);
+    }
+
     public static void ValidatePlan(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
         BattleDiagnosticInvocationAftercarePlan plan = release.Aftercare ?? throw new InvalidDataException("Scoped aftercare requires its actual focal completion plan.");

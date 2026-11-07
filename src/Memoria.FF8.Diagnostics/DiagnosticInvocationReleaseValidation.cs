@@ -7,6 +7,16 @@ public static class DiagnosticInvocationReleaseValidation
     public static void Validate(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
         ValidateIdentity(release, focal, lifecycle);
+        if (release.Boundary == BattleDiagnosticInvocationRelease.TerminalTextureBoundary)
+        {
+            ValidateGraphicsFrameCertificate(release, focal, lifecycle);
+            ValidateTerminalTextures(release, focal, lifecycle);
+            return;
+        }
+        if (release.TerminalTextures is not null)
+        {
+            throw new InvalidDataException("Standalone terminal textures cannot be attached to another completion mode.");
+        }
         if (release.Boundary == BattleDiagnosticInvocationRelease.AftercareBoundary)
         {
             if (!release.PacketRemoved)
@@ -46,7 +56,7 @@ public static class DiagnosticInvocationReleaseValidation
         ValidateIdentity(certificate, focal, lifecycle);
         NativeBattleDescriptorPacket originalPacket = certificate.CompletionPacket!;
         NativeBattleDescriptorPacket focalPacket = release.CompletionPacket!;
-        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.Aftercare is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
+        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.Aftercare is not null || certificate.TerminalTextures is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
         {
             throw new InvalidDataException("Deferred release changed its same-callback native event/header/packet certificate or retried across graphics frames.");
         }
@@ -55,6 +65,28 @@ public static class DiagnosticInvocationReleaseValidation
         {
             throw new InvalidDataException("Deferred completion did not retain the exact native RemoveFirst byte1 reset, or its physical slot was reused.");
         }
+    }
+
+    private static void ValidateTerminalTextures(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
+    {
+        BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures ?? throw new InvalidDataException("Standalone terminal texture release lacks its actual native proof.");
+        BattleDiagnosticTerminalHoldState hold = proof.Hold ?? throw new InvalidDataException("Standalone terminal texture release lacks its declared victory hold.");
+        hold.Declaration.Validate();
+        if (!release.PacketRemoved || release.Aftercare is not null || !release.Owners.AuxiliaryHead || HasOutstandingOwners(release.Owners with { AuxiliaryHead = false }, 0) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || focal.NativeCommand != 16 || focal.ActionId is not (53 or 56) || focal.RequestedEffect != (focal.ActionId == 53 ? 288 : 85) || hold.Declaration.Candidate != BattleOutcome.Victory || hold.Phase != BattleDiagnosticTerminalHoldPhase.Held || hold.Sequence != 1 || hold.Rearms != 0 || hold.HoldId == Guid.Empty || hold.HeldCallback is not long heldCallback || heldCallback > release.Callback || release.Callback - heldCallback > hold.Declaration.MaximumCallbacks || hold.HeldFrame is not long heldFrame || heldFrame > release.SimulationFrame || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != focal.ActorId || hold.Receipts.IsDefault || hold.Receipts.Length != 1)
+        {
+            throw new InvalidDataException("Standalone terminal textures require one declared held destructive Slots victory, exact packet retirement and no other native owner.");
+        }
+        BattleDiagnosticTerminalHoldReceipt admission = hold.Receipts[0];
+        if (admission is null || admission.Kind != "held" || admission.Candidate != BattleOutcome.Victory || admission.HoldId != hold.HoldId || admission.LifecycleId != lifecycle || admission.Sequence != 1 || admission.Callback != hold.HeldCallback || admission.Frame != hold.HeldFrame || admission.NativeResult is > 0 || admission.RestoreCount != 0 || admission.ResetCount != 0 || admission.Random is null || admission.Party is not { Length: 1 } || admission.Party[0] is not { } caster || caster.Id != focal.ActorId || caster.NativeIndex != focal.NativeActorIndex || caster.CurrentHp <= 0 || caster.CurrentHp > caster.MaximumHp || (caster.Statuses0 & 5) != 0 || (caster.Statuses1 & 0x80010000) != 0)
+        {
+            throw new InvalidDataException("Standalone texture victory admission changed its actual living caster or native held boundary.");
+        }
+        DiagnosticTextureQuiescenceValidation.Validate(proof.Textures);
+        if (proof.Textures.Tasks.Any(task => task.ModelIndex != focal.NativeActorIndex))
+        {
+            throw new InvalidDataException("Standalone terminal textures cannot include a foreign model owner.");
+        }
+        DiagnosticInvocationAftercareValidation.ValidateEmptyCommandBanks(proof.CommandBanks);
     }
 
     private static void ValidateIdentity(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)

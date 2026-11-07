@@ -337,7 +337,7 @@ internal sealed class DiagnosticBattleDriver
         {
             return false;
         }
-        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalRelease.Aftercare is null || InvocationAftercare is not null) : observation.Drained;
+        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalRelease.Aftercare is null || InvocationAftercare is not null) && (FocalRelease.TerminalTextures is null || observation.Drained) : observation.Drained;
         LastDrainBlockers = observation.DrainBlockers;
         if (observation.Callback < previousCallback)
         {

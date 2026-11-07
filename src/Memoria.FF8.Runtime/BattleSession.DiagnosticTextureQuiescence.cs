@@ -32,6 +32,20 @@ public sealed record BattleDiagnosticTextureQuiescence(int Capacity, int Physica
 
 public sealed partial class BattleSession
 {
+    private BattleDiagnosticInvocationRelease? TrySealDiagnosticTerminalTextures(BattleDiagnosticInvocationRelease release, NativeBattleGraphicsState graphics)
+    {
+        if (DiagnosticTerminalHold is not { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0, Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || diagnosticFocalCallbackCount != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any() || !DiagnosticPhysicalCommandBanksMatch(null) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticNonAftercareOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
+        {
+            return null;
+        }
+        BattleDiagnosticTextureQuiescence textures = CaptureDiagnosticTextureQuiescence(graphics);
+        if (!textures.IsTerminalQuiescent || textures.Tasks.Any(task => task.ModelIndex != release.Dispatch.NativeActorIndex))
+        {
+            return null;
+        }
+        return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold, CaptureDiagnosticCommandBanks()) });
+    }
+
     private static BattleDiagnosticTextureQuiescence CaptureDiagnosticTextureQuiescence(NativeBattleGraphicsState graphics)
     {
         NativeBattleAuxiliaryState auxiliary = graphics.Auxiliary;

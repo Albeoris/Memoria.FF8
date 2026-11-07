@@ -57,7 +57,9 @@ public sealed class DiagnosticVictoryHoldTests
         typeof(BattleCombatant).GetProperty("NativeStatus0", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(enemy, (ushort)1);
         Complete(battle);
         NativeTick(battle);
+        Complete(battle);
         NativeTick(battle);
+        Complete(battle);
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         Assert.Equal(BattleDiagnosticTerminalHoldPhase.Expired, battle.DiagnosticTerminalHold!.Phase);
         Assert.Equal(new[] { "held", "expired" }, battle.DiagnosticTerminalHoldReceipts.Select(receipt => receipt.Kind));

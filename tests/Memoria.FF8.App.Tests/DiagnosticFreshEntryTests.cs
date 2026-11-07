@@ -8,6 +8,39 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticFreshEntryTests
 {
+    [Fact]
+    public void Terminal_texture_certificate_keeps_its_main_boundary_but_waits_for_physical_drain_before_tail()
+    {
+        BattleDiagnosticInvocationRelease release = DiagnosticInvocationReleaseTests.TerminalTextureReceipt();
+        DiagnosticBattleDriverRecipe recipe = Recipe with
+        {
+            Input = new(BattleInputKind.Action, ActorId: release.Dispatch.ActorId, TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | 53),
+            ExpectedEffect = 288,
+            ExpectedNativeAction = 53,
+            ExpectedNativeCommand = 16,
+            LimitSelection = new(4, 4, 256),
+            SlotsAdmission = new(53, 256, 5),
+            TerminalHold = release.TerminalTextures!.Hold.Declaration
+        };
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        driver.Advance(Observation(0, 0));
+        Assert.True(driver.Advance(Observation(0.1, 1)));
+        driver.ObserveDispatch(release.Dispatch);
+        driver.ObserveInvocationRelease(release);
+        driver.Advance(Observation(0.2, 3, false));
+        driver.Advance(Observation(0.3, 4, false));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.Same(release, driver.FocalRelease);
+        Assert.Equal(release.Timestamp, driver.FocalRelease.Timestamp);
+        driver.Advance(Observation(0.4, 5));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
+        driver.Advance(Observation(0.5, 6));
+        driver.Advance(Observation(0.6, 7));
+        Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
+        Assert.Equal(1, driver.Execution);
+        Assert.Same(release, driver.FocalRelease);
+    }
+
     private static DiagnosticFreshEntryDeclaration Declaration => new(DiagnosticFreshEntryDeclaration.SingleUse, [new("Data/battle.fs", new string('a', 64))]);
     private static DiagnosticBattleDriverRecipe Recipe => new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: "enemy-0", Ability: BattleAbility.Magic, ActionId: 1), 2) { BaselineSeconds = 0, TailFrames = 2, FreshEntry = Declaration };
     private static DiagnosticDriverObservation Observation(double seconds, long frame, bool drained = true, bool terminal = false) => new(seconds, frame, frame, true, drained, terminal, drained ? [] : ["native-work"]);

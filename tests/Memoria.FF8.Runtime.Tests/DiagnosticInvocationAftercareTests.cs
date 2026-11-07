@@ -6,6 +6,60 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class DiagnosticInvocationAftercareTests
 {
     [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void Texture_only_main_completion_requires_the_declared_single_use_victory_hold(bool victoryHold, bool terminal)
+    {
+        BattleSession session = Fixture(true, true, standaloneVictory: true, victoryHold: victoryHold);
+        List<BattleDiagnosticInvocationRelease> releases = [];
+        session.DiagnosticInvocationReleased += releases.Add;
+        byte[] programme = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(session.NativeGraphics!.Auxiliary.Slots[0].Program!.Source)!;
+        if (!terminal)
+        {
+            programme[0] = 254;
+        }
+        Set(session, nameof(BattleSession.NativeHostCallbacks), 21L);
+        Pump(session);
+        EndFrame(session);
+        BattleDiagnosticInvocationRelease main = Assert.IsType<BattleDiagnosticInvocationRelease>(session.LastDiagnosticInvocationCompletion);
+        Assert.True(main.PacketRemoved);
+        Assert.True(main.NativeEventCompleted);
+        Assert.True(main.PresentationAcknowledged);
+        Assert.True(main.Owners.AuxiliaryHead);
+        Assert.False(main.Owners.ActionOrCommand);
+        Assert.Empty(session.NativeCommandBanks.BoundCommands);
+        Assert.Null(main.Aftercare);
+        if (!victoryHold || !terminal)
+        {
+            Assert.False(main.Released);
+            Assert.Null(main.TerminalTextures);
+            Assert.Empty(releases);
+            return;
+        }
+        Assert.Same(main, Assert.Single(releases));
+        Assert.True(main.Released);
+        Assert.Equal(BattleDiagnosticInvocationRelease.TerminalTextureBoundary, main.Boundary);
+        BattleDiagnosticTerminalTextureRelease proof = Assert.IsType<BattleDiagnosticTerminalTextureRelease>(main.TerminalTextures);
+        Assert.True(proof.Textures.IsTerminalQuiescent);
+        Assert.Equal(BattleOutcome.Victory, proof.Hold.Declaration.Candidate);
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Held, proof.Hold.Phase);
+        Assert.Equal(3, proof.CommandBanks.Length);
+        Assert.Null(session.LastDiagnosticInvocationAftercare);
+        string sealedProof = NativeBattleTestSnapshots.Json(main);
+        BattleDiagnosticInvocationRelease cold = JsonSerializer.Deserialize<BattleDiagnosticInvocationRelease>(sealedProof)!;
+        Assert.Equal(sealedProof, NativeBattleTestSnapshots.Json(cold));
+        Assert.NotSame(session.DiagnosticTerminalHold, proof.Hold);
+        session.DiagnosticTerminalHold!.Receipts[0].Party[0] = session.DiagnosticTerminalHold.Receipts[0].Party[0] with { CurrentHp = 1 };
+        programme[0] = 254;
+        Assert.Equal((byte)255, Assert.Single(proof.Textures.Tasks).Deadline);
+        Assert.Equal(sealedProof, NativeBattleTestSnapshots.Json(main));
+        EndFrame(session);
+        Assert.Single(releases);
+        Assert.Equal(sealedProof, NativeBattleTestSnapshots.Json(session.LastDiagnosticInvocationCompletion));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Real_no_op_callback_releases_its_bank_and_completes_its_native_descriptor_without_changing_main_receipt(bool terminalTexture)
@@ -290,7 +344,7 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "header")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.Prepare(new(0, 252, 0, 0, 1, 1, null));
+            (packets, _) = packets.Prepare(new(0, command, 0, 0, action, effect, null));
             (packets, _) = packets.Publish(0);
             Field("nativeActionPackets").SetValue(session, packets);
         }
@@ -321,7 +375,7 @@ public sealed class DiagnosticInvocationAftercareTests
         Assert.Equal(before, NativeBattleTestSnapshots.Json(main));
     }
 
-    private static BattleSession Fixture(bool observe, bool terminalTexture, uint? passiveFlags = 0, int model = 0, ushort? targetMask = 1)
+    private static BattleSession Fixture(bool observe, bool terminalTexture, uint? passiveFlags = 0, int model = 0, ushort? targetMask = 1, bool standaloneVictory = false, bool victoryHold = true)
     {
         BattleDefinition definition = new()
         {
@@ -337,15 +391,25 @@ public sealed class DiagnosticInvocationAftercareTests
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         session.Combatants[0].ReprojectNativePlayerStatistics();
+        if (standaloneVictory && victoryHold)
+        {
+            session.ConfigureDiagnosticTerminalHold(new("Single-use native victory texture cleanup", ["party"], 100) { Candidate = BattleOutcome.Victory });
+            typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.CurrentHp))!.SetValue(session.Combatants[1], 0);
+            typeof(BattleCombatant).GetProperty("NativeStatus0", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Combatants[1], (ushort)1);
+            Call(session, "CompleteBattleIfNeeded");
+        }
+        ushort effect = standaloneVictory ? (ushort)288 : (ushort)1;
+        ushort action = standaloneVictory ? (ushort)53 : (ushort)1;
+        byte command = standaloneVictory ? (byte)16 : (byte)252;
         session.Combatants[0].LastNativeAction = new(0, 0, 2, 1, 0, 0);
         Call(session, "BeginNativeReactionBatch");
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        (packets, _) = packets.Prepare(new(0, 252, 0, 0, 1, 1, null));
+        (packets, _) = packets.Prepare(new(0, command, 0, 0, action, effect, null));
         (packets, _) = packets.AppendContact(new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, 1) { NativeHeaderIndex = 0, NativeQueuedCommand = 252, NativeGraphic = new(1) });
+        Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, BattleAbility.EnemyAbility, action) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeGraphic = new(effect) });
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
         Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, SoundPublishedFlags = 0 });
@@ -360,7 +424,7 @@ public sealed class DiagnosticInvocationAftercareTests
             Auxiliary = auxiliary,
             ActionCallbackReady = false,
             ActionActorId = "party",
-            OriginalEffect = new(1, 0, new(1, 1, 1), null, 0)
+            OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0)
         };
         Set(session, nameof(BattleSession.NativeGraphics), graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DDA0).State });
         if (observe)
@@ -368,12 +432,12 @@ public sealed class DiagnosticInvocationAftercareTests
             session.DiagnosticEffectDispatched += _ =>
             {
             };
-            session.ConfigureDiagnosticInvocationCompletion(1, "party", 252, 1);
+            session.ConfigureDiagnosticInvocationCompletion(effect, "party", command, action);
             Field("diagnosticDispatchSerial").SetValue(session, 1L);
             Call(session, "ObserveDiagnosticPreparedHeader", 0);
             Call(session, "PublishDiagnosticEffectDispatch", new Action<BattleDiagnosticEffectDispatch>(_ =>
             {
-            }), new BattleDiagnosticEffectDispatch(1, 20, "party", BattleAbility.EnemyAbility, 1, 1, 1, 252) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1, NativeTargetMask = targetMask });
+            }), new BattleDiagnosticEffectDispatch(1, 20, "party", BattleAbility.EnemyAbility, action, effect, effect, command) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1, NativeTargetMask = targetMask });
         }
         return session;
     }
