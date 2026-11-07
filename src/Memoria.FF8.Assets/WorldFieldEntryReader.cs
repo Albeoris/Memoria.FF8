@@ -20,6 +20,7 @@ public sealed partial class WorldFieldEntryReader
     private readonly int firstInstruction;
     private readonly byte[] table;
     private readonly int sectionIndex;
+    private readonly (ushort Opcode, ushort Operand)[] positionPredicates;
 
     private WorldFieldEntryReader(byte[] program, int[] clauses, WorldFieldEntry[] entries, int firstInstruction, byte[] table, int sectionIndex)
     {
@@ -29,11 +30,47 @@ public sealed partial class WorldFieldEntryReader
         this.firstInstruction = firstInstruction;
         this.table = table;
         this.sectionIndex = sectionIndex;
+        List<(ushort Opcode, ushort Operand)> coordinates = [];
+        for (int position = firstInstruction; position < program.Length; position += 4)
+        {
+            ushort opcode = Word(position);
+            if (opcode is >= 0xFF0F and <= 0xFF12)
+            {
+                coordinates.Add((opcode, Word(position + 2)));
+            }
+        }
+        positionPredicates = coordinates.Distinct().ToArray();
     }
 
     public int ClauseCount => clauses.Length;
     public int ProgramLength => program.Length;
     public IReadOnlyList<WorldFieldEntry> Entries => Array.AsReadOnly(entries);
+
+    /// <summary>Checks that the entire segment stays on the same side of every native coordinate predicate.</summary>
+    public bool HasConstantPositionPredicates(int beforeX, int beforeZ, int afterX, int afterZ)
+    {
+        // Within one native cell, both the map and cell predicates are constant and local coordinates are monotonic.
+        if ((beforeX >> 11) != (afterX >> 11) || (beforeZ >> 11) != (afterZ >> 11))
+        {
+            return false;
+        }
+        foreach ((ushort opcode, ushort operand) in positionPredicates)
+        {
+            bool changes = opcode switch
+            {
+                0xFF0F => (operand > (beforeX & 8191)) != (operand > (afterX & 8191)),
+                0xFF10 => (operand > (beforeZ & 8191)) != (operand > (afterZ & 8191)),
+                0xFF11 => (operand < (beforeX & 8191)) != (operand < (afterX & 8191)),
+                0xFF12 => (operand < (beforeZ & 8191)) != (operand < (afterZ & 8191)),
+                _ => throw new InvalidOperationException("Unexpected world coordinate predicate.")
+            };
+            if (changes)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public static WorldFieldEntryReader Read(ReadOnlySpan<byte> section7, ReadOnlySpan<byte> wm2field)
     {

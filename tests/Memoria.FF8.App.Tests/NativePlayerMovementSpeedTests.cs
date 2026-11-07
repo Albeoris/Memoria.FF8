@@ -86,6 +86,21 @@ public sealed class NativePlayerMovementSpeedTests
         Assert.Null(NativePlayerMovementAdapter.Resolve(Field(), Scene(movie: true), Query(speed, percent)));
     }
 
+    [Theory]
+    [InlineData(250, false, 79290)]
+    [InlineData(500, false, 7929)]
+    [InlineData(250, true, 15859)]
+    public void AutoplayUsesLongStrideOnlyWithinClearOrdinaryGeometry(int startX, bool movie, int expectedSpeed)
+    {
+        NativePlayerMovementQuery query = Query(movie ? (short)15859 : (short)7929, 100) with { FixedX = startX * 4096, FastSpeed = 79290 };
+        NativePlayerMovementResult result = Assert.IsType<NativePlayerMovementResult>(NativePlayerMovementAdapter.Resolve(Field(), Scene(movie), query));
+        Assert.True(result.Accepted);
+        Assert.Equal(query.FixedX + 16 * expectedSpeed, result.FixedX);
+        Assert.Equal(query.FixedY, result.FixedY);
+        Assert.Equal(query.Triangle, result.Triangle);
+        Assert.Single(result.Proposals);
+    }
+
     private static NativePlayerMovementQuery Query(short speed, int percent)
     {
         return new NativePlayerMovementQuery(7, 0, 250 * 4096, 250 * 4096, 40 * 4096, 64, speed, 48, EarlyRetryState: 0, SpeedPercent: percent);

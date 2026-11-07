@@ -795,11 +795,11 @@ internal sealed partial class WorldMapScene : IDisposable
         (int componentX, int componentZ) = ReadFootMovementComponents(horizontal, vertical);
         int localX = (16 * componentX) >> 6;
         int localZ = (16 * componentZ) >> 6;
-        (int moveX, int graphicsMoveZ) = Rotate(localX, localZ, before.CameraYaw);
+        (int nativeMoveX, int nativeGraphicsMoveZ) = Rotate(localX, localZ, before.CameraYaw);
         // Native speed latches drive fuel, vibration and presentation; scale only the ground-query translation.
-        int nativeGraphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
-        moveX = ScalePlayerMovement(moveX, movementSpeedPercent);
-        graphicsMoveZ = ScalePlayerMovement(graphicsMoveZ, movementSpeedPercent);
+        int nativeGraphicsSpeed = NativeWorldVectorMagnitude.Truncate(nativeMoveX, 0, nativeGraphicsMoveZ);
+        int moveX = ScalePlayerMovement(nativeMoveX, movementSpeedPercent);
+        int graphicsMoveZ = ScalePlayerMovement(nativeGraphicsMoveZ, movementSpeedPercent);
         bool moving = moveX != 0 || graphicsMoveZ != 0;
         int bodyYaw = before.BodyYaw;
         bool dampCamera = !moving;
@@ -884,8 +884,6 @@ internal sealed partial class WorldMapScene : IDisposable
             before = before with { NativeRagnarokRuntime = ragnarokCameraState.NativeRagnarokRuntime };
             foot = ragnarokCameraState.NativeFootRuntime!;
         }
-        int x = WrapCoordinate(before.X + moveX, 262144);
-        int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         if (foot.StationTrains is not null)
         {
             foot = StepStationTrains(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
@@ -894,6 +892,13 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             foot = StepNormalFootObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         }
+        if (moving && TryAccelerateAutoPlayFootMove(before, foot, nativeMoveX, nativeGraphicsMoveZ, moveX, graphicsMoveZ, out int fastX, out int fastZ))
+        {
+            moveX = fastX;
+            graphicsMoveZ = fastZ;
+        }
+        int x = WrapCoordinate(before.X + moveX, 262144);
+        int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         if (foot.ParkedCar is { } movingParked)

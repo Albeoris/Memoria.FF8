@@ -23,6 +23,17 @@ public static class NativePlayerMovementAdapter
             return query.HasActorCollision?.Invoke(new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight!.Value)) == true;
         }
         FieldNativeMovementResult result = FieldNativeMovementProbe.Resolve(field.Walkmesh, request, scene.LockedTriangles, HasCollision);
+        // A triangle is convex. If the first ordinary step and the accelerated
+        // endpoint have the same clear center and fans in this triangle, the
+        // intermediate movement stays inside it without crossing an edge.
+        if (scene.MovieActors?.Active != true && query.FastSpeed > query.Speed && query.FastSpeed <= 7929 * PlayerMovementSpeed.AutoPlayTranslationMultiplier && IsStraightInteriorStep(result, request))
+        {
+            FieldNativeMovementResult fast = FieldNativeMovementProbe.Resolve(field.Walkmesh, request with { Speed = query.FastSpeed }, scene.LockedTriangles, HasCollision);
+            if (IsStraightInteriorStep(fast, request))
+            {
+                result = fast;
+            }
+        }
         bool blocked = result.Status == FieldNativeMovementStatus.Blocked;
         int maximumAttempts = request.EarlyRetryState == 1 ? 2 : 16;
         if (result.Status != FieldNativeMovementStatus.Accepted && !blocked || result.Proposals.Count < 1 || result.Proposals.Count > maximumAttempts || result.RetryCount != result.Proposals.Count + (result.RetryCount > maximumAttempts ? 1 : 0) || result.Proposals[0].Direction != query.Direction || result.Status == FieldNativeMovementStatus.Accepted && result.Direction != result.Proposals[^1].Direction || result.EarlyRetryState != 0 || result.Proposals.Any(proposal => proposal.FanProbes.Count != 3 || proposal.FanProbes.Any(probe => !probe.Supported || probe.NativeHeight is null)))
@@ -32,6 +43,11 @@ public static class NativePlayerMovementAdapter
         NativeJoinMovementProposal[] proposals = result.Proposals.Select(proposal => new NativeJoinMovementProposal(proposal.FixedX, proposal.FixedY, proposal.Direction)).ToArray();
         IReadOnlyList<NativePlayerGroundProbe>[] probes = result.Proposals.Select(proposal => (IReadOnlyList<NativePlayerGroundProbe>)proposal.FanProbes.Select(probe => new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight!.Value, probe.ActorCollision)).ToArray()).ToArray();
         return new NativePlayerMovementResult(result.FixedX, result.FixedY, result.FixedZ, result.Triangle, result.Direction, proposals, ProposalGroundProbes: probes, Accepted: !blocked);
+    }
+
+    private static bool IsStraightInteriorStep(FieldNativeMovementResult result, FieldNativeMovementRequest request)
+    {
+        return result.Status == FieldNativeMovementStatus.Accepted && result.Proposals.Count == 1 && result.Triangle == request.Triangle && result.CenterProbe?.TraversedTriangles.Count == 1 && result.Proposals[0].FanProbes.All(probe => probe.Triangle == request.Triangle && probe.TraversedTriangles.Count == 1);
     }
 
     private static bool SupportsBinding(SceneEventState scene, int objectId)

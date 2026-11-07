@@ -167,6 +167,61 @@ public sealed class AutoPlayWalkRejectionProofTests
         Assert.NotEqual(before, GameWorld.ReadAutoPlayWalkRejectionState(events, program, operations, new[] { 0, -1, -1 }));
     }
 
+    [Theory]
+    [InlineData(Jsm.Opcode.PSHM_B, 1)]
+    [InlineData(Jsm.Opcode.PSHSM_W, 2)]
+    [InlineData(Jsm.Opcode.PSHM_L, 4)]
+    public void ExactPhaseCanExcludeAProgressBranchAndIsPartOfTheReceipt(Jsm.Opcode read, int width)
+    {
+        byte[] bytes = Program([], [], [(read, 1024), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.AMESW, 0)]);
+        JsmProgram program = JsmProgram.Read(bytes);
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
+        events.LoadField(600, bytes, []);
+        int[] bindings = [0, -1, -1];
+        string? Proof(int value)
+        {
+            session.SetEventMemory(events.EventMemory.Write(1024, width, NativeScalarValue.Exact(value)));
+            return GameWorld.ReadAutoPlayPhaseWalkRejectionState(events, program, "600:talk:0", 0, bindings);
+        }
+
+        Assert.False(GameWorld.CanCacheAutoPlayWalkRejectionSource(program, "600:talk:0", 0, bindings));
+        Assert.Null(Proof(3));
+        string? phaseFour = Proof(4);
+        Assert.NotNull(phaseFour);
+        Assert.NotEqual(phaseFour, Proof(5));
+        Assert.Equal(phaseFour, Proof(4));
+    }
+
+    [Fact]
+    public void ReachableCalleeWritingAnOverlappingByteInvalidatesTheSpecializedPhase()
+    {
+        byte[] bytes = Program([], [],
+            [(Jsm.Opcode.PSHM_B, 1025), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.ADDGIL, 0),
+             (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.REQEW, 0)],
+            [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.POPM_W, 1024)]);
+        JsmProgram program = JsmProgram.Read(bytes);
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
+        events.LoadField(600, bytes, []);
+        session.SetEventMemory(events.EventMemory.Write(1025, 1, NativeScalarValue.Exact(4)));
+
+        Assert.Null(GameWorld.ReadAutoPlayPhaseWalkRejectionState(events, program, "600:talk:0", 0, new[] { 0, -1, -1 }));
+    }
+
+    [Fact]
+    public void SignedLongPhaseReadsUseNativeSaturationBeforeEquality()
+    {
+        byte[] bytes = Program([], [], [(Jsm.Opcode.PSHSM_L, 1024), (Jsm.Opcode.PSHN_L, 0x7FFFFF), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.AMESW, 0)]);
+        JsmProgram program = JsmProgram.Read(bytes);
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
+        events.LoadField(600, bytes, []);
+        session.SetEventMemory(events.EventMemory.Write(1024, 4, NativeScalarValue.Exact(int.MaxValue)));
+
+        Assert.Null(GameWorld.ReadAutoPlayPhaseWalkRejectionState(events, program, "600:talk:0", 0, new[] { 0, -1, -1 }));
+    }
+
     private static byte[] TwoActorProgram()
     {
         byte[] single = Program([], [], [(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PREQEW, 0)], [(Jsm.Opcode.AMESW, 0)], [], [], [], [(Jsm.Opcode.ADDGIL, 0)]);

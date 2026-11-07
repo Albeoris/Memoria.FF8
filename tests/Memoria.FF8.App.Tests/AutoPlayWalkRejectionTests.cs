@@ -59,6 +59,19 @@ public sealed class AutoPlayWalkRejectionTests
     }
 
     [Fact]
+    public void TheNativeReturnMayResolveTheOtherTriangleAtTheSameExactPosition()
+    {
+        AutoPlayContactSource source = Source();
+        FieldFixedPosition position = new(0, 0, 0);
+        AutoPlayWalkRejection receipt = new(source, Guard(), position);
+        AutoPlayContactSource current = source with { PlayerPosition = source.PlayerPosition with { Triangle = 1 } };
+        Assert.True(AutoPlayController.SameWalkReturnDomain(source, current, position, position));
+        Assert.False(AutoPlayController.SameWalkReturnDomain(source, current, position, new(1, 0, 0)));
+        Assert.False(AutoPlayController.SameWalkReturnDomain(source, current with { NavigationKey = "other" }, position, position));
+        Assert.False(AutoPlayController.IsWalkRejected(current, position, Guard(), [receipt]));
+    }
+
+    [Fact]
     public void ExactNativeSubpixelPositionIsRequiredAndAnOlderCacheEntryCanBeIgnored()
     {
         AutoPlayContactSource source = Source();

@@ -10,7 +10,7 @@ public enum FieldNativeMovementStatus
     Unsupported
 }
 
-public readonly record struct FieldNativeMovementRequest(int Triangle, int FixedX, int FixedY, int FixedZ, byte Direction, short Speed, ushort Radius, bool IsLeader, bool ScriptControlled, byte EarlyRetryState, bool ActorEnvelopesClear);
+public readonly record struct FieldNativeMovementRequest(int Triangle, int FixedX, int FixedY, int FixedZ, byte Direction, int Speed, ushort Radius, bool IsLeader, bool ScriptControlled, byte EarlyRetryState, bool ActorEnvelopesClear);
 
 public readonly record struct FieldNativeSlopeFactors(int NormalX, int NormalY, int NormalZ, int X, int Y);
 
@@ -45,6 +45,10 @@ public static class FieldNativeMovementProbe
         if (!request.ActorEnvelopesClear)
         {
             return Unsupported("Native actor-contact ordering and steering require a separate caller contract.");
+        }
+        if (request.Speed < short.MinValue || request.Speed > 7929 * PlayerMovementSpeed.AutoPlayTranslationMultiplier || request.Speed > short.MaxValue && (!request.IsLeader || request.ScriptControlled))
+        {
+            return Unsupported("Movement speed exceeds the range of the current player translation contract.");
         }
         if (!TryFactors(mesh, request.Triangle, out FieldNativeSlopeFactors slopeFactors, out string? factorReason))
         {

@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 public static class PlayerMovementSpeed
 {
     public const int DefaultPercent = 100;
+    public const int AutoPlayTranslationMultiplier = 10;
     public const int MinimumPercent = 50;
     public const int MaximumPercent = 300;
 

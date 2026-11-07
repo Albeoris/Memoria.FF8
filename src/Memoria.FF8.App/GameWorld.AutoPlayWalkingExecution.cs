@@ -132,10 +132,10 @@ internal sealed partial class GameWorld
         return new(true, false);
     }
 
-    private AutoPlayWalkResult StepAutoPlayWalking(Vector2 delta, int field, HashSet<int> pending, int approachObjectId, AutoPlayTarget? contact, out bool moved)
+    private AutoPlayWalkResult StepAutoPlayWalking(Vector2 delta, int field, HashSet<int> pending, int approachObjectId, AutoPlayTarget? contact, out bool moved, bool allowFast = true)
     {
         Vector2 axes = Events.AutoPlayMovementAxes(delta);
-        (bool? accepted, int? gateway) = Events.ObserveAutoPlayMovement(() => Apply(new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y)));
+        (bool? accepted, int? gateway) = Events.ObserveAutoPlayMovement(() => Apply(new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y)), allowFast ? delta.Length() : 0);
         moved = accepted == true;
         bool contacted = contact is { ObjectId: >= 0 } && Events.HasPendingAutoPlayInteraction(contact.ObjectId);
         int[] owners = Events.Actors.Where(actor => actor.ObjectId != approachObjectId && !pending.Contains(actor.ObjectId) && Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToArray();
@@ -172,7 +172,7 @@ internal sealed partial class GameWorld
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
         // The ordinary talk query arbitrates this actor's slot7 against its own
         // push slot6; unrelated contacts still interrupt the facing step.
-        return StepAutoPlayWalking(delta, Events.FieldId, pending, objectId, null, out _);
+        return StepAutoPlayWalking(delta, Events.FieldId, pending, objectId, null, out _, allowFast: false);
     }
 
     public AutoPlayWalkResult WalkAutoPlayContact(AutoPlayTarget target, Action onProgress)

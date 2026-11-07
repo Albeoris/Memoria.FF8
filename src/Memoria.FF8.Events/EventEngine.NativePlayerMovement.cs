@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativePlayerMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, byte? EarlyRetryState = null, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null, int SpeedPercent = 100);
+public sealed record NativePlayerMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, byte? EarlyRetryState = null, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null, int SpeedPercent = 100, int FastSpeed = 0);
 public sealed record NativePlayerGroundProbe(int FixedX, int FixedY, int NativeHeight, bool ActorCollision = false);
 public sealed record NativePlayerMovementResult(int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null, bool Accepted = true);
 
@@ -39,7 +39,8 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Persisted native player movement requires its certified bounded-attempt adapter; original state preserved.");
         }
         byte earlyRetry = Scene.NativePlayerEarlyRetryState is byte known && known <= 1 ? known : throw new NotSupportedException("Native player movement requires executed retry-state provenance; the snapshot is missing required native state");
-        NativePlayerMovementQuery query = new(player.ObjectId, player.WalkmeshTriangle, current.X, current.Y, current.Z, direction, (short)speed, player.PushRadius, earlyRetry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, PlayerMovementSpeedPercent);
+        int fastSpeed = AutoPlayFastStepSpeed(player, current, speed, autoPlayMovementDistance);
+        NativePlayerMovementQuery query = new(player.ObjectId, player.WalkmeshTriangle, current.X, current.Y, current.Z, direction, (short)speed, player.PushRadius, earlyRetry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, PlayerMovementSpeedPercent, fastSpeed);
         NativePlayerMovementResult movement = ResolveNativePlayerMovement(query) ?? throw new NotSupportedException("Native player movement requires a certified original retry-state result; unproved retry/contact chains preserve original state.");
         bool blocked = !movement.Accepted;
         int maximumAttempts = earlyRetry == 0 ? 16 : 2;

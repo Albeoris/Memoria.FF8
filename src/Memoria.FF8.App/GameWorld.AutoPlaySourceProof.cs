@@ -48,7 +48,9 @@ internal sealed partial class GameWorld
             proof = new(proved, proved ? operations.Order().ToArray() : []);
             autoPlayWalkRejectionProofs.Add(key, proof);
         }
-        return proof.Proved ? ReadAutoPlayWalkRejectionState(Events, autoPlayConditionProgram!, proof.Operations, boundPartyActors) : null;
+        return proof.Proved
+            ? ReadAutoPlayWalkRejectionState(Events, autoPlayConditionProgram!, proof.Operations, boundPartyActors)
+            : ReadAutoPlayPhaseWalkRejectionState(Events, autoPlayConditionProgram!, eventId, objectId, boundPartyActors);
     }
 
     internal static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId)
@@ -61,14 +63,22 @@ internal sealed partial class GameWorld
         return CanCacheAutoPlayWalkRejectionSource(program, eventId, objectId, boundPartyActors, null);
     }
 
-    private static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId, IReadOnlyList<int> boundPartyActors, ISet<int>? inspectedOperations)
+    private static bool CanCacheAutoPlayWalkRejectionSource(JsmProgram program, string eventId, int objectId, IReadOnlyList<int> boundPartyActors, ISet<int>? inspectedOperations, EventEngine? phase = null)
     {
         int[] nativeActors = program.NativeObjects.Take(program.NativeActorCount).ToArray();
         if (boundPartyActors.Count != 3 || boundPartyActors.Any(actor => actor < -1 || actor >= 0 && !nativeActors.Contains(actor)) || boundPartyActors.Where(actor => actor >= 0).Distinct().Count() != boundPartyActors.Count(actor => actor >= 0))
         {
             return false;
         }
-        return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null, walkRejection: true, boundPartyActors, inspectedOperations);
+        return CanCacheAutoPlayUnavailableSource(program, eventId, objectId, null, walkRejection: true, boundPartyActors, inspectedOperations, phase);
+    }
+
+    internal static string? ReadAutoPlayPhaseWalkRejectionState(EventEngine events, JsmProgram program, string eventId, int objectId, IReadOnlyList<int> boundPartyActors)
+    {
+        HashSet<int> operations = [];
+        return CanCacheAutoPlayWalkRejectionSource(program, eventId, objectId, boundPartyActors, operations, events)
+            ? ReadAutoPlayWalkRejectionState(events, program, operations, boundPartyActors)
+            : null;
     }
 
     internal static string? ReadAutoPlayWalkRejectionState(EventEngine events, JsmProgram program, IReadOnlyCollection<int> inspectedOperations, IReadOnlyList<int> boundPartyActors)
@@ -94,8 +104,7 @@ internal sealed partial class GameWorld
             {
                 try
                 {
-                    bool signed = operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHSM_L;
-                    NativeScalarValue value = events.EventMemory.Read(operation.Parameter, width, signed);
+                    NativeScalarValue value = ReadWalkRejectionTemporary(events, operation, width);
                     if (!value.IsExact)
                     {
                         return null;
@@ -139,7 +148,7 @@ internal sealed partial class GameWorld
         return script is not null && TryReadAutoPlayWorldPacket(program, script, sourceOperation, out WorldTransition? packet) && packet == request.Transition && CanCacheAutoPlayUnavailableSource(program, eventId, objectId, script);
     }
 
-    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource, bool walkRejection = false, IReadOnlyList<int>? boundPartyActors = null, ISet<int>? inspectedOperations = null)
+    private static bool CanCacheAutoPlayUnavailableSource(JsmProgram program, string eventId, int objectId, EventScript? worldSource, bool walkRejection = false, IReadOnlyList<int>? boundPartyActors = null, ISet<int>? inspectedOperations = null, EventEngine? phase = null)
     {
         string kind = eventId.Split(':').ElementAtOrDefault(1) ?? string.Empty;
         if (kind == "gateway")
@@ -158,6 +167,8 @@ internal sealed partial class GameWorld
         }
         Queue<EventScript> pending = new(roots);
         HashSet<EventScript> inspected = [];
+        HashSet<(int Address, int Width)> phaseReads = [];
+        HashSet<(int Address, int Width)> writes = [];
         int[] possibleActors = boundPartyActors is null ? program.NativeObjects.Take(program.NativeActorCount).ToArray() : boundPartyActors.Where(actor => actor >= 0).ToArray();
         while (pending.TryDequeue(out EventScript? script))
         {
@@ -165,10 +176,15 @@ internal sealed partial class GameWorld
             {
                 continue;
             }
-            foreach (int index in script.ReachableOperations)
+            IEnumerable<int> operations = phase is null ? script.ReachableOperations : WalkRejectionPhaseOperations(phase, program, script, phaseReads);
+            foreach (int index in operations)
             {
                 inspectedOperations?.Add(index);
                 JsmOperation operation = program.Operations[index];
+                if (phase is not null && WalkRejectionWriteWidth(operation.Opcode) is > 0 and var width)
+                {
+                    writes.Add((operation.Parameter, width));
+                }
                 bool partyRequest = operation.Opcode is Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
                 bool objectRequest = operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW;
                 if (partyRequest || objectRequest)
@@ -242,7 +258,91 @@ internal sealed partial class GameWorld
                 }
             }
         }
-        return worldSource is null || inspected.Contains(worldSource);
+        return (worldSource is null || inspected.Contains(worldSource)) && (phase is null || phaseReads.Count != 0 && !phaseReads.Any(read => writes.Any(write => read.Address < write.Address + write.Width && write.Address < read.Address + read.Width)));
+    }
+
+    private static IEnumerable<int> WalkRejectionPhaseOperations(EventEngine events, JsmProgram program, EventScript script, HashSet<(int Address, int Width)> phaseReads)
+    {
+        Stack<int> pending = new([script.Start]);
+        HashSet<int> visited = [];
+        while (pending.TryPop(out int index))
+        {
+            if (!script.ContainsOperation(index) || !visited.Add(index))
+            {
+                continue;
+            }
+            yield return index;
+            JsmOperation operation = program.Operations[index];
+            switch (operation.Opcode)
+            {
+                case Jsm.Opcode.RET:
+                case Jsm.Opcode.HALT:
+                    break;
+                case Jsm.Opcode.JMP:
+                    pending.Push(JsmProgram.JumpTarget(index, operation.Parameter));
+                    break;
+                case Jsm.Opcode.JPF:
+                    bool? equal = ReadWalkRejectionPhaseEquality(events, program, script, index, phaseReads);
+                    if (equal != true)
+                    {
+                        pending.Push(JsmProgram.JumpTarget(index, operation.Parameter));
+                    }
+                    if (equal != false)
+                    {
+                        pending.Push(index + 1);
+                    }
+                    break;
+                default:
+                    pending.Push(index + 1);
+                    break;
+            }
+        }
+    }
+
+    private static bool? ReadWalkRejectionPhaseEquality(EventEngine events, JsmProgram program, EventScript script, int jump, HashSet<(int Address, int Width)> phaseReads)
+    {
+        int start = jump - 3;
+        if (start < script.Start || !script.ContainsOperation(start) || !script.ContainsOperation(start + 1) || !script.ContainsOperation(start + 2) ||
+            program.Operations[start + 1] is not { Opcode: Jsm.Opcode.PSHN_L } literal || program.Operations[start + 2] is not { Opcode: Jsm.Opcode.CAL, Parameter: 6 } ||
+            AutoPlaySourceHasInteriorEntry(program, script, start, jump))
+        {
+            return null;
+        }
+        JsmOperation read = program.Operations[start];
+        int width = read.Opcode switch
+        {
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B => 1,
+            Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W => 2,
+            Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L => 4,
+            _ => 0
+        };
+        // Field temporary bytes have a single memory owner. Other typed owners can
+        // change through operations other than POPM, so their branches remain open.
+        if (width == 0 || read.Parameter < 1024 || read.Parameter > 1280 - width)
+        {
+            return null;
+        }
+        try
+        {
+            NativeScalarValue value = ReadWalkRejectionTemporary(events, read, width);
+            if (!value.IsExact)
+            {
+                return null;
+            }
+            phaseReads.Add((read.Parameter, width));
+            return value.RequireExact() == literal.Parameter;
+        }
+        catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    private static NativeScalarValue ReadWalkRejectionTemporary(EventEngine events, JsmOperation operation, int width)
+    {
+        bool signed = operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W;
+        NativeScalarValue value = events.EventMemory.Read(operation.Parameter, width, signed);
+        return operation.Opcode == Jsm.Opcode.PSHSM_L ? value.SaturateSignedLong() : value;
     }
 
     private static bool TryReadAutoPlayWorldPacket(JsmProgram program, EventScript script, int operation, out WorldTransition? packet)
@@ -289,17 +389,19 @@ internal sealed partial class GameWorld
 
     private static bool IsAutoPlayWalkRejectionSourceOperation(JsmOperation operation)
     {
-        int width = operation.Opcode switch
-        {
-            Jsm.Opcode.POPM_B => 1,
-            Jsm.Opcode.POPM_W => 2,
-            Jsm.Opcode.POPM_L => 4,
-            _ => 0
-        };
+        int width = WalkRejectionWriteWidth(operation.Opcode);
         if (width != 0)
         {
             return operation.Parameter >= 1024 && operation.Parameter <= 1280 - width;
         }
         return operation.Opcode is Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHAC or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.WAIT or Jsm.Opcode.AMESW or Jsm.Opcode.CTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MOVE or Jsm.Opcode.JOIN or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.BGOFF or Jsm.Opcode.RUNENABLE;
     }
+
+    private static int WalkRejectionWriteWidth(Jsm.Opcode opcode) => opcode switch
+    {
+        Jsm.Opcode.POPM_B => 1,
+        Jsm.Opcode.POPM_W => 2,
+        Jsm.Opcode.POPM_L => 4,
+        _ => 0
+    };
 }

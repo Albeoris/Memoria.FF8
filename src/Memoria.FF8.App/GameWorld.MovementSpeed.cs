@@ -6,6 +6,12 @@ internal sealed partial class GameWorld
 {
     private int worldMovementSpeedPercent = PlayerMovementSpeed.DefaultPercent;
 
+    internal bool AutoPlayFastMovement
+    {
+        get => Events.AutoPlayFastMovement;
+        set => Events.AutoPlayFastMovement = value;
+    }
+
     public void ConfigureMovementSpeeds(int fieldPercent, int worldPercent)
     {
         PlayerMovementSpeed.ValidatePercent(fieldPercent);

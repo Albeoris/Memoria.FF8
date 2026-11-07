@@ -1,10 +1,14 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    public bool AutoPlayFastMovement { get; set; }
+    private float autoPlayMovementDistance;
+
     /// <summary>Empty native contact slots still dispatch normally, but do not interrupt an autoplay walk.</summary>
     public bool HasPendingAutoPlayInteraction(int objectId)
     {
@@ -41,6 +45,54 @@ public sealed partial class EventEngine
     }
 
     public float AutoPlayMovementStepDistance => AutoPlayMovementProbeSpeed / 256f;
+
+    private int AutoPlayFastStepSpeed(ActorState player, FieldFixedPosition position, int speed, float targetDistance)
+    {
+        if (!AutoPlayFastMovement || !CanAcceptMovementInput || services.IsMoviePlaying || targetDistance * 256 <= speed)
+        {
+            return 0;
+        }
+        int fast = (int)Math.Min(7929 * PlayerMovementSpeed.AutoPlayTranslationMultiplier, Math.Min(speed * PlayerMovementSpeed.AutoPlayTranslationMultiplier, targetDistance * 256));
+        Vector2 current = new(position.X / 4096f, position.Y / 4096f);
+        float translation = fast / 256f;
+        float contactReach = translation + player.PushRadius + 2;
+        bool NearLine(Vector3 start, Vector3 end)
+        {
+            return current.X >= Math.Min(start.X, end.X) - contactReach && current.X <= Math.Max(start.X, end.X) + contactReach
+                && current.Y >= Math.Min(start.Y, end.Y) - contactReach && current.Y <= Math.Max(start.Y, end.Y) + contactReach;
+        }
+        bool NearArea(InfAreaTrigger area)
+        {
+            // INF area modes also evaluate the side of the extended line.
+            Vector2 edge = new(area.End.X - area.Start.X, area.End.Y - area.Start.Y);
+            return NearLine(area.Start, area.End) || Math.Abs(edge.X * (current.Y - area.Start.Y) - edge.Y * (current.X - area.Start.X)) <= contactReach * edge.Length();
+        }
+        if (InfGateways.Any(gate => gate.Destination.FieldId != 0x7FFF && NearLine(gate.Start, gate.End)) || InfAreaTriggers.Any(area => area.AreaIndex != 0xFF && NearArea(area)))
+        {
+            return 0;
+        }
+        foreach (ActorState actor in actors)
+        {
+            if (actor.LineEnabled && (actor.LineContact || actor.LineStart is not Vector3 start || actor.LineEnd is not Vector3 end || NearLine(start, end)))
+            {
+                return 0;
+            }
+        }
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            ActorState peer = actors[objectId];
+            if (peer.ObjectId == player.ObjectId || peer.ModelId is -1 or 65535 || !peer.CollisionEnabled && !peer.PushEnabled)
+            {
+                continue;
+            }
+            float reach = contactReach + (player.PushRadius + peer.PushRadius) / 2f;
+            if (!(Vector2.DistanceSquared(current, new(peer.X, peer.Y)) > reach * reach))
+            {
+                return 0;
+            }
+        }
+        return fast;
+    }
 
     private int AutoPlayMovementProbeSpeed
     {
@@ -81,17 +133,21 @@ public sealed partial class EventEngine
             axes = Vector2.Normalize(axes);
         }
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
-        NativePlayerMovementQuery query = new(player.ObjectId, triangle, position.X, position.Y, position.Z, direction, (short)AutoPlayMovementProbeSpeed, player.PushRadius, retry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, PlayerMovementSpeedPercent);
+        int speed = AutoPlayMovementProbeSpeed;
+        int fastSpeed = AutoPlayFastStepSpeed(player, position, speed, worldDelta.Length());
+        NativePlayerMovementQuery query = new(player.ObjectId, triangle, position.X, position.Y, position.Z, direction, (short)speed, player.PushRadius, retry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, PlayerMovementSpeedPercent, fastSpeed);
         return ResolveNativePlayerMovement(query) ?? throw new NotSupportedException("Autoplay walking encountered an unsupported native movement probe.");
     }
 
     /// <summary>Observes a real callback while preserving the host's existing movement and gateway observers.</summary>
-    public (bool? MovementAccepted, int? GatewayIndex) ObserveAutoPlayMovement(Action callback)
+    public (bool? MovementAccepted, int? GatewayIndex) ObserveAutoPlayMovement(Action callback, float targetDistance = 0)
     {
         Action<bool>? previousMovement = NativePlayerMovementProcessed;
         Action<int>? previousGateway = observeInfGatewayAdmission;
         bool? accepted = null;
         int? gateway = null;
+        float previousDistance = autoPlayMovementDistance;
+        autoPlayMovementDistance = targetDistance;
         NativePlayerMovementProcessed = value =>
         {
             accepted = value;
@@ -111,6 +167,7 @@ public sealed partial class EventEngine
         {
             NativePlayerMovementProcessed = previousMovement;
             observeInfGatewayAdmission = previousGateway;
+            autoPlayMovementDistance = previousDistance;
         }
     }
 }

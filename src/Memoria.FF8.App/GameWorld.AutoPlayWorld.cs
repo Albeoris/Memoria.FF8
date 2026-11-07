@@ -61,7 +61,9 @@ internal sealed partial class GameWorld
                 {
                     return WorldTravelBlocked(scene, callbacks, "Ordinary world movement exceeded its bounded route callbacks.");
                 }
-                PlayerActionResult result = Apply(WorldNavigationGuide.Next(before, x, z));
+                PlayerAction move = WorldNavigationGuide.Next(before, x, z);
+                int? ordinaryStride = null;
+                PlayerActionResult result = AutoPlayFastMovement ? scene.ApplyAutoPlayFootMove(x, z, () => Apply(move), out ordinaryStride) : Apply(move);
                 callbacks += result.FramesAdvanced;
                 if (!result.Accepted || result.FramesAdvanced == 0 || result.Trigger.Kind != PlayerTriggerKind.WorldMap || scene.State.EventUi is { ScriptMode: not 0 })
                 {
@@ -73,7 +75,7 @@ internal sealed partial class GameWorld
                 long traveled = WorldDistanceSquared(before.X, before.Z, nextX, nextZ);
                 if (traveled != 0)
                 {
-                    stride = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(traveled)));
+                    stride = ordinaryStride ?? Math.Max(1, (int)Math.Ceiling(Math.Sqrt(traveled)));
                 }
                 long remaining = WorldDistanceSquared(nextX, nextZ, x, z);
                 if (remaining < Math.Min(bestDistance, distance))

@@ -69,7 +69,7 @@ internal sealed partial class AutoPlayController
         AutoPlayContactSource current = CaptureContactSource(world, VisitKey(), CurrentNavigationKey(world, VisitKey()), pending.Source.Target);
         AutoPlayWalkRejectionGuard? guard = CaptureWalkRejectionGuard(world, pending.Guard.EventId, pending.Guard.ObjectId);
         FieldFixedPosition position = world.Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("A returned walking attempt requires its native position.");
-        if (guard == pending.Guard && SameWalkSourceDomain(pending.Source, current) && WalkReturnedWithoutAdvance(pending.Source.Target, pending.Position, position))
+        if (guard == pending.Guard && SameWalkReturnDomain(pending.Source, current, pending.Position, position) && WalkReturnedWithoutAdvance(pending.Source.Target, pending.Position, position))
         {
             AutoPlayWalkRejection rejection = new(pending.Source, pending.Guard, pending.Position);
             if (!run.WalkRejections.Contains(rejection))
@@ -98,6 +98,17 @@ internal sealed partial class AutoPlayController
     private static bool SameWalkSourceDomain(AutoPlayContactSource before, AutoPlayContactSource after)
     {
         return before with { PlayerPosition = before.PlayerPosition with { Direction = 0 } } == after with { PlayerPosition = after.PlayerPosition with { Direction = 0 } };
+    }
+
+    internal static bool SameWalkReturnDomain(AutoPlayContactSource before, AutoPlayContactSource after, FieldFixedPosition original, FieldFixedPosition returned)
+    {
+        // A scripted return to the exact same shared edge may resolve either
+        // triangle. Keep the original triangle when matching a future attempt.
+        if (original == returned)
+        {
+            after = after with { PlayerPosition = after.PlayerPosition with { Triangle = before.PlayerPosition.Triangle } };
+        }
+        return SameWalkSourceDomain(before, after);
     }
 
     internal static bool IsWalkRejected(AutoPlayContactSource source, FieldFixedPosition position, AutoPlayWalkRejectionGuard? guard, IReadOnlyList<AutoPlayWalkRejection> rejections)
