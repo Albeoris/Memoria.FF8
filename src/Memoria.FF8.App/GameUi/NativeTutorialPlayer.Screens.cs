@@ -39,8 +39,24 @@ internal sealed partial class NativeTutorialPlayer
             Register("switch-party-target", "Switch Member", c => SwitchTargets(c, "tutorial-party"));
             Register("switch-junction", "Junction Exchange", c => SwitchChoices(c, "switch-junction-target"));
             Register("switch-junction-target", "Junction Exchange", c => SwitchTargets(c, "tutorial-exchange-preview"));
-            Register("switch-junction-confirm", "Junction Exchange", c => [new("yes", c.SystemText("junction.exchange.yes", "Yes"), "", Action: new MenuAction("tutorial-exchange", settings.GetValueOrDefault("Exchange source", "1"), settings.GetValueOrDefault("Exchange target", "3"))), new("no", c.SystemText("junction.exchange.no", "No"), "", "switch-junction")], c => [Menu.FormatNativeTutorialText(catalog.SwitchLabels[12].Value.Replace("{Dialog SelectedCharacter}", c.Data.Characters.FirstOrDefault(character => character.Id == settings.GetValueOrDefault("Exchange source"))?.Name ?? "", StringComparison.Ordinal).Replace("{Dialog SelectedMagic}", c.Data.Characters.FirstOrDefault(character => character.Id == settings.GetValueOrDefault("Exchange target"))?.Name ?? "", StringComparison.Ordinal), names)]);
+            Menu.Register(new MenuScreenDefinition
+            {
+                Id = "switch-junction-confirm",
+                Title = "Junction Exchange",
+                Help = definition.Title,
+                Layout = MenuLayout.Character,
+                Entries = c => [new("yes", c.SystemText("junction.exchange.yes", "Yes"), "", Action: new MenuAction("tutorial-exchange", settings.GetValueOrDefault("Exchange source", "1"), settings.GetValueOrDefault("Exchange target", "3"))), new("no", c.SystemText("junction.exchange.no", "No"), "", "switch-junction")],
+                Details = c => [TutorialJunctionExchangeMessage(c)],
+                BuildContent = (controller, panel) => panel.Children.Add(controller.BuildTutorialJunctionExchangePrompt(TutorialJunctionExchangeMessage(controller)))
+            });
         }
+    }
+
+    private string TutorialJunctionExchangeMessage(MenuController controller)
+    {
+        string CharacterName(string setting) => controller.Data.Characters.FirstOrDefault(character => character.Id == settings.GetValueOrDefault(setting))?.Name ?? "";
+        string message = catalog.SwitchLabels[12].Value.Replace("{Dialog SelectedCharacter}", CharacterName("Exchange source"), StringComparison.Ordinal).Replace("{Dialog SelectedMagic}", CharacterName("Exchange target"), StringComparison.Ordinal);
+        return controller.FormatNativeTutorialText(message, names);
     }
 
     private string? GuardianForceLessonMessage() => textId switch

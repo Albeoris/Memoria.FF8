@@ -33,17 +33,26 @@ internal static class SnapshotModelPartMigration
                     continue;
                 }
                 string address = path + ".Resources[" + model + "]";
-                RequireKeys(resource, address, "SourceHash", "SourceOffset", "Parts", "SkinFlags");
+                bool hasSkinFlags = resource.ContainsKey("SkinFlags");
+                if (hasSkinFlags)
+                {
+                    RequireKeys(resource, address, "SourceHash", "SourceOffset", "Parts", "SkinFlags");
+                }
+                else
+                {
+                    RequireKeys(resource, address, "SourceHash", "SourceOffset", "Parts");
+                }
                 if (resource["SourceHash"] is not JsonValue hashValue || !hashValue.TryGetValue(out string? hash) || hash is null || hash.Length != 64 || !hash.All(Uri.IsHexDigit))
                 {
                     throw new InvalidDataException(address + ": invalid legacy resource provenance.");
                 }
                 ReadInteger(resource["SourceOffset"], address + ".SourceOffset", 0, int.MaxValue);
-                if (resource["Parts"] is not JsonArray rows || rows.Count > 1000 || resource["SkinFlags"] is not JsonArray flags || flags.Count > 1000)
+                JsonArray? flags = resource["SkinFlags"] as JsonArray;
+                if (resource["Parts"] is not JsonArray rows || rows.Count > 1000 || hasSkinFlags && (flags is null || flags.Count > 1000))
                 {
                     throw new InvalidDataException(address + ": legacy model tables must be bounded arrays.");
                 }
-                foreach (JsonNode? flag in flags)
+                foreach (JsonNode? flag in flags ?? [])
                 {
                     ReadInteger(flag, address + ".SkinFlags", ushort.MinValue, ushort.MaxValue);
                 }
@@ -56,11 +65,12 @@ internal static class SnapshotModelPartMigration
                         throw new InvalidDataException(rowAddress + ": expected sixteen signed native WORDs.");
                     }
                     int[] words = row.Select(word => ReadInteger(word, rowAddress, short.MinValue, short.MaxValue)).ToArray();
-                    if (words[0] < 0 || words[1] < 0 || words[0] + words[1] > flags.Count || words[7] is not (0 or 1 or 4))
+                    if (words[0] < 0 || words[1] < 0 || flags is not null && words[0] + words[1] > flags.Count || words[7] is not (0 or 1 or 4))
                     {
                         throw new InvalidDataException(rowAddress + ": invalid skin span or unsupported translation mode.");
                     }
-                    for (int skin = words[0]; skin < words[0] + words[1]; skin++)
+                    // Earlier saves omit the registration cache. Current rendering takes skin bindings from the selected model definition.
+                    for (int skin = words[0]; flags is not null && skin < words[0] + words[1]; skin++)
                     {
                         if (ReadInteger(flags[skin], address + ".SkinFlags", ushort.MinValue, ushort.MaxValue) != 0)
                         {

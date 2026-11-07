@@ -214,7 +214,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeWorldProcess carProcess = session.State.WorldProcess ?? throw new NotSupportedException("Native car loader requires its executed process camera-follow owner.");
                     carProcess.Validate();
                     NativeSavedWorldPose carPose = new(x, z, checked((short)height), carReload?.Pose.Yaw ?? checked((ushort)((spawn.Unknown >> 8) * 16)));
-                    NativeWorldFootCameraState carProjection = new(x, z, height, x, z, height - 256, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16, -112, -341, -7168);
+                    NativeWorldFootCameraState carProjection = InitialCarProjection(x, z, height, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16);
                     initialCarRuntime = CreateCarObjectLoader(arrival, inputs, carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carPose, carProjection);
                     if (carReload is not null)
                     {
@@ -258,29 +258,34 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             else
             {
-                replacements = WorldTerrainSelection.Replacements(State.ReplacementMask);
-                if (!car)
-                {
-                    State.NativeFootRuntime!.RequireNativeGroundState();
-                    assets.ValidateNativeGroundCache(State.NativeFootRuntime.GroundCache!, replacements);
-                }
+                WorldState restored = car ? CompleteHistoricalCarLoad(State, arrival, inputs) : State;
+                replacements = WorldTerrainSelection.Replacements(restored.ReplacementMask);
                 if (car)
                 {
-                    State.NativeCarRuntime!.Validate();
-                    assets.ValidateNativeGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
+                    restored.NativeCarRuntime!.Validate();
+                    assets.ValidateNativeGroundCache(restored.NativeCarRuntime.GroundCache!, replacements);
+                }
+                else
+                {
+                    restored.NativeFootRuntime!.RequireNativeGroundState();
+                    assets.ValidateNativeGroundCache(restored.NativeFootRuntime.GroundCache!, replacements);
                 }
                 if (parkedGarden)
                 {
-                    ValidateParkedGarden(State, arrival, inputs, battleReload);
+                    ValidateParkedGarden(restored, arrival, inputs, battleReload);
                 }
-                EnsureContactCertificate(State);
-                if (State.NativeFootRuntime?.NormalObjects is not null)
+                EnsureContactCertificate(restored);
+                if (restored.NativeFootRuntime?.NormalObjects is not null)
                 {
-                    ValidateNormalFootObjects(State, true);
+                    ValidateNormalFootObjects(restored, true);
                 }
                 if (stationFoot)
                 {
-                    ValidateStationTrainResources(State.NativeFootRuntime!);
+                    ValidateStationTrainResources(restored.NativeFootRuntime!);
+                }
+                if (!ReferenceEquals(restored, State))
+                {
+                    session.SetWorldState(restored);
                 }
             }
         }

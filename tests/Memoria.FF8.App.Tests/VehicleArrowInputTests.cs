@@ -77,8 +77,12 @@ public sealed class VehicleArrowInputTests
     {
         string fixture = TestResources.FixturePath("App.Tests.AutoPlayCarWorldTests.1");
         GameSession session = new(GameSession.Load(fixture));
+        long loadedFrame = session.State.World!.Frame;
+        NativeSavedWorldState savedWorld = session.State.SavedWorld!;
         using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false);
         Assert.True(world.EnsureField());
+        Assert.Equal(loadedFrame, session.State.World!.Frame);
+        Assert.Equal(savedWorld, session.State.SavedWorld);
         Assert.Equal(0, session.State.World!.NativeCarRuntime!.Speed);
         GameSession independent = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         using GameWorld restored = new(independent, TestResources.GameDirectory, validateWorldPresentation: false);

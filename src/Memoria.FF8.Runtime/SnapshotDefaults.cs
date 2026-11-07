@@ -140,7 +140,8 @@ internal static class SnapshotDefaults
             // An absent enemy map selects the historical Guest domain; cold-process ownership is not a missing default.
             saved.Add(name, name == nameof(NativeBattleModelCpuResources.EnemyResources) ? null : value?.DeepClone());
         }
-        else if (name != "MagicSystem" && current is JsonObject savedObject && value is JsonObject defaultObject)
+        // A retained timer's display intensity is optional. The cold process cannot supply it to only one saved copy.
+        else if (name is not ("MagicSystem" or nameof(GameState.ExamTimer)) && current is JsonObject savedObject && value is JsonObject defaultObject)
         {
             Complete(savedObject, defaultObject, name is "EffectMemory" or "NativeEffectMemory");
         }

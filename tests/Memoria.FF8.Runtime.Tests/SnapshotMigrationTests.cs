@@ -33,16 +33,44 @@ public sealed class SnapshotMigrationTests
         Assert.Equal(original, saved.ToJsonString());
     }
 
+    [Fact]
+    public void Historical_timer_copies_keep_unknown_display_intensity_and_saved_clock()
+    {
+        JsonObject saved = LegacySnapshot();
+        NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(0).AdvanceCallbacks(NativeTimerCallbackKind.World, 30);
+        JsonObject olderTimer = JsonSerializer.SerializeToNode(timer, Options)!.AsObject();
+        olderTimer.Remove(nameof(NativeExamTimerState.DisplayIntensity814));
+        saved["ExamTimer"] = olderTimer;
+        saved["EventState"]!["ExamTimer"] = olderTimer.DeepClone();
+        saved["DepartingFieldState"] = saved["EventState"]!.DeepClone();
+
+        GameState restored = Deserialize(saved);
+
+        Assert.Null(restored.ExamTimer!.DisplayIntensity814);
+        Assert.Equal(timer.ClockCalls, restored.ExamTimer.ClockCalls);
+        Assert.Equal(timer.Alternatives, restored.ExamTimer.Alternatives);
+        foreach (JsonElement vm in new[] { restored.EventState!.Value, restored.DepartingFieldState!.Value })
+        {
+            Assert.Equal(restored.ExamTimer.DisplayIntensity814, vm.GetProperty("ExamTimer").Deserialize<NativeExamTimerState>(Options)!.DisplayIntensity814);
+        }
+    }
+
     [Theory]
-    [InlineData(1)]
-    [InlineData(4)]
-    public void Legacy_dynamic_words_are_preserved_without_advancing_a_callback(short mode)
+    [InlineData(1, true)]
+    [InlineData(4, true)]
+    [InlineData(1, false)]
+    [InlineData(4, false)]
+    public void Legacy_dynamic_words_are_preserved_without_advancing_a_callback(short mode, bool hasSkinFlags)
     {
         JsonObject saved = LegacySnapshot();
         JsonObject bank = Bank(saved);
         bank["Draws"] = new JsonObject();
         short[] words = [0, 1, 7, 0, -101, 102, -103, mode, 0, 0, 0, 0, 201, -202, 203, 15];
         bank["Resources"]!["2"]!["Parts"] = JsonSerializer.SerializeToNode(new[] { words });
+        if (!hasSkinFlags)
+        {
+            bank["Resources"]!["2"]!.AsObject().Remove("SkinFlags");
+        }
 
         GameState restored = Deserialize(saved);
         JsonElement json = restored.EventState!.Value.GetProperty("Scene").GetProperty("ModelParts").GetProperty("Resources").GetProperty("2");
@@ -144,7 +172,6 @@ public sealed class SnapshotMigrationTests
     [InlineData("SourceHash")]
     [InlineData("SourceOffset")]
     [InlineData("Parts")]
-    [InlineData("SkinFlags")]
     public void Incomplete_legacy_resources_are_rejected(string missing)
     {
         JsonObject saved = LegacySnapshot();

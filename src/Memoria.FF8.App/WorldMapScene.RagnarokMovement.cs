@@ -43,7 +43,8 @@ internal sealed partial class WorldMapScene
         NativeWorldForestState forest = runtime.Forest ?? throw new NotSupportedException("Ragnarok requires its original555B20 particle/random pool owner.");
         if (!mapOnly)
         {
-            int previousHeight = runtime.PreviousParticleNativeHeight ?? throw new NotSupportedException("Ragnarok thrust requires the preceding original particle height owner; migrate this snapshot before use.");
+            // The preceding callback records the same pre-terrain height in both owners.
+            int previousHeight = runtime.PreviousParticleNativeHeight ?? oldCamera.NativeHeight;
             NativeRagnarokWorldObject body = runtime.Objects[runtime.Allocation.RagnarokIndex] with { Position = new(before.X, before.NativeHeight, -before.Z), Pitch = motor.State.BodyPitch, Yaw = checked((short)motor.State.BodyYaw), Roll = motor.State.BodyRoll };
             NativeWorldPathPosition follow = new(motor.MotionX, before.NativeHeight - previousHeight, motor.MotionGraphicsZ);
             forest = forest.AdvanceRagnarok(before.GroundType ?? throw new InvalidDataException("Ragnarok particle update lost its current native ground type."), body, runtime.CurrentGroundHeight!.Value, priorGraphicsSpeed, follow, scriptMode, assets.ForestTables.RagnarokThrustOffsets, assets.ForestTables.Random, assets.ForestTables.Effects);

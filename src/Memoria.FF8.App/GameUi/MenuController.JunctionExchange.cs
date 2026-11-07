@@ -1,3 +1,5 @@
+using Memoria.FF8.Ui;
+
 namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
@@ -47,7 +49,15 @@ public sealed partial class MenuController
                 new MenuEntry("no", c.SystemText("junction.exchange.no", "No"), c.SystemText("junction.exchange.keep", "Keep the current junctions."), Action: new MenuAction("menu-back")),
                 new MenuEntry("yes", c.SystemText("junction.exchange.yes", "Yes"), c.SystemText("junction.exchange.accept", "Exchange junctions and apply the new HP maximum."), Action: new MenuAction("switch-junction-confirm"))
             ],
-            BuildContent = (menus, root) => root.Children.Add(menus.BuildJunctionExchangePrompt(menus.SystemText("junction.exchange.hp-warning", "Current HP will be reduced to the new maximum. Exchange junctions?")))
+            BuildContent = (menus, root) =>
+            {
+                var content = Grid([3, 2], [1], 12);
+                UiLabel prompt = menus.Label(menus.SystemText("junction.exchange.hp-warning", "Current HP will be reduced to the new maximum. Exchange junctions?"), 24);
+                prompt.TextFlow = UiTextFlow.Wrap;
+                Place(content, prompt, 0);
+                Place(content, menus.Commands(36, 24), 1);
+                root.Children.Add(menus.Panel(menus.SystemText("junction.exchange.title", "Junction Exchange"), content));
+            }
         });
         Push("switch-junction-confirm");
         Select(0, Entries.Count);

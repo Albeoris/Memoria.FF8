@@ -34,7 +34,34 @@ internal sealed partial class WorldMapScene
         }
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         NativeCarWorldRuntimeState car = NativeCarWorldRuntimeState.Create(departure, cache, process, entity, entity == 33 ? null : allocation, entity == 33 ? null : camera);
+        return CompleteDenseCarLoad(car, allocation, camera, inputs);
+    }
+
+    private NativeCarWorldRuntimeState CompleteDenseCarLoad(NativeCarWorldRuntimeState car, NativeTrainWorldAllocation allocation, NativeWorldFootCameraState camera, WorldEntryVariables inputs)
+    {
         car = car with { Allocation = allocation, ProjectionCamera = camera, ObjectProcess = CreateCarObjectProcess(allocation, camera) };
         return InitializeCarAllocation(car, session.State.SavedWorld!, inputs);
     }
+
+    private WorldState CompleteHistoricalCarLoad(WorldState state, WorldTransition arrival, WorldEntryVariables inputs)
+    {
+        if (state is not { Frame: 0, NativeFootRuntime: null, NativeCarRuntime: { Allocation: null, ObjectProcess: null, GardenObjects: null, RagnarokObjects: null, Boarding: null, CameraTransition: null, Speed: 0, AppendedObjects.IsEmpty: true, AllocationReplacementFlags264: null, AllocationGuardianForce13Flags: null } car } ||
+            arrival.Mode != car.EntityType || state.CameraTargetX != state.X || state.CameraTargetZ != state.Z || state.CameraTargetNativeHeight != state.NativeHeight - 256)
+        {
+            return state;
+        }
+        NativeWorldAllocationClause clause = assets.ReadWorldAllocationClause(inputs.StoryWord);
+        if (clause.ContainsShape(1) || clause.ContainsShape(64) || clause.ContainsShape(65))
+        {
+            return state;
+        }
+        // Frame zero precedes every ordinary callback. Rebuild the loader-owned banks from the saved entry inputs.
+        NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native car load requires its saved world process.");
+        NativeWorldFootCameraState camera = car.ProjectionCamera ?? InitialCarProjection(state.X, state.Z, state.NativeHeight, state.CameraYaw);
+        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
+        car = car with { Forest = car.Forest ?? NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
+        return state with { NativeCarRuntime = CompleteDenseCarLoad(car, allocation, camera, inputs) };
+    }
+
+    private static NativeWorldFootCameraState InitialCarProjection(int x, int z, int height, int yaw) => new(x, z, height, x, z, height - 256, yaw, -112, -341, -7168);
 }

@@ -51,10 +51,6 @@ public sealed partial class MenuController
 
     private UiElement BuildNativeSwitch()
     {
-        if (ScreenId == "switch-junction-confirm")
-        {
-            return BuildJunctionExchangePrompt(CurrentScreen.Details(this).Single());
-        }
         bool root = ScreenId == "switch";
         var page = Grid([1.3f, 4.7f], [1], 4);
         UiElement strip;
@@ -84,7 +80,7 @@ public sealed partial class MenuController
         return page;
     }
 
-    private UiElement BuildJunctionExchangePrompt(string message)
+    internal UiElement BuildTutorialJunctionExchangePrompt(string message)
     {
         var content = Grid([3, 2], [1], 12);
         Place(content, Label(message, 24, UiTextFlow.Wrap), 0);
@@ -98,7 +94,8 @@ public sealed partial class MenuController
         {
             return null;
         }
-        return Data.Characters.FirstOrDefault(character => character.Id == entry.Id);
+        string id = entry.Action?.Kind is "party-switch" or "junction-exchange" or "tutorial-party" or "tutorial-exchange-preview" ? entry.Action.TargetId : entry.Action?.SubjectId ?? entry.Id;
+        return Data.Characters.FirstOrDefault(character => character.Id == id);
     }
 
     private UiElement NativeSwitchMembers(MenuCharacter[] characters, bool reserves, bool interactive)
