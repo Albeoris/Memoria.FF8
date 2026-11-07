@@ -195,7 +195,7 @@ public sealed class NativeBattleEffect319PresentationTests
         Assert.NotNull(graphics.Models[3].GeometryWorldMatrix);
         Assert.NotNull(graphics.Models[3].ActiveResourceRow100);
         Assert.NotNull(original.NativeModelCpuResources);
-        Assert.NotEqual(0u, original.NativeModelCpuResources.Rows[graphics.Models[3].ActiveResourceRow100!.Value].Require(12).PhysicalAddress);
+        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.NativeModelCpuResources!, original.NativeFileStaging!, original.NativeModelCpuResources.Rows[graphics.Models[3].ActiveResourceRow100!.Value].Require(12), 4));
         Assert.DoesNotContain(original.Definition.Combatants, actor => actor.SceneSlot > 0 && actor.InitialActive);
         Assert.NotNull(original.NativeFileStaging);
         Assert.True(graphics.Models[0].Transform!.Scale38 > 0);

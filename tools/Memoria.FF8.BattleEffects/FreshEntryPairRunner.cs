@@ -76,10 +76,11 @@ public static partial class PilotRunner
                 string settings = Path.Combine(root, "settings");
                 string control = Path.Combine(root, "control");
                 Directory.CreateDirectory(root);
-                if (manifest.MuteOutput)
+                byte[]? presentationSettings = PilotPresentationSettings.CreateUiSettings(manifest.MuteOutput, manifest.PresentationVSync);
+                if (presentationSettings is not null)
                 {
                     Directory.CreateDirectory(settings);
-                    OwnedChildSupervisor.PublishTransientImmutable(Path.Combine(settings, "ui-settings.json"), JsonSerializer.SerializeToUtf8Bytes(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
+                    OwnedChildSupervisor.PublishTransientImmutable(Path.Combine(settings, "ui-settings.json"), presentationSettings);
                 }
                 string entryRecipe = Path.Combine(root, "bootstrap.json");
                 OwnedChildSupervisor.PublishTransientImmutable(entryRecipe, recipe);

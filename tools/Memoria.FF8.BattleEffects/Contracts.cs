@@ -31,3 +31,27 @@ public sealed record PassRecord(int SchemaVersion, string RunPassId, string Camp
 public sealed record PlanIssue(string Identity, string Message);
 public sealed record PlanValidation(bool Valid, PlanIssue[] Issues, int Effects, int Cases, int Unresolved);
 public sealed record SupervisorLaunch(int SchemaVersion, string Executable, string[] Arguments, string WorkingDirectory, double NoProgressMs, Dictionary<string, string>? Environment);
+
+/// <summary>Explicit settings for an isolated benchmark host; absent overrides preserve the host defaults.</summary>
+public static class PilotPresentationSettings
+{
+    public static byte[]? CreateUiSettings(bool muteOutput, bool? presentationVSync)
+    {
+        if (!muteOutput && presentationVSync is null)
+        {
+            return null;
+        }
+        Dictionary<string, object> settings = [];
+        if (muteOutput)
+        {
+            settings.Add("MusicVolume", 0);
+            settings.Add("SoundVolume", 0);
+            settings.Add("VoiceVolume", 0);
+        }
+        if (presentationVSync is bool vSync)
+        {
+            settings.Add("VSync", vSync);
+        }
+        return JsonSerializer.SerializeToUtf8Bytes(settings);
+    }
+}

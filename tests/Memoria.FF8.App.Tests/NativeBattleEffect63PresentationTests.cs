@@ -187,7 +187,7 @@ public sealed class NativeBattleEffect63PresentationTests
         Assert.Equal(2, NativeBattleBodyBoneMatrices.Require(graphics.Models[4], pose).Length);
         Assert.NotNull(graphics.Models[4].GeometryWorldMatrix);
         int row = graphics.Models[4].ActiveResourceRow100 ?? throw new InvalidDataException("Effect63 requires its physical current CPU row.");
-        Assert.NotEqual(0u, original.NativeModelCpuResources!.Rows[row].Require(12).PhysicalAddress);
+        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.NativeModelCpuResources!, original.NativeFileStaging!, original.NativeModelCpuResources!.Rows[row].Require(12), 4));
         Assert.NotNull(original.NativeFileStaging);
         Assert.True(graphics.Models[0].Transform!.Scale38 > 0);
         BattleNativeAction action = Assert.Single(assets.NativeActions, value => value.Command == 8 && value.ActionId == 361 && value.MagicId == 63 && value.KernelSection == 3 && value.KernelIndex == 361);

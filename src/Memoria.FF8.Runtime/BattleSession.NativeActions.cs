@@ -345,7 +345,9 @@ public sealed partial class BattleSession
                 SetNativeContactDamage(-revived);
                 FinalizeNativeContactPresentation();
                 recipient.LastNativeHealing = 1;
+                int diagnosticBeforeHp = recipient.CurrentHp;
                 recipient.CurrentHp = revived;
+                ObserveDiagnosticResolution("healing", actor, recipient, revived, diagnosticBeforeHp, recipient.CurrentHp);
                 RecordNativeActionMemory(actor, recipient, command);
                 Log("Healing", actor.Id, recipient.Id, revived, $"{action.Name}: {recipient.Name} revived.");
                 DispatchNativeActionCounter(recipient);

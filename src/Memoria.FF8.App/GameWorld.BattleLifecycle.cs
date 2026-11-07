@@ -193,7 +193,7 @@ internal sealed partial class GameWorld
 
     private void CompleteNativeDefeatIfReady()
     {
-        if (diagnosticBattle is not null)
+        if (diagnosticBattle is not null || IsEffectComponentPreview)
         {
             return;
         }

@@ -189,7 +189,7 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.NotNull(graphics.Models[casterIndex].GeometryWorldMatrix);
         Assert.NotNull(graphics.Models[casterIndex].ActiveResourceRow100);
         Assert.NotNull(original.NativeModelCpuResources);
-        Assert.NotEqual(0u, original.NativeModelCpuResources.Rows[graphics.Models[casterIndex].ActiveResourceRow100!.Value].Require(12).PhysicalAddress);
+        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.NativeModelCpuResources!, original.NativeFileStaging!, original.NativeModelCpuResources.Rows[graphics.Models[casterIndex].ActiveResourceRow100!.Value].Require(12), 4));
 
         Assert.NotNull(original.NativeFileStaging);
         Assert.True(graphics.Models[0].Transform!.Scale38 > 0);

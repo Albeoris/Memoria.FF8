@@ -99,6 +99,10 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             int logicalHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int initialSounds = source.Events.Count(item => item.NativeModuleSound is not null);
             string initialCamera = JsonSerializer.Serialize(source.NativeCamera);
+            if (NativeBattleComponentSelectorCatalog.PublishPreparedSource(effectId, source))
+            {
+                return;
+            }
             battle = BattleSession.Restore(source);
             battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));

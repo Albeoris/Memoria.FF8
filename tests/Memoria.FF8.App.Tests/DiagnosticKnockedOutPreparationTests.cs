@@ -10,9 +10,9 @@ public sealed class DiagnosticKnockedOutPreparationTests
     [InlineData(0, false)]
     [InlineData(1, true)]
     [InlineData(null, true)]
-    public void KoRequiresBothExplicitDeclarationAndZeroSavedHp(ushort? hp, bool knockedOut)
+    public void KoRequiresBothExplicitDeclarationAndZeroSavedHp(int? hp, bool knockedOut)
     {
-        DiagnosticBattlePreparation recipe = new([], [new(1, 1, [], []) { HitPoints = hp, KnockedOut = knockedOut }], true);
+        DiagnosticBattlePreparation recipe = new([], [new(1, 1, [], []) { HitPoints = hp is int value ? checked((ushort)value) : null, KnockedOut = knockedOut }], true);
         Assert.Throws<InvalidDataException>(recipe.Validate);
     }
 

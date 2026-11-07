@@ -21,6 +21,10 @@ internal sealed partial class RecreateGame
     private long? effectPreviewDrainedFrame;
     private BattleNativeAction? effectPreviewAbility;
     private ushort effectPreviewExpectedEffect;
+    private EffectComponentFrameMeasurements? effectComponentMeasurements;
+    private long? effectComponentDrainedTimestamp;
+    private ComponentSourceAdmission? effectPreviewSourceAdmission;
+    private int effectComponentInactivePresentedFrames;
 
     private void StartEffectPreviewHost()
     {
@@ -32,18 +36,24 @@ internal sealed partial class RecreateGame
         effectPreviewBattle = world.StartEffectPreview(request);
         effectPreviewAbility = request.AbilityId is int abilityId ? effectPreviewBattle.ResolveDiagnosticPreviewAbility(request.AbilityCommand, abilityId) : null;
         effectPreviewExpectedEffect = effectPreviewAbility?.MagicId ?? request.EffectId!.Value;
+        effectComponentMeasurements = request.SourceSnapshot is null ? null : new(Stopwatch.Frequency);
+        effectPreviewSourceAdmission = world.ComponentSourceAdmission;
         string receipts = request.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
         DiagnosticPresentationDeclaration transport = request.Presentation ?? new(Path.Combine(receipts, "unused-preview-signal.json"), receipts, Guid.NewGuid().ToString("N"));
         effectPreviewGate = new(transport, effectPreviewExpectedEffect, request.AbilityId is null ? null : request.AbilityCommand, request.AbilityId);
         effectPreviewBattle.DiagnosticEffectDispatched += dispatch =>
         {
-            if (dispatch.RequestedEffect == effectPreviewExpectedEffect && dispatch.ExecutedEffect == effectPreviewExpectedEffect)
+            if (dispatch.RequestedEffect == effectPreviewExpectedEffect && dispatch.ExecutedEffect == effectPreviewExpectedEffect && (request.SourceSnapshot is null || effectPreviewDispatch is null))
             {
                 effectPreviewDispatch = dispatch;
                 effectPreviewDispatchUtc = DateTimeOffset.UtcNow;
+                if (effectComponentMeasurements is { IsActive: false } measurements)
+                {
+                    measurements.Begin(Stopwatch.GetTimestamp());
+                }
             }
         };
-        if (transport.VisualSignalPath is not null)
+        if (transport.VisualSignalPath is not null && request.SourceSnapshot is null)
         {
             effectPreviewBattle.ArmDiagnosticVisualEntry("party-0", effectPreviewAbility?.Command ?? 2, effectPreviewAbility?.ActionId ?? 1, effectPreviewExpectedEffect, boundary =>
             {
@@ -86,22 +96,29 @@ internal sealed partial class RecreateGame
             }
             if (!effectPreviewSubmitted && (request.Presentation is null || effectPreviewGate!.Released(DateTimeOffset.UtcNow)))
             {
-                if (request.AbilityId is int abilityId)
+                if (request.SourceSnapshot is null)
                 {
-                    active.PublishDiagnosticAbilityPreview(request.AbilityCommand, abilityId);
-                }
-                else
-                {
-                    active.PublishDiagnosticEffectPreview(effectPreviewExpectedEffect);
+                    if (request.AbilityId is int abilityId)
+                    {
+                        active.PublishDiagnosticAbilityPreview(request.AbilityCommand, abilityId);
+                    }
+                    else
+                    {
+                        active.PublishDiagnosticEffectPreview(effectPreviewExpectedEffect);
+                    }
                 }
                 effectPreviewSubmitted = true;
                 effectPreviewSubmittedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
+                if (effectPreviewSourceAdmission is not null)
+                {
+                    effectComponentMeasurements!.Begin(Stopwatch.GetTimestamp());
+                }
                 effectPreviewGate!.Write("started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow);
             }
-            if (effectPreviewDispatch is { } dispatch && !effectPreviewPresented)
+            if ((effectPreviewDispatch is not null || effectPreviewSourceAdmission is not null) && !effectPreviewPresented)
             {
-                effectPreviewGate!.Write("visual-started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: dispatch, dispatchUtc: effectPreviewDispatchUtc);
-                if (request.AbilityId is null)
+                effectPreviewGate!.Write("visual-started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: (object?)effectPreviewDispatch ?? effectPreviewSourceAdmission, dispatchUtc: effectPreviewDispatchUtc);
+                if (request.AbilityId is null && request.SourceSnapshot is null)
                 {
                     effectPreviewGate.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "graphical-preview-initialized", effect = effectPreviewExpectedEffect });
                     effectPreviewCompleted = true;
@@ -109,24 +126,40 @@ internal sealed partial class RecreateGame
                 effectPreviewPresented = true;
                 effectPreviewStartedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
             }
-            if (request.AbilityId is not null && effectPreviewPresented && !effectPreviewCompleted)
+            if ((request.AbilityId is not null || request.SourceSnapshot is not null) && effectPreviewPresented && !effectPreviewCompleted)
             {
                 if (active.ObserveDiagnosticDrainBlockers().Count != 0)
                 {
                     effectPreviewDrainedFrame = null;
+                    effectComponentDrainedTimestamp = null;
                 }
                 else if (effectPreviewDrainedFrame is null)
                 {
                     effectPreviewDrainedFrame = diagnosticPresentedFrames;
+                    effectComponentDrainedTimestamp = Stopwatch.GetTimestamp();
                 }
                 else if (diagnosticPresentedFrames - effectPreviewDrainedFrame.Value >= 2)
                 {
-                    effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "full-ability", drained = true, command_id = request.AbilityCommand, ability_id = request.AbilityId, native_command = effectPreviewAbility!.Command, action_id = effectPreviewAbility.ActionId, effect = effectPreviewExpectedEffect });
+                    if (request.SourceSnapshot is not null)
+                    {
+                        EffectComponentFrameReport measurements = effectComponentMeasurements!.Complete(effectComponentDrainedTimestamp);
+                        string output = request.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
+                        WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new { scope = "installed-source-controlled-component-gpu-presentation", source_sha256 = request.SourceSha256, effect = effectPreviewExpectedEffect, native_dispatch = effectPreviewDispatch, native_admission = effectPreviewSourceAdmission, drained = true, tail_presented_frames = diagnosticPresentedFrames - effectPreviewDrainedFrame.Value, host = new { backend = GraphicsHostReadiness.Backend, vsync = uiPreferences.VSync, presentation_interval = GraphicsDevice.PresentationParameters.PresentationInterval.ToString(), frame_limit = uiPreferences.BattleFps, width = GraphicsDevice.PresentationParameters.BackBufferWidth, height = GraphicsDevice.PresentationParameters.BackBufferHeight, msaa_samples = GraphicsDevice.PresentationParameters.MultiSampleCount, inactive_presented_frames = effectComponentInactivePresentedFrames }, measurements });
+                        effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "controlled-component", drained = true, effect = effectPreviewExpectedEffect });
+                    }
+                    else
+                    {
+                        effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "full-ability", drained = true, command_id = request.AbilityCommand, ability_id = request.AbilityId, native_command = effectPreviewAbility!.Command, action_id = effectPreviewAbility.ActionId, effect = effectPreviewExpectedEffect });
+                    }
                     effectPreviewCompleted = true;
                 }
             }
             double now = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
-            if (request.AbilityId is not null && effectPreviewSubmitted && now - effectPreviewSubmittedSeconds >= request.DurationSeconds)
+            if (request.SourceSnapshot is not null && effectPreviewCompleted)
+            {
+                ExitGame();
+            }
+            else if ((request.AbilityId is not null || request.SourceSnapshot is not null) && effectPreviewSubmitted && now - effectPreviewSubmittedSeconds >= request.DurationSeconds)
             {
                 if (!effectPreviewCompleted)
                 {
@@ -134,7 +167,7 @@ internal sealed partial class RecreateGame
                 }
                 ExitGame();
             }
-            else if (request.AbilityId is null && effectPreviewPresented && now - effectPreviewStartedSeconds >= request.DurationSeconds)
+            else if (request.AbilityId is null && request.SourceSnapshot is null && effectPreviewPresented && now - effectPreviewStartedSeconds >= request.DurationSeconds)
             {
                 ExitGame();
             }

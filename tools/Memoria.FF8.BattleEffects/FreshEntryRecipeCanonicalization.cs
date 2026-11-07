@@ -22,14 +22,14 @@ public static class FreshEntryRecipeCanonicalization
         driver["input"] = JsonSerializer.SerializeToNode(input, Json);
         if (recipe["fixture"] is JsonObject fixture)
         {
-            Defaults(fixture, """{"items":[],"limits":null,"combat_party":[]}""");
+            Defaults(fixture, """{"items":[],"limits":null,"pocket_station":null,"combat_party":[]}""");
             foreach (JsonObject guardian in fixture["guardian_forces"]!.AsArray().OfType<JsonObject>())
             {
                 Defaults(guardian, """{"learning_ability":null,"ability_points":null}""");
             }
             foreach (JsonObject character in fixture["characters"]!.AsArray().OfType<JsonObject>())
             {
-                Defaults(character, """{"magic_command":null,"commands":[],"magic_junctions":[],"hit_points":null,"level":null,"weapon":null}""");
+                Defaults(character, """{"magic_command":null,"commands":[],"magic_junctions":[],"hit_points":null,"knocked_out":false,"level":null,"weapon":null}""");
             }
         }
         return recipe;

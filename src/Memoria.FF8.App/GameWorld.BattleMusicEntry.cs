@@ -135,6 +135,10 @@ internal sealed partial class GameWorld
             {
                 session.SetExamTimer((session.ExamTimer ?? throw new InvalidDataException("Diagnostic battle lost its process clock.")).AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks));
             }
+            else if (IsEffectComponentPreview)
+            {
+                AdvanceEffectComponentClock(active, callbacks);
+            }
             else if (Events.PendingMenuBattle is not null)
             {
                 Events.AdvanceMenuBattleCallbacks(callbacks);

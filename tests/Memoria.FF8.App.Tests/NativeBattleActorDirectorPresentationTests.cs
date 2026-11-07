@@ -1608,6 +1608,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
             battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
             scene = new(assets, source.Definition, true);
+            if (NativeBattleComponentSelectorCatalog.PublishPreparedSource(effectId, source))
+            {
+                return;
+            }
             ColdNext("queued", source);
             if (effectId == 182)
             {

@@ -104,6 +104,10 @@ internal sealed partial class RecreateGame
             if (effectPreviewSubmitted)
             {
                 active.AdvanceNativeGraphicsPresentation(elapsed);
+                if (effectPreview.SourceSnapshot is not null)
+                {
+                    world!.SynchronizeBattlePresentation();
+                }
                 presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
                 battleScene!.AdvancePresentation(elapsed);
                 SynchronizeBattleAudio();
@@ -284,7 +288,7 @@ internal sealed partial class RecreateGame
             battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.ReadDefinition(), debugBattle is null);
             battleGuardianForceLearning.Clear();
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
-            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
+            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true && world?.IsEffectComponentPreview != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.ConfigureResults(PresentationBattleResources.ReadNativeGlobalBattleMessages(), id => liveMenuCatalog?.ItemDescription(id) ?? "", id => liveMenuCatalog?.AbilityName(id) ?? $"Ability {id}");
             if (resourceHost is not null)
             {

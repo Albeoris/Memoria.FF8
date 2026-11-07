@@ -13,7 +13,7 @@ $tool = (Resolve-Path ./artifacts/validation/bin/Memoria.FF8.BattleEffects/relea
 dotnet $tool capabilities
 ```
 
-The tests use synthetic records and owned disposable Windows child processes, never installed game resources. Build the normal App project using [building and testing](building-and-testing.md). Focused App tests are `DiagnosticBattlePreparationTests` and `DiagnosticBattleDriverTests`; do not select unrelated battle-effect tests for harness changes. Build once and invoke the resulting executable rather than rebuilding for each case.
+Most harness tests use synthetic records and owned disposable Windows child processes. Installed-resource recipe tests require an explicitly selected `MEMORIA_FF8_GAME_DIR`; they report skips when it is absent. Build the normal App project using [building and testing](building-and-testing.md). Focused App tests are `DiagnosticBattlePreparationTests` and `DiagnosticBattleDriverTests`; do not select unrelated battle-effect tests for harness changes. Build once and invoke the resulting executable rather than rebuilding for each case.
 
 An optional ahead-of-time build reduces managed startup compilation while preserving a fresh process and the cold first focal invocation:
 
@@ -22,6 +22,20 @@ dotnet publish src/Memoria.FF8.App -c Release -r win-x64 --self-contained false 
 ```
 
 Keep this published directory unchanged for the entire pass. Record source commit and dirty-patch identity with the authored inputs; the runner records the exact file hashes. Publish before acquiring the measurement slot. Do not add a focal warm-up cast or rebuild between cases.
+
+## Every native effect
+
+For an explicitly requested complete effect retest, compare completed IDs with every nonempty installed native binding. Ordinary scenario discovery alone may omit effects whose producers require special actors, lifecycle events or timed Limits. `reconcile-coverage` reports these gaps; shared callbacks and selected scenarios do not count as completed uses.
+
+Build `tests/Memoria.FF8.App.Tests` once alongside the host and tool. With `$discovery` pointing to a fresh discovery directory generated with the selected external fixture, run:
+
+```powershell
+& ./tools/Memoria.FF8.BattleEffects/Invoke-CompleteCatalog.ps1 -GameDirectory $game -HostExecutable $hostExecutable -ToolAssembly $tool -TestExecutable $appTestsExecutable -DiscoveryDirectory $discovery -OutputRoot $newOutput
+```
+
+The catalog pass selects one original ordinary scenario per effect where available. Other IDs use exact specialised source factories from the existing installed-resource component tests. A component source retains its original formation, models, physical header and resources; its receipt identifies queued-action104 or admission before native initialisation. The host restores that source unchanged and requires actual effect execution, resource drain and two presented tail frames in each of two fresh processes. Controlled component presentation does not certify ordinary command, formula, AI reachability or campaign admission. These counts remain separate in the summary.
+
+Measurements use actual GPU presents at1920×1080, normal game speed and a60FPS limit. The isolated benchmark profile explicitly disables VSync to separate effect cost from the desktop/driver synchronisation limit; player preferences remain unchanged. Both ordinary and component routes use that same override. Component reports include the actual backend, interval, samples, resolution and inactive-frame count. Preparation, JSON verification and source export occur outside timing windows. Whole present intervals are retained without clipping the first/last boundary. The script retires closed raw telemetry and preparation captures after authentication; compact inputs, hashes, identities and FPS results remain. Empty bindings, blocked sources, failed uses and missing FPS are never converted into completed coverage.
 
 ## JSON storage and ownership
 

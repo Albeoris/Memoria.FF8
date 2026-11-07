@@ -26,6 +26,7 @@ public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, d
 public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null)
 {
     public bool MuteOutput { get; init; }
+    public bool? PresentationVSync { get; init; }
     public string? ExecutionStackProfile { get; init; }
 }
 public sealed record PilotStageDurations(double StagingMs, double SupervisionMs, double ValidationMs, double ResultFinalizationMs);
@@ -128,10 +129,11 @@ public static partial class PilotRunner
             }
             string bootstrap = Path.Combine(directory, "bootstrap.json");
             OwnedChildSupervisor.PublishTransientImmutable(bootstrap, recipe);
-            if (manifest.MuteOutput)
+            byte[]? presentationSettings = PilotPresentationSettings.CreateUiSettings(manifest.MuteOutput, manifest.PresentationVSync);
+            if (presentationSettings is not null)
             {
                 Directory.CreateDirectory(settings);
-                OwnedChildSupervisor.PublishTransientImmutable(Path.Combine(settings, "ui-settings.json"), JsonSerializer.SerializeToUtf8Bytes(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
+                OwnedChildSupervisor.PublishTransientImmutable(Path.Combine(settings, "ui-settings.json"), presentationSettings);
             }
             SupervisionRequest request = new($"pilot-{index:D2}-{item.Id}", manifest.Executable, ["--game-dir", manifest.GameDir, "--battle-test", bootstrap, "--resolution", "1920x1080", "--settings-dir", settings, "--control-dir", control, "--save-state", save], manifest.WorkingDirectory, settings, output, control, manifest.Budgets.ToSupervision(), new Dictionary<string, string> { ["MEMORIA_FF8_GAME_DIR"] = manifest.GameDir });
             stagingEnded = total.ElapsedTicks;

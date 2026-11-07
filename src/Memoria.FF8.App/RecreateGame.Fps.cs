@@ -46,6 +46,14 @@ internal sealed partial class RecreateGame
         if (effectPreview is not null)
         {
             diagnosticPresentedFrames++;
+            if ((effectPreviewDispatch is not null || effectPreviewSourceAdmission is not null) && !effectPreviewCompleted && !effectPreviewFailed)
+            {
+                effectComponentMeasurements?.Presented(Stopwatch.GetTimestamp());
+                if (effectComponentMeasurements is not null && !IsActive)
+                {
+                    effectComponentInactivePresentedFrames++;
+                }
+            }
         }
         AdvanceEffectPreview();
         presentationPacer.ObserveTiming(diagnosticTelemetry?.PacingEnabled == true);

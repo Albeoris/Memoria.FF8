@@ -278,7 +278,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             Publish(name + "-next");
         }
     }
-    private static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model)
     {
         BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).FirstOrDefault(candidate => candidate.Enemies.Any(enemy => enemy.ModelId == model)) ?? assets.LoadEncounter(94);

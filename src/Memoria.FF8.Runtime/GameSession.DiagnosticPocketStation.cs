@@ -4,7 +4,7 @@ public sealed partial class GameSession
 {
     public void SetDiagnosticPocketStation(NativePocketStationState prepared)
     {
-        if (State.Battle is not null)
+        if (liveBattle is not null || State.Battle is not null)
         {
             throw new InvalidOperationException("Diagnostic PocketStation preparation precedes battle allocation.");
         }
