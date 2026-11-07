@@ -20,11 +20,7 @@ public sealed partial class BattleSession
             if (phase > 2)
             {
                 byte zone = entry[88 + edge];
-                if (zone >= 10)
-                {
-                    throw new InvalidDataException("Native Quake edge leaves its actual wave bank.");
-                }
-                height = state.Word(checked(0x278C912u + (uint)zone * 16));
+                height = NativeBattleQuake38HeightLookup.Read8D9C76(state, hierarchy.Pools, zone);
                 int[] selectors = [first, second, centroid];
                 for (int index = 0; index < 3; index++)
                 {
