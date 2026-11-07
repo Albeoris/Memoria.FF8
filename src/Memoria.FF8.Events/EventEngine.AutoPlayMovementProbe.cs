@@ -18,7 +18,7 @@ public sealed partial class EventEngine
         if (obj.IsDoor)
         {
             byte events = Scene.NativeDoorPendingEvents?.GetValueOrDefault(objectId) ?? 0;
-            if (NativeDoorRequestedLocals(events, actor.LineContact).Any(HasBody))
+            if (actor.LineEnabled && IsUserControlEnabled && NativeDoorRequestedLocals(events, actor.LineContact).Any(HasBody))
             {
                 return true;
             }
