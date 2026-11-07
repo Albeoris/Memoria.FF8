@@ -160,7 +160,7 @@ public static partial class NativeBattleEffectTextureReader
                     if (y >= pixelWords.Y && y < pixelWords.Y + pixelWords.Height && wordX >= pixelWords.X && lastWord < pixelWords.X + pixelWords.Width)
                     {
                         int offset = 2 * ((y - pixelWords.Y) * pixelWords.Width + wordX - pixelWords.X);
-                        retainedRun = pixelWords.Data.AsSpan(offset, 2 * (lastWord - wordX + 1));
+                        retainedRun = pixelWords.ReadKnownSpan(offset, 2 * (lastWord - wordX + 1));
                     }
                     // Invalid runs retain scalar reads so the first invalid sample or used CLUT entry still fails in order.
                 }

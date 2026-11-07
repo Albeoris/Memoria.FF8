@@ -10,13 +10,34 @@ internal sealed class NativeBattleVramVersion
     internal const int PageLength = 512;
     private readonly ImmutableArray<NativeBattleEffectMemoryRegion> initial;
     private readonly ImmutableDictionary<int, ImmutableArray<byte>> pages;
+    private readonly ImmutableDictionary<int, ImmutableArray<bool>> unknownPages;
     private readonly ImmutableSortedDictionary<int, int> coverage;
 
-    internal NativeBattleVramVersion(ImmutableArray<NativeBattleEffectMemoryRegion> regions)
+    internal NativeBattleVramVersion(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown = default)
     {
-        NativeBattleEffectArena.CreateSnapshot(regions, []).Validate();
+        if (unknown.IsDefault)
+        {
+            unknown = [];
+        }
+        NativeBattleEffectArena.CreateSnapshot(regions, unknown).Validate();
         initial = regions;
         pages = ImmutableDictionary<int, ImmutableArray<byte>>.Empty;
+        Dictionary<int, bool[]> masks = [];
+        foreach (NativeBattleEffectUnknownRegion region in unknown)
+        {
+            for (int offset = region.Offset; offset < region.Offset + region.Length; offset++)
+            {
+                int page = offset / PageLength;
+                if (!masks.TryGetValue(page, out bool[]? mask))
+                {
+                    mask = new bool[PageLength];
+                    Array.Fill(mask, true);
+                    masks.Add(page, mask);
+                }
+                mask[offset % PageLength] = false;
+            }
+        }
+        unknownPages = masks.ToImmutableDictionary(entry => entry.Key, entry => ImmutableCollectionsMarshal.AsImmutableArray(entry.Value));
         ImmutableSortedDictionary<int, int> ranges = ImmutableSortedDictionary<int, int>.Empty;
         foreach (NativeBattleEffectMemoryRegion region in regions)
         {
@@ -25,14 +46,66 @@ internal sealed class NativeBattleVramVersion
         coverage = ranges;
     }
 
-    private NativeBattleVramVersion(NativeBattleVramVersion previous, ImmutableDictionary<int, ImmutableArray<byte>> pages, ImmutableSortedDictionary<int, int> coverage)
+    private NativeBattleVramVersion(NativeBattleVramVersion previous, ImmutableDictionary<int, ImmutableArray<byte>> pages, ImmutableSortedDictionary<int, int> coverage, ImmutableDictionary<int, ImmutableArray<bool>> unknownPages)
     {
         initial = previous.initial;
         this.pages = pages;
         this.coverage = coverage;
+        this.unknownPages = unknownPages;
     }
 
     internal void ReadInto(int offset, Span<byte> destination)
+    {
+        RequireKnown(offset, destination.Length);
+        ReadRawInto(offset, destination);
+    }
+
+    internal void ReadWithKnownness(int offset, Span<byte> destination, Span<bool> known)
+    {
+        if (destination.Length != known.Length)
+        {
+            throw new ArgumentException("VRAM data and knownness extents must match.");
+        }
+        ReadRawInto(offset, destination);
+        known.Fill(true);
+        int end = offset + known.Length;
+        for (int page = offset / PageLength; page * PageLength < end; page++)
+        {
+            if (unknownPages.TryGetValue(page, out ImmutableArray<bool> mask))
+            {
+                int first = Math.Max(offset, page * PageLength);
+                int last = Math.Min(end, (page + 1) * PageLength);
+                mask.AsSpan(first - page * PageLength, last - first).CopyTo(known[(first - offset)..]);
+            }
+        }
+    }
+
+    private void RequireKnown(int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length - length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
+        if (unknownPages.Count == 0)
+        {
+            return;
+        }
+        int end = offset + length;
+        for (int page = offset / PageLength; page * PageLength < end; page++)
+        {
+            if (unknownPages.TryGetValue(page, out ImmutableArray<bool> mask))
+            {
+                int first = Math.Max(offset, page * PageLength);
+                int last = Math.Min(end, (page + 1) * PageLength);
+                if (mask.AsSpan(first - page * PageLength, last - first).Contains(false))
+                {
+                    throw new NotSupportedException("Native VRAM read intersects unknown physical bytes.");
+                }
+            }
+        }
+    }
+
+    private void ReadRawInto(int offset, Span<byte> destination)
     {
         if (offset < 0 || offset > NativeBattleEffectArena.Length - destination.Length)
         {
@@ -64,6 +137,7 @@ internal sealed class NativeBattleVramVersion
 
     internal ushort ReadWord(int offset)
     {
+        RequireKnown(offset, 2);
         if (pages.TryGetValue(offset / PageLength, out ImmutableArray<byte> page) && offset % PageLength <= PageLength - 2)
         {
             return BinaryPrimitives.ReadUInt16LittleEndian(page.AsSpan(offset % PageLength, 2));
@@ -112,16 +186,26 @@ internal sealed class NativeBattleVramVersion
         }
         if (changedPages.Count == 0)
         {
-            return new(this, pages, ranges);
+            return new(this, pages, ranges, unknownPages);
         }
         ImmutableDictionary<int, ImmutableArray<byte>>.Builder next = pages.ToBuilder();
+        ImmutableDictionary<int, ImmutableArray<bool>>.Builder masks = unknownPages.ToBuilder();
         foreach (int page in changedPages)
         {
             byte[] bytes = new byte[PageLength];
-            arena.ReadInto(page * PageLength, bytes);
+            bool[] known = new bool[PageLength];
+            arena.ReadWithKnownness(page * PageLength, bytes, known);
             next[page] = ImmutableCollectionsMarshal.AsImmutableArray(bytes);
+            if (known.AsSpan().Contains(false))
+            {
+                masks[page] = ImmutableCollectionsMarshal.AsImmutableArray(known);
+            }
+            else
+            {
+                masks.Remove(page);
+            }
         }
-        return new(this, next.ToImmutable(), ranges);
+        return new(this, next.ToImmutable(), ranges, masks.ToImmutable());
     }
 
     internal ImmutableArray<NativeBattleEffectMemoryRegion> CaptureRegions()
@@ -130,8 +214,41 @@ internal sealed class NativeBattleVramVersion
         foreach ((int offset, int length) in coverage)
         {
             byte[] bytes = new byte[length];
-            ReadInto(offset, bytes);
+            ReadRawInto(offset, bytes);
             result.Add(new(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
+        }
+        return result.ToImmutable();
+    }
+
+    internal ImmutableArray<NativeBattleEffectUnknownRegion> CaptureUnknownRegions()
+    {
+        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
+        int start = -1;
+        int end = -1;
+        foreach (int page in unknownPages.Keys.Order())
+        {
+            ImmutableArray<bool> mask = unknownPages[page];
+            for (int lane = 0; lane < PageLength; lane++)
+            {
+                if (mask[lane])
+                {
+                    continue;
+                }
+                int offset = page * PageLength + lane;
+                if (offset != end)
+                {
+                    if (start >= 0)
+                    {
+                        result.Add(new(start, end - start));
+                    }
+                    start = offset;
+                }
+                end = offset + 1;
+            }
+        }
+        if (start >= 0)
+        {
+            result.Add(new(start, end - start));
         }
         return result.ToImmutable();
     }
@@ -178,10 +295,14 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
     internal NativeBattleVramVersion Current { get; private set; }
     private readonly List<NativeBattleVramVersion> marks = [];
 
-    internal NativeBattleVramOwner(ImmutableArray<NativeBattleEffectMemoryRegion> regions)
+    internal NativeBattleVramOwner(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown = default)
     {
-        Arena = new(regions);
-        Initial = new(regions);
+        if (unknown.IsDefault)
+        {
+            unknown = [];
+        }
+        Arena = new(regions) { UnknownRegions = unknown };
+        Initial = new(regions, unknown);
         Current = Initial;
     }
 
@@ -232,11 +353,27 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
 
         internal void Write(int offset, ReadOnlySpan<byte> bytes)
         {
+            WriteWithKnownness(offset, bytes, default);
+        }
+
+        internal void WriteWithKnownness(int offset, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
+        {
             RequireActive();
             owner.Arena.RequireRange(offset, bytes.Length);
             owner.Arena.RequireWritable();
-            bool unchanged = HasSameKnownBytes(offset, bytes);
-            owner.Arena.Write(offset, bytes);
+            if (!known.IsEmpty && known.Length != bytes.Length)
+            {
+                throw new ArgumentException("VRAM data and knownness extents must match.");
+            }
+            bool unchanged = HasSameKnownBytes(offset, bytes, known);
+            if (known.IsEmpty)
+            {
+                owner.Arena.Write(offset, bytes);
+            }
+            else
+            {
+                owner.Arena.WriteWithKnownness(offset, bytes, known);
+            }
             if (bytes.Length == 0)
             {
                 return;
@@ -278,7 +415,7 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
             return version;
         }
 
-        private bool HasSameKnownBytes(int offset, ReadOnlySpan<byte> bytes)
+        private bool HasSameKnownBytes(int offset, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> sourceKnown)
         {
             Span<byte> previousBytes = stackalloc byte[256];
             Span<bool> known = stackalloc bool[256];
@@ -286,7 +423,8 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
             {
                 int count = Math.Min(previousBytes.Length, bytes.Length - first);
                 owner.Arena.ReadWithKnownness(offset + first, previousBytes[..count], known[..count]);
-                if (known[..count].Contains(false) || !previousBytes[..count].SequenceEqual(bytes.Slice(first, count)))
+                bool sameKnownness = sourceKnown.IsEmpty ? !known[..count].Contains(false) : known[..count].SequenceEqual(sourceKnown.Slice(first, count));
+                if (!sameKnownness || !previousBytes[..count].SequenceEqual(bytes.Slice(first, count)))
                 {
                     return false;
                 }
