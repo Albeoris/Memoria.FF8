@@ -72,6 +72,20 @@ public sealed class AutoPlayWalkRejectionTests
     }
 
     [Fact]
+    public void ACompletedScriptedReturnCanMatchDifferentEndpointsOfTheSameMove()
+    {
+        AutoPlayContactSource source = Source();
+        AutoPlayScriptedWalkReturn move = new(4, 25, new(0, 0, 0), 1);
+        AutoPlayWalkRejection receipt = new(source, Guard(), new(0, 0, 0), move);
+        AutoPlayContactSource current = source with { PlayerPosition = source.PlayerPosition with { X = 2 } };
+        FieldFixedPosition position = new(8192, 0, 0);
+        Assert.True(AutoPlayController.IsWalkRejected(current, position, Guard(), [receipt], move));
+        Assert.False(AutoPlayController.IsWalkRejected(current, position, Guard(), [receipt], move with { Operation = 26 }));
+        Assert.False(AutoPlayController.IsWalkRejected(current, position, Guard(), [receipt]));
+        Assert.False(AutoPlayController.IsWalkRejected(current with { NavigationKey = "other" }, position, Guard(), [receipt], move));
+    }
+
+    [Fact]
     public void ExactNativeSubpixelPositionIsRequiredAndAnOlderCacheEntryCanBeIgnored()
     {
         AutoPlayContactSource source = Source();

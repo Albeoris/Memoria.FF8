@@ -5,9 +5,10 @@ using Memoria.FF8.Events;
 namespace Memoria.FF8;
 
 internal sealed record AutoPlayWalkRejectionGuard(int Version, string EventId, int ObjectId, string Predicate, string Geometry);
-internal sealed record AutoPlayWalkRejection(AutoPlayContactSource Source, AutoPlayWalkRejectionGuard Guard, FieldFixedPosition? Position = null);
-internal sealed record AutoPlayPendingWalkInterruption(AutoPlayContactSource Source, FieldFixedPosition Position, AutoPlayWalkRejectionGuard Guard);
-internal sealed record AutoPlayWalkAttempt(AutoPlayContactSource Source, FieldFixedPosition Position, IReadOnlyDictionary<int, AutoPlayWalkRejectionGuard> Guards);
+internal sealed record AutoPlayScriptedWalkReturn(int ScriptId, int Operation, FieldFixedPosition Target, short StopDistance);
+internal sealed record AutoPlayWalkRejection(AutoPlayContactSource Source, AutoPlayWalkRejectionGuard Guard, FieldFixedPosition? Position = null, AutoPlayScriptedWalkReturn? ScriptedReturn = null);
+internal sealed record AutoPlayPendingWalkInterruption(AutoPlayContactSource Source, FieldFixedPosition Position, AutoPlayWalkRejectionGuard Guard, AutoPlayScriptedWalkReturn? ScriptedReturn = null, long? ReturnSequence = null);
+internal sealed record AutoPlayWalkAttempt(AutoPlayContactSource Source, FieldFixedPosition Position, IReadOnlyDictionary<int, AutoPlayWalkRejectionGuard> Guards, AutoPlayScriptedWalkReturn? ScriptedReturn, long? ReturnSequence);
 
 internal sealed partial class AutoPlayController
 {
@@ -22,7 +23,8 @@ internal sealed partial class AutoPlayController
             }
         }
         FieldFixedPosition position = world.Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("A walking attempt requires its retained native source position.");
-        return new(source, position, guards);
+        var (scriptedReturn, sequence) = ReadScriptedWalkReturn(world, position);
+        return new(source, position, guards, scriptedReturn, sequence);
     }
 
     private static AutoPlayWalkRejectionGuard? CaptureWalkRejectionGuard(GameWorld world, string eventId, int objectId)
@@ -51,7 +53,7 @@ internal sealed partial class AutoPlayController
     {
         if (result.InterruptingObjectId is int owner && attempt.Guards.TryGetValue(owner, out AutoPlayWalkRejectionGuard? guard))
         {
-            run.PendingWalkInterruption = new(attempt.Source, attempt.Position, guard);
+            run.PendingWalkInterruption = new(attempt.Source, attempt.Position, guard, attempt.ScriptedReturn, attempt.ReturnSequence);
         }
     }
 
@@ -69,15 +71,33 @@ internal sealed partial class AutoPlayController
         AutoPlayContactSource current = CaptureContactSource(world, VisitKey(), CurrentNavigationKey(world, VisitKey()), pending.Source.Target);
         AutoPlayWalkRejectionGuard? guard = CaptureWalkRejectionGuard(world, pending.Guard.EventId, pending.Guard.ObjectId);
         FieldFixedPosition position = world.Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("A returned walking attempt requires its native position.");
-        if (guard == pending.Guard && SameWalkReturnDomain(pending.Source, current, pending.Position, position) && WalkReturnedWithoutAdvance(pending.Source.Target, pending.Position, position))
+        if (guard != pending.Guard)
         {
-            AutoPlayWalkRejection rejection = new(pending.Source, pending.Guard, pending.Position);
-            if (!run.WalkRejections.Contains(rejection))
-            {
-                run.WalkRejections.Add(rejection);
-                RecordRecentAction("Native walk returned before " + pending.Source.Target.Id + " via " + pending.Guard.EventId);
-            }
+            return;
         }
+        var (scriptedReturn, sequence) = ReadScriptedWalkReturn(world, position);
+        bool repeatedMove = scriptedReturn is not null && scriptedReturn == pending.ScriptedReturn && sequence > pending.ReturnSequence && SameScriptedWalkSource(pending.Source, current);
+        bool stationary = SameWalkReturnDomain(pending.Source, current, pending.Position, position) && WalkReturnedWithoutAdvance(pending.Source.Target, pending.Position, position);
+        if (!repeatedMove && !stationary)
+        {
+            return;
+        }
+        AutoPlayWalkRejection rejection = repeatedMove ? new(current, pending.Guard, position, scriptedReturn) : new(pending.Source, pending.Guard, pending.Position);
+        if (!IsWalkRejected(rejection.Source, repeatedMove ? position : pending.Position, guard, run.WalkRejections, rejection.ScriptedReturn))
+        {
+            run.WalkRejections.Add(rejection);
+            RecordRecentAction("Native walk returned before " + pending.Source.Target.Id + " via " + pending.Guard.EventId);
+        }
+    }
+
+    private static (AutoPlayScriptedWalkReturn? Return, long? Sequence) ReadScriptedWalkReturn(GameWorld world, FieldFixedPosition position)
+    {
+        if (world.Events.PlayerActor is { NativeScriptMovement: { Active: false, Cancelled: false, SupersededByPartyJoin: false, Asynchronous: false, TargetNativeObjectId: null, StopDistance: > 0 } move } player &&
+            move.Triangle == player.WalkmeshTriangle && position == new FieldFixedPosition(move.FixedX, move.FixedY, move.FixedZ))
+        {
+            return (new(move.ScriptId, move.Operation, new(move.TargetX, move.TargetY, move.TargetZ), move.StopDistance), move.FiberSequence);
+        }
+        return (null, null);
     }
 
     internal static bool WalkReturnedWithoutAdvance(AutoPlayTarget target, FieldFixedPosition before, FieldFixedPosition after)
@@ -111,9 +131,15 @@ internal sealed partial class AutoPlayController
         return SameWalkSourceDomain(before, after);
     }
 
-    internal static bool IsWalkRejected(AutoPlayContactSource source, FieldFixedPosition position, AutoPlayWalkRejectionGuard? guard, IReadOnlyList<AutoPlayWalkRejection> rejections)
+    private static bool SameScriptedWalkSource(AutoPlayContactSource before, AutoPlayContactSource after)
     {
-        return guard is not null && rejections.Any(rejection => rejection.Position == position && rejection.Guard == guard && SameWalkSourceDomain(rejection.Source, source));
+        return SameWalkSourceDomain(before with { PlayerPosition = before.PlayerPosition with { X = after.PlayerPosition.X, Y = after.PlayerPosition.Y } }, after);
+    }
+
+    internal static bool IsWalkRejected(AutoPlayContactSource source, FieldFixedPosition position, AutoPlayWalkRejectionGuard? guard, IReadOnlyList<AutoPlayWalkRejection> rejections, AutoPlayScriptedWalkReturn? scriptedReturn = null)
+    {
+        return guard is not null && rejections.Any(rejection => rejection.Guard == guard &&
+            (rejection.ScriptedReturn is null ? rejection.Position == position && SameWalkSourceDomain(rejection.Source, source) : rejection.ScriptedReturn == scriptedReturn && SameScriptedWalkSource(rejection.Source, source)));
     }
 
     private IReadOnlyList<AutoPlayTarget> FilterRejectedWalkTargets(GameWorld world, string visit, string navigation, IReadOnlyList<AutoPlayTarget> targets)
@@ -123,6 +149,7 @@ internal sealed partial class AutoPlayController
             return targets;
         }
         FieldFixedPosition position = world.Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("Walking rejection matching requires the retained native player position.");
+        var (scriptedReturn, _) = ReadScriptedWalkReturn(world, position);
         return targets.Where(target => !run.WalkRejections.Any(rejection =>
         {
             if (rejection.Guard.Version != 1 || rejection.Source.Version != 1)
@@ -134,7 +161,7 @@ internal sealed partial class AutoPlayController
                 return false;
             }
             AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, target);
-            return IsWalkRejected(source, position, CaptureWalkRejectionGuard(world, rejection.Guard.EventId, rejection.Guard.ObjectId), [rejection]);
+            return IsWalkRejected(source, position, CaptureWalkRejectionGuard(world, rejection.Guard.EventId, rejection.Guard.ObjectId), [rejection], scriptedReturn);
         })).ToArray();
     }
 }
