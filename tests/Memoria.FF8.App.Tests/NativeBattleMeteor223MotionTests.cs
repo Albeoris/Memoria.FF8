@@ -46,6 +46,11 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
         int eligibleIntervals = 0;
         int maximumEffectFaces = 0;
         Dictionary<string, long> producerFaces = [];
+        object? previousSourcePool = null;
+        int sourcePoolFrames = 0;
+        int unchangedSourcePools = 0;
+        int maximumSourcePoolSize = 0;
+        int sourcePoolsWithUi = 0;
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         for (int tick = 0; tick < 512; tick++)
         {
@@ -63,6 +68,14 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
                 continue;
             }
             Face[] laterFaces = Faces(later, battle.NativeEffectMemory!.Arena!);
+            if (later.Primitives.SceneReplaySources is { } pool)
+            {
+                sourcePoolFrames++;
+                unchangedSourcePools += ReferenceEquals(previousSourcePool, pool) ? 1 : 0;
+                maximumSourcePoolSize = Math.Max(maximumSourcePoolSize, pool.Count);
+                sourcePoolsWithUi += pool.Values.Any(retained => retained.UiFrame is { } ui && (!ui.Opaque.IsEmpty || ui.Semi.Any(batch => !batch.Quads.IsEmpty))) ? 1 : 0;
+                previousSourcePool = pool;
+            }
             sawEffectFaces |= laterFaces.Length > 0;
             Assert.All(laterFaces.Where(face => face.Kind == "grid25"), face =>
             {
@@ -148,7 +161,7 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
                 earlierFaces = laterFaces;
             }
         }
-        File.WriteAllText(Path.Combine(output, "motion.json"), JsonSerializer.Serialize(new { effect = 223, action.Command, action.ActionId, maximumTicks = 512, observedIntervals, timelineCompatibleIntervals, eligibleIntervals, maximumEffectFaces, producerFaces, intervals, submissions, checkedColdGrid, interpretation = "Producer classifications use original slot draw kinds. Whole-pixel grid delivery and world interpolation are checked independently of native discrete UV motion." }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "motion.json"), JsonSerializer.Serialize(new { effect = 223, action.Command, action.ActionId, maximumTicks = 512, observedIntervals, timelineCompatibleIntervals, eligibleIntervals, maximumEffectFaces, producerFaces, sourcePoolFrames, unchangedSourcePools, maximumSourcePoolSize, sourcePoolsWithUi, intervals, submissions, checkedColdGrid, interpretation = "Producer classifications use original slot draw kinds. Whole-pixel grid delivery and world interpolation are checked independently of native discrete UV motion. Source-pool counts describe native callbacks; held interpolation samples reuse the earlier pool." }, new JsonSerializerOptions { WriteIndented = true }));
         testOutput.WriteLine($"Meteor motion: {observedIntervals} adjacent intervals and {submissions.Count} recorded submissions in {output}.");
         Assert.NotEmpty(intervals);
         Assert.True(sawEffectFaces, "The bounded original-resource continuation must emit effect-owned geometry.");

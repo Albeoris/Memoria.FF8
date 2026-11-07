@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
@@ -10,14 +11,65 @@ public sealed partial class BattleRenderer
     {
         internal readonly Dictionary<long, ushort[]> Words = [];
         internal readonly HashSet<long> Active = [];
+        internal readonly HashSet<long> Requested = [];
+        internal SceneReplayMemo? Memo;
+    }
+
+    private sealed class SceneReplayMemo
+    {
+        internal required WeakReference<ImmutableDictionary<long, NativeBattleSceneReplaySource>> Sources;
+        internal required NativeBattlePrimitiveCapabilities? Capabilities;
+        internal required INativeBattleEffectTextureSource? TextureSource;
+        internal required long TextureGeneration;
+        internal readonly Dictionary<long, (ushort[] Words, long[] Dependencies)> Roots = [];
+        internal readonly Queue<long> Order = [];
+
+        internal void Add(long id, ushort[] words, long[] dependencies)
+        {
+            if (Roots.ContainsKey(id))
+            {
+                return;
+            }
+            while (Roots.Count >= 64)
+            {
+                Roots.Remove(Order.Dequeue());
+            }
+            Roots.Add(id, (words, dependencies));
+            Order.Enqueue(id);
+        }
     }
 
     private SceneReplayContext sceneReplayContext = new();
+    private SceneReplayMemo? sceneReplayMemo;
     private bool isSceneReplay;
     private Func<int, int, bool, PixelImage>? sceneCopyUiTexture;
     private readonly record struct SceneCopyTextureKey(PixelImage Image, ImmutableArray<NativeBattleSceneCopyRegion> Regions, NativeBattlePcTextureWindowSelection Window, ushort Page, ImmutableArray<ushort> Palette, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift);
     private readonly Dictionary<SceneCopyTextureKey, PixelImage> sceneCopyImages = [];
     private long sceneCopyImageBytes;
+
+    private void BeginSceneReplay(NativeBattlePreparedPrimitiveFrame frame, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, INativeBattleEffectTextureSource? textureSource)
+    {
+        sceneReplayContext = new();
+        ImmutableDictionary<long, NativeBattleSceneReplaySource>? sources = frame.SceneReplaySources;
+        bool populatedUi = sources?.Values.Any(source => source.UiFrame is { } ui && (!ui.Opaque.IsEmpty || ui.Semi.Any(batch => !batch.Quads.IsEmpty))) == true;
+        if (sources is null || replacements is { Count: > 0 } || populatedUi)
+        {
+            sceneReplayMemo = null;
+            return;
+        }
+        long generation = textureSource?.Generation ?? 0;
+        if (sceneReplayMemo is not { } memo || !memo.Sources.TryGetTarget(out var previous) || !ReferenceEquals(previous, sources) || memo.Capabilities != capabilities || !ReferenceEquals(memo.TextureSource, textureSource) || memo.TextureGeneration != generation)
+        {
+            sceneReplayMemo = new()
+            {
+                Sources = new(sources),
+                Capabilities = capabilities,
+                TextureSource = textureSource,
+                TextureGeneration = generation
+            };
+        }
+        sceneReplayContext.Memo = sceneReplayMemo;
+    }
 
     private PixelImage ApplySceneCopyTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors, PixelImage image)
     {
@@ -116,7 +168,21 @@ public sealed partial class BattleRenderer
         {
             return cached;
         }
-        if (!sceneReplayContext.Active.Add(id) || sceneReplayContext.Active.Count + sceneReplayContext.Words.Count > 64 || (long)sceneReplayContext.Active.Count * Width * Height * 8 > 256L * 1024 * 1024)
+        bool root = sceneReplayContext.Active.Count == 0;
+        // Only the first completed root owns the full dependency set without unrelated earlier requests.
+        bool admit = root && sceneReplayContext.Requested.Count == 0;
+        if (root && sceneReplayContext.Memo is { } memo && memo.Roots.TryGetValue(id, out var retained))
+        {
+            sceneReplayContext.Requested.UnionWith(retained.Dependencies);
+            if (sceneReplayContext.Requested.Count > 64)
+            {
+                throw new InvalidDataException("Scene replay requires an acyclic bounded source graph.");
+            }
+            sceneReplayContext.Words.Add(id, retained.Words);
+            return retained.Words;
+        }
+        sceneReplayContext.Requested.Add(id);
+        if (!sceneReplayContext.Active.Add(id) || sceneReplayContext.Requested.Count > 64 || (long)sceneReplayContext.Active.Count * Width * Height * 8 > 256L * 1024 * 1024)
         {
             throw new InvalidDataException("Scene replay requires an acyclic bounded source graph.");
         }
@@ -155,6 +221,10 @@ public sealed partial class BattleRenderer
                 }
             }
             sceneReplayContext.Words.Add(id, words);
+            if (admit)
+            {
+                sceneReplayContext.Memo?.Add(id, words, sceneReplayContext.Requested.ToArray());
+            }
             return words;
         }
         finally

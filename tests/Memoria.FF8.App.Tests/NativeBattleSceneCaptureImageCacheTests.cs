@@ -31,6 +31,21 @@ public sealed class NativeBattleSceneCaptureImageCacheTests
     }
 
     [Fact]
+    public void Malformed_second_source_page_payload_is_rejected_before_image_retention()
+    {
+        NativeBattlePreparedPrimitiveFrame frame = Frame(0, 0, 0);
+        var pages = frame.LastTextureSnapshots!.Value.ToBuilder();
+        NativeBattlePcTextureWindowPixels page = pages[1];
+        pages[1] = page with { Data = page.Data.RemoveAt(page.Data.Length - 1) };
+        NativeBattlePreparedPrimitiveFrame malformed = frame with { LastTextureSnapshots = pages.ToImmutable() };
+        Capture capture = new();
+        BattleRenderer renderer = Renderer(capture);
+
+        Assert.Throws<InvalidDataException>(() => Render(renderer, capture, malformed));
+        Assert.Equal(ReferencePixels(frame, NativeBattlePcDirectTextureFormat.Rgb555), Render(renderer, capture, frame).Pixels);
+    }
+
+    [Fact]
     public void Reusing_sample_indices_with_changed_snapshot_words_cannot_reuse_the_old_image()
     {
         NativeBattlePreparedPrimitiveFrame frame = Frame(0, 0, 0);

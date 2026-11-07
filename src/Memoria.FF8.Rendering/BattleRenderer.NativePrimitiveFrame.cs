@@ -147,7 +147,7 @@ public sealed partial class BattleRenderer
         sceneCopyUiTexture = uiTexture;
         if (!isSceneReplay)
         {
-            sceneReplayContext = new();
+            BeginSceneReplay(frame, capabilities, replacements, effectTextureSource);
         }
         for (int index = 3; TriangleRenderer is null && index < pixels.Length; index += 4)
         {

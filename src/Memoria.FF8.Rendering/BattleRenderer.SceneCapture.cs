@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
 
@@ -59,8 +61,18 @@ public sealed partial class BattleRenderer
             }
             palette[index] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
         }
+        Span<ulong> packedPalette = depth == 0 ? stackalloc ulong[256] : Span<ulong>.Empty;
+        if (depth == 0)
+        {
+            Span<Rgba32> pair = stackalloc Rgba32[2];
+            for (int index = 0; index < packedPalette.Length; index++)
+            {
+                pair[0] = palette[index & 15];
+                pair[1] = palette[index >> 4];
+                packedPalette[index] = MemoryMarshal.Read<ulong>(MemoryMarshal.AsBytes(pair));
+            }
+        }
         PixelImage image = new(sample.Capture.Width * pixelsPerWord, sample.Capture.Height);
-        int mask = (1 << (16 / pixelsPerWord)) - 1;
         for (int part = 0; part < sample.PixelSnapshots.Length; part++)
         {
             int snapshotIndex = sample.PixelSnapshots[part];
@@ -75,22 +87,34 @@ public sealed partial class BattleRenderer
             {
                 throw new InvalidDataException("Scene sampling retained an incomplete or differently mapped source page.");
             }
+            ReadOnlySpan<byte> data = pixels.Data.AsSpan();
             for (int y = 0; y < pixels.Height; y++)
             {
-                for (int x = 0; x < pixels.Width; x++)
+                ReadOnlySpan<byte> row = data.Slice(y * pixels.Width * 2, pixels.Width * 2);
+                Span<Rgba32> destination = image.Pixels.AsSpan(y * image.Width + left * pixelsPerWord, pixels.Width * pixelsPerWord);
+                if (depth == 0)
                 {
-                    ushort word = pixels.ReadWord(pixels.X + x, pixels.Y + y);
-                    if (depth == 2)
+                    Span<ulong> pairs = MemoryMarshal.Cast<Rgba32, ulong>(destination);
+                    for (int index = 0; index < row.Length; index++)
                     {
-                        uint argb = NativeBattlePcDirectTexture.DecodeArgb(word, capabilities?.DirectTextureFormat ?? throw new NotSupportedException("Scene sampling requires its selected direct texture format."));
-                        image.Pixels[y * image.Width + left + x] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
+                        pairs[index] = packedPalette[row[index]];
                     }
-                    else
+                }
+                else if (depth == 1)
+                {
+                    for (int index = 0; index < row.Length; index++)
                     {
-                        for (int subpixel = 0; subpixel < pixelsPerWord; subpixel++)
-                        {
-                            image.Pixels[y * image.Width + (left + x) * pixelsPerWord + subpixel] = palette[word >> (subpixel * (16 / pixelsPerWord)) & mask];
-                        }
+                        destination[index] = palette[row[index]];
+                    }
+                }
+                else
+                {
+                    NativeBattlePcDirectTextureFormat format = capabilities?.DirectTextureFormat ?? throw new NotSupportedException("Scene sampling requires its selected direct texture format.");
+                    for (int index = 0; index < pixels.Width; index++)
+                    {
+                        ushort word = BinaryPrimitives.ReadUInt16LittleEndian(row.Slice(index * 2, 2));
+                        uint argb = NativeBattlePcDirectTexture.DecodeArgb(word, format);
+                        destination[index] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
                     }
                 }
             }
