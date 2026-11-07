@@ -227,7 +227,7 @@ public sealed partial record NativeCharacterVitals
         NativeGuardianForceVital[] rows = GuardianForces.ToArray();
         rows[id] = rows[id] with { Flags = (byte)(rows[id].Flags | 1) };
         NativeCharacterVitals result = (this with { GuardianForces = rows }).DeepCopy();
-        if (!MenuDefinitions.Templates.IsDefault)
+        if (!MenuDefinitions.Templates.IsDefault && (MenuDefinitions.SourceTemplates.IsDefault || !MenuDefinitions.Templates[id].SequenceEqual(MenuDefinitions.SourceTemplates[id])))
         {
             ImmutableArray<GuardianForceAbilityTemplate> templates = MenuDefinitions.Templates[id];
             result.ApplyGuardianForceTemplate(id, templates, templates);

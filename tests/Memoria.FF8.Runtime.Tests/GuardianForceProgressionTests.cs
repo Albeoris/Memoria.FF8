@@ -339,6 +339,23 @@ public sealed class GuardianForceProgressionTests
     }
 
     [Fact]
+    public void AcquisitionKeepsUneditedSourceRowsNativeWhenAnotherTemplateIsEdited()
+    {
+        NativeCharacterVitals source = MagicSystemFixture.Create();
+        var original = source.ResolveGuardianForceTemplates();
+        source = source with
+        {
+            MenuDefinitions = source.MenuDefinitions with { SourceTemplates = original, Templates = original.SetItem(1, [new(100, true, 10)]) }
+        };
+        NativeGuardianForceVital expected = source.GuardianForces[0] with { Flags = (byte)(source.GuardianForces[0].Flags | 1) };
+
+        NativeCharacterVitals acquired = source.AcquireGuardianForce(0);
+
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(acquired.GuardianForces[0]));
+        Assert.True(acquired.AcquireGuardianForce(1).GuardianForces[1].HasLearnedAbility(100));
+    }
+
+    [Fact]
     public void SessionPreviewIsPureAndApplyChecksRevisionAndUpdatesSnapshotOwners()
     {
         NativeCharacterVitals source = MagicSystemFixture.Create();
