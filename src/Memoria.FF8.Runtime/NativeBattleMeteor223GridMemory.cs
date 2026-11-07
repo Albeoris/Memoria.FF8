@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -26,7 +27,8 @@ internal sealed class NativeBattleMeteor223GridMemory
     private readonly Dictionary<(int Row, int Column), Vector3> worldVertices = [];
     private int packetStart;
     private int packetEnd;
-    private readonly Dictionary<int, byte> packet = [];
+    private byte[] packet = [];
+    private bool[] packetKnown = [];
     private readonly ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
     internal Int32Access Dwords { get; }
     internal UInt16Access Words { get; }
@@ -75,9 +77,11 @@ internal sealed class NativeBattleMeteor223GridMemory
     internal void Link(int ordering, int address, int row, int column)
     {
         byte[] bytes = new byte[0x44];
+        int packetOffset = checked(address - packetStart);
         for (int index = 3; index < bytes.Length; index++)
         {
-            bytes[index] = packet.GetValueOrDefault(address + index);
+            int offset = checked(packetOffset + index);
+            bytes[index] = (uint)offset < packet.Length ? packet[offset] : (byte)0;
         }
         ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4 * index))).ToImmutableArray();
         uint basis = Frame.ReadTemporaryDword(0x14C);
@@ -91,7 +95,7 @@ internal sealed class NativeBattleMeteor223GridMemory
         {
             primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (row << 16) + column) }, worldVertices[(row, column)], worldVertices[(row, column + 1)], worldVertices[(row + 1, column)], worldVertices[(row + 1, column + 1)], 4) };
         }
-        attempts.Add(new(checked(address - packetStart), bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, bytes.Length).ToImmutableArray(), primitive));
+        attempts.Add(new(packetOffset, ImmutableCollectionsMarshal.AsImmutableArray(bytes), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, bytes.Length).ToImmutableArray(), primitive));
     }
 
     internal NativeBattleWaterExecutionFrame Publish(int cursor)
@@ -105,9 +109,11 @@ internal sealed class NativeBattleMeteor223GridMemory
         int length = destination.Length;
         if (packetEnd != 0 && address >= packetStart && address <= packetEnd - length)
         {
+            int offset = checked(address - packetStart);
             for (int index = 0; index < length; index++)
             {
-                destination[index] = packet.TryGetValue(address + index, out byte value) ? value : throw new NotSupportedException("Native Meteor grid read requires a previously written packet byte.");
+                int current = offset + index;
+                destination[index] = current < packetKnown.Length && packetKnown[current] ? packet[current] : throw new NotSupportedException("Native Meteor grid read requires a previously written packet byte.");
             }
             return;
         }
@@ -136,17 +142,20 @@ internal sealed class NativeBattleMeteor223GridMemory
     {
         if (packetEnd != 0 && address >= packetStart && address <= packetEnd - bytes.Length)
         {
+            int packetOffset = checked(address - packetStart);
+            EnsurePacketCapacity(checked(packetOffset + bytes.Length));
             int aligned = address & ~3;
             int length = (address - aligned + bytes.Length + 3) & ~3;
             byte[] data = new byte[length];
             NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[length];
             for (int index = 0; index < bytes.Length; index++)
             {
-                packet[address + index] = bytes[index];
                 data[address - aligned + index] = bytes[index];
                 mask[address - aligned + index] = NativeBattleGfPacketByteState.Known;
             }
-            attempts.Add(new(checked(aligned - packetStart), data.ToImmutableArray(), mask.ToImmutableArray(), null));
+            bytes.CopyTo(packet.AsSpan(packetOffset));
+            packetKnown.AsSpan(packetOffset, bytes.Length).Fill(true);
+            attempts.Add(new(checked(aligned - packetStart), ImmutableCollectionsMarshal.AsImmutableArray(data), ImmutableCollectionsMarshal.AsImmutableArray(mask), null));
             return;
         }
         uint pointer = unchecked((uint)address);
@@ -162,6 +171,17 @@ internal sealed class NativeBattleMeteor223GridMemory
         {
             Frame.Arena.Write(ArenaOffset(pointer, bytes.Length), bytes);
         }
+    }
+
+    private void EnsurePacketCapacity(int required)
+    {
+        if (required <= packet.Length)
+        {
+            return;
+        }
+        int capacity = checked((int)Math.Min(packetEnd - packetStart, Math.Max((long)required, (long)packet.Length * 2)));
+        Array.Resize(ref packet, capacity);
+        Array.Resize(ref packetKnown, capacity);
     }
 
     internal sealed class Int32Access(NativeBattleMeteor223GridMemory memory)
