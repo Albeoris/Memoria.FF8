@@ -37,8 +37,8 @@ public sealed class BattleMagicGroupHudTests
         BattleHudController hud = CreateHud(session);
         hud.BuildView();
         hud.Choose(0);
-        hud.Navigate(MenuInput.PageRight);
-        hud.Navigate(MenuInput.PageRight);
+        hud.Navigate(MenuInput.PageDown);
+        hud.Navigate(MenuInput.PageDown);
         Assert.Equal(1, hud.MagicCastCount);
         hud.Choose(0);
         hud.SelectTarget("enemy-a", true);
@@ -53,7 +53,7 @@ public sealed class BattleMagicGroupHudTests
         BattleHudController hud = CreateHud(session);
         hud.BuildView();
         hud.Choose(0);
-        hud.Navigate(MenuInput.PageRight);
+        hud.Navigate(MenuInput.PageDown);
         Assert.Equal(3, hud.MagicCastCount);
         hud.Choose(0);
         hud.SelectTarget("enemy-a", true);

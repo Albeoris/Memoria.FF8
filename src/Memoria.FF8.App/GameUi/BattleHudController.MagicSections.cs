@@ -104,13 +104,44 @@ public sealed partial class BattleHudController
 
     private bool NavigateMagicList(MenuInput input)
     {
-        if (!ShowingMagicList || input is not (MenuInput.Left or MenuInput.Right or MenuInput.Alternate))
+        if (!ShowingMagicList || input is not (MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight or MenuInput.PageUp or MenuInput.PageDown or MenuInput.Alternate))
         {
             return false;
         }
-        if (input is MenuInput.Left or MenuInput.Right)
+        if (input is MenuInput.PageLeft or MenuInput.PageRight)
         {
-            ChangeMagicSection(input == MenuInput.Left ? -1 : 1);
+            ChangeMagicSection(input == MenuInput.PageLeft ? -1 : 1);
+            return true;
+        }
+        if (input is MenuInput.PageUp or MenuInput.PageDown)
+        {
+            ChangeMagicCastCount(input == MenuInput.PageUp ? -1 : 1);
+            return true;
+        }
+        if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right)
+        {
+            BattleDrawLayout layout = BattleDrawLayout.Calculate(ActionChoices.Count);
+            (int column, int row) = layout.GetCell(ChoiceIndex);
+            int next = actionIndex;
+            if (input is MenuInput.Up or MenuInput.Down && layout.ColumnRows(column) > 0)
+            {
+                next = layout.GetIndex(column, (row + (input == MenuInput.Up ? -1 : 1) + layout.ColumnRows(column)) % layout.ColumnRows(column));
+            }
+            else if (input == MenuInput.Left && column == 0 || input == MenuInput.Right && column == layout.Columns - 1)
+            {
+                ChangeMagicSection(input == MenuInput.Left ? -1 : 1);
+                return true;
+            }
+            else if (input is MenuInput.Left or MenuInput.Right)
+            {
+                column += input == MenuInput.Left ? -1 : 1;
+                next = layout.GetIndex(column, Math.Min(row, layout.ColumnRows(column) - 1));
+            }
+            if (next >= 0 && next != actionIndex)
+            {
+                actionIndex = next;
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
             return true;
         }
         BattleMagicRecoveryChoice? recovery = session.PreviewMagicRecovery(SelectedActor!.Id);

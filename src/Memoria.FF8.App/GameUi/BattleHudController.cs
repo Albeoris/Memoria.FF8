@@ -361,11 +361,6 @@ public sealed partial class BattleHudController
             {
                 return;
             }
-            if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.Magic && input is MenuInput.PageLeft or MenuInput.PageRight)
-            {
-                ChangeMagicCastCount(input == MenuInput.PageLeft ? -1 : 1);
-                return;
-            }
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
@@ -487,7 +482,7 @@ public sealed partial class BattleHudController
                 session.OpenNativeActionMenu();
             }
             RestoreActionCursor();
-            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? FormatSystemText("battle.ui.magic.choose.sections.and.recovery", "Choose magic. Left/Right: sections. Page Left/Right: casts. {0}: recovery.", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
+            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? FormatSystemText("battle.ui.magic.choose.sections.pages.and.recovery", "Choose magic. Left/Right at edges or Page Left/Right: sections. Page Up/Down: casts. {0}: recovery.", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 SetSystemMessage(() => SystemText("battle.ui.attack.do.over.to.change.magic.or.cast", "Do over to change magic, or Cast to accept."));

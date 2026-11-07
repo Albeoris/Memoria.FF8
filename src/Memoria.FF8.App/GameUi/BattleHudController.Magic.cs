@@ -52,7 +52,7 @@ public sealed partial class BattleHudController
                 magicCastCount = choices[(Math.Max(0, index) + direction + choices.Count) % choices.Count];
                 magicCastCountSelected = true;
                 selectedMagicTargets.Clear();
-                SetSystemMessage(() => FormatSystemText("battle.ui.changemagiccastcount.magic.page.left.right.number.of.casts", "Magic \u00D7{0}. Page Left/Right: number of casts.", magicCastCount));
+                SetSystemMessage(() => FormatSystemText("battle.ui.changemagiccastcount.magic.page.up.down.number.of.casts", "Magic \u00D7{0}. Page Up/Down: number of casts.", magicCastCount));
                 SoundRequested?.Invoke(MenuSound.Move);
             }
         }

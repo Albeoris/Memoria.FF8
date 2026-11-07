@@ -6,6 +6,96 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleMagicSectionNavigationTests
 {
     [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(12)]
+    [InlineData(25)]
+    public void HorizontalArrowsMoveWithinColumnsAndSwitchSectionsOnlyAtTheirEdges(int count)
+    {
+        BattleHudController hud = CreateColumnSections(count);
+        BattleDrawLayout layout = BattleDrawLayout.Calculate(count);
+        for (int column = 0; column < layout.Columns; column++)
+        {
+            for (int row = 0; row < layout.ColumnRows(column); row++)
+            {
+                int index = layout.GetIndex(column, row);
+                hud.HoverMagicChoice(index);
+                hud.Navigate(MenuInput.Left);
+                if (column == 0)
+                {
+                    Assert.Equal("Multi-target attack", hud.MagicSectionCaption);
+                    hud.Navigate(MenuInput.PageRight);
+                }
+                else
+                {
+                    Assert.Equal("Single-target attack", hud.MagicSectionCaption);
+                    Assert.Equal(layout.GetIndex(column - 1, Math.Min(row, layout.ColumnRows(column - 1) - 1)), hud.ChoiceIndex);
+                }
+                hud.HoverMagicChoice(index);
+                hud.Navigate(MenuInput.Right);
+                if (column == layout.Columns - 1)
+                {
+                    Assert.Equal("Recovery", hud.MagicSectionCaption);
+                    hud.Navigate(MenuInput.PageLeft);
+                }
+                else
+                {
+                    Assert.Equal("Single-target attack", hud.MagicSectionCaption);
+                    Assert.Equal(layout.GetIndex(column + 1, Math.Min(row, layout.ColumnRows(column + 1) - 1)), hud.ChoiceIndex);
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(12)]
+    [InlineData(25)]
+    public void CharacterSwitchButtonsChangeSectionsFromEveryCell(int count)
+    {
+        BattleHudController hud = CreateColumnSections(count);
+        for (int index = 0; index < count; index++)
+        {
+            hud.HoverMagicChoice(index);
+            hud.Navigate(MenuInput.PageLeft);
+            Assert.Equal("Multi-target attack", hud.MagicSectionCaption);
+            hud.Navigate(MenuInput.PageRight);
+            hud.HoverMagicChoice(index);
+            hud.Navigate(MenuInput.PageRight);
+            Assert.Equal("Recovery", hud.MagicSectionCaption);
+            Assert.Equal(0, hud.ChoiceIndex);
+            Assert.Equal(1, hud.MagicCastCount);
+            hud.Navigate(MenuInput.PageRight);
+            Assert.Equal("Recovery", hud.MagicSectionCaption);
+            hud.Navigate(MenuInput.PageLeft);
+        }
+    }
+
+    [Fact]
+    public void VerticalArrowsWrapWithinTheCurrentColumn()
+    {
+        BattleHudController hud = CreateColumnSections(5);
+        hud.HoverMagicChoice(3);
+        hud.Navigate(MenuInput.Up);
+        Assert.Equal(4, hud.ChoiceIndex);
+        hud.Navigate(MenuInput.Down);
+        Assert.Equal(3, hud.ChoiceIndex);
+        Assert.Equal("Single-target attack", hud.MagicSectionCaption);
+    }
+
+    private static BattleHudController CreateColumnSections(int count)
+    {
+        BattleHudController hud = Create([
+            Spell(1, BattleActionEffect.Damage, false) with { AllTargets = true },
+            .. Enumerable.Range(2, count).Select(id => Spell(id, BattleActionEffect.Damage, false)),
+            Spell(count + 2, BattleActionEffect.Heal, true)
+        ]);
+        hud.Choose(0);
+        hud.Navigate(MenuInput.PageRight);
+        return hud;
+    }
+
+    [Theory]
     [InlineData(8, 4, 1, 0x50, 0, "Single-target attack")]
     [InlineData(2, 20, 10, 0x62, 0, "Multi-target attack")]
     [InlineData(3, 0, 1, 0x50, 0x172, "Debuffs")]
