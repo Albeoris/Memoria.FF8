@@ -43,14 +43,18 @@ internal sealed partial class WorldMapScene
     {
         train.Validate();
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(train.Primary.TrackIndex, train.CameraListIndex);
+        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        bool stopAtEndpoint = (inputs.EventFlags265 & 64) != 0;
         sbyte initialDirection = unchecked((byte)train.Packet.EntryIndex) % 2 == 0 ? (sbyte)1 : (sbyte)-1;
+        sbyte expectedDirection = initialDirection;
         ushort counter = 1;
         NativeWorldPathCamera? expectedCamera = null;
         int expectedCounter = 0;
         NativeTrainRailBank previousBank = NativeTrainRailBank.Create(definition, initialDirection);
-        ImmutableArray<NativeWorldScriptedPathNode> cameraNodes = train.Primary.ValidateCallbackPhase(definition, train.Callback, initialDirection, (callback, bank) =>
+        ImmutableArray<NativeWorldScriptedPathNode> cameraNodes = train.Primary.ValidateCallbackPhase(definition, train.Callback, initialDirection, stopAtEndpoint, (callback, bank) =>
         {
             expectedCounter = counter;
+            expectedDirection = previousBank.Direction;
             expectedCamera = NativeWorldScriptedPathState.EvaluateCamera(definition, previousBank.Nodes, previousBank.Direction, counter, TrainStation(previousBank), out counter);
             bank = PrepareTrainStationPrompt(bank);
             if (train.StationDeclines.Contains(callback))
@@ -64,12 +68,11 @@ internal sealed partial class WorldMapScene
             previousBank = bank;
             return bank;
         });
-        train.Alternate?.ValidateCallbackPhase(assets.ReadScriptedPath(train.Alternate.TrackIndex), train.Callback, initialDirection);
-        if (!train.CameraReceipt.Nodes.SequenceEqual(cameraNodes) || train.CameraReceipt.Direction != initialDirection)
+        train.Alternate?.ValidateCallbackPhase(assets.ReadScriptedPath(train.Alternate.TrackIndex), train.Callback, initialDirection, stopAtEndpoint);
+        if (!train.CameraReceipt.Nodes.SequenceEqual(cameraNodes) || train.CameraReceipt.Direction != expectedDirection)
         {
             throw new InvalidDataException("Native mode3 saved camera lost this callback's actual pre-movement nodes.");
         }
-        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         if (train.Load.Allocation.Story != actual.Story || train.Load.Allocation.EventFlags103 != actual.EventFlags103 || train.Load.Allocation.ProgramHash != actual.ProgramHash || train.Load.Allocation.CoordinateHash != actual.CoordinateHash || !train.Load.Allocation.ClauseWords.SequenceEqual(actual.ClauseWords) || train.Callback > 0 && (train.Camera != expectedCamera || train.CameraCounter != counter || train.CameraReceipt.Counter != expectedCounter))
         {
@@ -81,10 +84,11 @@ internal sealed partial class WorldMapScene
         }
         foreach (NativeTrainRailBank bank in new[] { train.Primary, train.Alternate }.OfType<NativeTrainRailBank>())
         {
+            bank.ValidateProjectionPhase(train.Callback, stopAtEndpoint, bank == train.Primary && TrainStation(bank) >= 0);
             for (int index = 0; index < bank.Presentation.Length; index++)
             {
                 NativeWorldPathNodePresentation pose = bank.Presentation[index];
-                if (pose.Projection is not null && pose.Projection.Source != bank.Nodes[index].Position || pose.Angles is null != (pose.Orientation is null) || pose.Orientation is not null && (pose.Angles != NativeWorldScriptedPathMath.LinkedOrientation(pose.Orientation.Middle.Words, pose.Orientation.Linked.Words) || pose.Orientation.Callback > train.Callback))
+                if (pose.Angles is null != (pose.Orientation is null) || pose.Orientation is not null && (pose.Angles != NativeWorldScriptedPathMath.LinkedOrientation(pose.Orientation.Middle.Words, pose.Orientation.Linked.Words) || pose.Orientation.Callback > train.Callback))
                 {
                     throw new InvalidDataException("Native train saved orientation lost its actual node/direction source.");
                 }
@@ -106,13 +110,14 @@ internal sealed partial class WorldMapScene
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(train.Primary.TrackIndex, train.CameraListIndex);
         NativeWorldPathCamera camera = NativeWorldScriptedPathState.EvaluateCamera(definition, train.Primary.Nodes, train.Primary.Direction, train.CameraCounter, TrainStation(train.Primary), out ushort counter);
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.Create(camera, origin, train.EntityType);
-        NativeTrainRailBank primary = train.Primary.Step(definition, callback, camera, origin, (node, cam, body) => context.ProjectNode(node));
+        bool stopAtEndpoint = (WorldEntryVariables.Read(session.State).EventFlags265 & 64) != 0;
+        NativeTrainRailBank primary = train.Primary.Step(definition, callback, camera, origin, (node, cam, body) => context.ProjectNode(node), stopAtEndpoint, out _);
         primary = PrepareTrainStationPrompt(primary);
         NativeTrainRailBank? alternate = train.Alternate;
         if (alternate is not null)
         {
             NativeWorldScriptedPathDefinition other = assets.ReadScriptedPath(alternate.TrackIndex);
-            alternate = alternate.Step(other, callback, camera, origin, (node, cam, body) => context.ProjectNode(node));
+            alternate = alternate.Step(other, callback, camera, origin, (node, cam, body) => context.ProjectNode(node), stopAtEndpoint, out _);
         }
         //549B40 excludes global entities16..22;5472C0 hides the selected normal-foot model, and550070 emits no normal-foot effect for that global entity.
         int? selectedGroup = horizontal > 0 ? 0 : horizontal < 0 ? 1 : null;

@@ -9,25 +9,43 @@ internal sealed partial class WorldMapScene
     private IReadOnlyList<WorldAutoPlayTarget>? autoPlayEntrances;
     private IReadOnlyDictionary<WorldAutoPlayTarget, IReadOnlyList<(int X, int RawZ)>>? autoPlayEntrancePaths;
     private GameState? autoPlayEntranceState;
+    private AutoPlayTerrain? autoPlayTerrain;
+
+    private sealed class AutoPlayTerrain(int entityType)
+    {
+        public int EntityType { get; } = entityType;
+        public List<(WorldTriangle Triangle, NativeWorldGroundIdentity Identity)> Polygons { get; } = [];
+        public Dictionary<NativeWorldGroundIdentity, int> Indices { get; } = [];
+        public Dictionary<(Vector3 A, Vector3 B), List<int>> Edges { get; } = [];
+        public HashSet<int> LoadedSegments { get; } = [];
+        public HashSet<int> ExpandedSegments { get; } = [];
+    }
 
     /// <summary>Native active entrances in the current owner's connected terrain component become automatic frontiers.</summary>
     public IReadOnlyList<WorldAutoPlayTarget> DiscoverAutoPlayEntrances()
     {
+        return DiscoverAutoPlayEntrances(null, null);
+    }
+
+    private IReadOnlyList<WorldAutoPlayTarget> DiscoverAutoPlayEntrances(IReadOnlySet<(int X, int RawZ)>? avoidedCrossings, string? targetId)
+    {
         int entityType = RequireAutoPlayOwner();
         WorldState before = State;
         ushort story = WorldEntryVariables.Read(session.State).StoryWord;
-        if (autoPlayEntrances is not null && ReferenceEquals(autoPlayEntranceState, session.State))
+        if (avoidedCrossings is null && autoPlayEntrances is not null && ReferenceEquals(autoPlayEntranceState, session.State))
         {
             return autoPlayEntrances;
         }
-        List<(WorldTriangle Triangle, NativeWorldGroundIdentity Identity)> terrain = [];
-        Dictionary<(Vector3 A, Vector3 B), List<int>> edges = [];
-        HashSet<int> loadedSegments = [];
-        HashSet<int> expandedSegments = [];
+        if (autoPlayTerrain is null || autoPlayTerrain.EntityType != entityType)
+        {
+            autoPlayTerrain = new(entityType);
+        }
+        AutoPlayTerrain topology = autoPlayTerrain;
+        var terrain = topology.Polygons;
+        var edges = topology.Edges;
         WorldGroundSelection start = assets.LookupNativeGround(before.X, before.Z, replacements, []) ?? throw new InvalidOperationException("World discovery requires the actual native starting ground.");
         LoadSegment(start.Identity.MapId);
-        int startIndex = terrain.FindIndex(item => item.Identity == start.Identity);
-        if (startIndex < 0)
+        if (!topology.Indices.TryGetValue(start.Identity, out int startIndex))
         {
             throw new NotSupportedException("The current world polygon is outside its owner's traversable discovery component.");
         }
@@ -42,7 +60,7 @@ internal sealed partial class WorldMapScene
                 continue;
             }
             int mapId = terrain[index].Identity.MapId;
-            if (expandedSegments.Add(mapId))
+            if (topology.ExpandedSegments.Add(mapId))
             {
                 int row = mapId / WorldAssets.Columns;
                 int column = mapId % WorldAssets.Columns;
@@ -59,9 +77,14 @@ internal sealed partial class WorldMapScene
             WorldTriangle triangle = terrain[index].Triangle;
             foreach ((Vector3 a, Vector3 b) in new[] { (triangle.A, triangle.B), (triangle.B, triangle.C), (triangle.C, triangle.A) })
             {
+                var crossing = Crossing(a, b);
+                if (avoidedCrossings?.Contains(crossing) == true)
+                {
+                    continue;
+                }
                 foreach (int adjacent in edges[Edge(a, b)])
                 {
-                    if (!component.Contains(adjacent) && parents.TryAdd(adjacent, (index, Crossing(a, b))))
+                    if (!component.Contains(adjacent) && parents.TryAdd(adjacent, (index, crossing)))
                     {
                         pending.Enqueue(adjacent);
                     }
@@ -78,6 +101,10 @@ internal sealed partial class WorldMapScene
             }
             int x = (int)MathF.Round((triangle.A.X + triangle.B.X + triangle.C.X) / 3);
             int z = (int)MathF.Round((triangle.A.Z + triangle.B.Z + triangle.C.Z) / 3);
+            if (avoidedCrossings?.Contains((x, z)) == true)
+            {
+                continue;
+            }
             WorldGroundSelection? native = assets.LookupNativeGround(x, z, replacements, []);
             if (native is null || native.Identity != terrain[index].Identity)
             {
@@ -102,6 +129,11 @@ internal sealed partial class WorldMapScene
                 continue;
             }
             ushort field = selection.Entry.FieldId;
+            string id = $"world-entry:{field}:{selection.Entry.Index}";
+            if (targetId is not null && id != targetId)
+            {
+                continue;
+            }
             int order = field switch
             {
                 159 => 0,
@@ -109,7 +141,7 @@ internal sealed partial class WorldMapScene
                 136 => 20,
                 _ => 100
             };
-            reachable.Add((new WorldAutoPlayTarget($"world-entry:{field}:{selection.Entry.Index}", x, z, field, order), index));
+            reachable.Add((new WorldAutoPlayTarget(id, x, z, field, order), index));
         }
         var ordered = reachable.GroupBy(item => item.Target.DestinationField)
             .Select(group => group.OrderBy(item => SquaredDistance(before.X, before.Z, item.Target.X, item.Target.RawZ)).ThenBy(item => item.Target.Id, StringComparer.Ordinal).ThenBy(item => item.Target.X).ThenBy(item => item.Target.RawZ).First())
@@ -132,14 +164,14 @@ internal sealed partial class WorldMapScene
             path.Reverse();
             paths.Add(target, path.ToArray());
         }
-        autoPlayEntranceState = session.State;
+        autoPlayEntranceState = avoidedCrossings is null ? session.State : null;
         autoPlayEntrancePaths = paths;
         autoPlayEntrances = paths.Keys.ToArray();
         return autoPlayEntrances;
 
         void LoadSegment(int mapId)
         {
-            if (!loadedSegments.Add(mapId))
+            if (!topology.LoadedSegments.Add(mapId))
             {
                 return;
             }
@@ -147,7 +179,9 @@ internal sealed partial class WorldMapScene
             foreach (WorldTriangle triangle in segment.Triangles.Where(item => AutoPlayCanTraverse(item, entityType)))
             {
                 int index = terrain.Count;
-                terrain.Add((triangle, new NativeWorldGroundIdentity(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex)));
+                NativeWorldGroundIdentity identity = new(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex);
+                terrain.Add((triangle, identity));
+                topology.Indices.TryAdd(identity, index);
                 foreach ((Vector3 a, Vector3 b) in new[] { (triangle.A, triangle.B), (triangle.B, triangle.C), (triangle.C, triangle.A) })
                 {
                     var edge = Edge(a, b);
@@ -166,6 +200,12 @@ internal sealed partial class WorldMapScene
     {
         DiscoverAutoPlayEntrances();
         return autoPlayEntrancePaths!.TryGetValue(target, out var path) ? path : throw new InvalidOperationException("The requested entrance has no path from the current world state.");
+    }
+
+    internal IReadOnlyList<(int X, int RawZ)>? ReplanAutoPlayEntrance(WorldAutoPlayTarget target, IReadOnlySet<(int X, int RawZ)> avoidedCrossings)
+    {
+        WorldAutoPlayTarget? replacement = DiscoverAutoPlayEntrances(avoidedCrossings, target.Id).SingleOrDefault();
+        return replacement is null ? null : autoPlayEntrancePaths![replacement];
     }
 
     public bool IsAtAutoPlayEntrance(WorldAutoPlayTarget target)
@@ -251,7 +291,7 @@ internal sealed partial class WorldMapScene
             car.Validate();
             return car.EntityType;
         }
-        if (State.NativeFootRuntime is not { EntityType: 0 or 1, StationTrains: null } foot || debugPlacement && foot.NormalObjects is not null || State.NativeCarRuntime is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeTrainRuntime is not null || State.NativeScriptedRuntime is not null)
+        if (State.NativeFootRuntime is not { EntityType: 0 or 1 } foot || debugPlacement && (foot.NormalObjects is not null || foot.StationTrains is not null) || State.NativeCarRuntime is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeTrainRuntime is not null || State.NativeScriptedRuntime is not null)
         {
             throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires ordinary foot or the current stationary type33 car.");
         }

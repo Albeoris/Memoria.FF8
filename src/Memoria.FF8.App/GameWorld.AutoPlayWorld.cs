@@ -40,7 +40,9 @@ internal sealed partial class GameWorld
             }
         }
         int stride = 1;
-        for (int waypoint = 0; waypoint < path.Count; waypoint++)
+        HashSet<(int X, int RawZ)> avoidedCrossings = [];
+        int waypoint = 0;
+        while (waypoint < path.Count)
         {
             int stalled = 0;
             long bestDistance = long.MaxValue;
@@ -52,6 +54,7 @@ internal sealed partial class GameWorld
                 long distance = WorldDistanceSquared(before.X, before.Z, x, z);
                 if (distance <= (long)stride * stride)
                 {
+                    waypoint++;
                     break;
                 }
                 if (callbacks >= 30_000)
@@ -81,7 +84,14 @@ internal sealed partial class GameWorld
                 }
                 else if (++stalled >= 8)
                 {
-                    return WorldTravelBlocked(scene, callbacks, "Ordinary world movement could not approach the next terrain crossing.");
+                    var crossing = path[waypoint];
+                    if (after.NativeFootRuntime is null || avoidedCrossings.Count >= 12 || !avoidedCrossings.Add(crossing) || scene.ReplanAutoPlayEntrance(target, avoidedCrossings) is not { } detour)
+                    {
+                        return WorldTravelBlocked(scene, callbacks, $"Ordinary world movement could not reach crossing ({crossing.X}, {crossing.RawZ}) after {avoidedCrossings.Count} replans.");
+                    }
+                    path = detour;
+                    waypoint = 0;
+                    break;
                 }
             }
         }

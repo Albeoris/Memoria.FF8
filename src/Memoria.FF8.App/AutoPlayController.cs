@@ -1360,7 +1360,11 @@ internal sealed partial class AutoPlayController
         }
         string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
         string signature = WorldConditionSignature(session.State);
-        IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
+        IReadOnlyList<WorldAutoPlayTarget> targets;
+        using (performance.Measure("World.Discovery"))
+        {
+            targets = world.DiscoverAutoPlayWorldTargets();
+        }
         planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
         string navigation = ObserveNavigation(world, visit);
         RefreshUnavailable(world);
@@ -1408,7 +1412,11 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
-        WorldAutoPlayTravelResult travel = world.ExecuteAutoPlayWorldTarget(target, ResetIdleDeadline);
+        WorldAutoPlayTravelResult travel;
+        using (performance.Measure("World.Travel"))
+        {
+            travel = world.ExecuteAutoPlayWorldTarget(target, ResetIdleDeadline);
+        }
         RecordRecentAction($"World walk {target.Id}: {travel.Action.Trigger.Kind} field={travel.Action.Trigger.FieldId}; callbacks={travel.Action.FramesAdvanced}; {travel.Action.Detail}");
         if (!travel.MatchedTarget)
         {
@@ -1592,7 +1600,8 @@ internal sealed partial class AutoPlayController
 
     private void ApplyDialogueSelection(int selection)
     {
-        Apply(getWorld().CurrentDialogue?.CancelChoice == selection ? new(PlayerActionKind.Cancel) : new(PlayerActionKind.Choose, selection));
+        bool cancel = session.State.Scene == SceneKind.Field && getWorld().CurrentDialogue?.CancelChoice == selection;
+        Apply(cancel ? new(PlayerActionKind.Cancel) : new(PlayerActionKind.Choose, selection));
     }
 
     private bool FinishChoices()

@@ -130,9 +130,9 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         ValidateProjectionSources(projectedNodes);
     }
 
-    public void ValidateProjectionPhase(long callback, bool stopAtEndpoint)
+    public void ValidateProjectionPhase(long callback, bool stopAtEndpoint, bool stationPrompt = false)
     {
-        if (EndpointProjection is { } receipt && (receipt.Callback != callback || receipt.StopAtEndpoint != stopAtEndpoint))
+        if (EndpointProjection is { } receipt && (receipt.Callback != callback || receipt.StopAtEndpoint != stopAtEndpoint || Pause != (stopAtEndpoint || stationPrompt ? -1 : 30)))
         {
             throw new InvalidDataException("Native endpoint projection lost its actual callback or executed stop-flag owner.");
         }
@@ -150,7 +150,8 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         NativeWorldRailAdvance advance = NativeWorldScriptedPathState.AdvanceRail(definition, source.Nodes, source.Direction, source.Pause, source.Speed, 100, 2, source.Status, source.StopCounter, receipt.SelectedSpeed);
         sbyte reversed = checked((sbyte)-source.Direction);
         ImmutableArray<NativeWorldScriptedPathNode> reset = NativeWorldScriptedPathState.InitialDistances(definition, 5, reversed).Select(distance => NativeWorldScriptedPathState.ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), reversed, out _)).ToImmutableArray();
-        if (!advance.Endpoint || advance.Pause != 0 || advance.Status != 2 || Direction != reversed || Pause != (receipt.StopAtEndpoint ? -1 : 30) || Speed != 0 || Status != 2 || StopCounter != 0 || !Nodes.SequenceEqual(reset))
+        bool stationHold = !receipt.StopAtEndpoint && TrackIndex == 0 && reversed == -1 && Pause == -1;
+        if (!advance.Endpoint || advance.Pause != 0 || advance.Status != 2 || Direction != reversed || Pause != (receipt.StopAtEndpoint ? -1 : 30) && !stationHold || Speed != 0 || Status != 2 || StopCounter != 0 || !Nodes.SequenceEqual(reset))
         {
             throw new InvalidDataException("Native endpoint projection differs from the executed rail advance and subsequent physical reset.");
         }
@@ -171,7 +172,7 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
     public static sbyte Link(int index) => index == 2 ? (sbyte)0 : index < 2 ? (sbyte)1 : (sbyte)-1;
     public byte Shape(NativeWorldScriptedPathDefinition definition, int index) => index is 0 or 4 ? definition.FrontShape : definition.RearShape;
 
-    public ImmutableArray<NativeWorldScriptedPathNode> ValidateCallbackPhase(NativeWorldScriptedPathDefinition definition, long callback, sbyte initialDirection, Func<long, NativeTrainRailBank, NativeTrainRailBank>? callbackTail = null)
+    public ImmutableArray<NativeWorldScriptedPathNode> ValidateCallbackPhase(NativeWorldScriptedPathDefinition definition, long callback, sbyte initialDirection, bool stopAtEndpoint, Func<long, NativeTrainRailBank, NativeTrainRailBank>? callbackTail = null)
     {
         Validate(definition);
         NativeTrainRailBank phase = Create(definition, initialDirection);
@@ -179,23 +180,23 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         for (long index = 0; index < callback; index++)
         {
             previous = phase.Nodes;
-            NativeWorldRailAdvance advance = NativeWorldScriptedPathState.AdvanceRail(definition, phase.Nodes, initialDirection, phase.Pause, phase.Speed, 100, 2, phase.Status, phase.StopCounter);
-            if (advance.Endpoint)
-            {
-                throw new NotSupportedException("Native riding-train restored phase reaches an unsupported endpoint.");
-            }
+            NativeWorldRailAdvance advance = NativeWorldScriptedPathState.AdvanceRail(definition, phase.Nodes, phase.Direction, phase.Pause, phase.Speed, 100, 2, phase.Status, phase.StopCounter);
             bool align = advance.Status == 1 && advance.StopCounter != phase.StopCounter && advance.Pause > 0 && TrackIndex == 1;
             phase = phase with { Pause = advance.Pause, Speed = advance.Speed, Nodes = advance.Nodes, Status = advance.Status, StopCounter = advance.StopCounter, ContactReversal = null };
             if (align)
             {
                 phase = phase.AlignAtStop(definition);
             }
+            if (phase.Status == 2 && phase.Pause == 0)
+            {
+                phase = phase.ResetAtEndpoint(definition, stopAtEndpoint);
+            }
             if (callbackTail is not null)
             {
                 phase = callbackTail(index + 1, phase);
             }
         }
-        if (Direction != initialDirection || Pause != phase.Pause || Speed != phase.Speed || StopCounter != phase.StopCounter || !Nodes.SequenceEqual(phase.Nodes) || Status != phase.Status)
+        if (Direction != phase.Direction || Pause != phase.Pause || Speed != phase.Speed || StopCounter != phase.StopCounter || !Nodes.SequenceEqual(phase.Nodes) || Status != phase.Status)
         {
             throw new InvalidDataException("Native train saved bank differs from its executed loader and actual callback phase.");
         }
@@ -229,10 +230,8 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
             {
                 throw new NotSupportedException("Native train endpoint requires the actual BYTE103 stop flag.");
             }
-            sbyte reversed = checked((sbyte)-next.Direction);
-            ImmutableArray<NativeWorldScriptedPathNode> reset = NativeWorldScriptedPathState.InitialDistances(definition, 5, reversed).Select(distance => NativeWorldScriptedPathState.ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), reversed, out _)).ToImmutableArray();
             //545480 resets nodes after its second projection and retains the actual prior draw words.
-            next = next with { Direction = reversed, Pause = stopAtEndpoint.Value ? (short)-1 : (short)30, Speed = 0, StopCounter = 0, Nodes = reset, CallbackSource = null, EndpointProjection = new NativeTrainRailEndpointProjection(1, callback, this, selectedSpeed, stopAtEndpoint.Value) };
+            next = next.ResetAtEndpoint(definition, stopAtEndpoint.Value) with { CallbackSource = null, EndpointProjection = new NativeTrainRailEndpointProjection(1, callback, this, selectedSpeed, stopAtEndpoint.Value) };
         }
         if (next.CallbackSource is not null)
         {
@@ -240,6 +239,13 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         }
         next.Validate(definition);
         return next;
+    }
+
+    private NativeTrainRailBank ResetAtEndpoint(NativeWorldScriptedPathDefinition definition, bool stopAtEndpoint)
+    {
+        sbyte reversed = checked((sbyte)-Direction);
+        ImmutableArray<NativeWorldScriptedPathNode> reset = NativeWorldScriptedPathState.InitialDistances(definition, 5, reversed).Select(distance => NativeWorldScriptedPathState.ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), reversed, out _)).ToImmutableArray();
+        return this with { Direction = reversed, Pause = stopAtEndpoint ? (short)-1 : (short)30, Speed = 0, StopCounter = 0, Nodes = reset };
     }
 
     /// <summary>545480 after a positive549B40 result: restore prior physical rail words, pause15, and execute the native conditional reversal.</summary>
