@@ -65,7 +65,7 @@ public sealed partial class BattleSession
             return new(current, screen, projected.Projected.Depth >> 2, projected.Projected.Flags) { World = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, source), projection) };
         }, (current, output, batch) =>
         {
-            var written = AppendNativeCinematicPackets(current, output, null, batch, graphics);
+            var written = AppendNativeCinematicPackets(current, output, null, batch, graphics, flags20: 1);
             graphics = written.Graphics;
             return written.Frame;
         }, (address, length) => resources.ReadStatic(address, length).ToArray()) { PilotIdentity = visualIdentity };

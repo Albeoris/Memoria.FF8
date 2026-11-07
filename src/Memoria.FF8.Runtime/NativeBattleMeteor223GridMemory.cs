@@ -89,7 +89,7 @@ internal sealed class NativeBattleMeteor223GridMemory
         NativeBattleGeometryPrimitive primitive = new(checked((int)(delta / 4)), words, []);
         if (Services.PilotIdentity is { } identity)
         {
-            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (row << 16) + column) }, worldVertices[(row, column)], worldVertices[(row, column + 1)], worldVertices[(row + 1, column)], worldVertices[(row + 1, column + 1)], 4) { ScreenScale = 0.125f } };
+            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (row << 16) + column) }, worldVertices[(row, column)], worldVertices[(row, column + 1)], worldVertices[(row + 1, column)], worldVertices[(row + 1, column + 1)], 4) };
         }
         attempts.Add(new(checked(address - packetStart), bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, bytes.Length).ToImmutableArray(), primitive));
     }
