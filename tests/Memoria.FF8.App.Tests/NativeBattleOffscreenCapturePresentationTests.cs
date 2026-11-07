@@ -97,8 +97,14 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             Assert.Equal(232u << 16, black.Command.Words[3]);
             Assert.Equal(320u | 232u << 16, black.Command.Words[4]);
             var clearProof = ProbePhysicalClear(black.Command, queued.Definition.NativeGraphics!.SoftwarePrimitiveTable!);
+            var previousClearProof = ProbePhysicalClear(black.Command with { ScreenCoverage = null }, queued.Definition.NativeGraphics!.SoftwarePrimitiveTable!);
+            if (captureArea != BattleSceneVisibleArea.Native)
+            {
+                Assert.True(previousClearProof.UnclearedLeftEdge > 0 && previousClearProof.UnclearedRightEdge > 0);
+                Assert.Equal(0, previousClearProof.OutsideChangedWords);
+            }
             ClearProbe? holyClearProof = effect == 184 ? ProbeHolyProducer(snapshot, game.ReadNativeHoly175Resources(), captureArea, buffer) : null;
-            var report = new { effect, width, height, captureArea, clearProof, holyClearProof, snapshot.Frame, callback = snapshot.NativeGraphics.Callback, buffer = snapshot.NativeEffectMemory!.PrimitiveProcess!.Buffer80, nativeWordsSha256 = nativeWords, retainedWordsSha256 = retainedWords, commands = original.LastCommands.Length, gridCommands = grid.Length, rawRegions, frameRgbaSha256 = Convert.ToHexString(SHA256.HashData(rgba)), captureRgbaSha256 = Convert.ToHexString(SHA256.HashData(captured)), interpretation = "Original-resource completed frame and its unmodified retained framebuffer words; capture scope matches the selected output viewport." };
+            var report = new { effect, width, height, captureArea, clearProof, previousClearProof, holyClearProof, snapshot.Frame, callback = snapshot.NativeGraphics.Callback, buffer = snapshot.NativeEffectMemory!.PrimitiveProcess!.Buffer80, nativeWordsSha256 = nativeWords, retainedWordsSha256 = retainedWords, commands = original.LastCommands.Length, gridCommands = grid.Length, rawRegions, frameRgbaSha256 = Convert.ToHexString(SHA256.HashData(rgba)), captureRgbaSha256 = Convert.ToHexString(SHA256.HashData(captured)), interpretation = "Original-resource completed frame and its unmodified retained framebuffer words; capture scope matches the selected output viewport." };
             File.WriteAllText(Path.Combine(output, "capture.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
             testOutput.WriteLine($"Effect {effect}: frame, raw captured words and compact metadata written to {output}.");
             Assert.Equal(0, clearProof.UnclearedWords);
