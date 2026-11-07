@@ -157,6 +157,10 @@ public sealed partial class BattleSession
             {
                 LastDiagnosticInvocationCompletion = scoped;
             }
+            if (LastDiagnosticTerminalTextureAttempt is { Result: "pending" } textureAttempt)
+            {
+                LastDiagnosticTerminalTextureAttempt = textureAttempt with { Result = scoped?.TerminalTextures is not null ? "sealed" : scoped?.Aftercare is not null ? "deferred-aftercare" : "unsupported" };
+            }
         }
         if (LastDiagnosticInvocationCompletion.Released)
         {

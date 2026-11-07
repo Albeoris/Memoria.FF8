@@ -8,6 +8,40 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticFreshEntryTests
 {
+    [Theory]
+    [InlineData("pending", false)]
+    [InlineData("deferred-aftercare", false)]
+    [InlineData("sealed", false)]
+    [InlineData("unsupported", true)]
+    public void Only_final_unsupported_victory_completion_fails_promptly_with_guard_reasons(string result, bool blocked)
+    {
+        BattleDiagnosticInvocationRelease release = DiagnosticInvocationReleaseTests.TerminalTextureReceipt();
+        DiagnosticBattleDriverRecipe recipe = Recipe with
+        {
+            Input = new(BattleInputKind.Action, ActorId: release.Dispatch.ActorId, TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | 53),
+            ExpectedEffect = 288,
+            ExpectedNativeAction = 53,
+            ExpectedNativeCommand = 16,
+            LimitSelection = new(4, 4, 256),
+            SlotsAdmission = new(53, 256, 5),
+            TerminalHold = release.TerminalTextures!.Hold.Declaration
+        };
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        driver.Advance(Observation(0, 0));
+        Assert.True(driver.Advance(Observation(0.1, 1)));
+        driver.ObserveDispatch(release.Dispatch);
+        BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures!;
+        BattleDiagnosticTerminalTextureAttempt attempt = new(release with { TerminalTextures = null, Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary }, proof.Hold, 0, null, 0, 0, false, true, proof.CommandBanks, proof.Textures, ["terminal-texture-quiescence"], result);
+        driver.ObserveTerminalTextureAttempt(attempt);
+        Assert.Equal(blocked ? DiagnosticDriverStage.Blocked : DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.Null(driver.FocalRelease);
+        if (blocked)
+        {
+            Assert.Equal("FOCAL_TERMINAL_COMPLETION_UNSUPPORTED: terminal-texture-quiescence", driver.Blocker);
+            Assert.Equal(0, driver.Execution);
+        }
+    }
+
     [Fact]
     public void Terminal_texture_certificate_keeps_its_main_boundary_but_waits_for_physical_drain_before_tail()
     {
@@ -31,7 +65,7 @@ public sealed class DiagnosticFreshEntryTests
         driver.Advance(Observation(0.3, 4, false));
         Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
         Assert.Same(release, driver.FocalRelease);
-        Assert.Equal(release.Timestamp, driver.FocalRelease.Timestamp);
+        Assert.Equal(release.Timestamp, driver.FocalRelease!.Timestamp);
         driver.Advance(Observation(0.4, 5));
         Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
         driver.Advance(Observation(0.5, 6));

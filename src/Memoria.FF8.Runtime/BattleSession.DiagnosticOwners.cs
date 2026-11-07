@@ -12,6 +12,7 @@ public sealed partial class BattleSession
             SimulationFrame = Frame,
             Callback = NativeHostCallbacks,
             LastInvocationCompletion = LastDiagnosticInvocationCompletion,
+            TerminalTextureAttempt = LastDiagnosticTerminalTextureAttempt,
             LastInvocationAftercare = LastDiagnosticInvocationAftercare,
             InvocationAftercareProgress = DiagnosticInvocationAftercareProgress,
             LastInvocationPendingOwners = LastDiagnosticInvocationPendingOwners,

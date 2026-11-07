@@ -152,6 +152,14 @@ internal sealed partial class RecreateGame
             else
             {
                 BattleSession active = diagnosticDriverBattle!;
+                if (active.LastDiagnosticTerminalTextureAttempt is { } textureAttempt)
+                {
+                    driver.ObserveTerminalTextureAttempt(textureAttempt);
+                    if (driver.Finished)
+                    {
+                        return;
+                    }
+                }
                 string[] blockers = active.NativeEntryReady ? active.ObserveDiagnosticDrainBlockers().ToArray() : ["native-entry"];
                 if (active.NativeEntryReady && blockers.Length == 0 && !diagnosticTargetVerified)
                 {

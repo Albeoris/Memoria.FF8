@@ -17,6 +17,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticInvocationRelease? InvocationRelease { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticTerminalTextureAttempt? TerminalTextureAttempt { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticInvocationAftercareReceipt? InvocationAftercare { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public long? AftercareTailPrecedingFrame { get; init; }
@@ -290,7 +292,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { InvocationRelease = invocationRelease, PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { InvocationRelease = invocationRelease, TerminalTextureAttempt = battle.LastDiagnosticTerminalTextureAttempt, PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
         start = null;
         pacing = null;
         visualChanges = null;

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -30,6 +31,28 @@ public sealed class DiagnosticInvocationAftercareTests
         Assert.False(main.Owners.ActionOrCommand);
         Assert.Empty(session.NativeCommandBanks.BoundCommands);
         Assert.Null(main.Aftercare);
+        BattleDiagnosticTerminalTextureAttempt? attempt = session.LastDiagnosticTerminalTextureAttempt;
+        if (victoryHold)
+        {
+            Assert.NotNull(attempt);
+            Assert.Equal(terminal ? "sealed" : "unsupported", attempt.Result);
+            Assert.Equal(0, attempt.BornCallbackCount);
+            Assert.Equal(0, attempt.BoundCommands);
+            Assert.True(attempt.PhysicalBanksMatch);
+            Assert.True(attempt.Completion.PacketRemoved);
+            if (terminal)
+            {
+                Assert.Empty(attempt.FailedGuards);
+            }
+            else
+            {
+                Assert.Equal("terminal-texture-quiescence", Assert.Single(attempt.FailedGuards));
+            }
+        }
+        else
+        {
+            Assert.Null(attempt);
+        }
         if (!victoryHold || !terminal)
         {
             Assert.False(main.Released);
@@ -53,6 +76,8 @@ public sealed class DiagnosticInvocationAftercareTests
         session.DiagnosticTerminalHold!.Receipts[0].Party[0] = session.DiagnosticTerminalHold.Receipts[0].Party[0] with { CurrentHp = 1 };
         programme[0] = 254;
         Assert.Equal((byte)255, Assert.Single(proof.Textures.Tasks).Deadline);
+        Assert.Equal((byte)255, Assert.Single(attempt!.Textures.Tasks).Deadline);
+        Assert.NotSame(session.DiagnosticTerminalHold, attempt.Hold);
         Assert.Equal(sealedProof, NativeBattleTestSnapshots.Json(main));
         EndFrame(session);
         Assert.Single(releases);
@@ -231,7 +256,7 @@ public sealed class DiagnosticInvocationAftercareTests
             object?[] arguments = [null];
             Assert.True((bool)typeof(BattleSession).GetMethod("TryTakeNativeBankCommand", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments)!);
             BattleAttackCommand command = Assert.IsType<BattleAttackCommand>(arguments[0]);
-            Call(session, "DispatchNativeCallback", command.NativeCallback!);
+            Call(session, "DispatchNativeCallback", command.NativeCallback!, null);
             Assert.Single(session.NativeCommandBanks.BoundCommands);
         }
         else if (fault != "no-handler")
@@ -344,7 +369,7 @@ public sealed class DiagnosticInvocationAftercareTests
         if (fault == "header")
         {
             NativeBattleActionPacketsState packets = session.NativeActionPackets;
-            (packets, _) = packets.Prepare(new(0, command, 0, 0, action, effect, null));
+            (packets, _) = packets.Prepare(new(0, 252, 0, 0, 1, 1, null));
             (packets, _) = packets.Publish(0);
             Field("nativeActionPackets").SetValue(session, packets);
         }
@@ -398,8 +423,8 @@ public sealed class DiagnosticInvocationAftercareTests
             typeof(BattleCombatant).GetProperty("NativeStatus0", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Combatants[1], (ushort)1);
             Call(session, "CompleteBattleIfNeeded");
         }
-        ushort effect = standaloneVictory ? (ushort)288 : (ushort)1;
-        ushort action = standaloneVictory ? (ushort)53 : (ushort)1;
+        byte effect = standaloneVictory ? (byte)85 : (byte)1;
+        ushort action = standaloneVictory ? (ushort)56 : (ushort)1;
         byte command = standaloneVictory ? (byte)16 : (byte)252;
         session.Combatants[0].LastNativeAction = new(0, 0, 2, 1, 0, 0);
         Call(session, "BeginNativeReactionBatch");
