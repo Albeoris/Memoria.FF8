@@ -104,6 +104,38 @@ function Get-ValidationProblems($Cases) {
     }
 }
 
+function Read-ValidationFreshEntryPair($Source) {
+    $pins = [Memoria.FF8.BattleEffects.RecordJson]::Read[Memoria.FF8.BattleEffects.FreshEntryPairPins]($Source.PreviousResult.PairPinsPath)
+    return [Memoria.FF8.BattleEffects.FreshEntryPairValidation]::ValidateFiles($pins)
+}
+
+function Read-ValidationOrdinaryEvidence($Source) {
+    return [Memoria.FF8.BattleEffects.LiveEvidenceValidation]::ValidateFile($Source.TelemetryPath, $null)
+}
+
+function Get-ValidationCastSources($Source) {
+    if ($Source.PreviousResult.ExecutionProtocol -eq 'fresh-entry-pair') {
+        $pair = Read-ValidationFreshEntryPair $Source
+        if (-not $pair.FunctionalPass -or $pair.Entries.Count -ne 2) {
+            throw 'Two authenticated independent fresh entries are required.'
+        }
+        foreach ($validation in $pair.Entries) {
+            if ($validation.Verdict -notin @('PASS','FAIL') -or $validation.EffectExecutions.Count -ne 1 -or $validation.Executions.Count -ne 1 -or $validation.EffectDurationsMs.Count -ne 1) {
+                throw 'Each fresh entry must contain exactly one completed cast.'
+            }
+            [pscustomobject]@{validation=$validation;execution_index=0}
+        }
+    } else {
+        $validation = Read-ValidationOrdinaryEvidence $Source
+        if ($validation.Verdict -notin @('PASS','FAIL') -or $validation.EffectExecutions.Count -ne 2 -or $validation.Executions.Count -ne 2 -or $validation.EffectDurationsMs.Count -ne 2) {
+            throw 'Two authenticated completed casts are required.'
+        }
+        for ($index = 0; $index -lt 2; $index++) {
+            [pscustomobject]@{validation=$validation;execution_index=$index}
+        }
+    }
+}
+
 function New-ValidationTriageReport {
     param([string] $ManifestPath, [string] $HistoryRoot, $PreviousReport = $null, [double] $BelowFps = 30)
     $requested = [Memoria.FF8.BattleEffects.RecordJson]::Read[Memoria.FF8.BattleEffects.PilotManifest]($ManifestPath)
@@ -157,17 +189,18 @@ function New-ValidationTriageReport {
         }
         if ($source.Tested) {
             try {
-                $validation = [Memoria.FF8.BattleEffects.LiveEvidenceValidation]::ValidateFile($source.TelemetryPath, $null)
-                if ($validation.EffectExecutions.Count -ne 2 -or $validation.Verdict -notin @('PASS','FAIL')) { throw 'Two authenticated completed casts are required.' }
+                $castSources = @(Get-ValidationCastSources $source)
                 $casts = [Collections.Generic.List[object]]::new()
                 for ($index = 0; $index -lt 2; $index++) {
-                    $scope = $validation.EffectExecutions[$index]
+                    $validation = $castSources[$index].validation
+                    $executionIndex = $castSources[$index].execution_index
+                    $scope = $validation.EffectExecutions[$executionIndex]
                     $durations = [double[]]@($scope.Frames.Intervals | ForEach-Object { $_.DurationMs })
                     $metrics = Get-EffectFrameMetrics -IntervalMs $durations -SlowFrameMs $slowMs -LongStallMs ([Math]::Max(100,$slowMs))
                     if (-not $scope.Available) { $metrics = Get-EffectFrameMetrics -IntervalMs @() -SlowFrameMs $slowMs -LongStallMs ([Math]::Max(100,$slowMs)) }
                     $boundary = [double[]]@($scope.BoundaryIntervals | ForEach-Object { $_.DurationMs })
                     $boundaryMetrics = Get-EffectFrameMetrics -IntervalMs $boundary -SlowFrameMs $slowMs -LongStallMs ([Math]::Max(100,$slowMs))
-                    $casts.Add([pscustomobject]@{index=($index+1);effect=$metrics;invocation_median_fps=$validation.Executions[$index].MedianFps;effect_wall_ms=$validation.EffectDurationsMs[$index];boundary=$boundaryMetrics;boundary_interval_count=$scope.BoundaryIntervalCount;whole_interval_coverage=($scope.Frames.DurationMs / $validation.EffectDurationsMs[$index])})
+                    $casts.Add([pscustomobject]@{index=($index+1);effect=$metrics;invocation_median_fps=$validation.Executions[$executionIndex].MedianFps;effect_wall_ms=$validation.EffectDurationsMs[$executionIndex];boundary=$boundaryMetrics;boundary_interval_count=$scope.BoundaryIntervalCount;whole_interval_coverage=($scope.Frames.DurationMs / $validation.EffectDurationsMs[$executionIndex])})
                 }
                 $entry.casts = $casts.ToArray()
                 $entry.classification = Get-ValidationCaseClassification $entry.casts

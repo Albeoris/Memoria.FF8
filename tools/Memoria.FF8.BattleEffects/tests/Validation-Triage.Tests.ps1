@@ -202,4 +202,62 @@ Assert-Equal $true (@(Get-ValidationProblems $partialQueue).problem_id -contains
 $pendingPrior = New-TestCase 'queue-1' 1 @{state='pending';retained_unresolved=$true;classification='repeated-hitches';casts=$queueCases[0].casts;problem_casts=2}
 Assert-Equal 'incomplete-retry' @(Get-ValidationProblems @($pendingPrior))[0].evidence 'Interrupted retry evidence preserves the unresolved queue item.'
 
+$readPair = ${function:Read-ValidationFreshEntryPair}
+$readOrdinary = ${function:Read-ValidationOrdinaryEvidence}
+try {
+    function New-TestEntryValidation([double] $FrameMs) {
+        return [pscustomobject]@{
+            Verdict = 'PASS'
+            EffectExecutions = @([pscustomobject]@{ Frames = [pscustomobject]@{ Intervals = @([pscustomobject]@{ DurationMs = $FrameMs }) } })
+            Executions = @([pscustomobject]@{ MedianFps = (1000 / $FrameMs) })
+            EffectDurationsMs = @($FrameMs)
+        }
+    }
+    $script:testPair = [pscustomobject]@{ FunctionalPass = $true; Entries = @((New-TestEntryValidation 50), (New-TestEntryValidation 16)) }
+    function Read-ValidationFreshEntryPair($Source) {
+        Assert-Equal $null $Source.TelemetryPath 'Fresh pairs have no fabricated aggregate telemetry path.'
+        return $script:testPair
+    }
+    function Read-ValidationOrdinaryEvidence($Source) {
+        throw 'Fresh-entry triage must not read an ordinary aggregate report.'
+    }
+    $pairSource = [pscustomobject]@{ TelemetryPath = $null; PreviousResult = [pscustomobject]@{ ExecutionProtocol = 'fresh-entry-pair' } }
+    $castSources = @(Get-ValidationCastSources $pairSource)
+    Assert-Equal 2 $castSources.Count 'An authenticated fresh pair supplies two independent casts.'
+    Assert-Equal '0,0' ($castSources.execution_index -join ',') 'Each fresh entry uses its own first execution.'
+    Assert-Equal 50 $castSources[0].validation.EffectDurationsMs[0] 'First fresh cast preserves its measured duration.'
+    Assert-Equal 16 $castSources[1].validation.EffectDurationsMs[0] 'Second fresh cast preserves its distinct measured duration.'
+    $pairMetrics = @($castSources | ForEach-Object {
+        Get-EffectFrameMetrics -IntervalMs @($_.validation.EffectExecutions[$_.execution_index].Frames.Intervals.DurationMs)
+    })
+    Assert-Equal 20 $pairMetrics[0].EffectiveFps 'Slow fresh entry retains its independent FPS.'
+    Assert-Equal 62.5 $pairMetrics[1].EffectiveFps 'Healthy fresh entry is not replaced by the first entry.'
+
+    $script:testPair.FunctionalPass = $false
+    $rejected = $false
+    try { $null = @(Get-ValidationCastSources $pairSource) } catch { $rejected = $true }
+    Assert-Equal $true $rejected 'Failed paired authentication cannot produce triage casts.'
+    $script:testPair.FunctionalPass = $true
+    $script:testPair.Entries[1].EffectExecutions = @()
+    $rejected = $false
+    try { $null = @(Get-ValidationCastSources $pairSource) } catch { $rejected = $true }
+    Assert-Equal $true $rejected 'An incomplete second entry cannot borrow the first entry cast.'
+
+    function Read-ValidationOrdinaryEvidence($Source) {
+        return [pscustomobject]@{
+            Verdict = 'FAIL'
+            EffectExecutions = @('first', 'second')
+            Executions = @('first', 'second')
+            EffectDurationsMs = @(100, 200)
+        }
+    }
+    $ordinarySource = [pscustomobject]@{ PreviousResult = [pscustomobject]@{ ExecutionProtocol = 'same-battle-repeat' } }
+    $ordinaryCasts = @(Get-ValidationCastSources $ordinarySource)
+    Assert-Equal '0,1' ($ordinaryCasts.execution_index -join ',') 'Ordinary repetition keeps two indexes in the same authenticated report.'
+    Assert-Equal 'FAIL' $ordinaryCasts[1].validation.Verdict 'Completed performance failures remain eligible for triage.'
+} finally {
+    ${function:Read-ValidationFreshEntryPair} = $readPair
+    ${function:Read-ValidationOrdinaryEvidence} = $readOrdinary
+}
+
 Write-Output "Passed $script:assertionCount synthetic validation triage assertions."
