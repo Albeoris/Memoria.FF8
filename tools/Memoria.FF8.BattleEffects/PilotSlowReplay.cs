@@ -5,6 +5,10 @@ namespace Memoria.FF8.BattleEffects;
 
 public static class PilotSlowReplay
 {
+    // A source manifest contains the full catalog selection; one replay recipe remains a per-case record.
+    private const int MaximumManifestBytes = 64 * 1024 * 1024;
+    private const int MaximumRecipeBytes = 4 * 1024 * 1024;
+
     public static PilotManifest Prepare(PilotSlowEffectsReport query, string caseId, string executable, string outputRoot)
     {
         EvidenceStore.Id(caseId);
@@ -15,7 +19,7 @@ public static class PilotSlowReplay
         }
         PilotSlowCase selected = matches[0];
         PrivateEvidencePath.Validate(Path.GetDirectoryName(selected.SourceManifestPath)!);
-        byte[] source = ReadBounded(selected.SourceManifestPath);
+        byte[] source = ReadBounded(selected.SourceManifestPath, MaximumManifestBytes, "source manifest");
         if (Hash(source) != selected.SourceManifestSha256)
         {
             throw new InvalidDataException("The original scenario manifest changed after the slow-effect query.");
@@ -27,7 +31,7 @@ public static class PilotSlowReplay
             throw new InvalidDataException("The replay scenario differs from its original invocation and recipe identity.");
         }
         PrivateEvidencePath.Validate(Path.GetDirectoryName(selected.Case.Recipe)!);
-        if (Hash(ReadBounded(selected.Case.Recipe)) != selected.Case.RecipeSha256)
+        if (Hash(ReadBounded(selected.Case.Recipe, MaximumRecipeBytes, "recipe")) != selected.Case.RecipeSha256)
         {
             throw new InvalidDataException("The replay recipe changed after its measured invocation.");
         }
@@ -38,12 +42,12 @@ public static class PilotSlowReplay
         return replay with { BuildFingerprint = EvidenceStore.HashRecord(EvidenceStore.DescribeFiles(workingDirectory)) };
     }
 
-    private static byte[] ReadBounded(string path)
+    private static byte[] ReadBounded(string path, int maximumBytes, string kind)
     {
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        if (stream.Length is <= 0 or > 4 * 1024 * 1024)
+        if (stream.Length <= 0 || stream.Length > maximumBytes)
         {
-            throw new InvalidDataException("Replay inputs must be bounded nonempty records.");
+            throw new InvalidDataException($"Replay {kind} must be nonempty and at most {maximumBytes} bytes.");
         }
         byte[] bytes = new byte[checked((int)stream.Length)];
         stream.ReadExactly(bytes);

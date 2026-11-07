@@ -58,6 +58,45 @@ public sealed class PilotSlowReplayTests : IDisposable
     }
 
     [Fact]
+    public void Full_selection_manifest_above_the_recipe_limit_preserves_selected_identity_and_rejects_later_tampering()
+    {
+        PilotSlowCase selected = query.Effects[0].Cases[0];
+        PilotCase[] cases = [original.Cases[0], .. Enumerable.Range(1, 8483).Select(index => new PilotCase($"blocked-{index}", null, "PLANNED_BLOCKED", [new string('x', 600)], EffectId: index % 400 + 1))];
+        PilotManifest full = original with { Cases = cases };
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(full, RecordJson.Options);
+        Assert.True(bytes.Length > 4 * 1024 * 1024);
+        File.WriteAllBytes(selected.SourceManifestPath, bytes);
+        PilotSlowCase measured = selected with { SourceManifestSha256 = Hash(bytes) };
+        PilotSlowEffectsReport fullQuery = query with { Requested = cases.Length, Effects = [new(116, 20, [measured])] };
+
+        PilotManifest replay = PilotSlowReplay.Prepare(fullQuery, "chosen", executable, Path.Combine(root, "full-selection-replay"));
+
+        Assert.Equal(original.Cases[0], Assert.Single(replay.Cases));
+        Assert.Equal(full.Budgets, replay.Budgets);
+        Assert.Equal(full.GameDir, replay.GameDir);
+        File.AppendAllText(selected.SourceManifestPath, " ");
+        InvalidDataException changed = Assert.Throws<InvalidDataException>(() => PilotSlowReplay.Prepare(fullQuery, "chosen", executable, Path.Combine(root, "tampered-replay")));
+        Assert.Contains("manifest changed", changed.Message);
+    }
+
+    [Theory]
+    [InlineData(false, 4 * 1024 * 1024, "recipe")]
+    [InlineData(true, 64 * 1024 * 1024, "source manifest")]
+    public void Replay_enforces_separate_manifest_and_recipe_size_bounds_before_reading(bool manifest, int limit, string kind)
+    {
+        PilotSlowCase selected = query.Effects[0].Cases[0];
+        string path = manifest ? selected.SourceManifestPath : selected.Case.Recipe!;
+        using (FileStream stream = new(path, FileMode.Open, FileAccess.Write, FileShare.None))
+        {
+            stream.SetLength((long)limit + 1);
+        }
+
+        InvalidDataException oversized = Assert.Throws<InvalidDataException>(() => PilotSlowReplay.Prepare(query, "chosen", executable, Path.Combine(root, "oversized-replay")));
+
+        Assert.Contains($"Replay {kind} must be nonempty and at most {limit} bytes.", oversized.Message);
+    }
+
+    [Fact]
     public void Unknown_scenario_and_existing_evidence_are_not_replayed()
     {
         Assert.Throws<ArgumentException>(() => PilotSlowReplay.Prepare(query, "unknown", executable, Path.Combine(root, "new-output")));
