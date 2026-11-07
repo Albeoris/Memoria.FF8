@@ -205,7 +205,7 @@ internal sealed class DiagnosticBattleDriver
             throw new InvalidDataException("Prospective texture admission is outside its sealed single-use main boundary.");
         }
         DiagnosticInvocationReleaseValidation.ValidateTerminalTextureAdmission(FocalRelease, admission);
-        TerminalTextureAdmission = NativeBattleStorageSnapshots.Capture(admission);
+        TerminalTextureAdmission = admission.CaptureDetached();
     }
 
     internal void ObserveTerminalTextureAttempt(BattleDiagnosticTerminalTextureAttempt attempt)

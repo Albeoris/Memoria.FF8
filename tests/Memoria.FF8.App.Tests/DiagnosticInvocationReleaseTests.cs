@@ -8,6 +8,59 @@ namespace Memoria.FF8.Tests;
 public sealed class DiagnosticInvocationReleaseTests
 {
     [Theory]
+    [InlineData("observed-nine-logical", true)]
+    [InlineData("full-eleven-logical", true)]
+    [InlineData("ninth-enemy-placeholder", false)]
+    [InlineData("fourth-party-placeholder", false)]
+    [InlineData("eighth-physical-slot", false)]
+    [InlineData("duplicate-physical-slot", false)]
+    public void Natural_victory_bounds_logical_formation_separately_from_physical_allocations(string shape, bool accepted)
+    {
+        BattleDiagnosticInvocationRelease release = ProspectiveTerminalTextureReceipt();
+        BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures!;
+        BattleDiagnosticNaturalVictory victory = proof.NaturalVictory!;
+        ImmutableArray<BattleDiagnosticVictoryCombatant>.Builder actors = victory.Combatants.ToBuilder();
+        for (int index = 1; index < 8; index++)
+        {
+            actors.Add(new("enemy-" + index, -1, false, 0, 0, 0, 0));
+        }
+        if (shape == "full-eleven-logical")
+        {
+            actors.Add(new("party-1", 1, true, 1, 0, 0, 100));
+            actors.Add(new("party-2", 2, true, 1, 0, 0, 100));
+        }
+        else if (shape == "ninth-enemy-placeholder")
+        {
+            actors.Add(new("enemy-8", -1, false, 0, 0, 0, 0));
+        }
+        else if (shape == "fourth-party-placeholder")
+        {
+            for (int index = 1; index < 4; index++)
+            {
+                actors.Add(new("party-" + index, -1, true, 0, 0, 0, 0));
+            }
+        }
+        else if (shape == "eighth-physical-slot")
+        {
+            actors[2] = actors[2] with { NativeIndex = 7, SavedStatus = 1 };
+        }
+        else if (shape == "duplicate-physical-slot")
+        {
+            actors[2] = actors[2] with { NativeIndex = 3, SavedStatus = 1 };
+        }
+        release = release with { TerminalTextures = proof with { NaturalVictory = victory with { Combatants = actors.ToImmutable() } } };
+        Assert.Equal(accepted, release.TerminalTextures.NaturalVictory!.IsNaturalVictory);
+        if (accepted)
+        {
+            DiagnosticInvocationReleaseValidation.Validate(release, release.Dispatch, release.LifecycleId);
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(release, release.Dispatch, release.LifecycleId));
+        }
+    }
+
+    [Theory]
     [InlineData("valid")]
     [InlineData("missing-witness")]
     [InlineData("active-outcome")]

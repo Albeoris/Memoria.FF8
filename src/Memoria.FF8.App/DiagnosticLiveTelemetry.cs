@@ -275,7 +275,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             throw new InvalidDataException("Prospective texture telemetry has no genuine subsequent normal-pass admission.");
         }
         DiagnosticInvocationReleaseValidation.ValidateTerminalTextureAdmission(invocationRelease, admission);
-        executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { TerminalTextureAdmission = NativeBattleStorageSnapshots.Capture(admission) };
+        executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { TerminalTextureAdmission = admission.CaptureDetached() };
     }
 
     internal void Complete(long frame, bool completed, int tailFrames, string? error)

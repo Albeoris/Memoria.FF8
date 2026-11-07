@@ -25,7 +25,10 @@ public enum BattleDiagnosticTerminalHoldPhase
     Expired
 }
 
-public sealed record BattleDiagnosticTerminalHoldReceipt([property: JsonRequired] Guid HoldId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] string Kind, [property: JsonRequired] int Sequence, [property: JsonRequired] long Frame, [property: JsonRequired] long Callback, [property: JsonRequired] BattleOutcome Candidate, [property: JsonRequired] byte? NativeResult, [property: JsonRequired] bool Drained, [property: JsonRequired] long RestoreCount, [property: JsonRequired] long ResetCount, [property: JsonRequired] BattleDiagnosticRepairRandomState Random, [property: JsonRequired] BattleDiagnosticCombatant[] Party);
+public sealed record BattleDiagnosticTerminalHoldReceipt([property: JsonRequired] Guid HoldId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] string Kind, [property: JsonRequired] int Sequence, [property: JsonRequired] long Frame, [property: JsonRequired] long Callback, [property: JsonRequired] BattleOutcome Candidate, [property: JsonRequired] byte? NativeResult, [property: JsonRequired] bool Drained, [property: JsonRequired] long RestoreCount, [property: JsonRequired] long ResetCount, [property: JsonRequired] BattleDiagnosticRepairRandomState Random, [property: JsonRequired] BattleDiagnosticCombatant[] Party)
+{
+    public BattleDiagnosticTerminalHoldReceipt CaptureDetached() => NativeBattleStorageSnapshots.Capture(this);
+}
 public sealed record BattleDiagnosticTerminalHoldState([property: JsonRequired] BattleDiagnosticTerminalHoldDeclaration Declaration, [property: JsonRequired] Guid HoldId, [property: JsonRequired] BattleDiagnosticTerminalHoldPhase Phase, [property: JsonRequired] int Sequence, [property: JsonRequired] int Rearms, [property: JsonRequired] long? HeldFrame, [property: JsonRequired] long? HeldCallback, [property: JsonRequired] ImmutableArray<BattleDiagnosticTerminalHoldReceipt> Receipts);
 
 public sealed partial class BattleSession
