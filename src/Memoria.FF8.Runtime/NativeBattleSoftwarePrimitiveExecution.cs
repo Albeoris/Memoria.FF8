@@ -16,6 +16,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     private NativeSoftwareNormalViewportDerived? normalViewport;
     private readonly Dictionary<NativeBattleSceneCapture, (NativeBattleEffectTextureState Owner, NativeBattleSceneCaptureSample Sample)> sceneCaptureSamples = [];
     private readonly Dictionary<(ushort Clut, int Length), (NativeBattleEffectTextureState Owner, ImmutableArray<ushort> Palette)> sceneCapturePalettes = [];
+    private readonly Dictionary<ImmutableArray<ushort>, ImmutableArray<ushort>> scenePaletteContents = new(ScenePaletteContentComparer.Instance);
 
     public NativeBattleSoftwarePrimitiveExecution(NativeBattleSoftwarePrimitiveState state, NativeBattleEffectTextureState textures, NativeSoftwarePrimitiveTable table, bool hardwareEnabled, NativeBattlePcTextureWindowCache cache)
     {
@@ -292,8 +293,37 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             palette.Add(Textures.ReadVramWord(x + index, y));
         }
         ImmutableArray<ushort> retainedPalette = palette.MoveToImmutable();
+        if (scenePaletteContents.TryGetValue(retainedPalette, out ImmutableArray<ushort> canonicalPalette))
+        {
+            retainedPalette = canonicalPalette;
+        }
+        else
+        {
+            scenePaletteContents.Add(retainedPalette, retainedPalette);
+        }
         sceneCapturePalettes[(clut, length)] = (Textures, retainedPalette);
         return retainedPalette;
+    }
+
+    private sealed class ScenePaletteContentComparer : IEqualityComparer<ImmutableArray<ushort>>
+    {
+        internal static readonly ScenePaletteContentComparer Instance = new();
+
+        public bool Equals(ImmutableArray<ushort> first, ImmutableArray<ushort> second)
+        {
+            return first.AsSpan().SequenceEqual(second.AsSpan());
+        }
+
+        public int GetHashCode(ImmutableArray<ushort> palette)
+        {
+            HashCode hash = new();
+            hash.Add(palette.Length);
+            foreach (ushort word in palette)
+            {
+                hash.Add(word);
+            }
+            return hash.ToHashCode();
+        }
     }
 
     public void EndBatch()

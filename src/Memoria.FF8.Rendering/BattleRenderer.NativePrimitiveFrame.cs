@@ -142,7 +142,6 @@ public sealed partial class BattleRenderer
         }
         DrawnTriangles = 0;
         nativeTriangles.Clear();
-        sceneCaptureImages.Clear();
         sceneCopyImages.Clear();
         sceneCopyImageBytes = 0;
         sceneCopyUiTexture = uiTexture;

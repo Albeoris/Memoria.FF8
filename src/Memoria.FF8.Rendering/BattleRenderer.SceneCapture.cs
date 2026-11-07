@@ -7,7 +7,19 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
-    private readonly Dictionary<(NativeBattleSceneCaptureSample Sample, int Depth, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift), PixelImage> sceneCaptureImages = [];
+    private const int MaximumSceneCaptureImages = 64;
+    private const long MaximumSceneCaptureImageBytes = 64L * 1024 * 1024;
+    private readonly record struct SceneCaptureImageKey(ImmutableArray<NativeBattlePcTextureWindowPixels> Snapshots, NativeBattleSceneCaptureSample Sample, int Depth, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift, bool SubtractUsesNormalizedColor);
+    private sealed record SceneCaptureImage(SceneCaptureImageKey Key, PixelImage Image, long Bytes);
+    private sealed class SceneCaptureSnapshotOwner(long bytes)
+    {
+        public long Bytes { get; } = bytes;
+        public int References { get; set; }
+    }
+    private readonly Dictionary<SceneCaptureImageKey, LinkedListNode<SceneCaptureImage>> sceneCaptureImages = [];
+    private readonly Dictionary<ImmutableArray<NativeBattlePcTextureWindowPixels>, SceneCaptureSnapshotOwner> sceneCaptureSnapshotOwners = [];
+    private readonly LinkedList<SceneCaptureImage> recentSceneCaptureImages = [];
+    private long sceneCaptureRetainedBytes;
 
     private PixelImage ResolveSceneCaptureTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand command, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors)
     {
@@ -15,11 +27,6 @@ public sealed partial class BattleRenderer
         sample.Capture.Validate();
         ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its native texture page.");
         int depth = page >> 7 & 3;
-        var key = (sample, depth, command.DrawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift);
-        if (sceneCaptureImages.TryGetValue(key, out PixelImage? image))
-        {
-            return image;
-        }
         int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         int paletteLength = depth == 0 ? 16 : depth == 1 ? 256 : 0;
         ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots ?? throw new InvalidDataException("Scene sampling requires retained ordered texture snapshots.");
@@ -27,7 +34,32 @@ public sealed partial class BattleRenderer
         {
             throw new InvalidDataException("Scene sampling requires every source page and its native palette.");
         }
-        image = new(sample.Capture.Width * pixelsPerWord, sample.Capture.Height);
+        SceneCaptureImageKey key = new(snapshots, sample, depth, command.DrawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift, colors.SubtractUsesNormalizedColor);
+        if (sceneCaptureImages.TryGetValue(key, out LinkedListNode<SceneCaptureImage>? cached))
+        {
+            recentSceneCaptureImages.Remove(cached);
+            recentSceneCaptureImages.AddLast(cached);
+            return cached.Value.Image;
+        }
+        Rgba32[] palette = new Rgba32[paletteLength];
+        for (int index = 0; index < palette.Length; index++)
+        {
+            uint argb;
+            if (command.DrawMode.BlendMode == 2)
+            {
+                if (colors.SubtractUsesNormalizedColor)
+                {
+                    throw new NotSupportedException("Scene sampling requires the selected native alpha-palette profile.");
+                }
+                argb = NativeBattlePcPalette.Decode467470(sample.Palette[index], colors.AlternatePaletteShift ?? throw new NotSupportedException("Scene sampling requires its native alternate palette shift."));
+            }
+            else
+            {
+                argb = NativeBattlePcPalette.Decode467370(sample.Palette[index]);
+            }
+            palette[index] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
+        }
+        PixelImage image = new(sample.Capture.Width * pixelsPerWord, sample.Capture.Height);
         int mask = (1 << (16 / pixelsPerWord)) - 1;
         for (int part = 0; part < sample.PixelSnapshots.Length; part++)
         {
@@ -48,33 +80,58 @@ public sealed partial class BattleRenderer
                 for (int x = 0; x < pixels.Width; x++)
                 {
                     ushort word = pixels.ReadWord(pixels.X + x, pixels.Y + y);
-                    for (int subpixel = 0; subpixel < pixelsPerWord; subpixel++)
+                    if (depth == 2)
                     {
-                        ushort color = depth == 2 ? word : sample.Palette[word >> (subpixel * (16 / pixelsPerWord)) & mask];
-                        uint argb;
-                        if (depth == 2)
+                        uint argb = NativeBattlePcDirectTexture.DecodeArgb(word, capabilities?.DirectTextureFormat ?? throw new NotSupportedException("Scene sampling requires its selected direct texture format."));
+                        image.Pixels[y * image.Width + left + x] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
+                    }
+                    else
+                    {
+                        for (int subpixel = 0; subpixel < pixelsPerWord; subpixel++)
                         {
-                            argb = NativeBattlePcDirectTexture.DecodeArgb(color, capabilities?.DirectTextureFormat ?? throw new NotSupportedException("Scene sampling requires its selected direct texture format."));
+                            image.Pixels[y * image.Width + (left + x) * pixelsPerWord + subpixel] = palette[word >> (subpixel * (16 / pixelsPerWord)) & mask];
                         }
-                        else if (command.DrawMode.BlendMode == 2)
-                        {
-                            if (colors.SubtractUsesNormalizedColor)
-                            {
-                                throw new NotSupportedException("Scene sampling requires the selected native alpha-palette profile.");
-                            }
-                            argb = NativeBattlePcPalette.Decode467470(color, colors.AlternatePaletteShift ?? throw new NotSupportedException("Scene sampling requires its native alternate palette shift."));
-                        }
-                        else
-                        {
-                            argb = NativeBattlePcPalette.Decode467370(color);
-                        }
-                        image.Pixels[y * image.Width + (left + x) * pixelsPerWord + subpixel] = new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
                     }
                 }
             }
         }
-        sceneCaptureImages.Add(key, image);
+        RetainSceneCaptureImage(key, image);
         return image;
+    }
+
+    private void RetainSceneCaptureImage(SceneCaptureImageKey key, PixelImage image)
+    {
+        long imageBytes = checked((long)image.Pixels.Length * 4);
+        // Each snapshot array retains its complete payload, shared by all of its decoded images.
+        long ownerBytes = sceneCaptureSnapshotOwners.TryGetValue(key.Snapshots, out SceneCaptureSnapshotOwner? knownOwner) ? knownOwner.Bytes : key.Snapshots.Sum(pixels => (long)pixels.Data.Length);
+        if (imageBytes > MaximumSceneCaptureImageBytes - ownerBytes)
+        {
+            return;
+        }
+        while (sceneCaptureImages.Count >= MaximumSceneCaptureImages || sceneCaptureRetainedBytes > MaximumSceneCaptureImageBytes - imageBytes - (sceneCaptureSnapshotOwners.ContainsKey(key.Snapshots) ? 0 : ownerBytes))
+        {
+            LinkedListNode<SceneCaptureImage> oldest = recentSceneCaptureImages.First!;
+            recentSceneCaptureImages.RemoveFirst();
+            sceneCaptureImages.Remove(oldest.Value.Key);
+            sceneCaptureRetainedBytes -= oldest.Value.Bytes;
+            SceneCaptureSnapshotOwner owner = sceneCaptureSnapshotOwners[oldest.Value.Key.Snapshots];
+            owner.References--;
+            if (owner.References == 0)
+            {
+                sceneCaptureSnapshotOwners.Remove(oldest.Value.Key.Snapshots);
+                sceneCaptureRetainedBytes -= owner.Bytes;
+            }
+        }
+        if (!sceneCaptureSnapshotOwners.TryGetValue(key.Snapshots, out SceneCaptureSnapshotOwner? retainedOwner))
+        {
+            retainedOwner = new(ownerBytes);
+            sceneCaptureSnapshotOwners.Add(key.Snapshots, retainedOwner);
+            sceneCaptureRetainedBytes += ownerBytes;
+        }
+        retainedOwner.References++;
+        SceneCaptureImage retained = new(key, image, imageBytes);
+        sceneCaptureImages.Add(key, recentSceneCaptureImages.AddLast(retained));
+        sceneCaptureRetainedBytes += imageBytes;
     }
 
     private static Vector2 SceneCaptureUv(NativeBattleSceneCaptureSample sample, ushort page, uint uv, BattleSceneScreenPoint? samplePoint = null)
