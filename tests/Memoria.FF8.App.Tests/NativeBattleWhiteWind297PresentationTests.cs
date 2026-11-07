@@ -9,6 +9,21 @@ public sealed class NativeBattleWhiteWind297PresentationTests
     public void Original_Blue_Magic_White_Wind_presents_declared_healing_contact_and_cold_boundaries()
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([297], "MEMORIA_FF8_WHITE_WIND297", SelectOriginalFixture);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_WHITE_WIND297_EVIDENCE")!;
+        BattleSnapshot initialized = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "initialized.battle.json"));
+        NativeBattleEffectArena arena = initialized.NativeEffectMemory!.Arena!;
+        int start = NativeBattleWhiteWind297Profile.BindingOffset;
+        var pointers = arena.EnumerateResourcePointers().Where(entry => entry.Key >= start && entry.Key < start + 32 && entry.Value?.Cpu is not null).ToArray();
+        Assert.True(pointers.Length >= 2, "The saved caster binding must retain its original CPU skeleton and geometry owners.");
+        foreach (var entry in pointers)
+        {
+            NativeBattleResourcePointer pointer = entry.Value!;
+            NativeBattleModelCpuReference cpu = pointer.Cpu!;
+            Assert.True(pointer.NativeAddressEncoding);
+            Assert.InRange(cpu.Bank, (byte)0, (byte)2);
+            uint address = checked(cpu.EffectiveLayout.BaseAddress + (uint)cpu.EffectiveLayout.BankLength * cpu.Bank + (uint)cpu.Offset);
+            Assert.Equal(address, arena.ReadUInt32(entry.Key));
+        }
     }
 
     private static NativeEffectFixtureRequest SelectOriginalFixture(BattleAssets assets, ushort effect)

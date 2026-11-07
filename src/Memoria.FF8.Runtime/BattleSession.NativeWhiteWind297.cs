@@ -97,7 +97,7 @@ public sealed partial class BattleSession
                             throw new NotSupportedException("Blue Magic White Wind binding must publish into its original shared arena row.");
                         }
                         NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Blue Magic White Wind requires its shared working arena.");
-                        current = current with { Memory = current.Memory with { Arena = arena.WriteResourcePointer(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), pointer) } };
+                        current = current with { Memory = current.Memory with { Arena = arena.WriteResourcePointer(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), pointer?.WithNativeAddressEncoding()) } };
                     }
                 case NativeBattleWhiteWind297RingSequence sequence:
                     Publish(current);
