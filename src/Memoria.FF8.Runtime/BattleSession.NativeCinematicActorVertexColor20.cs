@@ -159,7 +159,7 @@ public sealed partial class BattleSession
                 }
                 else
                 {
-                    frame = frame with { Arena = frame.Arena.WriteResourcePointer(ArenaOffset(address, 4), fields[index]) };
+                    frame = frame with { Arena = frame.Arena.WriteResourcePointer(ArenaOffset(address, 4), fields[index].WithNativeAddressEncoding()) };
                 }
             }
         }

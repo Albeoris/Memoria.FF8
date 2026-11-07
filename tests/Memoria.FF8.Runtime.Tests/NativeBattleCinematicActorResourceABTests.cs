@@ -33,9 +33,11 @@ public sealed class NativeBattleCinematicActorResourceABTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void BindingWritesPhysicalArenaRowsAndPreservesTheUnwrittenTail(bool cold)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void BindingWritesPhysicalArenaRowsAndPreservesTheUnwrittenTail(bool cold, bool resourceOnly, bool stagedSource)
     {
         const uint directory = 0x187C20C;
         const uint row = NativeBattleEffectNodeMemory.ArenaAddress + 0x5000;
@@ -47,13 +49,27 @@ public sealed class NativeBattleCinematicActorResourceABTests
         }
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x5020, [7, 8, 9, 10]);
         NativeBattleModelCpuResources cpu = cold ? NativeBattleModelCpuResources.FromColdProcess() : NativeBattleModelCpuResources.Unknown();
-        cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, new(0, 100)).Set(16, new(0, 200))).SetItem(1, cpu.Rows[1].Set(12, new(1, 300)).Set(16, new(1, 400))) };
+        cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, new(0, 100) { ResourceOnly = resourceOnly }).Set(16, new(0, 200) { ResourceOnly = resourceOnly })).SetItem(1, cpu.Rows[1].Set(12, new(1, 300) { ResourceOnly = resourceOnly }).Set(16, new(1, 400) { ResourceOnly = resourceOnly })) };
         NativeBattleGraphicsModel model = new(0, 2) { ModelId4 = 8, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
+        if (stagedSource)
+        {
+            for (int source = 0; source < 2; source++)
+            {
+                int[] fields = [12, 16, 20, 44];
+                for (int field = 0; field < fields.Length; field++)
+                {
+                    NativeBattleModelCpuReference? reference = cpu.Rows[source].Fields[fields[field]];
+                    NativeBattleResourcePointer pointer = reference is null ? new(null, 0) : new(reference, null);
+                    arena.WriteResourcePointer(0x5100 + source * 16 + field * 4, pointer);
+                }
+            }
+            model = model with { ActiveStagedResourceRow100 = NativeBattleEffectNodeMemory.ArenaAddress + 0x5100, LinkedStagedResourceRow = NativeBattleEffectNodeMemory.ArenaAddress + 0x5110 };
+        }
         var result = NativeBattleVictoryResources.Bind5022C0(dat.ToImmutableArray(), cpu, model, row, directory, address => arena.ReadResourcePointer(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress))), (address, pointer) => arena = arena.WriteResourcePointer(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), pointer));
         Assert.Equal(row + 32, result.NextRow);
         Assert.Equal(row, result.Model.ActiveStagedResourceRow100);
         Assert.Equal(row + 16, result.Model.LinkedStagedResourceRow);
-        Assert.Equal(new NativeBattleModelCpuReference(0, 100), arena.ReadResourcePointer(0x5000)!.Cpu);
+        Assert.Equal(new NativeBattleModelCpuReference(0, 100) { ResourceOnly = resourceOnly }, arena.ReadResourcePointer(0x5000)!.Cpu);
         Assert.Equal(directory + 20, BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x5008, 4)));
         Assert.Equal(directory + 24, arena.ReadResourcePointer(0x500C)!.StagingAddress);
         Assert.Equal(directory + 28, arena.ReadResourcePointer(0x5018)!.StagingAddress);
@@ -70,6 +86,10 @@ public sealed class NativeBattleCinematicActorResourceABTests
         Assert.Equal(new byte[] { 7, 8, 9, 10 }, arena.Read(0x5020, 4));
         Assert.Equal((short?)6, result.Model.SequenceState!.Locals[7]);
         Assert.Equal(0x196B07Cu, BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x5000, 4)));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena));
+        Assert.Equal(0x196B07Cu, restored.ReadUInt32(0x5000));
+        Assert.Equal(resourceOnly, restored.ReadResourcePointer(0x5000)!.Cpu!.ResourceOnly);
+        Assert.True(restored.ReadResourcePointer(0x5000)!.NativeAddressEncoding);
     }
 
     [Fact]

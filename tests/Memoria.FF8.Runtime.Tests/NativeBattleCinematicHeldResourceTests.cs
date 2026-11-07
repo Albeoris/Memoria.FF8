@@ -61,14 +61,8 @@ public sealed class NativeBattleCinematicHeldResourceTests
         NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(saved));
         NativeBattleResourcePointer restoredHeld = restored.ReadResourcePointer(0)!;
         Assert.Equal(first.AsSpan(16, 16).ToArray(), NativeBattleModelResourceView.Open(cpu, NativeBattleFileStaging.Unknown(), restoredHeld, 16).Read(0, 16));
-        if (logical || owned)
-        {
-            Assert.Throws<NotSupportedException>(() => restored.ReadUInt32(0));
-        }
-        else
-        {
-            Assert.Equal(held.Cpu!.PhysicalAddress, restored.ReadUInt32(0));
-        }
+        uint expectedAddress = owned ? held.Cpu!.NativePlacementAddress : checked(layout.BaseAddress + (uint)held.Cpu!.Offset);
+        Assert.Equal(expectedAddress, restored.ReadUInt32(0));
     }
 
     [Theory]

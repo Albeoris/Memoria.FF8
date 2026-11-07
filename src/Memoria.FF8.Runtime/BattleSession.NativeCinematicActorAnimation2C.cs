@@ -64,7 +64,7 @@ public sealed partial class BattleSession
             NativeBattleResourcePointer[] selected = ActorFields();
             for (int index = 0; index < selected.Length; index++)
             {
-                resources = resources.WriteResourcePointer(index * 4, selected[index].Pin(cpu));
+                resources = resources.WriteResourcePointer(index * 4, selected[index].Pin(cpu).WithNativeAddressEncoding());
             }
             int count = Read(selected[0], 1)[0];
             byte[] skeleton = Read(selected[0], checked(16 + count * 48));

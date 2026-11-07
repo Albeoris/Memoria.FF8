@@ -45,7 +45,7 @@ public static class NativeBattleVictoryResources
 
         void Copy(NativeBattleResourceRowReference original, uint destination, byte mask)
         {
-            NativeBattleResourceRowBinding.CopyFields502270<NativeBattleResourceRowReference, NativeBattleResourcePointer?>(original, new(null, destination), mask, Read, (target, field, pointer) => writePointer(checked(target.StagingAddress!.Value + (uint)field * 4), pointer));
+            NativeBattleResourceRowBinding.CopyFields502270<NativeBattleResourceRowReference, NativeBattleResourcePointer?>(original, new(null, destination), mask, Read, (target, field, pointer) => writePointer(checked(target.StagingAddress!.Value + (uint)field * 4), pointer?.WithNativeAddressEncoding()));
         }
 
         NativeBattleResourcePointer? Read(NativeBattleResourceRowReference owner, int field)

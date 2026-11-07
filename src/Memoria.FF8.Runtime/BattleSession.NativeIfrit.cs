@@ -316,7 +316,7 @@ public sealed partial class BattleSession
                         NativeBattleFileStaging staging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(directory, bytes.AsSpan());
                         NativeFileStaging = staging;
                         NativeBattleEffectArena arena = resourceFrame.Arena;
-                        var binding = NativeBattleVictoryResources.Bind5022C0(bytes, NativeModelCpuResources ?? throw new NotSupportedException("Native cinematic actor binding requires actual CPU resources."), actor, row, directory, ReadPointer, (address, pointer) => arena = arena.WriteResourcePointer(ArenaOffset(address, 4), pointer?.WithNativeAddressEncoding()));
+                        var binding = NativeBattleVictoryResources.Bind5022C0(bytes, NativeModelCpuResources ?? throw new NotSupportedException("Native cinematic actor binding requires actual CPU resources."), actor, row, directory, ReadPointer, (address, pointer) => arena = arena.WriteResourcePointer(ArenaOffset(address, 4), pointer));
                         NativeEffectMemory = RequireWaterMemory() with { Arena = arena };
                         graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, binding.Model) };
                         return resourceFrame with { Arena = arena };

@@ -9,7 +9,7 @@ internal static class NativeBattleCinematicActorResourceDescriptors
         foreach (int field in new[] { 12, 16, 20, 24 })
         {
             NativeBattleResourcePointer pointer = new(row.Require(field), null, row.Lengths.TryGetValue(field, out int length) ? length : null);
-            arena = arena.WriteResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(clone + 0x30u + (uint)(field - 12), 4), pointer.Pin(cpu));
+            arena = arena.WriteResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(clone + 0x30u + (uint)(field - 12), 4), pointer.Pin(cpu).WithNativeAddressEncoding());
         }
         return arena;
     }
