@@ -7,11 +7,10 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleBreath129Geometry
 {
     private static NativeBattleEffectArena Get(NativeBattleBreath129Frame frame, uint address, int length) => address >= NativeBattleTemporaryMemory.Address && (ulong)address + (uint)length <= NativeBattleTemporaryMemory.Address + NativeBattleTemporaryMemory.ReachedLength ? Context(frame, address, length) : ReadBytes(frame, address, length);
-    private static NativeBattleBreath129Frame Put(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena bytes, int length) => address >= NativeBattleTemporaryMemory.Address && (ulong)address + (uint)length <= NativeBattleTemporaryMemory.Address + NativeBattleTemporaryMemory.ReachedLength ? PublishContext(frame, address, bytes, length) : WriteBytes(frame, address, bytes, length);
-    private static short Word(NativeBattleBreath129Frame frame, uint address) => BinaryPrimitives.ReadInt16LittleEndian(Get(frame, address, 2).Read(0, 2));
-    private static uint Dword(NativeBattleBreath129Frame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Get(frame, address, 4).Read(0, 4));
-    private static NativeBattleBreath129Frame Word(NativeBattleBreath129Frame frame, uint address, int value) => Put(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((short)value))), 2);
-    private static NativeBattleBreath129Frame Dword(NativeBattleBreath129Frame frame, uint address, uint value) => Put(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 4);
+    private static short Word(NativeBattleBreath129Frame frame, uint address) => unchecked((short)ReadScalar(frame, address, 2));
+    private static uint Dword(NativeBattleBreath129Frame frame, uint address) => ReadScalar(frame, address, 4);
+    private static NativeBattleBreath129Frame Word(NativeBattleBreath129Frame frame, uint address, int value) => WriteScalar(frame, address, unchecked((ushort)value), 2);
+    private static NativeBattleBreath129Frame Dword(NativeBattleBreath129Frame frame, uint address, uint value) => WriteScalar(frame, address, value, 4);
     private static NativeBattleVector Vector(NativeBattleEffectArena point) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
     private static NativeBattleEffectArena Point(NativeBattleVector vector) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(vector.X)).Write(2, BitConverter.GetBytes(vector.Y)).Write(4, BitConverter.GetBytes(vector.Z));
     private static NativeBattleGeometryRegisterStep Registers(NativeBattleBreath129Frame frame) => new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Breath geometry requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Breath geometry requires its current arithmetic registers."));

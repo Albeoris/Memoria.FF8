@@ -204,7 +204,7 @@ public static class NativeBattleBreath129Body
             short sum = 0;
             foreach (int index in indices)
             {
-                sum = unchecked((short)(sum + Signed(ReadBytes(frame, checked(scratch + (uint)index * 16 + 8u + (uint)lane * 2), 2), 0)));
+                sum = unchecked((short)(sum + unchecked((short)ReadScalar(frame, checked(scratch + (uint)index * 16 + 8u + (uint)lane * 2), 2))));
             }
             output = output.Write(lane * 2, BitConverter.GetBytes(unchecked((short)(sum / indices.Length))));
         }
@@ -220,16 +220,19 @@ public static class NativeBattleBreath129Body
         uint selected = Selected(frame, scratch, first);
         short best = first;
         int error = 32767;
+        NativeBattleGeometryRegisterStep? retained = null;
+        Span<short> delta = stackalloc short[3];
+        Span<byte> encoded = stackalloc byte[2];
         for (int index = 0; index < Signed(context, 44); index++)
         {
             uint candidate = Selected(frame, scratch, checked((short)index));
-            short[] delta = new short[3];
             for (int lane = 0; lane < 3; lane++)
             {
-                delta[lane] = unchecked((short)(Signed(ReadBytes(frame, selected + (uint)lane * 2, 2), 0) - Signed(ReadBytes(frame, candidate + (uint)lane * 2, 2), 0)));
-                context = context.Write(8 + lane * 2, BitConverter.GetBytes(delta[lane]));
+                delta[lane] = unchecked((short)(unchecked((short)ReadScalar(frame, selected + (uint)lane * 2, 2)) - unchecked((short)ReadScalar(frame, candidate + (uint)lane * 2, 2))));
+                BinaryPrimitives.WriteInt16LittleEndian(encoded, delta[lane]);
+                context = context.Write(8 + lane * 2, encoded);
             }
-            NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.LoadSignedIr45DC40(new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Native Breath distance requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Breath distance requires its current data registers.")), new(delta[0], delta[1], delta[2]));
+            NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.LoadSignedIr45DC40(retained ?? new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Native Breath distance requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Breath distance requires its current data registers.")), new(delta[0], delta[1], delta[2]));
             registers = NativeBattleReflectBeam135Geometry.Square45F930(registers);
             int squared = unchecked(registers.Colors.Mac[0]!.Value + registers.Colors.Mac[1]!.Value + registers.Colors.Mac[2]!.Value);
             registers = registers with { Geometry = NativeBattleSonic139Preprocessing.PublishLeading45DCA0(registers.Geometry, unchecked((uint)squared)) };
@@ -244,7 +247,11 @@ public static class NativeBattleBreath129Body
                 error = difference;
                 best = checked((short)index);
             }
-            frame = Publish(frame, registers);
+            retained = registers;
+        }
+        if (retained is not null)
+        {
+            frame = Publish(frame, retained);
         }
         return (PublishContext(frame, temporary, context, 52), best);
     }
@@ -257,7 +264,7 @@ public static class NativeBattleBreath129Body
         uint output = Dword(context, 48);
         for (int corner = 0; corner < 3; corner++)
         {
-            short index = Signed(ReadBytes(frame, selected + 6u + (uint)corner * 2, 2), 0);
+            short index = unchecked((short)ReadScalar(frame, selected + 6u + (uint)corner * 2, 2));
             uint row = unchecked(scratch + (uint)(index * 16));
             frame = WriteBytes(frame, checked(output + (uint)corner * 8), ReadBytes(frame, row, 8), 8);
         }
@@ -266,7 +273,7 @@ public static class NativeBattleBreath129Body
 
     private static uint Selected(NativeBattleBreath129Frame frame, uint scratch, short selector)
     {
-        short offset = Signed(ReadBytes(frame, unchecked(scratch + 0x8000u + (uint)(selector * 2)), 2), 0);
+        short offset = unchecked((short)ReadScalar(frame, unchecked(scratch + 0x8000u + (uint)(selector * 2)), 2));
         return unchecked(scratch + 0x8000u + (uint)(offset * 2));
     }
     private static void RequireScratch(NativeBattleBreath129Frame frame, uint start, uint address, int length)
@@ -280,11 +287,11 @@ public static class NativeBattleBreath129Body
             throw new InvalidDataException("Native Breath capture exceeds its current remaining private scratch owner.");
         }
     }
-    private static NativeBattleBreath129Frame PutWord(NativeBattleBreath129Frame frame, uint address, ushort value) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 2);
+    private static NativeBattleBreath129Frame PutWord(NativeBattleBreath129Frame frame, uint address, ushort value) => WriteScalar(frame, address, value, 2);
     private static NativeBattleBreath129Frame Publish(NativeBattleBreath129Frame frame, NativeBattleGeometryRegisterStep registers) => frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
     private static uint Read32(NativeBattleBreath129BodySource source, uint offset) => Dword(source.ReadGeometry(checked((int)offset), 4), 0);
     private static short Read16(NativeBattleBreath129BodySource source, uint offset) => Signed(source.ReadGeometry(checked((int)offset), 2), 0);
-    private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
-    private static ushort Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));
+    private static uint Dword(NativeBattleEffectArena arena, int offset) => arena.ReadUInt32(offset);
+    private static ushort Word(NativeBattleEffectArena arena, int offset) => arena.ReadUInt16(offset);
     private static short Signed(NativeBattleEffectArena arena, int offset) => unchecked((short)Word(arena, offset));
 }

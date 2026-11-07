@@ -140,7 +140,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129Frame DrawMesh(NativeBattleBreath129Frame current, uint address, uint sourceAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleGfAnimationSource act = new[] { resources.FirstAct, resources.SecondAct, resources.ThirdAct, resources.FourthAct }.Single(source => sourceAddress >= source.Address && sourceAddress < source.Address + source.Data.Length);
-            System.Collections.Immutable.ImmutableArray<byte> meshBytes = act.Data.AsSpan().Slice(checked((int)(sourceAddress - act.Address))).ToArray().ToImmutableArray();
+            System.Collections.Immutable.ImmutableArray<byte> meshBytes = act.Data.Slice(checked((int)(sourceAddress - act.Address)), checked(act.Data.Length - (int)(sourceAddress - act.Address)));
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Breath mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
             NativeBattleGeometryRegisters geometry = current.Memory.GeometryRegisters ?? throw new NotSupportedException("Breath mesh requires its current geometry registers.");
@@ -236,6 +236,6 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory };
         }
 
-        static NativeBattleEffectArena Temporary(NativeBattleFileStaging staging, uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+        static NativeBattleEffectArena Temporary(NativeBattleFileStaging staging, uint address, int length) => NativeBattleTemporaryMemory.ReadView(staging, address, length);
     }
 }

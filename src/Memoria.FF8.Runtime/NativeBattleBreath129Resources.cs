@@ -103,13 +103,24 @@ public sealed record NativeBattleBreath129Resources(NativeBattleEffectHeapAlloca
         }
         if (address >= SqrtTableAddress && (ulong)address + (uint)length <= SqrtTableAddress + 512)
         {
-            return SqrtWords256.SelectMany(BitConverter.GetBytes).ToImmutableArray().Slice(checked((int)(address - SqrtTableAddress)), length);
+            return ReadWords(SqrtWords256.AsSpan(), checked((int)(address - SqrtTableAddress)), length);
         }
         if (address >= TrigonometricTableAddress && (ulong)address + (uint)length <= TrigonometricTableAddress + 0x4000)
         {
-            return TrigonometricWords8192.SelectMany(BitConverter.GetBytes).ToImmutableArray().Slice(checked((int)(address - TrigonometricTableAddress)), length);
+            return ReadWords(System.Runtime.InteropServices.MemoryMarshal.Cast<short, ushort>(TrigonometricWords8192.AsSpan()), checked((int)(address - TrigonometricTableAddress)), length);
         }
         throw new NotSupportedException("Breath selected bytes outside its bounded immutable original fronts.");
     }
+    private static ImmutableArray<byte> ReadWords(ReadOnlySpan<ushort> words, int offset, int length)
+    {
+        ImmutableArray<byte>.Builder bytes = ImmutableArray.CreateBuilder<byte>(length);
+        for (int index = 0; index < length; index++)
+        {
+            int position = offset + index;
+            bytes.Add(unchecked((byte)(words[position / 2] >> ((position & 1) * 8))));
+        }
+        return bytes.MoveToImmutable();
+    }
+
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectArena.Clear().Write(0, Read(address, length).AsSpan());
 }

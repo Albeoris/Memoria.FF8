@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleBreath129Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -24,7 +23,7 @@ public static class NativeBattleBreath129Deformation
             short z = unchecked((short)frame.State.ReadWord(vertex + 4));
             short w = unchecked((short)frame.State.ReadWord(vertex + 6));
             registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, new(x, y, z), w));
-            int radius = BinaryPrimitives.ReadInt16LittleEndian(resources.Read(checked(TrigonometricTableAddress + (uint)((w & 0xFFE) * 2)), 2).AsSpan()) >> 4;
+            int radius = resources.TrigonometricWords8192[w & 0xFFE] >> 4;
             int selector = (w + phase) & 0xFFF;
             int sine = resources.TrigonometricWords8192[selector * 2];
             int cosine = resources.TrigonometricWords8192[selector * 2 + 1];

@@ -7,6 +7,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleBreath129StateTests
 {
     [Fact]
+    public void Table_reads_preserve_little_endian_unaligned_ranges_without_materializing_the_whole_table()
+    {
+        short[] trig = Enumerable.Range(0, 8192).Select(index => unchecked((short)(index * 397))).ToArray();
+        ushort[] sqrt = Enumerable.Range(0, 256).Select(index => unchecked((ushort)(index * 257))).ToArray();
+        NativeBattleBreath129Resources resources = Resources([], [], trig) with { SqrtWords256 = sqrt.ToImmutableArray() };
+        byte[] expectedTrig = trig.SelectMany(BitConverter.GetBytes).ToArray();
+        byte[] expectedSqrt = sqrt.SelectMany(BitConverter.GetBytes).ToArray();
+        foreach ((uint address, byte[] expected) in new[] { (TrigonometricTableAddress, expectedTrig), (SqrtTableAddress, expectedSqrt) })
+        {
+            foreach (int offset in new[] { 0, 1, 3, expected.Length - 3, expected.Length })
+            {
+                int length = Math.Min(3, expected.Length - offset);
+                Assert.Equal(expected.AsSpan(offset, length).ToArray(), resources.Read(address + (uint)offset, length).ToArray());
+            }
+        }
+        resources.Read(TrigonometricTableAddress, 2);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 176; index++)
+        {
+            resources.Read(TrigonometricTableAddress + (uint)(index * 2), 2);
+        }
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 128 * 1024);
+        Assert.Throws<NotSupportedException>(() => resources.Read(TrigonometricTableAddress + 0x3FFF, 2));
+    }
+
+    [Fact]
     public void Pending_cold_and_imported_unknown_sources_keep_distinct_scalar_and_task_knownness()
     {
         NativeBattleBreath129State cold = NativeBattleBreath129State.FromColdProcess();

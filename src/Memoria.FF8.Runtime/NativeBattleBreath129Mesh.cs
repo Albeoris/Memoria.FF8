@@ -37,15 +37,15 @@ public static class NativeBattleBreath129Mesh
             for (int corner = 0; corner < 4; corner++)
             {
                 ushort index = Word(face, 4 + corner * 2);
-                context = NativeBattleEffectNodeContextMemory.Copy(ReadBytes(frame, checked(selected + (uint)index * 4), 8), 0, context, 56 + corner * 8, 8);
+                context = CopyBytes(frame, checked(selected + (uint)index * 4), context, 56 + corner * 8, 8);
             }
             frame = PublishContext(frame, temporary, context, 92);
             NativeBattleActionMatrix? pilotMatrix = inputs.PilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
             System.Numerics.Vector3[]? world = inputs.PilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
             System.Numerics.Vector3 World(int corner)
             {
-                byte[] xyz = context.Read(56 + corner * 8, 6);
-                NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                int offset = 56 + corner * 8;
+                NativeBattleVector point = new(context.ReadInt16(offset), context.ReadInt16(offset + 2), context.ReadInt16(offset + 4));
                 return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, point), inputs.ReadProjection(frame));
             }
             for (int corner = 0; corner < 3; corner++)
@@ -92,7 +92,7 @@ public static class NativeBattleBreath129Mesh
                     {
                         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Breath GT4 requires its primitive process.");
                         NativeBattleModelRendererRegisters far = process.ModelRendererRegisters ?? throw new NotSupportedException("Native Breath GT4 requires its far-color registers.");
-                        far = far with { FarRed = (uint)context.Read(4, 1)[0] << 4, FarGreen = (uint)context.Read(5, 1)[0] << 4, FarBlue = (uint)context.Read(6, 1)[0] << 4 };
+                        far = far with { FarRed = (uint)context.ReadByte(4) << 4, FarGreen = (uint)context.ReadByte(5) << 4, FarBlue = (uint)context.ReadByte(6) << 4 };
                         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = far } } };
                         NativeBattleScriptedColorRegisters colors = NativeBattleScriptedDpct.LoadColors45E120(registers.Colors, Dword(face, 24), Dword(face, 28), Dword(face, 32)) with { Ir0 = cue };
                         colors = NativeBattleScriptedDpct.Transform45F4C0(colors, far, inputs.Colors);
@@ -111,9 +111,9 @@ public static class NativeBattleBreath129Mesh
                             Store(16 + corner * 12, face.Read(24 + corner * 4, 4));
                         }
                     }
-                    int[] v = Enumerable.Range(0, 4).Select(corner => packet.Read(13 + corner * 12, 1)[0] + Word(context, 14)).ToArray();
+                    int[] v = Enumerable.Range(0, 4).Select(corner => packet.ReadByte(13 + corner * 12) + Word(context, 14)).ToArray();
                     bool overflow = v.Aggregate(0, (left, right) => left | right) > 255;
-                    int subtract = overflow ? context.Read(28, 1)[0] : 0;
+                    int subtract = overflow ? context.ReadByte(28) : 0;
                     for (int corner = 0; corner < 4; corner++)
                     {
                         Store(13 + corner * 12, new byte[] { unchecked((byte)(v[corner] - subtract)) });
@@ -152,19 +152,18 @@ public static class NativeBattleBreath129Mesh
     private static NativeBattleGeometryRegisterStep Load(NativeBattleGeometryRegisterStep registers, int slot, NativeBattleEffectArena context, int offset)
     {
         (byte[] bytes, bool[] known) = context.ReadSnapshot(offset, 8);
-        ImmutableArray<byte?> packed = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray();
         return slot switch
         {
             0 => registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } },
-            1 => registers with { Geometry = registers.Geometry with { V1 = packed } },
-            2 => registers with { Geometry = registers.Geometry with { V2 = packed } },
+            1 => registers with { Geometry = registers.Geometry with { V1 = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray() } },
+            2 => registers with { Geometry = registers.Geometry with { V2 = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray() } },
             _ => throw new ArgumentOutOfRangeException(nameof(slot))
         };
     }
     private static NativeBattleBreath129Frame AppendWindow(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena context, int offset, int bucket, NativeBattleBreath129Inputs inputs)
     {
-        uint x = context.Read(offset, 1)[0];
-        uint y = context.Read(offset + 2, 1)[0];
+        uint x = context.ReadByte(offset);
+        uint y = context.ReadByte(offset + 2);
         uint w = Word(context, offset + 4);
         uint h = Word(context, offset + 6);
         uint window = unchecked(0xE2000000u | ((~(w - 1) >> 3) & 31) | ((~(h - 1) & 248) << 2) | ((x & 248) << 7) | ((y & 248) << 12));
@@ -179,6 +178,6 @@ public static class NativeBattleBreath129Mesh
         return inputs.Execute(frame, new NativeBattleBreath129AppendPacket(address, writes.Length, writes.Length, bucket, 0, data, known) { WriteMask = mask, VertexPayload4 = payload, Insert = insert, PilotGeometry = pilotGeometry });
     }
     private static uint ReadDword(NativeBattleBreath129Frame frame, uint address) => Dword(ReadBytes(frame, address, 4), 0);
-    private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
-    private static ushort Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));
+    private static uint Dword(NativeBattleEffectArena arena, int offset) => arena.ReadUInt32(offset);
+    private static ushort Word(NativeBattleEffectArena arena, int offset) => arena.ReadUInt16(offset);
 }

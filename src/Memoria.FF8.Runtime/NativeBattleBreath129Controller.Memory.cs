@@ -49,6 +49,22 @@ public static partial class NativeBattleBreath129Controller
         return Copy(frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena."), checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
     }
 
+    internal static NativeBattleEffectArena CopyBytes(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena destination, int destinationOffset, int length)
+    {
+        foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
+        {
+            if (address >= pool.BankAddress && (ulong)address + (uint)length <= (ulong)pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length))
+            {
+                return Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), checked((int)(address - pool.BankAddress)), destination, destinationOffset, length);
+            }
+        }
+        if (address is >= 0x2521110 and < 0x2521180 || address is >= 0x12272DC and < 0x12291CC)
+        {
+            return Copy(frame.State.ReadView(address, length), 0, destination, destinationOffset, length);
+        }
+        return Copy(frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena."), checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), destination, destinationOffset, length);
+    }
+
     public static NativeBattleBreath129Frame WriteBytes(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena source, int length)
     {
         for (int poolIndex = 0; poolIndex < frame.Effect.Pools.Length; poolIndex++)
@@ -98,9 +114,68 @@ public static partial class NativeBattleBreath129Controller
     }
 
     public static NativeBattleBreath129Frame Release(NativeBattleBreath129Frame frame, int length) => frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), length) };
-    public static NativeBattleEffectArena Context(NativeBattleBreath129Frame frame, uint address, int length) => Copy(NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    public static NativeBattleEffectArena Context(NativeBattleBreath129Frame frame, uint address, int length) => NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), address, length);
     public static NativeBattleBreath129Frame PublishContext(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     private static NativeBattleFileStaging RequireStaging(NativeBattleBreath129Frame frame) => frame.Staging ?? throw new NotSupportedException("Breath requires its current temporary memory.");
+    private static bool IsTemporary(uint address, int length) => address >= NativeBattleTemporaryMemory.Address && (ulong)address + (uint)length <= NativeBattleTemporaryMemory.Address + NativeBattleTemporaryMemory.ReachedLength;
+
+    internal static uint ReadScalar(NativeBattleBreath129Frame frame, uint address, int length)
+    {
+        if (IsTemporary(address, length))
+        {
+            return length == 2 ? RequireStaging(frame).ReadUInt16(address) : RequireStaging(frame).ReadUInt32(address);
+        }
+        foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
+        {
+            uint offset = unchecked(address - pool.BankAddress);
+            if (offset < pool.Stride * pool.Slots.Length && (ulong)offset + (uint)length <= (ulong)pool.Stride * (uint)pool.Slots.Length)
+            {
+                NativeBattleModulePoolTask task = pool.Slots[(int)(offset / pool.Stride)];
+                int field = (int)(offset % pool.Stride);
+                if (field < 12 || field + length > pool.Stride)
+                {
+                    NativeBattleEffectArena bytes = ReadBytes(frame, address, length);
+                    return length == 2 ? bytes.ReadUInt16(0) : bytes.ReadUInt32(0);
+                }
+                return length == 2 ? task.ReadWord(field) : task.ReadDword(field);
+            }
+        }
+        if (address is >= 0x2521110 and < 0x2521180 || address is >= 0x12272DC and < 0x12291CC)
+        {
+            return length == 2 ? frame.State.ReadWord(address) : frame.State.ReadDword(address);
+        }
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
+        int arenaOffset = checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress));
+        return length == 2 ? arena.ReadUInt16(arenaOffset) : arena.ReadUInt32(arenaOffset);
+    }
+
+    internal static NativeBattleBreath129Frame WriteScalar(NativeBattleBreath129Frame frame, uint address, uint value, int length)
+    {
+        if (IsTemporary(address, length))
+        {
+            return frame with { Staging = length == 2 ? RequireStaging(frame).WriteUInt16(address, unchecked((ushort)value)) : RequireStaging(frame).WriteUInt32(address, value) };
+        }
+        foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
+        {
+            uint offset = unchecked(address - pool.BankAddress);
+            if (offset < pool.Stride * pool.Slots.Length && (ulong)offset + (uint)length <= (ulong)pool.Stride * (uint)pool.Slots.Length)
+            {
+                NativeBattleModulePoolTask task = pool.Slots[(int)(offset / pool.Stride)];
+                int field = (int)(offset % pool.Stride);
+                task = length == 2 ? task.WriteWord(field, unchecked((ushort)value)) : task.WriteDword(field, value);
+                return Write(frame, address - (uint)field, task);
+            }
+        }
+        if (address is >= 0x2521110 and < 0x2521180 || address is >= 0x12272DC and < 0x12291CC)
+        {
+            return frame with { State = length == 2 ? frame.State.WriteWord(address, unchecked((ushort)value)) : frame.State.WriteDword(address, value) };
+        }
+        Span<byte> bytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
+        arena.Write(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), bytes[..length]);
+        return frame;
+    }
     private static NativeBattleBreath129Frame WithPool(NativeBattleBreath129Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectArena Copy(NativeBattleEffectArena source, int offset, NativeBattleEffectArena destination, int target, int length) => NativeBattleEffectNodeContextMemory.Copy(source, offset, destination, target, length);
     private static NativeBattleEffectParameters Parameters(NativeBattleBreath129Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Breath requires its captured parameters.");
