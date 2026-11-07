@@ -85,7 +85,9 @@ public sealed class NativeBattleBreathPerformanceTests
         }
         // Keep snapshot serialization and its GC pressure outside both timing passes.
         BattleSession direct = Restore(source);
-        int boundary = effect == 129 ? 280 : 60;
+        int[] liveDisplays = rows.Where(row => row.Cast == 0 && row.Live).Select(row => row.Display).ToArray();
+        Assert.NotEmpty(liveDisplays);
+        int boundary = liveDisplays[liveDisplays.Length / 2];
         for (int display = 0; display <= boundary; display++)
         {
             Advance(direct, display);

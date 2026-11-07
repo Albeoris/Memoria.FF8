@@ -36,8 +36,6 @@ public sealed record NativeBattleEffectVramUpload(short X, short Y, short Width,
 {
     public bool Copied { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<bool>? Known { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleTextureOrigin? Origin { get; init; }
 }
 public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureState State, ImmutableArray<NativeBattleEffectVramUpload> Uploads)
@@ -418,8 +416,8 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 int bytesPerRow = checked(2 * rectangle.Width);
                 for (int row = 0; row < rectangle.Height; row++)
                 {
-                    (byte[] bytes, bool[] known) = bank.ReadSnapshot(checked(2 * ((rectangle.Y + row) * 1024 + rectangle.X)), bytesPerRow);
-                    destination = destination.WriteWithKnownness(checked(pending.ArenaOffset!.Value + row * bytesPerRow), bytes, known);
+                    byte[] bytes = bank.Read(checked(2 * ((rectangle.Y + row) * 1024 + rectangle.X)), bytesPerRow);
+                    destination = destination.Write(checked(pending.ArenaOffset!.Value + row * bytesPerRow), bytes);
                 }
                 arenaSource = destination;
                 continue;
@@ -454,9 +452,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 else if (pending.ArenaOffset is int rectangleOffset)
                 {
                     NativeBattleEffectArena current = arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable rectangle pointer.");
-                    // The transfer copies bytes without interpreting model pointers that may alias its source.
-                    (byte[] bytes, bool[] known) = current.ReadSnapshot(rectangleOffset, length);
-                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, bytes, pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut, known);
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
                 }
                 else
                 {
@@ -508,13 +504,8 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 Write(x, y, width, height, data.Slice(12, checked(2 * width * height)), origin, role == NativeBattleTextureRole.Clut);
             }
 
-            void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data, NativeBattleTextureOrigin? origin, bool palette, ReadOnlySpan<bool> known = default)
+            void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data, NativeBattleTextureOrigin? origin, bool palette)
             {
-                bool unknown = !known.IsEmpty && known.Contains(false);
-                if (unknown)
-                {
-                    origin = null;
-                }
                 if (pending.Kind == 0 && origin is not null && !string.Equals(Convert.ToHexString(SHA256.HashData(data)), pending.OriginSourceSha256, StringComparison.Ordinal))
                 {
                     origin = null;
@@ -522,16 +513,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
                 for (int row = 0; row < height; row++)
                 {
-                    int destination = checked(2 * ((y + row) * 1024 + x));
-                    ReadOnlySpan<byte> rowBytes = bytes.AsSpan().Slice(2 * row * width, 2 * width);
-                    if (unknown)
-                    {
-                        mutation.WriteWithKnownness(destination, rowBytes, known.Slice(2 * row * width, 2 * width));
-                    }
-                    else
-                    {
-                        mutation.Write(destination, rowBytes);
-                    }
+                    mutation.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
                 }
                 liveSources = NativeBattleTextureProvenance.Overwrite(liveSources, x, y, width, height, origin);
                 sceneCopies = NativeBattleSceneCopyProvenance.Overwrite(sceneCopies, x, y, width, height);
@@ -539,7 +521,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 {
                     registrations = NativeBattleTextureCopyHistory.Upload(registrations, x, y, width, height, origin);
                 }
-                uploads.Add(new(x, y, width, height, bytes) { Origin = origin, Known = unknown ? known.ToArray().ToImmutableArray() : null });
+                uploads.Add(new(x, y, width, height, bytes) { Origin = origin });
             }
         }
         return new(this with { Count = 0, vramVersion = mutation.Commit(), LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext, SceneCopies = sceneCopies }, uploads.ToImmutable()) { Arena = arenaSource };
@@ -575,9 +557,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
             if (copy.SourceX != copy.DestinationX || copy.SourceY != copy.DestinationY)
             {
                 Span<byte> rowBytes = stackalloc byte[2048];
-                Span<bool> rowKnown = stackalloc bool[2048];
                 Span<byte> valueBytes = stackalloc byte[4];
-                Span<bool> valueKnown = stackalloc bool[4];
                 for (int row = 0; row < copy.Height; row++)
                 {
                     int read = 2 * ((copy.SourceY + row) * 1024 + copy.SourceX);
@@ -588,36 +568,35 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                     if (bytesPerRow != 0 && (copy.SourceY != copy.DestinationY || copy.DestinationX <= copy.SourceX || copy.DestinationX >= copy.SourceX + copy.Width))
                     {
                         Span<byte> values = rowBytes[..bytesPerRow];
-                        bank.ReadWithKnownness(read, values, rowKnown[..bytesPerRow]);
-                        mutation.WriteWithKnownness(write, values, rowKnown[..bytesPerRow]);
+                        bank.ReadInto(read, values);
+                        mutation.Write(write, values);
                         continue;
                     }
                     int offset = 0;
                     //45BDD0 uses forward REP MOVSD followed by REP MOVSB, including overlapping rectangles.
                     for (; offset + 4 <= bytesPerRow; offset += 4)
                     {
-                        bank.ReadWithKnownness(read + offset, valueBytes, valueKnown);
-                        mutation.WriteWithKnownness(write + offset, valueBytes, valueKnown);
+                        bank.ReadInto(read + offset, valueBytes);
+                        mutation.Write(write + offset, valueBytes);
                     }
                     for (; offset < bytesPerRow; offset++)
                     {
-                        bank.ReadWithKnownness(read + offset, valueBytes[..1], valueKnown[..1]);
-                        mutation.WriteWithKnownness(write + offset, valueBytes[..1], valueKnown[..1]);
+                        valueBytes[0] = bank.ReadByte(read + offset);
+                        mutation.Write(write + offset, valueBytes[..1]);
                     }
                 }
             }
             byte[] changed = new byte[bytesPerRow * copy.Height];
-            bool[] changedKnown = new bool[changed.Length];
             for (int row = 0; row < copy.Height; row++)
             {
                 int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
-                bank.ReadWithKnownness(write, changed.AsSpan(row * bytesPerRow, bytesPerRow), changedKnown.AsSpan(row * bytesPerRow, bytesPerRow));
+                bank.ReadInto(write, changed.AsSpan(row * bytesPerRow, bytesPerRow));
             }
             liveSources = NativeBattleTextureProvenance.Copy(liveSources, copy);
             sceneCopies = NativeBattleSceneCopyProvenance.Copy(sceneCopies, copy);
             registrations = NativeBattleTextureCopyHistory.Copy(registrations, copy);
             // This private array is published once and is never mutated after the ownership transfer.
-            uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, ImmutableCollectionsMarshal.AsImmutableArray(changed)) { Copied = true, Known = changedKnown.Contains(false) ? ImmutableCollectionsMarshal.AsImmutableArray(changedKnown) : null });
+            uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, ImmutableCollectionsMarshal.AsImmutableArray(changed)) { Copied = true });
         }
     }
 

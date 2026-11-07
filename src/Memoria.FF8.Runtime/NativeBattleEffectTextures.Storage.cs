@@ -9,7 +9,6 @@ public sealed partial record NativeBattleEffectTextureState
     private NativeBattleVramOwner vramOwner = new(VramRegions);
     private NativeBattleVramVersion? vramVersion;
     private ImmutableArray<NativeBattleEffectMemoryRegion> snapshotRegions = VramRegions;
-    private ImmutableArray<NativeBattleEffectUnknownRegion>? snapshotUnknown;
     private bool textureSnapshot;
     private NativeBattleVramVersion VramVersion => vramVersion ?? vramOwner.Initial;
 
@@ -21,20 +20,7 @@ public sealed partial record NativeBattleEffectTextureState
         {
             RequireWorking();
             snapshotRegions = value;
-            vramOwner = new(value, snapshotUnknown ?? []);
-            vramVersion = null;
-        }
-    }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<NativeBattleEffectUnknownRegion>? VramUnknownRegions
-    {
-        get => textureSnapshot ? snapshotUnknown : throw new InvalidOperationException("VRAM knownness requires an explicit detached texture capture.");
-        init
-        {
-            RequireWorking();
-            snapshotUnknown = value;
-            vramOwner = new(snapshotRegions, value ?? []);
+            vramOwner = new(value);
             vramVersion = null;
         }
     }
@@ -53,7 +39,7 @@ public sealed partial record NativeBattleEffectTextureState
     {
         if (textureSnapshot)
         {
-            NativeBattleEffectArena.CreateSnapshot(snapshotRegions, snapshotUnknown ?? []).Validate();
+            NativeBattleEffectArena.CreateSnapshot(snapshotRegions, []).Validate();
         }
     }
 
@@ -64,8 +50,6 @@ public sealed partial record NativeBattleEffectTextureState
     internal object VramCaptureIdentity => textureSnapshot ? VramVersion : vramOwner;
 
     public void ReadVramInto(int offset, Span<byte> destination) => VramVersion.ReadInto(offset, destination);
-
-    public void ReadVramWithKnownness(int offset, Span<byte> destination, Span<bool> known) => VramVersion.ReadWithKnownness(offset, destination, known);
 
     public ushort ReadVramWord(int x, int y)
     {
@@ -101,19 +85,19 @@ public sealed partial record NativeBattleEffectTextureState
         {
             throw new InvalidOperationException("Texture capture requires a committed physical VRAM owner.");
         }
-        return CreateSnapshot(Slots, Count, Animation, VramVersion.CaptureRegions(), VramReadTail, LiveTextureSources, TextureRegistrations, TextureFileContext, SceneCopies, VramVersion.CaptureUnknownRegions());
+        return CreateSnapshot(Slots, Count, Animation, VramVersion.CaptureRegions(), VramReadTail, LiveTextureSources, TextureRegistrations, TextureFileContext, SceneCopies);
     }
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
     {
-        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail, LiveTextureSources = LiveTextureSources, TextureRegistrations = TextureRegistrations, TextureFileContext = TextureFileContext, SceneCopies = SceneCopies, VramUnknownRegions = snapshotUnknown };
+        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail, LiveTextureSources = LiveTextureSources, TextureRegistrations = TextureRegistrations, TextureFileContext = TextureFileContext, SceneCopies = SceneCopies };
         _ = result.vramOwner.Arena.Working;
         return result;
     }
 
-    internal static NativeBattleEffectTextureState CreateSnapshot(ImmutableArray<NativeBattleEffectTimUpload?> slots, int count, NativeBattleEffectAnimationRegisters? animation, ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<byte>? tail, ImmutableArray<NativeBattleTextureSourceRegion>? liveTextureSources = null, ImmutableArray<NativeBattleTextureRegistration>? textureRegistrations = null, NativeBattleTextureFileContext? textureFileContext = null, ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = null, ImmutableArray<NativeBattleEffectUnknownRegion> unknown = default)
+    internal static NativeBattleEffectTextureState CreateSnapshot(ImmutableArray<NativeBattleEffectTimUpload?> slots, int count, NativeBattleEffectAnimationRegisters? animation, ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<byte>? tail, ImmutableArray<NativeBattleTextureSourceRegion>? liveTextureSources = null, ImmutableArray<NativeBattleTextureRegistration>? textureRegistrations = null, NativeBattleTextureFileContext? textureFileContext = null, ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = null)
     {
-        NativeBattleEffectTextureState result = new(slots, count, animation, regions) { VramReadTail = tail, LiveTextureSources = liveTextureSources, TextureRegistrations = textureRegistrations, TextureFileContext = textureFileContext, SceneCopies = sceneCopies, VramUnknownRegions = unknown.IsDefaultOrEmpty ? null : unknown };
+        NativeBattleEffectTextureState result = new(slots, count, animation, regions) { VramReadTail = tail, LiveTextureSources = liveTextureSources, TextureRegistrations = textureRegistrations, TextureFileContext = textureFileContext, SceneCopies = sceneCopies };
         result.vramVersion = result.vramOwner.Initial;
         result.vramOwner = null!;
         result.textureSnapshot = true;
@@ -136,14 +120,12 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
         public NativeBattleTextureFileContext? TextureFileContext { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableArray<NativeBattleSceneCopyRegion>? SceneCopies { get; init; }
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public ImmutableArray<NativeBattleEffectUnknownRegion>? VramUnknownRegions { get; init; }
     }
 
     public override NativeBattleEffectTextureState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         SnapshotData value = JsonSerializer.Deserialize<SnapshotData>(ref reader, options) ?? throw new JsonException("Texture snapshot is missing.");
-        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail, value.LiveTextureSources, value.TextureRegistrations, value.TextureFileContext, value.SceneCopies, value.VramUnknownRegions ?? []);
+        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail, value.LiveTextureSources, value.TextureRegistrations, value.TextureFileContext, value.SceneCopies);
     }
 
     public override void Write(Utf8JsonWriter writer, NativeBattleEffectTextureState value, JsonSerializerOptions options)
@@ -153,6 +135,6 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
             throw new InvalidOperationException("Working textures require an explicit detached capture before serialization.");
         }
         value.Validate();
-        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions) { VramReadTail = value.VramReadTail, LiveTextureSources = value.LiveTextureSources, TextureRegistrations = value.TextureRegistrations, TextureFileContext = value.TextureFileContext, SceneCopies = value.SceneCopies, VramUnknownRegions = value.VramUnknownRegions }, options);
+        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions) { VramReadTail = value.VramReadTail, LiveTextureSources = value.LiveTextureSources, TextureRegistrations = value.TextureRegistrations, TextureFileContext = value.TextureFileContext, SceneCopies = value.SceneCopies }, options);
     }
 }

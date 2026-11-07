@@ -44,7 +44,7 @@ public sealed partial record NativeBattleModulePoolTask
             {
                 throw new InvalidDataException("Native task resource pointer requires its actual physical source.");
             }
-            if ((pointer.StagingAddress ?? pointer.Cpu?.TryPhysicalAddress()) is uint numeric)
+            if (pointer.NativeByteValue is uint numeric)
             {
                 if (ReadDword(offset) != numeric)
                 {

@@ -215,7 +215,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
                 versions = [];
                 textureSnapshotRegions.Add(region, versions);
             }
-            int existing = versions.FindIndex(candidate => pixels.HasSameStoredPixels(textureSnapshots[candidate]));
+            int existing = versions.FindIndex(candidate => pixels.Data.AsSpan().SequenceEqual(textureSnapshots[candidate].Data.AsSpan()));
             index = existing < 0 ? -1 : versions[existing];
             if (index < 0)
             {

@@ -1,48 +1,77 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleFireBreath230TextureTests
 {
     [Fact]
-    public void Shared_texture_and_model_row_bytes_transfer_opaquely_without_resolving_symbolic_pointers()
+    public void Native_descriptor_encoding_preserves_logical_resource_owner_and_survives_json_restore()
+    {
+        NativeBattleModelCpuBank bank = NativeBattleModelCpuBank.Unknown().Write(0, new byte[] { 99, 88 }).PromoteResourceStorage().BindPartyResource(0, ImmutableArray.Create<byte>(1, 2), 0, 2);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess();
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleResourcePointer source = new(new(0, 0) { ResourceOnly = true }, null, 2);
+        NativeBattleResourcePointer encoded = source.Pin(cpu).WithNativeAddressEncoding();
+        Assert.Null(encoded.Cpu!.TryPhysicalAddress());
+        Assert.True(encoded.Cpu.ResourceOnly);
+        Assert.Same(bank, encoded.CpuPublication);
+        NativeBattleEffectArena row = NativeBattleEffectArena.Clear().WriteResourcePointer(0, encoded);
+        Assert.Equal(NativeBattlePartyCpuLayout.Classic.BaseAddress, row.ReadUInt32(0));
+        Assert.Equal(new byte[] { 1, 2 }, NativeBattleModelResourceView.Open(cpu, NativeBattleFileStaging.Unknown(), row.ReadResourcePointer(0)!, 2).Read(0, 2));
+        Assert.Equal(new byte[] { 99, 88 }, bank.ReadGuest(0, 2));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(row))!;
+        Assert.Equal(NativeBattlePartyCpuLayout.Classic.BaseAddress, restored.ReadUInt32(0));
+        Assert.True(restored.ReadResourcePointer(0)!.Cpu!.ResourceOnly);
+        NativeBattleEffectArena legacy = NativeBattleEffectArena.Clear().WriteResourcePointer(0, source);
+        string legacyJson = NativeBattleTestSnapshots.Json(legacy);
+        Assert.DoesNotContain("NativeAddressEncoding", legacyJson);
+        NativeBattleEffectArena old = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(legacyJson)!;
+        Assert.Throws<NotSupportedException>(() => old.ReadUInt32(0));
+        Assert.True(old.ReadResourcePointer(0)!.Cpu!.ResourceOnly);
+    }
+
+    [Fact]
+    public void Deferred_texture_upload_reads_native_descriptor_dwords_written_after_enqueue()
     {
         const int length = 128 * 256 * 2;
         const int descriptors = 12288;
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)7, length).ToArray());
         NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(576, 256, 128, 256), source, 0);
-        source.WriteResourcePointer(descriptors, new(new(0, 0) { ResourceOnly = true }, null));
-        source.WriteResourcePointer(descriptors + 4, new(new(0, 1312) { ResourceOnly = true }, null));
-        source.WriteResourcePointer(descriptors + 16, new(new(0, 49844) { ResourceOnly = true }, null));
-        source.WriteResourcePointer(descriptors + 20, new(new(0, 50292) { ResourceOnly = true }, null));
+        int[] offsets = [0, 1312, 49844, 50292];
+        int[] fields = [0, 4, 16, 20];
+        for (int index = 0; index < offsets.Length; index++)
+        {
+            NativeBattleResourcePointer pointer = new(new(0, offsets[index]) { ResourceOnly = true }, null);
+            source.WriteResourcePointer(descriptors + fields[index], pointer.WithNativeAddressEncoding());
+        }
         source.Write(descriptors + 32, [11, 22]);
         NativeBattleEffectTextureDrain uploaded = queued.Drain505D20(source);
         Assert.Equal(0, uploaded.State.Count);
-        Assert.Equal((ushort)0x0707, uploaded.State.ReadVramWord(576, 256));
+        Assert.Equal((ushort)0xB018, uploaded.State.ReadVramWord(576, 304));
+        Assert.Equal((ushort)0x0196, uploaded.State.ReadVramWord(577, 304));
+        Assert.Equal((ushort)0xB538, uploaded.State.ReadVramWord(578, 304));
+        Assert.Equal((ushort)0x0196, uploaded.State.ReadVramWord(579, 304));
+        Assert.Equal((ushort)0x72CC, uploaded.State.ReadVramWord(584, 304));
+        Assert.Equal((ushort)0x0197, uploaded.State.ReadVramWord(585, 304));
+        Assert.Equal((ushort)0x748C, uploaded.State.ReadVramWord(586, 304));
+        Assert.Equal((ushort)0x0197, uploaded.State.ReadVramWord(587, 304));
         Assert.Equal((ushort)0x160B, uploaded.State.ReadVramWord(592, 304));
-        Assert.Throws<NotSupportedException>(() => uploaded.State.ReadVramWord(576, 304));
-        Assert.Equal(16, Assert.Single(uploaded.Uploads).Known!.Value.Count(value => !value));
-        NativeBattleEffectTextureState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(uploaded.State))!;
-        Assert.Equal((ushort)0x160B, restored.ReadVramWord(592, 304));
-        Assert.Throws<NotSupportedException>(() => restored.ReadVramWord(576, 304));
-        NativeBattleEffectTextureDrain copied = restored.EnqueueCopy505EB0(576, 256, 128, 256, 0, 0).Drain505D20();
-        Assert.Equal((ushort)0x160B, copied.State.ReadVramWord(16, 48));
-        Assert.Throws<NotSupportedException>(() => copied.State.ReadVramWord(0, 48));
-        NativeBattleEffectArena destination = NativeBattleEffectArena.Clear();
-        NativeBattleEffectTextureDrain readback = copied.State.EnqueueArenaReadback505E70(new(0, 0, 128, 256), 0).Drain505D20(destination);
-        Assert.Equal(new byte[] { 11, 22 }, readback.Arena!.Read(descriptors + 32, 2));
-        Assert.Equal(16, readback.Arena.ReadSnapshot(0, length).Known.Count(value => !value));
-        Assert.Throws<NotSupportedException>(() => readback.Arena.Read(descriptors, 2));
+        Assert.Equal((ushort)0x0707, uploaded.State.ReadVramWord(576, 256));
+        Assert.Equal(Enumerable.Repeat(true, length), source.ReadSnapshot(0, length).Known);
     }
     [Fact]
-    public void Overlapping_copy_preserves_native_forward_dword_and_tail_knownness()
+    public void Encoded_resource_pointer_transport_keeps_task_bytes_and_owner_consistent()
     {
-        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, new byte[] { 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0 }).MarkUnknown(2, 2);
-        NativeBattleEffectTextureState uploaded = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(0, 0, 6, 1), source, 0).Drain505D20(source).State;
-        NativeBattleEffectTextureState copied = uploaded.EnqueueCopy505EB0(0, 0, 5, 1, 1, 0).Drain505D20().State;
-        Assert.Equal((ushort)1, copied.ReadVramWord(1, 0));
-        Assert.Throws<NotSupportedException>(() => copied.ReadVramWord(2, 0));
-        Assert.Throws<NotSupportedException>(() => copied.ReadVramWord(3, 0));
-        Assert.Equal((ushort)4, copied.ReadVramWord(4, 0));
-        Assert.Equal((ushort)4, copied.ReadVramWord(5, 0));
+        NativeBattleResourcePointer pointer = new(new(0, 1312) { ResourceOnly = true }, null, 4);
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().WriteResourcePointer(0, pointer.WithNativeAddressEncoding());
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, NativeBattleEffectNodeMemory.ArenaAddress + 0x4000, 48, 2);
+        pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, 16, source, 4);
+        Assert.Equal(0x0196B538u, pool.Slots[0].ReadDword(16));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(pool.Slots[0]))!;
+        Assert.Equal(0x0196B538u, restored.ReadDword(16));
+        Assert.True(restored.ReadResourcePointer(16).NativeAddressEncoding);
+        Assert.True(restored.ReadResourcePointer(16).Cpu!.ResourceOnly);
+        Assert.Throws<InvalidDataException>(() => source.WriteResourcePointer(0, new(null, 0) { NativeAddressEncoding = true }));
     }
 
 }

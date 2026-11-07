@@ -124,7 +124,7 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
     {
         RequireActive();
         NativeBattleEffectArena.ValidatePointer(pointer);
-        if ((pointer?.StagingAddress ?? pointer?.Cpu?.TryPhysicalAddress()) is uint numeric)
+        if (pointer?.NativeByteValue is uint numeric)
         {
             Span<byte> bytes = stackalloc byte[4];
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes, numeric);

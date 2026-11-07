@@ -66,7 +66,7 @@ public static partial class NativeBattleEffectTaskMemory
                         {
                             throw new NotSupportedException("Native task copies require an observed resource pointer owner.");
                         }
-                        uint? numeric = pointer.StagingAddress ?? pointer.Cpu?.TryPhysicalAddress();
+                        uint? numeric = pointer.NativeByteValue;
                         for (int lane = 0; lane < 4; lane++)
                         {
                             if (known[pointerOffset + lane] != numeric.HasValue)

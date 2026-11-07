@@ -155,18 +155,12 @@ public sealed partial record NativeBattleFileStaging
                     }
                 }
             }
-            if (entry.Value?.StagingAddress is uint numeric)
+            if (entry.Value?.NativeByteValue is uint numeric)
             {
-                if (known.Contains(false) || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric)
+                bool requireKnown = entry.Value.StagingAddress is not null || entry.Value.NativeAddressEncoding;
+                if ((requireKnown || known.Contains(true)) && (known.Contains(false) || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric))
                 {
                     throw new InvalidDataException("Native staging pointer metadata differs from its physical DWORD.");
-                }
-            }
-            else if (entry.Value?.Cpu?.TryPhysicalAddress() is uint cpuAddress)
-            {
-                if (known.Contains(true) && (known.Contains(false) || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes) != cpuAddress))
-                {
-                    throw new InvalidDataException("Native CPU staging pointer differs from its retained guest DWORD.");
                 }
             }
             else if (known.Contains(true))
