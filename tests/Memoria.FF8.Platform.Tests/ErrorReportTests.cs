@@ -118,7 +118,7 @@ public sealed class ErrorReportTests : IDisposable
             Assert.True(File.Exists(initial.ArchivePath));
         }
         string log = Path.Combine(root, "launcher.log");
-        File.WriteAllText(log, "process output ../fixtures process output");
+        File.WriteAllText(log, "process output C:\\TestProfiles\\ReportFixture\\private.log\nfinal process output");
         using PreparedErrorReport enriched = await ErrorReport.PrepareAsync(incident.WithLogPaths([log]), root);
         using ZipArchive archive = ZipFile.OpenRead(enriched.ArchivePath);
         using StreamReader reader = new(archive.GetEntry("logs/00.log")!.Open());
@@ -126,7 +126,7 @@ public sealed class ErrorReportTests : IDisposable
         Assert.Contains("process output", content);
         Assert.DoesNotContain("ReportFixture", content);
         Assert.DoesNotContain("launcher.log", enriched.Description);
-        Assert.Equal("process output ../fixtures process output", File.ReadAllText(log));
+        Assert.Equal("process output C:\\TestProfiles\\ReportFixture\\private.log\nfinal process output", File.ReadAllText(log));
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public sealed class ErrorReportTests : IDisposable
         Directory.CreateDirectory(inputs);
         string originalLog = Path.Combine(inputs, "original.log");
         string additionalLog = Path.Combine(inputs, "additional.log");
-        string originalText = @"original marker ../fixtures/external-fixture.log" + Environment.NewLine + "password=ArchiveSecret";
-        string additionalText = @"additional marker ../fixtures/external-fixture.log";
+        string originalText = @"original marker C:\TestProfiles\ArchiveFixture\private.log" + Environment.NewLine + "password=ArchiveSecret";
+        string additionalText = @"additional marker C:\TestProfiles\AdditionalFixture\private.log";
         File.WriteAllText(originalLog, originalText);
         File.WriteAllText(additionalLog, additionalText);
         ErrorIncident incident = ErrorIncident.Capture(new Exception("recovered logs"), "test", logPaths: [originalLog]);
@@ -283,7 +283,7 @@ public sealed class ErrorReportTests : IDisposable
 
     [Theory]
     [InlineData("password=\"", "QuotedSecretSuffix\"")]
-    [InlineData(@"../fixtures", "PrivatePathSuffix")]
+    [InlineData(@"C:\TestProfiles\", "PrivatePathSuffix")]
     public async Task BoundedLogTailDiscardsPartialPrivateRecord(string prefix, string suffix)
     {
         Directory.CreateDirectory(root);

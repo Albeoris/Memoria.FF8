@@ -20,8 +20,8 @@ public sealed class RuntimeErrorReportTests : IDisposable
         GameState plain = new() { Scene = SceneKind.Field, FieldId = 165, X = 25, MovieSource = new(1, 7) };
         JsonObject vm = JsonSerializer.SerializeToNode(plain)!.AsObject();
         vm["Scene"] = JsonSerializer.SerializeToNode(new { Names = new Dictionary<int, string> { [0] = @"C:\Hero", [1] = "x@y.example" } });
-        vm["LastFault"] = JsonSerializer.SerializeToNode(new { FieldId = 165, ObjectId = 3, ScriptId = 2, Operation = 7, Opcode = "MOVIEREADY", Message = @"Cannot open ../fixtures/external-fixture.avi" });
-        vm["MovieSource"]!.AsObject()["Path"] = @"../fixtures/external-fixture.avi";
+        vm["LastFault"] = JsonSerializer.SerializeToNode(new { FieldId = 165, ObjectId = 3, ScriptId = 2, Operation = 7, Opcode = "MOVIEREADY", Message = @"Cannot open C:\TestProfiles\private-user\movie.avi" });
+        vm["MovieSource"]!.AsObject()["Path"] = @"C:\TestProfiles\private-user\movie.avi";
         OriginalAchievementObservedEvent observation = OriginalAchievementObservedEvent.Create(new() { MagazineCollection = true }, new("provider", "product", "real-account", "private-profile"));
         GameState legacy = plain with { EventState = JsonSerializer.SerializeToElement(vm), LastOriginalAchievementObservation = observation };
         DateTimeOffset? localTime = missingLocalTime ? null : new DateTimeOffset(2021, 2, 3, 4, 5, 6, TimeSpan.FromHours(-5));

@@ -17,7 +17,7 @@ public sealed class ErrorReportingTests : IDisposable
         using GameProcessDiagnostics diagnostics = new(Path.Combine(directory, "logs"));
         string path = diagnostics.LogPath!;
         diagnostics.Complete(1);
-        string logText = "early evidence ../fixtures" + new string('x', 10000) + " final evidence";
+        string logText = "early evidence C:\\TestProfiles\\ReportFixture\\private.log\n" + new string('x', 10000) + " final evidence";
         await File.WriteAllTextAsync(path, logText, TestContext.Current.CancellationToken);
         ErrorIncident recovered = diagnostics.CaptureFailure(1, "matching-launch", reports);
         Assert.Equal(original.Id, recovered.Id);

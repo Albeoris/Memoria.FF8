@@ -10,9 +10,9 @@ public sealed class SaveAccountPrivacyTests
     {
         JsonElement vm = JsonSerializer.SerializeToElement(new
         {
-            LastFault = new { FieldId = 165, ObjectId = 3, ScriptId = 2, Operation = 7, Opcode = "MOVIEREADY", Message = @"Cannot open ../fixtures/external-fixture.avi" },
+            LastFault = new { FieldId = 165, ObjectId = 3, ScriptId = 2, Operation = 7, Opcode = "MOVIEREADY", Message = @"Cannot open C:\TestProfiles\private-user\movie.avi" },
             FaultContext = new { Diagnostic = "private-account" },
-            MovieSource = new { DiscIndex = 1, MovieIndex = 7, Path = @"../fixtures/external-fixture.avi" },
+            MovieSource = new { DiscIndex = 1, MovieIndex = 7, Path = @"C:\TestProfiles\private-user\movie.avi" },
             Scene = new { Names = new Dictionary<int, string> { [0] = @"C:\Hero", [1] = "x@y.example" } }
         });
         GameState live = new() { EventState = vm, DepartingFieldState = vm, WorldEventState = vm };

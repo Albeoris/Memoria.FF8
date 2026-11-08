@@ -31,7 +31,7 @@ public sealed class ReportPrivacyTests
     {
         JsonElement data = JsonSerializer.SerializeToElement(new Dictionary<string, object>
         {
-            [@"C:\private\personal.txt"] = new { File = @"../fixtures/external-fixture.txt", User = "account-alias", Profile = "personal-profile", SteamId = "12345678901234567", Names = new Dictionary<string, string> { ["0"] = "personal-name" } },
+            [@"C:\private\personal.txt"] = new { File = @"C:\TestProfiles\example\private.txt", User = "account-alias", Profile = "personal-profile", SteamId = "12345678901234567", Names = new Dictionary<string, string> { ["0"] = "personal-name" } },
             ["version"] = "1.0.0.0"
         });
         string result = ReportPrivacy.Json(data).GetRawText();
@@ -113,8 +113,8 @@ public sealed class ReportPrivacyTests
         try
         {
             ErrorBreadcrumbs events = new();
-            events.Add("test", @"Missing ../fixtures/external-fixture.txt");
-            ErrorIncident incident = ErrorIncident.Capture(new IOException(@"Missing ../fixtures/external-fixture.txt"), "test", new { Path = @"\\private-server\share\private-file.txt", UserName = "private-account" }, breadcrumbs: events, launchId: "private-launch-alias");
+            events.Add("test", @"Missing C:\TestProfiles\example\private-file.txt");
+            ErrorIncident incident = ErrorIncident.Capture(new IOException(@"Missing C:\TestProfiles\example\private-file.txt"), "test", new { Path = @"\\private-server\share\private-file.txt", UserName = "private-account" }, breadcrumbs: events, launchId: "private-launch-alias");
             using PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root);
             Assert.DoesNotContain("private-file", report.Description);
             Assert.DoesNotContain("private-account", report.Description);
@@ -165,7 +165,7 @@ public sealed class ReportPrivacyTests
             {
                 zip.GetEntry("report.md")!.Delete();
                 using StreamWriter writer = new(zip.CreateEntry("report.md").Open());
-                writer.Write(@"../fixtures/external-fixture.txt");
+                writer.Write(@"C:\TestProfiles\example\private-file.txt");
             }
             using PreparedErrorReport regenerated = await ErrorReport.PrepareAsync(incident, root);
             using ZipArchive result = ZipFile.OpenRead(regenerated.ArchivePath);
