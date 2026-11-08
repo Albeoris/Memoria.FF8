@@ -6,6 +6,29 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplayActorAnimationContractTests
 {
     [Fact]
+    public void Completed_single_pose_hold_preserves_first_after_terminal_moves_back()
+    {
+        GameplaySaveActorAnimation original = new(3, 448, 16, 464, GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen, 0, 1, 2, 0, 0, 448);
+        original.Validate();
+        GameplaySaveActorAnimation restored = JsonSerializer.Deserialize<GameplaySaveActorAnimation>(JsonSerializer.Serialize(original))!;
+        restored.Validate();
+        Assert.Equal(original, restored);
+    }
+
+    [Theory]
+    [InlineData(GameplaySaveActorAnimationFlags.Complete, 448)]
+    [InlineData(GameplaySaveActorAnimationFlags.Frozen, 448)]
+    [InlineData(GameplaySaveActorAnimationFlags.Repeating, 448)]
+    [InlineData(GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen | GameplaySaveActorAnimationFlags.Repeating, 448)]
+    [InlineData(GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen, 447)]
+    [InlineData(GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen, 449)]
+    public void Inverted_range_still_requires_exact_frozen_completion(GameplaySaveActorAnimationFlags flags, ushort frame)
+    {
+        GameplaySaveActorAnimation value = new(3, frame, 16, 464, flags, 0, 1, 2, 0, 0, 448);
+        Assert.Throws<InvalidDataException>(value.Validate);
+    }
+
+    [Fact]
     public void Older_explicit_end_documents_keep_their_meaning_without_the_optional_final_pose_flag()
     {
         GameplaySaveActorAnimation original = new(1, 64, 16, 0, GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen, 0, 0, 0, 0, 0, 64);

@@ -267,7 +267,8 @@ public sealed partial class EventEngine
             // here; restart only its zero-length presentation instead of rejecting play.
             phase = terminal;
         }
-        if (terminal is ushort currentEnd && (animation.First > currentEnd || bound.BoundModelId != -1 && terminal > resourceTerminal || phase > currentEnd))
+        bool completedHold = phase == terminal && animation.Flags == (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen);
+        if (terminal is ushort currentEnd && (animation.First > currentEnd && !completedHold || bound.BoundModelId != -1 && terminal > resourceTerminal || phase > currentEnd))
         {
             throw new NotSupportedException("Saved logical animation range lies outside the selected current model.");
         }

@@ -128,7 +128,9 @@ public sealed record GameplaySaveActorAnimation([property: JsonRequired] byte Se
         {
             throw new InvalidDataException("Resource-relative final animation pose requires known frozen completion and no explicit range end.");
         }
-        if (Flags is { } flags && ((int)flags & ~0xF800) != 0 || Idle is < 0 or > 255 || Walk is < 0 or > 255 || Run is < 0 or > 255 || IdleFirst < 0 || IdleLast < IdleFirst || End is ushort end && (First > end || Frame > end))
+        // Native hold completion moves the end/phase back by the increment and retains First.
+        bool completedHold = Frame == End && Flags == (GameplaySaveActorAnimationFlags.Complete | GameplaySaveActorAnimationFlags.Frozen);
+        if (Flags is { } flags && ((int)flags & ~0xF800) != 0 || Idle is < 0 or > 255 || Walk is < 0 or > 255 || Run is < 0 or > 255 || IdleFirst < 0 || IdleLast < IdleFirst || End is ushort end && (First > end && !completedHold || Frame > end))
         {
             throw new InvalidDataException("Gameplay actor animation requires valid selectors and logical playback flags.");
         }
