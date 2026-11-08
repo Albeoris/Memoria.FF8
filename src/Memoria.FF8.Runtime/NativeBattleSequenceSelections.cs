@@ -53,12 +53,17 @@ public static class NativeBattleSequenceSelections
         return selected.ToImmutable();
     }
 
+    public static bool CanSelectReady505CE0(NativeBattleGraphicsModel target)
+    {
+        return ((target.ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its target resource WORD44.")) & 0x140) != 0;
+    }
+
     public static bool CanSelectTargetBF(NativeBattleGraphicsModel target)
     {
         if (target.Index < 3 && ((target.Flags8 ?? throw new NotSupportedException("Native BF requires its target model DWORD8.")) & 0x300000) != 0)
         {
             return false;
         }
-        return ((target.ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its target resource WORD44.")) & 0x140) != 0;
+        return CanSelectReady505CE0(target);
     }
 }

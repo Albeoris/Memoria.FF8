@@ -546,11 +546,6 @@ public sealed partial class BattleSession
         return definition.NativeModuleResources.SingleOrDefault(resource => resource.Id == id) ?? throw new NotSupportedException($"Native contact effect requires its installed module resource{id}.");
     }
 
-    private static NativeBattleGraphicsModel QueueNativeModelSequence(NativeBattleGraphicsModel model, byte sequence)
-    {
-        return (model.ResourceFlags44!.Value & 0x40) != 0 ? NativeBattleGraphicsModels.SelectSequence(model, sequence) : model with { SequenceState = model.SequenceState! with { Pending3 = sequence } };
-    }
-
     private NativeBattleGraphicsModel SetNativeGraphicsFlags(NativeBattleGraphicsModel model, uint flags, NativeBattleGraphicsState graphics)
     {
         uint previous = model.Flags8 ?? throw new InvalidDataException("Native509D10 requires its current graphics status DWORD.");

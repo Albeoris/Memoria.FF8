@@ -103,11 +103,11 @@ public sealed partial class BattleSession
                         NativeBattleQuake38ActorBounceStep bounce = NativeBattleQuake38ActorBounce.Advance8DBCA0(graphics.Models[actor], state.SavedActors[actor], state, resources, RandomState, hit);
                         RandomState = bounce.Random;
                         NativeBattleGraphicsModel model = bounce.Model;
-                        if (bounce.ModelSequence is { } sequence)
-                        {
-                            model = QueueNativeModelSequence(model, (byte)sequence);
-                        }
                         graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+                        if (bounce.ModelSequence is { } sequence && NativeBattleSequenceSelections.CanSelectReady505CE0(model))
+                        {
+                            graphics = session.SelectNativeHeaderSequence(graphics, checked((byte)actor), sequence);
+                        }
                         state.SetSavedActor(actor, bounce.Saved);
                     }
                     DrawGround();
