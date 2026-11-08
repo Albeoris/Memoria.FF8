@@ -56,10 +56,6 @@ public sealed partial class EventEngine
         {
             Scene.BackgroundScrollPositions.Add(layer, GameplayScroll(phase));
         }
-        if (saved.Scrolls.Values.Any(value => value.Mode == 4) && CanRestoreLinearBackgroundScroll?.Invoke(Scene) == false)
-        {
-            throw new InvalidDataException("Gameplay layer scroll is unsupported by the selected current renderer.");
-        }
     }
 
     private void ValidateGameplayAmbientWait(Fiber fiber)

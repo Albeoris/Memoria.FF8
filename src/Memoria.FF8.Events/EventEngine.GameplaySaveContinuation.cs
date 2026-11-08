@@ -37,6 +37,11 @@ public sealed partial class EventEngine
         RestoreGameplaySaveFieldActors(saved.Actors, saved.ScriptMenu?.PendingPartyRefresh == true);
         RestoreGameplayPartyMovement(saved.PartyMovement);
         RestoreGameplaySaveActorScroll(saved.Scene.ActorScroll);
+        // Renderer admission consumes the restored actor layout and camera owner.
+        if (Scene.BackgroundScrollPositions.Values.Any(value => value.Mode == 4) && CanRestoreLinearBackgroundScroll?.Invoke(Scene) == false)
+        {
+            throw new InvalidDataException("Gameplay layer scroll is unsupported by the selected current renderer.");
+        }
         RestoreGameplaySaveParticles(saved.Scene);
         RestoreGameplaySaveScripts(saved.Scripts, saved.ScriptMenu is not null);
         RestoreGameplayScriptMenu(saved.ScriptMenu);
