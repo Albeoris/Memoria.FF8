@@ -324,14 +324,14 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Contains(failure.LaunchId, output.ToString());
         string reports = Path.Combine(directory, "reports");
         ErrorIncident game = ErrorIncident.Capture(new InvalidOperationException("Original game error"), "Game", launchId: failure.LaunchId);
-        game.Persist(reports);
+        string incidentDirectory = game.Persist(reports);
         failure.Persist(reports);
         ErrorIncident preserved = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(reports, failure.LaunchId));
         Assert.Equal(game.Id, preserved.Id);
         Assert.Equal("Game", preserved.Subsystem);
         Assert.Equal("Original game error", preserved.Exception.Message);
-        Assert.Single(Directory.GetFiles(reports, "incident.json", SearchOption.AllDirectories));
-        using JsonDocument evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(reports, game.Id, "incident.json")));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(incidentDirectory)!, "incident.json", SearchOption.AllDirectories));
+        using JsonDocument evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(incidentDirectory, "incident.json")));
         Assert.Contains(evidence.RootElement.GetProperty("LogPaths").EnumerateArray(), path => path.GetString()!.EndsWith("result.json", StringComparison.Ordinal));
     }
 
