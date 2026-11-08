@@ -7,26 +7,45 @@ namespace Memoria.FF8.Platform;
 public static class ReportPrivacy
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+    private static readonly Regex email = new(@"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, RegexTimeout);
     private static readonly string repositoryRoot = RepositoryRoot();
 
     public static string Text(string text)
     {
         List<string> metadata = new();
-        string result = Replace(text, """(?i)\b(?:Launch[_-]?Id|Launch)\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", match =>
+        string result = text;
+        bool hasAssignment = text.AsSpan().IndexOfAny(':', '=') >= 0;
+        if (hasAssignment)
         {
-            metadata.Add(match.Value);
-            return "<preservedLaunch" + (metadata.Count - 1) + ">";
-        });
-        // Remove whole quoted values before path matching can consume their labels.
-        result = Replace(result, """(?i)\b(?:authorization|cookie)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)""", _ => "<credential>");
-        result = Replace(result, """(?i)\b(?:password|passwd|(?:(?:access|refresh)[_-]?)?token|secret|api[_-]?key)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)|\bbearer\s+[^\s,;]+""", _ => "<credential>");
-        result = Replace(result, """(?i)\b(?:user(?:(?:[_-]?(?:name|id|domain(?:name)?)))?|host(?:[_-]?name)?|machine(?:[_-]?name)?|profile(?:[_-]?id)?|account(?:[_-]?id)?|steam[_-]?id(?:64)?|ip(?:[_-]?address)?)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", _ => "<identity>");
-        result = Replace(result, @"(?i)\b(?:https?|ftp)://[^\s\""<>]+", _ => "<url>");
-        result = Replace(result, """(?i)(?:[a-z]:[\\/]|\\\\|//)[^\r\n"'<>|;]*""", match => PathLabel(match.Value));
-        result = Replace(result, """(?<![\w:/>])/(?!/)[^\s"'<>|][^\r\n"'<>|;]*""", match => PathLabel(match.Value));
-        result = Replace(result, """(?<![\w\\])\\(?!\\)[^\r\n"'<>|;]+""", match => PathLabel(match.Value));
-        result = Replace(result, """(?<![\w])(?:\.\.[\\/]|~/)[^\r\n"'<>|;]+""", _ => "<external>/<path>");
-        result = Replace(result, @"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", _ => "<email>");
+            result = Replace(result, """(?i)\b(?:Launch[_-]?Id|Launch)\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", match =>
+            {
+                metadata.Add(match.Value);
+                return "<preservedLaunch" + (metadata.Count - 1) + ">";
+            });
+            // Remove whole quoted values before path matching can consume their labels.
+            result = Replace(result, """(?i)\b(?:authorization|cookie)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)""", _ => "<credential>");
+        }
+        if (hasAssignment || result.Contains("bearer", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Replace(result, """(?i)\b(?:password|passwd|(?:(?:access|refresh)[_-]?)?token|secret|api[_-]?key)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)|\bbearer\s+[^\s,;]+""", _ => "<credential>");
+        }
+        if (hasAssignment)
+        {
+            result = Replace(result, """(?i)\b(?:user(?:(?:[_-]?(?:name|id|domain(?:name)?)))?|host(?:[_-]?name)?|machine(?:[_-]?name)?|profile(?:[_-]?id)?|account(?:[_-]?id)?|steam[_-]?id(?:64)?|ip(?:[_-]?address)?)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)""", _ => "<identity>");
+        }
+        if (result.AsSpan().IndexOfAny('/', '\\') >= 0)
+        {
+            result = Replace(result, @"(?i)\b(?:https?|ftp)://[^\s\""<>]+", _ => "<url>");
+            result = Replace(result, """(?i)(?:[a-z]:[\\/]|\\\\|//)[^\r\n"'<>|;]*""", match => PathLabel(match.Value));
+            result = Replace(result, """(?<![\w:/>])/(?!/)[^\s"'<>|][^\r\n"'<>|;]*""", match => PathLabel(match.Value));
+            result = Replace(result, """(?<![\w\\])\\(?!\\)[^\r\n"'<>|;]+""", match => PathLabel(match.Value));
+            result = Replace(result, """(?<![\w])(?:\.\.[\\/]|~/)[^\r\n"'<>|;]+""", _ => "<external>/<path>");
+        }
+        if (result.Contains('@'))
+        {
+            // Local-part punctuation creates overlapping candidate starts; use linear matching.
+            result = email.Replace(result, "<email>");
+        }
         result = Replace(result, @"\b\d{17}\b", _ => "<account>");
         foreach (string identity in new[] { Environment.UserName, Environment.MachineName }.Where(value => value.Length > 1).Distinct(StringComparer.OrdinalIgnoreCase))
         {

@@ -54,6 +54,37 @@ public sealed class ReportPrivacyTests
     }
 
     [Theory]
+    [InlineData("a")]
+    [InlineData("a.")]
+    [InlineData("a@")]
+    public void LongNonEmailRecordsRemainIntactWhileAdjacentPrivateValuesAreRedacted(string fragment)
+    {
+        string record = string.Concat(Enumerable.Repeat(fragment, 1024 * 1024 / fragment.Length));
+        string result = ReportPrivacy.LogText(record + "\nmail@example.invalid token=hidden-value");
+        Assert.Equal(record + "\n<email> <credential>", result);
+    }
+
+    [Fact]
+    public void LongEmailLocalPartIsRedactedCompletely()
+    {
+        string address = string.Concat(Enumerable.Repeat("a.", 512 * 1024)) + "user@example.invalid";
+        Assert.Equal("before <email>; after", ReportPrivacy.Text("before " + address + "; after"));
+    }
+
+    [Theory]
+    [InlineData("password=hidden", "<credential>")]
+    [InlineData("Authorization: hidden", "<credential>")]
+    [InlineData("User=hidden", "<identity>")]
+    [InlineData("Bearer hidden", "<credential>")]
+    [InlineData("bEaReR\thidden", "<credential>")]
+    [InlineData("xbearer visible", "xbearer visible")]
+    [InlineData("bearervisible", "bearervisible")]
+    public void MatcherPreconditionsPreserveAssignmentAndBearerRedaction(string input, string expected)
+    {
+        Assert.Equal(expected, ReportPrivacy.Text(input));
+    }
+
+    [Theory]
     [InlineData("password=\"hidden words\"; frame=42")]
     [InlineData("Authorization: Basic hidden-auth")]
     [InlineData("User=hidden-user MachineName=hidden-host")]
