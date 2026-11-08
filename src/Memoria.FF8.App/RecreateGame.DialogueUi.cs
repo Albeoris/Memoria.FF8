@@ -100,7 +100,7 @@ internal sealed partial class RecreateGame
         {
             var presentation = GetDialoguePages(dialogue);
             presentation.Pager.UpdateReveal(elapsed, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: dialogue.IsNamePrompt);
-            if (!dialogue.CanConfirm)
+            if (!dialogue.CanConfirm && dialogue.NativeWindow is not { Delta: < 0 })
             {
                 presentation.Pager.UpdatePopup(elapsed, presentation.Pages, DialoguePager.CharactersPerSecond(uiPreferences.FieldMessageSpeed));
             }

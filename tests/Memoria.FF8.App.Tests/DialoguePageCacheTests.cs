@@ -14,6 +14,80 @@ public sealed class DialoguePageCacheTests
         return cache.Get(dialogue, null, "Arial", 8, dialogue.Text, valueIdentity, CreatePages);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Native_confirmation_retains_the_last_page_and_revealed_text_until_the_window_closes(bool choice)
+    {
+        var cache = new DialoguePageCache();
+        var window = new NativeDialogueWindowState(1, 4096, 0);
+        var dialogue = new DialogueState(0, 1, "First{Page}Second", 8, 8, NativeWindow: window);
+        if (choice)
+        {
+            dialogue = dialogue with { FirstChoice = 0, LastChoice = 1 };
+        }
+        IReadOnlyList<DialogueVisualPage> CreateTextPages() => DialogueLayout.Create(DialogueTextFormatter.Parse(dialogue.Text), dialogue, null, 10, value => value.Length * 5);
+        var first = cache.Get(dialogue, null, "Arial", 8, dialogue.Text, false, CreateTextPages);
+        Assert.True(first.Pager.Advance(first.Pages.Count));
+        first.Pager.RevealCurrentPage(first.Pages[1]);
+        int revealed = first.Pager.VisibleCharacters;
+        Assert.True(revealed > 0);
+
+        cache.Complete(dialogue);
+        var closing = dialogue with { CanConfirm = false };
+        window.Delta = -512;
+        for (int progress = 3072; progress > 0; progress -= 1024)
+        {
+            window.Progress = progress;
+            cache.RetainChannels([dialogue.Channel]);
+            var retained = cache.Get(closing, null, "Arial", 8, dialogue.Text, false, CreateTextPages);
+            Assert.Same(first.Pager, retained.Pager);
+            Assert.Equal(1, retained.Pager.PageIndex);
+            Assert.Equal(revealed, retained.Pager.VisibleCharacters);
+        }
+
+        cache.RetainChannels([]);
+        Assert.Null(cache.ReadPager(dialogue.Channel));
+    }
+
+    [Fact]
+    public void Native_message_sync_and_simultaneous_confirmation_preserve_each_physical_window()
+    {
+        var cache = new DialoguePageCache();
+        var automatic = new DialogueState(0, 1, "First{Page}Second", 8, 8, NativeWindow: new NativeDialogueWindowState(1, 4096, 0));
+        var popup = automatic with { Channel = 1, CanConfirm = false, NativeWindow = new NativeDialogueWindowState(1, 4096, 0) };
+        var first = Get(cache, automatic);
+        var second = Get(cache, popup);
+        Assert.True(first.Pager.Advance(first.Pages.Count));
+        Assert.True(second.Pager.Advance(second.Pages.Count));
+
+        var synchronized = popup with { CanConfirm = true };
+        Assert.Same(second.Pager, Get(cache, synchronized).Pager);
+        cache.Complete(automatic);
+
+        Assert.Same(first.Pager, Get(cache, automatic with { CanConfirm = false }).Pager);
+        Assert.Same(second.Pager, Get(cache, synchronized with { CanConfirm = false }).Pager);
+        Assert.Equal(1, first.Pager.PageIndex);
+        Assert.Equal(1, second.Pager.PageIndex);
+    }
+
+    [Fact]
+    public void Equal_native_window_reopened_on_the_same_channel_starts_a_new_presentation()
+    {
+        var cache = new DialoguePageCache();
+        var dialogue = new DialogueState(0, 1, "First{Page}Second", 8, 8, NativeWindow: new NativeDialogueWindowState(1, 4096, 0));
+        var first = Get(cache, dialogue);
+        Assert.True(first.Pager.Advance(first.Pages.Count));
+        cache.Complete(dialogue);
+        var reopened = dialogue with { NativeWindow = dialogue.NativeWindow! with { } };
+        Assert.Equal(dialogue, reopened);
+
+        var replacement = Get(cache, reopened);
+
+        Assert.NotSame(first.Pager, replacement.Pager);
+        Assert.Equal(0, replacement.Pager.PageIndex);
+    }
+
     [Fact]
     public void Same_field_opening_retains_pages_and_pager_without_recreating_layout()
     {

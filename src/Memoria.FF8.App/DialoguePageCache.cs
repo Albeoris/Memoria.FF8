@@ -10,9 +10,9 @@ internal sealed class DialoguePageCache
 
     public (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) Get(DialogueState dialogue, DialogueWindow? window, string family, float size, string expandedKey, bool valueIdentity, Func<IReadOnlyList<DialogueVisualPage>> create, bool retainPosition = false)
     {
-        if (!entries.TryGetValue(dialogue.Channel, out Entry? entry) || entry.ValueIdentity != valueIdentity || !(valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) || entry.Window != window || entry.Family != family || entry.Size != size || entry.ExpandedKey != expandedKey)
+        if (!entries.TryGetValue(dialogue.Channel, out Entry? entry) || entry.ValueIdentity != valueIdentity || !SameOpening(entry.Dialogue, dialogue, valueIdentity) || entry.Window != window || entry.Family != family || entry.Size != size || entry.ExpandedKey != expandedKey)
         {
-            DialoguePager? previous = retainPosition && entry is not null && (valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) ? entry.Pager : null;
+            DialoguePager? previous = retainPosition && entry is not null && SameOpening(entry.Dialogue, dialogue, valueIdentity) ? entry.Pager : null;
             entry = new Entry(dialogue, window, family, size, expandedKey, valueIdentity, create(), new DialoguePager());
             if (previous is not null)
             {
@@ -21,6 +21,16 @@ internal sealed class DialoguePageCache
             entries[dialogue.Channel] = entry;
         }
         return (entry.Pages, entry.Pager);
+    }
+
+    private static bool SameOpening(DialogueState previous, DialogueState current, bool valueIdentity)
+    {
+        if (valueIdentity)
+        {
+            return previous == current;
+        }
+        // Confirmation and MESSYNC replace the dialogue record but retain the physical window.
+        return previous.NativeWindow is not null ? ReferenceEquals(previous.NativeWindow, current.NativeWindow) : ReferenceEquals(previous, current);
     }
 
     public void RetainChannels(IEnumerable<int> channels)
@@ -36,10 +46,14 @@ internal sealed class DialoguePageCache
     {
         if (dialogue.FirstChoice is not null || dialogue.IsNamePrompt)
         {
-            entries.Remove(dialogue.Channel);
+            if (dialogue.NativeWindow is null)
+            {
+                entries.Remove(dialogue.Channel);
+            }
             return;
         }
-        foreach (int channel in entries.Where(pair => pair.Value.Dialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false }).Select(pair => pair.Key).ToArray())
+        // Native windows remain visible during closing; RetainChannels removes them once hidden.
+        foreach (int channel in entries.Where(pair => pair.Value.Dialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false, NativeWindow: null }).Select(pair => pair.Key).ToArray())
         {
             entries.Remove(channel);
         }
