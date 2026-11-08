@@ -181,6 +181,10 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Saved native callback differs from its physical packet.");
                     }
+                    if (callback.Stage == 1 && bankIndex != 0)
+                    {
+                        busy.Add(command.ActorId);
+                    }
                     continue;
                 }
                 if (physical.ReadByte(0) != GetActor(command.ActorId).NativeIndex)

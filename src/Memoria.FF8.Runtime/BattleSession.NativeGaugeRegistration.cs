@@ -44,8 +44,8 @@ public sealed partial class BattleSession
                 continue;
             }
             ObserveNativeUnknownStackCallback(0x484720, "registered actor callback");
-            //484720(actor,1,2): any nonzero third argument selects physical bank1, not a packet flags BYTE.
-            QueueNativeCallback(actor, 1, 1);
+            //484720(actor,1,2): a nonzero third argument selects the ordinary physical bank2.
+            QueueNativeCallback(actor, 1, 2);
             actor.NativeCombatantFlags &= ~0x200u;
         }
     }

@@ -5,6 +5,30 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAiContactTests
 {
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(1, 2, 7)]
+    public void Self_contact_inherits_callback_bank_and_only_turns_enter_immediate_reaction(int stage, byte lane, uint expectedVariable)
+    {
+        byte[][] scripts = [[0], [0], [0], [0], [14, 220, 7, 9, 18, 0]];
+        scripts[stage] = [4, 200, 7, 1, 6, 0];
+        NativeBattleAiDefinition ai = new(scripts, Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
+        BattleNativeAction native = new(8, 1, 3, 1) { MagicId = 0, AttackType = 27, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
+        BattleSession battle = new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = [native], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", InitialAtb = BattleSession.AtbMaximum, MaximumHp = 1000, CurrentHp = 1000, NativeCombatantFlags = 0x10, NativeAi = ai }] }, BattleAtbMode.Normal);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 10 && battle.NativeActionPackets.ActionCount == 0; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        BattleSnapshot snapshot = battle.Capture();
+        Assert.Equal(lane, snapshot.NativeActionScratch!.EventLane);
+        Assert.Equal(expectedVariable, snapshot.Combatants[1].NativeParticipant!.Variables[0]);
+        Assert.Equal(stage == 1 ? (byte)18 : (byte)5, battle.NativeActionPackets.ReadContact(0).Primary.Sequence);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Fact]
     public void CallbackFourOpcodeNineChangesTheActualContactPacketAndRestoresBeforeTheHit()
     {

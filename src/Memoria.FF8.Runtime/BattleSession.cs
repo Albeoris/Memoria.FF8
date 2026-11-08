@@ -518,7 +518,7 @@ public sealed partial class BattleSession
             if (enemy.NativeAi is not null)
             {
                 enemy.Atb = 0;
-                QueueNativeCallback(enemy, 1);
+                QueueNativeCallback(enemy, 1, 2);
                 continue;
             }
             // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented.

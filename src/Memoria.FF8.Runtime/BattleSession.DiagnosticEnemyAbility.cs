@@ -66,13 +66,13 @@ public sealed partial class BattleSession
         {
             if (HasNativeUiServiceClock)
             {
-                QueueNativeCallback(actor, 1, 1);
+                QueueNativeCallback(actor, 1, 2);
                 actor.NativeCombatantFlags &= ~0x200u;
             }
             else
             {
                 actor.Atb = 0;
-                QueueNativeCallback(actor, 1);
+                QueueNativeCallback(actor, 1, 2);
             }
             LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeIndex, selection, expectedEffect, null);
             return;

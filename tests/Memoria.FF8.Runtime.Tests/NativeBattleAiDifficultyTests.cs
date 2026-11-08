@@ -158,8 +158,8 @@ public sealed class NativeBattleAiDifficultyTests
             BattleSession normal = Create(script, BattleDifficulty.Normal, seed, callback: callback);
             BattleSession hard = Create(script, BattleDifficulty.Hard, seed, callback: callback);
             System.Reflection.MethodInfo invoke = typeof(BattleSession).GetMethod("RunNativeAi", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            invoke.Invoke(normal, [normal.Combatants[1], callback]);
-            invoke.Invoke(hard, [hard.Combatants[1], callback]);
+            invoke.Invoke(normal, [normal.Combatants[1], callback, null]);
+            invoke.Invoke(hard, [hard.Combatants[1], callback, null]);
             Assert.Equal(normal.Capture().NativeAiVariables, hard.Capture().NativeAiVariables);
             AssertRandomEqual(normal.Capture().Random!, hard.Capture().Random!);
         }

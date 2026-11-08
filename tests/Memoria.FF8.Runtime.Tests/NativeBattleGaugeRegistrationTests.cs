@@ -62,13 +62,13 @@ public sealed class NativeBattleGaugeRegistrationTests
     }
 
     [Fact]
-    public void Ready_callback_uses_bank_one_zero_BYTE2_and_retains_unknown_BYTE3_and_zero_targets()
+    public void Ready_callback_uses_bank_two_zero_BYTE2_and_retains_unknown_BYTE3_and_zero_targets()
     {
         NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
-        (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(1, 3, 1);
-        Assert.Equal((byte)1, location.Bank);
+        (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(2, 3, 1);
+        Assert.Equal((byte)2, location.Bank);
         Assert.Equal((byte)255, banks.Banks[0].Tail);
-        NativeBattleCommandPacket packet = banks.Banks[1].Packets[2 * location.Slot];
+        NativeBattleCommandPacket packet = banks.Banks[2].Packets[2 * location.Slot];
         Assert.Equal((byte)3, packet.ReadByte(0));
         Assert.Equal((byte)255, packet.ReadByte(1));
         Assert.Equal((byte)0, packet.ReadByte(2));

@@ -9,7 +9,7 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
     [Theory]
     [InlineData(0x219u, 0x19u)]
     [InlineData(0x215u, 0x15u)]
-    public void Installed_participant_deferred_ready_callback_is_consumed_once_in_bank_one_preserving_reaction_and_full_gauge(uint registeredFlags, uint consumedFlags)
+    public void Installed_participant_deferred_ready_callback_is_consumed_once_in_bank_two_preserving_reaction_and_full_gauge(uint registeredFlags, uint consumedFlags)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original participant and native clock resources are required.");
@@ -47,14 +47,14 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
         Assert.Equal(new NativeBattlePendingReaction(2, 0), retained.NativeParticipant.PendingReaction);
         Assert.Equal(gauge.Maximum, retained.NativeAtb!.Current);
         Assert.Empty(after.NativeCommandBanks!.Banks[0].LogicalCommands.OfType<BattleAttackCommand>());
-        BattleAttackCommand command = Assert.Single(after.NativeCommandBanks.Banks[1].LogicalCommands.OfType<BattleAttackCommand>());
+        BattleAttackCommand command = Assert.Single(after.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>());
         Assert.Equal(new BattleNativeCallback(3, 1), command.NativeCallback);
         Assert.Equal(1, after.NativeCommandBanks.CountActor(3));
         BattleSession restored = Restore(after);
         first.AdvanceNativeGraphicsPresentation(callbackStep);
         restored.AdvanceNativeGraphicsPresentation(callbackStep);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Single(first.NativeCommandBanks.Banks[1].LogicalCommands.OfType<BattleAttackCommand>());
+        Assert.Single(first.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>());
         Assert.Equal(new NativeBattlePendingReaction(2, 0), first.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.PendingReaction);
     }
 

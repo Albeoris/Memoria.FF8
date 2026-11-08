@@ -67,7 +67,9 @@ public sealed partial class BattleSession
         List<BattleAttackCommand> tail = actions.ToList();
         nativeCallbackTail = tail;
         actions.Clear();
-        SetNativeActionEvent(actor, 0);
+        //485460 retains the selected bank in DF0 BYTE2 while485610 dispatches its callback.
+        byte lane = nativeDispatchCommandLocation?.Bank ?? 0;
+        SetNativeActionEvent(actor, lane);
         NativeBattleActionProductionContext? previousContext = nativeProductionContext;
         nativeProductionContext ??= new(0, 0, false, 0x47DDA0);
         try
