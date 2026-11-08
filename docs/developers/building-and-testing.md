@@ -138,6 +138,8 @@ Choose filters for the contract being changed; the examples are not a mandatory 
 
 `InstalledFieldTransitionInputTests` uses the optional external catalog entry `App.Tests.InstalledFieldTransitionInputTests.1` for a standalone field770 console checkpoint. It selects the timer, exits through the side door and verifies held input during the black field769 entry, camera projection for the model-less script actor, and snapshot/render continuation. Set `MEMORIA_FF8_FIELD_ENTRY_SAVE_OUTPUT` to a new file to retain the resulting checkpoint.
 
+`InstalledHotelMagazineTests` uses the optional external catalog entry `App.Tests.InstalledHotelMagazineTests.1` for a standalone field615/frame50 checkpoint before renting a room. It follows the original room and magazine scripts, renders fractional fades including saturated dialogue callbacks, and checks the collection flag and snapshot reload/next-callback equality. Set `MEMORIA_FF8_HOTEL_SAVE_OUTPUT` to a new file to retain the completed field616 checkpoint. The supplied save remains unchanged.
+
 The App `WindowModeControllerTests` are visible desktop checks, enabled with `MEMORIA_FF8_WINDOW_MODE_TEST=1`. They create their own initialized graphics host and check monitor coverage, backbuffer dimensions and restoration of normal and maximized windows. They require no original game resources. `WindowModeHotkeyTests` and `BorderlessWindowSettingsTests` cover the shortcut and persisted configuration without showing a window.
 
 ## Optional local inputs

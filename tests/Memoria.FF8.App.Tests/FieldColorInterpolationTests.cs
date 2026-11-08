@@ -9,6 +9,103 @@ namespace Memoria.FF8.App.Tests;
 public sealed class FieldColorInterpolationTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Saturated_same_mode_fade_remains_valid_at_fine_presentation_fractions(bool subtract)
+    {
+        NativeFieldFadeState first = NativeFieldFadeState.FromColdProcess().IssueDirectColor(subtract, 255, 255, 255).AdvanceCallback();
+        NativeFieldFadeState last = first.AdvanceCallback();
+
+        FieldFadeSample maximum = Enumerable.Range(1, 9999).Select(step => FieldFadeSample.Interpolate(first, last, step / 10000f)).MaxBy(sample => sample.Color.X)!;
+        maximum.Validate();
+        for (int step = 1; step < 10000; step++)
+        {
+            float fraction = step / 10000f;
+            FieldFadeSample sample = FieldFadeSample.Interpolate(first, last, fraction);
+
+            Assert.True(sample.Color.X <= 255 && sample.Color.Y <= 255 && sample.Color.Z <= 255, $"Saturated color {sample.Color} exceeded 255 at presentation fraction {fraction:R}.");
+            sample.Validate();
+            Assert.Equal(new Vector3(255), sample.Color);
+        }
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(-float.Epsilon)]
+    [InlineData(255.00002f)]
+    public void Fade_sample_validation_rejects_invalid_channels(float channel)
+    {
+        Vector3[] colors = [new(channel, 0, 255), new(0, channel, 255), new(0, 255, channel)];
+        foreach (NativeFadeDrawMode mode in new[] { NativeFadeDrawMode.Add, NativeFadeDrawMode.Subtract })
+        {
+            foreach (Vector3 color in colors)
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() => new FieldFadeSample(mode, color).Validate());
+            }
+        }
+    }
+
+    [Fact]
+    public void Fade_sample_validation_rejects_unknown_blend_mode()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FieldFadeSample((NativeFadeDrawMode)(-1), Vector3.Zero).Validate());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Same_mode_fade_interpolation_stays_between_byte_endpoints_without_mutating_native_state(bool subtract)
+    {
+        int[] endpoints = [0, 1, 127, 128, 254, 255];
+        float[] fractions = [0, float.BitIncrement(0), 0.0001f, 0.0003f, 0.001f, 0.01f, 0.1f, 0.33333334f, 0.5f, 0.9f, 0.999f, float.BitDecrement(1), 1];
+        foreach (int start in endpoints)
+        {
+            foreach (int target in endpoints)
+            {
+                NativeFieldFadeState first = NativeFieldFadeState.FromColdProcess().IssueDirectColor(subtract, start, target, start).AdvanceCallback();
+                NativeFieldFadeState last = first.IssueDirectColor(subtract, target, start, target).AdvanceCallback();
+                string original = JsonSerializer.Serialize(new[] { first, last });
+                foreach (float fraction in fractions)
+                {
+                    FieldFadeSample sample = FieldFadeSample.Interpolate(first, last, fraction);
+
+                    sample.Validate();
+                    Assert.Equal(first.Draw.Mode, sample.Mode);
+                    Assert.InRange(sample.Color.X, Math.Min(start, target), Math.Max(start, target));
+                    Assert.InRange(sample.Color.Y, Math.Min(start, target), Math.Max(start, target));
+                    Assert.InRange(sample.Color.Z, Math.Min(start, target), Math.Max(start, target));
+                    if (fraction == 0 || fraction == 1)
+                    {
+                        Assert.Equal(FieldFadeSample.FromNative(fraction == 0 ? first.Draw : last.Draw), sample);
+                    }
+                }
+                Assert.Equal(original, JsonSerializer.Serialize(new[] { first, last }));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Same_mode_fade_interpolation_preserves_every_constant_byte_channel_exactly(bool subtract)
+    {
+        float[] fractions = [0.0003f, 0.001f, 0.01f, 0.1f, 0.33333334f, 0.5f, 0.9f, float.BitDecrement(1)];
+        for (int channel = 0; channel <= 255; channel++)
+        {
+            NativeFieldFadeState first = NativeFieldFadeState.FromColdProcess().IssueDirectColor(subtract, channel, channel, channel).AdvanceCallback();
+            NativeFieldFadeState last = first.AdvanceCallback();
+            foreach (float fraction in fractions)
+            {
+                FieldFadeSample sample = FieldFadeSample.Interpolate(first, last, fraction);
+
+                Assert.Equal(new Vector3(channel), sample.Color);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData(false, NativeFadeDrawMode.Add)]
     [InlineData(true, NativeFadeDrawMode.Subtract)]
     public void Continuous_fade_retains_fractional_channels_and_exact_endpoints(bool subtract, NativeFadeDrawMode mode)
