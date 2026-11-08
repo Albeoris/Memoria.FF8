@@ -14,10 +14,8 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
         throw 'The CI source identity is missing or invalid.'
     }
     $buildId = $env:GITHUB_SHA
-    $version = 'nightly'
-    if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -match '^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$') {
-        $version = $env:GITHUB_REF_NAME
-    }
+    # Release channels are external metadata; signed payloads are immutable per source.
+    $version = 'source'
 }
 $prefix = if ($RuntimeIdentifier -like 'osx-*') { 'Contents/Resources/' } else { '' }
 if ($RuntimeIdentifier -like 'osx-*') {

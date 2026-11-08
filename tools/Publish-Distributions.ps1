@@ -23,11 +23,11 @@ foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')) {
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $receipt.sha256) {
         throw "The tested $rid artifact digest changed."
     }
-    if ($rid -like 'osx-*') {
-        $expectedVersion = if ($Reference -eq 'main') { 'nightly' } else { $Reference }
-        if (!$receipt.PSObject.Properties['macSignature'] -or $receipt.macSignature -cne 'adhoc-v1' -or !$receipt.PSObject.Properties['version'] -or $receipt.version -cne $expectedVersion) {
-            throw "The $rid archive needs native signature validation with its final publication version."
-        }
+    if (!$receipt.PSObject.Properties['version'] -or $receipt.version -cne 'source') {
+        throw "The $rid receipt must describe an immutable source payload."
+    }
+    if ($rid -like 'osx-*' -and (!$receipt.PSObject.Properties['macSignature'] -or $receipt.macSignature -cne 'adhoc-v1')) {
+        throw "The $rid archive needs native signature validation."
     }
     $archives += $path
 }
@@ -46,14 +46,7 @@ if ($Reference -eq 'main') {
 elseif ($Reference -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$') {
     throw 'Unsupported release reference.'
 }
-else {
-    foreach ($archive in $archives) {
-        if ([IO.Path]::GetFileName($archive) -notlike 'Memoria-FF8-osx-*') {
-            & (Join-Path $PSScriptRoot 'Set-DistributionVersion.ps1') -ArchivePath $archive -Version $Reference -BuildId $Source
-        }
-    }
-}
-# Record post-metadata archive digests separately from immutable tested receipts.
+# Publish the original tested bytes to every channel, including signed bundles.
 $publication = @{ source = $Source; channel = $tag; artifacts = @($archives | ForEach-Object { @{ name = [IO.Path]::GetFileName($_); sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() } }) }
 $publication | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'release-artifacts.json') -Encoding utf8NoBOM
 & gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

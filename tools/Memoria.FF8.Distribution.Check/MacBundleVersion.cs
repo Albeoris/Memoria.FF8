@@ -7,7 +7,7 @@ static class MacBundleVersion
     public static byte[] Stamp(byte[] content, string version)
     {
         string numeric = "0.0.0";
-        if (version != "local" && version != "nightly")
+        if (version != "local" && version != "nightly" && version != "source")
         {
             if (!version.StartsWith('v') || !Version.TryParse(version.AsSpan(1), out Version? parsed) || parsed.Build < 0)
             {

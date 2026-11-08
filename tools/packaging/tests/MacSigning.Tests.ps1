@@ -13,7 +13,7 @@ $checker = Join-Path $product 'tools/Memoria.FF8.Distribution.Check'
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('memoria-mac-signing-tests-' + [Guid]::NewGuid().ToString('N'))
 $rid = if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq 'Arm64') { 'osx-arm64' } else { 'osx-x64' }
 $buildId = 'a' * 40
-$version = 'v1.2.3'
+$version = 'source'
 $previousEnvironment = @{}
 foreach ($name in @('GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_TYPE', 'GITHUB_REF_NAME')) {
     $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
@@ -106,7 +106,7 @@ try {
     $env:GITHUB_ACTIONS = 'true'
     $env:GITHUB_SHA = $buildId
     $env:GITHUB_REF_TYPE = 'tag'
-    $env:GITHUB_REF_NAME = $version
+    $env:GITHUB_REF_NAME = 'v1.2.3'
     & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $bundle -RuntimeIdentifier $rid
     Invoke-Checker @('--sign-mac-bundle', $bundle)
     Invoke-Checker @('--validate-mac-inventory', $bundle)

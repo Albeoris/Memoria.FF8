@@ -24,10 +24,10 @@ try {
         $extension = if ($rid -eq 'win-x64') { '.zip' } else { '.tar.gz' }
         $archive = Join-Path $temporary ('Memoria-FF8-' + $rid + $extension)
         [IO.File]::WriteAllText($archive, $rid)
-        @{ source = $source; rid = $rid; recipe = 'b' * 64; version = 'nightly'; macSignature = 'adhoc-v1'; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
+        @{ source = $source; rid = $rid; recipe = 'b' * 64; version = 'source'; macSignature = 'adhoc-v1'; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
     }
-    # Use the actual publication orchestrator with a versioning test double;
-    # archive metadata behavior is covered by Packaging.Tests.ps1.
+    # A versioning test double records any accidental mutation by the publisher;
+    # archive metadata tooling is covered separately by Packaging.Tests.ps1.
     $testTools = Join-Path $temporary 'tools'
     New-Item -ItemType Directory -Path $testTools | Out-Null
     $publisher = Join-Path $testTools 'Publish-Distributions.ps1'
@@ -82,23 +82,27 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
     }
     Set-Content -LiteralPath $macReceiptPath -Value $macReceiptText -Encoding utf8NoBOM
     $version = 'v1.2.3'
-    foreach ($rid in @('osx-x64', 'osx-arm64')) {
-        $receiptPath = Join-Path $temporary "receipt-$rid.json"
-        $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-        $receipt.version = $version
-        $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding utf8NoBOM
-    }
     $global:MemoriaPublicationTestCalls.Clear()
     & $publisher -Directory $temporary -Source $source -Reference $version
     $create = @($global:MemoriaPublicationTestCalls | Where-Object { $_[0] -eq 'release' -and $_[1] -eq 'create' })
     if ($create.Count -ne 1 -or $create[0][2] -cne $version -or $create[0] -notcontains '--verify-tag' -or $create[0] -contains '--target' -or $create[0] -contains '--prerelease') {
         throw 'Versioned release creation must verify the existing tag without specifying a target commit.'
     }
-    $stamped = @($global:MemoriaPublicationVersionCalls | ForEach-Object { [IO.Path]::GetFileName($_.ArchivePath) } | Sort-Object)
-    if ($stamped.Count -ne 2 -or $stamped[0] -cne 'Memoria-FF8-linux-x64.tar.gz' -or $stamped[1] -cne 'Memoria-FF8-win-x64.zip' -or @($global:MemoriaPublicationVersionCalls | Where-Object { $_.Version -cne $version -or $_.BuildId -cne $source }).Count -ne 0) {
-        throw 'Tagged publication must stamp only Windows and Linux archives with the validated release identity.'
+    if ($global:MemoriaPublicationVersionCalls.Count -ne 0) {
+        throw 'Tagged publication must reuse every tested archive without version stamping.'
     }
-    Write-Output 'Four-target publication, nightly and existing-tag creation, version orchestration and invalid receipt rejection passed offline.'
+    $publication = Get-Content -LiteralPath (Join-Path $temporary 'release-artifacts.json') -Raw | ConvertFrom-Json
+    if ($publication.channel -cne $version -or $publication.source -cne $source) {
+        throw 'The release identity must be recorded outside the immutable packages.'
+    }
+    foreach ($artifact in $publication.artifacts) {
+        $rid = $artifact.name -replace '^Memoria-FF8-', '' -replace '\.(zip|tar\.gz)$', ''
+        $receipt = Get-Content -LiteralPath (Join-Path $temporary "receipt-$rid.json") -Raw | ConvertFrom-Json
+        if ($artifact.sha256 -cne $receipt.sha256 -or (Get-FileHash -LiteralPath (Join-Path $temporary $artifact.name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $receipt.sha256) {
+            throw 'Both release channels must retain the tested archive digest.'
+        }
+    }
+    Write-Output 'Four-target publication, nightly and existing-tag creation, immutable archive reuse and invalid receipt rejection passed offline.'
 }
 finally {
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($temporary)) -ne [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)) {

@@ -23,15 +23,29 @@ the complete platform set to the `nightly` prerelease. A version tag such as
 write permission. Manual runs follow the selected branch or tag's publication
 gate.
 
-Packaging is serialized by source and platform. A tested artifact from an
-earlier run of the same source and recipe is reused. macOS reuse also requires
-the same final version: its signed bundle cannot be restamped from nightly to a
-tag. Reuse skips SDK setup, dependency restore and compilation. Publication
-verifies source receipts and archive digests before applying Windows/Linux
-version metadata; signed macOS archives are uploaded unchanged. Their receipts
-require successful native signature validation and the final release version.
-An expired or deleted tested artifact
-must be recovered; it is not silently rebuilt.
+Packaging is serialized by source and platform, with a queue that retains pending
+publications. Pushing main and a tag still creates two workflow runs, but only
+the first job for each source/RID builds and tests. The next job reuses its
+uploaded artifact, even if the original run is still publishing or publication
+failed. Reuse skips SDK setup, dependency restore, tests and compilation. Only
+main/version-tag push or manual runs from this repository can supply reused
+artifacts; PR artifacts cannot become release inputs.
+
+CI packages use the channel-independent manifest version `source` and the exact
+commit SHA as `BuildId`. A tag added later, multiple tags and either event order
+all reuse the same tested bytes. The installed version label is consequently
+`source` followed by its commit identifier, including for tagged installations;
+update detection compares `BuildId`. macOS Apple version keys remain `0.0.0`,
+with `MemoriaReleaseVersion=source`. Local packages retain `local`.
+
+The GitHub release tag/title and `release-artifacts.json.channel` carry the
+release version outside the signed package. Publication verifies all four
+source receipts and archive digests, then uploads the archives unchanged to
+nightly or the versioned release. It performs no SDK setup, compilation,
+version mutation or re-signing. Signed macOS archives still require successful
+native signature validation. A source/RID/recipe artifact that expired or was
+deleted must be recovered; it is not silently rebuilt. Reused artifacts are
+copied into the current workflow run for publication of its complete RID set.
 
 Both Mac jobs run the native signing regression tests, sign all nested Mach-O
 files and the assembled app with free ad hoc signatures, and verify signatures

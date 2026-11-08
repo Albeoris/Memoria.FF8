@@ -24,6 +24,44 @@ try {
     if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $checkerAssembly -PathType Leaf)) {
         throw 'Could not locate the built distribution checker.'
     }
+    # A tag attached after a main build must describe the same immutable payload.
+    $previousEnvironment = @{}
+    foreach ($name in @('GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_TYPE', 'GITHUB_REF_NAME')) {
+        $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
+    }
+    try {
+        $env:GITHUB_ACTIONS = 'true'
+        $env:GITHUB_SHA = 'a' * 40
+        foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')) {
+            $identityRoot = Join-Path $temporary "identity-$rid"
+            $prefix = if ($rid -like 'osx-*') { 'Contents/Resources/' } else { '' }
+            New-Item -ItemType Directory -Force -Path (Join-Path $identityRoot ($prefix + 'Data')) | Out-Null
+            if ($rid -like 'osx-*') {
+                Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Destination (Join-Path $identityRoot 'Contents/Info.plist')
+            }
+            $baseline = $null
+            foreach ($reference in @('main', 'v1.2.3', 'v1.2.4')) {
+                $env:GITHUB_REF_TYPE = if ($reference -eq 'main') { 'branch' } else { 'tag' }
+                $env:GITHUB_REF_NAME = $reference
+                & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $identityRoot -RuntimeIdentifier $rid
+                $manifestPath = Join-Path $identityRoot ($prefix + 'Data/distribution.json')
+                $identity = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+                if ($identity.Version -cne 'source' -or $identity.BuildId -cne $env:GITHUB_SHA) {
+                    throw 'CI payload identity must be independent of its release channel.'
+                }
+                $inventory = ConvertTo-Json -InputObject @($identity.Files) -Depth 5 -Compress
+                if ($null -ne $baseline -and $baseline -cne $inventory) {
+                    throw 'A release reference changed the package inventory before signing.'
+                }
+                $baseline = $inventory
+            }
+        }
+    }
+    finally {
+        foreach ($name in $previousEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name])
+        }
+    }
     $package = Join-Path $temporary 'package'
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $package $relative
@@ -53,8 +91,8 @@ try {
     & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $package -RuntimeIdentifier linux-x64
     Invoke-Checker @('--create-tar', $package, $archive)
     Invoke-Checker @('--validate-archive', $archive, 'linux-x64', (Join-Path $temporary 'foreign')) -ExpectFailure
-    # Reusing a nightly Mac payload for a tag must stamp bundle metadata and its
-    # inventory entry, while retaining every non-metadata payload byte and mode.
+    # Explicit pre-signing version tools must update bundle metadata and inventory
+    # while retaining payload bytes/modes. CI publishes source archives unchanged.
     foreach ($macRid in @('osx-x64', 'osx-arm64')) {
         $macParent = Join-Path $temporary ('mac-' + $macRid)
         $macRoot = Join-Path $macParent 'Memoria.FF8.app'
@@ -78,9 +116,9 @@ try {
             }
         }
         $before = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Resources/Data/distribution.json') -Raw | ConvertFrom-Json
-        [xml]$nightlyInfo = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Info.plist') -Raw
-        if ($before.Version -cne 'nightly' -or $nightlyInfo.SelectSingleNode('/plist/dict/key[text()="CFBundleShortVersionString"]/following-sibling::string[1]').InnerText -cne '0.0.0') {
-            throw 'Nightly bundle version generation is inconsistent.'
+        [xml]$sourceInfo = Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Info.plist') -Raw
+        if ($before.Version -cne 'source' -or $sourceInfo.SelectSingleNode('/plist/dict/key[text()="CFBundleShortVersionString"]/following-sibling::string[1]').InnerText -cne '0.0.0') {
+            throw 'Source bundle version generation is inconsistent.'
         }
         # plutil and LaunchServices reject a DOCTYPE with an empty internal subset.
         if ((Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Info.plist') -Raw) -notmatch '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1\.0//EN" "http://www\.apple\.com/DTDs/PropertyList-1\.0\.dtd">') {

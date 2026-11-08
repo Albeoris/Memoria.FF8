@@ -35,8 +35,9 @@ jobs:
           - os: macos-26
             rid: osx-arm64
     concurrency:
-      group: desktop-distribution-${{ github.sha }}-${{ matrix.rid }}
+      group: desktop-distribution-${{ github.event_name == 'pull_request' && 'pr' || 'trusted' }}-${{ github.sha }}-${{ matrix.rid }}
       cancel-in-progress: false
+      queue: max
     runs-on: ${{ matrix.os }}
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
@@ -168,7 +169,7 @@ jobs:
           $archives = @(Get-ChildItem artifacts/Memoria-FF8-${{ matrix.rid }}.*)
           if ($archives.Count -ne 1) { throw 'Expected one RID archive.' }
           $archive = $archives[0]
-          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { 'nightly' }
+          $version = 'source'
           $signature = if ('${{ matrix.rid }}' -like 'osx-*') { 'adhoc-v1' } else { 'none' }
           @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); version = $version; macSignature = $signature; archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
       # Re-upload reused payloads into this run: publication collects a complete
@@ -195,16 +196,9 @@ jobs:
     concurrency:
       group: desktop-release-publication
       cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v7
-      - name: Use the installed SDK when global.json accepts it
-        id: sdk
-        shell: pwsh
-        run: ./.github/scripts/Test-InstalledSdk.ps1
-      - uses: actions/setup-dotnet@v5
-        if: steps.sdk.outputs.available != 'true'
-        with:
-          global-json-file: global.json
       - uses: actions/download-artifact@v8
         with:
           pattern: Memoria-FF8-*
