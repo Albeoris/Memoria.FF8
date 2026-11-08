@@ -244,6 +244,11 @@ internal sealed partial class GameWorld
                         return false;
                     }
                 }
+                else if (walkRejection && kind == "line" && roots.Contains(script) && operation.Opcode is Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
+                {
+                    // A direct line can interrupt a walk by leaving the field.
+                    // Its executed owner and destination must still match at runtime.
+                }
                 else if (operation.Opcode == Jsm.Opcode.PSHI_L)
                 {
                     // Only this adjacent canonical-party producer proves the result register's source.

@@ -82,11 +82,50 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        AutoPlayWalkRejection rejection = repeatedMove ? new(current, pending.Guard, position, scriptedReturn) : new(pending.Source, pending.Guard, pending.Position);
-        if (!IsWalkRejected(rejection.Source, repeatedMove ? position : pending.Position, guard, run.WalkRejections, rejection.ScriptedReturn))
+        RecordWalkRejection(repeatedMove ? new(current, pending.Guard, position, scriptedReturn) : new(pending.Source, pending.Guard, pending.Position));
+    }
+
+    private PlayerActionResult ApplyWithWalkInterruption(GameWorld world, PlayerAction action)
+    {
+        if (run.PendingWalkInterruption is not { } pending || world.Events.FieldId != pending.Source.FieldId || session.State.FieldId != pending.Source.FieldId)
+        {
+            return world.Apply(action);
+        }
+
+        int? destination = null;
+        void ObserveDeparture(ScriptCommand command)
+        {
+            if (command.FieldId == pending.Source.FieldId && command.ObjectId == pending.Guard.ObjectId && command.Name is "MAPJUMP" or "MAPJUMP3")
+            {
+                destination = unchecked((ushort)command.Arguments[0]);
+            }
+        }
+
+        world.Events.CommandExecuted += ObserveDeparture;
+        PlayerActionResult result;
+        try
+        {
+            result = world.Apply(action);
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= ObserveDeparture;
+        }
+        if (result.Accepted && result.Trigger.Kind == PlayerTriggerKind.FieldTransition && destination is int field && field != pending.Source.FieldId &&
+            field == session.State.FieldId && session.State.Variables.GetValueOrDefault(256) == pending.Source.Story)
+        {
+            run.PendingWalkInterruption = null;
+            RecordWalkRejection(new(pending.Source, pending.Guard, pending.Position));
+        }
+        return result;
+    }
+
+    private void RecordWalkRejection(AutoPlayWalkRejection rejection)
+    {
+        if (rejection.Position is FieldFixedPosition position && !IsWalkRejected(rejection.Source, position, rejection.Guard, run.WalkRejections, rejection.ScriptedReturn))
         {
             run.WalkRejections.Add(rejection);
-            RecordRecentAction("Native walk returned before " + pending.Source.Target.Id + " via " + pending.Guard.EventId);
+            RecordRecentAction("Native walk interrupted before " + rejection.Source.Target.Id + " via " + rejection.Guard.EventId);
         }
     }
 

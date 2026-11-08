@@ -2042,7 +2042,7 @@ internal sealed partial class AutoPlayController
             ApplyBattlePolicy(getWorld());
         }
         RecordRecentAction(JsonSerializer.Serialize(action, BeforeSnapshotJsonOptions));
-        PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : getWorld().Apply(action);
+        PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : ApplyWithWalkInterruption(getWorld(), action);
         if (!result.Accepted)
         {
             throw new NotSupportedException($"Automatic input {action.Kind} rejected: {result.Detail}");
