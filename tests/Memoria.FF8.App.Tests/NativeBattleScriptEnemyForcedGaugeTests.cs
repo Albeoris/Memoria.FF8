@@ -85,7 +85,7 @@ public sealed class NativeBattleScriptEnemyForcedGaugeTests
         return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
     }
 
-    private static void Invoke(BattleSession battle, string name, params object[] arguments)
+    private static void Invoke(BattleSession battle, string name, params object?[] arguments)
     {
         try
         {
