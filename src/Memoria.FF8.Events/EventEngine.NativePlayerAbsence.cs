@@ -69,7 +69,7 @@ public sealed partial class EventEngine
         identity.Append("|dream:").Append(services.CharacterVitals is { } vitals ? vitals.DreamEnabled ? "1" : "0" : "?");
         foreach (NativePersistentPredicateRead descriptor in reads.Distinct().OrderBy(read => read.Address).ThenBy(read => read.Width).ThenBy(read => read.Opcode, StringComparer.Ordinal))
         {
-            if (!TryPersistentPredicateOperation(descriptor, out JsmOperation? operation))
+            if (!TryPersistentPredicateOperation(descriptor, out JsmOperation? operation, includeEconomy: true))
             {
                 return null;
             }
@@ -83,7 +83,7 @@ public sealed partial class EventEngine
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString())));
     }
 
-    private bool TryPersistentPredicateOperation(NativePersistentPredicateRead descriptor, out JsmOperation? operation, bool requireRepresentation = true)
+    private bool TryPersistentPredicateOperation(NativePersistentPredicateRead descriptor, out JsmOperation? operation, bool requireRepresentation = true, bool includeEconomy = false)
     {
         operation = null;
         if (descriptor is null || !Enum.TryParse(descriptor.Opcode, out Jsm.Opcode opcode) || !IsAbsenceMemoryRead(opcode) || descriptor.Width != NativeMemoryWidth(opcode) || descriptor.Address < 0 || descriptor.Address > NativeEventMemory.MaximumAddress || (long)descriptor.Address + descriptor.Width > ushort.MaxValue + 1L || descriptor.Address < 1280 && descriptor.Address + descriptor.Width > 1024)
@@ -91,7 +91,8 @@ public sealed partial class EventEngine
             return false;
         }
         NativeEventMemoryOwner owner = ResolveMemoryOwner(descriptor.Address, descriptor.Width);
-        bool canonical = owner == NativeEventMemoryOwner.WorldEntry || owner == NativeEventMemoryOwner.WorldControls && descriptor.Address == 104 && descriptor.Width == 4 || owner == NativeEventMemoryOwner.SeeD && descriptor.Address == 184 && descriptor.Width == 2;
+        bool canonical = owner == NativeEventMemoryOwner.WorldEntry || owner == NativeEventMemoryOwner.WorldControls && descriptor.Address == 104 && descriptor.Width == 4 || owner == NativeEventMemoryOwner.SeeD && descriptor.Address == 184 && descriptor.Width == 2
+            || includeEconomy && owner == NativeEventMemoryOwner.Economy && descriptor.Address >= 72 && descriptor.Address + descriptor.Width <= 80 && services.Economy is not null && UnsupportedEconomyAliases() is null;
         if (!canonical && (owner != NativeEventMemoryOwner.Generic || descriptor.Address < 256 || requireRepresentation && !EventMemory.HasRepresentedExactBytes(descriptor.Address, descriptor.Width)))
         {
             return false;

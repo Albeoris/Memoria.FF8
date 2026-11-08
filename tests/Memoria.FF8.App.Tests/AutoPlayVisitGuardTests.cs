@@ -30,6 +30,30 @@ public sealed class AutoPlayVisitGuardTests
     }
 
     [Fact]
+    public void NativeGilChangesInvalidateACompletedVisitGuard()
+    {
+        byte[] source = Program([], [], [(Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPI_L, 0)]);
+        NativeEconomy economy = new()
+        {
+            Version = 1,
+            Rule = NativeEconomy.InitializationRule,
+            InitOutSha256 = new string('0', 64),
+            Items = Enumerable.Repeat(new NativeItemStock(0, 0), NativeEconomy.ItemSlotCount).ToArray(),
+            Gil = 2900,
+            PastGil = 0,
+            EventBankGil72 = 2900,
+            EventBankPastGil76 = 0
+        };
+        var current = Create(source, NativeEventMemory.Empty, economy: economy);
+        AutoPlayVisitGuard before = Guard(current.Engine, source, [Target("talk")]);
+        Assert.Equal(new NativePersistentPredicateRead("PSHM_L", 72, 4), Assert.Single(before.Reads));
+
+        current.Session.SetEconomy(economy.AddGil(100, false));
+
+        Assert.NotEqual(before.Fingerprint, current.Engine.ReadPersistentPredicateFingerprint(before.Reads));
+    }
+
+    [Fact]
     public void DisabledTargetInitializationGuardsAreCapturedWithoutExecutingInitialization()
     {
         byte[] source = Program([(Jsm.Opcode.PSHM_B, 720), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.TALKOFF, 0)], [], []);
@@ -141,9 +165,9 @@ public sealed class AutoPlayVisitGuardTests
         return new AutoPlayTarget($"600:{kind}:0:0", kind == "talk" ? AutoPlayTargetKind.Talk : AutoPlayTargetKind.Contact, 0, 0, 0, 0, 0);
     }
 
-    private static (GameSession Session, EventEngine Engine) Create(byte[] source, NativeEventMemory memory, int? previousField = null)
+    private static (GameSession Session, EventEngine Engine) Create(byte[] source, NativeEventMemory memory, int? previousField = null, NativeEconomy? economy = null)
     {
-        GameSession session = new(new GameState { EventMemory = memory });
+        GameSession session = new(new GameState { EventMemory = memory, Economy = economy });
         EventEngine engine = new(session);
         engine.LoadField(600, source, [], previousFieldId: previousField);
         engine.Scene.Party[0] = 0;
