@@ -8,11 +8,15 @@ internal static class NativeBattleLimitComponentSources
 {
     internal static bool Supports(ushort effect)
     {
-        return effect is 84 or 86 or 87 or 88 or 89 or 91 or 92 or 93 or 94 or 96 or 112 or 162 or 163 or 164 or 165 or 187 or 200 or 212 or 215 or 216 or 228 or 261 or 262 or 263 or 274 or 327 or 328 or 329 or 330;
+        return effect is 84 or 86 or 87 or 88 or 89 or 91 or 92 or 93 or 94 or 96 or 112 or 162 or 163 or 164 or 165 or 187 or 200 or 212 or 215 or 216 or 228 or 261 or 262 or 263 or 327 or 328 or 329 or 330;
     }
 
     internal static BattleSnapshot Prepare(ushort effect, string gameDirectory, string outputDirectory)
     {
+        if (effect == 274)
+        {
+            throw new NotSupportedException("Duel274 requires the genuine ordinary command11 input and timer-closure recipe; raw239/basic sources cannot complete it.");
+        }
         if (effect is 91 or 92 or 93 or 94 or 96 or 187 or 327 or 328 or 329 or 330)
         {
             return PrepareGuardianComponent(effect, gameDirectory, outputDirectory);
@@ -23,7 +27,7 @@ internal static class NativeBattleLimitComponentSources
         {
             return PrepareFinisher(game, assets, effect);
         }
-        if (effect is 112 or 212 or 215 or 216 or 274)
+        if (effect is 112 or 212 or 215 or 216)
         {
             return PrepareDuel(game, assets, effect);
         }

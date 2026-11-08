@@ -32,7 +32,7 @@ public static class FreshEntryPairValidation
         typed.Validate();
         Require(initialization.GetProperty("initializer_version").GetString() == "direct-new-game-v2" && initialization.GetProperty("battle_instance_id").GetString() == report.GetProperty("battle_instance_id").GetString(), "Fresh entry requires its actual ordinary initialized battle.");
         Require(!Present(initialization.GetProperty("preparation"), "prelude"), "Fresh entry cannot warm its focal native effect through a prelude.");
-        foreach (string name in new[] { "shot_cycle", "counter_cycle", "enemy_ability" })
+        foreach (string name in new[] { "shot_cycle", "counter_cycle", "duel_cycle", "enemy_ability" })
         {
             Require(!Present(driver, name), "Fresh entry cannot compose another cycle, owner adapter or terminal hold.");
         }

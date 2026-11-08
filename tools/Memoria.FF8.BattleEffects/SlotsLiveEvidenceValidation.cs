@@ -45,7 +45,7 @@ public static class SlotsLiveEvidenceValidation
         {
             throw new InvalidDataException("Slots evidence requires exactly two genuine independent admissions without substitutions or repairs.");
         }
-        foreach (string other in new[] { "shot_cycle", "counter_cycle" })
+        foreach (string other in new[] { "shot_cycle", "counter_cycle", "duel_cycle" })
         {
             if (report.TryGetProperty(other, out JsonElement protocol) && protocol.ValueKind != JsonValueKind.Null)
             {

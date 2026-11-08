@@ -204,7 +204,7 @@ public static partial class ScenarioDiscovery
                     File.WriteAllText(copied, limitRecipe!.ToJsonString(RecordJson.Options));
                     recipePath = copied;
                     freshEntryPair = limitRecipe["driver"]!["fresh_entry"] is not null;
-                    targetPolicy = "Original character-owned Limit selection and typed " + (native.Command == 16 ? "Slots roll/Do admission in two independently pinned fresh entries" : "Shot opening/firing/ending cycles with actual ammunition consumption") + "; actual target=" + limitRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
+                    targetPolicy = "Original character-owned Limit selection and typed " + (native.Command == 16 ? "Slots roll/Do admission in two independently pinned fresh entries" : native.Command == 241 ? "Duel command11, learned native button sequences and original timer closure" : "Shot opening/firing/ending cycles with actual ammunition consumption") + "; actual target=" + limitRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
                 }
                 else
                 {

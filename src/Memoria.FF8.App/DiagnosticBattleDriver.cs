@@ -20,6 +20,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
     public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
     public DiagnosticShotCycleDeclaration? ShotCycle { get; init; }
+    public DiagnosticDuelCycleDeclaration? DuelCycle { get; init; }
     public DiagnosticSlotsDeclaration? SlotsAdmission { get; init; }
     public DiagnosticFreshEntryDeclaration? FreshEntry { get; init; }
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
@@ -59,6 +60,15 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         EnemyAbility?.Validate();
         LimitSelection?.Validate();
+        DuelCycle?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
+        if (DuelCycle is not null && (LimitSelection is not { MinimumCrisisLevel: 1, MaximumCrisisLevel: 1 } || ShotCycle is not null || SlotsAdmission is not null || CounterCycle is not null || FreshEntry is not null || EnemyAbility is not null || Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 } || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
+        {
+            throw new InvalidDataException("Duel requires its sole ordinary command11 input cycle without supporting dispatch bypasses or repairs.");
+        }
+        if (Input.Kind == BattleInputKind.Action && Input.Ability == BattleAbility.LimitBreak && Input.ActionId == (11 << 16) && DuelCycle is null)
+        {
+            throw new InvalidDataException("Ordinary Duel diagnostics require their explicit native input and timer-closure declaration.");
+        }
         if (SupportingEffects is null || SupportingEffects.Any(effect => effect == 0 || effect == ExpectedEffect) || SupportingEffects.Distinct().Count() != SupportingEffects.Length || Repairs is null || Repairs.Length > 3 || Repairs.Any(repair => repair is null))
         {
             throw new InvalidDataException("Diagnostic supporting dispatches and between-execution repairs must be explicit and bounded.");
@@ -142,6 +152,33 @@ internal sealed class DiagnosticBattleDriver
     private readonly List<DiagnosticShotCycleDriver> shotCycles = [];
     internal DiagnosticShotCycleDriver? ShotCycle => shotCycles.LastOrDefault();
     internal DiagnosticShotCycleReceipt[] ShotReceipts => shotCycles.Select(cycle => cycle.Receipt).ToArray();
+    private readonly List<DiagnosticDuelCycleDriver> duelCycles = [];
+    internal DiagnosticDuelCycleDriver? DuelCycle => duelCycles.LastOrDefault();
+    internal DiagnosticDuelCycleReceipt[] DuelReceipts => duelCycles.Select(cycle => cycle.Receipt).ToArray();
+
+    internal void BeginDuelCycle(DiagnosticDuelCycleReceipt receipt)
+    {
+        if (recipe.DuelCycle is null || Stage != DiagnosticDriverStage.AwaitDispatch || receipt.Execution != Execution || duelCycles.Count != Execution - 1 || receipt.Declaration != recipe.DuelCycle || DuelCycle is { Completed: false })
+        {
+            throw new InvalidDataException("Duel cycle cannot replace an unfinished ordinary invocation.");
+        }
+        duelCycles.Add(new(receipt));
+    }
+
+    internal void ObserveDuelDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticDuelDispatchPackets packets)
+    {
+        if (recipe.DuelCycle is null || DuelCycle is not { } cycle || dispatch.Serial <= lastDispatchSerial || Stage is not (DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain))
+        {
+            throw new InvalidDataException("Duel dispatch is outside its actual ordinary invocation.");
+        }
+        lastDispatchSerial = dispatch.Serial;
+        if (cycle.ObserveDispatch(dispatch, packets))
+        {
+            dispatches.Add(dispatch);
+            currentFocalDispatch = dispatch;
+            Stage = DiagnosticDriverStage.Drain;
+        }
+    }
 
     private readonly List<DiagnosticCounterCycleDriver> counterCycles = [];
     internal DiagnosticCounterCycleDriver? CounterCycle => counterCycles.LastOrDefault();
@@ -420,6 +457,27 @@ internal sealed class DiagnosticBattleDriver
         }
         else if (Stage == DiagnosticDriverStage.Drain && drained)
         {
+            if (recipe.DuelCycle is not null)
+            {
+                if (DuelCycle is not { Completed: true } duel)
+                {
+                    Fail("DUEL_CYCLE_INCOMPLETE");
+                    return false;
+                }
+                try
+                {
+                    DiagnosticDuelCycleValidation.ValidateReceipt(duel.Receipt, recipe.Input, recipe.ExpectedEffect, duel.Receipt.Dispatches, duel.Receipt.BeforeOpening.Callback, observation.Callback);
+                    if (Execution == 2)
+                    {
+                        DiagnosticDuelCycleValidation.ValidateChain(duelCycles[0].Receipt, duel.Receipt);
+                    }
+                }
+                catch (InvalidDataException error)
+                {
+                    Fail("DUEL_CYCLE_INVALID: " + error.Message);
+                    return false;
+                }
+            }
             if (recipe.ShotCycle is not null)
             {
                 if (ShotCycle is not { Completed: true })

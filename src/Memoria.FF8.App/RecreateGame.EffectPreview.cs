@@ -25,6 +25,7 @@ internal sealed partial class RecreateGame
     private long? effectComponentDrainedTimestamp;
     private ComponentSourceAdmission? effectPreviewSourceAdmission;
     private int effectComponentInactivePresentedFrames;
+    private readonly EffectComponentTerminalTextureTracker effectComponentTerminalTextures = new();
 
     private void StartEffectPreviewHost()
     {
@@ -130,6 +131,10 @@ internal sealed partial class RecreateGame
             {
                 bool blocked = active.ObserveDiagnosticDrainBlockers().Count != 0;
                 ObserveEffectPreviewDrain(active, blocked, false);
+                if (request.SourceSnapshot is not null && (ObserveEffectComponentTerminalTextures(active) || ObserveEffectComponentHeldScreenBlend(active)))
+                {
+                    effectPreviewCompleted = true;
+                }
                 if (blocked)
                 {
                     effectPreviewDrainedFrame = null;
@@ -146,8 +151,8 @@ internal sealed partial class RecreateGame
                     {
                         EffectComponentFrameReport measurements = effectComponentMeasurements!.Complete(effectComponentDrainedTimestamp);
                         string output = request.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
-                        WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new { scope = "installed-source-controlled-component-gpu-presentation", source_sha256 = request.SourceSha256, effect = effectPreviewExpectedEffect, native_dispatch = effectPreviewDispatch, native_admission = effectPreviewSourceAdmission, drained = true, tail_presented_frames = diagnosticPresentedFrames - effectPreviewDrainedFrame.Value, host = new { backend = GraphicsHostReadiness.Backend, vsync = uiPreferences.VSync, presentation_interval = GraphicsDevice.PresentationParameters.PresentationInterval.ToString(), frame_limit = uiPreferences.BattleFps, width = GraphicsDevice.PresentationParameters.BackBufferWidth, height = GraphicsDevice.PresentationParameters.BackBufferHeight, msaa_samples = GraphicsDevice.PresentationParameters.MultiSampleCount, inactive_presented_frames = effectComponentInactivePresentedFrames }, measurements });
-                        effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "controlled-component", drained = true, effect = effectPreviewExpectedEffect });
+                        WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new { scope = "installed-source-controlled-component-gpu-presentation", source_sha256 = request.SourceSha256, effect = effectPreviewExpectedEffect, native_dispatch = effectPreviewDispatch, native_admission = effectPreviewSourceAdmission, completion_kind = "drained", completed = true, drained = true, resident_tasks_remain = false, terminal_texture_certificate = (BattleComponentTerminalTextureCertificate?)null, tail_presented_frames = diagnosticPresentedFrames - effectPreviewDrainedFrame.Value, host = new { backend = GraphicsHostReadiness.Backend, vsync = uiPreferences.VSync, presentation_interval = GraphicsDevice.PresentationParameters.PresentationInterval.ToString(), frame_limit = uiPreferences.BattleFps, width = GraphicsDevice.PresentationParameters.BackBufferWidth, height = GraphicsDevice.PresentationParameters.BackBufferHeight, msaa_samples = GraphicsDevice.PresentationParameters.MultiSampleCount, inactive_presented_frames = effectComponentInactivePresentedFrames }, measurements });
+                        effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "controlled-component", completion_kind = "drained", completed = true, drained = true, resident_tasks_remain = false, terminal_texture_certificate = (BattleComponentTerminalTextureCertificate?)null, effect = effectPreviewExpectedEffect });
                     }
                     else
                     {

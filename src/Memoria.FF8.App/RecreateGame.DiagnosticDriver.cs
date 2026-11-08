@@ -176,6 +176,7 @@ internal sealed partial class RecreateGame
                     throw new InvalidOperationException("Diagnostic renderer owner was replaced during an uninterrupted battle.");
                 }
                 AdvanceDiagnosticShot(active, driver, blockers.Length == 0);
+                AdvanceDiagnosticDuel(active, driver, blockers.Length == 0);
                 if (driver.CounterWorkWithinDeadline(now.TotalSeconds))
                 {
                     AdvanceDiagnosticCounter(active, driver, blockers.Length == 0);
@@ -241,6 +242,10 @@ internal sealed partial class RecreateGame
                         if (diagnosticDriverRecipe.ShotCycle is not null)
                         {
                             BeginDiagnosticShot(active, driver, selectedLimit ?? throw new InvalidDataException("Shot cycle did not select its real Limit."));
+                        }
+                        if (diagnosticDriverRecipe.DuelCycle is not null)
+                        {
+                            BeginDiagnosticDuel(active, driver, selectedLimit ?? throw new InvalidDataException("Duel cycle did not select its real Limit."));
                         }
                         if (diagnosticDriverRecipe.SlotsAdmission is not null)
                         {
@@ -438,6 +443,8 @@ internal sealed partial class RecreateGame
                 slots_admissions = diagnosticSlotsAdmissions.ToArray(),
                 shot_cycle = diagnosticDriverRecipe.ShotCycle,
                 shot_cycles = diagnosticDriver!.ShotReceipts,
+                duel_cycle = diagnosticDriverRecipe.DuelCycle,
+                duel_cycles = diagnosticDriver.DuelReceipts,
                 counter_cycle = diagnosticDriverRecipe.CounterCycle,
                 counter_cycles = diagnosticDriver.CounterReceipts,
                 supporting_effects = diagnosticDriverRecipe.SupportingEffects,

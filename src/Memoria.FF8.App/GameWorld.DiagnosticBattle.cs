@@ -25,7 +25,7 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     internal void Validate()
     {
         Driver?.Validate();
-        if ((Driver?.ShotCycle is not null || Driver?.CounterCycle is not null || Driver?.SlotsAdmission is not null || Driver?.FreshEntry is not null) && Prelude is not null)
+        if ((Driver?.ShotCycle is not null || Driver?.DuelCycle is not null || Driver?.CounterCycle is not null || Driver?.SlotsAdmission is not null || Driver?.FreshEntry is not null) && Prelude is not null)
         {
             throw new NotSupportedException("Timed Limit, Slots and fresh-entry diagnostics require ordinary initial admission without a preparation prelude.");
         }

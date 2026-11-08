@@ -195,30 +195,25 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.True(graphics.Models[0].Transform!.Scale38 > 0);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 265 && row.MagicId == 301 && row.KernelSection == 3 && row.KernelIndex == 265);
         Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
-        sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, int header) = packets.Prepare(new(checked((byte)casterIndex), 8, 16, cameraChoice, 265, 301, null));
-        // Original INIT selector200 is SELF; use the actual allocated actor, never its dormant scene prototype.
-        NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == casterId).NativeStatus!.Presentation;
-        NativeBattleContactPacket selfContact = new(new(checked((byte)casterIndex), 0, 0, 0, selfStatus.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, selfStatus.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), new(255, 0, 0, 0, 0, 0, 0));
-        (packets, _) = packets.AppendContact(selfContact);
-        (packets, _) = packets.Publish(1);
-        Assert.Equal(priorActions, header);
-        Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.Headers[header].ReadByte(16));
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([301])[300];
         Assert.Same(game.ReadNativeEffect301Resources(), binding.Effect301Resources);
-        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(300, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
-        Assert.Equal(original.Combatants.Select(actor => actor.CurrentHp), source.Combatants.Select(actor => actor.CurrentHp));
-        Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(source.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original94 command8/action265/sequence16 graphics component after authentic scene3 allocation/102/113; neutral zero-damage SELF contact; no ordinary three-death/AI/formula claim", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Header = packets.Headers[header], PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, SourceBoundary = "allocation-ready-source" }));
+        BattleSnapshot prepared = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(300, binding) } };
+        NativeBattleCommandPacket init = Assert.Single(prepared.NativeCommandBanks!.Banks.SelectMany(bank => bank.Packets), packet => packet.ReadByte(0) == casterIndex && packet.ReadByte(1) == 255 && packet.ReadWord(4) == 0);
+        BattleSession producer = BattleSession.Restore(prepared);
+        producer.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
+        BattleSnapshot source = NativeBattleLimitComponentSources.AwaitQueued(producer, 301);
+        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => NativeBattleActionGraphics.Word(packets.Headers[index], 6) == 301);
+        NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
+        Assert.Equal(checked((byte)casterIndex), header.ReadByte(0));
+        Assert.Equal((byte)8, header.ReadByte(1));
+        Assert.Equal((byte)16, header.ReadByte(2));
+        Assert.Equal((ushort)265, NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal((byte)1, header.ReadByte(16));
+        Assert.Equal((ushort)(1 << casterIndex), NativeBattleActionGraphics.Normalize(packets, headerIndex).TargetMask);
+        Assert.True(source.NativeEffectMemory!.Effect301!.ScriptSourcePending);
+        Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Effect301), JsonSerializer.Serialize(source.NativeEffectMemory.Effect301));
+        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Original94 pending INIT produces command8/action265/sequence16 SELF graphics after authentic scene3 allocation/102/113; no manually queued duplicate invocation", ActualCasterId = casterId, PhysicalCaster = casterIndex, EnemyLevel = caster.Level, Action = action, HeaderIndex = headerIndex, Header = header, ContactCount = header.ReadByte(16), InitPacket = init, AllocationCallback = graphics.Callback, SourceCallback = source.NativeGraphics!.Callback, SourceBoundary = "native-init-before-entry" }));
         return source;
     }
 

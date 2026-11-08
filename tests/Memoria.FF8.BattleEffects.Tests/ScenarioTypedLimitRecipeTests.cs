@@ -10,6 +10,33 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class ScenarioTypedLimitRecipeTests
 {
+    [Fact]
+    public void Installed_Duel_basic_recipes_use_original_Zell_command11_and_native_timer_closure()
+    {
+        using InstalledFixture fixture = InstalledFixture.Open();
+        foreach (byte basic in Enumerable.Range(0, 6).Select(value => (byte)value))
+        {
+            BattleNativeAction action = Assert.Single(fixture.Assets.NativeActions, action => action.Command == 241 && action.ActionId == basic && action.MagicId == 274);
+            Assert.True(ScenarioDiscovery.TryPrepareTypedLimitRecipe(fixture.Assets, fixture.Initial, fixture.Experience, action, fixture.Template, fixture.Directory, out JsonObject? recipe, out string? blocker), blocker);
+            JsonObject actor = recipe!["fixture"]!["characters"]![0]!.AsObject();
+            Assert.Equal(1, actor["character_id"]!.GetValue<int>());
+            int row = actor["row"]!.GetValue<int>();
+            Assert.Equal((byte)1, fixture.Initial.Records[row].CharacterId);
+            JsonObject driver = recipe["driver"]!.AsObject();
+            Assert.Equal(11 << 16, driver["input"]!["action_id"]!.GetValue<int>());
+            Assert.Equal(241, driver["expected_native_command"]!.GetValue<int>());
+            Assert.Equal(basic, driver["duel_cycle"]!["basic_action"]!.GetValue<byte>());
+            Assert.Equal(1, driver["limit_selection"]!["minimum_crisis_level"]!.GetValue<int>());
+            Assert.Equal(1, driver["limit_selection"]!["maximum_crisis_level"]!.GetValue<int>());
+            Assert.Equal(0x3F, recipe["fixture"]!["limits"]!["learn_duel"]!.GetValue<int>());
+            Assert.Null(driver["fresh_entry"]);
+            Assert.Null(driver["shot_cycle"]);
+            Assert.Null(driver["slots_admission"]);
+            Assert.Null(driver["counter_cycle"]);
+            Assert.Empty(driver["repairs"]!.AsArray());
+        }
+    }
+
     private static readonly JsonSerializerOptions InputJson = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
 
     [Fact]

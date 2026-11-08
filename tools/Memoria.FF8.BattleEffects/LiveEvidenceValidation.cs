@@ -13,7 +13,7 @@ public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, Teleme
 }
 
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
-public static class LiveEvidenceValidation
+public static partial class LiveEvidenceValidation
 {
     private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
 
@@ -95,6 +95,7 @@ public static class LiveEvidenceValidation
             long? nativeCommand = OptionalNumber(report, "expected_native_command");
             DiagnosticShotCycleDeclaration? shotCycle = ReadShotDeclaration(report, input, effect, nativeAction, nativeCommand);
             DiagnosticCounterCycleDeclaration? counterCycle = ReadCounterDeclaration(report, input, effect, nativeAction, nativeCommand);
+            DiagnosticDuelCycleReceipt[] duelCycles = ReadDuelCycles(report, input, effect, nativeAction, nativeCommand, freshEntry, shotCycle is not null || counterCycle is not null);
             DiagnosticCounterCycleReceipt[] counterCycles = report.TryGetProperty("counter_cycles", out JsonElement counterReceipts) ? counterReceipts.Deserialize<DiagnosticCounterCycleReceipt[]>(Json) ?? throw new InvalidDataException("Counter receipts require an explicit array.") : [];
             if (counterCycle is null ? counterCycles.Length != 0 : counterCycles.Length != 2)
             {
@@ -257,7 +258,11 @@ public static class LiveEvidenceValidation
                         }
                     }
                 }
-                if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null && (shotCycle is null || dispatch.NativeCommand == 237)) != 1)
+                if (duelCycles.Length != 0)
+                {
+                    ValidateDuelExecution(duelCycles[index - 1], index, input, execution, checked((ushort)effect), typedDispatches, startCallback, endCallback);
+                }
+                if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null && (shotCycle is null || dispatch.NativeCommand == 237) && (duelCycles.Length == 0 || dispatch.Serial == duelCycles[index - 1].FocalSerial)) != 1)
                 {
                     errors.Add("DISPATCH_COUNT_INVALID");
                 }
@@ -266,10 +271,14 @@ public static class LiveEvidenceValidation
                     long serial = Number(dispatch, "serial");
                     long callback = Number(dispatch, "callback");
                     BattleDiagnosticEffectDispatch typed = dispatch.Deserialize<BattleDiagnosticEffectDispatch>(Json) ?? throw new InvalidDataException("Dispatch observation is null.");
-                    bool focal = typed.RequestedEffect == effect && typed.Reflection is null && (shotCycle is null || typed.NativeCommand == 237);
+                    bool focal = typed.RequestedEffect == effect && typed.Reflection is null && (shotCycle is null || typed.NativeCommand == 237) && (duelCycles.Length == 0 || typed.Serial == duelCycles[index - 1].FocalSerial);
                     bool sameActor = Text(dispatch, "actor_id") == actor;
                     bool invocationMatches;
-                    if (shotCycle is not null)
+                    if (duelCycles.Length != 0)
+                    {
+                        invocationMatches = duelCycles[index - 1].Dispatches.Any(observed => observed == typed);
+                    }
+                    else if (shotCycle is not null)
                     {
                         invocationMatches = shotCycles[index - 1].Dispatches.Any(observed => observed == typed);
                     }

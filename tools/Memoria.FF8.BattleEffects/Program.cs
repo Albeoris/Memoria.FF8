@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "reconcile-coverage --input --catalog --output [--history] [--require-full true]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "validate-component-completion --input --receipt --effect --source-sha256 --pid", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "reconcile-coverage --input --catalog --output [--history] [--require-full true]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -54,6 +54,13 @@ public static class Program
                 LiveEvidenceVerdict result = LiveEvidenceValidation.ValidateFile(Get("input"), Optional("case") is { } casePath ? RecordJson.Read<CaseRecipe>(casePath) : null);
                 Print(result);
                 return result.Verdict == "PASS" ? 0 : result.Verdict == "FAIL" ? 2 : 4;
+            }
+
+            if (args[0] == "validate-component-completion")
+            {
+                string kind = ComponentCompletionValidation.ValidateFiles(Get("input"), Get("receipt"), ushort.Parse(Get("effect"), System.Globalization.CultureInfo.InvariantCulture), Get("source-sha256"), int.Parse(Get("pid"), System.Globalization.CultureInfo.InvariantCulture));
+                Print(new { valid = true, completed = true, completion_kind = kind, drained = false, resident_tasks_remain = true, held_render_work_remains = kind == "held-native-screen-blend" });
+                return 0;
             }
 
             if (args[0] == "discover")

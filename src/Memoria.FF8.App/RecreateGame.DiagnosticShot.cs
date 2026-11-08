@@ -15,6 +15,11 @@ internal sealed partial class RecreateGame
             diagnosticVisualDispatchUtc = DateTimeOffset.UtcNow;
         }
         DiagnosticBattleDriver driver = diagnosticDriver!;
+        if (diagnosticDriverRecipe?.DuelCycle is not null)
+        {
+            ObserveDiagnosticDuelDispatch(dispatch);
+            return;
+        }
         if (diagnosticDriverRecipe!.CounterCycle is not null)
         {
             ObserveDiagnosticCounterDispatch(dispatch);

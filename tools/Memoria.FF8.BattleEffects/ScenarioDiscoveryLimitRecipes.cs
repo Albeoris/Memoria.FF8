@@ -7,12 +7,16 @@ namespace Memoria.FF8.BattleEffects;
 
 public static partial class ScenarioDiscovery
 {
-    public static bool IsTypedLimitScenario(BattleNativeAction native) => native is { KernelSection: 21, Command: 237, ActionId: <= 7 } or { KernelSection: 1, Command: 16, ActionId: 51 or 52 or 53 or 56 };
+    public static bool IsTypedLimitScenario(BattleNativeAction native) => native is { KernelSection: 21, Command: 237, ActionId: <= 7 } or { KernelSection: 1, Command: 16, ActionId: 51 or 52 or 53 or 56 } or { KernelSection: 22, Command: 241, ActionId: <= 5, MagicId: 274 };
 
     public static bool TryPrepareTypedLimitRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experience, BattleNativeAction native, string templatePath, string gameDirectory, out JsonObject? recipe, out string? blocker, IDictionary<string, DiagnosticFreshEntryDeclaration>? sourcePins = null)
     {
         recipe = null;
         blocker = null;
+        if (native is { KernelSection: 22, Command: 241, ActionId: <= 5, MagicId: 274 })
+        {
+            return TryPrepareDuelRecipe(assets, initial, experience, native, templatePath, out recipe, out blocker);
+        }
         if (!IsTypedLimitScenario(native) || native.MagicId is 0 or > 400 || native.TargetFlags is null)
         {
             blocker = "LIMIT_PROTOCOL_PRECONDITION: this action has no supported ordinary Slots or Shot protocol.";

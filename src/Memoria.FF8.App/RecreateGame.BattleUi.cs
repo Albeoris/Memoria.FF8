@@ -167,7 +167,8 @@ internal sealed partial class RecreateGame
         }
         battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeShotPresentation(elapsed);
-        active.AdvanceNativeDuelPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        active.AdvanceNativeDuelPresentation(elapsed, ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
+        ObserveDiagnosticDuelUi(active);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetShotUi(actor.Id) is { OwnsInput: true });
