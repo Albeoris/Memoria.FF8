@@ -764,7 +764,8 @@ internal sealed partial class AutoPlayController
             run.VisitGuards[navigation] = guard;
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }
-        AutoPlayPlanStep? next = PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null);
+        var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
+        AutoPlayPlanStep? next = resumedWalk?.Plan ?? PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null);
         if (next is null)
         {
             WaitForNativeFrontier();
@@ -772,7 +773,7 @@ internal sealed partial class AutoPlayController
         }
         RecordRecentAction($"Plan {next.Event.Id}: destination={next.Route?.DestinationVisitKey}; refresh={next.RefreshVisitKey}");
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
-        AutoPlayTarget[] variants = OrderAutoPlayWalkingVariants(targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id)), next.Route?.TargetId);
+        AutoPlayTarget[] variants = OrderAutoPlayWalkingVariants(targets.Where(item => item.CoverageId == next.Event.Id && item.Id != skippedWalkVariant && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id)), resumedWalk?.Source.Target.Id ?? next.Route?.TargetId);
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         int variantAttempt = 0;
         string BeforeVariant()
@@ -906,7 +907,7 @@ internal sealed partial class AutoPlayController
         else
         {
             bool triggered = false;
-            bool skippedInterruptedVariant = false;
+            bool skippedInterruptedVariant = skippedWalkVariant is not null;
             foreach (AutoPlayTarget variant in variants)
             {
                 RefreshUnavailable(world);
@@ -948,6 +949,13 @@ internal sealed partial class AutoPlayController
                 if (walk.Interrupted && !contacted)
                 {
                     BeginWalkInterruption(attempt, walk);
+                    // Settle the native callback, then reconsider this gateway
+                    // from the resulting position before reversing course.
+                    int resumes = resumedWalk?.Resumes ?? 0;
+                    if (variant.Kind == AutoPlayTargetKind.Gateway && walk.GatewayIndex is null && walk.InterruptingObjectId is not null && resumes < 8)
+                    {
+                        interruptedGatewayWalk = new(next, source, attempt.Position, resumes + 1);
+                    }
                     run.ActiveVisit = null;
                     run.ActiveNavigationKey = null;
                     run.ActiveEvent = null;

@@ -12,6 +12,29 @@ internal sealed record AutoPlayWalkAttempt(AutoPlayContactSource Source, FieldFi
 
 internal sealed partial class AutoPlayController
 {
+    private sealed record InterruptedGatewayWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
+    private InterruptedGatewayWalk? interruptedGatewayWalk;
+
+    private (InterruptedGatewayWalk? Walk, string? SkippedVariant) ResumeInterruptedGatewayWalk(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
+    {
+        InterruptedGatewayWalk? walk = interruptedGatewayWalk;
+        interruptedGatewayWalk = null;
+        if (walk is null || walk.Source.NavigationKey != navigation || world.Events.Scene.NativePlayerPosition is not FieldFixedPosition position ||
+            world.ReadAutoPlayConditions(walk.Source.Target.CoverageId, walk.Source.Target.ObjectId).Fingerprint != walk.Source.ConditionSignature)
+        {
+            return (null, null);
+        }
+        AutoPlayEventCoverage? item = run.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == walk.Source.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == walk.Source.Target.CoverageId);
+        if (item is null)
+        {
+            return (null, null);
+        }
+        bool advances = !WalkReturnedWithoutAdvance(walk.Source.Target, walk.Position, position);
+        string? skippedVariant = advances ? null : walk.Source.Target.Id;
+        bool available = targets.Any(target => target.CoverageId == item.Event.Id && target.Id != skippedVariant && !item.UnavailableVariants.Contains(target.Id) && !item.PolicyDeferredVariants.Contains(target.Id));
+        return available ? (walk, skippedVariant) : (null, null);
+    }
+
     private AutoPlayWalkAttempt CaptureWalkAttempt(GameWorld world, AutoPlayContactSource source, IReadOnlyList<AutoPlayTarget> targets)
     {
         Dictionary<int, AutoPlayWalkRejectionGuard> guards = [];
@@ -24,7 +47,7 @@ internal sealed partial class AutoPlayController
         }
         FieldFixedPosition position = world.Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("A walking attempt requires its retained native source position.");
         var (scriptedReturn, sequence) = ReadScriptedWalkReturn(world, position);
-        return new(source, position, guards, scriptedReturn, sequence);
+        return new(source, position, guards, scriptedReturn, sequence ?? world.Events.PlayerActor?.NativeScriptMovement?.FiberSequence ?? 0);
     }
 
     private static AutoPlayWalkRejectionGuard? CaptureWalkRejectionGuard(GameWorld world, string eventId, int objectId)
@@ -78,7 +101,10 @@ internal sealed partial class AutoPlayController
         var (scriptedReturn, sequence) = ReadScriptedWalkReturn(world, position);
         bool repeatedMove = scriptedReturn is not null && scriptedReturn == pending.ScriptedReturn && sequence > pending.ReturnSequence && SameScriptedWalkSource(pending.Source, current);
         bool stationary = SameWalkReturnDomain(pending.Source, current, pending.Position, position) && WalkReturnedWithoutAdvance(pending.Source.Target, pending.Position, position);
-        if (!repeatedMove && !stationary)
+        // A new native MOVE may end at a different starting pose that already
+        // rejects this same target under the same contact guard.
+        bool returnedToRejection = scriptedReturn is not null && sequence > pending.ReturnSequence && IsWalkRejected(current, position, guard, run.WalkRejections, scriptedReturn);
+        if (!repeatedMove && !stationary && !returnedToRejection)
         {
             return;
         }
@@ -131,7 +157,7 @@ internal sealed partial class AutoPlayController
 
     private static (AutoPlayScriptedWalkReturn? Return, long? Sequence) ReadScriptedWalkReturn(GameWorld world, FieldFixedPosition position)
     {
-        if (world.Events.PlayerActor is { NativeScriptMovement: { Active: false, Cancelled: false, SupersededByPartyJoin: false, Asynchronous: false, TargetNativeObjectId: null, StopDistance: > 0 } move } player &&
+        if (world.Events.PlayerActor is { NativeScriptMovement: { Active: false, Cancelled: false, SupersededByPartyJoin: false, Asynchronous: false, TargetNativeObjectId: null, StopDistance: >= 0 } move } player &&
             move.Triangle == player.WalkmeshTriangle && position == new FieldFixedPosition(move.FixedX, move.FixedY, move.FixedZ))
         {
             return (new(move.ScriptId, move.Operation, new(move.TargetX, move.TargetY, move.TargetZ), move.StopDistance), move.FiberSequence);

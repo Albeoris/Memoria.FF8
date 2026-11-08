@@ -9,7 +9,7 @@ public sealed partial class EventEngine
     public bool AutoPlayFastMovement { get; set; }
     private float autoPlayMovementDistance;
 
-    /// <summary>Empty native contact slots still dispatch normally, but do not interrupt an autoplay walk.</summary>
+    /// <summary>Reports queued contact events and active contact scripts, independently of held line contact.</summary>
     public bool HasPendingAutoPlayInteraction(int objectId)
     {
         if (program is null || (uint)objectId >= actors.Count)
@@ -22,7 +22,9 @@ public sealed partial class EventEngine
         if (obj.IsDoor)
         {
             byte events = Scene.NativeDoorPendingEvents?.GetValueOrDefault(objectId) ?? 0;
-            if (actor.LineEnabled && IsUserControlEnabled && NativeDoorRequestedLocals(events, actor.LineContact).Any(HasBody))
+            // Holding contact can request local 5 on subsequent callbacks without
+            // a queued event. Autoplay must be able to move after that request settles.
+            if (events != 0 && actor.LineEnabled && IsUserControlEnabled && NativeDoorRequestedLocals(events, actor.LineContact).Any(HasBody))
             {
                 return true;
             }
