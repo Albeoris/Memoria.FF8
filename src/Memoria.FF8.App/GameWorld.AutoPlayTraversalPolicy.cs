@@ -17,10 +17,13 @@ internal static class AutoPlayTraversalPolicy
             // NG-019: Quistis advances this phase once the ordinary approach is available.
             ("679:324", "679:talk:3") => -1,
             // NG-020: Prefer the station exits toward Caraway's guard during this phase.
+            ("720:351", "720:gateway:0") => -1,
+            ("752:351", "752:gateway:1") => -2,
+            ("753:351", "753:gateway:1") => -3,
             ("758:350", "758:gateway:4" or "758:gateway:5" or "758:gateway:6" or "758:gateway:7" or "758:gateway:8" or "758:gateway:9") => -1,
-            ("756:350", "756:gateway:4" or "756:gateway:5" or "756:gateway:6") => -2,
-            ("760:350", "760:gateway:3" or "760:gateway:4" or "760:gateway:5") => -3,
-            ("761:350" or "761:351", "761:talk:15") => -4,
+            ("756:350" or "756:351", "756:gateway:4" or "756:gateway:5" or "756:gateway:6") => -4,
+            ("760:350" or "760:351", "760:gateway:3" or "760:gateway:4" or "760:gateway:5") => -5,
+            ("761:350" or "761:351", "761:talk:15") => -6,
             _ => 0
         };
     }
