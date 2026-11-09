@@ -56,6 +56,12 @@ public sealed class Ff7SoundResourcesTests
         Assert.Equal(99, native.MusicNames.Count);
         Assert.Equal("NONE", native.MusicNames[0]);
         Assert.Equal("OB", native.MusicNames[2]);
+        Assert.Equal(128, native.NativeSoundPan.Count);
+        Assert.Equal(-10000, native.NativeSoundPan[0]);
+        Assert.Equal(0, native.NativeSoundPan[64]);
+        Assert.Equal(10000, native.NativeSoundPan[127]);
+        Assert.Equal(256, native.NativeFieldRandomTable.Count);
+        Assert.Equal(1, native.FieldRandomStep);
     }
 
     private static void WriteDescriptor(BinaryWriter writer, uint length, uint offset, uint loop, byte[] extra)

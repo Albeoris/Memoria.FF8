@@ -126,7 +126,7 @@ internal sealed partial class RecreateGame
         gameMenus.QuitRequested += ShowWindowCloseConfirmation;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
-        gameMenus.ConnectWorldSwitch(Ff8WorldSwitchUnavailable, SwitchToFf7);
+        gameMenus.ConnectWorldSwitch(Ff8WorldSwitchUnavailable, OpenCrossoverSetup);
     }
 
     private MenuData ReadLiveMenuData()

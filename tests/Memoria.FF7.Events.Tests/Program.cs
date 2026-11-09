@@ -39,7 +39,9 @@ var tests = new (string Name, Action Run)[]
     ("request preemption cancels pending movement", ExtendedTests.CancelMove),
     ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
-    ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget)
+    ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
+    ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
+    ("native coordinate query and signed remainder", ExtendedTests.CoordinateQueryAndRemainder)
 };
 int failed = 0;
 foreach (var test in tests)

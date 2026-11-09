@@ -47,6 +47,10 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidOperationException("Choose a different destination slot.");
         }
+        if (sourceSlot <= MemoriaSlotCount && destinationSlot > MemoriaSlotCount)
+        {
+            CrossoverSaveAdapter.EnsureOriginalExportAllowed(source);
+        }
         if (sourceSlot > MemoriaSlotCount && destinationSlot > MemoriaSlotCount)
         {
             SaveOriginal(destination, File.ReadAllBytes(source), validateContinuation);
@@ -91,8 +95,12 @@ internal sealed partial class PlayerSaveStore
                 input.CopyTo(output);
                 output.Flush(flushToDisk: true);
             }
-            GameState candidate = LoadPath(temporary);
-            validateContinuation?.Invoke(candidate);
+            Memoria.FF7.Runtime.CombinedSessionSave? combined = CrossoverSaveAdapter.ReadEnvelope(temporary);
+            if (combined?.ActiveGame != Memoria.FF7.Runtime.SessionGame.Ff7)
+            {
+                GameState candidate = LoadPath(temporary);
+                validateContinuation?.Invoke(candidate);
+            }
             File.Move(temporary, destination, overwrite: true);
         }
         finally

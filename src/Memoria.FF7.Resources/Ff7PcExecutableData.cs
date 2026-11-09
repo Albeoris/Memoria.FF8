@@ -9,13 +9,16 @@ public sealed class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames)
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan)
     {
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
         NativeArcAngles = Array.AsReadOnly(angles.Select(angle => checked((byte)angle)).ToArray());
         MovieFiles = Array.AsReadOnly(movieFiles);
         MusicNames = Array.AsReadOnly(musicNames);
+        NativeFieldRandomTable = Array.AsReadOnly(fieldRandomTable);
+        FieldRandomStep = fieldRandomStep;
+        NativeSoundPan = Array.AsReadOnly(soundPan);
     }
 
     public IReadOnlyList<short> NativeSinCos { get; }
@@ -23,6 +26,9 @@ public sealed class Ff7PcExecutableData
     public IReadOnlyList<byte> NativeArcAngles { get; }
     public IReadOnlyList<string> MovieFiles { get; }
     public IReadOnlyList<string> MusicNames { get; }
+    public IReadOnlyList<byte> NativeFieldRandomTable { get; }
+    public byte FieldRandomStep { get; }
+    public IReadOnlyList<int> NativeSoundPan { get; }
     public float FieldNearPlane => 50;
     public float FieldFarPlane => 32000;
     public ushort InitialField => 116;
@@ -123,7 +129,17 @@ public sealed class Ff7PcExecutableData
             }
             musicNames[index] = music;
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames);
+        byte[] nativePan = ReadVirtual(stream, pe, 0x967860, 128 * 4);
+        int[] soundPan = new int[128];
+        for (int index = 0; index < soundPan.Length; index++)
+        {
+            soundPan[index] = BinaryPrimitives.ReadInt32LittleEndian(nativePan.AsSpan(index * 4));
+            if (soundPan[index] is < -10000 or > 10000)
+            {
+                throw new InvalidDataException("FF7 native sound panning exceeds the device range.");
+            }
+        }
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan);
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

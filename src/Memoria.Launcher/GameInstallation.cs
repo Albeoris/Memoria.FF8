@@ -85,8 +85,12 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, bool redirectOutput = true, string? ff7GameDirectory = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, bool redirectOutput = true, string? ff7GameDirectory = null, bool ff7Debug = false)
     {
+        if (ff7Debug && string.IsNullOrWhiteSpace(ff7GameDirectory))
+        {
+            throw new ArgumentException("Select a FINAL FANTASY VII installation before starting its debug title.", nameof(ff7GameDirectory));
+        }
         Memoria.FF8.Platform.HostPlatform platform = hostPlatform ?? Memoria.FF8.Platform.HostPlatforms.Current;
         string dataDirectory = Path.Combine(packageDirectory, "Data");
         ProcessStartInfo result = new(Path.Combine(dataDirectory, platform.ExecutableName("Memoria.FF8")))
@@ -106,6 +110,10 @@ internal static class GameInstallationSelection
         {
             result.ArgumentList.Add("--ff7-game-dir");
             result.ArgumentList.Add(Path.GetFullPath(ff7GameDirectory));
+        }
+        if (ff7Debug)
+        {
+            result.ArgumentList.Add("--ff7-debug");
         }
         result.Environment.Remove("MEMORIA_FF8_MODEL_SOURCE_DIR");
         if (!string.IsNullOrWhiteSpace(modelSourceDirectory))

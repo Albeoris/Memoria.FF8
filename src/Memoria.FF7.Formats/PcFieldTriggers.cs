@@ -23,7 +23,15 @@ public sealed record PcFieldTriggers(string Name, byte ControlDirection, short C
         PcFieldGateway[] gateways = new PcFieldGateway[12];
         for (int i = 0; i < gateways.Length; i++)
         {
-            gateways[i] = new PcFieldGateway(cursor.Vector16(), cursor.Vector16(), cursor.I16(), cursor.I16(), cursor.U16(), cursor.I16(), cursor.I32(), 0);
+            Vector3 a = cursor.Vector16();
+            Vector3 b = cursor.Vector16();
+            short destinationX = cursor.I16();
+            short destinationY = cursor.I16();
+            ushort triangle = cursor.U16();
+            short map = cursor.I16();
+            byte playerDirection = cursor.U8();
+            cursor.Skip(3);
+            gateways[i] = new PcFieldGateway(a, b, destinationX, destinationY, triangle, map, playerDirection, 0);
         }
         PcFieldTrigger[] triggers = new PcFieldTrigger[12];
         for (int i = 0; i < triggers.Length; i++)

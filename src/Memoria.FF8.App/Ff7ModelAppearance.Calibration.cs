@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -32,7 +31,7 @@ internal sealed partial class Ff7ModelAppearance
             throw new NotSupportedException("The selected field source does not implement the standard field Squall rig profile.");
         }
         Ff7AppearanceCalibration measured = CalibrateNeutralGeometry(target, field.Models.Models[0], original, [19, 20], 21, 22);
-        if (!measured.FirstHandIsLeft || measured.HandSideAlignment < 0.8f)
+        if (!measured.FirstHandIsLeft)
         {
             throw new NotSupportedException("The selected standard field geometry does not retain the calibrated anatomical sides.");
         }
@@ -68,7 +67,7 @@ internal sealed partial class Ff7ModelAppearance
         }
         string idle = Path.GetFileNameWithoutExtension(descriptor.Animations[0]) + ".a";
         IReadOnlyList<Matrix4x4> sourcePose = Ff7FieldRenderer.Pose(original, original.Animations[idle], 0);
-        Matrix4x4 sourceBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 128);
+        Matrix4x4 sourceBasis = Ff7FieldRenderer.ModelBasis(descriptor);
         Vector3 SourceCentre(string name)
         {
             int bone = original.Hierarchy.Bones.Single(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Index;

@@ -7,8 +7,11 @@ using Memoria.FF7.Resources;
 namespace Memoria.FF8.Rendering;
 
 public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true);
-public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false);
-public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color);
+public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0);
+public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
+{
+    public Vector3? Normal { get; init; }
+}
 public sealed record Ff7AppearanceTriangle(Ff7WorldVertex A, Ff7WorldVertex B, Ff7WorldVertex C, TriangleMaterial Material);
 public interface IFf7ActorAppearance
 {
@@ -36,6 +39,10 @@ public sealed class Ff7FieldRenderer
     private readonly Ff7ProjectionDepth projection;
     private readonly IFf7ActorAppearance? appearance;
     private readonly Dictionary<PcFieldTile, PixelImage> tileImages = [];
+    private long paletteVersion = -1;
+    private IReadOnlyList<ushort[]>? paletteRows;
+    private PcFieldPalettes? renderedPalettes;
+    private readonly Dictionary<(PcPolygonModel Model, int Group), int[]> modelNormalBindings = [];
     private readonly Dictionary<PcTexture, PixelImage> modelImages = new(ReferenceEqualityComparer.Instance);
 
     public Ff7FieldRenderer(Ff7FieldResources field, IReadOnlyDictionary<int, Ff7FieldModelResources> models, Ff7ProjectionDepth projection, IFf7ActorAppearance? appearance = null)
@@ -54,6 +61,17 @@ public sealed class Ff7FieldRenderer
         if (width < 1 || height < 1 || width > 8192 || height > 8192 || frame.BackgroundParameters.Count != 256 || (uint)frame.CameraIndex >= field.Cameras.Count)
         {
             throw new InvalidDataException("FF7 field render dimensions, camera or background parameter state is invalid.");
+        }
+        if (frame.PaletteRows is { Count: > 0 } && (!ReferenceEquals(paletteRows, frame.PaletteRows) || paletteVersion != frame.PaletteVersion))
+        {
+            if (frame.PaletteRows.Count != field.Palettes.Palettes.Count || frame.PaletteRows.Any(row => row.Length != field.Palettes.ColorsPerPalette))
+            {
+                throw new InvalidDataException("FFVII presented palette dimensions differ from the selected field.");
+            }
+            paletteRows = frame.PaletteRows;
+            paletteVersion = frame.PaletteVersion;
+            renderedPalettes = field.Palettes with { Palettes = frame.PaletteRows.Select(row => (IReadOnlyList<ushort>)row).ToArray() };
+            tileImages.Clear();
         }
         renderer.Begin(width, height, new Vector4(0, 0, 0, frame.MovieActive ? 0 : 1));
         if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
@@ -76,6 +94,16 @@ public sealed class Ff7FieldRenderer
     {
         Vector3 view = new(Vector3.Dot(world, camera.AxisX) / 4096 + camera.Translation.X, Vector3.Dot(world, camera.AxisY) / 4096 + camera.Translation.Y, Vector3.Dot(world, camera.AxisZ) / 4096 + camera.Translation.Z);
         return new Vector3(160 + cameraOffsetPixels.X + camera.FocalLength * view.X / view.Z, 120 + cameraOffsetPixels.Y + camera.FocalLength * view.Y / view.Z, view.Z);
+    }
+
+    public static Matrix4x4 ModelBasis(PcFieldModelDescriptor descriptor)
+    {
+        float scale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 4096 * 30.43090057373047f;
+        if (!float.IsFinite(scale) || scale <= 0)
+        {
+            throw new InvalidDataException("FFVII model scale must be finite and positive.");
+        }
+        return Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(scale);
     }
 
     public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex)
@@ -112,9 +140,10 @@ public sealed class Ff7FieldRenderer
             }
             if (!tileImages.TryGetValue(tile, out PixelImage? image))
             {
-                image = DecodeTile(field.Background, field.Palettes, tile);
+                image = DecodeTile(field.Background, renderedPalettes ?? field.Palettes, tile);
                 tileImages.Add(tile, image);
             }
+            // Native background records persist normalized device depth scaled by ten million.
             float z = tile.Layer == 0 ? 0.9997f : tile.Z / 10000000f;
             if (!float.IsFinite(z) || z < 0 || z > 1)
             {
@@ -128,7 +157,7 @@ public sealed class Ff7FieldRenderer
                 3 => TriangleBlend.QuarterAdd,
                 _ => throw new NotSupportedException($"FF7 tile blend {tile.BlendMode} is unsupported.")
             } : TriangleBlend.Replace;
-            TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false };
+            TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
             Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, material);
         }
@@ -136,11 +165,17 @@ public sealed class Ff7FieldRenderer
 
     private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, ModelMaterialState currentState)
     {
+        PcFieldCamera selectedCamera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
+        if (selectedCamera.AxisZ == Vector3.Zero && selectedCamera.Translation.Z <= 0)
+        {
+            return;
+        }
         if ((uint)actor.ModelIndex >= field.Models.Models.Count || !models.TryGetValue(actor.ModelIndex, out Ff7FieldModelResources? resources))
         {
             throw new NotSupportedException($"FF7 entity {actor.EntityId} has no decoded model descriptor {actor.ModelIndex}.");
         }
         PcFieldModelDescriptor descriptor = field.Models.Models[actor.ModelIndex];
+        Ff7FieldLighting lighting = new(descriptor);
         if ((uint)actor.AnimationIndex >= descriptor.Animations.Count || actor.AnimationFrame16 < 0)
         {
             throw new InvalidDataException($"FF7 entity {actor.EntityId} has invalid animation state.");
@@ -153,14 +188,15 @@ public sealed class Ff7FieldRenderer
                 TriangleVertex Vertex(Ff7WorldVertex vertex)
                 {
                     Vector3 point = Project(vertex.Position, frame.CameraOverride ?? field.Cameras[frame.CameraIndex], frame.CameraOffsetPixels);
-                    return new(new Vector2(point.X * width / 320f, point.Y * height / 240f), projection.Project(point.Z), 1 / point.Z, vertex.Uv, vertex.Color);
+                    Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, Argb(vertex.Color)) : vertex.Color;
+                    return new(new Vector2(point.X * width / 320f, point.Y * height / 240f), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
                 TriangleVertex a = Vertex(triangle.A);
                 TriangleVertex b = Vertex(triangle.B);
                 TriangleVertex c = Vertex(triangle.C);
                 if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
                 {
-                    renderer.Draw(a, b, c, triangle.Material);
+                    renderer.Draw(a, b, c, triangle.Material with { ClipRectangle = FieldClip(width, height) });
                 }
             }
             return;
@@ -168,13 +204,14 @@ public sealed class Ff7FieldRenderer
         PcFieldAnimation animation = resources.Animations[animationName];
         int animationFrame = actor.AnimationFrame16 >> 4;
         IReadOnlyList<Matrix4x4> bones = Pose(resources, animation, animationFrame);
-        float scale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 128;
-        Matrix4x4 actorTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        Matrix4x4 actorTransform = ModelBasis(descriptor) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        Matrix4x4 actorNormalTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256);
         PcFieldCamera camera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
         foreach (Ff7BoneGeometry part in resources.Geometry)
         {
             PcPolygonModel model = part.Polygon;
             Matrix4x4 transform = bones[part.BoneIndex] * actorTransform;
+            Matrix4x4 normalTransform = bones[part.BoneIndex] * actorNormalTransform;
             for (int groupIndex = 0; groupIndex < model.Groups.Count; groupIndex++)
             {
                 PcModelGroup group = model.Groups[groupIndex];
@@ -244,7 +281,12 @@ public sealed class Ff7FieldRenderer
                 {
                     currentState.Gouraud = Enabled(0x20000) && state.ShadeMode > 0;
                 }
-                TriangleMaterial material = new(texture, currentState.Blend, currentState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, currentState.DepthWrite, currentState.AlphaReference, currentState.Sampler) { PreserveTargetAlpha = false };
+                if (!modelNormalBindings.TryGetValue((model, groupIndex), out int[]? normalBindings))
+                {
+                    normalBindings = Ff7FieldLighting.BindNormals(model, group);
+                    modelNormalBindings.Add((model, groupIndex), normalBindings);
+                }
+                TriangleMaterial material = new(texture, currentState.Blend, currentState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, currentState.DepthWrite, currentState.AlphaReference, currentState.Sampler) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
                 for (int index = group.PolygonStart; index < group.PolygonStart + group.PolygonCount; index++)
                 {
                     PcModelPolygon polygon = model.Polygons[index];
@@ -253,7 +295,9 @@ public sealed class Ff7FieldRenderer
                         int vertex = group.VertexStart + local;
                         Vector3 position = Project(Vector3.Transform(model.Vertices[vertex], transform), camera, frame.CameraOffsetPixels);
                         Vector2 uv = texture is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
-                        Vector4 color = vertex < model.VertexColors.Count ? Color(model.VertexColors[vertex]) : Vector4.One;
+                        uint originalColor = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
+                        int normalIndex = normalBindings[local];
+                        Vector4 color = normalIndex >= 0 ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor) : Color(originalColor);
                         color.W *= state.VertexAlpha / 255f;
                         return new(new Vector2(position.X * width / 320f, position.Y * height / 240f), projection.Project(position.Z), 1 / position.Z, uv, color);
                     }
@@ -332,6 +376,8 @@ public sealed class Ff7FieldRenderer
     }
 
     private static Vector4 Color(uint argb) => new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f);
+    private static uint Argb(Vector4 color) => (uint)Math.Clamp((int)MathF.Round(color.W * 255), 0, 255) << 24 | (uint)Math.Clamp((int)MathF.Round(color.X * 255), 0, 255) << 16 | (uint)Math.Clamp((int)MathF.Round(color.Y * 255), 0, 255) << 8 | (uint)Math.Clamp((int)MathF.Round(color.Z * 255), 0, 255);
+    private static Vector4 FieldClip(int width, int height) => new(0, height * 8f / 240, width, height * 232f / 240);
     private static float Cross(Vector2 first, Vector2 second) => first.X * second.Y - first.Y * second.X;
     private static byte Expand(int channel) => (byte)((channel << 3) | (channel >> 2));
 

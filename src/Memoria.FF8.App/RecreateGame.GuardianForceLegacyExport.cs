@@ -9,7 +9,7 @@ internal sealed partial class RecreateGame
     {
         GameState snapshot = session.PrepareSnapshot();
         (NativeCharacterVitals targetSource, short? placeId) = await ReviewOriginalGuardianForceExportAsync(snapshot);
-        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId);
+        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId, combinedSession: crossover is not null);
     }
 
     private async Task<(NativeCharacterVitals Source, short? PlaceId)> ReviewOriginalGuardianForceExportAsync(GameState snapshot)

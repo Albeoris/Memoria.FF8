@@ -2,8 +2,11 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Media;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -11,7 +14,7 @@ using Vector2N = System.Numerics.Vector2;
 
 namespace Memoria.FF8;
 
-internal sealed record Ff7MovieSource(string Path, MovieInformation Information, int NativeFrameCount, double LogicalFramesPerSecond, Func<int, PcMovieCamera?>? CameraAtFrame = null);
+internal sealed record Ff7MovieSource(string Path, MovieInformation Information, int NativeFrameCount, double LogicalFramesPerSecond, Func<int, PcMovieCamera?>? CameraAtFrame = null, Action<int>? PublishCameraFrame = null);
 
 internal sealed partial class Ff7Scene : IDisposable
 {
@@ -21,7 +24,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private readonly string mediaToolsDirectory;
     private readonly Ff7ProjectionDepth projection;
     private readonly Func<int, Ff7MovieSource> resolveMovie;
-    private readonly IFf7ActorAppearance? appearance;
+    private IFf7ActorAppearance? appearance;
     private readonly Ff7FontRenderer font;
     private readonly Texture2D pixel;
     private readonly Texture2D titleArtwork;
@@ -36,6 +39,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private int debugSelection;
     private string? notice;
     private string? error;
+    private bool focusPaused;
 
     public Ff7Scene(GraphicsDevice device, Ff7Installation installation, string mediaToolsDirectory, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, bool audioEnabled = true)
     {
@@ -64,6 +68,20 @@ internal sealed partial class Ff7Scene : IDisposable
     public event Action<CombinedSessionSave>? WorldSwitchRequested;
     public event Action? ContinueRequested;
 
+    public void SetFocusPaused(bool paused)
+    {
+        focusPaused = paused;
+        SetAudioPaused(paused || debugMenu || error is not null);
+        if (paused || debugMenu || error is not null)
+        {
+            movie?.Suspend();
+        }
+        else
+        {
+            movie?.Resume();
+        }
+    }
+
     public void StartNewGame()
     {
         RunGuarded(() => Attach(Ff7Session.NewGame(installation)));
@@ -91,6 +109,12 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         try
         {
+            ownedDialogueText?.BeginFrame();
+            ownedDialogueCanvas?.BeginFrame(gameTime.TotalGameTime);
+            if (focusPaused)
+            {
+                return;
+            }
             if (Pressed(keys, Keys.F2))
             {
                 debugMenu = !debugMenu;
@@ -120,6 +144,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 return;
             }
             UpdateAudio();
+            if (UpdateNamingMenu(keys))
+            {
+                return;
+            }
             UpdateSessionInput(keys);
             UpdateMovie();
             tickRemainder += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25);
@@ -167,6 +195,7 @@ internal sealed partial class Ff7Scene : IDisposable
                     DrawDialogues(batch, bounds);
                 }
             }
+            DrawNamingMenu(bounds);
             if (debugMenu)
             {
                 DrawDebugMenu(batch, bounds);
@@ -194,6 +223,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void Attach(Ff7Session session)
     {
+        DisposeNamingPresentation();
         StopAudio();
         Session?.Dispose();
         StopMovie();
@@ -202,6 +232,7 @@ internal sealed partial class Ff7Scene : IDisposable
         renderedGeneration = -1;
         renderer = null;
         dialogueTokens.Clear();
+        commonDialoguePages.Clear();
         error = null;
         notice = null;
         debugMenu = false;
@@ -217,9 +248,9 @@ internal sealed partial class Ff7Scene : IDisposable
             renderedGeneration = session.FieldGeneration;
         }
         Ff7FieldProcess state = session.Host.Process;
-        Ff7ActorVisual[] actors = state.Actors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, actor.X4096, actor.Y4096, actor.Z4096, checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)).ToArray();
+        Ff7ActorVisual[] actors = state.Actors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)).ToArray();
         PcFieldCamera? camera = CurrentMovieCamera();
-        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled);
+        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion);
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 
@@ -258,10 +289,16 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         if (Pressed(keys, Keys.Up) || Pressed(keys, Keys.Down))
         {
-            debugSelection = 1 - debugSelection;
+            int direction = Pressed(keys, Keys.Up) ? -1 : 1;
+            debugSelection = (debugSelection + direction + 3) % 3;
         }
         if (Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z))
         {
+            if (debugSelection == 2)
+            {
+                ToggleDialoguePresentation();
+                return;
+            }
             if (!CanSave)
             {
                 notice = "Available only where saving is allowed.";
@@ -295,23 +332,43 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void DrawDebugMenu(SpriteBatch batch, Rectangle bounds)
     {
-        DrawWindow(batch, new Rectangle(68, 65, 192, 110), bounds);
+        DrawWindow(batch, new Rectangle(56, 54, 208, 138), bounds);
         DrawPlain(batch, "Debug menu", 80, 76, bounds, 6);
         DrawPlain(batch, "Save", 96, 100, bounds, CanSave ? 7 : 0);
         DrawPlain(batch, "Switch world: FFVIII", 96, 122, bounds, CanSave && envelope.Ff8Payload is { Length: > 0 } ? 7 : 0);
         DrawPlain(batch, ">", 80, 100 + debugSelection * 22, bounds);
-        DrawPlain(batch, "Instant text: on (debug)", 80, 148, bounds, 0);
+        DrawPlain(batch, "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), 96, 144, bounds, 7);
+        DrawPlain(batch, "Instant text: on (debug)", 80, 170, bounds, 0);
     }
 
     private void DrawPlain(SpriteBatch batch, string value, int x, int y, Rectangle bounds, int color = 7)
     {
         Vector2 scale = new(bounds.Width / 320f, bounds.Height / 240f);
+        if (!UseNativeDialogue && dialogueText is not null && dialoguePreferences is not null)
+        {
+            UiPreferences preferences = dialoguePreferences();
+            Color tint = color switch
+            {
+                0 => Color.Gray,
+                6 => Color.Yellow,
+                _ => Color.White
+            };
+            dialogueText.DrawLine(batch, value, 12 * scale.X, new Vector2(bounds.X + x * scale.X, bounds.Y + y * scale.Y), tint, preferences.UiFontFamily);
+            return;
+        }
         font.DrawPlain(batch, value, new Vector2(bounds.X + x * scale.X, bounds.Y + y * scale.Y), scale, color);
     }
 
     private void DrawWindow(SpriteBatch batch, Rectangle window, Rectangle bounds)
     {
         Rectangle area = Logical(window, bounds);
+        if (!UseNativeDialogue && dialogueCanvas is not null && dialoguePreferences is not null)
+        {
+            UiPreferences preferences = dialoguePreferences();
+            UiTheme theme = dialogueTheme?.Invoke() ?? (preferences.MenuPresentation == MenuPresentation.Vector ? new VectorUiTheme { FontFamily = preferences.UiFontFamily } : new UiTheme { FontFamily = preferences.UiFontFamily });
+            theme.Panel(dialogueCanvas, new UiRect(area.X, area.Y, area.Width, area.Height));
+            return;
+        }
         batch.Draw(pixel, area, new Color(0, 0, 80, 240));
         int line = Math.Max(1, bounds.Width / 320);
         batch.Draw(pixel, new Rectangle(area.X, area.Y, area.Width, line), Color.White);
@@ -327,13 +384,14 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private Texture2D CreateTexture(PcTexture source)
     {
-        Color[] colors = new Color[source.Width * source.Height];
-        for (int i = 0; i < colors.Length; i++)
-        {
-            uint value = source.BytesPerPixel == 1 && source.Palettes.Count > 0 ? source.Palettes[0][source.Pixels.Span[i]] : source.BytesPerPixel == 4 ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(source.Pixels.Span[(i * 4)..]) : throw new NotSupportedException("FFVII title texture requires native indexed or BGRA pixels.");
-            colors[i] = new Color((byte)(value >> 16), (byte)(value >> 8), (byte)value, (byte)(value >> 24));
-        }
-        Texture2D texture = new(device, source.Width, source.Height);
+        var decoded = Ff7FieldRenderer.DecodeTexture(source);
+        Color[] colors = decoded.Pixels.Select(pixel => Color.FromNonPremultiplied(pixel.R, pixel.G, pixel.B, pixel.A)).ToArray();
+        return UploadTexture(decoded.Width, decoded.Height, colors);
+    }
+
+    private Texture2D UploadTexture(int width, int height, Color[] colors)
+    {
+        Texture2D texture = new(device, width, height);
         texture.SetData(colors);
         return texture;
     }
@@ -391,8 +449,10 @@ internal sealed partial class Ff7Scene : IDisposable
     public void Dispose()
     {
         StopMovie();
+        DisposeNamingPresentation();
         StopAudio();
         Session?.Dispose();
+        DisposeDialoguePresentation();
         triangles.Dispose();
         titleArtwork.Dispose();
         pixel.Dispose();

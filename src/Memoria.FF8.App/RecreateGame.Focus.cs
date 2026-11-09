@@ -69,6 +69,7 @@ internal sealed partial class RecreateGame
         presentationPacer.Reset();
         ResetElapsedTime();
         fieldAudio?.SetFocusPaused(pause || InFf7);
+        ff7Scene?.SetFocusPaused(pause);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
         if (!pause)

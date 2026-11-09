@@ -1,0 +1,82 @@
+using Memoria.FF7.Runtime;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
+
+namespace Memoria.FF8;
+
+internal sealed partial class Ff7Game
+{
+    private ControlQueue? controls;
+    private string? pendingCapture;
+    private Keys[] controlledKeys = [];
+    private int remainingInputFrames;
+    private Memoria.FF8.Assets.GameAssets? controlAppearanceAssets;
+
+    private KeyboardState ReadControlKeys()
+    {
+        if (remainingInputFrames > 0)
+        {
+            remainingInputFrames--;
+            return new KeyboardState(controlledKeys);
+        }
+        return launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState();
+    }
+
+    private object DispatchControl(ControlRequest request)
+    {
+        switch (request.Command.ToLowerInvariant())
+        {
+            case "status":
+                return new { Game = "FFVII", Field = scene.Session?.Field.Name, Tick = scene.Session?.Host.Process.Tick, scene.CanSave, scene.Error, Process = scene.Session?.Host.Process, Progress = scene.Session?.Progress };
+            case "new-game":
+                scene.StartNewGame();
+                return new { Started = true };
+            case "input":
+                controlledKeys = (request.Name ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Enum.Parse<Keys>).ToArray();
+                remainingInputFrames = Math.Clamp(request.Frames, 1, 3600);
+                return new { Frames = remainingInputFrames };
+            case "map-cloud":
+                CharacterAppearanceMapping[] mappings = request.Name switch
+                {
+                    "Squall" => [new(SessionGame.Ff7, 0, SessionGame.Ff8, 0, Ff7ModelAppearance.StandardFieldSquallProfileVersion)],
+                    "Original" => [],
+                    _ => throw new ArgumentException("Name must be Squall or Original.")
+                };
+                controlAppearanceAssets ??= new Memoria.FF8.Assets.GameAssets(launchOptions!.GameDirectory);
+                scene.SetAppearance(mappings, Ff7AppearanceSelection.Create(mappings, installation, controlAppearanceAssets));
+                return new { Mappings = mappings };
+            case "step":
+                if (launchOptions?.ControlStep != true)
+                {
+                    throw new InvalidOperationException("Explicit stepping requires --control-step.");
+                }
+                int frames = Math.Clamp(request.Frames, 1, 900);
+                scene.StepDiagnostic(frames, ReadControlKeys);
+                return new { Frames = frames, Tick = scene.Session?.Host.Process.Tick, scene.Error };
+            case "capture":
+                pendingCapture = Path.GetFullPath(request.Path ?? throw new ArgumentException("Capture requires Path."));
+                return new { Path = pendingCapture };
+            case "save":
+                if (!scene.CanSave)
+                {
+                    throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
+                }
+                goto case "snapshot";
+            case "snapshot":
+                string path = Path.GetFullPath(request.Path ?? throw new ArgumentException("Snapshot requires Path."));
+                CombinedSessionCodec.Save(path, scene.Capture());
+                return new { Path = path, Tick = scene.Session?.Host.Process.Tick, PlayerSaveAllowed = scene.CanSave };
+            case "load":
+                using (FileStream source = File.OpenRead(request.Path ?? throw new ArgumentException("Load requires Path.")))
+                {
+                    scene.Continue(CombinedSessionCodec.Read(source));
+                }
+                return new { Field = scene.Session?.Field.Name, Tick = scene.Session?.Host.Process.Tick };
+            case "quit":
+                Exit();
+                return new { Exiting = true };
+            default:
+                throw new ArgumentException("FFVII controls: status, new-game, input, step, capture, save, snapshot, load, quit.");
+        }
+    }
+}

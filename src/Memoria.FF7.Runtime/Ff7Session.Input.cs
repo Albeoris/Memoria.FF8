@@ -28,6 +28,7 @@ public sealed partial class Ff7Session
             return false;
         }
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
+        bool lineTalk = Host.RequestLineTalk(player);
         int best = 64;
         Ff7Actor? selected = null;
         foreach (Ff7Actor actor in Host.Process.Actors.OrderBy(actor => actor.Slot))
@@ -64,14 +65,15 @@ public sealed partial class Ff7Session
                 selected = actor;
             }
         }
-        return selected is not null && Machine.TryRequestScript(selected.Entity, 1);
+        return selected is not null && Machine.TryRequestScript(selected.Entity, 1) || lineTalk;
     }
 
     private void AdvancePlayerInput()
     {
         Ff7FieldProcess process = Host.Process;
-        if (process.PlayerLocked || process.Transition is not null)
+        if (process.PlayerLocked || process.Transition is not null || process.GlobalCommand is Ff7GlobalCommand.Battle or Ff7GlobalCommand.Menu)
         {
+            Host.ClearLineOnLine();
             return;
         }
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -83,6 +85,7 @@ public sealed partial class Ff7Session
         int vertical = Machine.Input.Vertical;
         if (horizontal == 0 && vertical == 0)
         {
+            Host.UpdateLineContacts(player, player, moving: false);
             Host.ApplyPlayerMovement(new Ff7NativeMoveResult(player with { Animation = 0 }, false, false, []));
             return;
         }
@@ -106,13 +109,14 @@ public sealed partial class Ff7Session
         int speed = process.MovieBackgroundEnabled ? run ? (6144 * scale) >> 9 : (3072 * scale) >> 10 : run ? (scale << 12) >> 9 : (scale << 10) >> 9;
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII control requires its native movement contract.");
         var controlled = player with { MoveSpeed = unchecked((ushort)speed), Animation = 0, AnimationSpeed = 16 };
-        Ff7NativeMoveResult result = movement.StepDirection(controlled, (byte)direction, process.Actors, process.BlockedTriangles, playerLocked: false);
+        Ff7NativeMoveResult result = movement.StepDirection(controlled, (byte)direction, process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
         int animation = run ? 2 : 1;
         if (Field.Models.Models[player.Model].Animations.Count <= animation)
         {
             animation = 0;
         }
         result = result with { Actor = result.Actor with { Animation = result.Moved ? animation : 0 } };
+        Host.UpdateLineContacts(controlled, result.ProbeActor ?? result.Actor, moving: true);
         Host.ApplyPlayerMovement(result);
         foreach (int entity in result.PushEntities)
         {
@@ -121,6 +125,11 @@ public sealed partial class Ff7Session
         if (!process.MapJumpDisabled)
         {
             CheckGateways(player, result.Actor);
+        }
+        Host.UpdateBackgroundTriggers(controlled);
+        if (result.Moved && Host.Process.Transition is null)
+        {
+            AdvanceEncounter(result.Actor);
         }
     }
 
@@ -149,13 +158,19 @@ public sealed partial class Ff7Session
         }
     }
 
-    private static int Side(Vector3 a, Vector3 b, Vector3 point)
+    internal static int Side(Vector3 a, Vector3 b, Vector3 point)
     {
         return unchecked(((int)b.X - (int)a.X) * ((int)point.Y - (int)a.Y) - ((int)point.X - (int)a.X) * ((int)b.Y - (int)a.Y));
     }
 
     private static int DistanceToSegment(Vector3 a, Vector3 b, Vector3 point)
     {
+        return DistanceToSegment(a, b, point, out _);
+    }
+
+    internal static int DistanceToSegment(Vector3 a, Vector3 b, Vector3 point, out Vector3 nearest)
+    {
+        nearest = default;
         int dx = (int)b.X - (int)a.X;
         int dy = (int)b.Y - (int)a.Y;
         int dz = (int)b.Z - (int)a.Z;
@@ -172,6 +187,7 @@ public sealed partial class Ff7Session
         {
             return -1;
         }
+        nearest = new Vector3(x, y, z);
         dx = x - (int)point.X;
         dy = y - (int)point.Y;
         dz = z - (int)point.Z;

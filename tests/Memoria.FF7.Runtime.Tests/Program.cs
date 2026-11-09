@@ -13,6 +13,10 @@ var tests = new (string Name, Action Run)[]
     ("native animation authored contracts", NativeAnimationTests.Run),
     ("native dialogue continuation contracts", NativeDialogueTests.Run),
     ("native turn, camera and global process contracts", NativeProcessTests.Run),
+    ("native character growth contracts", NativeGrowthTests.Run),
+    ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
+    ("native field encounter-step contracts", NativeEncounterTests.Run),
+    ("native field audio commands and continuation", NativeAudioTests.Run),
     ("installed native movement contracts", NativeMovementTests.RunInstalled),
     ("installed New Game and cold continuation", InstalledSession),
     ("installed opening and cold process continuation", InstalledOpeningTests.Run)

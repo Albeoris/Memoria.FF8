@@ -5,6 +5,8 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
+public sealed record NamePromptOptions(int MaximumLength = GameNames.MaximumLength, string? DefaultName = null, UiImageSource? Portrait = null, Func<string, bool>? AcceptsDraft = null);
+
 internal sealed record DebugNameTarget(int Subject, string Name, string Category);
 
 public sealed partial class MenuController
@@ -18,6 +20,8 @@ public sealed partial class MenuController
     private Action<string>? _acceptName;
     private DebugNameTarget? _nameTarget;
     private string _nameDraft = "";
+    private NamePromptOptions? _nameOptions;
+    private int NameMaximumLength => _nameOptions?.MaximumLength ?? GameNames.MaximumLength;
     private char? _nameHighSurrogate;
     private int _namePage;
     private bool _nameKeyboard;
@@ -35,19 +39,25 @@ public sealed partial class MenuController
         _writeName = write;
     }
 
-    public void OpenNamePrompt(int subject, string name, Action<string> accept)
+    public void OpenNamePrompt(int subject, string name, Action<string> accept, NamePromptOptions? options = null)
     {
-        if (!GameNames.IsValidSubject(subject))
+        if (options is null ? !GameNames.IsValidSubject(subject) : subject < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(subject));
+        }
+        if (options is { MaximumLength: < 1 or > GameNames.MaximumLength })
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
         }
         Open("name-input");
         _acceptName = accept;
         BeginName(new DebugNameTarget(subject, name, subject is >= 16 and <= 31 ? "Guardian Force" : "Character"));
+        _nameOptions = options;
     }
 
     private void BeginName(DebugNameTarget target)
     {
+        _nameOptions = null;
         _nameTarget = target;
         _nameDraft = target.Name;
         _nameHighSurrogate = null;
@@ -134,7 +144,7 @@ public sealed partial class MenuController
                 continue;
             }
             string letter = index < characters.Length && characters[index] != '\0' ? characters[index].ToString() : "";
-            entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, SystemText("ui.nameinputentries.entry.help.append.this.character", "Append this character."), Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0));
+            entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, SystemText("ui.nameinputentries.entry.help.append.this.character", "Append this character."), Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0 && (_nameOptions?.AcceptsDraft?.Invoke(letter) ?? true)));
         }
         entries.AddRange(new[] { ("Keyboard", "name-keyboard", ""), ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: index != 9 || !IsNamePrompt)));
         return entries;
@@ -160,12 +170,16 @@ public sealed partial class MenuController
             >= 16 and <= 31 => Artwork(UiImageKind.GuardianForcePortrait, _nameTarget.Subject - 16),
             _ => Artwork(UiImageKind.CharacterPortrait, portraitId)
         };
+        if (_nameOptions?.Portrait is UiImageSource suppliedPortrait)
+        {
+            portrait.Source = suppliedPortrait;
+        }
         Place(page, portrait, 1, 0);
         UiGrid identity = Grid([1, 1.4f], [1], 3);
         Place(identity, Panel(SystemText("ui.buildnameinput.panel.help", "HELP"), Label(_nameTarget?.Subject is >= 16 and <= 31 ? SystemText("ui.buildnameinput.label.name.the.guardian.force", "Name the Guardian Force") : SystemText("ui.buildnameinput.label.name.the.character", "Name the character"), 24)), 0);
         UiGrid name = Grid([1, 0.45f], [1], 0);
         Place(name, Label(_nameDraft + "_", 28), 0);
-        Place(name, Label($"{StringInfo.ParseCombiningCharacters(_nameDraft).Length}/{GameNames.MaximumLength}", 15), 1);
+        Place(name, Label($"{StringInfo.ParseCombiningCharacters(_nameDraft).Length}/{NameMaximumLength}", 15), 1);
         Place(identity, Panel(SystemText("ui.buildnameinput.panel.name", "NAME"), name), 1);
         Place(page, identity, 1, 1);
         UiGrid commands = new() { Columns = 1, Rows = 10, Gap = 1 };
@@ -198,7 +212,7 @@ public sealed partial class MenuController
             input = keyboard;
         }
         Place(page, Panel(_nameKeyboard ? SystemText("ui.buildnameinput.panel.keyboard", "Keyboard") : NamePages[_namePage].Title, input), 2, 1);
-        Place(page, Panel(null, Label(Message.Length > 0 ? Message : SystemText("ui.buildnameinput.label.20.characters", "20 characters"), 16)), 3, 0, 1, 2);
+        Place(page, Panel(null, Label(Message.Length > 0 ? Message : _nameOptions is null ? SystemText("ui.buildnameinput.label.20.characters", "20 characters") : $"{NameMaximumLength} supported characters", 16)), 3, 0, 1, 2);
         return page;
     }
 
@@ -240,7 +254,7 @@ public sealed partial class MenuController
 
     public void SetNameDraft(string text)
     {
-        if (!GameNames.IsValidDraft(text))
+        if (!IsNameDraftValid(text))
         {
             throw new ArgumentException(SystemText("name.validation.character-limit", "Use at most 20 characters without control characters."), nameof(text));
         }
@@ -249,11 +263,16 @@ public sealed partial class MenuController
         _view = null;
     }
 
+    private bool IsNameDraftValid(string text)
+    {
+        return GameNames.IsValidDraft(text) && StringInfo.ParseCombiningCharacters(text).Length <= NameMaximumLength && (_nameOptions?.AcceptsDraft?.Invoke(text) ?? true);
+    }
+
     private void AppendNameText(string text)
     {
-        if (!GameNames.IsValidDraft(_nameDraft + text))
+        if (!IsNameDraftValid(_nameDraft + text))
         {
-            SetSystemMessage(() => SystemText("ui.appendnametext.message.names.can.contain.at.most.20.characters", "Names can contain at most 20 characters."));
+            SetSystemMessage(() => _nameOptions is null ? SystemText("ui.appendnametext.message.names.can.contain.at.most.20.characters", "Names can contain at most 20 characters.") : $"Use at most {NameMaximumLength} supported characters.");
             return;
         }
         _nameDraft += text;
@@ -413,13 +432,17 @@ public sealed partial class MenuController
                 Message = "";
                 break;
             case "name-default":
-                _nameDraft = GameNames.DefaultName(_nameTarget!.Subject);
+                _nameDraft = _nameOptions?.DefaultName ?? GameNames.DefaultName(_nameTarget!.Subject);
                 Message = "";
                 break;
             case "name-save":
                 try
                 {
                     string name = GameNames.Normalize(_nameDraft);
+                    if (!IsNameDraftValid(name))
+                    {
+                        throw new ArgumentException("The name is outside the selected prompt's resource contract.");
+                    }
                     if (IsNamePrompt)
                     {
                         _acceptName!(name);

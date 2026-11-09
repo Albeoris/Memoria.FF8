@@ -1,7 +1,6 @@
-using Memoria.FF8.Mods;
+﻿using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Audio;
-using System.Diagnostics;
 
 namespace Memoria.FF8;
 
@@ -189,56 +188,10 @@ internal sealed partial class FieldAudioPresentation
         void Pause(bool paused);
     }
 
-    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false) : IExternalMusicOutput
+    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false) : PcmLoopPlayback(primary, loop, volume, initialSeconds, bytesPerSecond, loopBytes, restoredLoop), IExternalMusicOutput
     {
-        private readonly Stopwatch clock = Stopwatch.StartNew();
-        private bool loopStarted = restoredLoop;
-        public bool LoopStarted => loopStarted;
-        private bool paused;
-        public int Volume { get; } = volume;
-
-        public void Update()
-        {
-            if (!paused && loop is not null && !loopStarted && clock.Elapsed.TotalSeconds >= initialSeconds)
-            {
-                int elapsedBytes = (int)((clock.Elapsed.TotalSeconds - initialSeconds) * bytesPerSecond % loopBytes);
-                loop.Position(elapsedBytes / 4 * 4);
-                loop.Play(true);
-                primary.Stop();
-                loopStarted = true;
-            }
-        }
-
-        public void SetGain(int gain)
-        {
-            primary.Volume(gain);
-            loop?.Volume(gain);
-        }
-
-        public void Pause(bool paused)
-        {
-            this.paused = paused;
-            if (paused)
-            {
-                clock.Stop();
-            }
-            else
-            {
-                clock.Start();
-            }
-            SetBufferPaused(primary, paused);
-            if (loop is not null)
-            {
-                SetBufferPaused(loop, paused);
-            }
-        }
-
-        public void Dispose()
-        {
-            primary.Dispose();
-            loop?.Dispose();
-        }
     }
+
 }
 
 internal static class ExternalMusicPcm

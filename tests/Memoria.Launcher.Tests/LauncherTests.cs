@@ -16,6 +16,21 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void Ff7DebugUsesTheSharedHostArgumentsAndKeepsTheTitleDefault()
+    {
+        string secondary = Path.Combine(directory, "FF7 resources");
+        string media = Path.Combine(directory, "media tools");
+        ProcessStartInfo normal = GameInstallationSelection.CreateStartInfo(directory, directory, true, media, Memoria.FF8.Platform.GraphicsBackend.Vulkan, ff7GameDirectory: secondary);
+        ProcessStartInfo debug = GameInstallationSelection.CreateStartInfo(directory, directory, true, media, Memoria.FF8.Platform.GraphicsBackend.Vulkan, ff7GameDirectory: secondary, ff7Debug: true);
+        Assert.Equal(normal.FileName, debug.FileName);
+        Assert.Equal(normal.WorkingDirectory, debug.WorkingDirectory);
+        Assert.Equal(normal.ArgumentList.Append("--ff7-debug").Order(), debug.ArgumentList.Order());
+        Assert.DoesNotContain("--ff7-new-game", debug.ArgumentList);
+        Assert.False(debug.UseShellExecute);
+        Assert.True(debug.RedirectStandardOutput && debug.RedirectStandardError);
+        Assert.Throws<ArgumentException>(() => GameInstallationSelection.CreateStartInfo(directory, directory, ff7Debug: true));
+    }
+    [Fact]
     public void Ff7ConfigurationPersistsAndDoesNotReplaceFf8Launch()
     {
         string secondary = Path.Combine(directory, "FF7 resources");

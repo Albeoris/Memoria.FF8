@@ -11,28 +11,40 @@ internal sealed partial class LauncherWindow
 {
     private readonly TextBox ff7Path = new() { IsReadOnly = true, MinHeight = 32, Watermark = "Optional installed FINAL FANTASY VII folder" };
     private readonly TextBlock ff7Status = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button selectFf7 = new() { Content = "Browse...", MinWidth = 100 };
+    private readonly Button clearFf7 = new() { Content = "Clear", MinWidth = 100 };
+    private readonly Button startFf7 = new() { Content = "Start FFVII debug", MinHeight = 38, MinWidth = 180 };
     private string? selectedFf7GameDirectory;
+    private bool ff7ResourcesAvailable;
 
     private Control CreateFf7Selection()
     {
         StackPanel panel = new() { Margin = new Thickness(28), Spacing = 14 };
         panel.Children.Add(new TextBlock { Text = "FINAL FANTASY VII", FontSize = 28, FontWeight = FontWeight.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "Experimental resource configuration", Foreground = Brushes.DimGray });
-        panel.Children.Add(new TextBlock { Text = "Keep FINAL FANTASY VIII selected in its own tab and optionally configure a separate FINAL FANTASY VII installation here. Applies on the next start.", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "Experimental field gameplay", Foreground = Brushes.DimGray });
+        panel.Children.Add(new TextBlock { Text = "Keep FINAL FANTASY VIII selected in its own tab, then configure FINAL FANTASY VII here. Start FFVII debug opens its original title; choose New Game or Continue there.", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(ff7Path);
-        Button select = new() { Content = "Browse...", MinWidth = 100 };
-        Button clear = new() { Content = "Clear", MinWidth = 100 };
         StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
-        actions.Children.Add(select);
-        actions.Children.Add(clear);
+        actions.Children.Add(selectFf7);
+        actions.Children.Add(clearFf7);
         panel.Children.Add(actions);
         panel.Children.Add(ff7Status);
-        panel.Children.Add(new TextBlock { Text = "FINAL FANTASY VII gameplay is unavailable in this experimental engine. Configuring resources does not start a title screen or a new game. Field execution, presentation, battle transitions and saves still require integration.", TextWrapping = TextWrapping.Wrap });
-        select.Click += async (_, _) => await BrowseFf7Async();
-        clear.Click += (_, _) =>
+        panel.Children.Add(startFf7);
+        panel.Children.Add(new TextBlock { Text = "The debug host supports the opening field route and Memoria crossover saves. Original FFVII save files and full-game compatibility are not supported. Use the in-game Debug Menu World switch to change worlds at an allowed save boundary.", TextWrapping = TextWrapping.Wrap });
+        selectFf7.Click += async (_, _) => await BrowseFf7Async();
+        clearFf7.Click += (_, _) =>
         {
             SetFf7GameDirectory(null);
             SaveFf7Selection();
+        };
+        startFf7.Click += async (_, _) =>
+        {
+            if (installations.SelectedItem is not GameInstallation)
+            {
+                ff7Status.Text = "Select FINAL FANTASY VIII in its tab before starting the shared engine.";
+                return;
+            }
+            await PlayAsync(ff7Debug: true);
         };
         SetFf7GameDirectory(null);
         return panel;
@@ -42,6 +54,8 @@ internal sealed partial class LauncherWindow
     {
         selectedFf7GameDirectory = string.IsNullOrWhiteSpace(directory) ? null : directory;
         ff7Path.Text = selectedFf7GameDirectory ?? string.Empty;
+        ff7ResourcesAvailable = false;
+        UpdateFf7Controls();
         if (selectedFf7GameDirectory is null)
         {
             ff7Status.Text = "No FINAL FANTASY VII resource installation configured.";
@@ -50,12 +64,21 @@ internal sealed partial class LauncherWindow
         try
         {
             Ff7Installation installation = Ff7Installation.Discover(selectedFf7GameDirectory);
-            ff7Status.Text = $"Resource layout found: {installation.Layout}. Gameplay remains unavailable; this does not certify release or save compatibility.";
+            ff7ResourcesAvailable = true;
+            UpdateFf7Controls();
+            ff7Status.Text = $"Resource layout found: {installation.Layout}. Ready to start the experimental FFVII title.";
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
         {
             ff7Status.Text = "Configured resources are unavailable: " + exception.Message;
         }
+    }
+
+    private void UpdateFf7Controls()
+    {
+        selectFf7.IsEnabled = !busy;
+        clearFf7.IsEnabled = !busy && selectedFf7GameDirectory is not null;
+        startFf7.IsEnabled = !busy && ff7ResourcesAvailable && LauncherCapabilities.CanLaunchGame;
     }
 
     private void SaveFf7Selection()

@@ -4,6 +4,21 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public Ff7FieldProcess CreateNextFieldProcess()
+    {
+        int current = NormalizeNativeMusicTrack(Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track)));
+        int target = Process.NextFieldMusicTrack < 0 ? current : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.NextFieldMusicTrack));
+        int? saved = Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? null : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.SavedMusicTrack)));
+        return new Ff7FieldProcess
+        {
+            NativeMusicTrack = target,
+            MusicTicks = target == current ? Process.MusicTicks : 0,
+            SavedNativeMusicTrack = saved,
+            MusicVolume = Process.MusicVolume,
+            MusicLock = Process.MusicLock
+        };
+    }
+
     public int ResolveNativeMusicTrack(int localTrack)
     {
         if ((uint)localTrack >= field.Scripts.AkaoOffsets.Count)
@@ -19,12 +34,18 @@ public sealed partial class Ff7FieldHost
         return data[offset + 4] - 1;
     }
 
-    public void PlayNativeMusic(int track)
+    public static int NormalizeNativeMusicTrack(int track)
     {
         if (track is < 0 or > 98)
         {
             throw new InvalidDataException("FFVII native music index exceeds the admitted table.");
         }
+        return track == 1 ? 2 : track;
+    }
+
+    public void PlayNativeMusic(int track)
+    {
+        track = NormalizeNativeMusicTrack(track);
         if (Process.NativeMusicTrack == track)
         {
             return;
@@ -59,7 +80,7 @@ public sealed partial class Ff7FieldHost
             Process = Process with { NextBattleMusicTrack = music.Track };
             return;
         }
-        int current = Process.NativeMusicTrack ?? (Process.Music is null ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
+        int current = Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
         int target = music.Operation == FieldMusicOperation.SwapSaved ? Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? 0 : ResolveNativeMusicTrack(Process.SavedMusicTrack)) : ResolveNativeMusicTrack(music.Track);
         Process = music.Operation switch
         {
@@ -77,10 +98,7 @@ public sealed partial class Ff7FieldHost
         switch (audio.Operation)
         {
             case 0xF0:
-                if (Process.MusicLock == 0)
-                {
-                    PlayNativeMusic(0);
-                }
+                PlayNativeMusic(0);
                 break;
             case 0xC0:
                 Process = Process with { MusicVolume = Math.Clamp(audio.Parameter0, 0, 127) };

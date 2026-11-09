@@ -52,6 +52,14 @@ internal sealed partial class RecreateGame
 
     private void EnsureUpdateSaveIsSafe()
     {
+        if (InFf7)
+        {
+            if (ff7Scene?.CanSave != true)
+            {
+                throw new InvalidOperationException("Wait for an FFVII save-enabled boundary before preparing an update.");
+            }
+            return;
+        }
         string? failure = ReadSaveBoundaryState().Assess() switch
         {
             SaveBoundaryStatus.Faulted => "The game stopped at a script or rendering fault. Load a running save before updating.",

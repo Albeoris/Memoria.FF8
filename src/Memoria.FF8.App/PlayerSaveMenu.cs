@@ -51,7 +51,7 @@ internal sealed class PlayerSaveMenu
     public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
     public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
     public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave;
-    public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanLoad;
+    public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanCopy;
     public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * PageCapacity).Take(PageCapacity).Select(LocalizeEntry).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public bool IsTransferring => transferSource is not null;
@@ -426,7 +426,7 @@ internal sealed class PlayerSaveMenu
             return;
         }
         PlayerSaveEntry entry = Entries[Selection];
-        if (!entry.CanLoad)
+        if (!entry.CanCopy)
         {
             RejectSource(entry);
             return;

@@ -20,6 +20,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             Process = Process with { BlockedTriangles = new byte[(field.Walkmesh.Count + 7) / 8] };
         }
+        if (Process.PaletteRows.Length == 0 && field.Palettes is not null)
+        {
+            Process = Process with { PaletteRows = field.Palettes.Palettes.Select(row => row.ToArray()).ToArray() };
+        }
         Process.Validate();
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
@@ -28,6 +32,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     }
 
     public Ff7FieldProcess Process { get; private set; }
+    public Func<FieldHostRequest, int>? CompleteBattleRequest { get; set; }
     public Func<ushort, int>? CompleteBattle { get; set; }
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
@@ -60,6 +65,20 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         switch (request.Command)
         {
+            case FieldLineCommand line:
+                Line(request.Entity, line);
+                return new(true);
+            case FieldTriangleCommand triangle:
+                if (triangle.Triangle >= field.Walkmesh.Count)
+                {
+                    throw new InvalidDataException("FFVII triangle lock references an absent native walkmesh triangle.");
+                }
+                byte[] blocked = (byte[])Process.BlockedTriangles.Clone();
+                int mask = 1 << (triangle.Triangle & 7);
+                int index = triangle.Triangle >> 3;
+                blocked[index] = (byte)(triangle.Blocked ? blocked[index] | mask : blocked[index] & ~mask);
+                Process = Process with { BlockedTriangles = blocked };
+                return new(true);
             case FieldActorBind bind:
                 if ((uint)bind.ModelIndex >= field.Models.Models.Count)
                 {
@@ -79,9 +98,19 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 return new(true);
             case FieldActorQuery query:
                 Ff7Actor queried = GetActor(query.Entity);
-                return new(true, query.Query == FieldActorQueryKind.Triangle ? queried.Triangle : queried.Direction);
+                int value = query.Query switch
+                {
+                    FieldActorQueryKind.Triangle => queried.Triangle,
+                    FieldActorQueryKind.Direction => queried.Direction,
+                    FieldActorQueryKind.Coordinates => ((queried.X4096 >> 12) & 65535) | (queried.Y4096 >> 12) << 16,
+                    _ => throw new NotSupportedException("Unsupported FFVII actor query.")
+                };
+                return new(true, value);
             case FieldAnimation animation:
                 return Animate(request, animation);
+            case FieldActorOffset offset:
+                Offset(request.Entity, offset);
+                return new(true);
             case FieldActorTurn turn:
                 return Turn(request.Entity, turn);
             case FieldActorMove movement:
@@ -109,6 +138,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     Process = Process with { Dialogues = [.. Process.Dialogues, active] };
                 }
                 return new(active.Completed, active.Selected);
+            case FieldMenuCommand menu:
+                return Menu(request.Id, menu);
             case FieldMovieCommand movie:
                 return Movie(request.Id, movie);
             case FieldTransitionCommand transition:
@@ -123,9 +154,12 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 {
                     return new(false);
                 }
-                int result = CompleteBattle?.Invoke(battle.Formation) ?? throw new NotSupportedException("FFVII debug victory requires an attached FFVII result and reward policy.");
+                int result = CompleteBattleRequest?.Invoke(request) ?? CompleteBattle?.Invoke(battle.Formation) ?? throw new NotSupportedException("FFVII debug victory requires an attached FFVII result and reward policy.");
                 Process = Process with { BattleResult = result, GlobalCommand = Ff7GlobalCommand.Battle, GlobalRequestId = request.Id };
                 return new(true, result);
+            case FieldPaletteCommand palette:
+                Palette(palette);
+                return new(true);
             case FieldBackgroundCommand background:
                 Background(background);
                 return new(true);
@@ -172,6 +206,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public void AdvanceActors()
     {
         AdvanceCamera();
+        AdvanceOffsets();
         AdvanceTurns();
         AdvanceAnimation();
         foreach (Ff7Motion motion in Process.Motions)
@@ -214,12 +249,12 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     public Ff7FieldProcess Capture()
     {
-        return Process with { Receipts = receipts.Values.OrderBy(receipt => receipt.Request.Id).ToArray(), BackgroundStates = (ushort[])Process.BackgroundStates.Clone() };
+        return Process with { Receipts = receipts.Values.OrderBy(receipt => receipt.Request.Id).ToArray(), BackgroundStates = (ushort[])Process.BackgroundStates.Clone(), PaletteBuffer = (ushort[])Process.PaletteBuffer.Clone(), PaletteRows = Process.PaletteRows.Select(row => (ushort[])row.Clone()).ToArray() };
     }
 
     public void RetireCompletedRequests(IReadOnlySet<long> pending)
     {
-        foreach (long id in receipts.Where(pair => pair.Value.Reply.Completed && !pending.Contains(pair.Key)).Select(pair => pair.Key).ToArray())
+        foreach (long id in receipts.Where(pair => pair.Value.Reply.Completed && !pending.Contains(pair.Key) && pair.Key != Process.GlobalRequestId).Select(pair => pair.Key).ToArray())
         {
             receipts.Remove(id);
         }
@@ -293,6 +328,16 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     private FieldHostReply SetProperty(int entity, FieldActorProperty property)
     {
+        if (property.Property == FieldActorPropertyKind.OffsetWait)
+        {
+            Ff7Actor offsetActor = GetActor(entity);
+            bool completed = offsetActor.Offset?.Completed ?? true;
+            if (completed)
+            {
+                SetActor(entity, current => current with { Offset = null });
+            }
+            return new(completed);
+        }
         if (property.Property == FieldActorPropertyKind.PlayerCharacter)
         {
             GetActor(property.Value);

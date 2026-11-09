@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Globalization;
 using Memoria.FF7.Formats;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
@@ -78,8 +77,9 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             }
             target = selected;
             int targetFrames = target.Animations[0].Frames.Count;
-            float targetFrame = sourceClip.Frames.Count <= 1 ? 0 : sourceFrame * (targetFrames - 1f) / (sourceClip.Frames.Count - 1);
-            posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0);
+            bool loop = loopingClips.Contains(originalName);
+            float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
+            posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
         }
         else if (retargeter is not null && (admittedRetargetClips is null || admittedRetargetClips.Contains(originalName)))
         {
@@ -104,11 +104,22 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
                 return new(Vector3.Transform(posed[face.Vertices[corner]], world), uv, face.VertexColors?[corner] ?? Vector4.One);
             }
             TriangleMaterial material = new(image, face.SemiTransparent ? TriangleBlend.HalfAdd : TriangleBlend.Replace, TriangleDepthComparison.LessEqual, true, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false };
-            output.Add(new(Vertex(0), Vertex(1), Vertex(2), material));
+            AddTriangle(Vertex(0), Vertex(1), Vertex(2), material);
             if (face.Quad)
             {
-                output.Add(new(Vertex(1), Vertex(3), Vertex(2), material));
+                AddTriangle(Vertex(1), Vertex(3), Vertex(2), material);
             }
+        }
+        // The selected appearance uses deformed surface normals; native MCH field vertices do not expose a normal channel.
+        void AddTriangle(Ff7WorldVertex a, Ff7WorldVertex b, Ff7WorldVertex c, TriangleMaterial material)
+        {
+            Vector3 normal = Vector3.Cross(b.Position - a.Position, c.Position - a.Position);
+            if (normal.LengthSquared() == 0)
+            {
+                return;
+            }
+            normal = Vector3.Normalize(normal);
+            output.Add(new(a with { Normal = normal }, b with { Normal = normal }, c with { Normal = normal }, material));
         }
         triangles = output.AsReadOnly();
         return true;
@@ -119,8 +130,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     {
         string idle = Path.GetFileNameWithoutExtension(descriptor.Animations[0]) + ".a";
         IReadOnlyList<Matrix4x4> pose = Ff7FieldRenderer.Pose(original, original.Animations[idle], 0);
-        float originalScale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 128;
-        Matrix4x4 originalBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(originalScale);
+        Matrix4x4 originalBasis = Ff7FieldRenderer.ModelBasis(descriptor);
         Vector3[] originalVertices = original.Geometry.SelectMany(part => part.Polygon.Vertices.Select(vertex => Vector3.Transform(vertex, pose[part.BoneIndex] * originalBasis))).ToArray();
         Vector3[] targetVertices = target.Pose(0, 0).Select(vertex => Vector3.Transform(vertex, targetBasis)).ToArray();
         float sourceMin = originalVertices.Min(vertex => vertex.Z);

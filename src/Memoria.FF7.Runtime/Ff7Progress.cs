@@ -18,10 +18,24 @@ public sealed record Ff7Progress
     public uint Gil { get; init; }
     public ushort AvailableCharacters { get; init; }
     public ushort LockedCharacters { get; init; }
+    public Ff7EncounterState Encounters { get; init; } = new();
+    public long NextEncounterRequestId { get; init; } = 1L << 60;
+    public byte FieldRandomIndex { get; init; }
+    public Ff7BattleRngState? BattleRng { get; init; }
+    public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];
 
     public void Validate()
     {
+        BattleRng?.Validate();
+        if (Encounters is null || NextEncounterRequestId < 1L << 60)
+        {
+            throw new InvalidDataException("FFVII encounter continuation is invalid.");
+        }
+        if (DebugVictoryPolicy != "instant-defeat-v1")
+        {
+            throw new NotSupportedException("The FFVII automatic victory policy is unsupported.");
+        }
         if (InitialKernelData is null || InitialKernelData.Length == 0 || Characters is null || Party is not { Length: 3 } || Inventory is null || Materia is null || CompletedBattles is null)
         {
             throw new InvalidDataException("FFVII progression is missing required owners.");

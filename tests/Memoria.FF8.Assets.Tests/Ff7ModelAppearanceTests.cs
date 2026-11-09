@@ -8,47 +8,6 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7ModelAppearanceTests
 {
-    private static void WriteDiagnostic(FieldModel target, Ff7FieldModelResources original, PcFieldModelDescriptor descriptor, Matrix4x4 calibration, Ff7AppearanceCalibration measured, string rigId)
-    {
-        string? path = Environment.GetEnvironmentVariable("MEMORIA_APPEARANCE_DIAGNOSTIC");
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-        float[] V(Vector3 value) => [value.X, value.Y, value.Z];
-        Matrix4x4 basis = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(float.Parse(descriptor.Scale, System.Globalization.CultureInfo.InvariantCulture) / 128);
-        var sourcePose = Ff7FieldRenderer.Pose(original, original.Animations["acfe.a"], 0);
-        var targetPose = target.Pose(0, 0);
-        var data = new
-        {
-            RigId = rigId, SourceRigId = Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy), measured.FacingRadians, measured.FirstHandIsLeft, measured.HandSideAlignment,
-            Source = original.Hierarchy.Bones.Select(bone => new { bone.Index, bone.Name, Pivot = V((sourcePose[bone.Index] * basis).Translation), Vertices = original.Geometry.Where(part => part.BoneIndex == bone.Index).SelectMany(part => part.Polygon.Vertices.Select(vertex => V(Vector3.Transform(vertex, sourcePose[bone.Index] * basis)))) }),
-            Target = target.Bones.Select((bone, index) => new { Index = index, bone.Parent, bone.Length, Pivot = V(Vector3.Transform(target.ReadBoneTransforms(0, 0)[index].Translation, calibration)), Vertices = target.Vertices.Select((vertex, vertexIndex) => (vertex.Bone, Position: targetPose[vertexIndex])).Where(item => item.Bone == index).Select(item => V(Vector3.Transform(item.Position, calibration))) }),
-            Faces = target.Faces.Select(face => face.Vertices),
-            TargetVertices = targetPose.Select(vertex => V(Vector3.Transform(vertex, calibration))),
-            SourceMeshes = original.Geometry.Select(part => new { part.BoneIndex, Faces = part.Polygon.Groups.SelectMany(group => part.Polygon.Polygons.Skip(group.PolygonStart).Take(group.PolygonCount).Select(polygon => new[] { group.VertexStart + polygon.A, group.VertexStart + polygon.B, group.VertexStart + polygon.C })), Vertices = part.Polygon.Vertices.Select(vertex => V(Vector3.Transform(vertex, sourcePose[part.BoneIndex] * basis))) }),
-            TargetBones = target.Vertices.Select(vertex => vertex.Bone),
-            Controlled = new[] { "l_uparm", "r_uparm", "l_femur", "r_femur" }.Select(joint =>
-            {
-                PcFieldAnimation controlled = ControlledAnimation(original, joint);
-                var matrices = Ff7FieldRenderer.Pose(original, controlled, 0);
-                return new
-                {
-                    Joint = joint,
-                    Target = new Ff7SemanticRetargeter(target, descriptor, original, calibration, Ff7ModelAppearance.StandardFieldSquallJoints, Ff7ModelAppearance.StandardFieldSquallFeet).Pose(original, controlled, 0).Select(vertex => V(Vector3.Transform(vertex, calibration))),
-                    Source = original.Geometry.Select(part => new { part.BoneIndex, Faces = part.Polygon.Groups.SelectMany(group => part.Polygon.Polygons.Skip(group.PolygonStart).Take(group.PolygonCount).Select(polygon => new[] { group.VertexStart + polygon.A, group.VertexStart + polygon.B, group.VertexStart + polygon.C })), Vertices = part.Polygon.Vertices.Select(vertex => V(Vector3.Transform(vertex, matrices[part.BoneIndex] * basis))) })
-                };
-            }),
-            Poses = new[] { 0, 20, 40, 79 }.Select(frame => new
-            {
-                Frame = frame,
-                Target = new Ff7SemanticRetargeter(target, descriptor, original, calibration, Ff7ModelAppearance.StandardFieldSquallJoints, Ff7ModelAppearance.StandardFieldSquallFeet).Pose(original, original.Animations["bvjf.a"], frame * 16).Select(vertex => V(Vector3.Transform(vertex, calibration))),
-                Source = original.Geometry.Select(part => new { part.BoneIndex, Faces = part.Polygon.Groups.SelectMany(group => part.Polygon.Polygons.Skip(group.PolygonStart).Take(group.PolygonCount).Select(polygon => new[] { group.VertexStart + polygon.A, group.VertexStart + polygon.B, group.VertexStart + polygon.C })), Vertices = part.Polygon.Vertices.Select(vertex => V(Vector3.Transform(vertex, Ff7FieldRenderer.Pose(original, original.Animations["bvjf.a"], frame)[part.BoneIndex] * basis))) })
-            })
-        };
-        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(data));
-    }
-
     private static PcFieldAnimation ControlledAnimation(Ff7FieldModelResources original, string joint)
     {
         PcFieldAnimation neutral = original.Animations["acfe.a"];
@@ -102,7 +61,6 @@ public sealed class Ff7ModelAppearanceTests
         FieldModel calibrationTarget = assets.LoadFieldModelSource(source.Entry);
         Ff7AppearanceCalibration measured = Ff7ModelAppearance.CalibrateNeutralGeometry(calibrationTarget, field.Models.Models[0], original, [19, 20], 21, 22);
         Matrix4x4 calibration = measured.Transform;
-        WriteDiagnostic(calibrationTarget, original, field.Models.Models[0], calibration, measured, source.RigId);
         var map = new Dictionary<string, string>
         {
             ["acfe.a"] = catalog.GetAnimation(source.Entry.Id, 0).Id,
@@ -145,11 +103,11 @@ public sealed class Ff7ModelAppearanceTests
         System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(movedRootBytes.AsSpan(48), System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(movedRootBytes.AsSpan(48)) + 1);
         Vector3[] translated = retargeter.Pose(original, PcFieldAnimation.Read(movedRootBytes), 0);
         Vector3 delta = Vector3.Transform(translated[0], calibration) - Vector3.Transform(neutral[0], calibration);
-        Assert.Equal(4, delta.X, 3);
+        Assert.Equal(Vector3.TransformNormal(Vector3.UnitX, Ff7FieldRenderer.ModelBasis(field.Models.Models[0])).X, delta.X, 3);
         Assert.Equal(0, delta.Y, 3);
         Assert.Equal(0, delta.Z, 3);
         Ff7SemanticRetargeter contacted = new(target, field.Models.Models[0], original, calibration, Ff7ModelAppearance.StandardFieldSquallJoints, Ff7ModelAppearance.StandardFieldSquallFeet);
-        Matrix4x4 originalBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(float.Parse(field.Models.Models[0].Scale, System.Globalization.CultureInfo.InvariantCulture) / 128);
+        Matrix4x4 originalBasis = Ff7FieldRenderer.ModelBasis(field.Models.Models[0]);
         foreach (int frame in new[] { 0, 20, 40, 79 })
         {
             Vector3[] result = contacted.Pose(original, original.Animations["bvjf.a"], frame * 16);
@@ -159,7 +117,7 @@ public sealed class Ff7ModelAppearanceTests
             float sourceFloor = original.Geometry.Where(part => feet.Contains(part.BoneIndex)).SelectMany(part => part.Polygon.Vertices.Select(vertex => Vector3.Transform(vertex, matrices[part.BoneIndex] * originalBasis).Z)).Min();
             Assert.Equal(sourceFloor, targetFloor, 3);
         }
-        foreach ((string joint, int affected, int untouched) in new[] { ("l_uparm", 21, 22), ("r_uparm", 22, 21) })
+        foreach ((string joint, int affected, int untouched) in new[] { ("l_uparm", 21, 22), ("r_uparm", 22, 21), ("l_femur", 19, 20), ("r_femur", 20, 19) })
         {
             Vector3[] controlled = retargeter.Pose(original, ControlledAnimation(original, joint), 0);
             Assert.Contains(target.Vertices.Select((vertex, index) => (vertex.Bone, Distance: Vector3.Distance(controlled[index], neutral[index]))).Where(vertex => vertex.Bone == affected), vertex => vertex.Distance > 10);

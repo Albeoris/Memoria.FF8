@@ -14,6 +14,10 @@ public sealed record Ff7Actor
     public int Z4096 { get; init; }
     public int Triangle { get; init; }
     public int Direction { get; init; }
+    public int OffsetX { get; init; }
+    public int OffsetY { get; init; }
+    public int OffsetZ { get; init; }
+    public Ff7OffsetProcess? Offset { get; init; }
     public int TurnStart { get; init; }
     public int TurnEnd { get; init; }
     public int TurnMode { get; init; }
@@ -43,6 +47,9 @@ public sealed record Ff7Actor
 
 public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0);
 public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false);
+public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1, short X2, short Y2, short Z2, byte Enabled = 1, byte SlipDisabled = 0, bool Touch = false, bool Across = false, bool Push = false, bool Talk = false, bool Enter = false, bool Leave = false, byte ProximityAngle = 0, bool OnLine = false);
+public sealed record Ff7OffsetProcess(int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, int Mode, int Steps, int Step = 0, bool Completed = false);
+public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false);
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
 public sealed record Ff7CameraScroll(int Mode, int StartX, int StartY, int TargetX, int TargetY, int Steps, int Step = 0, bool Completed = false);
@@ -53,12 +60,15 @@ public enum Ff7GlobalCommand
     None,
     Movie,
     Battle,
-    Transition
+    Transition,
+    Menu
 }
 
 public sealed record Ff7FieldProcess
 {
     public long Tick { get; init; }
+    public Ff7Line[] Lines { get; init; } = [];
+    public bool LineBlocked { get; init; }
     public Ff7Actor[] Actors { get; init; } = [];
     public Ff7Window[] Windows { get; init; } = [];
     public Ff7Dialogue[] Dialogues { get; init; } = [];
@@ -66,7 +76,11 @@ public sealed record Ff7FieldProcess
     public Ff7Motion[] Motions { get; init; } = [];
     public Ff7AnimationRequest[] AnimationRequests { get; init; } = [];
     public ushort[] BackgroundStates { get; init; } = new ushort[256];
+    public ushort[] PaletteBuffer { get; init; } = new ushort[1024];
+    public ushort[][] PaletteRows { get; init; } = [];
+    public long PaletteVersion { get; init; }
     public byte[] BlockedTriangles { get; init; } = [];
+    public Ff7Menu? Menu { get; init; }
     public Ff7Movie? Movie { get; init; }
     public bool MovieBackgroundEnabled { get; init; }
     public bool MovieCameraDisabled { get; init; }
@@ -97,12 +111,19 @@ public sealed record Ff7FieldProcess
     public bool CursorDisabled { get; init; }
     public int MapName { get; init; }
     public int MapDisplay { get; init; }
+    public FieldHostRequest? EncounterRequest { get; init; }
+    public byte EncounterInitiative { get; init; }
+    public ushort? PreloadedMap { get; init; }
     public FieldTransitionCommand? Transition { get; init; }
     public long? GlobalRequestId { get; init; }
     public Ff7GlobalCommand GlobalCommand { get; init; }
 
     public void Validate()
     {
+        if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
+        {
+            throw new InvalidDataException("FFVII music continuation has invalid native track, clock or volume state.");
+        }
         if (Tick < 0 || Actors is null || Windows is null || Dialogues is null || Receipts is null || Motions is null || AnimationRequests is null || BackgroundStates is not { Length: 256 })
         {
             throw new InvalidDataException("FFVII field process is missing required owners.");

@@ -44,6 +44,10 @@ internal sealed partial class Ff7Scene
             }
             if ((Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z)) && dialogue.AwaitingInput)
             {
+                if (AdvanceCommonDialogue(dialogue))
+                {
+                    return;
+                }
                 IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
                 if (dialogue.TokenPosition >= tokens.Count)
                 {
@@ -145,6 +149,11 @@ internal sealed partial class Ff7Scene
             if (window.Style is not (0 or 1 or 2))
             {
                 throw new NotSupportedException($"FFVII dialogue window style {window.Style} is unsupported.");
+            }
+            if (!UseNativeDialogue)
+            {
+                DrawCommonDialogue(batch, dialogue, window, bounds);
+                continue;
             }
             if (window.Style == 0)
             {

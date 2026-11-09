@@ -8,6 +8,20 @@ public sealed class SaveTransferCommandTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-transfer-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Combined_world_save_export_is_refused_before_extracting_FF8_or_creating_output()
+    {
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "combined.ffsave");
+        string output = Path.Combine(directory, "original.ff8");
+        Memoria.FF7.Runtime.CombinedSessionSave combined = new() { ActiveGame = Memoria.FF7.Runtime.SessionGame.Ff8, Ff8Payload = [1, 2, 3], Ff8PayloadFormat = "opaque-test-payload" };
+        Memoria.FF7.Runtime.CombinedSessionCodec.Save(source, combined);
+        byte[] original = File.ReadAllBytes(source);
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => SaveTransferCommand.Run([source, "--output", output], false));
+        Assert.Contains("Memoria format", error.Message);
+        Assert.False(File.Exists(output));
+        Assert.Equal(original, File.ReadAllBytes(source));
+    }
+    [Fact]
     public void ImportCanSelectModelResourcesWithoutChangingTheGameSource()
     {
         string primary = Path.Combine(directory, "game");

@@ -2,18 +2,29 @@ using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Assets;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
     private CombinedSessionSave? crossover;
+    private readonly CombinedSessionSave? initialCrossover;
     private Ff7Scene? ff7Scene;
+    private GameAssets? crossoverAssets;
+    private CrossoverMappingMenu? crossoverSetup;
+    private CharacterAppearanceMapping[]? pendingCrossoverMappings;
     private bool InFf7 => crossover?.ActiveGame == SessionGame.Ff7;
 
     private void InitializeCrossover()
     {
+        if (initialCrossover is not null)
+        {
+            RestoreCrossover(initialCrossover);
+            return;
+        }
         string? path = options.CrossoverStatePath ?? options.StatePath;
         if (path is not null)
         {
@@ -48,14 +59,61 @@ internal sealed partial class RecreateGame
         return destination.ToArray();
     }
 
+    private void OpenCrossoverSetup()
+    {
+        string? reason = Ff8WorldSwitchUnavailable();
+        if (reason is not null)
+        {
+            throw new InvalidOperationException(reason);
+        }
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme());
+        menu.Cancelled += CloseCrossoverSetup;
+        menu.Confirmed += mappings =>
+        {
+            try
+            {
+                pendingCrossoverMappings = mappings;
+                SwitchToFf7();
+                CloseCrossoverSetup();
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or InvalidOperationException)
+            {
+                menu.SetNotice(exception.Message);
+            }
+        };
+        crossoverSetup?.Dispose();
+        crossoverSetup = menu;
+    }
+
+    private void CloseCrossoverSetup()
+    {
+        crossoverSetup?.Dispose();
+        crossoverSetup = null;
+        pendingCrossoverMappings = null;
+        keyboard.SuppressHeldUiInput();
+        drainUiButtons = true;
+    }
+
     private Ff7Scene PrepareFf7Scene(CombinedSessionSave state)
     {
         Ff7Installation installation = Ff7Installation.Discover(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before loading this world."));
         Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
         string tools = movieClock.ToolsDirectory;
-        Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, audioEnabled: options.AudioEnabled);
+        IFf7ActorAppearance? appearance = null;
+        if (state.Mappings.Length > 0)
+        {
+            crossoverAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost!.Resources, modelOverrides: resourceHost);
+        }
+        appearance = Ff7AppearanceSelection.Create(state.Mappings, installation, crossoverAssets);
+        Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled);
         try
         {
+            scene.ConfigureDialoguePresentation(() => uiPreferences, text, uiCanvas!, () => CreateUiTheme(), preferences =>
+            {
+                preferences.Save(UiPreferencesPath);
+                uiPreferences = preferences;
+                gameMenus?.InvalidateLiveData();
+            });
             scene.Continue(state);
             scene.SaveRequested += SaveCrossoverFromFf7;
             scene.WorldSwitchRequested += SwitchToFf8;
@@ -77,6 +135,7 @@ internal sealed partial class RecreateGame
         }
         byte[] payload = CaptureFf8Payload();
         CombinedSessionSave current = crossover ?? new CombinedSessionSave { ActiveGame = SessionGame.Ff8, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
+        current = current with { Mappings = pendingCrossoverMappings ?? current.Mappings };
         WorldSwitch transaction = new(current);
         Ff7Scene? prepared = null;
         try
@@ -123,13 +182,14 @@ internal sealed partial class RecreateGame
         Window.Title = "Memoria - Final Fantasy VIII";
     }
 
-    private void RestoreCrossover(CombinedSessionSave? saved)
+    private void RestoreCrossover(CombinedSessionSave? saved, Ff7Scene? prepared = null)
     {
-        Ff7Scene? prepared = saved?.ActiveGame == SessionGame.Ff7 ? PrepareFf7Scene(saved) : null;
+        prepared ??= saved?.ActiveGame == SessionGame.Ff7 ? PrepareFf7Scene(saved) : null;
         ff7Scene?.Dispose();
         ff7Scene = prepared;
         crossover = saved;
         fieldAudio?.SetFocusPaused(InFf7);
+        Window.Title = InFf7 ? "Memoria - Final Fantasy VII" : "Memoria - Final Fantasy VIII";
     }
 
     private void SaveCrossoverFromFf7(CombinedSessionSave saved)
@@ -144,11 +204,28 @@ internal sealed partial class RecreateGame
 
     private bool UpdateCrossover(GameTime time)
     {
+        if (InFf7 || crossoverSetup is not null)
+        {
+            controls?.Poll();
+        }
+        if (crossoverSetup is not null)
+        {
+            crossoverSetup.Update(physicalInput.ReadKeyboard(), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+            return true;
+        }
         if (!InFf7)
         {
             return false;
         }
-        ff7Scene!.Update(time, physicalInput.ReadKeyboard());
+        if (UpdateFocusPause())
+        {
+            return true;
+        }
+        if (!options.ControlStep)
+        {
+            ff7Scene!.Update(time, physicalInput.ReadKeyboard());
+        }
         if (options.ExitAfterSeconds is double seconds && time.TotalGameTime.TotalSeconds >= seconds)
         {
             Exit();
@@ -159,15 +236,34 @@ internal sealed partial class RecreateGame
 
     private bool DrawCrossover(GameTime time)
     {
+        if (crossoverSetup is not null)
+        {
+            GraphicsDevice.Clear(Color.Black);
+            crossoverSetup.Draw(batch, GraphicsDevice.Viewport.Bounds, uiPreferences.UiFontFamily);
+            DrawCrossoverOverlays();
+            CapturePresentedFrame(time);
+            base.Draw(time);
+            return true;
+        }
         if (!InFf7)
         {
             return false;
         }
         GraphicsDevice.Clear(Color.Black);
         ff7Scene!.Draw(batch, GraphicsDevice.Viewport.Bounds);
+        DrawCrossoverOverlays();
         CapturePresentedFrame(time);
         base.Draw(time);
         return true;
+    }
+
+    private void DrawCrossoverOverlays()
+    {
+        text.BeginFrame();
+        batch.Begin();
+        DrawGameConfirmation(GraphicsDevice.Viewport.Bounds);
+        DrawWindowCloseConfirmation(GraphicsDevice.Viewport.Bounds);
+        batch.End();
     }
 
     private GameState WriteCombinedPlayerSave(string path, Action<GameState>? validateContinuation, DateTime? savedAtUtc)

@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -7,8 +7,7 @@ namespace Memoria.FF8;
 internal sealed partial class Ff7Scene
 {
     private PcmAudioOutput? audioOutput;
-    private PcmAudioOutput.Buffer? musicBuffer;
-    private PcmAudioOutput.Buffer? musicLoopBuffer;
+    private PcmLoopPlayback? musicPlayback;
     private readonly List<PcmAudioOutput.Buffer> soundBuffers = [];
     private readonly Dictionary<int, PcmAudio> soundCache = [];
     private Ff7PcExecutableData? audioNative;
@@ -16,7 +15,6 @@ internal sealed partial class Ff7Scene
     private Task<(PcmAudio Pcm, ExternalMusicLoop Loop)>? musicDecode;
     private Ff7FieldHost? audioHost;
     private int audioTrack = -1;
-    private bool musicLoopStarted;
     private bool audioPaused;
 
     private void UpdateAudio()
@@ -36,7 +34,8 @@ internal sealed partial class Ff7Scene
             return;
         }
         Ff7FieldProcess state = session.Host.Process;
-        int track = state.NativeMusicTrack ?? (state.Music is null ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
+        int track = state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
+        track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
         if (track != audioTrack)
         {
             StopMusicAudio();
@@ -71,10 +70,10 @@ internal sealed partial class Ff7Scene
             audioOutput ??= new PcmAudioOutput();
             byte[] primary = pcm.Bytes.AsSpan(0, loop.EndByte).ToArray();
             byte[] repeat = pcm.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray();
-            musicBuffer = audioOutput.Create(primary, pcm.SampleRate, pcm.Channels);
-            musicLoopBuffer = audioOutput.Create(repeat, pcm.SampleRate, pcm.Channels);
+            PcmAudioOutput.Buffer musicBuffer = audioOutput.Create(primary, pcm.SampleRate, pcm.Channels);
+            PcmAudioOutput.Buffer musicLoopBuffer = audioOutput.Create(repeat, pcm.SampleRate, pcm.Channels);
             long elapsed = checked((long)(state.MusicTicks / 30d * pcm.SampleRate)) * pcm.Channels * sizeof(short);
-            musicLoopStarted = elapsed >= loop.EndByte;
+            bool musicLoopStarted = elapsed >= loop.EndByte;
             if (musicLoopStarted)
             {
                 musicLoopBuffer.Position(checked((int)((elapsed - loop.StartByte) % repeat.Length)) / 4 * 4);
@@ -85,16 +84,13 @@ internal sealed partial class Ff7Scene
                 musicBuffer.Position(checked((int)elapsed) / 4 * 4);
                 musicBuffer.Play(false);
             }
+            int bytesPerSecond = checked(pcm.SampleRate * pcm.Channels * sizeof(short));
+            musicPlayback = new PcmLoopPlayback(musicBuffer, musicLoopBuffer, 100, (loop.EndByte - elapsed) / (double)bytesPerSecond, bytesPerSecond, repeat.Length, musicLoopStarted, pcm.Channels * sizeof(short));
             SetAudioPaused(audioPaused);
         }
-        if (!audioPaused && musicBuffer is not null && musicLoopBuffer is not null && !musicLoopStarted && !musicBuffer.IsPlaying)
-        {
-            musicLoopBuffer.Play(true);
-            musicLoopStarted = true;
-        }
-        int gain = LinearGain(state.MusicVolume);
-        musicBuffer?.Volume(gain);
-        musicLoopBuffer?.Volume(gain);
+        musicPlayback?.Update();
+        int gain = LinearGain(state.MusicVolume * (dialoguePreferences?.Invoke().MusicVolume ?? 100) / 100);
+        musicPlayback?.SetGain(gain);
         foreach (PcmAudioOutput.Buffer finished in soundBuffers.Where(buffer => !buffer.IsPlaying && !audioPaused).ToArray())
         {
             finished.Dispose();
@@ -122,12 +118,7 @@ internal sealed partial class Ff7Scene
             case 0x20:
                 if (command.Parameter1 == 0)
                 {
-                    foreach (PcmAudioOutput.Buffer buffer in soundBuffers)
-                    {
-                        buffer.Dispose();
-                    }
-                    soundBuffers.Clear();
-                    return;
+                    throw new NotSupportedException("FFVII sound ID zero requires its native channel control contract.");
                 }
                 if (!soundCache.TryGetValue(command.Parameter1 - 1, out PcmAudio? pcm))
                 {
@@ -141,8 +132,15 @@ internal sealed partial class Ff7Scene
                 }
                 audioOutput ??= new PcmAudioOutput();
                 PcmAudioOutput.Buffer sound = audioOutput.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
-                int pan = Math.Clamp(command.Parameter0, 0, 127);
-                sound.Pan(pan == 64 ? 0 : Math.Clamp((pan - 64) * 10000 / 64, -10000, 10000));
+                if (command.Parameter0 is < 0 or > 127)
+                {
+                    sound.Dispose();
+                    throw new NotSupportedException("FFVII sound panning exceeds the admitted native table.");
+                }
+                int pan = command.Parameter0;
+                audioNative ??= Ff7PcExecutableData.Load(installation);
+                sound.Pan(audioNative.NativeSoundPan[pan]);
+                sound.Volume(LinearGain(127 * (dialoguePreferences?.Invoke().SoundVolume ?? 100) / 100));
                 sound.Play(false);
                 soundBuffers.Add(sound);
                 return;
@@ -159,7 +157,8 @@ internal sealed partial class Ff7Scene
     private void SetAudioPaused(bool paused)
     {
         audioPaused = paused;
-        foreach (PcmAudioOutput.Buffer buffer in soundBuffers.Concat(new[] { musicBuffer, musicLoopBuffer }.OfType<PcmAudioOutput.Buffer>()))
+        musicPlayback?.Pause(paused);
+        foreach (PcmAudioOutput.Buffer buffer in soundBuffers)
         {
             if (paused)
             {
@@ -182,11 +181,8 @@ internal sealed partial class Ff7Scene
             _ = musicDecode.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
             musicDecode = null;
         }
-        musicBuffer?.Dispose();
-        musicLoopBuffer?.Dispose();
-        musicBuffer = null;
-        musicLoopBuffer = null;
-        musicLoopStarted = false;
+        musicPlayback?.Dispose();
+        musicPlayback = null;
     }
 
     private void StopAudio()

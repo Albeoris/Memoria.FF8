@@ -1,3 +1,4 @@
+using Memoria.FF7.Runtime;
 using System.Globalization;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -6,6 +7,8 @@ namespace Memoria.FF8;
 
 internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad)
 {
+    internal bool CanCopy { get; init; } = CanLoad;
+    internal SessionGame? ActiveGame { get; init; }
     internal string? DetailsSystemId { get; init; }
     internal string? DetailsError { get; init; }
     internal Func<string?>? ReadLocation { get; init; }
@@ -149,11 +152,15 @@ internal sealed partial class PlayerSaveStore
         return state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
-    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false)
     {
         if (slot < 0 || slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
+        }
+        if (combinedSession && slot > MemoriaSlotCount)
+        {
+            throw new NotSupportedException("Combined world saves require Memoria format. Original FFVIII saves cannot preserve FFVII progress and appearance mappings.");
         }
         if (session.State.Scene == SceneKind.Title)
         {
@@ -279,29 +286,52 @@ internal sealed partial class PlayerSaveStore
             savedAtUtc = file.LastWriteTimeUtc;
             if (entries.TryGetValue(path, out CachedSaveEntry? cached) && cached.Length == file.Length && cached.ModifiedUtc == file.LastWriteTimeUtc)
             {
-                return cached.Entry with { Slot = slot, Label = label, SavedAt = savedAt, SavedAtUtc = savedAtUtc };
+                return cached.Entry with { Slot = slot, Label = cached.Entry.ActiveGame == SessionGame.Ff7 ? label + " · FINAL FANTASY VII" : label, SavedAt = savedAt, SavedAtUtc = savedAtUtc };
             }
             PlayerSaveEntry entry;
             SaveSummary? summary = null;
             try
             {
-                summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
-                GameState state = summary?.ToLocationState() ?? LoadPath(path);
-                if (state.Scene == SceneKind.Title)
+                CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
+                if (combined?.ActiveGame == SessionGame.Ff7)
                 {
-                    throw new InvalidDataException("This save contains no active game.");
+                    bool canLoad = combined.Ff8Payload is { Length: > 0 } && combined.Ff8PayloadFormat == CrossoverSaveAdapter.Ff8Codec;
+                    if (canLoad)
+                    {
+                        _ = CrossoverSaveAdapter.ReadFf8(combined);
+                    }
+                    string details = "FINAL FANTASY VII · " + combined.Ff7!.FieldName;
+                    if (!canLoad)
+                    {
+                        details += " · Continue this FFVII-only save from the FFVII debug title; no supported suspended FFVIII continuation is stored.";
+                    }
+                    entry = new(slot, label + " · FINAL FANTASY VII", savedAt, details, canLoad)
+                    {
+                        CanCopy = true,
+                        ActiveGame = SessionGame.Ff7,
+                        SavedAtUtc = savedAtUtc
+                    };
                 }
-                GameState locationState = summary?.ToLocationState() ?? new GameState { Scene = state.Scene, FieldId = state.FieldId, FieldName = state.FieldName, EventState = state.EventState, World = state.World is { } world ? new WorldState { X = world.X, Z = world.Z } : null };
-                string location = locationName?.Invoke(locationState) ?? "Unavailable";
-                NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
-                entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
+                else
                 {
-                    ReadLocation = () => locationName?.Invoke(locationState),
-                    SavedAtUtc = savedAtUtc,
-                    SavedLocalAt = summary?.SavedLocalAt,
-                    PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
-                    PartyPortraits = summary?.PartyPortraits ?? (state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [])
-                };
+                    summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
+                    GameState state = summary?.ToLocationState() ?? LoadPath(path);
+                    if (state.Scene == SceneKind.Title)
+                    {
+                        throw new InvalidDataException("This save contains no active game.");
+                    }
+                    GameState locationState = summary?.ToLocationState() ?? new GameState { Scene = state.Scene, FieldId = state.FieldId, FieldName = state.FieldName, EventState = state.EventState, World = state.World is { } world ? new WorldState { X = world.X, Z = world.Z } : null };
+                    string location = locationName?.Invoke(locationState) ?? "Unavailable";
+                    NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
+                    entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
+                    {
+                        ReadLocation = () => locationName?.Invoke(locationState),
+                        SavedAtUtc = savedAtUtc,
+                        SavedLocalAt = summary?.SavedLocalAt,
+                        PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
+                        PartyPortraits = summary?.PartyPortraits ?? (state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [])
+                    };
+                }
             }
             catch (Exception exception) when (IsUnavailable(exception))
             {

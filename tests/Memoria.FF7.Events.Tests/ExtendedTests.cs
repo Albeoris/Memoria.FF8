@@ -3,6 +3,43 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void CoordinateQueryAndRemainder()
+    {
+        var host = new RecordingHost { Complete = true, Value = (456 << 16) | 65413 };
+        var vm = New(Code(0xA1, 0, 0, 0xB8, 0x66, 0, 0, 2, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check((short)-123, vm.Variables.ReadWord(FieldBank.MapWord, 0));
+        Check((short)456, vm.Variables.ReadWord(FieldBank.MapWord, 2));
+        vm = New(Code(0, 0x80, 0x50, 0, 255, 0x8D, 0x50, 0, 10, 0x81, 0x60, 2, 249, 255, 0x8E, 0x60, 2, 3, 0, 0x5F, 0x12, 1));
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check((byte)5, vm.Variables.ReadByte(FieldBank.MapByte, 0));
+        Check((short)-1, vm.Variables.ReadWord(FieldBank.MapWord, 2));
+        vm = New(Code(0, 0x8D, 0x50, 0, 0));
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
+    public static void OpeningHostOperands()
+    {
+        var host = new RecordingHost { Complete = true, Value = 202 };
+        byte[] code = Code(0xA1, 0, 0, 0xC3, 0, 0, 1, 10, 0, 20, 0, 30, 0, 4, 0, 0xC4, 0xD8, 118, 0, 0xD9, 0xE5, 0, 13, 0, 255, 0xEB, 13, 16, 8, 15, 0x49, 0, 6, 0, 0x99, 5, 7, 0x5F, 0x12, 1);
+        var vm = New(code, host);
+        vm.Initialize();
+        for (int tick = 0; tick < 8; tick++)
+        {
+            vm.AdvanceTick();
+        }
+        Check(true, host.Requests.Any(request => request.Command == new FieldActorOffset(10, 20, 30, 1, 4)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(118)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(Wait: true)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPaletteCommand(FieldPaletteOperation.Store, 13, 0, 256)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPaletteCommand(FieldPaletteOperation.Store, 13, 16, 16, First: 8)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldMenuCommand(6, 0)));
+        Check((byte)202, vm.Variables.ReadByte(FieldBank.MapByte, 7));
+    }
+
     public static void MusicLockAndControlTarget()
     {
         var host = new RecordingHost { Complete = true };

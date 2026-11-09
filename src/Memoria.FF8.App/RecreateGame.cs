@@ -72,9 +72,10 @@ internal sealed partial class RecreateGame : Game
     private bool userPaused;
     private readonly UpdateSaveHandoff updateSave;
 
-    public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false)
+    public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false, Memoria.FF7.Runtime.CombinedSessionSave? initialCrossover = null)
     {
         this.options = options;
+        this.initialCrossover = initialCrossover;
         physicalInput = new(options.AcceptsPhysicalInput, HasPhysicalInputFocus, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
@@ -161,10 +162,6 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        if (UpdateCrossover(gameTime))
-        {
-            return;
-        }
         presentationTiming.BeginPresentationFrame(ActiveBattle, CanAdvanceBattleRenderPhase);
         SynchronizationContext.SetSynchronizationContext(dialogContext);
         dialogContext.Drain();
@@ -205,6 +202,10 @@ internal sealed partial class RecreateGame : Game
             dialogInputBlocked = false;
         }
         UpdateWindowModeHotkey();
+        if (UpdateCrossover(gameTime))
+        {
+            return;
+        }
         ShowPendingNewGameChocoboClaim();
         UpdateAchievements();
         if (UpdateFocusPause())
@@ -348,6 +349,12 @@ internal sealed partial class RecreateGame : Game
         if (pendingCapture is null)
         {
             controls?.Poll();
+        }
+        if (InFf7 || crossoverSetup is not null)
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
         }
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames)
@@ -745,6 +752,11 @@ internal sealed partial class RecreateGame : Game
         {
             return;
         }
+        if (InFf7)
+        {
+            ff7Scene?.EnterText(args.Character);
+            return;
+        }
         if (localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard)
         {
             if (!char.IsControl(args.Character))
@@ -950,7 +962,7 @@ internal sealed partial class RecreateGame : Game
     private void SavePlayerSlot(int slot)
     {
         PreparePlayerSlotSave();
-        playerSaves.Save(slot, session, ValidatePlayerState, writeGameplay: WritePlayerGameplaySave);
+        playerSaves.Save(slot, session, ValidatePlayerState, writeGameplay: WritePlayerGameplaySave, combinedSession: crossover is not null);
         if (slot == 0)
         {
             ShowSaveNotice("Quick Saved", 1);
@@ -964,6 +976,19 @@ internal sealed partial class RecreateGame : Game
 
     private GameState WritePlayerGameplaySave(string path, Action<GameState>? validateContinuation, DateTime? savedAtUtc)
     {
+        if (InFf7)
+        {
+            if (ff7Scene?.CanSave != true)
+            {
+                throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
+            }
+            Memoria.FF7.Runtime.CombinedSessionSave saved = ff7Scene.Capture();
+            GameState ff8 = RestoreFf8Payload(saved);
+            validateContinuation?.Invoke(ff8);
+            Memoria.FF7.Runtime.CombinedSessionCodec.Save(path, saved);
+            crossover = saved;
+            return ff8;
+        }
         if (world is null)
         {
             throw new InvalidOperationException("Start or load a game before saving.");
@@ -976,9 +1001,18 @@ internal sealed partial class RecreateGame : Game
         Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
+        Ff7Scene? preparedCrossover = savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7 ? PrepareFf7Scene(savedCrossover) : null;
         StopAutoPlayForPlayerSession();
-        RestorePlayerState(state);
-        RestoreCrossover(savedCrossover);
+        try
+        {
+            RestorePlayerState(state);
+            RestoreCrossover(savedCrossover, preparedCrossover);
+        }
+        catch
+        {
+            preparedCrossover?.Dispose();
+            throw;
+        }
         saveNotice = null;
         saveNoticeSeconds = 0;
     }
@@ -1118,6 +1152,10 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.StartsWith("world-", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchCrossoverControl(request);
+        }
         if (diagnosticDriver is { Finished: false } && request.Command.ToLowerInvariant() is not ("status" or "battle-status" or "quit"))
         {
             throw new InvalidOperationException("The in-process diagnostic driver owns command submission until it exits.");
@@ -1615,6 +1653,8 @@ internal sealed partial class RecreateGame : Game
         if (disposing)
         {
             ff7Scene?.Dispose();
+            crossoverSetup?.Dispose();
+            crossoverAssets?.Dispose();
 #if MEMORIA_NATIVE
             nativeBackBuffer?.Dispose();
 #endif

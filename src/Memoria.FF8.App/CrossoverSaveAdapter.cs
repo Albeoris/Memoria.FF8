@@ -23,12 +23,24 @@ internal static class CrossoverSaveAdapter
         return GameplaySaveCodec.Read(source);
     }
 
+    internal static void EnsureOriginalExportAllowed(string path)
+    {
+        if (ReadEnvelope(path) is not null)
+        {
+            throw new NotSupportedException("Combined world saves require Memoria format. Original FFVIII saves cannot preserve FFVII progress and appearance mappings.");
+        }
+    }
+
     internal static SaveSummary? ReadSummary(string path)
     {
         CombinedSessionSave? save = ReadEnvelope(path);
         if (save is null)
         {
             return GameSession.ReadSummary(path);
+        }
+        if (save.ActiveGame != SessionGame.Ff8)
+        {
+            throw new NotSupportedException("An active FFVII save requires its own game summary.");
         }
         using MemoryStream source = new(save.Ff8Payload ?? throw new InvalidDataException("A player slot requires an FFVIII continuation."), false);
         ReadFf8(save);

@@ -6,6 +6,8 @@ public sealed partial class FieldMachine
     {
         switch (opcode)
         {
+            case 0x0D:
+                return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
             case 0x22:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode2, W(id, 1), W(id, 3)), 5);
             case 0x23:
@@ -29,6 +31,8 @@ public sealed partial class FieldMachine
                     }
                     Variables.WriteByte(Bank(id, 2), B(id, 6), (byte)value);
                 }, applyPendingResult: true);
+            case 0x49:
+                return Host(id, new FieldMenuCommand(B(id, 2), R8(id, 2, 3)), 4, firstCallYields: true);
             case 0x4A:
                 return Host(id, new FieldControlCommand(FieldControlKind.MenuDisabled, B(id, 1)), 2);
             case 0x4B:
@@ -79,6 +83,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldFadeCommand(B(id, 7), R8(id, 1, 3), R8(id, 2, 4), R8(id, 4, 5), B(id, 6), B(id, 8)), 9);
             case 0x6C:
                 return Host(id, new FieldFadeCommand(0, Wait: true), 1);
+            case 0x6D:
+                return Host(id, new FieldTriangleCommand(W(id, 1), B(id, 3) != 0), 4);
             case 0x70:
                 return Host(id, new FieldBattleCommand(unchecked((ushort)R16(id, 2, 2))), 4, firstCallYields: true);
             case 0x71:
@@ -87,6 +93,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode, B(id, 1), B(id, 2)), 3);
             case 0x7E:
                 return ActorProperty(id, FieldActorPropertyKind.TalkEnabled, B(id, 1) == 0 ? 1 : 0, 2);
+            case 0x99:
+                return Host(id, new FieldRandomCommand(), 3, result: value => Variables.WriteByte(Bank(id, 2), B(id, 2), checked((byte)value)));
             case 0xA0:
                 if (!entities[id].ModelBound)
                 {
@@ -141,6 +149,22 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorTurn(R8(id, 2, 2), B(id, 3), B(id, 4), B(id, 5)), 6, firstCallYields: true);
             case 0xB5:
                 return Actor(id, new FieldActorTurn(R16(id, 2, 2), 2, B(id, 4), B(id, 5), true), 6, firstCallYields: true);
+            case 0xB8:
+                int positionEntity = B(id, 2);
+                if (positionEntity >= entities.Length)
+                {
+                    throw new InvalidDataException("Actor coordinate query targets an absent entity.");
+                }
+                if (!entities[positionEntity].ModelBound)
+                {
+                    Advance(id, 5);
+                    return false;
+                }
+                return Host(id, new FieldActorQuery(FieldActorQueryKind.Coordinates, positionEntity), 5, result: value =>
+                {
+                    Variables.WriteWord(Bank(id, 1), B(id, 3), unchecked((short)value));
+                    Variables.WriteWord(Bank(id, 2), B(id, 4), unchecked((short)(value >> 16)));
+                });
             case 0xB7:
             case 0xB9:
                 int queryEntity = B(id, 2);
@@ -178,6 +202,10 @@ public sealed partial class FieldMachine
                     return false;
                 }
                 return Host(id, new FieldActorProperty(FieldActorPropertyKind.PlayerCharacter, B(id, 1)), 2);
+            case 0xC3:
+                return Actor(id, new FieldActorOffset(R16(id, 1, 4), R16(id, 2, 6), R16(id, 3, 8), B(id, 3), R16(id, 4, 10)), 12);
+            case 0xC4:
+                return ActorProperty(id, FieldActorPropertyKind.OffsetWait, 0, 1);
             case 0xC5:
                 return ActorProperty(id, FieldActorPropertyKind.TalkRadius, unchecked((ushort)(R8(id, 2, 2) * program.FieldScale / 512)), 3);
             case 0xC6:
@@ -207,8 +235,18 @@ public sealed partial class FieldMachine
             case 0xCE:
             case 0xCF:
                 return Host(id, new FieldPartyCommand(FieldPartyOperation.SetLocked, B(id, 1), opcode == 0xCE ? 1 : 0), 2);
+            case 0xD0:
+                return Host(id, new FieldLineCommand(FieldLineOperation.Define, S(id, 1), S(id, 3), S(id, 5), S(id, 7), S(id, 9), S(id, 11)), 13);
+            case 0xD1:
+                return Host(id, new FieldLineCommand(FieldLineOperation.Enable, Value: B(id, 1)), 2);
+            case 0xD3:
+                return Host(id, new FieldLineCommand(FieldLineOperation.Replace, R16(id, 1, 4), R16(id, 2, 6), R16(id, 3, 8), R16(id, 4, 10), R16(id, 5, 12), R16(id, 6, 14)), 16);
             case 0xD2:
                 return Host(id, new FieldControlCommand(FieldControlKind.MapJumpDisabled, B(id, 1)), 2);
+            case 0xD8:
+                return Host(id, new FieldPreloadCommand(W(id, 1)), 3);
+            case 0xD9:
+                return Host(id, new FieldPreloadCommand(Wait: true), 1);
             case >= 0xE0 and <= 0xE4:
                 FieldBackgroundOperation operation = opcode switch
                 {
@@ -219,6 +257,16 @@ public sealed partial class FieldMachine
                     _ => FieldBackgroundOperation.Clear
                 };
                 return Host(id, new FieldBackgroundCommand(operation, R8(id, opcode < 0xE2 ? 1 : 2, 2), opcode < 0xE2 ? R8(id, 2, 3) : 0), opcode < 0xE2 ? 4 : 3);
+            case 0xE5:
+            case 0xE6:
+            case 0xE7:
+                return Host(id, new FieldPaletteCommand(opcode == 0xE5 ? FieldPaletteOperation.Store : opcode == 0xE6 ? FieldPaletteOperation.Load : FieldPaletteOperation.Copy, R8(id, 1, 2), R8(id, 2, 3), B(id, 4) + 1), 5);
+            case 0xEB:
+            case 0xEC:
+                return Host(id, new FieldPaletteCommand(opcode == 0xEB ? FieldPaletteOperation.Store : FieldPaletteOperation.Load, B(id, 1), B(id, 2), B(id, 4) + 1, First: B(id, 3)), 5);
+            case 0xE9:
+            case 0xEA:
+                return Host(id, new FieldPaletteCommand(opcode == 0xE9 ? FieldPaletteOperation.Add : FieldPaletteOperation.Multiply, R8(id, 1, 4), R8(id, 2, 5), B(id, 9) + 1, R8(id, 5, 8), R8(id, 4, 7), R8(id, 3, 6)), 10);
             case 0xDD:
                 return ActorProperty(id, FieldActorPropertyKind.StopAnimation, 0, 1);
             case 0xDA:

@@ -135,6 +135,25 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         DrawImage(source, bounds, stretch: true);
     }
 
+    internal void RegisterHostImage(int id, Texture2D texture)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        UiImageSource source = new(UiImageKind.HostArtwork, id);
+        if (images.Remove(source, out Texture2D? previous))
+        {
+            previous.Dispose();
+        }
+        images.Add(source, texture);
+    }
+
+    internal void UnregisterHostImage(int id)
+    {
+        if (images.Remove(new UiImageSource(UiImageKind.HostArtwork, id), out Texture2D? texture))
+        {
+            texture.Dispose();
+        }
+    }
+
     private Texture2D GetImage(UiImageSource source)
     {
         if (artworkGeneration != artwork.Generation)

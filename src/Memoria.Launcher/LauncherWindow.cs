@@ -31,6 +31,7 @@ internal sealed partial class LauncherWindow : Window
     private GraphicsRestartRecovery? pendingGraphicsRecovery;
     private UpdateResume? pendingGraphicsRecoveryResume;
     private bool graphicsPreferenceReadFailed;
+    private bool launchFf7Debug;
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
     private readonly Button play = new() { Content = "Play", MinWidth = 130, MinHeight = 38, IsDefault = true };
@@ -532,7 +533,7 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             await Task.Run(() => GraphicsBackendPreferences.Write(GraphicsBackendPreferences.DefaultPath, GraphicsBackend.Auto));
-            await PlayAsync(pendingGraphicsRecoveryResume, pendingGraphicsRecovery);
+            await PlayAsync(pendingGraphicsRecoveryResume, pendingGraphicsRecovery, launchFf7Debug);
         }
         catch (Exception exception)
         {
@@ -540,12 +541,13 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
-    private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null)
+    private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null, bool ff7Debug = false)
     {
         if (busy || !IsVisible)
         {
             return;
         }
+        launchFf7Debug = ff7Debug;
         if (graphicsRecovery is null)
         {
             pendingGraphicsRecovery = null;
@@ -585,7 +587,7 @@ internal sealed partial class LauncherWindow : Window
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, ff7GameDirectory: selectedFf7GameDirectory);
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria package, keeping its Data folder beside the launcher executable.", start.FileName);
@@ -595,7 +597,7 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             bool detached = closeAfterLaunch.IsChecked == true && resume is null && graphicsRecovery is null;
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug);
             if (detached)
             {
                 using Process game = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
@@ -781,6 +783,7 @@ internal sealed partial class LauncherWindow : Window
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
         play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
+        UpdateFf7Controls();
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         if (!busy && closeAfterMediaSetup)

@@ -43,6 +43,10 @@ public sealed class Ff7FieldRendererTests
         Assert.Equal(0, movie.ClearColor.W);
         Assert.True(movie.ModelTriangles > 0 && movie.Count < triangles.Count);
         Assert.All(movie.PreservesAlpha, preserve => Assert.False(preserve));
+        Capture endedCamera = new();
+        PcFieldCamera blankCamera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, Vector3.Zero, 0, 0);
+        renderer.Render(endedCamera, 320, 240, new(0, Vector2.Zero, [new(0, 0, 3800 * 4096, 28500 * 4096, 310 * 4096, 0, 0, 0)], new ushort[256], MovieActive: true, CameraOverride: blankCamera));
+        Assert.Equal(0, endedCamera.Count);
         string? report = Environment.GetEnvironmentVariable("MEMORIA_FF7_RENDER_CONTRACT_REPORT");
         if (!string.IsNullOrWhiteSpace(report))
         {

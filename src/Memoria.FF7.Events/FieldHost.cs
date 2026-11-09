@@ -29,12 +29,19 @@ public sealed record FieldHostReply(bool Completed, int Value = 0);
 [JsonDerivedType(typeof(FieldBattleCommand), "battle")]
 [JsonDerivedType(typeof(FieldControlCommand), "control")]
 [JsonDerivedType(typeof(FieldBackgroundCommand), "background")]
+[JsonDerivedType(typeof(FieldPaletteCommand), "palette")]
+[JsonDerivedType(typeof(FieldMenuCommand), "menu")]
+[JsonDerivedType(typeof(FieldPreloadCommand), "preload")]
+[JsonDerivedType(typeof(FieldRandomCommand), "random")]
+[JsonDerivedType(typeof(FieldTriangleCommand), "triangle")]
+[JsonDerivedType(typeof(FieldLineCommand), "line")]
 [JsonDerivedType(typeof(FieldAudioCommand), "audio")]
 [JsonDerivedType(typeof(FieldCameraCommand), "camera")]
 [JsonDerivedType(typeof(FieldPartyCommand), "party")]
 [JsonDerivedType(typeof(FieldFadeCommand), "fade")]
 [JsonDerivedType(typeof(FieldMusicCommand), "music")]
 [JsonDerivedType(typeof(FieldActorTurn), "turn")]
+[JsonDerivedType(typeof(FieldActorOffset), "offset")]
 [JsonDerivedType(typeof(FieldActorQuery), "actor-query")]
 [JsonDerivedType(typeof(FieldPartyProjection), "party-projection")]
 [JsonDerivedType(typeof(FieldPartyCharacter), "party-character")]
@@ -65,7 +72,8 @@ public enum FieldActorPropertyKind
     PlayerCharacter,
     AnimationWait,
     StopAnimation,
-    PartyCharacter
+    PartyCharacter,
+    OffsetWait
 }
 public sealed record FieldActorProperty(FieldActorPropertyKind Property, int Value) : FieldCommand;
 public enum FieldWindowOperation
@@ -147,8 +155,38 @@ public sealed record FieldActorTurn(short Direction, byte DirectionPolicy, byte 
 public enum FieldActorQueryKind
 {
     Triangle,
-    Direction
+    Direction,
+    Coordinates
 }
 public sealed record FieldActorQuery(FieldActorQueryKind Query, int Entity) : FieldCommand;
 public sealed record FieldPartyProjection(int Member0, int Member1, int Member2, ushort VisibilityOrMask = 0) : FieldCommand;
 public sealed record FieldPartyCharacter(int CharacterId, int PartySlot) : FieldCommand;
+
+public enum FieldPaletteOperation
+{
+    Store,
+    Load,
+    Copy,
+    Add,
+    Multiply
+}
+public sealed record FieldPaletteCommand(FieldPaletteOperation Operation, int Source, int Destination, int Count, int Red = 0, int Green = 0, int Blue = 0, int First = 0) : FieldCommand;
+
+public sealed record FieldMenuCommand(int Mode, int Parameter) : FieldCommand;
+
+public sealed record FieldActorOffset(short X, short Y, short Z, byte Mode, short Steps) : FieldCommand;
+
+public sealed record FieldPreloadCommand(ushort Map = 0, bool Wait = false) : FieldCommand;
+
+public sealed record FieldRandomCommand : FieldCommand;
+
+public sealed record FieldTriangleCommand(ushort Triangle, bool Blocked) : FieldCommand;
+
+public enum FieldLineOperation
+{
+    Define,
+    Replace,
+    Enable,
+    Slip
+}
+public sealed record FieldLineCommand(FieldLineOperation Operation, short X1 = 0, short Y1 = 0, short Z1 = 0, short X2 = 0, short Y2 = 0, short Z2 = 0, byte Value = 0) : FieldCommand;

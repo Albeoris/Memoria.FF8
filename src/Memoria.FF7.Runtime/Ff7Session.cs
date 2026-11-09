@@ -41,10 +41,9 @@ public sealed partial class Ff7Session : IDisposable
     public FieldMachine Machine { get; private set; } = null!;
     public Ff7FieldHost Host { get; private set; } = null!;
     public long FieldGeneration { get; private set; }
-    public Func<ushort, Ff7BattleReward>? VictoryRewards { get; set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
 
-    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed);
+    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed);
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -67,6 +66,7 @@ public sealed partial class Ff7Session : IDisposable
             FieldVariables variables = new(session.executable.CreateInitialPersistentVariables(), new byte[256]);
             session.LoadField(session.executable.InitialField, variables);
             session.Machine.Initialize();
+            session.Host.InitializeBackgroundTriggers();
             return session;
         }
         catch
@@ -107,7 +107,9 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick()
     {
+        ResumeEncounter();
         AdvanceAudio();
+        DispatchLineScripts();
         Machine.AdvanceTick();
         AdvancePlayerInput();
         Host.AdvanceActors();
@@ -119,6 +121,7 @@ public sealed partial class Ff7Session : IDisposable
             FieldGeneration++;
             LoadField(transition.Map, variables);
             Machine.Initialize();
+            Host.InitializeBackgroundTriggers();
             Ff7Actor? player = Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
             if (player is not null)
             {
@@ -135,28 +138,54 @@ public sealed partial class Ff7Session : IDisposable
 
     private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null)
     {
+        if (process is null)
+        {
+            Progress = Progress with { Encounters = Progress.Encounters with { MovementCounter = 0 } };
+            if (Host is not null)
+            {
+                process = Host.CreateNextFieldProcess();
+            }
+        }
         if (map >= mapList.Count)
         {
             throw new InvalidDataException("FFVII field transition is outside the original maplist.");
         }
-        Field = Ff7FieldResources.Load(fields, mapList[map]);
-        models = Field.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
+        if (preloadedMap == map && preloadedField is not null && preloadedModels is not null)
+        {
+            Field = preloadedField;
+            models = preloadedModels;
+            preloadedField = null;
+            preloadedModels = null;
+            preloadedMap = null;
+        }
+        else
+        {
+            Field = Ff7FieldResources.Load(fields, mapList[map]);
+            models = Field.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
+        }
+        encounterTables = PcFieldEncounterTable.Read(Field.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Host = new Ff7FieldHost(Field, (model, animation) => models[model].Animations[Path.ChangeExtension(Field.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
-            CompleteBattle = CompleteDebugBattle,
+            CompleteBattleRequest = CompleteDebugBattle,
             ExternalCommand = ExecuteExternal
         };
         Machine = new FieldMachine(FieldProgram.FromPcScripts(Field.Scripts), variables, host: Host);
     }
 
-    private int CompleteDebugBattle(ushort formation)
-    {
-        throw new NotSupportedException($"FFVII automatic victory for formation {formation} requires the admitted result, reward and growth contract.");
-    }
-
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldRandomCommand)
+        {
+            byte index = unchecked((byte)(Progress.FieldRandomIndex + executable.FieldRandomStep));
+            byte value = executable.NativeFieldRandomTable[index];
+            Progress = Progress with { FieldRandomIndex = index };
+            return new(true, value);
+        }
+        if (command is FieldPreloadCommand preload)
+        {
+            return Preload(preload);
+        }
         if (command is FieldPartyProjection projection)
         {
             int[] requested = [projection.Member0, projection.Member1, projection.Member2];

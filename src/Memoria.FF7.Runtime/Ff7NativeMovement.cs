@@ -3,7 +3,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7NativeMoveResult(Ff7Actor Actor, bool Arrived, bool Moved, int[] PushEntities, bool ClearLineBlocked = false);
+public sealed record Ff7NativeMoveResult(Ff7Actor Actor, bool Arrived, bool Moved, int[] PushEntities, bool ClearLineBlocked = false, Ff7Actor? ProbeActor = null);
 
 /// <summary>Integer field movement using caller-supplied native direction tables and original triangle identities.</summary>
 public sealed class Ff7NativeMovement
@@ -166,7 +166,7 @@ public sealed class Ff7NativeMovement
         {
             result = result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) };
         }
-        return new Ff7NativeMoveResult(result, false, moved, pushed.Order().ToArray(), clearLine);
+        return new Ff7NativeMoveResult(result, false, moved, pushed.Order().ToArray(), clearLine, result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) });
     }
 
     public byte Direction(int dx, int dy)

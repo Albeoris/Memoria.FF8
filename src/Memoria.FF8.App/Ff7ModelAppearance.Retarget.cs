@@ -45,7 +45,7 @@ internal sealed class Ff7SemanticRetargeter
         {
             throw new NotSupportedException("Semantic retargeting requires a uniform-scale calibrated basis; nonuniform proportions require an explicit effector solver.");
         }
-        sourceBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 128);
+        sourceBasis = Ff7FieldRenderer.ModelBasis(descriptor);
         string idle = Path.GetFileNameWithoutExtension(descriptor.Animations[0]) + ".a";
         PcFieldAnimation neutral = original.Animations[idle];
         sourceRootRest = neutral.Frames[0].RootTranslation;
