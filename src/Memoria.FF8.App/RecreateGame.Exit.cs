@@ -10,6 +10,15 @@ internal sealed partial class RecreateGame
     private bool windowCloseWithoutAuthoringSave;
     private bool authoringExitSaveFailed;
 
+    private void UpdateDiagnosticExit(GameTime time)
+    {
+        updateFrames++;
+        if (options.ExitAfterFrames is int frames && updateFrames >= frames || options.ExitAfterSeconds is double seconds && time.TotalGameTime.TotalSeconds >= seconds)
+        {
+            ExitGame();
+        }
+    }
+
     private void ExitGame()
     {
         windowCloseApproved = true;

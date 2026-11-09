@@ -264,10 +264,7 @@ internal sealed partial class RecreateGame
         {
             ff7Scene!.Update(time, physicalInput.ReadKeyboard());
         }
-        if (options.ExitAfterSeconds is double seconds && time.TotalGameTime.TotalSeconds >= seconds)
-        {
-            Exit();
-        }
+        UpdateDiagnosticExit(time);
         presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
         return true;
     }

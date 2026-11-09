@@ -356,15 +356,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        updateFrames++;
-        if (options.ExitAfterFrames is int frames && updateFrames >= frames)
-        {
-            ExitGame();
-        }
-        if (options.ExitAfterSeconds is double duration && gameTime.TotalGameTime.TotalSeconds >= duration)
-        {
-            ExitGame();
-        }
+        UpdateDiagnosticExit(gameTime);
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         drawPointNoticeSeconds = Math.Max(0, drawPointNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateAutoPlay(gameTime, input))
