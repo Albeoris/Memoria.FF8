@@ -107,7 +107,7 @@ internal sealed partial class GameWorld
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool patched = modActors.TryGetValue(actor.ObjectId, out var mod) && IsActorPatchActive(mod.Patch);
         int modelId = patched ? mod.ModelId : actor.RenderModelId;
-        bool inheritedVisible = view?.Visible ?? actor.Active && (patched || actor.Visible);
+        bool inheritedVisible = view?.Visible ?? IsFieldActorAllocated(Events.Scene, actor) && (patched || actor.Visible);
         bool visible = (inspectionVisible ?? (inspectionObjects.TryGetValue(actor.ObjectId, out bool inspectedVisible) ? inspectedVisible : inheritedVisible)) && !Events.IsNativeModelDrawPending;
         bool validateNativeDrawing = resolveNativeDrawing && (visible || inspectionVisible is true);
         IReadOnlyDictionary<int, Vector3>? translations = validateNativeDrawing && modelId >= 0 && !patched ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
@@ -116,5 +116,12 @@ internal sealed partial class GameWorld
         // Executed radius writes replace the allocation's eight default bytes.
         byte? shadowRadius = actor.NativeShadowSet?.Radius601To608 ?? (actor.NativeShadowForm is null && actor.NativeShadowAllocation is not null ? NativeActorShadowAllocation.DefaultRadius601To608 : (byte?)null);
         return new ActorVisual(actor.ObjectId, modelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, patched ? mod.Patch.Direction ?? actor.Direction : actor.Direction, animationId, frame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: patched ? null : actor.FirstControlRotation, AdditionalControlDisabled: !patched && actor.ResolvedModelAdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: shadowRadius, GroundShadowLevel609: actor.ResolvedShadowLevel, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.ResolvedShadowRadii, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled, RegisteredTextures: validateNativeDrawing && !patched ? RegisteredNativeTextures(actor, modelId) : null, GroundShadowEnabled: actor.NativeMovementGroundContact600 == 1);
+    }
+
+    internal static bool IsFieldActorAllocated(SceneEventState scene, ActorState actor)
+    {
+        // Native model instances survive later SETPC/UNUSE activity changes.
+        // Only initialization compaction removes bodies from the retained array.
+        return scene.NativeActorLayoutVersion == 1 ? scene.NativeActorObjectIds.Contains(actor.ObjectId) : actor.Active;
     }
 }
