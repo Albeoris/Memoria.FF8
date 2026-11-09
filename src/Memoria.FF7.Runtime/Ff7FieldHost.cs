@@ -611,6 +611,11 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     private FieldHostReply Control(FieldControlCommand command)
     {
+        if (command.Property == FieldControlKind.PreviousMap)
+        {
+            ushort previous = Process.PreviousMap ?? throw new NotSupportedException("FFVII previous-map query requires its recorded native source map; a legacy continuation needs the original transition fact.");
+            return new(true, previous);
+        }
         Process = command.Property switch
         {
             FieldControlKind.PlayerLocked => SetPlayerControl(command.Value != 0),

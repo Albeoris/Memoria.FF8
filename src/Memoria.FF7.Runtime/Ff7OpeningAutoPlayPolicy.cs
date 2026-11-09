@@ -40,9 +40,13 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             generation = session.FieldGeneration;
             stage = 0;
         }
-        if (player.Ladder is { Completed: false })
+        if (player.Ladder is { } ladder)
         {
-            return driver.Steer(new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12));
+            return ladder.Completed ? default : driver.Steer(new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12));
+        }
+        if (player.Jump is not null)
+        {
+            return default;
         }
         if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
@@ -78,6 +82,28 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "sbwy4_1":
                 Ff7Line serviceExit = session.Host.Process.Lines.Single(line => line.Entity == 2);
                 return driver.Approach(new((serviceExit.X1 + serviceExit.X2) / 2f, (serviceExit.Y1 + serviceExit.Y2) / 2f, serviceExit.Z1));
+            case "sbwy4_4":
+                Ff7Line passageExit = session.Host.Process.Lines.Single(line => line.Entity == 5);
+                return driver.Approach(new((passageExit.X1 + passageExit.X2) / 2f, (passageExit.Y1 + passageExit.Y2) / 2f, passageExit.Z1));
+            case "sbwy4_5":
+                FieldEntitySnapshot passageEntry = session.Machine.Capture().Entities[player.Entity];
+                if (passageEntry.Priority == 7 && passageEntry.ProgramCounter >= session.Field.Scripts.Entities[player.Entity].ScriptOffsets[0] && passageEntry.ProgramCounter < session.Field.Scripts.Entities[player.Entity].ScriptOffsets[1] && session.Field.Scripts.Data.Span[passageEntry.ProgramCounter] != 0)
+                {
+                    return default;
+                }
+                Ff7Line reactorLadder = session.Host.Process.Lines.Single(line => line.Entity == 4);
+                return driver.Approach(new((reactorLadder.X1 + reactorLadder.X2) / 2f, (reactorLadder.Y1 + reactorLadder.Y2) / 2f, reactorLadder.Z1)) with { Held = ConfirmPulse };
+            case "sbwy4_3":
+                Ff7Line forwardServiceLadder = session.Host.Process.Lines.Single(line => line.Entity == 2);
+                return driver.Approach(new((forwardServiceLadder.X1 + forwardServiceLadder.X2) / 2f, (forwardServiceLadder.Y1 + forwardServiceLadder.Y2) / 2f, forwardServiceLadder.Z1)) with { Held = ConfirmPulse };
+            case "sbwy4_6":
+                FieldEntitySnapshot reactorEntry = session.Machine.Capture().Entities[player.Entity];
+                if (reactorEntry.Priority == 7 && reactorEntry.ProgramCounter >= session.Field.Scripts.Entities[player.Entity].ScriptOffsets[0] && reactorEntry.ProgramCounter < session.Field.Scripts.Entities[player.Entity].ScriptOffsets[1] && session.Field.Scripts.Data.Span[reactorEntry.ProgramCounter] != 0)
+                {
+                    return default;
+                }
+                Ff7Line reactorEntryLadder = session.Host.Process.Lines.Single(line => line.Entity == 3);
+                return driver.Approach(new((reactorEntryLadder.X1 + reactorEntryLadder.X2) / 2f, (reactorEntryLadder.Y1 + reactorEntryLadder.Y2) / 2f, reactorEntryLadder.Z1)) with { Held = ConfirmPulse };
             case "tin_1":
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
                 {

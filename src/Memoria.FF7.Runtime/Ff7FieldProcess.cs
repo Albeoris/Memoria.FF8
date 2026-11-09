@@ -64,7 +64,16 @@ public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? Firs
     public bool TextVisible => !Completed && (Presentation?.NativeState ?? 2) >= 2;
     public bool ChoiceReady => !Completed && AwaitingInput && FirstChoice is not null && (Presentation is null || Presentation.NativeState == 6);
 }
-public sealed record Ff7DialoguePresentation(int NativeState, int AnimatedWidth, int AnimatedHeight, short RevealBudget = 0, short FastCounter = 1, int ExpansionOffset = 0, bool ConfirmPending = false, int Row = 0);
+public sealed record Ff7DialoguePresentation(int NativeState, int AnimatedWidth, int AnimatedHeight, short RevealBudget = 0, short FastCounter = 1, int ExpansionOffset = 0, bool ConfirmPending = false, int Row = 0)
+{
+    public void Validate()
+    {
+        if (NativeState is < 0 or > 14 || AnimatedWidth is < short.MinValue or > short.MaxValue || AnimatedHeight is < short.MinValue or > short.MaxValue || FastCounter is < 1 or > 128 || ExpansionOffset is < 0 or > 9 || Row < 0)
+        {
+            throw new InvalidDataException("FFVII saved native message animation or reveal state is invalid.");
+        }
+    }
+}
 public readonly record struct Ff7DialogueBounds(float X, float Y, int Width, int Height);
 public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1, short X2, short Y2, short Z2, byte Enabled = 1, byte SlipDisabled = 0, bool Touch = false, bool Across = false, bool Push = false, bool Talk = false, bool Enter = false, bool Leave = false, byte ProximityAngle = 0, bool OnLine = false);
 public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
@@ -157,6 +166,7 @@ public sealed record Ff7FieldProcess
     public bool CursorDisabled { get; init; }
     public int MapName { get; init; }
     public int MapDisplay { get; init; }
+    public ushort? PreviousMap { get; init; }
     public FieldHostRequest? EncounterRequest { get; init; }
     public byte EncounterInitiative { get; init; }
     public ushort? PreloadedMap { get; init; }
@@ -228,6 +238,10 @@ public sealed record Ff7FieldProcess
         if (Dialogues.Any(dialogue => dialogue is null || dialogue.RequestId < 1 || dialogue.Text < 0 || Windows.All(window => window.Id != dialogue.Window)) || Movie is { Frame: < 0 })
         {
             throw new InvalidDataException("FFVII field dialogue or movie continuation is invalid.");
+        }
+        foreach (Ff7Dialogue dialogue in Dialogues)
+        {
+            dialogue.Presentation?.Validate();
         }
         if (Movie?.CameraConsumption is Ff7MovieCameraConsumption consumption && (consumption.Frame < -1 || consumption.WordsBeforeRead < 0 || consumption.WordsAfterRead < consumption.WordsBeforeRead || consumption.WordsAfterRead - consumption.WordsBeforeRead is not (0 or 10)))
         {

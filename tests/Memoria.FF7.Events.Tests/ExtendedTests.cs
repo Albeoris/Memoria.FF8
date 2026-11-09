@@ -3,6 +3,42 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void PreviousMapOperandsAndContinuation()
+    {
+        foreach (var (packed, bank, word) in new[] { (0xF6, FieldBank.MapByte, true), (0x85, FieldBank.MapByte, false), (0xF2, FieldBank.Persistent0Byte, true), (0x81, FieldBank.Persistent0Byte, false) })
+        {
+            byte[] code = Code(0, 0x6E, (byte)packed, 8, 0x80, 0x50, 3, 99, 0x5F, 0x12, 0);
+            var host = new RecordingHost { Complete = false, Value = 0xFEDC };
+            var vm = New(code, host);
+            vm.Initialize();
+            vm.Variables.WriteByte(bank, 9, 0xAB);
+            vm.AdvanceTick();
+            FieldVmSnapshot snapshot = vm.Capture();
+            FieldHostRequest pending = snapshot.PendingRequests!.Single();
+            Check(new FieldControlCommand(FieldControlKind.PreviousMap, 0), pending.Command);
+            Check(17, snapshot.Entities[0].ProgramCounter);
+            Check((byte)0, vm.Variables.ReadByte(bank, 8));
+            var coldHost = new RecordingHost { Complete = true, Value = 0xFEDC };
+            vm = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(snapshot))!, coldHost);
+            vm.AdvanceTick();
+            Check(pending.Id, coldHost.Requests.Single().Id);
+            Check((byte)0xDC, vm.Variables.ReadByte(bank, 8));
+            Check((byte)(word ? 0xFE : 0xAB), vm.Variables.ReadByte(bank, 9));
+            Check((byte)99, vm.Variables.ReadByte(FieldBank.MapByte, 3));
+            Check(25, vm.Capture().Entities[0].ProgramCounter);
+        }
+        var cross = New(Code(0, 0x6E, 2, 255, 0x5F, 0x12, 0), new RecordingHost { Complete = true, Value = 0x1234 });
+        cross.Initialize();
+        cross.AdvanceTick();
+        Check((byte)0x34, cross.Variables.ReadByte(FieldBank.Persistent0Byte, 255));
+        Check((byte)0x12, cross.Variables.ReadByte(FieldBank.Persistent1Byte, 0));
+        var malformedHost = new RecordingHost { Complete = true };
+        var malformed = New(Code(0, 0x6E, 6)[..19], malformedHost);
+        malformed.Initialize();
+        Throws<FieldExecutionException>(() => malformed.AdvanceTick());
+        Check(0, malformedHost.Requests.Count);
+    }
+
     public static void GilOperandsAndContinuation()
     {
         foreach (uint amount in new[] { 0u, 1500u, 0x8000FFFEu, uint.MaxValue })

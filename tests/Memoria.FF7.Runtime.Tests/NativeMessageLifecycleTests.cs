@@ -14,6 +14,7 @@ internal static class NativeMessageLifecycleTests
         RevealBandsAndExpansion();
         WaitPausePageAndLegacy();
         HostPollAndWindowClose();
+        SavedPresentationValidation();
     }
 
     private static void OpeningAndClosing()
@@ -53,6 +54,8 @@ internal static class NativeMessageLifecycleTests
         Equal(false, confirmed.TextVisible);
         Ff7DialogueBounds bounds = Ff7DialogueCursor.WindowBounds(New() with { Presentation = new(1, 53, 14) }, Window);
         Equal(new Ff7DialogueBounds(127.5f, 49.5f, 53, 14), bounds);
+        Ff7Dialogue wrapped = Tick(New() with { Presentation = new(1, 32764, 32764) }, tokens, window: Window with { Width = 32767, Height = 32767 });
+        Equal(new Ff7DialoguePresentation(1, 8, 8), wrapped.Presentation);
     }
 
     private static void RevealBandsAndExpansion()
@@ -193,6 +196,24 @@ internal static class NativeMessageLifecycleTests
     private static Ff7FieldHost Host(Ff7FieldResources field)
     {
         return new(field, (_, _) => 1, new() { Windows = [Window], BlinkStateInitialized = true });
+    }
+
+    private static void SavedPresentationValidation()
+    {
+        Ff7FieldResources field = NativeDialogueTests.Field([0x21, 255]);
+        foreach (Ff7DialoguePresentation presentation in new[] { new Ff7DialoguePresentation(15, 212, 57), new(2, 40000, 57), new(2, 212, 57, FastCounter: 0), new(2, 212, 57, ExpansionOffset: 10), new(2, 212, 57, Row: -1) })
+        {
+            Ff7FieldProcess process = new() { Windows = [Window], Dialogues = [Open() with { Presentation = presentation }], BlinkStateInitialized = true };
+            try
+            {
+                _ = new Ff7FieldHost(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(process))!);
+                throw new Exception("Corrupt native message state must fail before presentation.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+        }
+        _ = new Ff7FieldHost(field, (_, _) => 1, new() { Windows = [Window], Dialogues = [Open() with { Presentation = null }], BlinkStateInitialized = true });
     }
 
     private static Ff7Dialogue New() => new(1, 0, 0, null, null, 0, Presentation: new(0, 0, 0));

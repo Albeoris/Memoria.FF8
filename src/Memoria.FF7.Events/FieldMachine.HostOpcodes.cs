@@ -127,6 +127,10 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldFadeCommand(0, Wait: true), 1);
             case 0x6D:
                 return Host(id, new FieldTriangleCommand(W(id, 1), B(id, 3) != 0), 4);
+            case 0x6E:
+                FieldBank previousMapBank = Bank(id, 2);
+                byte previousMapAddress = B(id, 2);
+                return Host(id, new FieldControlCommand(FieldControlKind.PreviousMap, 0), 3, result: value => Variables.WriteWord(previousMapBank, previousMapAddress, unchecked((short)value)));
             case 0x70:
                 return Host(id, new FieldBattleCommand(unchecked((ushort)R16(id, 2, 2))), 4, firstCallYields: true);
             case 0x71:

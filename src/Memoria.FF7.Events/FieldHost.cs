@@ -123,7 +123,8 @@ public enum FieldControlKind
     CurrentMapName,
     CursorDisabled,
     MovieCameraDisabled,
-    MapDisplay
+    MapDisplay,
+    PreviousMap
 }
 public sealed record FieldControlCommand(FieldControlKind Property, int Value, int Value2 = 0) : FieldCommand;
 public enum FieldBackgroundOperation

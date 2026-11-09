@@ -2,7 +2,12 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
-    public Ff7FieldProcess CreateNextFieldProcess()
+    public static Ff7FieldProcess CreateInitialFieldProcess(ushort map)
+    {
+        return new() { PreviousMap = map, BlinkStateInitialized = true };
+    }
+
+    public Ff7FieldProcess CreateNextFieldProcess(ushort? previousMap = null)
     {
         int current = NormalizeNativeMusicTrack(Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track)));
         int target = Process.NextFieldMusicTrack < 0 ? current : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.NextFieldMusicTrack));
@@ -23,6 +28,7 @@ public sealed partial class Ff7FieldHost
             CameraShakeX = Ff7NativeCameraShake.ResetForField(Process.CameraShakeX ?? new()),
             CameraShakeY = Ff7NativeCameraShake.ResetForField(Process.CameraShakeY ?? new()),
             PreloadedMap = Process.PreloadedMap,
+            PreviousMap = previousMap,
             MusicLock = Process.MusicLock
         };
     }

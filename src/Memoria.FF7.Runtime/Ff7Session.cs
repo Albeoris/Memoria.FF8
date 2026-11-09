@@ -43,6 +43,7 @@ public sealed partial class Ff7Session : IDisposable
     public FieldMachine Machine { get; private set; } = null!;
     public Ff7FieldHost Host { get; private set; } = null!;
     public long FieldGeneration { get; private set; }
+    public ushort MapId { get; private set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
 
     public bool CanSave => !HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId));
@@ -188,7 +189,11 @@ public sealed partial class Ff7Session : IDisposable
         {
             if (Host is not null)
             {
-                process = Host.CreateNextFieldProcess();
+                process = Host.CreateNextFieldProcess(MapId);
+            }
+            else
+            {
+                process = Ff7FieldHost.CreateInitialFieldProcess(map);
             }
         }
         if (map >= mapList.Count)
@@ -220,6 +225,7 @@ public sealed partial class Ff7Session : IDisposable
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
         fieldLoadIncomplete = true;
         Field = loadedField;
+        MapId = map;
         models = loadedModels;
         encounterTables = loadedEncounterTables;
         Host = loadedHost;

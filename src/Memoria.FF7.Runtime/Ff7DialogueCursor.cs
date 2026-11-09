@@ -68,8 +68,8 @@ public static class Ff7DialogueCursor
             case 0:
                 return dialogue with { Presentation = new(1, Math.Max(8, window.Width / 4), Math.Max(8, window.Height / 4)), AwaitingInput = false };
             case 1:
-                int width = Math.Clamp(presentation.AnimatedWidth + window.Width / 4, 8, window.Width);
-                int height = Math.Clamp(presentation.AnimatedHeight + window.Height / 4, 8, window.Height);
+                int width = Math.Clamp(unchecked((short)(presentation.AnimatedWidth + window.Width / 4)), 8, window.Width);
+                int height = Math.Clamp(unchecked((short)(presentation.AnimatedHeight + window.Height / 4)), 8, window.Height);
                 return dialogue with { Presentation = presentation with { NativeState = width == window.Width && height == window.Height ? 2 : 1, AnimatedWidth = width, AnimatedHeight = height }, AwaitingInput = false };
             case 2:
                 return Reveal(dialogue, tokens, window, messageSpeed, heldConfirm, expandToken);
@@ -226,9 +226,6 @@ public static class Ff7DialogueCursor
         {
             throw new InvalidDataException("FFVII saved dialogue cursor, page or wait state exceeds its original text.");
         }
-        if (dialogue.Presentation is Ff7DialoguePresentation presentation && (presentation.NativeState is < 0 or > 14 || presentation.AnimatedWidth is < short.MinValue or > short.MaxValue || presentation.AnimatedHeight is < short.MinValue or > short.MaxValue || presentation.FastCounter is < 1 or > 128 || presentation.ExpansionOffset is < 0 or > 9 || presentation.Row < 0))
-        {
-            throw new InvalidDataException("FFVII saved native message animation or reveal state is invalid.");
-        }
+        dialogue.Presentation?.Validate();
     }
 }

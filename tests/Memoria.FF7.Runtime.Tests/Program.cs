@@ -26,6 +26,7 @@ var tests = new (string Name, Action Run)[]
     ("native player entry movement and cold continuation", NativePlayerEntryTests.Run),
     ("native player slot selection and cold continuation", NativePlayerSelectionTests.Run),
     ("native preload request and cold continuation", NativePreloadTests.Run),
+    ("native previous map and cold continuation", NativePreviousMapTests.Run),
     ("native eye disable owner and cold continuation", NativeEyeControlTests.Run),
     ("native automatic blink eligibility and cold continuation", NativeBlinkTests.Run),
     ("native materia acquisition and cold continuation", NativeMateriaTests.Run),
