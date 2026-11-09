@@ -182,6 +182,7 @@ public sealed partial class Ff7Session : IDisposable
         encounterTables = PcFieldEncounterTable.Read(Field.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Host = new Ff7FieldHost(Field, (model, animation) => models[model].Animations[Path.ChangeExtension(Field.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
+            AudioRequested = Host?.AudioRequested,
             Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
             CameraProjection = new Ff7NativeCamera(Field.Cameras[0], Field.Triggers),
             CompleteBattleRequest = CompleteDebugBattle,
@@ -196,6 +197,14 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldPartyRecovery)
+        {
+            Ff7PartyRecoveryResult recovered = Ff7NativePartyRecovery.Apply(Progress, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
+            Progress = recovered.Progress;
+            byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
+            Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (recovered.Underwater ? 128 : 0)));
+            return new(true);
+        }
         if (command is FieldItemCommand item)
         {
             return AcquireItem(item);

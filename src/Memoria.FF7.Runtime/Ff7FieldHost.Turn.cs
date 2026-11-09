@@ -7,7 +7,7 @@ public sealed partial class Ff7FieldHost
     private FieldHostReply FaceActor(int entity, FieldActorFace command)
     {
         Ff7Actor actor = GetActor(entity);
-        if (actor.TurnMode == 3 || actor.TurnStep != 0 && actor.TurnMode == 2 && actor.TurnSteps == command.Steps)
+        if (!command.Immediate && (actor.TurnMode == 3 || actor.TurnStep != 0 && actor.TurnMode == 2 && actor.TurnSteps == command.Steps))
         {
             return Turn(entity, new FieldActorTurn(0, command.DirectionPolicy, command.Steps, 2));
         }
@@ -22,6 +22,11 @@ public sealed partial class Ff7FieldHost
         }
         Ff7NativeMovement movement = Movement ?? throw new NotSupportedException("FFVII actor facing requires native direction tables.");
         int direction = movement.Direction(targetX - sourceX, targetY - sourceY);
+        if (command.Immediate)
+        {
+            SetActor(entity, current => current with { Direction = direction, TurnMode = 0, TurnStep = 0 });
+            return new(true);
+        }
         return Turn(entity, new FieldActorTurn((short)direction, command.DirectionPolicy, command.Steps, 2));
     }
 

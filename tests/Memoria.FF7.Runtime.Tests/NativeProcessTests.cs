@@ -7,6 +7,131 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeProcessTests
 {
+    public static void RunImmediateFace()
+    {
+        Ff7Actor actor = new() { Entity = 0, Slot = 0, Model = 0, X4096 = -1, Y4096 = -1, TurnMode = 3, TurnStep = 4, TurnSteps = 5, Direction = 240 };
+        Ff7Actor target = new() { Entity = 5, Slot = 1, Model = 1, X4096 = 10 * 4096, Y4096 = -1 };
+        Ff7FieldHost host = Host(new() { Actors = [actor, target] });
+        FieldHostRequest request = Request(1500, new FieldActorFace(5, 0, 0, Immediate: true));
+        Equal(true, host.Execute(request).Completed);
+        Equal((int)host.Movement!.Direction(11, 0), host.GetActor(0).Direction);
+        Equal(0, host.GetActor(0).TurnMode);
+        Equal(0, host.GetActor(0).TurnStep);
+        Equal(actor.X4096, host.GetActor(0).X4096);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(host.Execute(request), cold.Execute(request));
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        host = Host(new() { Actors = [actor, target with { X4096 = -1 }] });
+        Equal(true, host.Execute(request).Completed);
+        Equal((int)host.Movement!.Direction(-1, 0), host.GetActor(0).Direction);
+    }
+
+    public static void RunMovieCameraGate()
+    {
+        MovieCameraConsumptionAndRestore();
+        Ff7FieldHost host = Host();
+        Equal(false, host.Process.MovieCameraDisabled);
+        Equal(true, host.Execute(Request(970, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, 1))).Completed);
+        Equal(true, host.Process.MovieCameraDisabled);
+        host.Execute(Request(971, new FieldMovieCommand(FieldMovieOperation.Prepare, 21)));
+        Equal(true, host.Process.MovieCameraDisabled);
+        FieldHostRequest play = Request(972, new FieldMovieCommand(FieldMovieOperation.Play));
+        Equal(false, host.Execute(play).Completed);
+        host.PublishMovieFrame(10, false);
+        Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Equal(true, restored.Process.MovieCameraDisabled);
+        Equal(10, restored.Process.Movie!.Frame);
+        foreach (int value in new[] { 0, 2, 255 })
+        {
+            restored.Execute(Request(973 + value, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, value)));
+            Equal(false, restored.Process.MovieCameraDisabled);
+            Equal(10, restored.Process.Movie.Frame);
+            Equal(Ff7GlobalCommand.Movie, restored.Process.GlobalCommand);
+        }
+        restored.Execute(Request(1300, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, 1)));
+        restored.PublishMovieFrame(20, true);
+        Equal(true, restored.Process.MovieCameraDisabled);
+        Equal(true, restored.Execute(play).Completed);
+    }
+
+    private static void MovieCameraConsumptionAndRestore()
+    {
+        Ff7FieldHost host = Host();
+        host.Execute(Request(1400, new FieldMovieCommand(FieldMovieOperation.Prepare, 21)));
+        host.Execute(Request(1401, new FieldMovieCommand(FieldMovieOperation.Play)));
+        Equal((long?)0, host.PublishMovieCameraFrame(0, 3));
+        Equal(new Ff7MovieCameraConsumption(0, 0, 10), host.Process.Movie!.CameraConsumption);
+        Equal((long?)0, host.PublishMovieCameraFrame(0, 3));
+        host.Execute(Request(1402, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, 1)));
+        host.PublishMovieFrame(10, false);
+        Equal((long?)null, host.PublishMovieCameraFrame(10, 3));
+        Equal(new Ff7MovieCameraConsumption(0, 0, 10), host.Process.Movie.CameraConsumption);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        foreach (Ff7FieldHost current in new[] { host, cold })
+        {
+            current.Execute(Request(1403, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, 2)));
+            Equal((long?)10, current.PublishMovieCameraFrame(10, 3));
+            Equal(new Ff7MovieCameraConsumption(10, 10, 20), current.Process.Movie!.CameraConsumption);
+            Equal((long?)20, current.PublishMovieCameraFrame(11, 3));
+            Equal(new Ff7MovieCameraConsumption(11, 20, 30), current.Process.Movie.CameraConsumption);
+            Equal((long?)30, current.PublishMovieCameraFrame(12, 3));
+            Equal(new Ff7MovieCameraConsumption(12, 30, 30), current.Process.Movie.CameraConsumption);
+            Equal((long?)30, current.PublishMovieCameraFrame(13, 3));
+        }
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal((long?)30, cold.PublishMovieCameraFrame(13, 3));
+        Equal(new Ff7MovieCameraConsumption(13, 30, 30), cold.Process.Movie!.CameraConsumption);
+        Ff7FieldHost absent = Host(new() { Movie = new(21, true, 20, false, 1401), MovieCameraDisabled = true });
+        Equal(new Ff7MovieCameraConsumption(-1, 0, 0), absent.Process.Movie!.CameraConsumption);
+        absent.Execute(Request(1404, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, 0)));
+        Equal((long?)0, absent.PublishMovieCameraFrame(20, 0));
+        Equal(new Ff7MovieCameraConsumption(20, 0, 0), absent.Process.Movie.CameraConsumption);
+        Ff7FieldHost legacy = Host(new() { Movie = new(21, true, 20, false, 1401) });
+        Equal(new Ff7MovieCameraConsumption(-1, 200, 200), legacy.Process.Movie!.CameraConsumption);
+        Equal((long?)200, legacy.PublishMovieCameraFrame(20, 21));
+        cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(legacy.Capture()))!);
+        Equal((long?)200, cold.PublishMovieCameraFrame(20, 21));
+        Equal(new Ff7MovieCameraConsumption(20, 200, 210), cold.Process.Movie!.CameraConsumption);
+    }
+
+    public static void RunFixedAnimationMove()
+    {
+        Ff7FieldHost Build(Ff7FieldProcess process)
+        {
+            Ff7FieldHost result = Host(process);
+            PcWalkmeshTriangle triangle = new(0, new Vector3(0, 0, 0), new Vector3(0, 100, 0), new Vector3(100, 0, 0), -1, -1, -1);
+            short[] directions = new short[512];
+            directions[257] = -4096;
+            result.Movement = new([triangle], directions, new byte[129]);
+            return result;
+        }
+        Ff7Actor actor = new() { Entity = 0, Slot = 0, Model = 0, X4096 = 10 * 4096, Y4096 = 10 * 4096, Triangle = 0, MoveSpeed = 2048, Animation = 7, AnimationSpeed = 8, AnimationFrame16 = 0, LastAnimationFrame = 0 };
+        Ff7FieldHost host = Build(new() { Actors = [actor] });
+        FieldHostRequest request = Request(980, new FieldActorMove(10, 30, Animated: false));
+        Equal(false, host.Execute(request).Completed);
+        Equal(7, host.GetActor(0).Animation);
+        Equal(8, host.GetActor(0).AnimationSpeed);
+        Equal(1, host.GetActor(0).AnimationStatus);
+        Equal(false, host.Process.Motions.Single().Animated);
+        Ff7FieldHost restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        for (int tick = 0; tick < 100 && host.Process.Motions.Length != 0; tick++)
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            Equal(7, host.GetActor(0).Animation);
+        }
+        Equal(0, host.Process.Motions.Length);
+        Equal(10 * 4096, host.GetActor(0).X4096);
+        Equal(30 * 4096, host.GetActor(0).Y4096);
+        Equal(true, host.Execute(request).Completed);
+        Equal(true, restored.Execute(request).Completed);
+        Equal(0, host.GetActor(0).AnimationStatus);
+        Equal(7, host.GetActor(0).Animation);
+    }
+
     public static void RunFade()
     {
         Ff7FieldHost host = Host();
@@ -45,6 +170,31 @@ internal static class NativeProcessTests
         Equal(true, legacyColor.Process.FadeState!.UsesFieldColor);
         Ff7FieldHost legacy = Host(new() { Fade = new FieldFadeCommand(4) });
         Equal(true, legacy.Execute(Request(803, new FieldFadeCommand(0, Wait: true))).Completed);
+        Ff7FieldHost black = Host(new() { FadeState = new(0, 0, 0, 0, 0, 0, true, 0x80123456) });
+        black.Execute(Request(804, new FieldFadeCommand(1, 0, 0, 0, 2, 255)));
+        Equal(256, black.Process.FadeState!.Position);
+        black.AdvanceActors();
+        Equal(254, black.Process.FadeState!.Position);
+        Equal((uint?)0xFE000000, black.Process.FadeState!.QuadColorArgb);
+        Equal(false, black.Process.FadeState!.UsesFieldColor);
+        Equal(0x80123456u, black.Process.FadeState!.FieldColorArgb);
+        Ff7FieldHost blackCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(black.Capture()))!);
+        for (int tick = 0; tick < 127; tick++)
+        {
+            black.AdvanceActors();
+            blackCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(black.Capture()), JsonSerializer.Serialize(blackCold.Capture()));
+        }
+        Equal(0, black.Process.FadeState!.Type);
+        Equal((uint?)0, black.Process.FadeState!.QuadColorArgb);
+        Equal(0x80123456u, black.Process.FadeState!.FieldColorArgb);
+        black.AdvanceActors();
+        Equal((uint?)null, black.Process.FadeState!.QuadColorArgb);
+        Equal(0x80FFFFFFu, black.Process.FadeState!.FieldColorArgb);
+        Ff7FadeProcess interrupted = Ff7NativeFade.Advance(new(1, 256, 2, 0, 0, 0, false), movieActive: true);
+        Equal(0, interrupted.Position);
+        Equal(0, interrupted.Type);
+        Equal((uint?)0, interrupted.QuadColorArgb);
     }
     public static void RunViewOffset()
     {

@@ -181,8 +181,18 @@ internal sealed partial class Ff7Scene
                     float lineHeight = Ff7FontResources.LineHeight * scale.Y;
                     string family = dialoguePreferences!().DialogueFontFamily;
                     float size = lineHeight * 0.8f;
-                    ButtonPrompt.Draw(batch, pixel, dialogueText!, label, size, position, lineHeight, 1, family, bounds, dialogueCanvas);
-                    position.X += ButtonPrompt.Measure(label, value => dialogueText!.MeasureWrapped(value, size, float.PositiveInfinity, family).X, lineHeight);
+                    foreach (DialogueRun run in ButtonPromptText.BindingRuns(label, Color.White))
+                    {
+                        if (run.IsButton)
+                        {
+                            ButtonPrompt.Draw(batch, pixel, dialogueText!, run.Text, size, position, lineHeight, 1, family, bounds, dialogueCanvas);
+                            position.X += ButtonPrompt.Measure(run.Text, value => dialogueText!.MeasureWrapped(value, size, float.PositiveInfinity, family).X, lineHeight);
+                        }
+                        else
+                        {
+                            DrawExpansion(run.Text);
+                        }
+                    }
                     break;
                 case FieldTextTokenKind.PartyName:
                     int character = Session!.Progress.Party[token.Argument];

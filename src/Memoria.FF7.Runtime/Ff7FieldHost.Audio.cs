@@ -15,6 +15,8 @@ public sealed partial class Ff7FieldHost
             MusicTicks = target == current ? Process.MusicTicks : 0,
             SavedNativeMusicTrack = saved,
             MusicVolume = Process.MusicVolume,
+            MusicVolumeFade = Process.MusicVolumeFade,
+            SoundChannelVolumes = (int[])Process.SoundChannelVolumes.Clone(),
             MusicLock = Process.MusicLock
         };
     }
@@ -97,13 +99,85 @@ public sealed partial class Ff7FieldHost
         Process = Process with { Audio = audio };
         switch (audio.Operation)
         {
+            case 0xA0:
+            case 0xA1:
+                int[] channelVolumes = (int[])Process.SoundChannelVolumes.Clone();
+                channelVolumes[audio.Operation - 0xA0] = Math.Min(unchecked((byte)audio.Parameter0), (byte)127);
+                Process = Process with { SoundChannelVolumes = channelVolumes };
+                break;
             case 0xF0:
                 PlayNativeMusic(0);
                 break;
             case 0xC0:
-                Process = Process with { MusicVolume = Math.Clamp(audio.Parameter0, 0, 127) };
+                int volume = unchecked((byte)audio.Parameter0);
+                if (volume <= 127)
+                {
+                    Process = Process with { MusicVolume = volume, MusicVolumeFade = null };
+                }
+                break;
+            case 0xC2:
+                SetMusicVolumeFade(unchecked((byte)audio.Parameter0), unchecked((byte)audio.Parameter1), unchecked((byte)audio.Parameter2));
+                break;
+            case 0xC1:
+                ChangeMusicVolume(unchecked((byte)audio.Parameter0), unchecked((byte)audio.Parameter1));
                 break;
         }
         AudioRequested?.Invoke(audio);
+    }
+
+    private void SetMusicVolumeFade(byte duration, byte initial, byte target)
+    {
+        if (target > 127 || duration != 0 && initial > 127)
+        {
+            return;
+        }
+        if (duration == 0)
+        {
+            Process = Process with { MusicVolume = target, MusicVolumeFade = null };
+            return;
+        }
+        Process = Process with { MusicVolume = initial, MusicVolumeFade = null };
+        ChangeMusicVolume(duration, target);
+    }
+
+    private void ChangeMusicVolume(byte duration, byte target)
+    {
+        if (target > 127)
+        {
+            return;
+        }
+        if (duration == 0)
+        {
+            Process = Process with { MusicVolume = target, MusicVolumeFade = null };
+            return;
+        }
+        if (Process.MusicVolume == target)
+        {
+            return;
+        }
+        int rate = (int)((target - Process.MusicVolume) / (duration / 60d));
+        Process = Process with { MusicVolumeFade = new(target, rate) };
+    }
+
+    public void AdvanceAudioClock(TimeSpan elapsed, bool paused = false)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(elapsed, TimeSpan.Zero);
+        if (paused || Process.MusicVolumeFade is not { } fade)
+        {
+            return;
+        }
+        long ticks = checked(elapsed.Ticks + fade.SubmillisecondTicks);
+        int milliseconds = unchecked(fade.AccumulatedMilliseconds + (int)(ticks / TimeSpan.TicksPerMillisecond));
+        int step = unchecked(milliseconds * fade.RatePerSecond) / 1000;
+        int volume = unchecked(Process.MusicVolume + step);
+        if (step < 0 && volume < fade.Target || step > 0 && volume > fade.Target)
+        {
+            volume = fade.Target;
+        }
+        Process = Process with
+        {
+            MusicVolume = volume,
+            MusicVolumeFade = volume == fade.Target ? null : fade with { AccumulatedMilliseconds = step == 0 ? milliseconds : 0, SubmillisecondTicks = (int)(ticks % TimeSpan.TicksPerMillisecond) }
+        };
     }
 }

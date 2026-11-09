@@ -30,6 +30,8 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldModelEffectCommand(13, Wait: true), 1);
             case 0x27:
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.SetBackground, B(id, 1)), 2);
+            case 0x3F:
+                return Host(id, new FieldPartyRecovery(), 1);
             case 0x25:
                 return Host(id, new FieldFadeCommand(B(id, 3), R8(id, 1, 4), R8(id, 2, 5), R8(id, 3, 6), R16(id, 4, 7), NewFade: true), 9);
             case 0x33:
@@ -168,6 +170,8 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorPlacement(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), null), 9, true, yieldWithoutModel: true);
             case 0xA8:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4)), 6, firstCallYields: true);
+            case 0xAD:
+                return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4), Animated: false), 6, firstCallYields: true);
             case 0xAB:
                 int faceEntity = B(id, 1);
                 if (faceEntity >= entities.Length)
@@ -190,6 +194,18 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorTurn(R8(id, 2, 2), B(id, 3), B(id, 4), B(id, 5)), 6, firstCallYields: true);
             case 0xB5:
                 return Actor(id, new FieldActorTurn(R16(id, 2, 2), 2, B(id, 4), B(id, 5), true), 6, firstCallYields: true);
+            case 0xB6:
+                int facingEntity = B(id, 1);
+                if (facingEntity >= entities.Length)
+                {
+                    throw new InvalidDataException("FFVII DIRA references an absent target entity.");
+                }
+                if (!entities[facingEntity].ModelBound)
+                {
+                    Advance(id, 2);
+                    return false;
+                }
+                return Actor(id, new FieldActorFace(facingEntity, 0, 0, Immediate: true), 2, yieldAfter: true);
             case 0xB8:
                 int positionEntity = B(id, 2);
                 if (positionEntity >= entities.Length)
@@ -357,6 +373,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.Play), 1, firstCallYields: true);
             case 0xFA:
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.ReadFrame), 3, result: value => Variables.WriteWord(Bank(id, 2), B(id, 2), unchecked((short)value)));
+            case 0xFB:
+                return Host(id, new FieldControlCommand(FieldControlKind.MovieCameraDisabled, B(id, 1)), 2);
             default:
                 throw new NotSupportedException("Opcode is outside the proved command subset.");
         }

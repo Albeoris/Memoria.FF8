@@ -14,6 +14,7 @@ public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<V
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
     public uint? FieldColorArgb { get; init; }
+    public uint? QuadColorArgb { get; init; }
 }
 
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
@@ -97,6 +98,13 @@ public sealed class Ff7FieldRenderer
             {
                 DrawBackground(renderer, width, height, frame, true);
             }
+            if (frame.QuadColorArgb is uint quad && (quad >> 24) != 0)
+            {
+                Vector4 clip = FieldClip(width, height);
+                Vector4 color = new((quad >> 16 & 255) / 255f, (quad >> 8 & 255) / 255f, (quad & 255) / 255f, (quad >> 24) / 255f);
+                TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false) { ClipRectangle = clip };
+                TrianglePrimitives.Quad(renderer, new Vector2(clip.X, clip.Y), new Vector2(clip.Z - clip.X, clip.W - clip.Y), BitConverter.Int32BitsToSingle(0x358637BD), color, material, Vector2.One);
+            }
         }
         finally
         {
@@ -172,7 +180,7 @@ public sealed class Ff7FieldRenderer
             } : TriangleBlend.Replace;
             TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
-            Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, material, FieldColor(frame));
+            TrianglePrimitives.Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, FieldColor(frame), material, Vector2.One);
         }
     }
 
@@ -439,13 +447,4 @@ public sealed class Ff7FieldRenderer
         return new Vector4(color.X * ((tint >> 16) & 255) / 255f, color.Y * ((tint >> 8) & 255) / 255f, color.Z * (tint & 255) / 255f, color.W);
     }
 
-    private static void Quad(ITriangleRenderer renderer, Vector2 origin, Vector2 size, float depth, TriangleMaterial material, Vector4 color)
-    {
-        TriangleVertex a = new(origin, depth, 1, Vector2.Zero, color);
-        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, Vector2.UnitX, color);
-        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, Vector2.UnitY, color);
-        TriangleVertex d = new(origin + size, depth, 1, Vector2.One, color);
-        renderer.Draw(a, b, c, material);
-        renderer.Draw(b, d, c, material);
-    }
 }

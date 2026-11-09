@@ -3,6 +3,90 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void PartyRecoveryContinuation()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x3F, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldPartyRecovery(), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
+    public static void ImmediateFaceOperandsAndYield()
+    {
+        var host = new RecordingHost { Complete = true };
+        var code = Code(0xA1, 0, 0, 0xB6, 1, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1);
+        new byte[] { 0xA1, 1, 0, 0 }.CopyTo(code, 80);
+        var rows = new[] { Enumerable.Repeat((ushort)16, 32).ToArray(), Enumerable.Repeat((ushort)80, 32).ToArray() };
+        var program = new FieldProgram(code, rows);
+        var vm = new FieldMachine(program, host: host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldActorFace(1, 0, 0, Immediate: true), host.Requests.Last().Command);
+        Check(21, vm.Capture().Entities[0].ProgramCounter);
+        Check((byte)0, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        Check(0, vm.Capture().PendingRequests!.Length);
+        vm = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(vm.Capture()))!, host);
+        vm.AdvanceTick();
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        foreach (int unbound in new[] { 0, 1 })
+        {
+            host = new RecordingHost { Complete = true };
+            vm = new FieldMachine(program, host: host);
+            vm.Initialize();
+            FieldVmSnapshot state = vm.Capture();
+            state.Entities[unbound] = state.Entities[unbound] with { ModelBound = false };
+            vm = FieldMachine.Restore(program, state, host);
+            vm.AdvanceTick();
+            Check(false, host.Requests.Any(request => request.Command is FieldActorFace));
+            Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        }
+    }
+
+    public static void MovieCameraOperandsAndContinuation()
+    {
+        foreach (byte value in new byte[] { 0, 1, 2, 255 })
+        {
+            var host = new RecordingHost { Complete = true };
+            var vm = New(Code(0, 0xFB, value, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+            vm.Initialize();
+            vm.AdvanceTick();
+            Check(new FieldControlCommand(FieldControlKind.MovieCameraDisabled, value), host.Requests.Single().Command);
+            Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        }
+        byte[] truncated = new byte[18];
+        truncated[17] = 0xFB;
+        var malformed = New(truncated, new RecordingHost());
+        malformed.Initialize();
+        Throws<FieldExecutionException>(() => malformed.AdvanceTick());
+    }
+
+    public static void FixedAnimationMoveOperandsAndContinuation()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0xA1, 0, 0, 0xAD, 0x62, 0, 0, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 0, -448);
+        vm.Variables.WriteWord(FieldBank.Persistent0Word, 2, -3056);
+        vm.AdvanceTick();
+        FieldHostRequest request = host.Requests.Last();
+        Check(new FieldActorMove(-448, -3056, Animated: false), request.Command);
+        Check(19, vm.Capture().Entities[0].ProgramCounter);
+        Check((byte)0, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        FieldVmSnapshot saved = JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(vm.Capture()))!;
+        vm = FieldMachine.Restore(Program(Code(0xA1, 0, 0, 0xAD, 0x62, 0, 0, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1)), saved, host);
+        vm.AdvanceTick();
+        Check(request.Id, host.Requests.Last().Id);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0xAD, 0, 0x40, 0xFE, 0x10, 0xF4, 0x80, 0x50, 8, 9, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(0, host.Requests.Count);
+        Check((byte)9, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
     public static void ItemOperandsAndContinuation()
     {
         var host = new RecordingHost { Complete = true, Value = -1 };

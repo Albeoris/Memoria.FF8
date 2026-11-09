@@ -35,6 +35,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         InitializePaletteState();
         InitializeFadeState();
+        InitializeMovieCameraConsumption();
         Process.Validate();
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
@@ -251,7 +252,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         AdvanceJoinedMovement();
         if (Process.FadeState is Ff7FadeProcess fadeState)
         {
-            Process = Process with { FadeState = Ff7NativeFade.Advance(fadeState) };
+            Process = Process with { FadeState = Ff7NativeFade.Advance(fadeState, Process.Movie is { Playing: true }) };
         }
         Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };
     }
@@ -469,7 +470,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             {
                 return new(false);
             }
-            Process = Process with { Movie = new Ff7Movie(command.MovieId, false, 0, false, null) };
+            Process = Process with { Movie = new Ff7Movie(command.MovieId, false, 0, false, null, CameraConsumption: new(-1, 0, 0)) };
             return new(true);
         }
         Ff7Movie movie = Process.Movie ?? throw new InvalidDataException("FFVII movie operation requires its prepared resource.");
@@ -528,7 +529,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             FieldControlKind.BattleMode2 => Process with { BattleMode2 = command.Value },
             FieldControlKind.BattleTable => Process with { BattleTable = command.Value },
             FieldControlKind.BattleResult => Process,
-            FieldControlKind.MovieCameraDisabled => Process with { MovieCameraDisabled = command.Value != 0 },
+            FieldControlKind.MovieCameraDisabled => Process with { MovieCameraDisabled = command.Value == 1 },
             FieldControlKind.CursorDisabled => Process with { CursorDisabled = command.Value != 0 },
             FieldControlKind.CurrentMapName => Process with { MapName = command.Value },
             FieldControlKind.MapDisplay => Process with { MapDisplay = command.Value },

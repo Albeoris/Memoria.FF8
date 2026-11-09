@@ -6,6 +6,21 @@ namespace Memoria.FF8.Tests;
 public sealed class Ff7DialogueButtonTests
 {
     [Theory]
+    [InlineData(0xF6, "N4")]
+    [InlineData(0xF9, "N5")]
+    public void ConfiguredMarkedBindingsUseTheSharedPromptParser(byte code, string expected)
+    {
+        KeyboardInput input = new() { Profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Confirm, ControlDevice.Keyboard, new([Microsoft.Xna.Framework.Input.Keys.NumPad4], []), replaceConflicts: true).WithBinding(ControlAction.Cancel, ControlDevice.Keyboard, new([Microsoft.Xna.Framework.Input.Keys.NumPad5], []), replaceConflicts: true) };
+        input.Read(default, true);
+        string binding = Ff7DialogueButtons.Label(code, buttons => input.NativeButtonBindingPrompt(Ff7ControlButtons.ToShared(buttons)));
+        Assert.True(ButtonPromptText.Contains(binding));
+        DialogueRun run = Assert.Single(ButtonPromptText.BindingRuns(binding, Color.Yellow));
+        Assert.True(run.IsButton);
+        Assert.Equal(expected, run.Text);
+        Assert.Equal(Color.Yellow, run.Color);
+    }
+
+    [Theory]
     [InlineData(0xF6, 0x20)]
     [InlineData(0xF7, 0x10)]
     [InlineData(0xF8, 0x80)]

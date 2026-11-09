@@ -37,6 +37,8 @@ internal sealed partial class Ff7Scene
         }
         RestorePendingSounds();
         Ff7FieldProcess state = session.Host.Process;
+        int soundVolume = dialoguePreferences?.Invoke().SoundVolume ?? 100;
+        soundChannels.RefreshGains(state.SoundChannelVolumes, volume => NativeGain(volume, soundVolume));
         soundChannels.SetTempo(sharedClock.EffectiveSpeed(state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, false));
         int track = state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
         track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
@@ -114,8 +116,16 @@ internal sealed partial class Ff7Scene
         }
         switch (command.Operation)
         {
+            case 0xA0:
+            case 0xA1:
+                int gainChannel = command.Operation - 0xA0 + 1;
+                int nativeVolume = Session!.Host.Process.SoundChannelVolumes[gainChannel - 1];
+                soundChannels.SetGain(gainChannel, NativeGain(nativeVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), nativeVolume);
+                return;
             case 0xF0:
             case 0xC0:
+            case 0xC1:
+            case 0xC2:
                 return;
             // The admitted PC sound dispatcher treats the CD-volume operations as no-ops.
             case 0xC8:
@@ -144,7 +154,8 @@ internal sealed partial class Ff7Scene
                 }
                 int pan = command.Parameter0;
                 audioNative ??= Ff7PcExecutableData.Load(installation);
-                soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: command.Operation == 0x29 ? 2 : 1, stopStream: command.Operation != 0x29);
+                int channel = command.Operation == 0x29 ? 2 : 1;
+                soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(Session!.Host.Process.SoundChannelVolumes[channel - 1], dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: channel, stopStream: command.Operation != 0x29, nativeVolume: Session.Host.Process.SoundChannelVolumes[channel - 1]);
                 soundChannels.Pause(audioPaused);
                 return;
             default:

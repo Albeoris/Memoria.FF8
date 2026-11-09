@@ -153,14 +153,7 @@ internal static partial class DialogueTextFormatter
                     if (buttons != 0)
                     {
                         string binding = ExpandSourceToken(sourceToken, (buttonBindingHint ?? DefaultButtonBindingHint)(buttons));
-                        if (ButtonPromptText.Contains(binding))
-                        {
-                            runs.AddRange(ButtonPromptText.Runs(binding).Select(run => run with { Color = color, Blink = blink }));
-                        }
-                        else
-                        {
-                            runs.Add(new DialogueRun(binding, color, blink, IsButton: true));
-                        }
+                        runs.AddRange(ButtonPromptText.BindingRuns(binding, color, blink));
                     }
                     else
                     {

@@ -31,9 +31,9 @@ internal sealed class Ff7SoundChannels : IDisposable
         return (Convert(sample.LoopStartPcmByte), Convert(sample.LoopEndPcmByte));
     }
 
-    public void Play(PcmAudioOutput output, byte[] pcm, int rate, int channels, bool stream, int pan, int gain, int sampleIndex = -1, bool loop = false, int loopStart = 0, int loopEnd = 0, string fingerprint = "", int channel = 1, Ff7SoundVoicePosition? resume = null, bool stopStream = true)
+    public void Play(PcmAudioOutput output, byte[] pcm, int rate, int channels, bool stream, int pan, int gain, int sampleIndex = -1, bool loop = false, int loopStart = 0, int loopEnd = 0, string fingerprint = "", int channel = 1, Ff7SoundVoicePosition? resume = null, bool stopStream = true, int nativeVolume = 127)
     {
-        if (channels is not (1 or 2) || rate <= 0 || channel is < 1 or > 5)
+        if (channels is not (1 or 2) || rate <= 0 || channel is < 1 or > 5 || nativeVolume is < 0 or > 127)
         {
             throw new InvalidDataException("FFVII sound requires a supported PCM format and native channel.");
         }
@@ -60,7 +60,7 @@ internal sealed class Ff7SoundChannels : IDisposable
             return;
         }
         Stop(owner);
-        Voice voice = new(output, pcm, rate, channels, pan, gain, sampleIndex, loop, loopStart, loopEnd, fingerprint, resume);
+        Voice voice = new(output, pcm, rate, channels, pan, gain, sampleIndex, loop, loopStart, loopEnd, fingerprint, resume, nativeVolume);
         voice.SetTempo(tempo);
         voices.Add(owner, voice);
     }
@@ -78,7 +78,7 @@ internal sealed class Ff7SoundChannels : IDisposable
         {
             return false;
         }
-        Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved);
+        Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved, nativeVolume: saved.NativeVolume);
         return true;
     }
 
@@ -129,6 +129,37 @@ internal sealed class Ff7SoundChannels : IDisposable
         Stop(0);
     }
 
+    public void SetGain(int channel, int gain, int? nativeVolume = null)
+    {
+        if (channel is < 1 or > 5 || nativeVolume is < 0 or > 127)
+        {
+            throw new ArgumentOutOfRangeException(nameof(channel));
+        }
+        if (voices.TryGetValue(channel, out Voice? voice))
+        {
+            voice.SetGain(gain, nativeVolume ?? voice.NativeVolume);
+        }
+        if (channel == 1 && voices.TryGetValue(0, out Voice? stream))
+        {
+            stream.SetGain(gain, nativeVolume ?? stream.NativeVolume);
+        }
+    }
+
+    public void RefreshGains(IReadOnlyList<int> residentVolumes, Func<int, int> outputGain)
+    {
+        ArgumentNullException.ThrowIfNull(residentVolumes);
+        ArgumentNullException.ThrowIfNull(outputGain);
+        if (residentVolumes.Count != 5 || residentVolumes.Any(volume => volume is < 0 or > 127))
+        {
+            throw new InvalidDataException("FFVII live gain requires its five native channel intensities.");
+        }
+        foreach (var pair in voices)
+        {
+            int volume = pair.Key == 0 ? pair.Value.NativeVolume : residentVolumes[pair.Key - 1];
+            pair.Value.SetGain(outputGain(volume), volume);
+        }
+    }
+
     public void StopAll()
     {
         foreach (int channel in voices.Keys.ToArray())
@@ -161,10 +192,11 @@ internal sealed class Ff7SoundChannels : IDisposable
         private readonly int end;
         private readonly string fingerprint;
         public int Sample { get; }
+        public int NativeVolume { get; private set; }
         public bool Loop { get; }
         public bool IsPlaying => primary.IsPlaying || repeat?.IsPlaying == true;
 
-        public Voice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int pan, int gain, int sample, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition? resume)
+        public Voice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int pan, int gain, int sample, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition? resume, int nativeVolume)
         {
             this.rate = rate;
             this.channels = channels;
@@ -172,6 +204,7 @@ internal sealed class Ff7SoundChannels : IDisposable
             this.end = loop ? end : pcm.Length;
             this.fingerprint = fingerprint;
             Sample = sample;
+            NativeVolume = nativeVolume;
             Loop = loop;
             int alignment = channels * sizeof(short);
             int position = checked((int)(resume?.PositionFrames ?? 0) * alignment);
@@ -220,7 +253,7 @@ internal sealed class Ff7SoundChannels : IDisposable
                 }
                 bytes = start + (bytes - start) % (end - start);
             }
-            return new(owner, Sample, fingerprint, rate, channels, bytes / alignment, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue);
+            return new(owner, Sample, fingerprint, rate, channels, bytes / alignment, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue, NativeVolume);
         }
 
         public void Update(double? elapsed)
@@ -261,6 +294,13 @@ internal sealed class Ff7SoundChannels : IDisposable
             {
                 primary.Tempo(speed);
             }
+        }
+
+        public void SetGain(int gain, int nativeVolume)
+        {
+            NativeVolume = nativeVolume;
+            primary.Volume(gain);
+            repeat?.Volume(gain);
         }
 
         public void Dispose()

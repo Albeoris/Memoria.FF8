@@ -104,6 +104,11 @@ internal static class ButtonPromptText
         }
     }
 
+    internal static IEnumerable<DialogueRun> BindingRuns(string value, Color color, bool blink = false)
+    {
+        return Contains(value) ? Runs(value).Select(run => run with { Color = color, Blink = blink }) : [new DialogueRun(value, color, blink, IsButton: true)];
+    }
+
     internal static DialogueVisualLine[] Lines(string value, float size, float width, string? family, Func<string, float>? measure = null, float? lineHeight = null)
     {
         using SystemTextMeasurer? measurer = measure is null || lineHeight is null ? SystemTextLayout.CreateMeasurer(size, family) : null;

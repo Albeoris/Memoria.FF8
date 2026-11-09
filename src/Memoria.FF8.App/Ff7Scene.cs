@@ -14,7 +14,10 @@ using Vector2N = System.Numerics.Vector2;
 
 namespace Memoria.FF8;
 
-internal sealed record Ff7MovieSource(string Path, MovieInformation Information, int NativeFrameCount, double LogicalFramesPerSecond, Func<int, PcMovieCamera?>? CameraAtFrame = null, Action<int>? PublishCameraFrame = null);
+internal sealed record Ff7MovieSource(string Path, MovieInformation Information, int NativeFrameCount, double LogicalFramesPerSecond, Func<int, PcMovieCamera?>? CameraAtFrame = null, Action<int, long>? PublishCameraFrame = null)
+{
+    public int CameraRecordCount { get; init; }
+}
 
 internal sealed partial class Ff7Scene : IDisposable
 {
@@ -191,6 +194,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 RememberReportCheckpoint();
                 UpdateAudio();
             }
+            PublishCurrentMovieCameraFrame();
         }
         catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
         {
@@ -284,7 +288,7 @@ internal sealed partial class Ff7Scene : IDisposable
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState is { UsesFieldColor: true } fade ? fade.FieldColorArgb : null };
+        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 

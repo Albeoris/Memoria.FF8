@@ -60,7 +60,8 @@ public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, in
 public sealed record Ff7LadderProcess(long RequestId, int TargetX, int TargetY, int TargetZ, int TargetTriangle, byte Mode, int StartX = 0, int StartY = 0, int StartZ = 0, int Steps = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7OffsetProcess(int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, int Mode, int Steps, int Step = 0, bool Completed = false);
 public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false);
-public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false);
+public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false, Ff7MovieCameraConsumption? CameraConsumption = null);
+public sealed record Ff7MovieCameraConsumption(int Frame, long WordsBeforeRead, long WordsAfterRead);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
 public sealed record Ff7CameraScroll(int Mode, int StartX, int StartY, int TargetX, int TargetY, int Steps, int Step = 0, bool Completed = false);
 public sealed record Ff7CameraViewOffset(byte Mode, byte Steps, short Start, short Target, byte Step = 0);
@@ -70,6 +71,7 @@ public sealed record Ff7JoinFollower(int Entity, int Stage = 0, int PreviousSpee
 
 public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int TargetY, bool Turn, bool Animated);
 public sealed record Ff7AnimationRequest(long RequestId, int Entity);
+public sealed record Ff7MusicVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, int SubmillisecondTicks = 0);
 public enum Ff7GlobalCommand
 {
     None,
@@ -109,6 +111,8 @@ public sealed record Ff7FieldProcess
     public int? NativeMusicTrack { get; init; }
     public int? SavedNativeMusicTrack { get; init; }
     public int MusicVolume { get; init; } = 127;
+    public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
+    public int[] SoundChannelVolumes { get; init; } = [127, 127, 127, 127, 127];
     public int SavedMusicTrack { get; init; } = -1;
     public int NextFieldMusicTrack { get; init; } = -1;
     public int NextBattleMusicTrack { get; init; } = -1;
@@ -143,6 +147,14 @@ public sealed record Ff7FieldProcess
     public void Validate()
     {
         FadeState?.Validate();
+        if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
+        {
+            throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");
+        }
+        if (MusicVolumeFade is { } musicFade && (musicFade.Target is < 0 or > 127 || musicFade.RatePerSecond is < -7620 or > 7620 || musicFade.SubmillisecondTicks is < 0 or >= (int)TimeSpan.TicksPerMillisecond))
+        {
+            throw new InvalidDataException("FFVII music volume fade continuation is corrupt.");
+        }
         if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
         {
             throw new InvalidDataException("FFVII music continuation has invalid native track, clock or volume state.");
@@ -182,6 +194,10 @@ public sealed record Ff7FieldProcess
         if (Dialogues.Any(dialogue => dialogue is null || dialogue.RequestId < 1 || dialogue.Text < 0 || Windows.All(window => window.Id != dialogue.Window)) || Movie is { Frame: < 0 })
         {
             throw new InvalidDataException("FFVII field dialogue or movie continuation is invalid.");
+        }
+        if (Movie?.CameraConsumption is Ff7MovieCameraConsumption consumption && (consumption.Frame < -1 || consumption.WordsBeforeRead < 0 || consumption.WordsAfterRead < consumption.WordsBeforeRead || consumption.WordsAfterRead - consumption.WordsBeforeRead is not (0 or 10)))
+        {
+            throw new InvalidDataException("FFVII movie camera consumption is invalid.");
         }
     }
 }

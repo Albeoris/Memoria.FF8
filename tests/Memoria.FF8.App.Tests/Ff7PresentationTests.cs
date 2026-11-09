@@ -32,16 +32,16 @@ public sealed class Ff7PresentationTests
         PcMovieCamera first = new(new PcFieldCamera(new Vector3(4096, 0, 0), new Vector3(0, 4096, 0), new Vector3(0, 0, 4096), 0, new Vector3(1, 2, 3), 0, 386), 1);
         PcMovieCamera second = first with { Flags = 2 };
         Ff7MovieCameraTrack track = new(new[] { first, second });
-        track.Publish(0);
+        track.Publish(0, 0);
         Assert.Same(first, track.CameraAt(0));
-        track.Publish(0);
+        track.Publish(0, 0);
         Assert.Same(first, track.CameraAt(0));
-        track.Publish(1);
+        track.Publish(1, 10);
         Assert.Same(second, track.CameraAt(1));
-        track.Publish(2);
+        track.Publish(2, 20);
         Assert.Equal(Vector3.Zero, track.CameraAt(2).Camera.AxisZ);
         Assert.Equal(0, track.CameraAt(2).Camera.FocalLength);
-        Assert.Throws<InvalidDataException>(() => track.Publish(1));
+        Assert.Throws<InvalidDataException>(() => track.Publish(1, 10));
     }
 
     [Fact]
@@ -49,10 +49,23 @@ public sealed class Ff7PresentationTests
     {
         PcMovieCamera original = new(new PcFieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, 0, default, 0, 386), 0);
         Ff7MovieCameraTrack track = new(Enumerable.Repeat(original, 1792).ToArray());
-        track.Publish(1791);
+        track.Publish(1791, 17910);
         Assert.Same(original, track.CameraAt(1791));
-        track.Publish(1792);
+        track.Publish(1792, 17920);
         Assert.Equal(Vector3.Zero, track.CameraAt(1792).Camera.AxisZ);
+    }
+
+    [Fact]
+    public void NativeMovieCameraUsesAbsoluteFrameWithItsIndependentRestoredReadBudget()
+    {
+        PcMovieCamera original = new(new PcFieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, 0, default, 0, 386), 0);
+        PcMovieCamera[] cameras = Enumerable.Range(0, 10).Select(index => original with { Flags = (ushort)index }).ToArray();
+        Ff7MovieCameraTrack track = new(cameras);
+        track.Publish(7, 10);
+        Assert.Same(cameras[7], track.CameraAt(7));
+        track.Publish(8, 20);
+        Assert.Same(cameras[8], track.CameraAt(8));
+        Assert.Throws<InvalidDataException>(() => track.Publish(9, -10));
     }
 
     [Fact]

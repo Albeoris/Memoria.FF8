@@ -8,6 +8,37 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7FieldRendererTests
 {
+    [Theory]
+    [InlineData(320, 240)]
+    [InlineData(960, 720)]
+    public void NativeBlackFadeUsesTheSharedAlphaQuadAfterFieldGeometry(int width, int height)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original field fade submission.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), "md1stin");
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(1, 10000));
+        Ff7FieldRenderFrame frame = new(0, Vector2.Zero, [], new ushort[256]);
+        Capture baseline = new();
+        renderer.Render(baseline, width, height, frame);
+        Capture faded = new();
+        renderer.Render(faded, width, height, frame with { QuadColorArgb = 0x80000000 });
+        Assert.Equal(baseline.Count + 2, faded.Count);
+        Assert.Equal(baseline.Colors, faded.Colors.Take(baseline.Colors.Count));
+        Assert.All(faded.Colors.TakeLast(6), color => Assert.Equal(new Vector4(0, 0, 0, 128 / 255f), color));
+        Assert.All(faded.Materials.TakeLast(2), material =>
+        {
+            Assert.Equal(TriangleBlend.Alpha, material.Blend);
+            Assert.Equal(TriangleDepthComparison.Always, material.DepthComparison);
+            Assert.False(material.DepthWrite);
+            Assert.Null(material.Texture);
+        });
+        Assert.Contains(new Vector2(0, height * 8f / 240), faded.Positions.TakeLast(6));
+        Assert.Contains(new Vector2(width, height * 232f / 240), faded.Positions.TakeLast(6));
+        Capture clear = new();
+        renderer.Render(clear, width, height, frame with { QuadColorArgb = 0 });
+        Assert.Equal(baseline.Count, clear.Count);
+    }
+
     [Fact]
     public void ActorFailureClosesTheSharedFrameBeforeHostErrorPresentation()
     {
@@ -232,6 +263,8 @@ public sealed class Ff7FieldRendererTests
         public List<bool> PreservesAlpha { get; } = [];
         public List<Vector4> Colors { get; } = [];
         public List<Vector4?> Clips { get; } = [];
+        public List<TriangleMaterial> Materials { get; } = [];
+        public List<Vector2> Positions { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -242,6 +275,8 @@ public sealed class Ff7FieldRendererTests
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Colors.AddRange([a.Color, b.Color, c.Color]);
+            Materials.Add(material);
+            Positions.AddRange([a.Position, b.Position, c.Position]);
             Clips.Add(material.ClipRectangle);
             Count++;
             PreservesAlpha.Add(material.PreserveTargetAlpha);

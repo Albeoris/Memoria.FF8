@@ -120,7 +120,7 @@ internal sealed partial class Ff7Scene
                     runs.Clear();
                     break;
                 case FieldTextTokenKind.ControllerButton:
-                    runs.Add(new DialogueRun(ButtonLabel(token), color, IsButton: true));
+                    runs.AddRange(ButtonPromptText.BindingRuns(ButtonLabel(token), color));
                     break;
                 case FieldTextTokenKind.CharacterName:
                     Add(Session!.Progress.Characters[token.Argument].Name);

@@ -42,8 +42,8 @@ internal sealed partial class Ff7Scene
             {
                 break;
             }
-            source.PublishCameraFrame?.Invoke(frame);
             Session.Host.PublishMovieFrame(frame, false);
+            PublishMovieCameraFrame(Session.Host, source, frame);
             for (int tick = 0; tick < 2; tick++)
             {
                 Session.AdvanceTick(advanceClock: false);
@@ -94,7 +94,7 @@ internal sealed partial class Ff7Scene
             _ => throw new InvalidDataException($"FFVII movie '{name}' has ambiguous original camera members.")
         };
         Ff7MovieCameraTrack? cameraTrack = cameras is null ? null : new Ff7MovieCameraTrack(cameras);
-        return new Ff7MovieSource(path, information, information.FrameCount, 15, frame => cameraTrack?.CameraAt(frame), frame => cameraTrack?.Publish(frame));
+        return new Ff7MovieSource(path, information, information.FrameCount, 15, frame => cameraTrack?.CameraAt(frame), (frame, words) => cameraTrack?.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0 };
     }
 
     private void UpdateMovie()
@@ -118,15 +118,15 @@ internal sealed partial class Ff7Scene
             }
             movieSource = source;
             movieId = state.PreparedId;
-            source.PublishCameraFrame?.Invoke(state.Frame);
+            PublishMovieCameraFrame(Session!.Host, source, state.Frame);
             double startSeconds = state.Frame / source.LogicalFramesPerSecond;
             MovieInformation native = new(source.Information.Width, source.Information.Height, source.LogicalFramesPerSecond, source.NativeFrameCount / source.LogicalFramesPerSecond, source.NativeFrameCount);
             movie = new MoviePresentation(device, mediaToolsDirectory, source.Path, startSeconds, source.Information, audioEnabled: audioEnabled, nativeInformation: native);
         }
         movie.Update((playback, _) =>
         {
-            movieSource!.PublishCameraFrame?.Invoke(playback.FrameIndex);
             Session!.Host.PublishMovieFrame(playback.FrameIndex, false);
+            PublishMovieCameraFrame(Session.Host, movieSource!, playback.FrameIndex);
             return true;
         });
         if (movie.Error is string movieError)
@@ -140,14 +140,35 @@ internal sealed partial class Ff7Scene
         }
     }
 
+    private void PublishCurrentMovieCameraFrame()
+    {
+        if (error is null && Session?.Host.Process.Movie is { Playing: true } state && movieSource is not null && movieId == state.PreparedId)
+        {
+            PublishMovieCameraFrame(Session.Host, movieSource, state.Frame);
+        }
+    }
+
+    internal static void PublishMovieCameraFrame(Ff7FieldHost host, Ff7MovieSource source, int frame)
+    {
+        if (host.PublishMovieCameraFrame(frame, source.CameraRecordCount) is long words)
+        {
+            source.PublishCameraFrame?.Invoke(frame, words);
+        }
+    }
+
     private PcFieldCamera? CurrentMovieCamera()
     {
-        Ff7Movie? state = Session?.Host.Process.Movie;
-        if (state is not { Playing: true } || state.CameraDisabled || Session!.Host.Process.MovieCameraDisabled)
+        return Session is null ? null : ResolveMovieCamera(Session.Host, movieSource);
+    }
+
+    internal static PcFieldCamera? ResolveMovieCamera(Ff7FieldHost host, Ff7MovieSource? source)
+    {
+        Ff7Movie? state = host.Process.Movie;
+        if (state is not { Playing: true } || state.CameraDisabled || host.Process.MovieCameraDisabled)
         {
             return null;
         }
-        return movieSource?.CameraAtFrame?.Invoke(state.Frame)?.Camera;
+        return source?.CameraAtFrame?.Invoke(state.Frame)?.Camera;
     }
 
     private void DrawMovie(SpriteBatch batch, Rectangle bounds)
@@ -173,19 +194,18 @@ internal sealed class Ff7MovieCameraTrack(IReadOnlyList<PcMovieCamera> cameras)
     private int publishedFrame = -1;
     private long consumedWords;
 
-    public void Publish(int frame)
+    public void Publish(int frame, long wordsBeforeRead)
     {
-        if (frame < 0 || frame < publishedFrame)
+        if (frame < 0 || frame < publishedFrame || wordsBeforeRead < 0 || wordsBeforeRead % 10 != 0)
         {
             throw new InvalidDataException("FFVII movie camera timeline must advance monotonically.");
         }
-        if (frame == publishedFrame)
+        if (frame == publishedFrame && wordsBeforeRead == consumedWords)
         {
             return;
         }
-        // Each distinct logical movie frame consumes the original ten-DWORD camera record.
-        // Recovering at a saved frame restores its preceding consumption without replaying scripts.
-        consumedWords = checked((long)frame * 10);
+        // Native camera ownership supplies the saved read budget independently of the absolute movie frame.
+        consumedWords = wordsBeforeRead;
         publishedFrame = frame;
     }
 

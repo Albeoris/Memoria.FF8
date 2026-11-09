@@ -29,6 +29,10 @@ internal sealed partial class Ff7Scene
         {
             dialogueText!.DrawLine(batch, value[index].ToString(CultureInfo.InvariantCulture), size, origin + new Vector2(offsets[index] * scale, 0), Color.White, preferences.UiFontFamily);
         }
+        if (Session.Host.Process.FadeState?.QuadColorArgb is uint quad && (quad >> 24) != 0)
+        {
+            batch.Draw(pixel, origin, null, new Color(0, 0, 0, (int)(quad >> 24)), 0, Vector2.Zero, new Vector2(72, 21) * scale, SpriteEffects.None, 0);
+        }
         return true;
     }
 }

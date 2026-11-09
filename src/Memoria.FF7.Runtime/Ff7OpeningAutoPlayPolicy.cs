@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -42,9 +43,16 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "md1stin":
                 return driver.Gateway(117);
             case "md1_1":
+            case "md8_4":
                 return default;
             case "md1_2":
                 return driver.Gateway(119);
+            case "md8_1":
+                return driver.Gateway(134);
+            case "md8_2":
+                return driver.Gateway(135);
+            case "md8_3":
+                return driver.Gateway(137);
             case "nrthmk":
                 return driver.Gateway(EscapingFirstReactor ? 136 : 120);
             case "nmkin_1":
@@ -89,12 +97,8 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(121);
             case "elevtr1":
-                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled || EscapingFirstReactor && stage == 0)
+                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled || EscapingFirstReactor && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE1) & 1) == 0)
                 {
-                    if (x > 70 && y > 20 && ConfirmPulse != 0)
-                    {
-                        stage = 1;
-                    }
                     return driver.Approach(new(99, 51, 5), 8) with { Held = ConfirmPulse };
                 }
                 return driver.Approach(new(-250, 0, 5), 0);

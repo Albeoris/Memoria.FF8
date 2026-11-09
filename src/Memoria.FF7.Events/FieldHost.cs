@@ -22,6 +22,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldActorBind), "bind")]
 [JsonDerivedType(typeof(FieldActorPlacement), "place")]
 [JsonDerivedType(typeof(FieldActorMove), "move")]
+[JsonDerivedType(typeof(FieldPartyRecovery), "partyRecovery")]
 [JsonDerivedType(typeof(FieldAnimation), "animation")]
 [JsonDerivedType(typeof(FieldActorProperty), "actor-property")]
 [JsonDerivedType(typeof(FieldWindowCommand), "window")]
@@ -69,6 +70,7 @@ public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
 public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
 public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true) : FieldCommand;
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
+public sealed record FieldPartyRecovery : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind
 {
@@ -213,7 +215,7 @@ public sealed record FieldPartySplit(byte Duration, int Leader, int Follower1, i
 
 public sealed record FieldByteOperand(FieldBank Bank, byte Value);
 
-public sealed record FieldActorFace(int TargetEntity, byte Steps, byte DirectionPolicy) : FieldCommand;
+public sealed record FieldActorFace(int TargetEntity, byte Steps, byte DirectionPolicy, bool Immediate = false) : FieldCommand;
 
 public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle, byte Mode, byte Animation, byte Direction, byte AnimationDivisor) : FieldCommand;
 

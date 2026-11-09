@@ -283,6 +283,76 @@ public sealed class Ff7SoundChannelsTests
         AssertFrame(mixer, 600);
     }
 
+    [Fact]
+    public void ChannelTwoGainChangesBothIntroAndRepeatWithoutChangingMusicOrOtherOwners()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using PcmAudioOutput.Buffer music = output.Create(Tone(1000), 44100, 1);
+        music.Play(true);
+        using Ff7SoundChannels sounds = new();
+        sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 61, true, 0, 64);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 60, true, 8, 64, channel: 2, stopStream: false);
+        AssertFrame(mixer, 1900);
+        sounds.SetGain(2, -10000);
+        AssertFrame(mixer, 1600);
+        sounds.RetireFinished(false, 1);
+        AssertFrame(mixer, 1600);
+        sounds.SetGain(2, 0);
+        AssertFrame(mixer, 1900);
+    }
+
+    [Fact]
+    public void LiveUiMuteAndRestoreKeepNativeResidentAndStreamIntensities()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using Ff7SoundChannels sounds = new();
+        string hash = new('0', 64);
+        sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 10, true, 0, 64, hash);
+        sounds.Play(output, Tone(200), 44100, 1, true, 0, 0, 12, fingerprint: hash, nativeVolume: 80);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 11, true, 0, 64, hash, channel: 2, stopStream: false, nativeVolume: 64);
+        int[] native = [127, 64, 127, 127, 127];
+        sounds.RefreshGains(native, _ => -10000);
+        AssertFrame(mixer, 0);
+        Ff7SoundVoicePosition[] muted = sounds.Capture(0);
+        Assert.Equal(80, muted.Single(voice => voice.Channel == 0).NativeVolume);
+        Assert.Equal(64, muted.Single(voice => voice.Channel == 2).NativeVolume);
+        native[1] = 0;
+        sounds.RefreshGains(native, volume => volume == 0 ? -10000 : 0);
+        AssertFrame(mixer, 800);
+        Ff7SoundVoicePosition[] saved = JsonSerializer.Deserialize<Ff7SoundVoicePosition[]>(JsonSerializer.Serialize(sounds.Capture(0)))!;
+        string legacy = JsonSerializer.Serialize(saved.Single(voice => voice.Channel == 0)).Replace(",\"NativeVolume\":80", "", StringComparison.Ordinal);
+        Assert.Equal(127, JsonSerializer.Deserialize<Ff7SoundVoicePosition>(legacy)!.NativeVolume);
+        sounds.StopAll();
+        foreach (Ff7SoundVoicePosition voice in saved)
+        {
+            short sample = voice.Channel == 0 ? (short)200 : voice.Channel == 1 ? (short)600 : (short)300;
+            Assert.True(sounds.RestoreVoice(output, Tone(sample), 44100, 1, voice.SoundId, voice.Channel == 0, voice.Loop, 0, voice.Loop ? 64 : 0, hash, voice));
+        }
+        sounds.RefreshGains(native, volume => volume == 0 ? -10000 : 0);
+        AssertFrame(mixer, 800);
+        Assert.Equal(80, sounds.Capture(0).Single(voice => voice.Channel == 0).NativeVolume);
+    }
+
+    [Fact]
+    public void ChannelOneGainAlsoControlsTheGlobalStreamWithoutChangingChannelTwoOrMusic()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using PcmAudioOutput.Buffer music = output.Create(Tone(1000), 44100, 1);
+        music.Play(true);
+        using Ff7SoundChannels sounds = new();
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 1, true, 0, 64);
+        sounds.Play(output, Tone(200), 44100, 1, true, 0, 0, 2);
+        sounds.Play(output, Tone(500), 44100, 1, false, 0, 0, 3, true, 0, 64, channel: 2, stopStream: false);
+        AssertFrame(mixer, 2000);
+        sounds.SetGain(1, -10000, 0);
+        AssertFrame(mixer, 1500);
+        sounds.SetGain(1, 0, 127);
+        AssertFrame(mixer, 2000);
+    }
+
     private static byte[] Sequence(params short[] samples)
     {
         byte[] bytes = new byte[samples.Length * sizeof(short)];
