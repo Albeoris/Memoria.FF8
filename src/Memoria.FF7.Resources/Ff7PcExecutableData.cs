@@ -9,9 +9,10 @@ public sealed partial class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable, Ff7PcFieldPresentationData presentation)
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable, Ff7PcFieldPresentationData presentation, byte[] fieldEntryFadeAlpha)
     {
         NativePresentation = presentation;
+        NativeFieldEntryFadeAlpha = Array.AsReadOnly(fieldEntryFadeAlpha);
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
         NativeArcAngles = Array.AsReadOnly(angles.Select(angle => checked((byte)angle)).ToArray());
@@ -27,6 +28,7 @@ public sealed partial class Ff7PcExecutableData
     }
 
     public Ff7PcFieldPresentationData NativePresentation { get; }
+    public IReadOnlyList<byte> NativeFieldEntryFadeAlpha { get; }
     public IReadOnlyList<short> NativeSinCos { get; }
     public IReadOnlyList<ushort> NativeArcAngleWords { get; }
     public IReadOnlyList<byte> NativeArcAngles { get; }
@@ -180,7 +182,12 @@ public sealed partial class Ff7PcExecutableData
         {
             materiaStatModifiers[index] = BinaryPrimitives.ReadInt16LittleEndian(nativeStatModifiers.AsSpan(index * 2));
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe));
+        byte[] fieldEntryFadeAlpha = ReadVirtual(stream, pe, 0x906A78, 257);
+        if (fieldEntryFadeAlpha[0] != 0 || fieldEntryFadeAlpha[256] != 255 || fieldEntryFadeAlpha.Zip(fieldEntryFadeAlpha.Skip(1)).Any(pair => pair.First > pair.Second))
+        {
+            throw new InvalidDataException("FF7 native field-entry fade alpha table has invalid endpoints or ordering.");
+        }
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha);
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

@@ -52,6 +52,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
     public Ff7NativeMovement? Movement { get; set; }
+    public IReadOnlyList<byte>? NativeFieldEntryFadeAlpha { get; set; }
     public Ff7NativeCamera? CameraProjection { get; set; }
     public IReadOnlyList<byte>? CameraShakeRandomTable { get; set; }
     public Func<int, IReadOnlyList<int>>? ModelPartVertexCounts { get; set; }
@@ -238,7 +239,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 {
                     return new(Process.FadeState?.Completed ?? (Process.Fade is null || Process.Fade.Type is 0 or 4));
                 }
-                Ff7FadeProcess nextFade = Ff7NativeFade.Start(fade, Process.FadeState, fieldId);
+                Ff7FadeProcess nextFade = Ff7NativeFade.Start(fade, Process.FadeState, fieldId, Process.NewFadeOrigin);
                 Process = Process with { Fade = fade, FadeState = nextFade };
                 return new(true);
             default:
@@ -293,7 +294,9 @@ public sealed partial class Ff7FieldHost : IFieldHost
         AdvanceJoinedMovement();
         if (Process.FadeState is Ff7FadeProcess fadeState)
         {
-            Process = Process with { FadeState = Ff7NativeFade.Advance(fadeState, Process.Movie is { Playing: true }) };
+            Ff7FadeProcess next = Ff7NativeFade.Advance(fadeState, Process.Movie is { Playing: true }, Process.NewFadeOrigin, NativeFieldEntryFadeAlpha);
+            Ff7FadeColorOrigin? origin = fadeState.Type == 0 ? new(0, 0, 0) : next.Type == 12 && next.Completed ? new(next.Red, next.Green, next.Blue) : Process.NewFadeOrigin;
+            Process = Process with { FadeState = next, NewFadeOrigin = origin };
         }
         AdvanceBlink();
         Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };

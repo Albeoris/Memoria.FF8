@@ -11,7 +11,9 @@ internal static class NativePreviousMapTests
         Ff7FieldHost boot = Host(Ff7FieldHost.CreateInitialFieldProcess(116));
         var initialField = new Ff7FieldResources("previous-map-fixture", null!, null!, null!, [], [], null!, null!, null!);
         var priorBootstrap = new Ff7FieldHost(initialField, (_, _) => 1);
-        Equal(JsonSerializer.Serialize(priorBootstrap.Capture()), JsonSerializer.Serialize(boot.Capture() with { PreviousMap = null }));
+        Equal(new Ff7FadeProcess(1, 256, 16, 0, 0, 0, false, EntryCurve: true), boot.Process.FadeState);
+        Equal<uint?>(null, boot.Process.FadeState!.QuadColorArgb);
+        Equal(JsonSerializer.Serialize(priorBootstrap.Capture()), JsonSerializer.Serialize(boot.Capture() with { PreviousMap = null, FadeState = priorBootstrap.Process.FadeState }));
         Equal((byte)0, boot.Process.BlinkRandomIndex);
         Equal(true, boot.Process.BlinkStateInitialized);
         Equal(new FieldHostReply(true, 116), boot.Execute(request));

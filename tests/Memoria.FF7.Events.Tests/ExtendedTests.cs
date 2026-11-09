@@ -3,6 +3,39 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void NewFadeOperandsAndContinuation()
+    {
+        foreach (short duration in new short[] { 300, -1, short.MinValue })
+        {
+            byte[] code = Code(0, 0x25, 0x56, 0x16, 12, 8, 10, 12, 14, 0xA7, 0x80, 0x50, 3, 99, 0x5F, 0x12, 0);
+            var host = new RecordingHost { Complete = false };
+            var vm = New(code, host);
+            vm.Initialize();
+            vm.Variables.WriteByte(FieldBank.MapByte, 8, 0xFA);
+            vm.Variables.WriteWord(FieldBank.MapWord, 10, unchecked((short)0xABDC));
+            vm.Variables.WriteByte(FieldBank.Persistent0Byte, 12, 0xFE);
+            vm.Variables.WriteWord(FieldBank.MapWord, 14, duration);
+            vm.AdvanceTick();
+            FieldVmSnapshot saved = vm.Capture();
+            FieldHostRequest pending = saved.PendingRequests!.Single();
+            Check(new FieldFadeCommand(12, 0xFA, 0xDC, 0xFE, duration, NewFade: true), pending.Command);
+            Check(17, saved.Entities[0].ProgramCounter);
+            var coldHost = new RecordingHost { Complete = true };
+            vm = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!, coldHost);
+            vm.AdvanceTick();
+            Check(pending.Id, coldHost.Requests.Single().Id);
+            Check((byte)99, vm.Variables.ReadByte(FieldBank.MapByte, 3));
+            Check(31, vm.Capture().Entities[0].ProgramCounter);
+            Check(duration, vm.Variables.ReadWord(FieldBank.MapWord, 14));
+        }
+        var immediateHost = new RecordingHost { Complete = true };
+        var immediate = New(Code(0, 0x25, 0, 0, 12, 0, 60, 60, 0xFF, 0xFF, 0x5F, 0x12, 0), immediateHost);
+        immediate.Initialize();
+        immediate.AdvanceTick();
+        Check(new FieldFadeCommand(12, 0, 60, 60, -1, NewFade: true), immediateHost.Requests.Single().Command);
+        Check(27, immediate.Capture().Entities[0].ProgramCounter);
+    }
+
     public static void PreviousMapOperandsAndContinuation()
     {
         foreach (var (packed, bank, word) in new[] { (0xF6, FieldBank.MapByte, true), (0x85, FieldBank.MapByte, false), (0xF2, FieldBank.Persistent0Byte, true), (0x81, FieldBank.Persistent0Byte, false) })

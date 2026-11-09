@@ -38,6 +38,7 @@ var tests = new (string Name, Action Run)[]
     ("native gil operands and cold continuation", ExtendedTests.GilOperandsAndContinuation),
     ("native all-character recovery and cold continuation", ExtendedTests.AllRecoveryContinuation),
     ("native previous-map destination and cold continuation", ExtendedTests.PreviousMapOperandsAndContinuation),
+    ("native new-fade signed duration and cold continuation", ExtendedTests.NewFadeOperandsAndContinuation),
     ("initialization first RET continuation", InitContinuation),
     ("WAIT zero yields", WaitZero),
     ("WAIT counter and continuation", WaitCount),

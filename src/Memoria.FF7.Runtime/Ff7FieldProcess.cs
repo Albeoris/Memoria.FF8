@@ -129,6 +129,7 @@ public sealed record Ff7FieldProcess
     public bool MovieCameraDisabled { get; init; }
     public FieldFadeCommand? Fade { get; init; }
     public Ff7FadeProcess? FadeState { get; init; }
+    public Ff7FadeColorOrigin? NewFadeOrigin { get; init; }
     public FieldMusicCommand? Music { get; init; }
     public byte MusicLock { get; init; }
     public long MusicTicks { get; init; }
@@ -179,6 +180,7 @@ public sealed record Ff7FieldProcess
         CameraShakeX?.Validate();
         CameraShakeY?.Validate();
         FadeState?.Validate();
+        NewFadeOrigin?.Validate();
         if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
         {
             throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");

@@ -57,6 +57,7 @@ internal static class NativeModelEffectTests
         Check(bright == 0x7FFFFFFF && dark == 0x7FC0C0C0 && ambient == 0x7F303030, "Native cached light modulation, original-color tint or alpha changed.");
         RunSinglePart(table);
         RunStep32(table);
+        RunFourPartDefault();
         RunInstalled();
     }
 
@@ -150,6 +151,38 @@ internal static class NativeModelEffectTests
         Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Step32 reset did not complete on its second processed update.");
     }
 
+    private static void RunFourPartDefault()
+    {
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(null, 0, [70, 78, 12, 16], 512, [72, 72, 8, 28]);
+        Check(state.Profile == Ff7NativeModelEffect.FourPartDefaultProfile, "The reached four-part topology did not select original defaults.");
+        Check(Ff7NativeModelEffect.Request(null, 0, [71, 79, 13, 17]).Profile == state.Profile, "A generic nonexception four-part topology did not retain native defaults.");
+        Check(Ff7NativeModelEffect.Request(null, 0, [70, 78, 12, 16], partPolygonCounts: [1, 2, 3, 4]).Profile == state.Profile, "The native four-part classifier incorrectly used polygon counts.");
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [35, 36, 12, 16]));
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [36, 36, 12, 16]));
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(Enumerable.Range(0, 4).All(part => !Ff7NativeModelEffect.PartVisible(state, part)), "Create did not hide every four-part default component.");
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Default Apply did not enable all four components.");
+        Ff7NativeModelEffectState reference = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(null, 0, [37]), true), true);
+        for (int update = 0; update < 320; update++)
+        {
+            bool eligible = update % 17 != 0;
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+            Ff7NativeModelEffectState expected = Ff7NativeModelEffect.Advance(state, eligible);
+            Check(expected == Ff7NativeModelEffect.Advance(cold, eligible), "Default four-part cold phase/sample diverged.");
+            state = expected;
+            reference = Ff7NativeModelEffect.Advance(reference, eligible);
+            Check(state.Phase == reference.Phase && state.Counter == reference.Counter && state.Stage == reference.Stage && state.SampleFrame == reference.SampleFrame, "Default four-part phase clock diverged from the same native default clock.");
+        }
+        short[] directions = new short[512];
+        directions[1] = 4096;
+        Check(Ff7NativeModelEffect.OrbitPoint(state, 0, directions) == new Vector3(256, 0, 0), "Default four-part orbit changed its native shift or offset.");
+        state = Ff7NativeModelEffect.Request(state, 2, [70, 78, 12, 16]);
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.Restored && Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Default four-part reset did not restore all original components.");
+        Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Default four-part reset did not complete on its second processed callback.");
+    }
+
     private static void RunInstalled()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -178,6 +211,10 @@ internal static class NativeModelEffectTests
         Ff7FieldModelResources materia = Ff7FieldModelResources.Load(characters, basement.Models.Models[8]);
         Check(materia.HrcName.Equals("DABF.hrc", StringComparison.OrdinalIgnoreCase) && materia.Geometry.Count == 1 && materia.Geometry[0].Polygon.Vertices.Count == 72 && materia.Geometry[0].Polygon.Polygons.Count == 140, "The reached native materia topology changed.");
         CheckInstalledPulse(materia, native, 400);
+        Ff7FieldResources tunnel = Ff7FieldResources.Load(installation, "sbwy4_6");
+        Ff7FieldModelResources save = Ff7FieldModelResources.Load(characters, tunnel.Models.Models[2]);
+        Check(save.HrcName.Equals("AVFE.hrc", StringComparison.OrdinalIgnoreCase) && save.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 70, 78, 12, 16 }) && save.Geometry.Select(part => part.Polygon.Polygons.Count).SequenceEqual(new[] { 72, 72, 8, 28 }), "The reached native four-part save icon topology changed.");
+        CheckInstalledPulse(save, native);
     }
 
     private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native, int nativeScale = 512)

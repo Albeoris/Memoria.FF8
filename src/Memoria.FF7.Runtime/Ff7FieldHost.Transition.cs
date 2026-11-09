@@ -4,8 +4,10 @@ public sealed partial class Ff7FieldHost
 {
     public static Ff7FieldProcess CreateInitialFieldProcess(ushort map)
     {
-        return new() { PreviousMap = map, BlinkStateInitialized = true };
+        return new() { PreviousMap = map, BlinkStateInitialized = true, NewFadeOrigin = new(0, 0, 0), FadeState = CreateEntryFade() };
     }
+
+    private static Ff7FadeProcess CreateEntryFade() => new(1, 256, 16, 0, 0, 0, false, EntryCurve: true);
 
     public Ff7FieldProcess CreateNextFieldProcess(ushort? previousMap = null)
     {
@@ -29,6 +31,8 @@ public sealed partial class Ff7FieldHost
             CameraShakeY = Ff7NativeCameraShake.ResetForField(Process.CameraShakeY ?? new()),
             PreloadedMap = Process.PreloadedMap,
             PreviousMap = previousMap,
+            NewFadeOrigin = Process.NewFadeOrigin,
+            FadeState = CreateEntryFade(),
             MusicLock = Process.MusicLock
         };
     }

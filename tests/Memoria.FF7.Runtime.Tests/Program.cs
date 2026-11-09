@@ -10,6 +10,8 @@ var tests = new (string Name, Action Run)[]
     ("world switch requires save permission and prepares before commit", SwitchGuard),
     ("world revisits resume each independent continuation", ResumeBothWorlds),
     ("native field color fade and cold continuation", NativeProcessTests.RunFade),
+    ("native new-fade endpoint and cold continuation", NativeNewFadeTests.Run),
+    ("native entry fade table and cold continuation", NativeEntryFadeTests.Run),
     ("native field item acquisition and cold continuation", NativeItemTests.Run),
     ("native gil acquisition and cold continuation", NativeGilTests.Run),
     ("native fixed animation move and cold continuation", NativeProcessTests.RunFixedAnimationMove),

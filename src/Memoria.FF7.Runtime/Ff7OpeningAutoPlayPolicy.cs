@@ -13,6 +13,8 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     private ushort ConfirmPulse => session.Host.Process.Tick % 16 == 0 ? (ushort)32 : (ushort)0;
 
+    private ushort ConfirmOnContact(Ff7Line line) => line.Push || line.Touch || line.OnLine ? ConfirmPulse : (ushort)0;
+
     public string Goal => "Reach the church through the original story sequence";
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
@@ -104,6 +106,62 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 Ff7Line reactorEntryLadder = session.Host.Process.Lines.Single(line => line.Entity == 3);
                 return driver.Approach(new((reactorEntryLadder.X1 + reactorEntryLadder.X2) / 2f, (reactorEntryLadder.Y1 + reactorEntryLadder.Y2) / 2f, reactorEntryLadder.Z1)) with { Held = ConfirmPulse };
+            case "smkin_2":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next second-reactor story handoff.");
+                }
+                if (z > 1700)
+                {
+                    Ff7Line reactorPipe = session.Host.Process.Lines.Single(line => line.Entity == 4);
+                    return driver.Approach(new((reactorPipe.X1 + reactorPipe.X2) / 2f, (reactorPipe.Y1 + reactorPipe.Y2) / 2f, reactorPipe.Z1));
+                }
+                return driver.Gateway(130);
+            case "smkin_3":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next second-reactor ladder handoff.");
+                }
+                if (z > 2000)
+                {
+                    Ff7Line upperRoute = session.Host.Process.Lines.Single(line => line.Entity == (x < 0 ? 2 : 4));
+                    return driver.Approach(new((upperRoute.X1 + upperRoute.X2) / 2f, (upperRoute.Y1 + upperRoute.Y2) / 2f, upperRoute.Z1)) with { Held = ConfirmOnContact(upperRoute) };
+                }
+                if (z > 1000)
+                {
+                    Ff7Line lowerRoute = session.Host.Process.Lines.Single(line => line.Entity == 6);
+                    return driver.Approach(new((lowerRoute.X1 + lowerRoute.X2) / 2f, (lowerRoute.Y1 + lowerRoute.Y2) / 2f, lowerRoute.Z1)) with { Held = ConfirmOnContact(lowerRoute) };
+                }
+                return driver.Gateway(131);
+            case "smkin_4":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next second-reactor save-area handoff.");
+                }
+                if (z > 0)
+                {
+                    Ff7Line saveAreaDescent = session.Host.Process.Lines.Single(line => line.Entity == 6);
+                    return driver.Approach(new((saveAreaDescent.X1 + saveAreaDescent.X2) / 2f, (saveAreaDescent.Y1 + saveAreaDescent.Y2) / 2f, saveAreaDescent.Z1));
+                }
+                return driver.Gateway(132);
+            case "smkin_5":
+                int coreStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+                if (coreStory == 123)
+                {
+                    int plantTriangle = session.Machine.Variables.ReadWord(FieldBank.MapWord, 7);
+                    if ((uint)plantTriangle >= session.Field.Walkmesh.Count)
+                    {
+                        throw new InvalidDataException("FFVII reactor plant trigger requires its original walkmesh triangle.");
+                    }
+                    var plantFace = session.Field.Walkmesh[plantTriangle];
+                    return driver.Approach((plantFace.A + plantFace.B + plantFace.C) / 3, plantTriangle);
+                }
+                if (coreStory != 117)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next second-reactor core handoff.");
+                }
+                Ff7Line coreEvent = session.Host.Process.Lines.Single(line => line.Entity == 6);
+                return driver.Approach(new((coreEvent.X1 + coreEvent.X2) / 2f, (coreEvent.Y1 + coreEvent.Y2) / 2f, coreEvent.Z1));
             case "tin_1":
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
                 {
