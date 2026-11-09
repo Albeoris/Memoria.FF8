@@ -197,10 +197,12 @@ internal sealed class CrossoverMappingMenu : IDisposable
                 continue;
             }
             Texture2D portrait = choosingAppearance ? appearancePortraits[id] : storyPortraits[id];
-            batch.Draw(portrait, Scale(FitPortrait(portrait, cell.X + 8, cell.Y + 8)), tint);
+            Rectangle portraitBounds = FitPortrait(portrait, Scale(new Rectangle(cell.X + 8, cell.Y + 8, 48, 48)));
+            batch.Draw(portrait, portraitBounds, tint);
             if (!choosingAppearance && id == 0 && mapped)
             {
-                batch.Draw(appearancePortraits[0], Scale(FitPortrait(appearancePortraits[0], cell.X + 30, cell.Y + 18)), Color.White * 0.9f);
+                Rectangle overlay = FitPortrait(appearancePortraits[0], new Rectangle(portraitBounds.X + portraitBounds.Width * 45 / 100, portraitBounds.Y + portraitBounds.Height / 5, portraitBounds.Width, portraitBounds.Height));
+                batch.Draw(appearancePortraits[0], overlay, Color.White * 0.9f);
             }
             Label(choosingAppearance ? AppearanceNames[id] : StoryNames[id], cell.X + 82, cell.Y + 20, tint);
         }
@@ -224,12 +226,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
         return result;
     }
 
-    private static Rectangle FitPortrait(Texture2D portrait, int x, int y)
+    private static Rectangle FitPortrait(Texture2D portrait, Rectangle bounds)
     {
-        float scale = Math.Min(48f / portrait.Width, 48f / portrait.Height);
-        int width = Math.Max(1, (int)(portrait.Width * scale));
-        int height = Math.Max(1, (int)(portrait.Height * scale));
-        return new Rectangle(x, y, width, height);
+        Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(portrait.Width, portrait.Height, bounds.Width, bounds.Height);
+        return new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
     }
 
     private static Texture2D Texture(GraphicsDevice device, Ff7MenuPortrait image)

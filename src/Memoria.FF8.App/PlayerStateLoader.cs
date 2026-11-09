@@ -29,7 +29,7 @@ internal static partial class PlayerStateLoader
         return ProjectLegacyPlayerState(legacy, gameDirectory ?? sharedAssets?.GameDirectory ?? LaunchOptions.ConfiguredGameDirectory, sharedAssets, resources, modelOverrides, readGameplayPolicy, prepareCharacterDefinitions);
     }
 
-    private static GameState LoadConfigured(string path, LaunchOptions options)
+    internal static GameState LoadConfigured(string path, LaunchOptions options)
     {
         GameplaySaveComponentDocument? document = ReadGameplayDocument(path);
         GameResourceHost? selected = null;

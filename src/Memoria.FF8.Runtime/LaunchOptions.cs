@@ -71,6 +71,7 @@ public sealed record LaunchOptions
     public static LaunchOptions Parse(string[] args, Func<string, string, GameState>? loadState = null, Func<string, LaunchOptions, GameState>? loadConfiguredState = null)
     {
         var options = new LaunchOptions();
+        bool ff7DebugRequested = args.Contains("--ff7-debug", StringComparer.Ordinal) || args.Contains("--ff7-new-game", StringComparer.Ordinal);
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -94,6 +95,7 @@ public sealed record LaunchOptions
                 "--model-source-dir" => options with { ModelSourceDirectory = Path.GetFullPath(Value()) },
                 "--achievements-local-only" => options with { AchievementsLocalOnly = true },
                 "--mods-dir" => options with { ModsDirectory = Path.GetFullPath(Value()) },
+                "--state" when ff7DebugRequested => options with { CrossoverStatePath = Path.GetFullPath(Value()) },
                 "--state" => options with { StatePath = Path.GetFullPath(Value()) },
                 "--save-state" => options with { SavePath = Path.GetFullPath(Value()) },
                 "--media-tools" => options with { MediaToolsDirectory = Path.GetFullPath(Value()) },
@@ -158,7 +160,8 @@ public sealed record LaunchOptions
                     }
                 }
             }
-            if (options.ControlExclusive && options.StatePath is not null && string.Equals(Path.GetFullPath(options.StatePath), Path.GetFullPath(options.SavePath), StringComparison.OrdinalIgnoreCase))
+            string? inputState = options.CrossoverStatePath ?? options.StatePath;
+            if (options.ControlExclusive && inputState is not null && string.Equals(Path.GetFullPath(inputState), Path.GetFullPath(options.SavePath), StringComparison.OrdinalIgnoreCase))
             {
                 throw new ArgumentException("--control-exclusive requires a save destination distinct from its input --state snapshot.");
             }

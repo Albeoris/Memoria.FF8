@@ -23,9 +23,10 @@ internal sealed partial class Ff7Game : Game
     private Ff7Scene scene = null!;
     private int updateFrames;
     private bool frameCaptured;
-    public CombinedSessionSave? RequestedCrossover { get; private set; }
+    private readonly Func<CombinedSessionSave, PreparedCrossover>? prepareCrossover;
+    public PreparedCrossover? RequestedCrossover { get; private set; }
 
-    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null)
+    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null, Func<CombinedSessionSave, PreparedCrossover>? prepareCrossover = null)
     {
         this.installation = installation;
         this.mediaToolsDirectory = mediaToolsDirectory;
@@ -35,6 +36,7 @@ internal sealed partial class Ff7Game : Game
         initialEnvelope = envelope;
         this.launchOptions = launchOptions;
         this.appearance = appearance;
+        this.prepareCrossover = prepareCrossover;
         graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = launchOptions?.Width ?? 960, PreferredBackBufferHeight = launchOptions?.Height ?? 720, GraphicsProfile = GraphicsProfile.HiDef };
         graphics.SynchronizeWithVerticalRetrace = true;
         Window.Title = "Memoria - Final Fantasy VII";
@@ -48,27 +50,39 @@ internal sealed partial class Ff7Game : Game
     {
         batch = new SpriteBatch(GraphicsDevice);
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
-        Window.TextInput += (_, input) => scene.EnterText(input.Character);
+        Window.TextInput += (_, input) =>
+        {
+            if (IsActive && launchOptions?.AcceptsPhysicalInput != false)
+            {
+                scene.EnterText(input.Character);
+            }
+        };
         scene.ConfigureSharedDialogueDefaults(batch, launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII shared presentation requires its primary game installation."), launchOptions?.SettingsDirectory);
+        InitializeUpdateHandoff();
         scene.SaveRequested += saved => CombinedSessionCodec.Save(savePath, saved);
         scene.ContinueRequested += () =>
         {
-            using FileStream stream = File.OpenRead(savePath);
-            CombinedSessionSave saved = CombinedSessionCodec.Read(stream);
-            if (saved.Ff8Payload is { Length: > 0 })
+            try
             {
-                RequestedCrossover = saved;
-                Exit();
+                using FileStream stream = File.OpenRead(savePath);
+                CombinedSessionSave saved = CombinedSessionCodec.Read(stream);
+                if (saved.Ff8Payload is { Length: > 0 })
+                {
+                    RequestCrossover(saved);
+                }
+                else
+                {
+                    RestoreStandalone(saved);
+                }
             }
-            else
+            catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or InvalidOperationException)
             {
-                scene.Continue(saved);
+                scene.ShowNotice(exception.Message);
             }
         };
         scene.WorldSwitchRequested += saved =>
         {
-            RequestedCrossover = saved with { ActiveGame = SessionGame.Ff8 };
-            Exit();
+            RequestCrossover(saved with { ActiveGame = SessionGame.Ff8 });
         };
         if (launchOptions?.Ff7StartNewGame == true)
         {
@@ -85,11 +99,19 @@ internal sealed partial class Ff7Game : Game
         base.LoadContent();
     }
 
+    private void RequestCrossover(CombinedSessionSave saved)
+    {
+        PreparedCrossover prepared = (prepareCrossover ?? throw new InvalidOperationException("Combined continuation preparation is unavailable."))(saved);
+        RequestedCrossover = prepared;
+        Exit();
+    }
+
     protected override void Update(GameTime gameTime)
     {
-        scene.SetFocusPaused(!IsActive && launchOptions?.ControlDirectory is null);
+        updateControls?.Poll();
         controls?.Poll();
-        if (launchOptions?.ControlStep != true)
+        scene.SetFocusPaused(updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
+        if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {
             scene.Update(gameTime, ReadControlKeys());
         }
@@ -106,9 +128,7 @@ internal sealed partial class Ff7Game : Game
         GraphicsDevice.Clear(Color.Black);
         int width = GraphicsDevice.PresentationParameters.BackBufferWidth;
         int height = GraphicsDevice.PresentationParameters.BackBufferHeight;
-        int fitWidth = Math.Min(width, height * 4 / 3);
-        int fitHeight = fitWidth * 3 / 4;
-        scene.Draw(batch, new Rectangle((width - fitWidth) / 2, (height - fitHeight) / 2, fitWidth, fitHeight));
+        scene.Draw(batch, new Rectangle(0, 0, width, height));
         string? capturePath = pendingCapture ?? (!frameCaptured && launchOptions?.CaptureFramePath is string requested && gameTime.TotalGameTime.TotalSeconds >= launchOptions.CaptureAfterSeconds ? requested : null);
         if (capturePath is string path)
         {

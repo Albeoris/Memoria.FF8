@@ -6,8 +6,48 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeDialogueTests
 {
+    private static void CursorTimingAndRestore()
+    {
+        IReadOnlyList<FieldTextToken> tokens = FieldText.Read(new byte[] { 0x21, 0xFE, 0xDD, 3, 0, 0x22, 0xE8, 0x23, 0xFE, 0xDC, 0x24, 0xFF });
+        Ff7Dialogue state = new(1, 0, 0, null, null, 0);
+        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
+        Equal(3, state.WaitTicks);
+        Equal(false, state.AwaitingInput);
+        Equal(state, Ff7DialogueCursor.Confirm(state, tokens));
+        Ff7Dialogue restored = System.Text.Json.JsonSerializer.Deserialize<Ff7Dialogue>(System.Text.Json.JsonSerializer.Serialize(state))!;
+        for (int tick = 0; tick < 3; tick++)
+        {
+            state = Ff7DialogueCursor.AdvanceTick(state, tokens);
+            restored = Ff7DialogueCursor.AdvanceTick(restored, tokens);
+            Equal(state, restored);
+            Equal(false, state.AwaitingInput);
+        }
+        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
+        Equal(true, state.AwaitingInput);
+        Equal(0, state.Page);
+        state = Ff7DialogueCursor.Confirm(state, tokens);
+        Equal(1, state.Page);
+        Equal(false, state.Completed);
+        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
+        Equal(true, state.AwaitingInput);
+        state = Ff7DialogueCursor.Confirm(state, tokens);
+        Equal(1, state.Page);
+        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
+        Equal(true, Ff7DialogueCursor.Confirm(state, tokens).Completed);
+        IReadOnlyList<FieldTextToken> scroll = FieldText.Read(new byte[] { 0xFE, 0xE0, 0xFF });
+        try
+        {
+            Ff7DialogueCursor.AdvanceTick(new(1, 0, 0, null, null, 0), scroll);
+            throw new Exception("Unsupported scrolling text was accepted.");
+        }
+        catch (NotSupportedException)
+        {
+        }
+    }
+
     public static void Run()
     {
+        CursorTimingAndRestore();
         Ff7FieldResources field = Field();
         Ff7FieldHost host = new(field, (_, _) => 1, new Ff7FieldProcess { Tick = 42, Windows = [new Ff7Window(0, 10, 20, 200, 70)] });
         FieldHostRequest request = new(1, 0, 1, 104, new FieldDialogueCommand(0, 0, 0, 1, 0));

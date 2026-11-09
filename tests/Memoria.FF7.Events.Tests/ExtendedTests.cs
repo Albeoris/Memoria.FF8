@@ -11,6 +11,21 @@ internal static class ExtendedTests
         vm.AdvanceTick();
         Check((short)-123, vm.Variables.ReadWord(FieldBank.MapWord, 0));
         Check((short)456, vm.Variables.ReadWord(FieldBank.MapWord, 2));
+        host.Position = new(-123, 456, -7, 321);
+        vm = New(Code(0xA1, 0, 0, 0xC1, 0x66, 0x66, 0, 0, 2, 4, 6, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check((short)-123, vm.Variables.ReadWord(FieldBank.MapWord, 0));
+        Check((short)456, vm.Variables.ReadWord(FieldBank.MapWord, 2));
+        Check((short)-7, vm.Variables.ReadWord(FieldBank.MapWord, 4));
+        Check((short)321, vm.Variables.ReadWord(FieldBank.MapWord, 6));
+        int requests = host.Requests.Count;
+        vm = New(Code(0, 0xC1, 0x66, 0x66, 0, 0, 2, 4, 6, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 0, 42);
+        vm.AdvanceTick();
+        Check((short)42, vm.Variables.ReadWord(FieldBank.MapWord, 0));
+        Check(requests, host.Requests.Count);
         vm = New(Code(0, 0x80, 0x50, 0, 255, 0x8D, 0x50, 0, 10, 0x81, 0x60, 2, 249, 255, 0x8E, 0x60, 2, 3, 0, 0x5F, 0x12, 1));
         vm.Initialize();
         vm.AdvanceTick();
@@ -24,7 +39,7 @@ internal static class ExtendedTests
     public static void OpeningHostOperands()
     {
         var host = new RecordingHost { Complete = true, Value = 202 };
-        byte[] code = Code(0xA1, 0, 0, 0xC3, 0, 0, 1, 10, 0, 20, 0, 30, 0, 4, 0, 0xC4, 0xD8, 118, 0, 0xD9, 0xE5, 0, 13, 0, 255, 0xEB, 13, 16, 8, 15, 0x49, 0, 6, 0, 0x99, 5, 7, 0x5F, 0x12, 1);
+        byte[] code = Code(0xA1, 0, 0, 0xAB, 0, 15, 2, 0xC0, 0, 0, 255, 255, 2, 0, 7, 0, 17, 0, 0xC2, 0, 0, 255, 255, 2, 0, 253, 255, 7, 0, 3, 4, 128, 2, 0x08, 30, 0x09, 0, 0, 0, 249, 255, 247, 255, 112, 250, 255, 248, 255, 32, 30, 0xC3, 0, 0, 1, 10, 0, 20, 0, 30, 0, 4, 0, 0xC4, 0x28, 5, 13, 0, 99, 0x29, 0xD8, 118, 0, 0xD9, 0xE5, 0, 13, 0, 255, 0xEB, 13, 16, 8, 15, 0x49, 0, 6, 0, 0x99, 5, 7, 0x5F, 0x12, 1);
         var vm = New(code, host);
         vm.Initialize();
         for (int tick = 0; tick < 8; tick++)
@@ -32,6 +47,13 @@ internal static class ExtendedTests
             vm.AdvanceTick();
         }
         Check(true, host.Requests.Any(request => request.Command == new FieldActorOffset(10, 20, 30, 1, 4)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldActorJump(-1, 2, 7, 17)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldActorLadder(-1, 2, -3, 7, 3, 4, 128, 2)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldActorFace(0, 15, 2)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPartyJoin(30, 0, 0, 0)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldPartySplit(30, 0, 0, 0, -7, -9, 112, -6, -8, 32, new(FieldBank.Immediate, 112), new(FieldBank.Immediate, 32))));
+        Check(true, host.Requests.Any(request => request.Command == new FieldModelEffectCommand(13, 0)));
+        Check(true, host.Requests.Any(request => request.Command == new FieldModelEffectCommand(13, Wait: true)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(118)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(Wait: true)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPaletteCommand(FieldPaletteOperation.Store, 13, 0, 256)));
@@ -284,12 +306,13 @@ internal static class ExtendedTests
     {
         public bool Complete { get; set; }
         public int Value { get; set; }
+        public FieldActorPosition? Position { get; set; }
         public List<FieldHostRequest> Requests { get; } = [];
         public List<FieldHostRequest> Cancelled { get; } = [];
         public FieldHostReply Execute(FieldHostRequest request)
         {
             Requests.Add(request);
-            return new FieldHostReply(Complete, Value);
+            return new FieldHostReply(Complete, Value, Position);
         }
         public void Cancel(FieldHostRequest request)
         {

@@ -12,6 +12,17 @@ internal sealed partial class Ff7Game
     private int remainingInputFrames;
     private Memoria.FF8.Assets.GameAssets? controlAppearanceAssets;
 
+    private void RestoreStandalone(CombinedSessionSave saved)
+    {
+        if (saved.Mappings.Length > 0)
+        {
+            controlAppearanceAssets ??= new Memoria.FF8.Assets.GameAssets(launchOptions!.GameDirectory);
+        }
+        Memoria.FF8.Rendering.IFf7ActorAppearance? selected = Ff7AppearanceSelection.Create(saved.Mappings, installation, controlAppearanceAssets);
+        scene.Continue(saved);
+        scene.SetAppearance(saved.Mappings, selected);
+    }
+
     private KeyboardState ReadControlKeys()
     {
         if (remainingInputFrames > 0)
@@ -24,6 +35,10 @@ internal sealed partial class Ff7Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (updateSave.Paused && request.Command.ToLowerInvariant() is not ("status" or "capture" or "quit"))
+        {
+            throw new InvalidOperationException("The game is paused for an update. Cancel the update before changing the game.");
+        }
         switch (request.Command.ToLowerInvariant())
         {
             case "status":
@@ -69,7 +84,12 @@ internal sealed partial class Ff7Game
             case "load":
                 using (FileStream source = File.OpenRead(request.Path ?? throw new ArgumentException("Load requires Path.")))
                 {
-                    scene.Continue(CombinedSessionCodec.Read(source));
+                    CombinedSessionSave saved = CombinedSessionCodec.Read(source);
+                    if (saved.Ff8Payload is { Length: > 0 })
+                    {
+                        throw new NotSupportedException("Use Continue from the title menu to load a save containing both worlds.");
+                    }
+                    RestoreStandalone(saved);
                 }
                 return new { Field = scene.Session?.Field.Name, Tick = scene.Session?.Host.Process.Tick };
             case "quit":

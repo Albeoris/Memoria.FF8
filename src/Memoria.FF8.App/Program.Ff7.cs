@@ -6,6 +6,8 @@ using Memoria.FF8.Assets;
 
 namespace Memoria.FF8;
 
+internal sealed record PreparedCrossover(CombinedSessionSave Envelope, GameState Ff8);
+
 internal static partial class Program
 {
     private static int RunFf7(LaunchOptions options)
@@ -27,12 +29,17 @@ internal static partial class Program
         }
         if (envelope?.Ff8Payload is { Length: > 0 })
         {
+            if (options.Ff7StartNewGame)
+            {
+                using Ff7Session fresh = Ff7Session.NewGame(installation);
+                envelope = envelope with { ActiveGame = SessionGame.Ff7, Ff7 = fresh.Capture() };
+            }
             return RunCombined(options, envelope, mediaTools);
         }
         using GameAssets? appearanceAssets = envelope?.Mappings.Length > 0 ? new GameAssets(options.GameDirectory) : null;
         IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(envelope?.Mappings ?? [], installation, appearanceAssets);
-        CombinedSessionSave? requested;
-        using (Ff7Game game = new(installation, mediaTools, options.CrossoverSavePath, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, mediaTools, movie), envelope, appearance, options))
+        PreparedCrossover? requested;
+        using (Ff7Game game = new(installation, mediaTools, options.ControlExclusive ? options.SavePath : options.CrossoverSavePath, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, mediaTools, movie), envelope, appearance, options, saved => PrepareCombined(options, saved)))
         {
             game.Run();
             requested = game.RequestedCrossover;
@@ -42,8 +49,36 @@ internal static partial class Program
 
     private static int RunCombined(LaunchOptions options, CombinedSessionSave envelope, string mediaTools)
     {
+        return RunCombined(options, PrepareCombined(options, envelope), mediaTools);
+    }
+
+    private static PreparedCrossover PrepareCombined(LaunchOptions options, CombinedSessionSave envelope)
+    {
+        envelope.Validate();
+        GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(envelope);
         using GameResourceHost selected = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
-        GameState ff8 = GameplaySaveSessionLoader.Restore(CrossoverSaveAdapter.ReadFf8(envelope), options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
+        GameState ff8 = GameplaySaveSessionLoader.Restore(document, options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
+        if (ff8.Scene != SceneKind.Movie || ff8.EventState is not null)
+        {
+            GameSession candidateSession = new(ff8);
+            using MovieClock clock = new(candidateSession, options.GameDirectory, options.MediaToolsDirectory, selected.ResolveGameFile);
+            using GameWorld candidate = new(candidateSession, options.GameDirectory, clock, selected.Resources, readSceneMods: () => selected.SceneMods, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, applyEncounterMods: selected.ApplyEncounterMods);
+            candidate.EnsureField();
+        }
+        Ff7Installation installation = Ff7Installation.Discover(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before loading this world."));
+        if (envelope.Ff7 is not null)
+        {
+            using Ff7Session restored = Ff7Session.Restore(installation, envelope.Ff7);
+        }
+        using GameAssets? assets = envelope.Mappings.Length > 0 ? new GameAssets(options.GameDirectory, resources: selected.Resources, modelOverrides: selected) : null;
+        _ = Ff7AppearanceSelection.Create(envelope.Mappings, installation, assets);
+        return new PreparedCrossover(envelope, ff8);
+    }
+
+    private static int RunCombined(LaunchOptions options, PreparedCrossover prepared, string mediaTools)
+    {
+        GameState ff8 = prepared.Ff8;
+        CombinedSessionSave envelope = prepared.Envelope;
         using RecreateGame game = new(options with { Ff7Debug = false, InitialState = ff8, MediaToolsDirectory = mediaTools }, new GameSession(ff8), playerSession: true, initialCrossover: envelope);
         game.RunWithErrorCapture();
         return 0;

@@ -6,7 +6,11 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true);
+public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true)
+{
+    public Ff7ModelRenderOverrides? ModelEffects { get; init; }
+}
+public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0);
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
 {
@@ -183,6 +187,10 @@ public sealed class Ff7FieldRenderer
         string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
         if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
         {
+            if (actor.ModelEffects is not null)
+            {
+                throw new NotSupportedException("FFVII topology-owned model effects require an explicit replacement-appearance binding.");
+            }
             foreach (Ff7AppearanceTriangle triangle in replacement)
             {
                 TriangleVertex Vertex(Ff7WorldVertex vertex)
@@ -207,8 +215,13 @@ public sealed class Ff7FieldRenderer
         Matrix4x4 actorTransform = ModelBasis(descriptor) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
         Matrix4x4 actorNormalTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256);
         PcFieldCamera camera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
-        foreach (Ff7BoneGeometry part in resources.Geometry)
+        for (int partIndex = 0; partIndex < resources.Geometry.Count; partIndex++)
         {
+            if (actor.ModelEffects?.PartVisible(partIndex) == false)
+            {
+                continue;
+            }
+            Ff7BoneGeometry part = resources.Geometry[partIndex];
             PcPolygonModel model = part.Polygon;
             Matrix4x4 transform = bones[part.BoneIndex] * actorTransform;
             Matrix4x4 normalTransform = bones[part.BoneIndex] * actorNormalTransform;
@@ -279,7 +292,12 @@ public sealed class Ff7FieldRenderer
                 }
                 if (Updated(0x20000))
                 {
-                    currentState.Gouraud = Enabled(0x20000) && state.ShadeMode > 0;
+                    currentState.Gouraud = Enabled(0x20000) && state.ShadeMode switch
+                    {
+                        1 => false,
+                        2 => true,
+                        _ => throw new NotSupportedException($"FFVII P shade mode {state.ShadeMode} requires its native interpolation contract.")
+                    };
                 }
                 if (!modelNormalBindings.TryGetValue((model, groupIndex), out int[]? normalBindings))
                 {
@@ -297,7 +315,11 @@ public sealed class Ff7FieldRenderer
                         Vector2 uv = texture is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
                         uint originalColor = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
                         int normalIndex = normalBindings[local];
-                        Vector4 color = normalIndex >= 0 ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor) : Color(originalColor);
+                        if (normalIndex >= 0 && actor.ModelEffects?.VertexColor is { } effectColor)
+                        {
+                            originalColor = effectColor(model.Vertices[vertex], model.Normals[normalIndex], originalColor);
+                        }
+                        Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor) : Color(originalColor);
                         color.W *= state.VertexAlpha / 255f;
                         return new(new Vector2(position.X * width / 320f, position.Y * height / 240f), projection.Project(position.Z), 1 / position.Z, uv, color);
                     }

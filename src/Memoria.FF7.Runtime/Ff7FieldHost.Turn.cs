@@ -4,6 +4,27 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    private FieldHostReply FaceActor(int entity, FieldActorFace command)
+    {
+        Ff7Actor actor = GetActor(entity);
+        if (actor.TurnMode == 3 || actor.TurnStep != 0 && actor.TurnMode == 2 && actor.TurnSteps == command.Steps)
+        {
+            return Turn(entity, new FieldActorTurn(0, command.DirectionPolicy, command.Steps, 2));
+        }
+        Ff7Actor target = GetActor(command.TargetEntity);
+        int sourceX = actor.X4096 >> 12;
+        int sourceY = actor.Y4096 >> 12;
+        int targetX = target.X4096 >> 12;
+        int targetY = target.Y4096 >> 12;
+        if (sourceX == targetX && sourceY == targetY)
+        {
+            sourceX++;
+        }
+        Ff7NativeMovement movement = Movement ?? throw new NotSupportedException("FFVII actor facing requires native direction tables.");
+        int direction = movement.Direction(targetX - sourceX, targetY - sourceY);
+        return Turn(entity, new FieldActorTurn((short)direction, command.DirectionPolicy, command.Steps, 2));
+    }
+
     private FieldHostReply Turn(int entity, FieldActorTurn command)
     {
         Ff7Actor actor = GetActor(entity);

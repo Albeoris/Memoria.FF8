@@ -5,9 +5,37 @@ namespace Memoria.FF8;
 internal sealed record UpdateSaveResult(bool Saved, string Path);
 
 /// <summary>Publishes a validated standalone continuation without replacing any existing save.</summary>
-internal sealed class UpdateSaveHandoff(Func<GameState> capture, Action<GameState> validateContinuation, Action ensureSafe, TimeProvider? timeProvider = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null)
+internal sealed class UpdateSaveHandoff
 {
-    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider clock;
+    private readonly Action ensureSafe;
+    private readonly Action<string> writeSave;
+
+    public UpdateSaveHandoff(Func<GameState> capture, Action<GameState> validateContinuation, Action ensureSafe, TimeProvider? timeProvider = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null) : this(ensureSafe, path =>
+    {
+        GameState state = capture();
+        if (state.Scene == SceneKind.Title)
+        {
+            throw new InvalidOperationException("Start or load a game before preparing an update save.");
+        }
+        if (writeGameplay is not null)
+        {
+            _ = writeGameplay(path, validateContinuation, null);
+        }
+        else
+        {
+            new GameSession(state).Save(path, compact: true, validateContinuation);
+        }
+    }, timeProvider)
+    {
+    }
+
+    public UpdateSaveHandoff(Action ensureSafe, Action<string> writeSave, TimeProvider? timeProvider = null)
+    {
+        this.ensureSafe = ensureSafe;
+        this.writeSave = writeSave;
+        clock = timeProvider ?? TimeProvider.System;
+    }
     public bool Paused { get; private set; }
 
     public UpdateSaveResult Save(string? path, DateTimeOffset? expiresAt)
@@ -31,22 +59,10 @@ internal sealed class UpdateSaveHandoff(Func<GameState> capture, Action<GameStat
             throw new IOException("The update save destination already exists.");
         }
         ensureSafe();
-        GameState state = capture();
-        if (state.Scene == SceneKind.Title)
-        {
-            throw new InvalidOperationException("Start or load a game before preparing an update save.");
-        }
         string staging = fullPath + "." + Guid.NewGuid().ToString("N") + ".pending";
         try
         {
-            if (writeGameplay is not null)
-            {
-                _ = writeGameplay(staging, validateContinuation, null);
-            }
-            else
-            {
-                new GameSession(state).Save(staging, compact: true, validateContinuation);
-            }
+            writeSave(staging);
             EnsureNotExpired(expiresAt.Value);
             File.Move(staging, fullPath);
             Paused = true;

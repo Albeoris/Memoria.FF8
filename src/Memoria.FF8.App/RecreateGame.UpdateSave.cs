@@ -9,7 +9,7 @@ internal sealed partial class RecreateGame
     {
         if (request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            return new { session.State.Scene, UpdatePaused = updateSave.Paused };
+            return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", Scene = InFf7 ? SceneKind.Field : session.State.Scene, UpdatePaused = updateSave.Paused };
         }
         if (!request.Command.Equals("graphics-restart", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("save-for-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
         {

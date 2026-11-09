@@ -18,7 +18,7 @@ public sealed partial class Ff7Session
 
     public bool TryTalk()
     {
-        if (Host.Process.PlayerLocked)
+        if (Host.Process.PlayerLocked || Host.Process.Join is not null)
         {
             return false;
         }
@@ -71,13 +71,13 @@ public sealed partial class Ff7Session
     private void AdvancePlayerInput()
     {
         Ff7FieldProcess process = Host.Process;
-        if (process.PlayerLocked || process.Transition is not null || process.GlobalCommand is Ff7GlobalCommand.Battle or Ff7GlobalCommand.Menu)
+        if (process.PlayerLocked || process.Join is not null || process.Transition is not null || process.GlobalCommand is Ff7GlobalCommand.Battle or Ff7GlobalCommand.Menu)
         {
             Host.ClearLineOnLine();
             return;
         }
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (player is null || process.Motions.Any(motion => motion.Entity == player.Entity))
+        if (player is null || player.Ladder is not null || player.Jump is not null || process.Motions.Any(motion => motion.Entity == player.Entity))
         {
             return;
         }

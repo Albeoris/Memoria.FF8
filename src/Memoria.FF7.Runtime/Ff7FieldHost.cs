@@ -37,6 +37,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
     public Ff7NativeMovement? Movement { get; set; }
+    public Func<int, IReadOnlyList<int>>? ModelPartVertexCounts { get; set; }
+    public Func<FieldByteOperand, byte>? ReadFieldByte { get; set; }
+    public Func<int[]>? ReadScriptParty { get; set; }
+    public Func<ushort>? ReadInputHeld { get; set; }
 
     public FieldHostReply Execute(FieldHostRequest request)
     {
@@ -65,6 +69,12 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         switch (request.Command)
         {
+            case FieldPartySplit split:
+                return SplitParty(request.Id, split);
+            case FieldPartyJoin join:
+                return JoinParty(request.Id, join);
+            case FieldModelEffectCommand effect:
+                return ModelEffect(request.Entity, effect);
             case FieldLineCommand line:
                 Line(request.Entity, line);
                 return new(true);
@@ -98,6 +108,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 return new(true);
             case FieldActorQuery query:
                 Ff7Actor queried = GetActor(query.Entity);
+                if (query.Query == FieldActorQueryKind.Position)
+                {
+                    return new(true, Position: new(unchecked((short)(queried.X4096 >> 12)), unchecked((short)(queried.Y4096 >> 12)), unchecked((short)(queried.Z4096 >> 12)), unchecked((short)queried.Triangle)));
+                }
                 int value = query.Query switch
                 {
                     FieldActorQueryKind.Triangle => queried.Triangle,
@@ -111,6 +125,12 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldActorOffset offset:
                 Offset(request.Entity, offset);
                 return new(true);
+            case FieldActorJump jump:
+                return Jump(request.Id, request.Entity, jump);
+            case FieldActorLadder ladder:
+                return Ladder(request.Id, request.Entity, ladder);
+            case FieldActorFace face:
+                return FaceActor(request.Entity, face);
             case FieldActorTurn turn:
                 return Turn(request.Entity, turn);
             case FieldActorMove movement:
@@ -208,7 +228,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
         AdvanceCamera();
         AdvanceOffsets();
         AdvanceTurns();
+        AdvanceJumps();
+        AdvanceLadders();
         AdvanceAnimation();
+        AdvanceModelEffects();
         foreach (Ff7Motion motion in Process.Motions)
         {
             Ff7NativeMovement movement = Movement ?? throw new NotSupportedException("FFVII scripted movement requires its native fixed-point stepping contract.");
@@ -220,6 +243,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 Process = Process with { Motions = Process.Motions.Where(item => item.RequestId != motion.RequestId).ToArray() };
             }
         }
+        AdvanceJoinedMovement();
         Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };
     }
 

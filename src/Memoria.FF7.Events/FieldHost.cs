@@ -14,7 +14,8 @@ public interface IFieldHost
 }
 
 public sealed record FieldHostRequest(long Id, int Entity, int Priority, int ProgramCounter, FieldCommand Command);
-public sealed record FieldHostReply(bool Completed, int Value = 0);
+public sealed record FieldHostReply(bool Completed, int Value = 0, FieldActorPosition? Position = null);
+public sealed record FieldActorPosition(short X, short Y, short Z, short Triangle);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "command")]
 [JsonDerivedType(typeof(FieldMovieCommand), "movie")]
@@ -41,7 +42,13 @@ public sealed record FieldHostReply(bool Completed, int Value = 0);
 [JsonDerivedType(typeof(FieldFadeCommand), "fade")]
 [JsonDerivedType(typeof(FieldMusicCommand), "music")]
 [JsonDerivedType(typeof(FieldActorTurn), "turn")]
+[JsonDerivedType(typeof(FieldActorFace), "face-actor")]
+[JsonDerivedType(typeof(FieldActorLadder), "ladder")]
+[JsonDerivedType(typeof(FieldActorJump), "jump")]
 [JsonDerivedType(typeof(FieldActorOffset), "offset")]
+[JsonDerivedType(typeof(FieldModelEffectCommand), "model-effect")]
+[JsonDerivedType(typeof(FieldPartyJoin), "party-join")]
+[JsonDerivedType(typeof(FieldPartySplit), "party-split")]
 [JsonDerivedType(typeof(FieldActorQuery), "actor-query")]
 [JsonDerivedType(typeof(FieldPartyProjection), "party-projection")]
 [JsonDerivedType(typeof(FieldPartyCharacter), "party-character")]
@@ -156,7 +163,8 @@ public enum FieldActorQueryKind
 {
     Triangle,
     Direction,
-    Coordinates
+    Coordinates,
+    Position
 }
 public sealed record FieldActorQuery(FieldActorQueryKind Query, int Entity) : FieldCommand;
 public sealed record FieldPartyProjection(int Member0, int Member1, int Member2, ushort VisibilityOrMask = 0) : FieldCommand;
@@ -190,3 +198,17 @@ public enum FieldLineOperation
     Slip
 }
 public sealed record FieldLineCommand(FieldLineOperation Operation, short X1 = 0, short Y1 = 0, short Z1 = 0, short X2 = 0, short Y2 = 0, short Z2 = 0, byte Value = 0) : FieldCommand;
+
+public sealed record FieldModelEffectCommand(byte Operation, byte Mode = 0, bool Wait = false) : FieldCommand;
+
+public sealed record FieldPartyJoin(byte Duration, int Leader, int Follower1, int Follower2) : FieldCommand;
+
+public sealed record FieldPartySplit(byte Duration, int Leader, int Follower1, int Follower2, short X1, short Y1, byte Direction1, short X2, short Y2, byte Direction2, FieldByteOperand? Direction1Source = null, FieldByteOperand? Direction2Source = null) : FieldCommand;
+
+public sealed record FieldByteOperand(FieldBank Bank, byte Value);
+
+public sealed record FieldActorFace(int TargetEntity, byte Steps, byte DirectionPolicy) : FieldCommand;
+
+public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle, byte Mode, byte Animation, byte Direction, byte AnimationDivisor) : FieldCommand;
+
+public sealed record FieldActorJump(short X, short Y, short Triangle, short Duration) : FieldCommand;

@@ -67,7 +67,7 @@ internal static partial class Program
             }
             if (options.CrossoverStatePath is string crossoverPath)
             {
-                options = options with { StatePath = crossoverPath, InitialState = PlayerStateLoader.Load(crossoverPath, options.GameDirectory) };
+                options = options with { StatePath = crossoverPath, InitialState = PlayerStateLoader.LoadConfigured(crossoverPath, options) };
             }
             GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameWorld.CreateColdProcess(options.GameDirectory) : new GameSession(options.InitialState);
             if (options.ValidateOnly)

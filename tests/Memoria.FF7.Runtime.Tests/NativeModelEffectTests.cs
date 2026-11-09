@@ -1,0 +1,162 @@
+using System.Numerics;
+using System.Text.Json;
+using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
+using Memoria.FF7.Runtime;
+
+internal static class NativeModelEffectTests
+{
+    public static void Run()
+    {
+        int[] counts = [16, 42, 16, 33];
+        Ff7NativeModelEffectState requested = Ff7NativeModelEffect.Request(null, 0, counts);
+        Check(Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(requested, part)), "An unprocessed request hid the native model.");
+        Check(!requested.SuppressesNativeLighting && Ff7NativeModelEffect.Advance(requested, false) == requested, "The rejected native processing gate changed presentation.");
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(requested, true);
+        Check(state.Initialized && !state.Applied && Enumerable.Range(0, 4).All(part => !Ff7NativeModelEffect.PartVisible(state, part)), "The initialization frame did not hide all original rigid parts.");
+        Check(Ff7NativeModelEffect.Request(state, 1, counts) == state, "Replacing nonreset payload0 with1 reset the persistent native effect.");
+        for (int tick = 0; tick < 100; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state.Stage == 1 && state.Counter == 100 && state.Phase == 0 && state.SampleFrame == 0, "Initial native100-frame hold changed.");
+        Check(!Ff7NativeModelEffect.PartVisible(state, 0) && Ff7NativeModelEffect.PartVisible(state, 1) && !Ff7NativeModelEffect.PartVisible(state, 2) && Ff7NativeModelEffect.PartVisible(state, 3), "Native topology-selected rigid-part visibility changed.");
+        for (int tick = 0; tick < 18; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state.Stage == 2 && state.Phase == 288 && state.SampleFrame == 17, "The first pulse did not sample before incrementing phase.");
+        Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+        Check(Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(state, true), "Cold continuation changed the next pulse sample.");
+        Check(Ff7NativeModelEffect.Advance(state, false) == state, "An invisible/out-of-depth effect advanced its native phase.");
+        for (int tick = 0; tick < 10; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state.Stage == 3 && state.Phase == 0 && state.SampleFrame == 18, "Native10-frame endpoint hold changed.");
+        for (int tick = 0; tick < 18; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state.Stage == 0 && state.Phase == 288 && state.Counter == 0, "The second pulse did not retain its endpoint for the next hold.");
+        state = Ff7NativeModelEffect.Request(state, 2, counts);
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.Restored && !state.Completed && !state.SuppressesNativeLighting && Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Reset did not immediately restore original parts and lighting.");
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.Completed, "Reset completed before/after the native next processed frame.");
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [16, 42, 16]));
+        Throws<InvalidDataException>(() => (requested with { Phase = 1 }).Validate());
+        short[] table = new short[512];
+        table[1] = 4096;
+        table[128] = 4096;
+        Check(Ff7NativeModelEffect.OrbitPoint(requested, 0, table) == new Vector3(64, 0, 16), "Native orbit start changed.");
+        Check(Ff7NativeModelEffect.OrbitPoint(requested, 4, table) == new Vector3(0, -64, 144), "Native orbit quarter turn or arithmetic shifts changed.");
+        uint bright = Ff7NativeModelEffect.ShadeVertex(requested, 0, table, Vector3.Zero, Vector3.UnitX, 0x7FFFFFFF, Matrix4x4.Identity);
+        uint dark = Ff7NativeModelEffect.ShadeVertex(requested, 0, table, Vector3.Zero, -Vector3.UnitX, 0x7FFFFFFF, Matrix4x4.Identity);
+        uint ambient = Ff7NativeModelEffect.ShadeVertex(requested, 0, table, Vector3.Zero, Vector3.Zero, 0x7F808080, Matrix4x4.Identity);
+        Check(bright == 0x7FFFFFFF && dark == 0x7FC0C0C0 && ambient == 0x7F303030, "Native cached light modulation, original-color tint or alpha changed.");
+        RunSinglePart(table);
+        RunInstalled();
+    }
+
+    private static void RunSinglePart(short[] table)
+    {
+        Ff7NativeModelEffectState single = Ff7NativeModelEffect.Request(null, 0, [35]);
+        Ff7NativeModelEffectState four = Ff7NativeModelEffect.Request(null, 0, [16, 42, 16, 33]);
+        Check(single.Profile == Ff7NativeModelEffect.SinglePart35Profile, "The native one-part35 topology selected the wrong profile.");
+        Check(Ff7NativeModelEffect.OrbitPoint(single, 0, table) == new Vector3(32, 0, 16), "The one-part35 native XY orbit shift changed.");
+        Check(Ff7NativeModelEffect.OrbitPoint(single, 4, table) == new Vector3(0, -32, 80), "The one-part35 native Z orbit shift changed.");
+        uint distant = Ff7NativeModelEffect.ShadeVertex(single, 0, table, new(-600, 0, 0), Vector3.UnitX, 0xFFFFFFFF, Matrix4x4.Identity);
+        Check(distant == 0xFFC0C0C0, "The one-part35 native512 light radius changed.");
+        for (int tick = 0; tick < 320; tick++)
+        {
+            bool eligible = tick % 7 != 0;
+            single = Ff7NativeModelEffect.Advance(single, eligible);
+            four = Ff7NativeModelEffect.Advance(four, eligible);
+            Check(single.Phase == four.Phase && single.Counter == four.Counter && single.Stage == four.Stage && single.SampleFrame == four.SampleFrame, "The one-part35 profile changed the shared native phase clock.");
+            Check(Ff7NativeModelEffect.PartVisible(single, 0) == (!single.Initialized || single.Applied), "The one-part35 initialization/application visibility changed.");
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(single))!;
+            Check(Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(single, true), "The one-part35 cold next sample changed.");
+        }
+        Throws<InvalidDataException>(() => Ff7NativeModelEffect.Request(single, 1, [16, 42, 16, 33]));
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [34]));
+        single = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(single, 2, [35]), true);
+        Check(single.Restored && !single.Completed && Ff7NativeModelEffect.PartVisible(single, 0) && !single.SuppressesNativeLighting, "The one-part35 reset failed to restore the original model.");
+        Check(Ff7NativeModelEffect.Advance(single, true).Completed, "The one-part35 reset completion clock changed.");
+    }
+
+    private static void RunInstalled()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed model effect: MEMORIA_FF7_GAME_DIR is unset");
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "nmkin_1");
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, field.Models.Models[8]);
+        int[] counts = model.Geometry.Select(part => part.Polygon.Vertices.Count).ToArray();
+        Check(counts.SequenceEqual(new[] { 16, 42, 16, 33 }), "The bounded original procedural-color topology changed.");
+        CheckInstalledPulse(model, native);
+        Ff7FieldResources pipes = Ff7FieldResources.Load(installation, "nmkin_3");
+        Ff7FieldModelResources single = Ff7FieldModelResources.Load(characters, pipes.Models.Models[2]);
+        Check(single.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 35 }), "The bounded original one-part35 topology changed.");
+        CheckInstalledPulse(single, native);
+    }
+
+    private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native)
+    {
+        int[] counts = model.Geometry.Select(part => part.Polygon.Vertices.Count).ToArray();
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(null, 1, counts), true), true);
+        bool changed = false;
+        foreach (Ff7BoneGeometry part in model.Geometry)
+        {
+            int partIndex = model.Geometry.ToList().IndexOf(part);
+            if (!Ff7NativeModelEffect.PartVisible(state, partIndex))
+            {
+                continue;
+            }
+            foreach (PcModelGroup group in part.Polygon.Groups)
+            {
+                Dictionary<int, int> normals = [];
+                foreach (PcModelPolygon polygon in part.Polygon.Polygons.Skip(group.PolygonStart).Take(group.PolygonCount))
+                {
+                    normals.TryAdd(polygon.A, polygon.NormalA);
+                    normals.TryAdd(polygon.B, polygon.NormalB);
+                    normals.TryAdd(polygon.C, polygon.NormalC);
+                }
+                foreach ((int vertex, int normal) in normals)
+                {
+                    uint first = Ff7NativeModelEffect.ShadeVertex(state, 0, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
+                    uint middle = Ff7NativeModelEffect.ShadeVertex(state, 8, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
+                    changed |= first != middle;
+                }
+            }
+        }
+        Check(changed, "Original visible save-point parts did not produce an animated color pulse.");
+    }
+
+    private static void Check(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidDataException(message);
+        }
+    }
+
+    private static void Throws<T>(Action action) where T : Exception
+    {
+        try
+        {
+            action();
+        }
+        catch (T)
+        {
+            return;
+        }
+        throw new InvalidDataException($"Expected {typeof(T).Name}.");
+    }
+}

@@ -6,12 +6,28 @@ public sealed partial class FieldMachine
     {
         switch (opcode)
         {
+            case 0x08:
+                int[] joiningParty = ReadParty();
+                return Host(id, new FieldPartyJoin(B(id, 1), joiningParty[0], joiningParty[1], joiningParty[2]), 2);
+            case 0x09:
+                int[] splittingParty = ReadParty();
+                return Host(id, new FieldPartySplit(B(id, 14), splittingParty[0], splittingParty[1], splittingParty[2], R16(id, 1, 4), R16(id, 2, 6), R8(id, 3, 8), R16(id, 4, 9), R16(id, 5, 11), R8(id, 6, 13), new FieldByteOperand(Bank(id, 3), B(id, 8)), new FieldByteOperand(Bank(id, 6), B(id, 13))), 15);
             case 0x0D:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
             case 0x22:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode2, W(id, 1), W(id, 3)), 5);
             case 0x23:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleResult, 0), 3, result: value => Variables.WriteWord(Bank(id, 2), B(id, 2), unchecked((short)value)));
+            case 0x28:
+                int effectLength = B(id, 1);
+                if (effectLength < 4)
+                {
+                    throw new InvalidDataException("FFVII KAWAI requires its native length, selector and payload.");
+                }
+                _ = B(id, effectLength - 1);
+                return Actor(id, new FieldModelEffectCommand(B(id, 2), B(id, 3)), effectLength);
+            case 0x29:
+                return Actor(id, new FieldModelEffectCommand(13, Wait: true), 1);
             case 0x27:
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.SetBackground, B(id, 1)), 2);
             case 0x25:
@@ -139,6 +155,18 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorPlacement(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), null), 9, true, yieldWithoutModel: true);
             case 0xA8:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4)), 6, firstCallYields: true);
+            case 0xAB:
+                int faceEntity = B(id, 1);
+                if (faceEntity >= entities.Length)
+                {
+                    throw new InvalidDataException("FFVII TURA references an absent target entity.");
+                }
+                if (!entities[faceEntity].ModelBound)
+                {
+                    Advance(id, 4);
+                    return false;
+                }
+                return Actor(id, new FieldActorFace(faceEntity, B(id, 2), B(id, 3)), 4);
             case 0xAC:
                 return ActorProperty(id, FieldActorPropertyKind.AnimationWait, 0, 1);
             case 0xB2:
@@ -202,6 +230,29 @@ public sealed partial class FieldMachine
                     return false;
                 }
                 return Host(id, new FieldActorProperty(FieldActorPropertyKind.PlayerCharacter, B(id, 1)), 2);
+            case 0xC0:
+                return Actor(id, new FieldActorJump(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), R16(id, 4, 9)), 11);
+            case 0xC1:
+                int positionTarget = B(id, 3);
+                if (positionTarget >= entities.Length)
+                {
+                    throw new InvalidDataException("FFVII AXYZI references an absent target entity.");
+                }
+                if (!entities[positionTarget].ModelBound)
+                {
+                    Advance(id, 8);
+                    return false;
+                }
+                return Host(id, new FieldActorQuery(FieldActorQueryKind.Position, positionTarget), 8, replyResult: reply =>
+                {
+                    FieldActorPosition position = reply.Position ?? throw new InvalidDataException("FFVII AXYZI host omitted its native coordinate result.");
+                    Variables.WriteWord(Bank(id, 1), B(id, 4), position.X);
+                    Variables.WriteWord(Bank(id, 2), B(id, 5), position.Y);
+                    Variables.WriteWord(Bank(id, 3), B(id, 6), position.Z);
+                    Variables.WriteWord(Bank(id, 4), B(id, 7), position.Triangle);
+                });
+            case 0xC2:
+                return Actor(id, new FieldActorLadder(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), R16(id, 4, 9), B(id, 11), B(id, 12), B(id, 13), B(id, 14)), 15);
             case 0xC3:
                 return Actor(id, new FieldActorOffset(R16(id, 1, 4), R16(id, 2, 6), R16(id, 3, 8), B(id, 3), R16(id, 4, 10)), 12);
             case 0xC4:

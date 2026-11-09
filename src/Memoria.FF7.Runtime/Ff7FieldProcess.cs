@@ -18,6 +18,9 @@ public sealed record Ff7Actor
     public int OffsetY { get; init; }
     public int OffsetZ { get; init; }
     public Ff7OffsetProcess? Offset { get; init; }
+    public Ff7NativeModelEffectState? ModelEffect { get; init; }
+    public Ff7LadderProcess? Ladder { get; init; }
+    public Ff7JumpProcess? Jump { get; init; }
     public int TurnStart { get; init; }
     public int TurnEnd { get; init; }
     public int TurnMode { get; init; }
@@ -48,11 +51,16 @@ public sealed record Ff7Actor
 public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0);
 public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false);
 public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1, short X2, short Y2, short Z2, byte Enabled = 1, byte SlipDisabled = 0, bool Touch = false, bool Across = false, bool Push = false, bool Talk = false, bool Enter = false, bool Leave = false, byte ProximityAngle = 0, bool OnLine = false);
+public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
+public sealed record Ff7LadderProcess(long RequestId, int TargetX, int TargetY, int TargetZ, int TargetTriangle, byte Mode, int StartX = 0, int StartY = 0, int StartZ = 0, int Steps = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7OffsetProcess(int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, int Mode, int Steps, int Step = 0, bool Completed = false);
 public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false);
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
 public sealed record Ff7CameraScroll(int Mode, int StartX, int StartY, int TargetX, int TargetY, int Steps, int Step = 0, bool Completed = false);
+public sealed record Ff7PartyJoin(long RequestId, int LeaderEntity, Ff7JoinFollower[] Followers, bool Split = false);
+public sealed record Ff7JoinFollower(int Entity, int Stage = 0, int PreviousSpeed = 0, short TargetX = 0, short TargetY = 0, bool Arrived = false);
+
 public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int TargetY, bool Turn, bool Animated);
 public sealed record Ff7AnimationRequest(long RequestId, int Entity);
 public enum Ff7GlobalCommand
@@ -81,6 +89,7 @@ public sealed record Ff7FieldProcess
     public long PaletteVersion { get; init; }
     public byte[] BlockedTriangles { get; init; } = [];
     public Ff7Menu? Menu { get; init; }
+    public Ff7PartyJoin? Join { get; init; }
     public Ff7Movie? Movie { get; init; }
     public bool MovieBackgroundEnabled { get; init; }
     public bool MovieCameraDisabled { get; init; }
@@ -131,6 +140,22 @@ public sealed record Ff7FieldProcess
         if (Actors.Any(actor => actor is null || actor.Slot < 0 || actor.Entity < 0 || actor.Model < 0 || actor.Direction is < 0 or > 255 || actor.Animation < 0 || actor.AnimationFrame16 < 0) || Actors.Where(actor => actor.EntityBound).Select(actor => actor.Entity).Distinct().Count() != Actors.Count(actor => actor.EntityBound) || Actors.Select(actor => actor.Slot).Distinct().Count() != Actors.Length)
         {
             throw new InvalidDataException("FFVII field actor ownership is invalid.");
+        }
+        foreach (Ff7Actor actor in Actors)
+        {
+            actor.ModelEffect?.Validate();
+            if (actor.Jump is Ff7JumpProcess jump && (actor.Ladder is not null || jump.RequestId < 1 || jump.TargetTriangle < 0 || jump.Duration is < 1 or > short.MaxValue || jump.Step < 0 || jump.Step > jump.Duration))
+            {
+                throw new InvalidDataException("FFVII jump continuation has invalid native owners or steps.");
+            }
+            if (actor.Ladder is Ff7LadderProcess ladder && (ladder.RequestId < 1 || ladder.Mode > 3 || ladder.TargetTriangle < 0 || ladder.Steps < 0 || ladder.Step < 0 || ladder.Step > ladder.Steps || ladder.Initialized && ladder.Steps == 0))
+            {
+                throw new InvalidDataException("FFVII ladder continuation has invalid native owners or steps.");
+            }
+        }
+        if (Join is not null && (Join.RequestId < 1 || Join.Followers is null || Join.Followers.Length > 2 || !Actors.Any(actor => actor.EntityBound && actor.Entity == Join.LeaderEntity) || Join.Followers.Any(follower => follower is null || follower.Stage is < 0 or > 3 || follower.PreviousSpeed is < 0 or > 65535 || !Actors.Any(actor => actor.EntityBound && actor.Entity == follower.Entity)) || Join.Followers.Select(follower => follower.Entity).Distinct().Count() != Join.Followers.Length))
+        {
+            throw new InvalidDataException("FFVII JOIN continuation has invalid native owners or stages.");
         }
         if (Windows.Any(window => window is null || window.Id is < 0 or > 255 || window.Width < 0 || window.Height < 0) || Windows.Select(window => window.Id).Distinct().Count() != Windows.Length || Receipts.Any(receipt => receipt is null || receipt.Request is null || receipt.Request.Id < 1 || receipt.Reply is null) || Receipts.Select(receipt => receipt.Request.Id).Distinct().Count() != Receipts.Length)
         {

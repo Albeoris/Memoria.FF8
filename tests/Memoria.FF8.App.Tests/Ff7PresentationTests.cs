@@ -61,6 +61,7 @@ public sealed class Ff7PresentationTests
         string? accepted = null;
         MenuController menus = new();
         menus.OpenNamePrompt(3, "Cloud", name => accepted = name, new NamePromptOptions(9, "Cloud", new UiImageSource(UiImageKind.HostArtwork, 1), text => text.All(character => character is >= ' ' and <= '~')));
+        Assert.False(menus.Entries.Single(entry => entry.Action is { Kind: "name-page", Value: "Cyrillic" }).Enabled);
         Assert.Throws<ArgumentException>(() => menus.SetNameDraft("0123456789"));
         Assert.Throws<ArgumentException>(() => menus.SetNameDraft("Борис"));
         menus.SetNameDraft("CloudNine");
@@ -75,6 +76,7 @@ public sealed class Ff7PresentationTests
         string? accepted = null;
         MenuController menus = new();
         menus.OpenNamePrompt(0, "Squall", name => accepted = name);
+        Assert.True(menus.Entries.Single(entry => entry.Action is { Kind: "name-page", Value: "Cyrillic" }).Enabled);
         menus.SetNameDraft("Александр");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("Александр", accepted);

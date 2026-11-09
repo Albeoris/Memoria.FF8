@@ -18,7 +18,7 @@ public sealed partial class FieldMachine
     private short R16(int id, int half, int offset) => Variables.ReadWord(Bank(id, half), W(id, offset));
     private void Advance(int id, int length) => entities[id].Pc = unchecked((ushort)(entities[id].Pc + length));
 
-    private bool Host(int id, FieldCommand command, int length, bool yieldAfter = false, bool firstCallYields = false, Action<int>? result = null, bool applyPendingResult = false)
+    private bool Host(int id, FieldCommand command, int length, bool yieldAfter = false, bool firstCallYields = false, Action<int>? result = null, bool applyPendingResult = false, Action<FieldHostReply>? replyResult = null)
     {
         if (host is null)
         {
@@ -41,6 +41,7 @@ public sealed partial class FieldMachine
             return true;
         }
         result?.Invoke(reply.Value);
+        replyResult?.Invoke(reply);
         pendingRequests.Remove(key);
         Advance(id, length);
         return yieldAfter;

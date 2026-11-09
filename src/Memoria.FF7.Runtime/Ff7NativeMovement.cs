@@ -169,6 +169,16 @@ public sealed class Ff7NativeMovement
         return new Ff7NativeMoveResult(result, false, moved, pushed.Order().ToArray(), clearLine, result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) });
     }
 
+    public static int PlanarDistance(int dx, int dy)
+    {
+        int squared = unchecked(dx * dx + dy * dy);
+        if (squared < 0)
+        {
+            throw new NotSupportedException("Movement distance exceeds the native signed range.");
+        }
+        return IntegerSquareRoot(squared);
+    }
+
     public byte Direction(int dx, int dy)
     {
         int squared = unchecked(dx * dx + dy * dy);

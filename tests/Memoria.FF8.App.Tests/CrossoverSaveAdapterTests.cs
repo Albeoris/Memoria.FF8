@@ -10,6 +10,20 @@ public sealed class CrossoverSaveAdapterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void FF7_debug_state_handoff_uses_its_own_loader_regardless_of_argument_order(bool stateFirst)
+    {
+        string path = Path.GetFullPath("standalone-ff7.ffsave");
+        string[] arguments = stateFirst ? ["--state", path, "--ff7-debug"] : ["--ff7-debug", "--state", path];
+        LaunchOptions options = PlayerStateLoader.Parse(arguments);
+        Assert.True(options.Ff7Debug);
+        Assert.Equal(path, options.CrossoverStatePath);
+        Assert.Null(options.StatePath);
+        Assert.Equal(SceneKind.Title, options.InitialState.Scene);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Active_FF7_envelopes_copy_without_rewriting_either_world_or_mapping(bool suspendedFf8)
     {
         string directory = Path.Combine(Path.GetTempPath(), "Memoria-crossover-copy-" + Guid.NewGuid().ToString("N"));

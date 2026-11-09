@@ -1152,6 +1152,22 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        CrossoverControlPolicy.EnsureAllowed(request.Command, InFf7, updateSave.Paused);
+        if (InFf7 && request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchCrossoverControl(request with { Command = "world-status" });
+        }
+        if (InFf7 && request.Command.Equals("capture", StringComparison.OrdinalIgnoreCase))
+        {
+            pendingCapture = Path.GetFullPath(request.Path ?? Path.Combine(options.ControlDirectory!, "captures", Path.GetFileName(request.Id) + ".png"));
+            return new { CapturePath = pendingCapture, ActiveGame = "FFVII", Field = ff7Scene?.Session?.Field.Name, Tick = ff7Scene?.Session?.Machine.Tick, Error = ff7Scene?.Error };
+        }
+        if (crossover is not null && request.Command.Equals("save", StringComparison.OrdinalIgnoreCase))
+        {
+            string path = Path.GetFullPath(request.Path ?? options.SavePath);
+            WritePlayerGameplaySave(path, ValidatePlayerState, DateTime.UtcNow);
+            return new { Path = path, ActiveGame = InFf7 ? "FFVII" : "FFVIII" };
+        }
         if (request.Command.StartsWith("world-", StringComparison.OrdinalIgnoreCase))
         {
             return DispatchCrossoverControl(request);
@@ -1163,6 +1179,7 @@ internal sealed partial class RecreateGame : Game
         if (request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase))
         {
             updateSave.Cancel();
+            ff7Scene?.SetFocusPaused(focusPaused);
             SynchronizeUiMoviePause();
             return new { Resumed = true };
         }
@@ -1182,6 +1199,7 @@ internal sealed partial class RecreateGame : Game
         if (request.Command.Equals("save-for-update", StringComparison.OrdinalIgnoreCase))
         {
             UpdateSaveResult saved = updateSave.Save(request.Path, request.ExpiresAt);
+            ff7Scene?.SetFocusPaused(focusPaused || updateSave.Paused);
             SynchronizeUiMoviePause();
             return saved;
         }

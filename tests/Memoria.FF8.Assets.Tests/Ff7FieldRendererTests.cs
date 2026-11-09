@@ -8,6 +8,64 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7FieldRendererTests
 {
+    [Theory]
+    [InlineData(1u, false)]
+    [InlineData(2u, true)]
+    public void NativeShadeModePreservesFlatAndGouraudVertexColorOwnership(uint mode, bool interpolated)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for the selected native model pose.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "md1stin");
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources original = Ff7FieldModelResources.Load(archive, field.Models.Models[0]);
+        byte[] state = new byte[100];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(state.AsSpan(8), 0x20000);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(state.AsSpan(12), 0x20000);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(state.AsSpan(36), mode);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(state.AsSpan(92), 255);
+        PcPolygonModel triangle = new([Vector3.Zero, Vector3.UnitX, Vector3.UnitY], [Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitZ], [], [0xFFFF0000, 0xFF00FF00, 0xFF0000FF], [], [new(0, 0, 1, 2, 0, 1, 2, default)], [state], [new(0, 0, 1, 0, 3, 0, 0, 0, default)], default);
+        Ff7FieldModelResources resources = original with { Geometry = [original.Geometry[0] with { Polygon = triangle }] };
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources> { [0] = resources }, new(50, 32000));
+        Ff7ActorVisual actor = new(0, 0, 3800 * 4096, 28500 * 4096, 310 * 4096, 0, 0, 0) { ModelEffects = new(_ => true, null, true) };
+        Capture submitted = new();
+        renderer.Render(submitted, 320, 240, new(0, Vector2.Zero, [actor], new ushort[256], MovieActive: true));
+        Assert.Equal(3, submitted.Colors.Count);
+        Assert.Equal(new Vector4(1, 0, 0, 1), submitted.Colors[0]);
+        Assert.Equal(interpolated ? new Vector4(0, 1, 0, 1) : submitted.Colors[0], submitted.Colors[1]);
+        Assert.Equal(interpolated ? new Vector4(0, 0, 1, 1) : submitted.Colors[0], submitted.Colors[2]);
+    }
+
+    [Fact]
+    public void ModelRenderOverridesKeepVisibilityAndCachedColorInTheSharedTriangleStream()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original model submission tests.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "md1stin");
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(archive, field.Models.Models[0]);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources> { [0] = model }, new(50, 32000));
+        int shaded = 0;
+        Ff7ActorVisual actor = new(0, 0, 3800 * 4096, 28500 * 4096, 310 * 4096, 0, 0, 0)
+        {
+            ModelEffects = new(part => part == 0, (_, _, _) =>
+            {
+                shaded++;
+                return 0xFF800040;
+            }, true)
+        };
+        Capture submitted = new();
+        renderer.Render(submitted, 320, 240, new(0, Vector2.Zero, [actor], new ushort[256], MovieActive: true));
+        Assert.True(shaded > 0);
+        Assert.True(submitted.Count > 0 && submitted.Count < model.Geometry.Sum(part => part.Polygon.Polygons.Count));
+        Assert.All(submitted.Colors, color => Assert.Equal(new Vector4(128 / 255f, 0, 64 / 255f, 1), color));
+        Assert.All(submitted.Clips, clip => Assert.Equal(new Vector4(0, 8, 320, 232), clip));
+        Capture hidden = new();
+        renderer.Render(hidden, 320, 240, new(0, Vector2.Zero, [actor with { ModelEffects = new(_ => false, null, true) }], new ushort[256], MovieActive: true));
+        Assert.Equal(0, hidden.Count);
+    }
+
     [Fact]
     public void IndexedTilePreservesPaletteZeroAndDirectCameraProjection()
     {
@@ -63,6 +121,8 @@ public sealed class Ff7FieldRendererTests
         public List<float> Depths { get; } = [];
         public Vector4 ClearColor { get; private set; }
         public List<bool> PreservesAlpha { get; } = [];
+        public List<Vector4> Colors { get; } = [];
+        public List<Vector4?> Clips { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -72,6 +132,8 @@ public sealed class Ff7FieldRendererTests
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
+            Colors.AddRange([a.Color, b.Color, c.Color]);
+            Clips.Add(material.ClipRectangle);
             Count++;
             PreservesAlpha.Add(material.PreserveTargetAlpha);
             if (a.ReciprocalW != 1)

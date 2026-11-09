@@ -7,6 +7,10 @@ internal sealed partial class RecreateGame
 {
     private async Task SaveOriginalPlayerSlotWithGuardianForceReviewAsync(int slot)
     {
+        if (crossover is not null)
+        {
+            throw new NotSupportedException("The original FFVIII save format cannot retain both worlds. Choose a Memoria slot.");
+        }
         GameState snapshot = session.PrepareSnapshot();
         (NativeCharacterVitals targetSource, short? placeId) = await ReviewOriginalGuardianForceExportAsync(snapshot);
         playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId, combinedSession: crossover is not null);

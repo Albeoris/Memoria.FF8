@@ -16,6 +16,8 @@ internal sealed partial class RecreateGame
     private GameAssets? crossoverAssets;
     private CrossoverMappingMenu? crossoverSetup;
     private CharacterAppearanceMapping[]? pendingCrossoverMappings;
+    private GameSession? suspendedFf8Session;
+    private GameWorld? suspendedFf8World;
     private bool InFf7 => crossover?.ActiveGame == SessionGame.Ff7;
 
     private void InitializeCrossover()
@@ -61,6 +63,10 @@ internal sealed partial class RecreateGame
 
     private void OpenCrossoverSetup()
     {
+        if (InFf7)
+        {
+            throw new InvalidOperationException("Return to FFVIII before changing the world mapping.");
+        }
         string? reason = Ff8WorldSwitchUnavailable();
         if (reason is not null)
         {
@@ -115,6 +121,7 @@ internal sealed partial class RecreateGame
                 gameMenus?.InvalidateLiveData();
             });
             scene.Continue(state);
+            scene.SuppressInitialPresses(physicalInput.ReadKeyboard());
             scene.SaveRequested += SaveCrossoverFromFf7;
             scene.WorldSwitchRequested += SwitchToFf8;
             return scene;
@@ -148,9 +155,12 @@ internal sealed partial class RecreateGame
             ff7Scene?.Dispose();
             ff7Scene = prepared;
             crossover = transaction.State;
+            suspendedFf8Session = session;
+            suspendedFf8World = world;
             gameMenus?.Close();
             fieldAudio?.SetFocusPaused(true);
             Window.Title = "Memoria - Final Fantasy VII";
+            ResetElapsedTime();
         }
         catch
         {
@@ -171,15 +181,35 @@ internal sealed partial class RecreateGame
         GameState? prepared = null;
         transaction.ToFf8(new(ff7Scene?.CanSave == true), outgoing.Ff7!, (payload, codec) =>
         {
-            prepared = RestoreFf8Payload(outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec });
-            ValidatePlayerState(prepared);
+            CombinedSessionSave target = outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec };
+            CrossoverSaveAdapter.ReadFf8(target);
+            if (suspendedFf8Session is not null || suspendedFf8World is not null)
+            {
+                if (!ReferenceEquals(suspendedFf8Session, session) || !ReferenceEquals(suspendedFf8World, world))
+                {
+                    throw new InvalidOperationException("The suspended FFVIII session was replaced while its world was inactive.");
+                }
+            }
+            else
+            {
+                prepared = RestoreFf8Payload(target);
+                ValidatePlayerState(prepared);
+            }
         });
-        RestorePlayerState(prepared!);
+        if (prepared is not null)
+        {
+            RestorePlayerState(prepared);
+        }
         crossover = transaction.State with { Mappings = outgoing.Mappings };
         ff7Scene?.Dispose();
         ff7Scene = null;
+        suspendedFf8Session = null;
+        suspendedFf8World = null;
         fieldAudio?.SetFocusPaused(false);
         Window.Title = "Memoria - Final Fantasy VIII";
+        keyboard.SuppressHeldUiInput();
+        drainUiButtons = true;
+        ResetElapsedTime();
     }
 
     private void RestoreCrossover(CombinedSessionSave? saved, Ff7Scene? prepared = null)
@@ -188,6 +218,8 @@ internal sealed partial class RecreateGame
         ff7Scene?.Dispose();
         ff7Scene = prepared;
         crossover = saved;
+        suspendedFf8Session = null;
+        suspendedFf8World = null;
         fieldAudio?.SetFocusPaused(InFf7);
         Window.Title = InFf7 ? "Memoria - Final Fantasy VII" : "Memoria - Final Fantasy VIII";
     }
@@ -198,7 +230,7 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
         }
-        CombinedSessionCodec.Save(options.CrossoverSavePath, saved);
+        CombinedSessionCodec.Save(options.ControlExclusive ? options.SavePath : options.CrossoverSavePath, saved);
         crossover = saved;
     }
 
@@ -217,6 +249,12 @@ internal sealed partial class RecreateGame
         if (!InFf7)
         {
             return false;
+        }
+        ff7Scene!.SetFocusPaused(focusPaused || updateSave.Paused);
+        if (updateSave.Paused)
+        {
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+            return true;
         }
         if (UpdateFocusPause())
         {

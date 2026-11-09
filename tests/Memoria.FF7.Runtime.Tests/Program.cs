@@ -17,6 +17,10 @@ var tests = new (string Name, Action Run)[]
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
     ("native field encounter-step contracts", NativeEncounterTests.Run),
     ("native field audio commands and continuation", NativeAudioTests.Run),
+    ("standalone FFVII cold checkpoint continuation", NativeCheckpointTests.Run),
+    ("native procedural model color and visibility contracts", NativeModelEffectTests.Run),
+    ("native interactive ladder continuation contracts", NativeLadderTests.Run),
+    ("native jump and actor position query contracts", NativeJumpTests.Run),
     ("installed native movement contracts", NativeMovementTests.RunInstalled),
     ("installed New Game and cold continuation", InstalledSession),
     ("installed opening and cold process continuation", InstalledOpeningTests.Run)

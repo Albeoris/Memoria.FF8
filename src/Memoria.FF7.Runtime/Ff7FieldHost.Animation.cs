@@ -78,7 +78,7 @@ public sealed partial class Ff7FieldHost
 
     private void AdvanceAnimation()
     {
-        foreach (Ff7Actor actor in Process.Actors)
+        foreach (Ff7Actor actor in Process.Actors.Where(actor => actor.Ladder is null && actor.Jump is null))
         {
             int count = animationLength(actor.Model, actor.Animation);
             if (count < 1)
@@ -87,7 +87,7 @@ public sealed partial class Ff7FieldHost
             }
             Ff7Actor next = actor;
             int last = actor.LastAnimationFrame < 0 ? count - 1 : actor.LastAnimationFrame;
-            bool scriptControlled = !actor.PlayerControlled || Process.PlayerLocked;
+            bool scriptControlled = !actor.PlayerControlled || Process.PlayerLocked || Process.Join is not null;
             if (scriptControlled)
             {
                 switch (actor.AnimationStatus)

@@ -146,8 +146,25 @@ public sealed partial class MenuController
             string letter = index < characters.Length && characters[index] != '\0' ? characters[index].ToString() : "";
             entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, SystemText("ui.nameinputentries.entry.help.append.this.character", "Append this character."), Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0 && (_nameOptions?.AcceptsDraft?.Invoke(letter) ?? true)));
         }
-        entries.AddRange(new[] { ("Keyboard", "name-keyboard", ""), ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: index != 9 || !IsNamePrompt)));
+        entries.AddRange(new[] { ("Keyboard", "name-keyboard", ""), ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: (index != 9 || !IsNamePrompt) && (entry.Item2 != "name-page" || NamePages.Any(page => page.Title.StartsWith(entry.Item3, StringComparison.Ordinal) && CanSelectNamePage(page.Characters))))));
         return entries;
+    }
+
+    private bool CanSelectNamePage(string characters)
+    {
+        return characters.Any(character => character != '\0' && (_nameOptions?.AcceptsDraft?.Invoke(character.ToString()) ?? true));
+    }
+
+    private void CycleNamePage(int direction)
+    {
+        for (int count = 0; count < NamePages.Length; count++)
+        {
+            _namePage = (_namePage + direction + NamePages.Length) % NamePages.Length;
+            if (CanSelectNamePage(NamePages[_namePage].Characters))
+            {
+                return;
+            }
+        }
     }
 
     private UiElement BuildNameInput()
@@ -309,12 +326,12 @@ public sealed partial class MenuController
             case MenuInput.PageLeft:
             case MenuInput.PageUp:
                 _nameKeyboard = false;
-                _namePage = (_namePage + NamePages.Length - 1) % NamePages.Length;
+                CycleNamePage(-1);
                 break;
             case MenuInput.PageRight:
             case MenuInput.PageDown:
                 _nameKeyboard = false;
-                _namePage = (_namePage + 1) % NamePages.Length;
+                CycleNamePage(1);
                 break;
             case MenuInput.Up:
                 if (IsTypingName)
@@ -411,12 +428,12 @@ public sealed partial class MenuController
                 _selections[ScreenId] = 0;
                 break;
             case "name-page":
-                int firstPage = Array.FindIndex(NamePages, page => page.Title.StartsWith(action.Value, StringComparison.Ordinal));
+                int firstPage = Array.FindIndex(NamePages, page => page.Title.StartsWith(action.Value, StringComparison.Ordinal) && CanSelectNamePage(page.Characters));
                 if (firstPage < 0)
                 {
                     throw new ArgumentException("Unknown naming alphabet.", nameof(action));
                 }
-                _namePage = NamePages[_namePage].Title.StartsWith(action.Value, StringComparison.Ordinal) && _namePage + 1 < NamePages.Length && NamePages[_namePage + 1].Title.StartsWith(action.Value, StringComparison.Ordinal) ? _namePage + 1 : firstPage;
+                _namePage = NamePages[_namePage].Title.StartsWith(action.Value, StringComparison.Ordinal) && _namePage + 1 < NamePages.Length && NamePages[_namePage + 1].Title.StartsWith(action.Value, StringComparison.Ordinal) && CanSelectNamePage(NamePages[_namePage + 1].Characters) ? _namePage + 1 : firstPage;
                 _nameKeyboard = false;
                 _nameHighSurrogate = null;
                 _selections[ScreenId] = 0;

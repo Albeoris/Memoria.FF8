@@ -68,6 +68,17 @@ internal sealed partial class Ff7Scene : IDisposable
     public event Action<CombinedSessionSave>? WorldSwitchRequested;
     public event Action? ContinueRequested;
 
+    public void SuppressInitialPresses(KeyboardState keys)
+    {
+        previousKeys = keys;
+        pendingPressedKeys = 0;
+    }
+
+    public void ShowNotice(string message)
+    {
+        notice = message;
+    }
+
     public void SetFocusPaused(bool paused)
     {
         focusPaused = paused;
@@ -156,7 +167,6 @@ internal sealed partial class Ff7Scene : IDisposable
                 tickRemainder -= 1d / 30;
                 ApplyLogicalInput();
                 Session.AdvanceTick();
-                UpdateDialogueTick();
                 UpdateAudio();
             }
         }
@@ -172,6 +182,9 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void Draw(SpriteBatch batch, Rectangle bounds)
     {
+        Rectangle windowBounds = bounds;
+        Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
+        bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
         if (Session is not null && error is null)
         {
             RunGuarded(() => RenderField(bounds));
@@ -195,7 +208,7 @@ internal sealed partial class Ff7Scene : IDisposable
                     DrawDialogues(batch, bounds);
                 }
             }
-            DrawNamingMenu(bounds);
+            DrawNamingMenu(windowBounds);
             if (debugMenu)
             {
                 DrawDebugMenu(batch, bounds);
@@ -248,8 +261,9 @@ internal sealed partial class Ff7Scene : IDisposable
             renderedGeneration = session.FieldGeneration;
         }
         Ff7FieldProcess state = session.Host.Process;
-        Ff7ActorVisual[] actors = state.Actors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)).ToArray();
         PcFieldCamera? camera = CurrentMovieCamera();
+        PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
+        Ff7ActorVisual[] actors = state.Actors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
         Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion);
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }

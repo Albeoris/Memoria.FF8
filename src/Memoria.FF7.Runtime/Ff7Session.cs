@@ -43,7 +43,7 @@ public sealed partial class Ff7Session : IDisposable
     public long FieldGeneration { get; private set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
 
-    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed);
+    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed);
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -129,6 +129,7 @@ public sealed partial class Ff7Session : IDisposable
                 Host.Execute(new FieldHostRequest(long.MaxValue, player.Entity, 7, 0, new FieldActorProperty(FieldActorPropertyKind.Direction, transition.Direction)));
             }
         }
+        AdvanceDialogues();
     }
 
     public Ff7SessionSave Capture()
@@ -163,11 +164,16 @@ public sealed partial class Ff7Session : IDisposable
             Field = Ff7FieldResources.Load(fields, mapList[map]);
             models = Field.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
         }
+        dialogueTokens.Clear();
         encounterTables = PcFieldEncounterTable.Read(Field.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Host = new Ff7FieldHost(Field, (model, animation) => models[model].Animations[Path.ChangeExtension(Field.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
             CompleteBattleRequest = CompleteDebugBattle,
+            ReadInputHeld = () => Machine.Input.Held,
+            ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
+            ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
+            ModelPartVertexCounts = model => models[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
             ExternalCommand = ExecuteExternal
         };
         Machine = new FieldMachine(FieldProgram.FromPcScripts(Field.Scripts), variables, host: Host);

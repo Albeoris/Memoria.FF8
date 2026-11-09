@@ -20,6 +20,10 @@ internal static class NativeProcessTests
         EncounterOwnerRetainsReceipt();
         NativeLineContacts();
         BackgroundTriggerTransitions();
+        ModelEffectHostOwnership();
+        JoinTimingAndRestore();
+        FaceActorTimingAndRestore();
+        PositionQueryUsesPhysicalCoordinates();
     }
 
     private static void TurnTimingAndRestore()
@@ -246,6 +250,187 @@ internal static class NativeProcessTests
         Equal((ushort)0, host.Process.BackgroundStates[1]);
         Equal(2, sounds.Count);
         Equal(false, host.Process.PlayerLocked);
+    }
+
+    private static void ModelEffectHostOwnership()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(game))
+        {
+            return;
+        }
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(game), "nmkin_1");
+        Ff7Actor actor = new() { Slot = 0, Entity = 0, Model = 8, X4096 = 385 * 4096, Y4096 = 3125 * 4096, Z4096 = -272 * 4096, Visible = false };
+        Ff7FieldHost Build(Ff7FieldProcess process) => new(field, (_, _) => 1, process) { ModelPartVertexCounts = _ => new[] { 16, 42, 16, 33 } };
+        Ff7FieldHost host = Build(new() { Actors = [actor] });
+        Equal(true, host.Execute(Request(100, new FieldModelEffectCommand(13, 0))).Completed);
+        Equal(false, host.GetActor(0).ModelEffect!.Initialized);
+        host.AdvanceActors();
+        Equal(true, host.GetActor(0).ModelEffect!.Initialized);
+        Ff7FieldHost restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        for (int tick = 0; tick < 120; tick++)
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Equal(true, host.GetActor(0).ModelEffect!.Applied);
+        Equal(true, host.Execute(Request(101, new FieldModelEffectCommand(13, 2))).Completed);
+        FieldHostRequest wait = Request(102, new FieldModelEffectCommand(13, Wait: true));
+        Equal(false, host.Execute(wait).Completed);
+        host.AdvanceActors();
+        Equal(false, host.Execute(wait).Completed);
+        host.AdvanceActors();
+        Equal(true, host.Execute(wait).Completed);
+        Equal(true, host.GetActor(0).ModelEffect is null);
+        PcFieldCamera gateCamera = new(Vector3.UnitX * 4096, Vector3.UnitY * 4096, Vector3.UnitZ * 4096, 0, new Vector3(0, 0, 15360), 0, 240);
+        Ff7Actor gated = actor with { Z4096 = 10 * 4096, OffsetZ = -20000, ModelEffect = Ff7NativeModelEffect.Request(null, 0, new[] { 16, 42, 16, 33 }) };
+        Ff7FieldHost rejected = new(field with { Cameras = new[] { gateCamera } }, (_, _) => 1, new() { Actors = [gated] });
+        rejected.AdvanceActors();
+        Equal(false, rejected.GetActor(0).ModelEffect!.Initialized);
+        Ff7FieldHost accepted = new(field with { Cameras = new[] { gateCamera with { Translation = new Vector3(0, 0, 15359) } } }, (_, _) => 1, new() { Actors = [gated] });
+        accepted.AdvanceActors();
+        Equal(true, accepted.GetActor(0).ModelEffect!.Initialized);
+    }
+
+    private static void JoinTimingAndRestore()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(game))
+        {
+            return;
+        }
+        Ff7PcExecutableData native = Ff7PcExecutableData.Load(Ff7Installation.Discover(game));
+        PcWalkmeshTriangle triangle = new(0, Vector3.Zero, new(0, 100, 0), new(100, 0, 0), -1, -1, -1);
+        Ff7FieldResources field = new("join-fixture", null!, null!, null!, [], [triangle], null!, null!, null!);
+        Ff7FieldHost Build(Ff7FieldProcess process) => new(field, (_, _) => 8, process) { Movement = new([triangle], native.NativeSinCos, native.NativeArcAngles) };
+        Ff7FieldHost host = Build(new()
+        {
+            Actors =
+            [
+                new() { Slot = 0, Entity = 0, Model = 0, PartyCharacter = 0, X4096 = 60 * 4096, Y4096 = 10 * 4096, CollisionEnabled = true },
+                new() { Slot = 1, Entity = 1, Model = 1, PartyCharacter = 1, X4096 = 20 * 4096, Y4096 = 10 * 4096, Direction = 240, MoveSpeed = 1024 },
+                new() { Slot = 2, Entity = 2, Model = 2, PartyCharacter = 2, X4096 = 20 * 4096, Y4096 = 30 * 4096, Direction = 0, MoveSpeed = 2048 }
+            ]
+        });
+        FieldHostRequest request = Request(200, new FieldPartyJoin(30, 0, 1, 2));
+        Equal(false, host.Execute(request).Completed);
+        Equal(2, host.Process.Join!.Followers[0].Stage);
+        Equal(true, Math.Abs(host.GetActor(1).TurnEnd - 240) <= 128);
+        for (int tick = 0; tick < 8; tick++)
+        {
+            host.AdvanceActors();
+            Equal(false, host.Execute(request).Completed);
+        }
+        Ff7Actor leader = host.GetActor(0);
+        host.ApplyPlayerMovement(new(leader with { X4096 = 70 * 4096 }, false, true, []));
+        Ff7FieldHost restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        bool completed = false;
+        for (int tick = 0; tick < 100 && !completed; tick++)
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            completed = host.Execute(request).Completed;
+            Equal(completed, restored.Execute(request).Completed);
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Equal(true, completed);
+        Equal(true, host.Process.Join is null);
+        Equal(true, host.GetActor(0).CollisionEnabled);
+        foreach (int entity in new[] { 1, 2 })
+        {
+            Ff7Actor follower = host.GetActor(entity);
+            Equal(70 * 4096, follower.X4096);
+            Equal(10 * 4096, follower.Y4096);
+            Equal(false, follower.Visible || follower.TalkEnabled || follower.CollisionEnabled);
+            Equal(entity == 1 ? 1024 : 2048, follower.MoveSpeed);
+        }
+        FieldHostRequest split = Request(201, new FieldPartySplit(20, 0, 1, 2, 30, 10, 0, 30, 30, 32, new(FieldBank.MapByte, 0)));
+        byte lateDirection = 0;
+        host.ReadFieldByte = _ => lateDirection;
+        Equal(false, host.Execute(split).Completed);
+        Equal(true, host.Process.Join!.Split);
+        Equal(70 * 4096, host.GetActor(1).X4096);
+        Equal(true, host.GetActor(1).Visible);
+        for (int tick = 0; tick < 10; tick++)
+        {
+            host.AdvanceActors();
+            Equal(false, host.Execute(split).Completed);
+        }
+        lateDirection = 240;
+        restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        restored.ReadFieldByte = _ => lateDirection;
+        completed = false;
+        for (int tick = 0; tick < 100 && !completed; tick++)
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            completed = host.Execute(split).Completed;
+            Equal(completed, restored.Execute(split).Completed);
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Equal(true, completed);
+        foreach (int entity in new[] { 1, 2 })
+        {
+            Ff7Actor follower = host.GetActor(entity);
+            Equal(30 * 4096, follower.X4096);
+            Equal((entity == 1 ? 10 : 30) * 4096, follower.Y4096);
+            Equal(entity == 1 ? 240 : 32, follower.Direction);
+            Equal(true, follower.Visible && follower.TalkEnabled && follower.CollisionEnabled);
+            Equal(entity == 1 ? 1024 : 2048, follower.MoveSpeed);
+        }
+    }
+
+    private static void FaceActorTimingAndRestore()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(game))
+        {
+            return;
+        }
+        Ff7PcExecutableData native = Ff7PcExecutableData.Load(Ff7Installation.Discover(game));
+        PcWalkmeshTriangle triangle = new(0, Vector3.Zero, new(0, 100, 0), new(100, 0, 0), -1, -1, -1);
+        Ff7FieldHost Build(Ff7FieldProcess process)
+        {
+            Ff7FieldHost result = Host(process);
+            result.Movement = new([triangle], native.NativeSinCos, native.NativeArcAngles);
+            return result;
+        }
+        Ff7FieldProcess process = new() { Actors = [new() { Slot = 0, Entity = 0, Model = 0, Direction = 240 }, new() { Slot = 1, Entity = 1, Model = 1 }] };
+        foreach (byte policy in new byte[] { 0, 1, 2 })
+        {
+            Ff7FieldHost host = Build(process);
+            FieldHostRequest request = Request(300, new FieldActorFace(1, 4, policy));
+            Equal(false, host.Execute(request).Completed);
+            Equal(policy == 0 ? 448 : 192, host.GetActor(0).TurnEnd);
+            host.AdvanceActors();
+            Ff7Actor target = host.GetActor(1);
+            host.ApplyPlayerMovement(new(target with { X4096 = 50 * 4096 }, false, true, []));
+            Equal(false, host.Execute(request).Completed);
+            Ff7FieldHost restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+            bool complete = false;
+            for (int tick = 0; tick < 4; tick++)
+            {
+                host.AdvanceActors();
+                restored.AdvanceActors();
+                complete = host.Execute(request).Completed;
+                Equal(complete, restored.Execute(request).Completed);
+                Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            }
+            Equal(true, complete);
+            Equal(192, host.GetActor(0).Direction);
+        }
+    }
+
+    private static void PositionQueryUsesPhysicalCoordinates()
+    {
+        Ff7Actor actor = new() { Slot = 0, Entity = 0, Model = 0, X4096 = -123 * 4096 - 1, Y4096 = 456 * 4096 + 2048, Z4096 = -7 * 4096 + 100, Triangle = 321, OffsetX = 50, OffsetY = 60, OffsetZ = 70 };
+        Ff7FieldHost host = Host(new() { Actors = [actor] });
+        FieldHostReply reply = host.Execute(Request(600, new FieldActorQuery(FieldActorQueryKind.Position, 0)));
+        Equal(true, reply.Completed);
+        Equal(new FieldActorPosition(-124, 456, -7, 321), reply.Position);
+        Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(reply, restored.Execute(Request(600, new FieldActorQuery(FieldActorQueryKind.Position, 0))));
     }
 
     private static Ff7FieldHost Host(Ff7FieldProcess? process = null)

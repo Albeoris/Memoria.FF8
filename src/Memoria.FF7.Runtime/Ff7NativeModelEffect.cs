@@ -1,0 +1,192 @@
+using System.Numerics;
+
+namespace Memoria.FF7.Runtime;
+
+public sealed record Ff7NativeModelEffectState
+{
+    public string Profile { get; init; } = Ff7NativeModelEffect.Profile;
+    public int NativeScale { get; init; } = 512;
+    public bool Initialized { get; init; }
+    public bool Applied { get; init; }
+    public bool ResetRequested { get; init; }
+    public bool Restored { get; init; }
+    public bool Completed { get; init; }
+    public short Phase { get; init; }
+    public short Counter { get; init; }
+    public short Stage { get; init; }
+    public int SampleFrame { get; init; }
+    public bool SuppressesNativeLighting => Initialized && !Restored;
+
+    public void Validate()
+    {
+        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
+        {
+            throw new InvalidDataException("The native KAWAI13 presentation continuation is invalid or unsupported.");
+        }
+    }
+}
+
+/// <summary>The admitted native topology-selected procedural color profiles, independent of script PCs and battle RNG.</summary>
+public static class Ff7NativeModelEffect
+{
+    public const string Profile = "pc-kawai13-four-part-16-42-v1";
+    public const string SinglePart35Profile = "pc-kawai13-single-part-35-v1";
+
+    public static Ff7NativeModelEffectState Request(Ff7NativeModelEffectState? current, byte mode, IReadOnlyList<int> partVertexCounts, int nativeScale = 512)
+    {
+        // NG-022: this is the original topology-selected pulse profile, not a model-name inference.
+        string profile;
+        if (partVertexCounts.Count == 4 && partVertexCounts[0] == 16 && partVertexCounts[1] == 42)
+        {
+            profile = Profile;
+        }
+        else if (partVertexCounts.Count == 1 && partVertexCounts[0] == 35)
+        {
+            profile = SinglePart35Profile;
+        }
+        else
+        {
+            throw new NotSupportedException("KAWAI13 requires a proved native procedural-color topology profile.");
+        }
+        current?.Validate();
+        if (current is not null && !current.Restored && current.Profile != profile)
+        {
+            throw new InvalidDataException("The native procedural-color continuation does not match the current model topology.");
+        }
+        Ff7NativeModelEffectState state = current is null || current.Restored ? new() { Profile = profile, NativeScale = nativeScale } : current;
+        state = state with { ResetRequested = mode == 2, Completed = false };
+        state.Validate();
+        return state;
+    }
+
+    /// <summary>Call only at the native model-effect processing boundary. A rejected native render/depth gate preserves every field.</summary>
+    public static Ff7NativeModelEffectState Advance(Ff7NativeModelEffectState state, bool modelEffectDrawEligible)
+    {
+        state.Validate();
+        if (!modelEffectDrawEligible || state.Completed)
+        {
+            return state;
+        }
+        if (state.ResetRequested)
+        {
+            return state.Restored ? state with { Completed = true } : state with { Restored = true, Applied = false };
+        }
+        if (!state.Initialized)
+        {
+            return state with { Initialized = true };
+        }
+        Ff7NativeModelEffectState result = state with { Applied = true, SampleFrame = state.Phase / 16 };
+        switch (state.Stage)
+        {
+            case 0:
+                result = result with { Counter = (short)(state.Counter + 1) };
+                if (result.Counter >= 100)
+                {
+                    result = result with { Phase = 0, Stage = 1 };
+                }
+                break;
+            case 1:
+                result = result with { Phase = (short)(state.Phase + 16) };
+                if (result.Phase >= 288)
+                {
+                    result = result with { Counter = 0, Stage = 2 };
+                }
+                break;
+            case 2:
+                result = result with { Counter = (short)(state.Counter + 1) };
+                if (result.Counter >= 10)
+                {
+                    result = result with { Phase = 0, Stage = 3 };
+                }
+                break;
+            case 3:
+                result = result with { Phase = (short)(state.Phase + 16) };
+                if (result.Phase >= 288)
+                {
+                    result = result with { Counter = 0, Stage = 0 };
+                }
+                break;
+        }
+        result.Validate();
+        return result;
+    }
+
+    public static bool PartVisible(Ff7NativeModelEffectState state, int part)
+    {
+        state.Validate();
+        ArgumentOutOfRangeException.ThrowIfNegative(part);
+        bool singlePart = state.Profile == SinglePart35Profile;
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(part, singlePart ? 1 : 4);
+        return !state.Initialized || state.Restored || state.Applied && (singlePart || part is 1 or 3);
+    }
+
+    public static Vector3 OrbitPoint(Ff7NativeModelEffectState state, int frame, IReadOnlyList<short> nativeSinCos)
+    {
+        state.Validate();
+        if ((uint)frame > 18 || nativeSinCos.Count != 512 || nativeSinCos.Any(value => value is < -4096 or > 4096))
+        {
+            throw new InvalidDataException("KAWAI13 requires its native orbit frame and original sine/cosine table.");
+        }
+        int scale = state.NativeScale > 512 ? state.NativeScale / 512 : 1;
+        int phase = frame * 16 & 255;
+        int sine = nativeSinCos[phase * 2];
+        int cosine = nativeSinCos[phase * 2 + 1];
+        bool singlePart = state.Profile == SinglePart35Profile;
+        int xyShift = singlePart ? 7 : 6;
+        int zShift = singlePart ? 6 : 5;
+        return new(unchecked((short)((cosine >> xyShift) * scale)), unchecked((short)((-sine >> xyShift) * scale)), unchecked((short)(((sine >> zShift) + 16) * scale)));
+    }
+
+    /// <summary>Reconstructs one native cached color from the original primitive position/normal and packed-camera rotation, excluding actor/model transforms.</summary>
+    public static uint ShadeVertex(Ff7NativeModelEffectState state, int frame, IReadOnlyList<short> nativeSinCos, Vector3 primitivePosition, Vector3 primitiveNormal, uint originalArgb, Matrix4x4 packedCamera)
+    {
+        Vector3 orbit = OrbitPoint(state, frame, nativeSinCos);
+        if (!Finite(primitivePosition) || !Finite(primitiveNormal) || !Matrix4x4.Invert(packedCamera, out Matrix4x4 inverseCamera))
+        {
+            throw new InvalidDataException("Native procedural colors require finite primitive data and an invertible packed camera.");
+        }
+        Vector3 point = RotateInteger(new(unchecked((short)(int)primitivePosition.X), unchecked((short)(int)primitivePosition.Y), unchecked((short)(int)primitivePosition.Z)));
+        Vector3 center = RotateInteger(orbit);
+        center = new(unchecked((short)(int)center.X), unchecked((short)(int)center.Y), unchecked((short)(int)center.Z));
+        Vector3 delta = center - point;
+        double squared = (double)delta.X * delta.X + (double)delta.Y * delta.Y + (double)delta.Z * delta.Z;
+        if (squared > int.MaxValue)
+        {
+            throw new NotSupportedException("Native procedural-color distance exceeds its signed integer square-root contract.");
+        }
+        int distance = (int)Math.Sqrt((int)squared) + 2;
+        int scale = state.NativeScale > 512 ? state.NativeScale / 512 : 1;
+        int radius = unchecked((short)((state.Profile == SinglePart35Profile ? 512 : 1024) * scale)) + 1;
+        int falloff = unchecked(Math.Max(radius - distance, 0) << 12) / radius;
+        Vector3 direction = new(Component((int)delta.X), Component((int)delta.Y), Component((int)delta.Z));
+        direction = Vector3.TransformNormal(direction, inverseCamera);
+        float light = MathF.Max(192 / 255f, Vector3.Dot(direction, primitiveNormal) + 192 / 255f);
+        uint red = Channel((byte)(originalArgb >> 16));
+        uint green = Channel((byte)(originalArgb >> 8));
+        uint blue = Channel((byte)originalArgb);
+        return originalArgb & 0xFF000000 | red << 16 | green << 8 | blue;
+
+        Vector3 RotateInteger(Vector3 value)
+        {
+            Vector3 transformed = Vector3.TransformNormal(value, packedCamera);
+            return new((int)transformed.X + (int)packedCamera.Translation.X, (int)transformed.Y + (int)packedCamera.Translation.Y, (int)transformed.Z + (int)packedCamera.Translation.Z);
+        }
+
+        int Component(int value)
+        {
+            float direction12 = (float)((double)unchecked(value << 12) / distance);
+            return (int)((double)falloff * direction12) >> 12;
+        }
+
+        uint Channel(byte value)
+        {
+            float lit = MathF.Min(255, value * light);
+            return (uint)MathF.Round(lit * (value / 255f), MidpointRounding.ToEven);
+        }
+    }
+
+    private static bool Finite(Vector3 value)
+    {
+        return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
+    }
+}

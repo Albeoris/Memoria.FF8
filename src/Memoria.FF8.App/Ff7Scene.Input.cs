@@ -48,15 +48,14 @@ internal sealed partial class Ff7Scene
                 {
                     return;
                 }
-                IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
-                if (dialogue.TokenPosition >= tokens.Count)
+                Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(dialogue, Tokens(dialogue));
+                if (confirmed.Completed)
                 {
-                    session.Host.CompleteDialogue(dialogue.RequestId, dialogue.Selected);
+                    session.Host.CompleteDialogue(confirmed.RequestId, confirmed.Selected);
                 }
                 else
                 {
-                    bool pageBreak = dialogue.TokenPosition > 0 && tokens[dialogue.TokenPosition - 1].Kind == FieldTextTokenKind.NewPage;
-                    session.Host.UpdateDialogue(dialogue.RequestId, dialogue.Page + (pageBreak ? 1 : 0), dialogue.Selected, dialogue.TokenPosition, 0, false);
+                    session.Host.UpdateDialogue(confirmed.RequestId, confirmed.Page, confirmed.Selected, confirmed.TokenPosition, confirmed.WaitTicks, confirmed.AwaitingInput);
                 }
             }
             return;
@@ -77,51 +76,6 @@ internal sealed partial class Ff7Scene
         Session.MovePlayer(moveHorizontal, moveVertical, runHeld);
     }
 
-    private void UpdateDialogueTick()
-    {
-        foreach (Ff7Dialogue dialogue in Session!.Host.Process.Dialogues.Where(item => !item.Completed).ToArray())
-        {
-            if (dialogue.AwaitingInput)
-            {
-                continue;
-            }
-            if (dialogue.WaitTicks > 0)
-            {
-                Session.Host.UpdateDialogue(dialogue.RequestId, dialogue.Page, dialogue.Selected, dialogue.TokenPosition, dialogue.WaitTicks - 1, false);
-                continue;
-            }
-            IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
-            int position = dialogue.TokenPosition;
-            int wait = 0;
-            bool awaiting = false;
-            // TODO(TD-021): The explicit instant-text debug policy skips native glyph reveal timing while retaining original controls and metrics.
-            while (position < tokens.Count)
-            {
-                FieldTextToken token = tokens[position++];
-                if (token.Kind == FieldTextTokenKind.Wait)
-                {
-                    wait = token.Argument;
-                    if (wait > 0)
-                    {
-                        break;
-                    }
-                    continue;
-                }
-                if (token.Kind == FieldTextTokenKind.Scroll)
-                {
-                    throw new NotSupportedException("FFVII scrolling text requires its original scrolling continuation contract.");
-                }
-                if (token.Kind is FieldTextTokenKind.Pause or FieldTextTokenKind.NewPage)
-                {
-                    awaiting = true;
-                    break;
-                }
-            }
-            int selected = dialogue.FirstChoice is int first && dialogue.LastChoice is int last ? Math.Clamp(dialogue.Selected, first, last) : dialogue.Selected;
-            Session.Host.UpdateDialogue(dialogue.RequestId, dialogue.Page, selected, position, wait, awaiting || wait == 0 && position == tokens.Count);
-        }
-    }
-
     private IReadOnlyList<FieldTextToken> Tokens(Ff7Dialogue dialogue)
     {
         var identity = (Session!.FieldGeneration, dialogue.Text);
@@ -130,10 +84,7 @@ internal sealed partial class Ff7Scene
             tokens = FieldText.Read(Session.Field.Scripts.Texts[dialogue.Text].Span);
             dialogueTokens.Add(identity, tokens);
         }
-        if (dialogue.TokenPosition > tokens.Count || dialogue.Page < 0 || dialogue.Page > tokens.Count(token => token.Kind == FieldTextTokenKind.NewPage) || dialogue.WaitTicks is < 0 or > 65535 || dialogue.AwaitingInput && dialogue.WaitTicks > 0)
-        {
-            throw new InvalidDataException("FFVII saved dialogue cursor, page or wait state exceeds its original text.");
-        }
+        Ff7DialogueCursor.Validate(dialogue, tokens);
         return tokens;
     }
 
