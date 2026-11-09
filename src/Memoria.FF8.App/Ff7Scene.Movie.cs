@@ -13,7 +13,9 @@ internal sealed partial class Ff7Scene
 {
     private MoviePresentation? movie;
     private Ff7MovieSource? movieSource;
-    private int movieId = -1;
+    private Ff7MovieSource? preparedMovieSource;
+    private (long Generation, long? Request, int Id)? preparedMovieIdentity;
+    private (long Generation, long? Request, int Id)? movieSourceIdentity;
     private readonly MovieSkipGesture movieSkipGesture = new();
     private (long Generation, long? Request)? movieSkipIdentity;
 
@@ -94,7 +96,23 @@ internal sealed partial class Ff7Scene
             _ => throw new InvalidDataException($"FFVII movie '{name}' has ambiguous original camera members.")
         };
         Ff7MovieCameraTrack? cameraTrack = cameras is null ? null : new Ff7MovieCameraTrack(cameras);
-        return new Ff7MovieSource(path, information, information.FrameCount, 15, frame => cameraTrack?.CameraAt(frame), (frame, words) => cameraTrack?.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0 };
+        return new Ff7MovieSource(path, information, information.FrameCount, 15, frame => cameraTrack?.CameraAt(frame), (frame, words) => cameraTrack?.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0, SnapshotCameraFrame = (frame, words) => cameraTrack?.SnapshotAt(frame, words) };
+    }
+
+    private (long Generation, long? Request, int Id) MovieIdentity(Ff7Movie movie)
+    {
+        return (Session!.FieldGeneration, movie.RequestId, movie.PreparedId);
+    }
+
+    private Ff7MovieSource PreparedMovieSource(Ff7Movie movie)
+    {
+        var identity = MovieIdentity(movie);
+        if (preparedMovieSource is null || preparedMovieIdentity != identity)
+        {
+            preparedMovieSource = resolveMovie(movie.PreparedId);
+            preparedMovieIdentity = identity;
+        }
+        return preparedMovieSource;
     }
 
     private void UpdateMovie()
@@ -108,16 +126,16 @@ internal sealed partial class Ff7Scene
             }
             return;
         }
-        if (movie is null || movieId != state.PreparedId)
+        if (movie is null || movieSourceIdentity != MovieIdentity(state))
         {
             StopMovie();
-            Ff7MovieSource source = resolveMovie(state.PreparedId);
+            Ff7MovieSource source = PreparedMovieSource(state);
             if (source.NativeFrameCount < 1 || source.LogicalFramesPerSecond != 15 || source.Information.FrameCount < 1)
             {
                 throw new NotSupportedException("FFVII movie presentation requires an admitted original frame count and 15 Hz movie timeline.");
             }
             movieSource = source;
-            movieId = state.PreparedId;
+            movieSourceIdentity = MovieIdentity(state);
             PublishMovieCameraFrame(Session!.Host, source, state.Frame);
             double startSeconds = state.Frame / source.LogicalFramesPerSecond;
             MovieInformation native = new(source.Information.Width, source.Information.Height, source.LogicalFramesPerSecond, source.NativeFrameCount / source.LogicalFramesPerSecond, source.NativeFrameCount);
@@ -142,9 +160,14 @@ internal sealed partial class Ff7Scene
 
     private void PublishCurrentMovieCameraFrame()
     {
-        if (error is null && Session?.Host.Process.Movie is { Playing: true } state && movieSource is not null && movieId == state.PreparedId)
+        if (error is null && Session?.Host.Process.Movie is { Playing: true } state)
         {
-            PublishMovieCameraFrame(Session.Host, movieSource, state.Frame);
+            var identity = MovieIdentity(state);
+            Ff7MovieSource? source = movieSourceIdentity == identity ? movieSource : preparedMovieIdentity == identity ? preparedMovieSource : null;
+            if (source is not null)
+            {
+                PublishMovieCameraFrame(Session.Host, source, state.Frame);
+            }
         }
     }
 
@@ -158,7 +181,36 @@ internal sealed partial class Ff7Scene
 
     private PcFieldCamera? CurrentMovieCamera()
     {
-        return Session is null ? null : ResolveMovieCamera(Session.Host, movieSource);
+        if (Session?.Host.Process.Movie is not { Playing: true } state)
+        {
+            return null;
+        }
+        var identity = MovieIdentity(state);
+        Ff7MovieSource? source = movieSourceIdentity == identity ? movieSource : preparedMovieIdentity == identity ? preparedMovieSource : null;
+        return ResolveMovieCamera(Session.Host, source);
+    }
+
+    private PcFieldCamera? BlinkCamera()
+    {
+        Ff7Session session = Session ?? throw new InvalidOperationException("Native blink presentation requires an attached session.");
+        Ff7MovieSource? source = session.Host.Process.Movie is { Playing: true, CameraDisabled: false } state && !session.Host.Process.MovieCameraDisabled ? PreparedMovieSource(state) : null;
+        return ResolveBlinkCamera(session.Host, source, session.Field.Cameras[0]);
+    }
+
+    internal static PcFieldCamera? ResolveBlinkCamera(Ff7FieldHost host, Ff7MovieSource? source, PcFieldCamera fieldCamera)
+    {
+        if (host.Process.Movie is not { Playing: true } movie || movie.CameraDisabled || host.Process.MovieCameraDisabled)
+        {
+            return fieldCamera;
+        }
+        Ff7MovieCameraConsumption consumption = movie.CameraConsumption ?? throw new InvalidOperationException("Native blink presentation requires the saved movie camera owner.");
+        if (movie.Frame < consumption.Frame)
+        {
+            throw new InvalidDataException("Native blink presentation cannot read a movie frame before its saved camera owner.");
+        }
+        long words = consumption.Frame == movie.Frame ? consumption.WordsBeforeRead : consumption.WordsAfterRead;
+        Func<int, long, PcMovieCamera?> snapshot = source?.SnapshotCameraFrame ?? throw new NotSupportedException("Native blink presentation requires a read-only original movie camera source.");
+        return snapshot(movie.Frame, words)?.Camera;
     }
 
     internal static PcFieldCamera? ResolveMovieCamera(Ff7FieldHost host, Ff7MovieSource? source)
@@ -184,7 +236,7 @@ internal sealed partial class Ff7Scene
         movie?.Dispose();
         movie = null;
         movieSource = null;
-        movieId = -1;
+        movieSourceIdentity = null;
     }
 }
 
@@ -215,7 +267,16 @@ internal sealed class Ff7MovieCameraTrack(IReadOnlyList<PcMovieCamera> cameras)
         {
             throw new InvalidOperationException("FFVII camera lookup requires its published logical movie frame.");
         }
+        return SnapshotAt(frame, consumedWords);
+    }
+
+    public PcMovieCamera SnapshotAt(int frame, long wordsBeforeRead)
+    {
+        if (frame < 0 || wordsBeforeRead < 0 || wordsBeforeRead % 10 != 0)
+        {
+            throw new InvalidDataException("A movie camera snapshot requires its native frame and whole-record read budget.");
+        }
         long lastReadableWords = cameras.Count * 10L - 2;
-        return consumedWords > lastReadableWords || (uint)frame >= cameras.Count ? empty : cameras[frame];
+        return wordsBeforeRead > lastReadableWords || (uint)frame >= cameras.Count ? empty : cameras[frame];
     }
 }

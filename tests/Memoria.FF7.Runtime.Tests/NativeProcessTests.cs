@@ -257,6 +257,89 @@ internal static class NativeProcessTests
         Ff7FadeProcess movieFadeOut = Ff7NativeFade.Advance(new(2, 0, 8, 0, 0, 0, false), movieActive: true);
         Equal(8, movieFadeOut.Position);
         Equal(2, movieFadeOut.Type);
+        Ff7FieldHost additive = Host(new() { FadeState = new(0, 0, 0, 0, 0, 0, false, 0x80123456) });
+        additive.Execute(Request(807, new FieldFadeCommand(6, 160, 0, 0, 32)));
+        additive.AdvanceActors();
+        Equal((uint?)0x80140000, additive.Process.FadeState!.QuadColorArgb);
+        Equal(Ff7FadeQuadBlend.Additive, additive.Process.FadeState!.QuadBlend);
+        Equal(0x80123456u, additive.Process.FadeState!.FieldColorArgb);
+        Ff7FieldHost additiveCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(additive.Capture()))!);
+        for (int tick = 0; tick < 7; tick++)
+        {
+            additive.AdvanceActors();
+            additiveCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(additive.Capture()), JsonSerializer.Serialize(additiveCold.Capture()));
+        }
+        Equal(255, additive.Process.FadeState!.Position);
+        Equal(6, additive.Process.FadeState!.Type);
+        Equal((uint?)0x809F0000, additive.Process.FadeState!.QuadColorArgb);
+        Equal(true, additive.Execute(Request(808, new FieldFadeCommand(0, Wait: true))).Completed);
+        Ff7FadeProcess movieAdditive = Ff7NativeFade.Advance(new(6, 0, 32, 160, 0, 0, false), movieActive: true);
+        Equal(32, movieAdditive.Position);
+        Ff7FieldHost constantIn = Host(new() { FadeState = new(0, 0, 0, 0, 0, 0, false, 0x80123456) });
+        constantIn.Execute(Request(809, new FieldFadeCommand(9, 255, 0, 0, 64, 255)));
+        Equal(256, constantIn.Process.FadeState!.Position);
+        constantIn.AdvanceActors();
+        Equal(192, constantIn.Process.FadeState!.Position);
+        Equal((uint?)0x80FF0000, constantIn.Process.FadeState!.QuadColorArgb);
+        Ff7FieldHost constantInCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(constantIn.Capture()))!);
+        for (int tick = 0; tick < 3; tick++)
+        {
+            constantIn.AdvanceActors();
+            constantInCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(constantIn.Capture()), JsonSerializer.Serialize(constantInCold.Capture()));
+        }
+        Equal(0, constantIn.Process.FadeState!.Type);
+        Equal((uint?)0x80FF0000, constantIn.Process.FadeState!.QuadColorArgb);
+        constantIn.AdvanceActors();
+        Equal((uint?)null, constantIn.Process.FadeState!.QuadColorArgb);
+        Ff7FadeProcess movieConstantIn = Ff7NativeFade.Advance(new(9, 256, 64, 255, 0, 0, false), movieActive: true);
+        Equal(0, movieConstantIn.Type);
+        Equal((uint?)0x80FF0000, movieConstantIn.QuadColorArgb);
+        Ff7FieldHost constantOut = Host(new() { FadeState = new(2, 255, 64, 210, 170, 170, true, 0x80694545) });
+        constantOut.Execute(Request(810, new FieldFadeCommand(10, 200, 200, 200, 32)));
+        constantOut.AdvanceActors();
+        Equal(32, constantOut.Process.FadeState!.Position);
+        Equal((uint?)0x80C8C8C8, constantOut.Process.FadeState!.QuadColorArgb);
+        Equal(0x80694545u, constantOut.Process.FadeState!.FieldColorArgb);
+        Equal(true, constantOut.Process.FadeState!.UsesFieldColor);
+        Ff7FieldHost constantOutCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(constantOut.Capture()))!);
+        for (int tick = 0; tick < 7; tick++)
+        {
+            constantOut.AdvanceActors();
+            constantOutCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(constantOut.Capture()), JsonSerializer.Serialize(constantOutCold.Capture()));
+        }
+        Equal(10, constantOut.Process.FadeState!.Type);
+        Equal(255, constantOut.Process.FadeState!.Position);
+        Equal((uint?)0x80C8C8C8, constantOut.Process.FadeState!.QuadColorArgb);
+        Equal(true, constantOut.Execute(Request(811, new FieldFadeCommand(0, Wait: true))).Completed);
+        Equal(32, Ff7NativeFade.Advance(new(10, 0, 32, 200, 200, 200, true), movieActive: true).Position);
+        Ff7FieldHost additiveIn = Host(new() { FadeState = new(0, 0, 0, 0, 0, 0, false, 0x8050080A) });
+        additiveIn.Execute(Request(812, new FieldFadeCommand(5, 0, 0, 0, 8, 255)));
+        Equal(256, additiveIn.Process.FadeState!.Position);
+        additiveIn.AdvanceActors();
+        Equal(248, additiveIn.Process.FadeState!.Position);
+        Equal((uint?)0x80000000, additiveIn.Process.FadeState!.QuadColorArgb);
+        Equal(Ff7FadeQuadBlend.Additive, additiveIn.Process.FadeState!.QuadBlend);
+        Ff7FieldHost additiveInCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(additiveIn.Capture()))!);
+        for (int tick = 0; tick < 31; tick++)
+        {
+            additiveIn.AdvanceActors();
+            additiveInCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(additiveIn.Capture()), JsonSerializer.Serialize(additiveInCold.Capture()));
+        }
+        Equal(0, additiveIn.Process.FadeState!.Type);
+        Equal((uint?)0x80000000, additiveIn.Process.FadeState!.QuadColorArgb);
+        Equal(0x8050080Au, additiveIn.Process.FadeState!.FieldColorArgb);
+        Equal(true, additiveIn.Execute(Request(813, new FieldFadeCommand(0, Wait: true))).Completed);
+        additiveIn.AdvanceActors();
+        Equal((uint?)null, additiveIn.Process.FadeState!.QuadColorArgb);
+        Equal(0x80FFFFFFu, additiveIn.Process.FadeState!.FieldColorArgb);
+        Ff7FadeProcess interruptedAdditive = Ff7NativeFade.Advance(new(5, 256, 8, 0, 0, 0, false, 0x8050080A), movieActive: true);
+        Equal(0, interruptedAdditive.Type);
+        Equal((uint?)0x80000000, interruptedAdditive.QuadColorArgb);
+        Equal(0x8050080Au, interruptedAdditive.FieldColorArgb);
     }
     public static void RunViewOffset()
     {

@@ -185,11 +185,14 @@ public sealed partial class Ff7Session : IDisposable
             throw new InvalidDataException("FFVII field transition is outside the original maplist.");
         }
         Ff7FieldResources loadedField = Ff7FieldResources.Load(fields, mapList[map]);
-        Ff7FieldModelResources[] loadedModels = loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
+        Ff7FieldModelResources[] loadedModels = loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model, executable, fields)).ToArray();
         IReadOnlyList<PcFieldEncounterTable> loadedEncounterTables = PcFieldEncounterTable.Read(loadedField.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             AudioRequested = Host?.AudioRequested,
+            NativeBlinkCamera = Host?.NativeBlinkCamera,
+            NativeBlinkRandomTable = executable.NativeFieldRandomTable,
+            NativeBlinkModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
             Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,

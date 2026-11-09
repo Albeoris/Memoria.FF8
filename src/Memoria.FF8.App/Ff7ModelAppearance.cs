@@ -107,6 +107,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             }
         }
         Matrix4x4 world = targetToFf7 * Matrix4x4.CreateScale(descriptorRatio) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        var eyeMaterial = EyeMaterial(actor, target);
         List<Ff7AppearanceTriangle> output = [];
         foreach (ModelFace face in target.Faces)
         {
@@ -114,7 +115,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             {
                 throw new InvalidDataException("Mapped target field face references an absent texture.");
             }
-            var image = target.Textures[face.Texture];
+            var image = face.Texture == 0 && eyeMaterial is not null ? eyeMaterial : target.Textures[face.Texture];
             Ff7WorldVertex Vertex(int corner)
             {
                 Vector2 uv = face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(target.Textures, face.Texture);

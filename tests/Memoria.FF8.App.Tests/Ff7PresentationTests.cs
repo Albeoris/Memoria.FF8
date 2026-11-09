@@ -1,6 +1,8 @@
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
+using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Ui;
 using System.Numerics;
 
@@ -8,6 +10,16 @@ namespace Memoria.FF8.Tests;
 
 public sealed class Ff7PresentationTests
 {
+    [Fact]
+    public void NativeFadeSelectsOnlyTheExistingAlphaOrAdditiveBlend()
+    {
+        Assert.Equal(TriangleBlend.Alpha, Ff7Scene.FadeQuadBlend(null));
+        Ff7FadeProcess fade = new(6, 32, 32, 160, 0, 0, false) { QuadBlend = Ff7FadeQuadBlend.Additive };
+        Assert.Equal(TriangleBlend.Add, Ff7Scene.FadeQuadBlend(fade));
+        Assert.Equal(TriangleBlend.Alpha, Ff7Scene.FadeQuadBlend(fade with { QuadBlend = Ff7FadeQuadBlend.Alpha }));
+        Assert.Throws<NotSupportedException>(() => Ff7Scene.FadeQuadBlend(fade with { QuadBlend = (Ff7FadeQuadBlend)255 }));
+    }
+
     [Fact]
     public void FieldCameraKeepsTheNativeSettlingOffsetWithoutMovingUiOrGuessingMovieComposition()
     {
@@ -53,6 +65,23 @@ public sealed class Ff7PresentationTests
         Assert.Equal(Vector3.Zero, track.CameraAt(2).Camera.AxisZ);
         Assert.Equal(0, track.CameraAt(2).Camera.FocalLength);
         Assert.Throws<InvalidDataException>(() => track.Publish(1, 10));
+    }
+
+    [Fact]
+    public void BlinkCameraSnapshotDoesNotPublishOrConsumeTheMovieTimeline()
+    {
+        PcMovieCamera first = new(new PcFieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, 0, default, 0, 386), 1);
+        PcMovieCamera second = first with { Flags = 2 };
+        Ff7MovieCameraTrack track = new([first, second]);
+        Assert.Same(second, track.SnapshotAt(1, 10));
+        Assert.Throws<InvalidOperationException>(() => track.CameraAt(1));
+        track.Publish(0, 0);
+        Assert.Same(second, track.SnapshotAt(1, 10));
+        Assert.Same(first, track.CameraAt(0));
+        Assert.Equal(Vector3.Zero, track.SnapshotAt(2, 20).Camera.AxisZ);
+        Assert.Equal(Vector3.Zero, track.SnapshotAt(0, 20).Camera.AxisZ);
+        Assert.Throws<InvalidDataException>(() => track.SnapshotAt(0, 1));
+        Assert.Throws<InvalidDataException>(() => track.SnapshotAt(-1, 0));
     }
 
     [Fact]

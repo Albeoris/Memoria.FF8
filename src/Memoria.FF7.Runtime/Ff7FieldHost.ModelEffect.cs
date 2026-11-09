@@ -24,12 +24,22 @@ public sealed partial class Ff7FieldHost
             {
                 throw new InvalidDataException("FFVII eye control requires its four native payload bytes.");
             }
-            if (payload[0] != 0 || payload[1] != 0 || payload[2] != 0 || actor.ModelEffect is not null)
+            if (actor.ModelEffect is not null)
             {
                 throw new NotSupportedException("FFVII eye selection, automatic blink activation or concurrent procedural colors require their native presentation owners.");
             }
-            // This command disables automatic blinking without changing the current eye textures or countdown.
-            SetActor(entity, current => current with { AutomaticBlinkDisabled = true });
+            if (payload[0] == 1 && payload[1] == 1 && payload[2] == 0)
+            {
+                SetActor(entity, current => current with { AutomaticBlinkDisabled = false, BlinkCountdown = 0 });
+            }
+            else if (payload[0] == 0 && payload[1] == 0 && payload[2] == 0)
+            {
+                SetActor(entity, current => current with { AutomaticBlinkDisabled = true });
+            }
+            else
+            {
+                throw new NotSupportedException("Explicit native asymmetric or fixed eye selection requires its complete material-selection owner.");
+            }
             return new(true);
         }
         if (command.Operation != 13)

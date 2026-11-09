@@ -5,12 +5,13 @@ using System.Text;
 
 namespace Memoria.FF7.Resources;
 
-public sealed class Ff7PcExecutableData
+public sealed partial class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable)
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable, Ff7PcFieldPresentationData presentation)
     {
+        NativePresentation = presentation;
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
         NativeArcAngles = Array.AsReadOnly(angles.Select(angle => checked((byte)angle)).ToArray());
@@ -25,6 +26,7 @@ public sealed class Ff7PcExecutableData
         NativeCameraShakeRandomTable = Array.AsReadOnly(cameraShakeRandomTable);
     }
 
+    public Ff7PcFieldPresentationData NativePresentation { get; }
     public IReadOnlyList<short> NativeSinCos { get; }
     public IReadOnlyList<ushort> NativeArcAngleWords { get; }
     public IReadOnlyList<byte> NativeArcAngles { get; }
@@ -178,7 +180,7 @@ public sealed class Ff7PcExecutableData
         {
             materiaStatModifiers[index] = BinaryPrimitives.ReadInt16LittleEndian(nativeStatModifiers.AsSpan(index * 2));
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256));
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe));
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

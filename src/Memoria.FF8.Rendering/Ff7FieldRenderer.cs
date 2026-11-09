@@ -10,6 +10,8 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
 {
     public int PartyCharacter { get; init; } = -1;
     public bool AutomaticBlinkDisabled { get; init; }
+    public byte NativeEyeLeft { get; init; }
+    public byte NativeEyeRight { get; init; }
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
@@ -17,6 +19,7 @@ public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPi
 {
     public uint? FieldColorArgb { get; init; }
     public uint? QuadColorArgb { get; init; }
+    public TriangleBlend QuadBlend { get; init; } = TriangleBlend.Alpha;
 }
 
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
@@ -104,7 +107,11 @@ public sealed class Ff7FieldRenderer
             {
                 Vector4 clip = FieldClip(width, height);
                 Vector4 color = new((quad >> 16 & 255) / 255f, (quad >> 8 & 255) / 255f, (quad & 255) / 255f, (quad >> 24) / 255f);
-                TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false) { ClipRectangle = clip, PreserveTargetAlpha = false };
+                if (frame.QuadBlend is not (TriangleBlend.Alpha or TriangleBlend.Add))
+                {
+                    throw new NotSupportedException("The native FFVII fade quad requires an admitted blend equation.");
+                }
+                TriangleMaterial material = new(null, frame.QuadBlend, TriangleDepthComparison.Always, false) { ClipRectangle = clip, PreserveTargetAlpha = frame.QuadBlend == TriangleBlend.Add };
                 TrianglePrimitives.Quad(renderer, new Vector2(clip.X, clip.Y), new Vector2(clip.Z - clip.X, clip.W - clip.Y), BitConverter.Int32BitsToSingle(0x358637BD), color, material, Vector2.One);
             }
         }
@@ -251,7 +258,12 @@ public sealed class Ff7FieldRenderer
                 {
                     throw new NotSupportedException("FF7 P groups require their corresponding original render-state records.");
                 }
-                PcRenderState state = PcRenderState.Read(model.RenderStates[groupIndex].Span);
+                PcTexture? alternate = resources.Eyes?.Alternate(partIndex, groupIndex, actor.NativeEyeLeft, actor.NativeEyeRight);
+                if ((actor.NativeEyeLeft == 2 || actor.NativeEyeRight == 2) && resources.Eyes is null)
+                {
+                    throw new NotSupportedException("Native closed eyes require the original model eye-resource binding.");
+                }
+                PcRenderState state = alternate is null ? PcRenderState.Read(model.RenderStates[groupIndex].Span) : Ff7FieldEyeResources.AlternateMaterial;
                 PixelImage? texture = null;
                 if (group.TexturesUsed != 0)
                 {
@@ -259,7 +271,7 @@ public sealed class Ff7FieldRenderer
                     {
                         throw new InvalidDataException("FF7 model group references an absent texture.");
                     }
-                    PcTexture tex = part.Textures[group.TextureNumber];
+                    PcTexture tex = alternate ?? part.Textures[group.TextureNumber];
                     if (!modelImages.TryGetValue(tex, out texture))
                     {
                         texture = DecodeTexture(tex);

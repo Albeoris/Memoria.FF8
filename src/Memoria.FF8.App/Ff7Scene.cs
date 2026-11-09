@@ -17,6 +17,7 @@ namespace Memoria.FF8;
 internal sealed record Ff7MovieSource(string Path, MovieInformation Information, int NativeFrameCount, double LogicalFramesPerSecond, Func<int, PcMovieCamera?>? CameraAtFrame = null, Action<int, long>? PublishCameraFrame = null)
 {
     public int CameraRecordCount { get; init; }
+    public Func<int, long, PcMovieCamera?>? SnapshotCameraFrame { get; init; }
 }
 
 internal sealed partial class Ff7Scene : IDisposable
@@ -262,7 +263,10 @@ internal sealed partial class Ff7Scene : IDisposable
         StopAudio();
         Session?.Dispose();
         StopMovie();
+        preparedMovieSource = null;
+        preparedMovieIdentity = null;
         Session = session;
+        Session.Host.NativeBlinkCamera = BlinkCamera;
         RestoreAudioPresentation(savedAudio, restoring);
         Session.PresentationCommand = PresentationCommand;
         renderedGeneration = -1;
@@ -288,9 +292,19 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb };
+        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
+        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState) };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
+    }
+
+    internal static TriangleBlend FadeQuadBlend(Ff7FadeProcess? fade)
+    {
+        return fade?.QuadBlend switch
+        {
+            null or Ff7FadeQuadBlend.Alpha => TriangleBlend.Alpha,
+            Ff7FadeQuadBlend.Additive => TriangleBlend.Add,
+            _ => throw new NotSupportedException("The FFVII fade process requires an admitted native quad blend.")
+        };
     }
 
     internal static Vector2N FieldCameraOffset(Ff7FieldProcess state)
@@ -301,7 +315,7 @@ internal sealed partial class Ff7Scene : IDisposable
         {
             throw new NotSupportedException("FFVII camera shake during a movie requires its native composition contract.");
         }
-        return new Vector2N(state.CameraX + shakeX, state.CameraY + shakeY);
+        return Ff7NativeCamera.PresentationOffset(state);
     }
 
     private void PresentationCommand(FieldCommand command)

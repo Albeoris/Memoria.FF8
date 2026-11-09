@@ -34,6 +34,37 @@ public sealed class Ff7FieldRendererTests
     }
 
     [Fact]
+    public void BiggsNativeBlinkUsesSelectedFieldArchiveAlternatesAndNativeFactoryMaterial()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set installed resources for original native blink submissions.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "tin_1");
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        using LgpArchive fields = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.FieldArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, field.Models.Models[3], executable, fields);
+        Assert.NotNull(model.Eyes?.ClosedLeft);
+        Assert.NotNull(model.Eyes?.ClosedRight);
+        var left = Ff7FieldRenderer.DecodeTexture(model.Eyes!.ClosedLeft!);
+        var right = Ff7FieldRenderer.DecodeTexture(model.Eyes.ClosedRight!);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources> { [3] = model }, new(50, 32000));
+        Ff7ActorVisual actor = new(33, 3, 0, 0, 0, 0, 0, 0);
+        Capture opened = new();
+        Capture closed = new();
+        renderer.Render(opened, 320, 240, new(0, Vector2.Zero, [actor with { NativeEyeLeft = 1, NativeEyeRight = 1 }], new ushort[256], MovieActive: true));
+        renderer.Render(closed, 320, 240, new(0, Vector2.Zero, [actor with { NativeEyeLeft = 2, NativeEyeRight = 2 }], new ushort[256], MovieActive: true));
+        Assert.Equal(opened.Positions, closed.Positions);
+        Assert.Contains(closed.Materials, material => material.Texture is not null && material.Texture.Pixels.SequenceEqual(left.Pixels));
+        Assert.Contains(closed.Materials, material => material.Texture is not null && material.Texture.Pixels.SequenceEqual(right.Pixels));
+        Assert.Equal(0x20002u, Ff7FieldEyeResources.AlternateMaterial.Features);
+        Assert.Equal(1u, Ff7FieldEyeResources.AlternateMaterial.ShadeMode);
+        Ff7FieldEyeResources absentLeft = model.Eyes with { ClosedLeft = null };
+        Assert.Null(absentLeft.Alternate(absentLeft.HeadPart, absentLeft.FirstGroup + 1, 2, 2));
+        Assert.Null(model.Eyes.Alternate(model.Eyes.HeadPart, model.Eyes.FirstGroup, 1, 1));
+    }
+
+    [Fact]
     public void NativeOrdinalChannelsScaleOnlyAliasedTranslationsAndRejectAllocationOverread()
     {
         using MemoryStream bytes = new();
@@ -144,6 +175,35 @@ public sealed class Ff7FieldRendererTests
         Assert.Equal(0, movie.ClearColor.W);
         Assert.Equal(2, movie.Count);
         Assert.All(movie.Materials, material => Assert.False(material.PreserveTargetAlpha));
+    }
+
+    [Fact]
+    public void NativeAdditiveFadeUsesUnscaledRgbAndKeepsTheUnderlyingMovieAlpha()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original field fade submission.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), "tin_1");
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(1, 10000));
+        foreach (bool movieActive in new[] { false, true })
+        {
+            Ff7FieldRenderFrame frame = new(0, Vector2.Zero, [], new ushort[256], MovieActive: movieActive);
+            Capture baseline = new();
+            renderer.Render(baseline, 320, 240, frame);
+            Capture faded = new();
+            renderer.Render(faded, 320, 240, frame with { QuadColorArgb = 0x80140000, QuadBlend = TriangleBlend.Add });
+            Assert.Equal(baseline.Count + 2, faded.Count);
+            Assert.Equal(baseline.Colors, faded.Colors.Take(baseline.Colors.Count));
+            Assert.All(faded.Colors.TakeLast(6), color => Assert.Equal(new Vector4(20 / 255f, 0, 0, 128 / 255f), color));
+            Assert.All(faded.Materials.TakeLast(2), material =>
+            {
+                Assert.Equal(TriangleBlend.Add, material.Blend);
+                Assert.Equal(TriangleDepthComparison.Always, material.DepthComparison);
+                Assert.False(material.DepthWrite);
+                Assert.True(material.PreserveTargetAlpha);
+                Assert.Null(material.Texture);
+            });
+            Assert.Equal(movieActive ? 0 : 1, faded.ClearColor.W);
+        }
     }
 
     [Fact]

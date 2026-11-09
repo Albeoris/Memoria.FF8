@@ -54,6 +54,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.TalkTo((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xDF) & 4) != 0 ? 31 : 34);
             case "cargoin":
                 return session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 48 ? driver.Steer(new(20, -140, 0)) : default;
+            case "mds7st3":
+                return driver.Gateway(156);
+            case "mds7plr1":
+                return driver.Gateway(151);
             case "md1_2":
                 return driver.Gateway(119);
             case "md8_1":

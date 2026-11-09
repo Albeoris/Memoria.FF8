@@ -20,6 +20,9 @@ public sealed record Ff7Actor
     public Ff7OffsetProcess? Offset { get; init; }
     public Ff7NativeModelEffectState? ModelEffect { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
+    public byte NativeEyeLeft { get; init; }
+    public byte NativeEyeRight { get; init; }
+    public ushort BlinkCountdown { get; init; }
     public Ff7LadderProcess? Ladder { get; init; }
     public Ff7JumpProcess? Jump { get; init; }
     public int TurnStart { get; init; }
@@ -85,6 +88,8 @@ public enum Ff7GlobalCommand
 
 public sealed record Ff7FieldProcess
 {
+    public byte BlinkRandomIndex { get; init; }
+    public bool BlinkStateInitialized { get; init; }
     public long Tick { get; init; }
     public Ff7Line[] Lines { get; init; } = [];
     public bool LineBlocked { get; init; }
@@ -180,6 +185,10 @@ public sealed record Ff7FieldProcess
         foreach (Ff7Actor actor in Actors)
         {
             actor.ModelEffect?.Validate();
+            if (actor.NativeEyeLeft > 2 || actor.NativeEyeRight > 2)
+            {
+                throw new InvalidDataException("FFVII native eye state has an unsupported applied mode.");
+            }
             if (actor.Jump is Ff7JumpProcess jump && (actor.Ladder is not null || jump.RequestId < 1 || jump.TargetTriangle < 0 || jump.Duration is < 1 or > short.MaxValue || jump.Step < 0 || jump.Step > jump.Duration))
             {
                 throw new InvalidDataException("FFVII jump continuation has invalid native owners or steps.");

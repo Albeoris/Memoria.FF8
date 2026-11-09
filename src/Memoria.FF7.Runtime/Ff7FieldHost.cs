@@ -33,6 +33,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             Process = Process with { BlockedTriangles = new byte[(field.Walkmesh.Count + 7) / 8] };
         }
+        InitializeBlinkState(process is not null);
         InitializePaletteState();
         InitializeFadeState();
         InitializeMovieCameraConsumption();
@@ -272,6 +273,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             Process = Process with { FadeState = Ff7NativeFade.Advance(fadeState, Process.Movie is { Playing: true }) };
         }
+        AdvanceBlink();
         Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };
     }
 
@@ -421,7 +423,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         SetActor(entity, actor => property.Property switch
         {
-            FieldActorPropertyKind.Visible => actor with { Visible = property.Value != 0 },
+            FieldActorPropertyKind.Visible => actor with { Visible = property.Value == 1 },
             FieldActorPropertyKind.Direction => actor with { Direction = property.Value & 255, TurnMode = 0, TurnStep = 0 },
             FieldActorPropertyKind.MoveSpeed => actor with { MoveSpeed = property.Value },
             FieldActorPropertyKind.AnimationSpeed => actor with { BaseAnimationSpeed = property.Value, AnimationSpeed = property.Value },

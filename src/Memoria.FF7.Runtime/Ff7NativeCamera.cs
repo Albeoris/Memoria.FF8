@@ -5,6 +5,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed class Ff7NativeCamera(PcFieldCamera camera, PcFieldTriggers triggers)
 {
+    public static Vector2 PresentationOffset(Ff7FieldProcess process) => new(process.CameraX + (process.CameraShakeX?.Offset ?? 0), process.CameraY + (process.CameraShakeY?.Offset ?? 0));
+
     public (short X, short Y) Follow(Ff7Actor actor, short focus)
     {
         Vector3 target = new(unchecked((short)(actor.X4096 >> 12)), unchecked((short)(actor.Y4096 >> 12)), unchecked((short)((actor.Z4096 >> 12) + focus)));
