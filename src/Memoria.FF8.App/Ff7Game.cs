@@ -1,6 +1,7 @@
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -19,6 +20,12 @@ internal sealed partial class Ff7Game : Game
     private readonly CombinedSessionSave? initialEnvelope;
     private readonly GraphicsDeviceManager graphics;
     private readonly LaunchOptions? launchOptions;
+    private readonly UiPreferences initialPresentationPreferences;
+    private int appliedMsaaSamples;
+    private WindowModeController? windowMode;
+#if MEMORIA_NATIVE
+    private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
+#endif
     private SpriteBatch batch = null!;
     private Ff7Scene scene = null!;
     private readonly KeyboardInput keyboard = new();
@@ -41,13 +48,32 @@ internal sealed partial class Ff7Game : Game
         this.launchOptions = launchOptions;
         this.appearance = appearance;
         this.prepareCrossover = prepareCrossover;
-        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = launchOptions?.Width ?? 960, PreferredBackBufferHeight = launchOptions?.Height ?? 720, GraphicsProfile = GraphicsProfile.HiDef };
-        graphics.SynchronizeWithVerticalRetrace = true;
+        initialPresentationPreferences = UiPreferences.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).UiPreferencesPath);
+        appliedMsaaSamples = initialPresentationPreferences.Graphics.MsaaSamples;
+        graphics = GraphicsDeviceSettings.Create(this, initialPresentationPreferences, launchOptions, () => scene?.PresentationPreferences ?? initialPresentationPreferences);
         Window.Title = "Memoria - Final Fantasy VII";
         Window.AllowUserResizing = true;
         IsMouseVisible = true;
         IsFixedTimeStep = false;
         InactiveSleepTime = TimeSpan.Zero;
+    }
+
+    protected override void Initialize()
+    {
+        base.Initialize();
+#if MEMORIA_NATIVE
+        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics);
+#endif
+        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
+        if (launchOptions?.IsDiagnosticGraphicalHost != true && launchOptions?.ResolutionSpecified != true && launchOptions?.ControlExclusive != true)
+        {
+            platform.Maximize();
+        }
+        windowMode = new WindowModeController(platform);
+        windowMode.Apply(scene.PresentationPreferences.BorderlessWindow);
+#if MEMORIA_NATIVE
+        nativeBackBuffer.Synchronize();
+#endif
     }
 
     protected override void LoadContent()
@@ -127,10 +153,15 @@ internal sealed partial class Ff7Game : Game
             keyboard.ControllerGeneration = controller.Generation;
             scene.Update(gameTime, ReadControlKeys(), pad);
         }
-        if (graphics.SynchronizeWithVerticalRetrace != scene.PresentationPreferences.VSync)
+        UiPreferences preferences = scene.PresentationPreferences;
+        windowMode?.Apply(preferences.BorderlessWindow);
+#if MEMORIA_NATIVE
+        nativeBackBuffer?.Synchronize();
+#endif
+        bool samplesChanged = appliedMsaaSamples != preferences.Graphics.MsaaSamples;
+        if (GraphicsDeviceSettings.Apply(graphics, preferences, ref appliedMsaaSamples) && samplesChanged)
         {
-            graphics.SynchronizeWithVerticalRetrace = scene.PresentationPreferences.VSync;
-            graphics.ApplyChanges();
+            scene.InvalidateGraphicsPresentation();
         }
         if (launchOptions?.ControlStep != true)
         {
@@ -170,6 +201,9 @@ internal sealed partial class Ff7Game : Game
     protected override void UnloadContent()
     {
         presentationPacer.Dispose();
+#if MEMORIA_NATIVE
+        nativeBackBuffer?.Dispose();
+#endif
         controller?.Dispose();
         scene?.Dispose();
         controlAppearanceAssets?.Dispose();

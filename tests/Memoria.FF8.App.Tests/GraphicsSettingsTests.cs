@@ -98,7 +98,7 @@ public sealed class GraphicsSettingsTests
             AssertSamples(CheckedChanges == 0 ? initialSamples : samples[CheckedChanges - 1]);
             if (CheckedChanges == samples.Length)
             {
-                game.Exit();
+                typeof(RecreateGame).GetMethod("ExitGame", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(game, null);
                 return;
             }
             int requested = samples[CheckedChanges];

@@ -98,10 +98,8 @@ internal sealed partial class RecreateGame : Game
         }
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
         playerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
-        (int width, int height) = uiPreferences.WindowSize(options);
         appliedMsaaSamples = uiPreferences.Graphics.MsaaSamples;
-        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = width, PreferredBackBufferHeight = height, SynchronizeWithVerticalRetrace = uiPreferences.VSync, GraphicsProfile = GraphicsProfile.HiDef, PreferMultiSampling = appliedMsaaSamples > 0 };
-        graphics.PreparingDeviceSettings += (_, settings) => settings.GraphicsDeviceInformation.PresentationParameters.MultiSampleCount = uiPreferences.Graphics.MsaaSamples;
+        graphics = GraphicsDeviceSettings.Create(this, uiPreferences, options, () => uiPreferences);
         Window.Title = "Memoria - Final Fantasy VIII";
         Window.AllowUserResizing = true;
         IsMouseVisible = true;

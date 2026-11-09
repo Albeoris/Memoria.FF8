@@ -50,6 +50,14 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         {
             return default;
         }
+        if (session.Field.Name == "smkin_1" && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 127)
+        {
+            FieldEntitySnapshot switchCountdown = session.Machine.Capture().Entities[6];
+            if (switchCountdown.Priority == 1 && switchCountdown.ProgramCounter == 0x04FD && switchCountdown.WaitCounter == 24)
+            {
+                return new(Held: 32);
+            }
+        }
         if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return default;
@@ -107,6 +115,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 Ff7Line reactorEntryLadder = session.Host.Process.Lines.Single(line => line.Entity == 3);
                 return driver.Approach(new((reactorEntryLadder.X1 + reactorEntryLadder.X2) / 2f, (reactorEntryLadder.Y1 + reactorEntryLadder.Y2) / 2f, reactorEntryLadder.Z1)) with { Held = ConfirmPulse };
             case "smkin_2":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 127)
+                {
+                    return driver.Gateway(121);
+                }
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
                 {
                     throw new NotSupportedException("FFVII autoplay has reached the next second-reactor story handoff.");
@@ -118,6 +130,20 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(130);
             case "smkin_3":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 127)
+                {
+                    if (z < 2000)
+                    {
+                        Ff7Line ascent = session.Host.Process.Lines.Single(line => line.Entity == (z < 1000 ? 7 : 5));
+                        return driver.Approach(new((ascent.X1 + ascent.X2) / 2f, (ascent.Y1 + ascent.Y2) / 2f, ascent.Z1)) with { Held = ConfirmOnContact(ascent) };
+                    }
+                    if (x > 0)
+                    {
+                        Ff7Line returnJump = session.Host.Process.Lines.Single(line => line.Entity == 3);
+                        return driver.Approach(new((returnJump.X1 + returnJump.X2) / 2f, (returnJump.Y1 + returnJump.Y2) / 2f, returnJump.Z1));
+                    }
+                    return driver.Gateway(129);
+                }
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
                 {
                     throw new NotSupportedException("FFVII autoplay has reached the next second-reactor ladder handoff.");
@@ -134,6 +160,15 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(131);
             case "smkin_4":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 127)
+                {
+                    if (z < 0)
+                    {
+                        Ff7Line saveAreaAscent = session.Host.Process.Lines.Single(line => line.Entity == 7);
+                        return driver.Approach(new((saveAreaAscent.X1 + saveAreaAscent.X2) / 2f, (saveAreaAscent.Y1 + saveAreaAscent.Y2) / 2f, saveAreaAscent.Z1)) with { Held = ConfirmOnContact(saveAreaAscent) };
+                    }
+                    return driver.Gateway(130);
+                }
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 117)
                 {
                     throw new NotSupportedException("FFVII autoplay has reached the next second-reactor save-area handoff.");
@@ -146,6 +181,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.Gateway(132);
             case "smkin_5":
                 int coreStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+                if (coreStory == 127)
+                {
+                    return driver.Gateway(131);
+                }
                 if (coreStory == 123)
                 {
                     int plantTriangle = session.Machine.Variables.ReadWord(FieldBank.MapWord, 7);
@@ -162,6 +201,24 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 Ff7Line coreEvent = session.Host.Process.Lines.Single(line => line.Entity == 6);
                 return driver.Approach(new((coreEvent.X1 + coreEvent.X2) / 2f, (coreEvent.Y1 + coreEvent.Y2) / 2f, coreEvent.Z1));
+            case "smkin_1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 128)
+                {
+                    return driver.Gateway(126);
+                }
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 127)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next second-reactor switch handoff.");
+                }
+                Ff7Line switchTrigger = session.Host.Process.Lines.Single(line => line.Entity == 6);
+                return driver.Approach(new((switchTrigger.X1 + switchTrigger.X2) / 2f, (switchTrigger.Y1 + switchTrigger.Y2) / 2f, switchTrigger.Z1));
+            case "southmk1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 128)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the next reactor-exterior handoff.");
+                }
+                Ff7Line exteriorEvent = session.Host.Process.Lines.Single(line => line.Entity == 1);
+                return driver.Approach(new((exteriorEvent.X1 + exteriorEvent.X2) / 2f, (exteriorEvent.Y1 + exteriorEvent.Y2) / 2f, exteriorEvent.Z1));
             case "tin_1":
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
                 {
@@ -291,6 +348,16 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(121);
             case "elevtr1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 127)
+                {
+                    if ((session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE1) & 1) != 0)
+                    {
+                        var buttonFace = session.Field.Walkmesh[8];
+                        return driver.Approach((buttonFace.A + buttonFace.B + buttonFace.C) / 3, 8) with { Held = player.Triangle == 8 ? ConfirmPulse : (ushort)0 };
+                    }
+                    Ff7Line liftExit = session.Host.Process.Lines.Single(line => line.Entity == 10);
+                    return driver.Steer(new(liftExit.X1 - 64, (liftExit.Y1 + liftExit.Y2) / 2f, liftExit.Z1));
+                }
                 if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled || EscapingFirstReactor && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE1) & 1) == 0)
                 {
                     return driver.Approach(new(99, 51, 5), 8) with { Held = ConfirmPulse };

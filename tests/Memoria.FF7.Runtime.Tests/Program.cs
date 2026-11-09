@@ -35,6 +35,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native autoplay crowd escape and pure previews", NativeAutoPlayCrowdTests.Run),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
+    ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
     ("native movement authored contracts", NativeMovementTests.Run),
     ("native animation authored contracts", NativeAnimationTests.Run),

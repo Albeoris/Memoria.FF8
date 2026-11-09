@@ -171,23 +171,23 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(true)) };
         Ff7NativeMovement movement = session.Host.Movement ?? throw new NotSupportedException("FFVII navigation requires native movement.");
         float best = float.PositiveInfinity;
-        bool bestBacktracks = true;
+        int bestRouteDistance = int.MaxValue;
         Ff7AutoplayInput result = default;
         foreach (var direction in Directions)
         {
             byte nativeDirection = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
             Ff7NativeMoveResult probe = movement.StepDirection(controlled, nativeDirection, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-            if (!probe.Moved)
+            if (!probe.Moved && probe.Actor.Triangle == controlled.Triangle)
             {
                 continue;
             }
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             float distance = Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y));
-            bool backtracks = !finalApproach && routeDistance[probe.Actor.Triangle] > routeDistance[player.Triangle];
-            if (bestBacktracks && !backtracks || bestBacktracks == backtracks && distance < best)
+            int remaining = finalApproach ? 0 : routeDistance[probe.Actor.Triangle];
+            if (remaining < bestRouteDistance || remaining == bestRouteDistance && distance < best)
             {
                 best = distance;
-                bestBacktracks = backtracks;
+                bestRouteDistance = remaining;
                 result = new(direction.X, direction.Y);
             }
         }

@@ -65,7 +65,11 @@ internal sealed partial class Ff7Scene : IDisposable
     public Ff7Session? Session { get; private set; }
     public bool CanSave => error is null && Session?.CanSave == true;
     public bool IsTitle => Session is null;
-    public bool InstantText => true;
+    internal void InvalidateGraphicsPresentation()
+    {
+        triangles.InvalidatePresentation();
+    }
+
     public string? Error => error;
     public event Action<CombinedSessionSave>? SaveRequested;
     public event Action<CombinedSessionSave>? WorldSwitchRequested;
