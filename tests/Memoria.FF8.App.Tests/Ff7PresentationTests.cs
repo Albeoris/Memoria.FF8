@@ -8,6 +8,17 @@ namespace Memoria.FF8.Tests;
 
 public sealed class Ff7PresentationTests
 {
+    [Fact]
+    public void FieldCameraKeepsTheNativeSettlingOffsetWithoutMovingUiOrGuessingMovieComposition()
+    {
+        Memoria.FF7.Runtime.Ff7FieldProcess state = new() { CameraX = 31, CameraY = -20, CameraShakeX = new(Enabled: false, Offset: -7), CameraShakeY = new(Enabled: true, Offset: 4) };
+        Assert.Equal(new Vector2(24, -16), Ff7Scene.FieldCameraOffset(state));
+        Assert.Equal((sbyte)-7, state.CameraShakeX.Offset);
+        Memoria.FF7.Runtime.Ff7FieldProcess movie = state with { Movie = new(0, true, 0, false, 1) };
+        Assert.Throws<NotSupportedException>(() => Ff7Scene.FieldCameraOffset(movie));
+        Assert.Equal(new Vector2(31, -20), Ff7Scene.FieldCameraOffset(movie with { CameraShakeX = null, CameraShakeY = null }));
+    }
+
     [Theory]
     [InlineData(27)]
     [InlineData(52)]

@@ -32,6 +32,9 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.SetBackground, B(id, 1)), 2);
             case 0x3F:
                 return Host(id, new FieldPartyRecovery(), 1);
+            case 0x5E:
+                byte shakeAxes = B(id, 3);
+                return Host(id, new FieldCameraShake(shakeAxes, (shakeAxes & 1) != 0 ? R8(id, 1, 4) : (byte)0, (shakeAxes & 1) != 0 ? R8(id, 2, 5) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 3, 6) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 4, 7) : (byte)0), 8);
             case 0x25:
                 return Host(id, new FieldFadeCommand(B(id, 3), R8(id, 1, 4), R8(id, 2, 5), R8(id, 3, 6), R16(id, 4, 7), NewFade: true), 9);
             case 0x33:
@@ -71,6 +74,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Close, B(id, 1)), 2);
             case 0x2E:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.CloseAndWait, B(id, 1)), 2);
+            case 0x2F:
+                return Host(id, new FieldWindowCommand(FieldWindowOperation.SizeWhenFree, B(id, 1), S(id, 2), S(id, 4), S(id, 6), S(id, 8)), 10);
             case 0x55:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Rows, B(id, 1), Height: (short)((B(id, 2) << 4) | 9)), 3);
             case 0x5B:
@@ -170,6 +175,19 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorPlacement(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), null), 9, true, yieldWithoutModel: true);
             case 0xA8:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4)), 6, firstCallYields: true);
+            case 0xAA:
+                int movementEntity = B(id, 1);
+                if (movementEntity >= entities.Length)
+                {
+                    throw new InvalidDataException("FFVII MOVA references an absent target entity.");
+                }
+                if (!entities[id].ModelBound || !entities[movementEntity].ModelBound)
+                {
+                    CancelPreemptedMove(id);
+                    Advance(id, 2);
+                    return false;
+                }
+                return Host(id, new FieldActorMove(0, 0, TargetEntity: movementEntity), 2, firstCallYields: true);
             case 0xAD:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4), Animated: false), 6, firstCallYields: true);
             case 0xAB:

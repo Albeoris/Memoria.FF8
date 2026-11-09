@@ -79,10 +79,27 @@ internal static class NativeModelEffectTests
             Check(Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(single, true), "The one-part35 cold next sample changed.");
         }
         Throws<InvalidDataException>(() => Ff7NativeModelEffect.Request(single, 1, [16, 42, 16, 33]));
-        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [34]));
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [54]));
         single = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(single, 2, [35]), true);
         Check(single.Restored && !single.Completed && Ff7NativeModelEffect.PartVisible(single, 0) && !single.SuppressesNativeLighting, "The one-part35 reset failed to restore the original model.");
         Check(Ff7NativeModelEffect.Advance(single, true).Completed, "The one-part35 reset completion clock changed.");
+        Ff7NativeModelEffectState defaultSingle = Ff7NativeModelEffect.Request(null, 0, [34]);
+        Check(defaultSingle.Profile == Ff7NativeModelEffect.SinglePartDefaultProfile, "The reached one-part34 topology selected the wrong native defaults.");
+        Check(Ff7NativeModelEffect.Request(null, 0, [37]).Profile == defaultSingle.Profile, "An asymmetric nonexception topology did not select native defaults.");
+        Check(Ff7NativeModelEffect.Request(null, 0, [112], partPolygonCounts: [63]).Profile == defaultSingle.Profile, "A conditional exception's nonmatching polygon count did not retain native defaults.");
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [112], partPolygonCounts: [64]));
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [112]));
+        Throws<InvalidDataException>(() => Ff7NativeModelEffect.Request(null, 0, [0]));
+        Check(Ff7NativeModelEffect.OrbitPoint(defaultSingle, 0, table) == new Vector3(256, 0, 0), "The one-part34 default orbit start changed.");
+        Check(Ff7NativeModelEffect.OrbitPoint(defaultSingle, 4, table) == new Vector3(0, -256, 128), "The one-part34 default orbit shifts or zero Z offset changed.");
+        Check(Ff7NativeModelEffect.ShadeVertex(defaultSingle, 0, table, new(-1500, 0, 0), Vector3.UnitX, 0xFFFFFFFF, Matrix4x4.Identity) == 0xFFFFFFFF, "The one-part34 default2048 light radius changed.");
+        for (int tick = 0; tick < 320; tick++)
+        {
+            defaultSingle = Ff7NativeModelEffect.Advance(defaultSingle, tick % 7 != 0);
+            Check(Ff7NativeModelEffect.PartVisible(defaultSingle, 0) == (!defaultSingle.Initialized || defaultSingle.Applied), "The one-part34 visibility owner changed.");
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(defaultSingle))!;
+            Check(Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(defaultSingle, true), "The one-part34 cold continuation changed.");
+        }
     }
 
     private static void RunInstalled()
@@ -105,6 +122,10 @@ internal static class NativeModelEffectTests
         Ff7FieldModelResources single = Ff7FieldModelResources.Load(characters, pipes.Models.Models[2]);
         Check(single.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 35 }), "The bounded original one-part35 topology changed.");
         CheckInstalledPulse(single, native);
+        Ff7FieldResources street = Ff7FieldResources.Load(installation, "md8_3");
+        Ff7FieldModelResources objectModel = Ff7FieldModelResources.Load(characters, street.Models.Models[10]);
+        Check(objectModel.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 34 }) && objectModel.Geometry[0].Polygon.Polygons.Count == 56, "The bounded original one-part34 topology changed.");
+        CheckInstalledPulse(objectModel, native);
     }
 
     private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native)

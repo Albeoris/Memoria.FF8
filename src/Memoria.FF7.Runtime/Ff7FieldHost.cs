@@ -50,7 +50,9 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
     public Ff7NativeMovement? Movement { get; set; }
     public Ff7NativeCamera? CameraProjection { get; set; }
+    public IReadOnlyList<byte>? CameraShakeRandomTable { get; set; }
     public Func<int, IReadOnlyList<int>>? ModelPartVertexCounts { get; set; }
+    public Func<int, IReadOnlyList<int>>? ModelPartPolygonCounts { get; set; }
     public Func<FieldByteOperand, byte>? ReadFieldByte { get; set; }
     public Func<int[]>? ReadScriptParty { get; set; }
     public Func<ushort>? ReadInputHeld { get; set; }
@@ -82,6 +84,13 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         switch (request.Command)
         {
+            case FieldCameraShake shake:
+                Process = Process with
+                {
+                    CameraShakeX = Ff7NativeCameraShake.Configure(Process.CameraShakeX ?? new(), (shake.Axes & 1) != 0, shake.XAmplitude, shake.XDuration),
+                    CameraShakeY = Ff7NativeCameraShake.Configure(Process.CameraShakeY ?? new(), (shake.Axes & 2) != 0, shake.YAmplitude, shake.YDuration)
+                };
+                return new(true);
             case FieldPartySplit split:
                 return SplitParty(request.Id, split);
             case FieldPartyJoin join:
@@ -149,7 +158,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldActorMove movement:
                 return MoveActor(request, movement);
             case FieldWindowCommand window:
-                return Window(window);
+                return Window(request, window);
             case FieldDialogueCommand dialogue:
                 Ff7Dialogue? active = Process.Dialogues.SingleOrDefault(item => item.RequestId == request.Id);
                 if (active is null)
@@ -232,6 +241,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         AdvanceViewOffset();
         AdvanceCamera();
+        AdvanceCameraShake();
         AdvanceOffsets();
         AdvanceTurns();
         AdvanceJumps();
@@ -240,13 +250,21 @@ public sealed partial class Ff7FieldHost : IFieldHost
         AdvanceModelEffects();
         foreach (Ff7Motion motion in Process.Motions)
         {
+            if (motion.Completed)
+            {
+                continue;
+            }
             Ff7NativeMovement movement = Movement ?? throw new NotSupportedException("FFVII scripted movement requires its native fixed-point stepping contract.");
             Ff7Actor actor = GetActor(motion.Entity);
-            Ff7NativeMoveResult moved = movement.Step(actor, checked((short)motion.TargetX), checked((short)motion.TargetY), Process.Actors, Process.BlockedTriangles, Process.PlayerLocked);
+            Ff7NativeMoveResult moved = motion.EntityTarget is Ff7EntityMotionTarget target
+                ? movement.StepToActor(actor, target.X4096, target.Y4096, target.Radius, Process.Actors, Process.BlockedTriangles, Process.PlayerLocked)
+                : movement.Step(actor, checked((short)motion.TargetX), checked((short)motion.TargetY), Process.Actors, Process.BlockedTriangles, Process.PlayerLocked);
             SetActor(actor.Entity, current => moved.Actor with { Direction = motion.Turn ? moved.Actor.Direction : current.Direction });
             if (moved.Arrived)
             {
-                Process = Process with { Motions = Process.Motions.Where(item => item.RequestId != motion.RequestId).ToArray() };
+                Process = motion.EntityTarget is null
+                    ? Process with { Motions = Process.Motions.Where(item => item.RequestId != motion.RequestId).ToArray() }
+                    : Process with { Motions = Process.Motions.Select(item => item.RequestId == motion.RequestId ? item with { Completed = true } : item).ToArray() };
             }
         }
         AdvanceJoinedMovement();
@@ -418,16 +436,29 @@ public sealed partial class Ff7FieldHost : IFieldHost
         return new(true);
     }
 
-    private FieldHostReply Window(FieldWindowCommand window)
+    private FieldHostReply Window(FieldHostRequest request, FieldWindowCommand window)
     {
         if (window.Window is < 0 or > 3)
         {
             throw new InvalidDataException("FFVII window references an absent native window slot.");
         }
         Ff7Window current = Process.Windows.SingleOrDefault(item => item.Id == window.Window) ?? new Ff7Window(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
+        if (window.Operation == FieldWindowOperation.SizeWhenFree && Process.Dialogues.SingleOrDefault(dialogue => dialogue.Window == window.Window && !dialogue.Completed) is Ff7Dialogue active)
+        {
+            if (!receipts.TryGetValue(active.RequestId, out Ff7HostReceipt? owner))
+            {
+                throw new InvalidDataException("FFVII window ownership requires its saved dialogue request.");
+            }
+            if (owner.Request.Entity == request.Entity)
+            {
+                throw new NotSupportedException("FFVII self-owned window resizing requires its native closing interpolation.");
+            }
+            return new(false);
+        }
         switch (window.Operation)
         {
             case FieldWindowOperation.Size:
+            case FieldWindowOperation.SizeWhenFree:
                 Ff7Window configured = current with { X = window.X, Y = window.Y, Width = window.Width, Height = window.Height };
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), configured] };
                 break;

@@ -3,6 +3,95 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void CameraShakeOperandsAndContinuation()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x5E, 0x13, 0x56, 3, 10, 11, 12, 13, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteByte(FieldBank.Persistent0Byte, 10, 255);
+        vm.Variables.WriteByte(FieldBank.Persistent1Byte, 11, 2);
+        vm.Variables.WriteByte(FieldBank.MapByte, 12, 5);
+        vm.Variables.WriteByte(FieldBank.MapWord, 13, 3);
+        vm.AdvanceTick();
+        Check(new FieldCameraShake(3, 255, 2, 5, 3), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x5E, 0xAA, 0xAA, 0, 0, 0, 0, 0, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldCameraShake(0, 0, 0, 0, 0), host.Requests.Single().Command);
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x5E, 0, 0, 2, 0, 0, 5, 2, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldCameraShake(2, 0, 0, 5, 2), host.Requests.Single().Command);
+        byte[] truncated = new byte[24];
+        truncated[17] = 0x5E;
+        truncated[20] = 2;
+        vm = New(truncated, new RecordingHost());
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
+    public static void ActorApproachOperandsAndPreemption()
+    {
+        var host = new RecordingHost { Complete = false };
+        byte[] code = Code(0xA1, 0, 0, 0xAA, 1, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1);
+        new byte[] { 0xA1, 1, 0, 0 }.CopyTo(code, 80);
+        new byte[] { 0x80, 0x50, 9, 1, 0 }.CopyTo(code, 96);
+        var rows = new[] { Enumerable.Repeat((ushort)16, 32).ToArray(), Enumerable.Repeat((ushort)80, 32).ToArray() };
+        rows[0][1] = 96;
+        var program = new FieldProgram(code, rows);
+        var vm = new FieldMachine(program, host: host);
+        host.Complete = true;
+        vm.Initialize();
+        host.Complete = false;
+        vm.AdvanceTick();
+        FieldHostRequest request = vm.Capture().PendingRequests!.Single();
+        Check(new FieldActorMove(0, 0, TargetEntity: 1), request.Command);
+        Check(19, vm.Capture().Entities[0].ProgramCounter);
+        vm = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(vm.Capture()))!, host);
+        host.Complete = true;
+        vm.AdvanceTick();
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        vm = new FieldMachine(program, host: host);
+        vm.Initialize();
+        host.Complete = false;
+        vm.AdvanceTick();
+        FieldVmSnapshot state = vm.Capture();
+        long cancelledId = state.PendingRequests!.Single().Id;
+        state.Entities[1] = state.Entities[1] with { ModelBound = false };
+        vm = FieldMachine.Restore(program, state, host);
+        vm.AdvanceTick();
+        Check(cancelledId, host.Cancelled.Single().Id);
+        Check(0, vm.Capture().PendingRequests!.Length);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = new FieldMachine(program, host: host);
+        vm.Initialize();
+        host.Complete = false;
+        vm.AdvanceTick();
+        cancelledId = vm.Capture().PendingRequests!.Single().Id;
+        Check(true, vm.TryRequestScript(0, 1));
+        Check(cancelledId, host.Cancelled.Single().Id);
+        Check(0, vm.Capture().PendingRequests!.Length);
+    }
+
+    public static void WindowSizeWhenFreeOperands()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x2F, 0, 145, 0, 8, 0, 136, 0, 41, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldWindowCommand(FieldWindowOperation.SizeWhenFree, 0, 145, 8, 136, 41), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        byte[] truncated = new byte[26];
+        truncated[17] = 0x2F;
+        vm = New(truncated, new RecordingHost());
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
     public static void PartyRecoveryContinuation()
     {
         var host = new RecordingHost { Complete = true };

@@ -185,11 +185,13 @@ public sealed partial class Ff7Session : IDisposable
             AudioRequested = Host?.AudioRequested,
             Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
             CameraProjection = new Ff7NativeCamera(Field.Cameras[0], Field.Triggers),
+            CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,
             CompleteBattleRequest = CompleteDebugBattle,
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
             ModelPartVertexCounts = model => models[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
+            ModelPartPolygonCounts = model => models[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
             ExternalCommand = ExecuteExternal
         };
         Machine = new FieldMachine(FieldProgram.FromPcScripts(Field.Scripts), variables, host: Host);

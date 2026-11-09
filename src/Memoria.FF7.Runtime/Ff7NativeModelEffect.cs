@@ -19,7 +19,7 @@ public sealed record Ff7NativeModelEffectState
 
     public void Validate()
     {
-        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
+        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile or Ff7NativeModelEffect.SinglePartDefaultProfile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
         {
             throw new InvalidDataException("The native KAWAI13 presentation continuation is invalid or unsupported.");
         }
@@ -31,9 +31,15 @@ public static class Ff7NativeModelEffect
 {
     public const string Profile = "pc-kawai13-four-part-16-42-v1";
     public const string SinglePart35Profile = "pc-kawai13-single-part-35-v1";
+    public const string SinglePartDefaultProfile = "pc-kawai13-single-part-default-v1";
 
-    public static Ff7NativeModelEffectState Request(Ff7NativeModelEffectState? current, byte mode, IReadOnlyList<int> partVertexCounts, int nativeScale = 512)
+    public static Ff7NativeModelEffectState Request(Ff7NativeModelEffectState? current, byte mode, IReadOnlyList<int> partVertexCounts, int nativeScale = 512, IReadOnlyList<int>? partPolygonCounts = null)
     {
+        ArgumentNullException.ThrowIfNull(partVertexCounts);
+        if (partVertexCounts.Count == 0 || partVertexCounts.Any(count => count <= 0) || partPolygonCounts is not null && (partPolygonCounts.Count != partVertexCounts.Count || partPolygonCounts.Any(count => count < 0)))
+        {
+            throw new InvalidDataException("Native procedural colors require valid rigid-part topology counts.");
+        }
         // NG-022: this is the original topology-selected pulse profile, not a model-name inference.
         string profile;
         if (partVertexCounts.Count == 4 && partVertexCounts[0] == 16 && partVertexCounts[1] == 42)
@@ -43,6 +49,23 @@ public static class Ff7NativeModelEffect
         else if (partVertexCounts.Count == 1 && partVertexCounts[0] == 35)
         {
             profile = SinglePart35Profile;
+        }
+        else if (partVertexCounts.Count == 1)
+        {
+            int vertices = partVertexCounts[0];
+            if (vertices == 54)
+            {
+                throw new NotSupportedException("The native one-part54 procedural color profile requires its distinct phase contract.");
+            }
+            if (vertices is 112 or 109 or 94 or 95 or 72 or 80)
+            {
+                int polygons = partPolygonCounts?[0] ?? throw new NotSupportedException("The native procedural color classifier requires this part's polygon count.");
+                if ((vertices is 112 or 109 or 94) && polygons == 64 || vertices == 95 && polygons == 62 || vertices == 72 && polygons == 140 || vertices == 80 && polygons == 76)
+                {
+                    throw new NotSupportedException("This native procedural color topology selects a distinct unsupported orbit or phase contract.");
+                }
+            }
+            profile = SinglePartDefaultProfile;
         }
         else
         {
@@ -115,7 +138,7 @@ public static class Ff7NativeModelEffect
     {
         state.Validate();
         ArgumentOutOfRangeException.ThrowIfNegative(part);
-        bool singlePart = state.Profile == SinglePart35Profile;
+        bool singlePart = state.Profile is SinglePart35Profile or SinglePartDefaultProfile;
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(part, singlePart ? 1 : 4);
         return !state.Initialized || state.Restored || state.Applied && (singlePart || part is 1 or 3);
     }
@@ -131,10 +154,10 @@ public static class Ff7NativeModelEffect
         int phase = frame * 16 & 255;
         int sine = nativeSinCos[phase * 2];
         int cosine = nativeSinCos[phase * 2 + 1];
-        bool singlePart = state.Profile == SinglePart35Profile;
-        int xyShift = singlePart ? 7 : 6;
-        int zShift = singlePart ? 6 : 5;
-        return new(unchecked((short)((cosine >> xyShift) * scale)), unchecked((short)((-sine >> xyShift) * scale)), unchecked((short)(((sine >> zShift) + 16) * scale)));
+        int xyShift = state.Profile == SinglePartDefaultProfile ? 4 : state.Profile == SinglePart35Profile ? 7 : 6;
+        int zShift = state.Profile == SinglePart35Profile ? 6 : 5;
+        int zOffset = state.Profile == SinglePartDefaultProfile ? 0 : 16;
+        return new(unchecked((short)((cosine >> xyShift) * scale)), unchecked((short)((-sine >> xyShift) * scale)), unchecked((short)(((sine >> zShift) + zOffset) * scale)));
     }
 
     /// <summary>Reconstructs one native cached color from the original primitive position/normal and packed-camera rotation, excluding actor/model transforms.</summary>
@@ -156,7 +179,8 @@ public static class Ff7NativeModelEffect
         }
         int distance = (int)Math.Sqrt((int)squared) + 2;
         int scale = state.NativeScale > 512 ? state.NativeScale / 512 : 1;
-        int radius = unchecked((short)((state.Profile == SinglePart35Profile ? 512 : 1024) * scale)) + 1;
+        int nativeRadius = state.Profile == SinglePartDefaultProfile ? 2048 : state.Profile == SinglePart35Profile ? 512 : 1024;
+        int radius = unchecked((short)(nativeRadius * scale)) + 1;
         int falloff = unchecked(Math.Max(radius - distance, 0) << 12) / radius;
         Vector3 direction = new(Component((int)delta.X), Component((int)delta.Y), Component((int)delta.Z));
         direction = Vector3.TransformNormal(direction, inverseCamera);

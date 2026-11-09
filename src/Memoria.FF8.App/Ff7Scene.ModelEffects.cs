@@ -10,6 +10,15 @@ internal sealed partial class Ff7Scene
 {
     private Ff7ModelRenderOverrides? ModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera)
     {
+        if (state is { Applied: true, Restored: false })
+        {
+            audioNative ??= Ff7PcExecutableData.Load(installation);
+        }
+        return CreateModelEffects(state, camera, audioNative?.NativeSinCos);
+    }
+
+    internal static Ff7ModelRenderOverrides? CreateModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera, IReadOnlyList<short>? nativeSinCos)
+    {
         if (state is null || state.Restored)
         {
             return null;
@@ -18,8 +27,7 @@ internal sealed partial class Ff7Scene
         Func<System.Numerics.Vector3, System.Numerics.Vector3, uint, uint>? color = null;
         if (state.Applied)
         {
-            audioNative ??= Ff7PcExecutableData.Load(installation);
-            IReadOnlyList<short> directions = audioNative.NativeSinCos;
+            IReadOnlyList<short> directions = nativeSinCos ?? throw new InvalidOperationException("Applied native model colors require the selected executable's direction table.");
             Matrix4x4N packed = new(
                 camera.AxisX.X / 4096, camera.AxisX.Y / 4096, camera.AxisX.Z / 4096, 0,
                 camera.AxisY.X / 4096, camera.AxisY.Y / 4096, camera.AxisY.Z / 4096, 0,

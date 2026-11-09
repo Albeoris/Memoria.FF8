@@ -7,6 +7,44 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeProcessTests
 {
+    public static void RunWindowSizeWhenFree()
+    {
+        var command = new FieldWindowCommand(FieldWindowOperation.SizeWhenFree, 0, 145, 8, 136, 41);
+        Ff7FieldHost host = Host(new() { Windows = [new(0, 8, 149, 304, 74) { Style = 1, SpecialType = 1, SpecialX = 10 }] });
+        Equal(true, host.Execute(Request(1600, command)).Completed);
+        Equal(new Ff7Window(0, 145, 8, 136, 41) { Style = 1, SpecialType = 1, SpecialX = 10 }, host.Process.Windows.Single());
+        FieldHostRequest dialogue = Request(1601, new FieldDialogueCommand(0, 0));
+        host = Host(new()
+        {
+            Windows = [new(0, 8, 149, 304, 74)],
+            Dialogues = [new(1601, 0, 0, null, null, 0)],
+            Receipts = [new(dialogue, new(false))]
+        });
+        FieldHostRequest foreign = new(1602, 1, 7, 16, command);
+        Equal(false, host.Execute(foreign).Completed);
+        Equal(8, host.Process.Windows.Single().X);
+        Equal(false, host.Process.Dialogues.Single().Completed);
+        bool unsupported = false;
+        try
+        {
+            host.Execute(Request(1603, command));
+        }
+        catch (NotSupportedException)
+        {
+            unsupported = true;
+        }
+        Equal(true, unsupported);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        foreach (Ff7FieldHost current in new[] { host, cold })
+        {
+            current.CompleteDialogue(1601, 0);
+            Equal(true, current.Execute(foreign).Completed);
+            Equal(145, current.Process.Windows.Single().X);
+            Equal(136, current.Process.Windows.Single().Width);
+        }
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+    }
+
     public static void RunImmediateFace()
     {
         Ff7Actor actor = new() { Entity = 0, Slot = 0, Model = 0, X4096 = -1, Y4096 = -1, TurnMode = 3, TurnStep = 4, TurnSteps = 5, Direction = 240 };

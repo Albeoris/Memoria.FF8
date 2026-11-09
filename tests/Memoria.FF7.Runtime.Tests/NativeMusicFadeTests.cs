@@ -68,6 +68,11 @@ internal static class NativeMusicFadeTests
         Equal("0,0,127,127,127", string.Join(',', channels.Process.SoundChannelVolumes));
         channels.Execute(Request(14, new FieldAudioCommand(0xA0, 255)));
         Equal("127,0,127,127,127", string.Join(',', channels.Process.SoundChannelVolumes));
+        channels.Execute(Request(15, new FieldAudioCommand(0xA2, 64)));
+        Equal("127,0,64,127,127", string.Join(',', channels.Process.SoundChannelVolumes));
+        Equal(64, Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(channels.Capture()))!).CreateNextFieldProcess().SoundChannelVolumes[2]);
+        channels.Execute(Request(16, new FieldAudioCommand(0x2A, 64, 0)));
+        Equal("127,0,127,127,127", string.Join(',', channels.Process.SoundChannelVolumes));
         fractional.Execute(Request(5, new FieldAudioCommand(0xC2, 0, 255, 17)));
         Equal(17, fractional.Process.MusicVolume);
         fractional.Execute(Request(6, new FieldAudioCommand(0xC2, 60, 200, 0)));

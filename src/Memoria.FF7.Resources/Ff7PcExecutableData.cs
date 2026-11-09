@@ -9,7 +9,7 @@ public sealed class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers)
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable)
     {
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
@@ -22,6 +22,7 @@ public sealed class Ff7PcExecutableData
         NativeSoundVolume = Array.AsReadOnly(soundVolume);
         NativeMateriaClasses = Array.AsReadOnly(materiaClasses);
         NativeMateriaStatModifiers = Array.AsReadOnly(materiaStatModifiers);
+        NativeCameraShakeRandomTable = Array.AsReadOnly(cameraShakeRandomTable);
     }
 
     public IReadOnlyList<short> NativeSinCos { get; }
@@ -35,6 +36,7 @@ public sealed class Ff7PcExecutableData
     public IReadOnlyList<int> NativeSoundVolume { get; }
     public IReadOnlyList<byte> NativeMateriaClasses { get; }
     public IReadOnlyList<short> NativeMateriaStatModifiers { get; }
+    public IReadOnlyList<byte> NativeCameraShakeRandomTable { get; }
     public float FieldNearPlane => 50;
     public float FieldFarPlane => 32000;
     public ushort InitialField => 116;
@@ -176,7 +178,7 @@ public sealed class Ff7PcExecutableData
         {
             materiaStatModifiers[index] = BinaryPrimitives.ReadInt16LittleEndian(nativeStatModifiers.AsSpan(index * 2));
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers);
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256));
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

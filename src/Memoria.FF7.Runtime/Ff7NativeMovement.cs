@@ -51,17 +51,33 @@ public sealed class Ff7NativeMovement
 
     public Ff7NativeMoveResult Step(Ff7Actor actor, short targetX, short targetY, IReadOnlyList<Ff7Actor> actors, ReadOnlySpan<byte> blockedTriangles, bool playerLocked = true, bool lineBlocked = false)
     {
-        int dx = targetX - (actor.X4096 >> 12);
-        int dy = targetY - (actor.Y4096 >> 12);
+        return StepTowards(actor, targetX << 12, targetY << 12, 0, actors, blockedTriangles, playerLocked, lineBlocked);
+    }
+
+    public Ff7NativeMoveResult StepToActor(Ff7Actor actor, int targetX4096, int targetY4096, short targetRadius, IReadOnlyList<Ff7Actor> actors, ReadOnlySpan<byte> blockedTriangles, bool playerLocked = true)
+    {
+        return StepTowards(actor, targetX4096, targetY4096, targetRadius, actors, blockedTriangles, playerLocked, false);
+    }
+
+    private Ff7NativeMoveResult StepTowards(Ff7Actor actor, int targetX4096, int targetY4096, short targetRadius, IReadOnlyList<Ff7Actor> actors, ReadOnlySpan<byte> blockedTriangles, bool playerLocked, bool lineBlocked)
+    {
+        int dx = (targetX4096 >> 12) - (actor.X4096 >> 12);
+        int dy = (targetY4096 >> 12) - (actor.Y4096 >> 12);
         int distanceSquared = unchecked(dx * dx + dy * dy);
         if (distanceSquared < 0)
         {
             throw new NotSupportedException("Movement distance exceeds the admitted signed 32-bit contract.");
         }
+        int combinedRadius = (actor.CollisionRadius & 65535) + targetRadius;
+        int stopDistanceSquared = unchecked(combinedRadius * combinedRadius + 4096);
+        if (targetRadius != 0 && distanceSquared <= stopDistanceSquared)
+        {
+            return new Ff7NativeMoveResult(actor, true, false, []);
+        }
         int stepSquared = unchecked(actor.MoveSpeed * actor.MoveSpeed) >> 16;
         if (distanceSquared < stepSquared || distanceSquared < 4)
         {
-            var arrived = actor with { X4096 = targetX << 12, Y4096 = targetY << 12 };
+            var arrived = actor with { X4096 = targetX4096, Y4096 = targetY4096 };
             return new Ff7NativeMoveResult(arrived, true, arrived != actor, []);
         }
         return StepDirection(actor, Direction(dx, dy), actors, blockedTriangles, playerLocked, lineBlocked);

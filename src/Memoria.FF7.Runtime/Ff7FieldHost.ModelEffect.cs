@@ -26,7 +26,7 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException("FFVII KAWAI13 model scale requires its native render-record owner.");
         }
-        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(actor.ModelEffect, command.Mode, parts, nativeScale);
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(actor.ModelEffect, command.Mode, parts, nativeScale, ModelPartPolygonCounts?.Invoke(actor.Model));
         SetActor(entity, current => current with { ModelEffect = state });
         return new(true);
     }

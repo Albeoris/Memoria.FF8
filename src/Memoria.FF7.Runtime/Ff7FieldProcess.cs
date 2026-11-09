@@ -69,7 +69,8 @@ public sealed record Ff7CameraTracking(int Mode, int Slot, int Steps, int StartX
 public sealed record Ff7PartyJoin(long RequestId, int LeaderEntity, Ff7JoinFollower[] Followers, bool Split = false);
 public sealed record Ff7JoinFollower(int Entity, int Stage = 0, int PreviousSpeed = 0, short TargetX = 0, short TargetY = 0, bool Arrived = false);
 
-public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int TargetY, bool Turn, bool Animated);
+public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int TargetY, bool Turn, bool Animated, Ff7EntityMotionTarget? EntityTarget = null, bool Completed = false);
+public sealed record Ff7EntityMotionTarget(int Entity, int X4096, int Y4096, short Radius);
 public sealed record Ff7AnimationRequest(long RequestId, int Entity);
 public sealed record Ff7MusicVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, int SubmillisecondTicks = 0);
 public enum Ff7GlobalCommand
@@ -134,6 +135,8 @@ public sealed record Ff7FieldProcess
     public int CameraEntity { get; init; } = -1;
     public Ff7CameraScroll? CameraScroll { get; init; }
     public bool CameraLocked { get; init; }
+    public Ff7CameraShakeAxis? CameraShakeX { get; init; }
+    public Ff7CameraShakeAxis? CameraShakeY { get; init; }
     public bool CursorDisabled { get; init; }
     public int MapName { get; init; }
     public int MapDisplay { get; init; }
@@ -146,6 +149,8 @@ public sealed record Ff7FieldProcess
 
     public void Validate()
     {
+        CameraShakeX?.Validate();
+        CameraShakeY?.Validate();
         FadeState?.Validate();
         if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
         {

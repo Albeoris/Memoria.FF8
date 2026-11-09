@@ -268,23 +268,27 @@ public sealed class Ff7SoundChannelsTests
         AssertFrame(mixer, 1000);
     }
 
-    [Fact]
-    public void ExplicitChannelTwoLoopKeepsTheOriginalResidentOwner()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ExplicitSelectedChannelLoopKeepsTheOriginalResidentOwner(int channel)
     {
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
         using Ff7SoundChannels sounds = new();
         sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 61, true, 0, 64);
-        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 60, true, 0, 64, channel: 2, stopStream: false);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 60, true, 0, 64, channel: channel, stopStream: false);
         AssertFrame(mixer, 900);
-        sounds.Play(output, Tone(200), 44100, 1, false, 0, 0, 59, true, 0, 64, channel: 2, stopStream: false);
+        sounds.Play(output, Tone(200), 44100, 1, false, 0, 0, 59, true, 0, 64, channel: channel, stopStream: false);
         AssertFrame(mixer, 800);
-        sounds.StopNativeChannel(2);
+        sounds.StopNativeChannel(channel);
         AssertFrame(mixer, 600);
     }
 
-    [Fact]
-    public void ChannelTwoGainChangesBothIntroAndRepeatWithoutChangingMusicOrOtherOwners()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void SelectedChannelGainChangesBothIntroAndRepeatWithoutChangingMusicOrOtherOwners(int channel)
     {
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
@@ -292,13 +296,13 @@ public sealed class Ff7SoundChannelsTests
         music.Play(true);
         using Ff7SoundChannels sounds = new();
         sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 61, true, 0, 64);
-        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 60, true, 8, 64, channel: 2, stopStream: false);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 60, true, 8, 64, channel: channel, stopStream: false);
         AssertFrame(mixer, 1900);
-        sounds.SetGain(2, -10000);
+        sounds.SetGain(channel, -10000);
         AssertFrame(mixer, 1600);
         sounds.RetireFinished(false, 1);
         AssertFrame(mixer, 1600);
-        sounds.SetGain(2, 0);
+        sounds.SetGain(channel, 0);
         AssertFrame(mixer, 1900);
     }
 
@@ -351,6 +355,23 @@ public sealed class Ff7SoundChannelsTests
         AssertFrame(mixer, 1500);
         sounds.SetGain(1, 0, 127);
         AssertFrame(mixer, 2000);
+    }
+
+    [Fact]
+    public void ExplicitChannelOnePlayPreservesTheGlobalStreamUntilSelectedZeroStop()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using PcmAudioOutput.Buffer music = output.Create(Tone(1000), 44100, 1);
+        music.Play(true);
+        using Ff7SoundChannels sounds = new();
+        sounds.Play(output, Tone(600), 44100, 1, false, 0, 0);
+        sounds.Play(output, Tone(200), 44100, 1, true, 0, 0);
+        AssertFrame(mixer, 1800);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, stopStream: false);
+        AssertFrame(mixer, 1500);
+        sounds.StopNativeChannel(1);
+        AssertFrame(mixer, 1000);
     }
 
     private static byte[] Sequence(params short[] samples)

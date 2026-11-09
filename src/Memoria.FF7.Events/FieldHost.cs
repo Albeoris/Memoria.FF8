@@ -23,6 +23,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldActorPlacement), "place")]
 [JsonDerivedType(typeof(FieldActorMove), "move")]
 [JsonDerivedType(typeof(FieldPartyRecovery), "partyRecovery")]
+[JsonDerivedType(typeof(FieldCameraShake), "cameraShake")]
 [JsonDerivedType(typeof(FieldAnimation), "animation")]
 [JsonDerivedType(typeof(FieldActorProperty), "actor-property")]
 [JsonDerivedType(typeof(FieldWindowCommand), "window")]
@@ -68,9 +69,10 @@ public enum FieldMovieOperation
 public sealed record FieldMovieCommand(FieldMovieOperation Operation, int MovieId = 0) : FieldCommand;
 public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
 public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
-public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true) : FieldCommand;
+public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true, int? TargetEntity = null) : FieldCommand;
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
 public sealed record FieldPartyRecovery : FieldCommand;
+public sealed record FieldCameraShake(byte Axes, byte XAmplitude, byte XDuration, byte YAmplitude, byte YDuration) : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind
 {
@@ -98,7 +100,8 @@ public enum FieldWindowOperation
     Move,
     Rows,
     Reset,
-    Special
+    Special,
+    SizeWhenFree
 }
 public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0) : FieldCommand;
 public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;

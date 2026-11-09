@@ -4,23 +4,6 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
-    public Ff7FieldProcess CreateNextFieldProcess()
-    {
-        int current = NormalizeNativeMusicTrack(Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track)));
-        int target = Process.NextFieldMusicTrack < 0 ? current : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.NextFieldMusicTrack));
-        int? saved = Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? null : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.SavedMusicTrack)));
-        return new Ff7FieldProcess
-        {
-            NativeMusicTrack = target,
-            MusicTicks = target == current ? Process.MusicTicks : 0,
-            SavedNativeMusicTrack = saved,
-            MusicVolume = Process.MusicVolume,
-            MusicVolumeFade = Process.MusicVolumeFade,
-            SoundChannelVolumes = (int[])Process.SoundChannelVolumes.Clone(),
-            MusicLock = Process.MusicLock
-        };
-    }
-
     public int ResolveNativeMusicTrack(int localTrack)
     {
         if ((uint)localTrack >= field.Scripts.AkaoOffsets.Count)
@@ -99,8 +82,14 @@ public sealed partial class Ff7FieldHost
         Process = Process with { Audio = audio };
         switch (audio.Operation)
         {
+            case 0x20 or 0x28 or 0x29 or 0x2A when audio.Parameter1 == 0:
+                int[] stoppedVolumes = (int[])Process.SoundChannelVolumes.Clone();
+                stoppedVolumes[audio.Operation switch { 0x29 => 1, 0x2A => 2, _ => 0 }] = 127;
+                Process = Process with { SoundChannelVolumes = stoppedVolumes };
+                break;
             case 0xA0:
             case 0xA1:
+            case 0xA2:
                 int[] channelVolumes = (int[])Process.SoundChannelVolumes.Clone();
                 channelVolumes[audio.Operation - 0xA0] = Math.Min(unchecked((byte)audio.Parameter0), (byte)127);
                 Process = Process with { SoundChannelVolumes = channelVolumes };

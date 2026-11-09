@@ -44,7 +44,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.Gateway(117);
             case "md1_1":
             case "md8_4":
+            case "tin_1":
                 return default;
+            case "cargoin":
+                return session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 48 ? driver.Steer(new(20, -140, 0)) : default;
             case "md1_2":
                 return driver.Gateway(119);
             case "md8_1":
@@ -53,6 +56,8 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.Gateway(135);
             case "md8_3":
                 return driver.Gateway(137);
+            case "md8brdg":
+                return driver.Approach(new(-430, 0, 518));
             case "nrthmk":
                 return driver.Gateway(EscapingFirstReactor ? 136 : 120);
             case "nmkin_1":
