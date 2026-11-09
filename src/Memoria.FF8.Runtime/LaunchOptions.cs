@@ -6,6 +6,16 @@ public sealed record LaunchOptions
 {
     public static string ConfiguredGameDirectory => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? string.Empty;
     public string GameDirectory { get; init; } = ConfiguredGameDirectory;
+    public static string? ConfiguredFf7GameDirectory
+    {
+        get
+        {
+            string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+            return string.IsNullOrWhiteSpace(directory) ? null : Path.GetFullPath(directory);
+        }
+    }
+    /// <summary>Optional independent FF7 resource root. This does not select FF7 gameplay or the FF8 resource source.</summary>
+    public string? Ff7GameDirectory { get; init; } = ConfiguredFf7GameDirectory;
     public string? ResourceLanguage { get; init; }
     public string? ModelSourceDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODEL_SOURCE_DIR");
     public string? ModsDirectory { get; init; }
@@ -71,6 +81,7 @@ public sealed record LaunchOptions
             options = argument switch
             {
                 "--game-dir" => options with { GameDirectory = Path.GetFullPath(Value()) },
+                "--ff7-game-dir" => options with { Ff7GameDirectory = Path.GetFullPath(Value()) },
                 "--resource-language" => options with { ResourceLanguage = GameResourceLanguages.Normalize(Value()) },
                 "--model-source-dir" => options with { ModelSourceDirectory = Path.GetFullPath(Value()) },
                 "--achievements-local-only" => options with { AchievementsLocalOnly = true },

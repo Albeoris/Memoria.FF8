@@ -115,7 +115,14 @@ internal sealed partial class LauncherWindow : Window
         launch.Children.Add(play);
         launch.Children.Add(closeAfterLaunch);
         Add(layout, launch, 6);
-        Content = layout;
+        Content = new TabControl
+        {
+            ItemsSource = new TabItem[]
+            {
+                new() { Header = "FINAL FANTASY VIII", Content = layout },
+                new() { Header = "FINAL FANTASY VII (experimental)", Content = CreateFf7Selection() }
+            }
+        };
         browse.Click += async (_, _) => await BrowseAsync();
         cancel.Click += (_, _) => discoveryLifetime.Cancel();
         mediaSection.Children.Add(cancel);
@@ -167,6 +174,7 @@ internal sealed partial class LauncherWindow : Window
             closeAfterLaunch.IsCheckedChanged += (_, _) => SaveSelection(includeWithoutInstallation: true);
             await LoadGraphicsBackendAsync();
             string? previous = settings.LastGameDirectory;
+            SetFf7GameDirectory(settings.Ff7GameDirectory);
             SetModelSourceDirectory(settings.ModelSourceDirectory);
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
             string? language = GameResourceLanguages.Normalize(settings.ResourceLanguage);
@@ -346,8 +354,8 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             LauncherSettings settings = selected is null
-                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true }
-                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true);
+                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true, Ff7GameDirectory = selectedFf7GameDirectory }
+                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory);
             settings.Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -577,7 +585,7 @@ internal sealed partial class LauncherWindow : Window
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory);
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, ff7GameDirectory: selectedFf7GameDirectory);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria package, keeping its Data folder beside the launcher executable.", start.FileName);
@@ -587,7 +595,7 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             bool detached = closeAfterLaunch.IsChecked == true && resume is null && graphicsRecovery is null;
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory);
             if (detached)
             {
                 using Process game = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
@@ -713,7 +721,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }

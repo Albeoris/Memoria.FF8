@@ -131,6 +131,7 @@ The [documentation index](docs/README.md) is the starting point for players, mod
 | Engine development | [Architecture](docs/developers/architecture.md), [UI](docs/developers/ui-framework.md), [rendering](docs/developers/rendering.md). |
 | Tools and automation | [Command line](docs/reference/command-line.md), [environment variables](docs/reference/environment-variables.md), [control API](docs/reference/control-api.md), [automatic exploration](docs/players/automatic-exploration.md). |
 | Other resource formats | [Experimental Remastered provider](docs/developers/remastered-resources.md); bounded opening-route support and remaining limitations. |
+| FFVII experiment | [Optional FFVII resource configuration and separate reader/VM projects](docs/developers/ff7-experiment.md); FFVII gameplay is not available. |
 
 ## Automated releases
 

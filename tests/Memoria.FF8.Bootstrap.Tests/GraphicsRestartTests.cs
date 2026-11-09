@@ -31,9 +31,9 @@ public sealed class GraphicsRestartTests : IDisposable
     public void ValidReceiptReplacesOnlyStateAndBackendAndRetainsOtherArgumentsExactly()
     {
         WriteReceipt();
-        string[] original = ["--game-dir", "game files", "--state", "old state", "--mods-dir", "my mods", "--graphics-backend", "Auto", "--achievements-local-only", "--save-state", "player destination", "--state", "second old state", "--graphics-backend", "Direct3D11"];
+        string[] original = ["--game-dir", "game files", "--state", "old state", "--ff7-game-dir", "FF7 resource files", "--mods-dir", "my mods", "--graphics-backend", "Auto", "--achievements-local-only", "--save-state", "player destination", "--state", "second old state", "--graphics-backend", "Direct3D11"];
         string[] resumed = GraphicsRestart.ReadArguments(RequestPath, "owned-token", 42, original)!;
-        Assert.Equal(["--game-dir", "game files", "--mods-dir", "my mods", "--achievements-local-only", "--save-state", "player destination", "--graphics-backend", "Vulkan", "--state", StatePath], resumed);
+        Assert.Equal(["--game-dir", "game files", "--ff7-game-dir", "FF7 resource files", "--mods-dir", "my mods", "--achievements-local-only", "--save-state", "player destination", "--graphics-backend", "Vulkan", "--state", StatePath], resumed);
         Assert.Equal("old state", original[3]);
         Assert.True(File.Exists(StatePath));
     }

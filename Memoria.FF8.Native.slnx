@@ -39,4 +39,9 @@
   <Project Path="tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj" />
   <Project Path="tests/Memoria.FF8.BattleEffects.Tests/Memoria.FF8.BattleEffects.Tests.csproj" />
   <Project Path="vendor/MonoGame.Native.Vulkan/tests/ReadbackSmoke/ReadbackSmoke.csproj" />
+  <Project Path="src/Memoria.FF7.Formats/Memoria.FF7.Formats.csproj" />
+  <Project Path="src/Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
+  <Project Path="src/Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
+  <Project Path="tests/Memoria.FF7.Resources.Tests/Memoria.FF7.Resources.Tests.csproj" />
+  <Project Path="tests/Memoria.FF7.Events.Tests/Memoria.FF7.Events.Tests.csproj" />
 </Solution>

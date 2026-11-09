@@ -16,6 +16,25 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void Ff7ConfigurationPersistsAndDoesNotReplaceFf8Launch()
+    {
+        string secondary = Path.Combine(directory, "FF7 resources");
+        string settingsPath = Path.Combine(directory, "ff7-launcher.json");
+        new LauncherSettings(directory, Ff7GameDirectory: secondary).Save(settingsPath);
+        LauncherSettings settings = LauncherSettings.Load(settingsPath);
+        Assert.Equal(directory, settings.LastGameDirectory);
+        Assert.Equal(secondary, settings.Ff7GameDirectory);
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, settings.LastGameDirectory!, ff7GameDirectory: settings.Ff7GameDirectory);
+        Assert.Equal(Path.GetFullPath(directory), start.ArgumentList[start.ArgumentList.IndexOf("--game-dir") + 1]);
+        Assert.Equal(Path.GetFullPath(secondary), start.ArgumentList[start.ArgumentList.IndexOf("--ff7-game-dir") + 1]);
+        Assert.Contains("Memoria.FF8", Path.GetFileName(start.FileName));
+        Assert.False(start.Environment.ContainsKey("MEMORIA_FF7_GAME_DIR"));
+        File.WriteAllText(settingsPath, "{\"LastGameDirectory\":\"primary\"}");
+        Assert.Null(LauncherSettings.Load(settingsPath).Ff7GameDirectory);
+        Assert.DoesNotContain("--ff7-game-dir", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
+    }
+
+    [Fact]
     public void LauncherInstanceIdentityPreservesUnixPackagePathCase()
     {
         string first = UpdateInstaller.MutexName(Path.Combine(directory, "Game"));

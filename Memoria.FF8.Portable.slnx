@@ -34,4 +34,9 @@
   <Project Path="tests/Memoria.FF8.Runtime.Tests/Memoria.FF8.Runtime.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Ui.Tests/Memoria.FF8.Ui.Tests.csproj" />
   <Project Path="tests/Memoria.Launcher.Tests/Memoria.Launcher.Tests.csproj" />
+  <Project Path="src/Memoria.FF7.Formats/Memoria.FF7.Formats.csproj" />
+  <Project Path="src/Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
+  <Project Path="src/Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
+  <Project Path="tests/Memoria.FF7.Resources.Tests/Memoria.FF7.Resources.Tests.csproj" />
+  <Project Path="tests/Memoria.FF7.Events.Tests/Memoria.FF7.Events.Tests.csproj" />
 </Solution>

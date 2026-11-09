@@ -43,7 +43,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
     public void ChildArgumentsAndPackageRootsArePreservedWithoutChangingCallerDirectory()
     {
         string data = Path.Combine(directory, "package with spaces", "Data");
-        string[] arguments = ["--game-dir", Path.Combine(directory, "game files"), "--mods-dir", Path.Combine(directory, "Mods"), "--state", Path.Combine(directory, "saved state.json"), "--media-tools", Path.Combine(directory, "media tools"), "--graphics-backend", "Vulkan", "--achievements-local-only"];
+        string[] arguments = ["--game-dir", Path.Combine(directory, "game files"), "--ff7-game-dir", Path.Combine(directory, "FF7 resources"), "--mods-dir", Path.Combine(directory, "Mods"), "--state", Path.Combine(directory, "saved state.json"), "--media-tools", Path.Combine(directory, "media tools"), "--graphics-backend", "Vulkan", "--achievements-local-only"];
         ProcessStartInfo start = GraphicsDispatcher.CreateStartInfo(data, GraphicsBackend.Vulkan, arguments);
         Assert.Equal(Path.Combine(data, "Game", "vulkan", HostPlatforms.Current.ExecutableName("Memoria.FF8")), start.FileName);
         Assert.Equal(arguments, start.ArgumentList);
