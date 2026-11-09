@@ -8,12 +8,14 @@ namespace Memoria.FF7.Runtime;
 public sealed partial class Ff7FieldHost : IFieldHost
 {
     private readonly Ff7FieldResources field;
+    private readonly int? fieldId;
     private readonly Func<int, int, int> animationLength;
     private readonly Dictionary<long, Ff7HostReceipt> receipts = [];
 
-    public Ff7FieldHost(Ff7FieldResources field, Func<int, int, int> animationLength, Ff7FieldProcess? process = null)
+    public Ff7FieldHost(Ff7FieldResources field, Func<int, int, int> animationLength, Ff7FieldProcess? process = null, int? fieldId = null)
     {
         this.field = field ?? throw new ArgumentNullException(nameof(field));
+        this.fieldId = fieldId;
         this.animationLength = animationLength ?? throw new ArgumentNullException(nameof(animationLength));
         Process = process ?? new Ff7FieldProcess();
         if (Process.CameraFollowPlayer is null)
@@ -216,7 +218,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 {
                     return new(Process.FadeState?.Completed ?? (Process.Fade is null || Process.Fade.Type is 0 or 4));
                 }
-                Ff7FadeProcess nextFade = Ff7NativeFade.Start(fade, Process.FadeState);
+                Ff7FadeProcess nextFade = Ff7NativeFade.Start(fade, Process.FadeState, fieldId);
                 Process = Process with { Fade = fade, FadeState = nextFade };
                 return new(true);
             default:

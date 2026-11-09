@@ -81,6 +81,17 @@ internal static class NativeMusicFadeTests
         Equal(64, Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(channels.Capture()))!).CreateNextFieldProcess().SoundChannelVolumes[2]);
         channels.Execute(Request(16, new FieldAudioCommand(0x2A, 64, 0)));
         Equal("127,0,127,127,127", string.Join(',', channels.Process.SoundChannelVolumes));
+        Ff7FieldHost fourth = Host(new() { NativeMusicTrack = 8, MusicTicks = 54, SoundChannelVolumes = [11, 22, 33, 44, 55] });
+        FieldHostRequest fourthPlay = Request(22, new FieldAudioCommand(0x2B, 64, 60));
+        fourth.Execute(fourthPlay);
+        Equal("11,22,33,44,55", string.Join(',', fourth.Process.SoundChannelVolumes));
+        Ff7FieldHost coldFourth = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(fourth.Capture()))!);
+        Equal(true, coldFourth.Execute(fourthPlay).Completed);
+        Equal("11,22,33,44,55", string.Join(',', coldFourth.CreateNextFieldProcess().SoundChannelVolumes));
+        coldFourth.Execute(Request(23, new FieldAudioCommand(0x2B, 64, 0)));
+        Equal("11,22,33,127,55", string.Join(',', coldFourth.Process.SoundChannelVolumes));
+        Equal(8, coldFourth.Process.NativeMusicTrack!.Value);
+        Equal(54L, coldFourth.Process.MusicTicks);
         fractional.Execute(Request(5, new FieldAudioCommand(0xC2, 0, 255, 17)));
         Equal(17, fractional.Process.MusicVolume);
         fractional.Execute(Request(6, new FieldAudioCommand(0xC2, 60, 200, 0)));

@@ -26,6 +26,7 @@ internal sealed partial class Ff7Scene
 
     private Ff7AudioPresentationState CaptureAudioPresentation()
     {
+        ApplyNativeResidentStops();
         Ff7AudioPresentationState Capture(int queued)
         {
             Ff7MusicVoicePosition? music = pendingMusic;

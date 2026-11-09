@@ -77,6 +77,7 @@ public sealed record Ff7JoinFollower(int Entity, int Stage = 0, int PreviousSpee
 public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int TargetY, bool Turn, bool Animated, Ff7EntityMotionTarget? EntityTarget = null, bool Completed = false);
 public sealed record Ff7EntityMotionTarget(int Entity, int X4096, int Y4096, short Radius);
 public sealed record Ff7AnimationRequest(long RequestId, int Entity);
+public sealed record Ff7SoundVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, bool Started = false);
 public sealed record Ff7MusicVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, int SubmillisecondTicks = 0);
 public enum Ff7GlobalCommand
 {
@@ -121,6 +122,9 @@ public sealed record Ff7FieldProcess
     public int MusicVolume { get; init; } = 127;
     public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
     public int[] SoundChannelVolumes { get; init; } = [127, 127, 127, 127, 127];
+    public Ff7SoundVolumeFade?[] SoundChannelVolumeFades { get; init; } = new Ff7SoundVolumeFade?[5];
+    public bool[] SoundChannelStoppedByFade { get; init; } = new bool[5];
+    public int SoundVolumeClockSubmillisecondTicks { get; init; }
     public int SavedMusicTrack { get; init; } = -1;
     public int NextFieldMusicTrack { get; init; } = -1;
     public int NextBattleMusicTrack { get; init; } = -1;
@@ -162,6 +166,10 @@ public sealed record Ff7FieldProcess
         if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
         {
             throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");
+        }
+        if (SoundChannelVolumeFades is not { Length: 5 } || SoundChannelStoppedByFade is not { Length: 5 } || SoundVolumeClockSubmillisecondTicks is < 0 or >= (int)TimeSpan.TicksPerMillisecond || SoundChannelVolumeFades.Any(fade => fade is not null && (fade.Target is < 0 or > 127 || fade.RatePerSecond is < -7620 or > 7620)))
+        {
+            throw new InvalidDataException("FFVII native sound volume ramp continuation is corrupt.");
         }
         if (MusicVolumeFade is { } musicFade && (musicFade.Target is < 0 or > 127 || musicFade.RatePerSecond is < -7620 or > 7620 || musicFade.SubmillisecondTicks is < 0 or >= (int)TimeSpan.TicksPerMillisecond))
         {

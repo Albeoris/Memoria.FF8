@@ -35,6 +35,7 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
+        ApplyNativeResidentStops();
         RestorePendingSounds();
         Ff7FieldProcess state = session.Host.Process;
         int soundVolume = dialoguePreferences?.Invoke().SoundVolume ?? 100;
@@ -108,24 +109,50 @@ internal sealed partial class Ff7Scene
         audioOutput?.ThrowIfFailed();
     }
 
+    private void ApplyNativeResidentStops()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+        bool[] stopped = Session.Host.Process.SoundChannelStoppedByFade;
+        for (int index = 0; index < stopped.Length; index++)
+        {
+            if (stopped[index])
+            {
+                soundChannels.StopResidentChannel(index + 1);
+            }
+        }
+        if (pendingSounds is not null)
+        {
+            pendingSounds = Ff7SoundChannels.FilterStoppedResidentPositions(pendingSounds, stopped);
+        }
+    }
+
     private void PlayAudio(FieldAudioCommand command)
     {
         if (!audioEnabled)
         {
             return;
         }
+        ApplyNativeResidentStops();
         switch (command.Operation)
         {
             case 0xA0:
             case 0xA1:
             case 0xA2:
+            case 0xA3:
                 int gainChannel = command.Operation - 0xA0 + 1;
                 int nativeVolume = Session!.Host.Process.SoundChannelVolumes[gainChannel - 1];
                 soundChannels.SetGain(gainChannel, NativeGain(nativeVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), nativeVolume);
                 return;
-            case 0xA6 when unchecked((byte)command.Parameter0) == 0:
-                int thirdVolume = Session!.Host.Process.SoundChannelVolumes[2];
-                soundChannels.SetGain(3, NativeGain(thirdVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), thirdVolume);
+            case 0xA4:
+            case 0xA5:
+            case 0xA6:
+            case 0xA7:
+                int rampChannel = command.Operation - 0xA4 + 1;
+                int rampVolume = Session!.Host.Process.SoundChannelVolumes[rampChannel - 1];
+                soundChannels.SetGain(rampChannel, NativeGain(rampVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), rampVolume);
                 return;
             case 0xF0:
             case 0xC0:
@@ -137,12 +164,16 @@ internal sealed partial class Ff7Scene
             case 0xC9:
             case 0xCA:
                 return;
+            case 0x2B when command.Parameter1 == 0:
+                soundChannels.StopNativeChannel(4);
+                return;
             case 0x29 when command.Parameter1 == 0:
                 soundChannels.StopNativeChannel(2);
                 return;
             case 0x2A when command.Parameter1 == 0:
                 soundChannels.StopNativeChannel(3);
                 return;
+            case 0x2B:
             case 0x29:
             case 0x2A:
             case 0x28:
@@ -161,7 +192,7 @@ internal sealed partial class Ff7Scene
                 }
                 int pan = command.Parameter0;
                 audioNative ??= Ff7PcExecutableData.Load(installation);
-                int channel = command.Operation switch { 0x29 => 2, 0x2A => 3, _ => 1 };
+                int channel = command.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
                 int soundIntensity = Session!.Host.Process.SoundChannelVolumes[decoded.Streamed ? 0 : channel - 1];
                 soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: channel, stopStream: command.Operation == 0x20, nativeVolume: soundIntensity);
                 soundChannels.Pause(audioPaused);

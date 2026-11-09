@@ -119,6 +119,20 @@ internal sealed class Ff7SoundChannels : IDisposable
         }
     }
 
+    public static Ff7SoundVoicePosition[] FilterStoppedResidentPositions(Ff7SoundVoicePosition[] positions, bool[] stopped)
+    {
+        return positions.Where(voice => voice.Channel == 0 || !stopped[voice.Channel - 1]).ToArray();
+    }
+
+    public void StopResidentChannel(int channel)
+    {
+        if (channel is < 1 or > 5)
+        {
+            throw new ArgumentOutOfRangeException(nameof(channel));
+        }
+        Stop(channel);
+    }
+
     public void StopNativeChannel(int channel)
     {
         if (channel is < 1 or > 5)

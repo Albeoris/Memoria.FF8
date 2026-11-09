@@ -59,7 +59,26 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "md8_4":
             case "rootmap":
                 return default;
+            case "tin_3":
+                return session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x15) >= 1 ? driver.TalkTo(15) : default;
+            case "tunnel_1":
+                if (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x7F) != 6)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached an unproved tunnel entry handoff.");
+                }
+                Ff7Line forwardTunnelExit = session.Host.Process.Lines.Single(line => line.Entity == 2);
+                return driver.Approach(new((forwardTunnelExit.X1 + forwardTunnelExit.X2) / 2f, (forwardTunnelExit.Y1 + forwardTunnelExit.Y2) / 2f, forwardTunnelExit.Z1));
             case "tin_1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
+                {
+                    Ff7Line monitor = session.Host.Process.Lines.Single(line => line.Entity == 27);
+                    if (monitor.Enabled == 1)
+                    {
+                        return driver.Approach(new((monitor.X1 + monitor.X2) / 2f, (monitor.Y1 + monitor.Y2) / 2f, monitor.Z1));
+                    }
+                    Ff7Line carriageDoor = session.Host.Process.Lines.Single(line => line.Entity == 26);
+                    return driver.Approach(new((carriageDoor.X1 + carriageDoor.X2) / 2f, (carriageDoor.Y1 + carriageDoor.Y2) / 2f, carriageDoor.Z1));
+                }
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 108)
                 {
                     throw new NotSupportedException("FFVII autoplay has reached the second-mission carriage handoff.");
@@ -71,6 +90,12 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.TalkTo((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xDF) & 4) != 0 ? 31 : 34);
             case "cargoin":
                 return session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 48 ? driver.Steer(new(20, -140, 0)) : default;
+            case "tin_2":
+                Ff7Line secondCarDoor = session.Host.Process.Lines.Single(line => line.Entity == 18);
+                return driver.Approach(new((secondCarDoor.X1 + secondCarDoor.X2) / 2f, (secondCarDoor.Y1 + secondCarDoor.Y2) / 2f, secondCarDoor.Z1));
+            case "tin_4":
+                Ff7Line repeatedCarDoor = session.Host.Process.Lines.Single(line => line.Entity == 15);
+                return driver.Approach(new((repeatedCarDoor.X1 + repeatedCarDoor.X2) / 2f, (repeatedCarDoor.Y1 + repeatedCarDoor.Y2) / 2f, repeatedCarDoor.Z1));
             case "mds7st3":
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
                 {

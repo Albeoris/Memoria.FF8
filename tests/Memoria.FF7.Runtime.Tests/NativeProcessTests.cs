@@ -340,6 +340,54 @@ internal static class NativeProcessTests
         Equal(0, interruptedAdditive.Type);
         Equal((uint?)0x80000000, interruptedAdditive.QuadColorArgb);
         Equal(0x8050080Au, interruptedAdditive.FieldColorArgb);
+        FieldFadeCommand cancelledCommand = new(2, 250, 250, 250, 255);
+        Ff7FieldHost cancelled = Host(new() { Tick = 754, FadeState = new(6, 32, 16, 160, 0, 0, true, 0x8050080A) }, 139);
+        FieldHostRequest cancelledRequest = Request(814, cancelledCommand);
+        Equal(true, cancelled.Execute(cancelledRequest).Completed);
+        Equal(cancelledCommand, cancelled.Process.Fade);
+        Equal(0, cancelled.Process.FadeState!.Type);
+        Equal(0, cancelled.Process.FadeState.Position);
+        Equal(255, cancelled.Process.FadeState.Speed);
+        Equal(250, cancelled.Process.FadeState.Red);
+        Equal(0x8050080Au, cancelled.Process.FadeState.FieldColorArgb);
+        Equal(true, cancelled.Execute(Request(815, new FieldFadeCommand(0, Wait: true))).Completed);
+        Ff7FieldHost cancelledCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cancelled.Capture()))!, 139);
+        Equal(true, cancelledCold.Execute(cancelledRequest).Completed);
+        foreach (Ff7FieldHost current in new[] { cancelled, cancelledCold })
+        {
+            current.AdvanceActors();
+            Equal(0, current.Process.FadeState!.Type);
+            Equal(0x80FFFFFFu, current.Process.FadeState.FieldColorArgb);
+            Equal(false, current.Process.FadeState.UsesFieldColor);
+            Equal((uint?)null, current.Process.FadeState.QuadColorArgb);
+        }
+        Equal(JsonSerializer.Serialize(cancelled.Capture()), JsonSerializer.Serialize(cancelledCold.Capture()));
+        Ff7FieldHost cancelledLegacy = Host(new() { Tick = 754, Fade = cancelledCommand }, 139);
+        Equal(754L, cancelledLegacy.Process.Tick);
+        Equal(0, cancelledLegacy.Process.FadeState!.Type);
+        foreach ((int? id, FieldFadeCommand command) in new (int?, FieldFadeCommand)[]
+        {
+            (null, cancelledCommand),
+            (138, cancelledCommand),
+            (140, cancelledCommand),
+            (139, cancelledCommand with { Red = 249 }),
+            (139, cancelledCommand with { Green = 249 }),
+            (139, cancelledCommand with { Blue = 249 }),
+            (139, cancelledCommand with { Type = 1 }),
+            (332, cancelledCommand with { Type = 1, Red = 255, Green = 255, Blue = 255 })
+        })
+        {
+            bool rejected = false;
+            try
+            {
+                Host(fieldId: id).Execute(Request(816, command));
+            }
+            catch (NotSupportedException)
+            {
+                rejected = true;
+            }
+            Equal(true, rejected);
+        }
     }
     public static void RunViewOffset()
     {
@@ -958,7 +1006,7 @@ internal static class NativeProcessTests
         Equal(reply, restored.Execute(Request(600, new FieldActorQuery(FieldActorQueryKind.Position, 0))));
     }
 
-    private static Ff7FieldHost Host(Ff7FieldProcess? process = null)
+    private static Ff7FieldHost Host(Ff7FieldProcess? process = null, int? fieldId = null)
     {
         PcWalkmeshTriangle triangle = new(0, new Vector3(0, 0, 0), new Vector3(100, 0, 0), new Vector3(0, 100, 0), -1, -1, -1);
         var field = new Ff7FieldResources("process-fixture", null!, null!, null!, [], [triangle], null!, null!, null!);
@@ -967,7 +1015,7 @@ internal static class NativeProcessTests
         directions[384 + 1] = 0;
         directions[1] = 4096;
         process ??= new Ff7FieldProcess { Actors = [new() { Entity = 0, Slot = 0, Model = 0, Direction = 240 }] };
-        return new Ff7FieldHost(field, (_, _) => 1, process) { Movement = new([triangle], directions, new byte[129]) };
+        return new Ff7FieldHost(field, (_, _) => 1, process, fieldId) { Movement = new([triangle], directions, new byte[129]) };
     }
 
     private static FieldHostRequest Request(long id, FieldCommand command) => new(id, 0, 7, 16, command);

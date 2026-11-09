@@ -46,6 +46,7 @@ var tests = new (string Name, Action Run)[]
     ("native pending transition and atomic field publication", NativePendingTransitionTests.Run),
     ("native partial tick prefix and cold continuation", NativePartialTickTests.Run),
     ("native music gain fade and cold continuation", NativeMusicFadeTests.Run),
+    ("native resident sound gain ramp and cold continuation", NativeSoundRampTests.Run),
     ("standalone FFVII cold checkpoint continuation", NativeCheckpointTests.Run),
     ("native procedural model color and visibility contracts", NativeModelEffectTests.Run),
     ("native interactive ladder continuation contracts", NativeLadderTests.Run),

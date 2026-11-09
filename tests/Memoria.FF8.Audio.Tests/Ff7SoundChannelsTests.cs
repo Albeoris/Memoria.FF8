@@ -9,6 +9,33 @@ namespace Memoria.FF8;
 public sealed class Ff7SoundChannelsTests
 {
     [Fact]
+    public void FadeTerminalStopsResidentOnlyAndSameLoopCanRestartAtZeroGain()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using PcmAudioOutput.Buffer music = output.Create(Tone(1000), 44100, 1);
+        music.Play(true);
+        using Ff7SoundChannels sounds = new();
+        sounds.Play(output, Tone(50), 44100, 1, true, 0, 0, 3, fingerprint: new string('A', 64));
+        sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 60, true, 0, 64, fingerprint: new string('A', 64), channel: 1, stopStream: false);
+        AssertFrame(mixer, 1650);
+        Ff7SoundVoicePosition[] stale = sounds.Capture(0);
+        Ff7SoundVoicePosition[] retained = Ff7SoundChannels.FilterStoppedResidentPositions(stale, [true, false, false, false, false]);
+        Assert.Equal(0, Assert.Single(retained).Channel);
+        Assert.Equal(2, Ff7SoundChannels.FilterStoppedResidentPositions(stale, new bool[5]).Length);
+        sounds.StopResidentChannel(1);
+        AssertFrame(mixer, 1050);
+        Ff7SoundVoicePosition stream = Assert.Single(sounds.Capture(0));
+        Assert.Equal(0, stream.Channel);
+        sounds.Play(output, Tone(600), 44100, 1, false, 0, -10000, 60, true, 0, 64, fingerprint: new string('A', 64), channel: 1, stopStream: false, nativeVolume: 0);
+        Assert.Equal(2, sounds.Capture(0).Length);
+        AssertFrame(mixer, 1050);
+        sounds.SetGain(1, 0, 127);
+        AssertFrame(mixer, 1650);
+        Assert.True(music.IsPlaying);
+    }
+
+    [Fact]
     public void ResidentReplacementAndZeroStopPreserveMusic()
     {
         PcmMixer mixer = new();
@@ -251,6 +278,7 @@ public sealed class Ff7SoundChannelsTests
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
     public void NativeZeroStopsOnlySelectedResidentAndGlobalStream(int selected)
     {
         PcmMixer mixer = new();
@@ -259,8 +287,8 @@ public sealed class Ff7SoundChannelsTests
         music.Play(true);
         using Ff7SoundChannels sounds = new();
         sounds.Play(output, Tone(600), 44100, 1, false, 0, 0, 1, true, 0, 64, channel: 1);
-        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 2, true, 0, 64, channel: selected);
         sounds.Play(output, Tone(50), 44100, 1, true, 0, 0, 3);
+        sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 2, true, 0, 64, channel: selected, stopStream: false);
         AssertFrame(mixer, 1950);
         sounds.StopNativeChannel(selected);
         AssertFrame(mixer, 1600);
@@ -271,6 +299,7 @@ public sealed class Ff7SoundChannelsTests
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
     public void ExplicitSelectedChannelLoopKeepsTheOriginalResidentOwner(int channel)
     {
         PcmMixer mixer = new();
@@ -288,6 +317,7 @@ public sealed class Ff7SoundChannelsTests
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
     public void SelectedChannelGainChangesBothIntroAndRepeatWithoutChangingMusicOrOtherOwners(int channel)
     {
         PcmMixer mixer = new();

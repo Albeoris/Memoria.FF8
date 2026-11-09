@@ -23,14 +23,20 @@ public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, 
 
 public static class Ff7NativeFade
 {
-    public static Ff7FadeProcess Start(FieldFadeCommand command, Ff7FadeProcess? previous)
+    public static Ff7FadeProcess Start(FieldFadeCommand command, Ff7FadeProcess? previous, int? fieldId = null)
     {
         if (command.Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10) || command.NewFade && command.Type is not (0 or 4))
         {
             throw new NotSupportedException($"FFVII fade type {command.Type} requires its separate native fade process.");
         }
+        int type = command.Type;
+        // NG-023: the native field handler cancels this exact field-specific request.
+        if (fieldId == 139 && type == 2 && command.Red == 250 && command.Green == 250 && command.Blue == 250)
+        {
+            type = 0;
+        }
         bool fieldColor = previous?.UsesFieldColor ?? false;
-        if (command.Type is 1 or 2)
+        if (type is 1 or 2)
         {
             fieldColor |= command.Red is > 20 and < 220 || command.Green is > 20 and < 220 || command.Blue is > 20 and < 220;
             if (!fieldColor && !(command.Red == 0 && command.Green == 0 && command.Blue == 0))
@@ -38,7 +44,7 @@ public static class Ff7NativeFade
                 throw new NotSupportedException("FFVII fullscreen fade composition requires its native quad output contract.");
             }
         }
-        Ff7FadeProcess next = new(command.Type, command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha);
+        Ff7FadeProcess next = new(type, command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha);
         next.Validate();
         return next;
     }
@@ -86,7 +92,7 @@ public sealed partial class Ff7FieldHost
             return;
         }
         Ff7FadeProcess? baseline = saved.Type is 1 or 2 ? new(0, 0, 0, 0, 0, 0, true) : null;
-        Process = Process with { FadeState = Ff7NativeFade.Start(saved, baseline) };
+        Process = Process with { FadeState = Ff7NativeFade.Start(saved, baseline, fieldId) };
         if (saved.Type is 1 or 2)
         {
             Console.Error.WriteLine("FFVII compatibility: the fade presentation restarted from its saved command; recorded progress and script PCs are preserved.");

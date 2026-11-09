@@ -203,7 +203,7 @@ public sealed partial class Ff7Session : IDisposable
         Ff7FieldResources loadedField = Ff7FieldResources.Load(fields, mapList[map]);
         Ff7FieldModelResources[] loadedModels = loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model, executable, fields)).ToArray();
         IReadOnlyList<PcFieldEncounterTable> loadedEncounterTables = PcFieldEncounterTable.Read(loadedField.Container.GetSection(PcFieldSectionKind.Encounters).Span);
-        Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
+        Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process, map)
         {
             AudioRequested = Host?.AudioRequested,
             NativeBlinkCamera = Host?.NativeBlinkCamera ?? ReadNativeMovieCamera,
