@@ -4,6 +4,25 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    private Func<int, Ff7NativeSoundDescription>? nativeSoundDescription;
+    public Func<int, int, bool>? NativeSoundLoopAlreadyPlaying { get; set; }
+    public Action<TimeSpan, bool>? NativeSoundClockAdvanced { get; set; }
+
+    public void ConfigureNativeSoundResources(Func<int, Ff7NativeSoundDescription> describe, bool restoring = false)
+    {
+        nativeSoundDescription = describe ?? throw new ArgumentNullException(nameof(describe));
+        if (Process.SoundChannelBaseFrequencies.Any(rate => rate == 0))
+        {
+            int initialRate = describe(1).SampleRate;
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(initialRate);
+            Process = Process with { SoundChannelBaseFrequencies = Process.SoundChannelBaseFrequencies.Select(rate => rate == 0 ? initialRate : rate).ToArray() };
+            if (restoring)
+            {
+                Console.Error.WriteLine("FFVII compatibility: absent sound frequency presentation uses the native initial format rate; recorded progress and script PCs are preserved.");
+            }
+        }
+    }
+
     public int ResolveNativeMusicTrack(int localTrack)
     {
         if ((uint)localTrack >= field.Scripts.AkaoOffsets.Count)
@@ -85,10 +104,41 @@ public sealed partial class Ff7FieldHost
         {
             case 0x20 or 0x28 or 0x29 or 0x2A or 0x2B:
                 int soundChannel = audio.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
+                int[] loopIds = (int[])Process.SoundChannelLoopIds.Clone();
                 if (audio.Parameter1 == 0)
                 {
+                    loopIds[soundChannel - 1] = 0;
                     SetSoundVolume(soundChannel, 0, 127);
                 }
+                else if (nativeSoundDescription is not null)
+                {
+                    Ff7NativeSoundDescription description = nativeSoundDescription(audio.Parameter1);
+                    int[] frequencies = (int[])Process.SoundChannelBaseFrequencies.Clone();
+                    bool? reusedLoop = description.Loop && !Process.SoundChannelStoppedByFade[soundChannel - 1] ? NativeSoundLoopAlreadyPlaying?.Invoke(soundChannel, audio.Parameter1) : false;
+                    if (reusedLoop is null && loopIds[soundChannel - 1] == audio.Parameter1 && frequencies[soundChannel - 1] != description.SampleRate)
+                    {
+                        throw new NotSupportedException("FFVII reused looping sound requires its current native playback-status provider.");
+                    }
+                    if (description.Streamed)
+                    {
+                        frequencies[0] = description.SampleRate;
+                        loopIds[1] = 0;
+                        if (audio.Operation != 0x20)
+                        {
+                            loopIds[soundChannel - 1] = 0;
+                        }
+                    }
+                    else
+                    {
+                        if (reusedLoop != true)
+                        {
+                            frequencies[soundChannel - 1] = description.SampleRate;
+                        }
+                        loopIds[soundChannel - 1] = description.Loop ? audio.Parameter1 : 0;
+                    }
+                    Process = Process with { SoundChannelBaseFrequencies = frequencies };
+                }
+                Process = Process with { SoundChannelLoopIds = loopIds };
                 restartedChannel = soundChannel;
                 break;
             case 0xA0:
@@ -102,6 +152,15 @@ public sealed partial class Ff7FieldHost
             case 0xA6:
             case 0xA7:
                 SetSoundVolume(audio.Operation - 0xA4 + 1, unchecked((byte)audio.Parameter0), unchecked((byte)audio.Parameter1));
+                break;
+            case 0xB0:
+                if (Process.SoundChannelBaseFrequencies[0] == 0)
+                {
+                    throw new NotSupportedException("FFVII native sound frequency requires the selected sound-resource metadata.");
+                }
+                int[] pitches = (int[])Process.SoundChannelPitches.Clone();
+                pitches[0] = unchecked((sbyte)audio.Parameter0);
+                Process = Process with { SoundChannelPitches = pitches };
                 break;
             case 0xF0:
                 PlayNativeMusic(0);
@@ -189,6 +248,7 @@ public sealed partial class Ff7FieldHost
     public void AdvanceAudioClock(TimeSpan elapsed, bool paused = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(elapsed, TimeSpan.Zero);
+        NativeSoundClockAdvanced?.Invoke(elapsed, paused);
         if (paused)
         {
             return;

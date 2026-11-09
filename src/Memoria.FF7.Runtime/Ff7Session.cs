@@ -206,6 +206,8 @@ public sealed partial class Ff7Session : IDisposable
         Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process, map)
         {
             AudioRequested = Host?.AudioRequested,
+            NativeSoundLoopAlreadyPlaying = Host?.NativeSoundLoopAlreadyPlaying,
+            NativeSoundClockAdvanced = Host?.NativeSoundClockAdvanced,
             NativeBlinkCamera = Host?.NativeBlinkCamera ?? ReadNativeMovieCamera,
             NativeMovieCameraRecordCount = ReadNativeMovieCameraRecordCount,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,
@@ -223,6 +225,7 @@ public sealed partial class Ff7Session : IDisposable
             ExternalCommand = ExecuteExternal,
             AdvanceDialogue = AdvanceDialogue
         };
+        loadedHost.ConfigureNativeSoundResources(ReadNativeSoundDescription, restoring: !enteringField);
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
         fieldLoadIncomplete = true;
         Field = loadedField;

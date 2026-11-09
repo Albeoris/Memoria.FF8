@@ -28,9 +28,17 @@ internal sealed partial class Ff7Game
         if (remainingInputFrames > 0)
         {
             remainingInputFrames--;
-            return new KeyboardState(controlledKeys);
+            return windowModeHotkey.Filter(new KeyboardState(controlledKeys));
         }
-        return launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState();
+        return windowModeHotkey.Filter(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState());
+    }
+
+    private void UpdateWindowModeHotkey(KeyboardState keys, bool active)
+    {
+        if (windowModeHotkey.Read(keys, active))
+        {
+            scene.ToggleWindowMode();
+        }
     }
 
     private object DispatchControl(ControlRequest request)

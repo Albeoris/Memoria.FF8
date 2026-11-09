@@ -6,7 +6,7 @@ using Memoria.FF8.Audio;
 namespace Memoria.FF8;
 
 /// <summary>Explicit native resident channels and the independent global streamed SFX owner.</summary>
-internal sealed class Ff7SoundChannels : IDisposable
+internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : IDisposable
 {
     private readonly Dictionary<int, Voice> voices = [];
     private double tempo = 1;
@@ -31,7 +31,7 @@ internal sealed class Ff7SoundChannels : IDisposable
         return (Convert(sample.LoopStartPcmByte), Convert(sample.LoopEndPcmByte));
     }
 
-    public void Play(PcmAudioOutput output, byte[] pcm, int rate, int channels, bool stream, int pan, int gain, int sampleIndex = -1, bool loop = false, int loopStart = 0, int loopEnd = 0, string fingerprint = "", int channel = 1, Ff7SoundVoicePosition? resume = null, bool stopStream = true, int nativeVolume = 127)
+    public void Play(PcmAudioOutput output, byte[] pcm, int rate, int channels, bool stream, int pan, int gain, int sampleIndex = -1, bool loop = false, int loopStart = 0, int loopEnd = 0, string fingerprint = "", int channel = 1, Ff7SoundVoicePosition? resume = null, bool stopStream = true, int nativeVolume = 127, int nativeSampleRate = 0, int nativePitch = 0, double? nativeLoopDelaySeconds = null)
     {
         if (channels is not (1 or 2) || rate <= 0 || channel is < 1 or > 5 || nativeVolume is < 0 or > 127)
         {
@@ -60,7 +60,7 @@ internal sealed class Ff7SoundChannels : IDisposable
             return;
         }
         Stop(owner);
-        Voice voice = new(output, pcm, rate, channels, pan, gain, sampleIndex, loop, loopStart, loopEnd, fingerprint, resume, nativeVolume);
+        Voice voice = new(output, pcm, rate, channels, pan, gain, sampleIndex, loop, loopStart, loopEnd, fingerprint, resume, nativeVolume, nativeSampleRate == 0 ? rate : nativeSampleRate, nativePitch, nativeLoopDelaySeconds, elapsedSeconds);
         voice.SetTempo(tempo);
         voices.Add(owner, voice);
     }
@@ -70,15 +70,15 @@ internal sealed class Ff7SoundChannels : IDisposable
         return voices.OrderBy(pair => pair.Key).Select(pair => pair.Value.Capture(pair.Key, queuedFrames)).Where(position => position is not null).Select(position => position!).ToArray();
     }
 
-    public bool RestoreVoice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int sample, bool stream, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition saved)
+    public bool RestoreVoice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int sample, bool stream, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition saved, int nativeSampleRate = 0, double? nativeLoopDelaySeconds = null)
     {
         int alignment = channels * sizeof(short);
         int terminal = (loop ? end : pcm.Length) / alignment;
-        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || saved.PositionFrames >= terminal || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || stream != (saved.Channel == 0))
+        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || (saved.PositionFrames > terminal || saved.PositionFrames == terminal && saved.LoopHandoffRemainingSeconds is null) || saved.NativeSampleRate != 0 && saved.NativeSampleRate != (nativeSampleRate == 0 ? rate : nativeSampleRate) || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || stream != (saved.Channel == 0))
         {
             return false;
         }
-        Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved, nativeVolume: saved.NativeVolume);
+        Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved, nativeVolume: saved.NativeVolume, nativeSampleRate: nativeSampleRate, nativeLoopDelaySeconds: nativeLoopDelaySeconds);
         return true;
     }
 
@@ -143,6 +143,32 @@ internal sealed class Ff7SoundChannels : IDisposable
         Stop(0);
     }
 
+    public double NextHandoffSeconds()
+    {
+        return voices.Values.Select(voice => voice.HandoffRemainingSeconds).DefaultIfEmpty(double.PositiveInfinity).Min();
+    }
+
+    public bool IsLoopPlaying(int channel, int sample)
+    {
+        return voices.TryGetValue(channel, out Voice? voice) && voice.Sample == sample && voice.Loop && voice.IsPlaying;
+    }
+
+    public void SetNativeFrequency(int channel, int frequency)
+    {
+        if (!Ff7NativeSoundFrequency.Accepted(frequency))
+        {
+            return;
+        }
+        if (voices.TryGetValue(channel, out Voice? resident))
+        {
+            resident.SetPrimaryFrequency(frequency);
+        }
+        if (channel == 1 && voices.TryGetValue(0, out Voice? stream))
+        {
+            stream.SetPrimaryFrequency(frequency);
+        }
+    }
+
     public void SetGain(int channel, int gain, int? nativeVolume = null)
     {
         if (channel is < 1 or > 5 || nativeVolume is < 0 or > 127)
@@ -202,18 +228,27 @@ internal sealed class Ff7SoundChannels : IDisposable
         private readonly PcmLoopPlayback? playback;
         private readonly int rate;
         private readonly int channels;
+        private readonly int nativeRate;
+        private int primaryFrequency;
+        private readonly int secondaryFrequency;
         private readonly int start;
         private readonly int end;
         private readonly string fingerprint;
         public int Sample { get; }
         public int NativeVolume { get; private set; }
         public bool Loop { get; }
+        public double HandoffRemainingSeconds => playback is { LoopStarted: false } ? playback.CaptureHandoffRemainingSeconds(0, 44100) : double.PositiveInfinity;
         public bool IsPlaying => primary.IsPlaying || repeat?.IsPlaying == true;
 
-        public Voice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int pan, int gain, int sample, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition? resume, int nativeVolume)
+        public Voice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int pan, int gain, int sample, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition? resume, int nativeVolume, int nativeRate, int nativePitch, double? nativeLoopDelaySeconds, Func<double>? elapsedSeconds)
         {
             this.rate = rate;
             this.channels = channels;
+            this.nativeRate = nativeRate;
+            int requestedFrequency = Ff7NativeSoundFrequency.Frequency(nativeRate, nativePitch);
+            int initialFrequency = Ff7NativeSoundFrequency.Accepted(requestedFrequency) ? requestedFrequency : nativeRate;
+            primaryFrequency = resume?.PrimaryFrequency is > 0 ? resume.PrimaryFrequency : resume is not null ? nativeRate : initialFrequency;
+            secondaryFrequency = resume?.SecondaryFrequency is > 0 ? resume.SecondaryFrequency : resume is not null ? nativeRate : initialFrequency;
             this.start = loop ? start : 0;
             this.end = loop ? end : pcm.Length;
             this.fingerprint = fingerprint;
@@ -223,16 +258,18 @@ internal sealed class Ff7SoundChannels : IDisposable
             int alignment = channels * sizeof(short);
             int position = checked((int)(resume?.PositionFrames ?? 0) * alignment);
             primary = output.Create(loop ? pcm.AsSpan(0, end).ToArray() : pcm, rate, channels);
+            primary.FrequencyRatio(primaryFrequency / (double)nativeRate);
             primary.Pan(pan);
             primary.Volume(gain);
             if (loop && start != 0)
             {
                 repeat = output.Create(pcm.AsSpan(start, end - start).ToArray(), rate, channels);
+                repeat.FrequencyRatio(secondaryFrequency / (double)nativeRate);
                 repeat.Pan(pan);
                 repeat.Volume(gain);
                 int bytesPerSecond = checked(rate * alignment);
                 bool repeating = resume?.LoopStarted == true;
-                playback = new PcmLoopPlayback(primary, repeat, 127, (start - position) / (double)bytesPerSecond, bytesPerSecond, end - start, restoredLoop: repeating, blockAlignment: alignment);
+                playback = new PcmLoopPlayback(primary, repeat, 127, resume?.LoopHandoffRemainingSeconds ?? nativeLoopDelaySeconds ?? (start - position) / (double)bytesPerSecond, bytesPerSecond, end - start, restoredLoop: repeating, blockAlignment: alignment, elapsedSeconds: elapsedSeconds);
                 if (repeating)
                 {
                     repeat.Position(position - start);
@@ -240,8 +277,15 @@ internal sealed class Ff7SoundChannels : IDisposable
                 }
                 else
                 {
-                    primary.Position(position);
-                    primary.Play(false);
+                    if (position == end)
+                    {
+                        primary.PositionAtEnd();
+                    }
+                    else
+                    {
+                        primary.Position(position);
+                        primary.Play(false);
+                    }
                 }
             }
             else
@@ -265,9 +309,13 @@ internal sealed class Ff7SoundChannels : IDisposable
                 {
                     return null;
                 }
-                bytes = start + (bytes - start) % (end - start);
+                if (repeating || playback is null)
+                {
+                    bytes = start + (bytes - start) % (end - start);
+                }
             }
-            return new(owner, Sample, fingerprint, rate, channels, bytes / alignment, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue, NativeVolume);
+            double? handoff = playback is not null && !repeating ? playback.CaptureHandoffRemainingSeconds(queued, 44100) : null;
+            return new(owner, Sample, fingerprint, rate, channels, bytes / alignment, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue, NativeVolume, nativeRate, primaryFrequency, secondaryFrequency, handoff);
         }
 
         public void Update(double? elapsed)
@@ -308,6 +356,12 @@ internal sealed class Ff7SoundChannels : IDisposable
             {
                 primary.Tempo(speed);
             }
+        }
+
+        public void SetPrimaryFrequency(int frequency)
+        {
+            primaryFrequency = frequency;
+            primary.FrequencyRatio(frequency / (double)nativeRate);
         }
 
         public void SetGain(int gain, int nativeVolume)

@@ -74,6 +74,7 @@ var tests = new (string Name, Action Run)[]
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
     ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
     ("native fixed animation movement operands and continuation", ExtendedTests.FixedAnimationMoveOperandsAndContinuation),
+    ("native fixed facing movement operands and continuation", ExtendedTests.FixedFacingMoveOperandsAndContinuation),
     ("native movie camera gate operands and continuation", ExtendedTests.MovieCameraOperandsAndContinuation),
     ("native instant entity facing operands and yield", ExtendedTests.ImmediateFaceOperandsAndYield),
     ("native party recovery single-byte continuation", ExtendedTests.PartyRecoveryContinuation),

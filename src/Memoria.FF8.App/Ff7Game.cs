@@ -23,6 +23,7 @@ internal sealed partial class Ff7Game : Game
     private readonly UiPreferences initialPresentationPreferences;
     private int appliedMsaaSamples;
     private WindowModeController? windowMode;
+    private readonly WindowModeHotkey windowModeHotkey = new();
 #if MEMORIA_NATIVE
     private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
 #endif
@@ -145,6 +146,7 @@ internal sealed partial class Ff7Game : Game
     {
         updateControls?.Poll();
         controls?.Poll();
+        UpdateWindowModeHotkey(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState(), IsActive);
         scene.SetFocusPaused(updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
         if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {

@@ -63,6 +63,10 @@ internal sealed class PcmAudioOutput : IDisposable
         {
             voice.Play(loop);
         }
+        public void FrequencyRatio(double ratio)
+        {
+            voice.FrequencyRatio(ratio);
+        }
         public void Tempo(double speed)
         {
             voice.Tempo(speed);
@@ -83,6 +87,10 @@ internal sealed class PcmAudioOutput : IDisposable
         {
             voice.Volume(hundredthDecibels);
             GainValue = hundredthDecibels;
+        }
+        public void PositionAtEnd()
+        {
+            voice.PositionAtEnd();
         }
         public void Position(int pcmByteOffset)
         {

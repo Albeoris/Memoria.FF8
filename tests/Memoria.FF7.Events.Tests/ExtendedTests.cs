@@ -367,23 +367,34 @@ internal static class ExtendedTests
 
     public static void FixedAnimationMoveOperandsAndContinuation()
     {
+        FixedMoveOperandsAndContinuation(0xAD, true);
+    }
+
+    public static void FixedFacingMoveOperandsAndContinuation()
+    {
+        FixedMoveOperandsAndContinuation(0xA9, false);
+    }
+
+    private static void FixedMoveOperandsAndContinuation(byte opcode, bool turn)
+    {
         var host = new RecordingHost { Complete = true };
-        var vm = New(Code(0xA1, 0, 0, 0xAD, 0x62, 0, 0, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        byte[] code = Code(0xA1, 0, 0, opcode, 0x62, 0, 0, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1);
+        var vm = New(code, host);
         vm.Initialize();
         vm.Variables.WriteWord(FieldBank.MapWord, 0, -448);
         vm.Variables.WriteWord(FieldBank.Persistent0Word, 2, -3056);
         vm.AdvanceTick();
         FieldHostRequest request = host.Requests.Last();
-        Check(new FieldActorMove(-448, -3056, Animated: false), request.Command);
+        Check(new FieldActorMove(-448, -3056, Turn: turn, Animated: false), request.Command);
         Check(19, vm.Capture().Entities[0].ProgramCounter);
         Check((byte)0, vm.Variables.ReadByte(FieldBank.MapByte, 8));
         FieldVmSnapshot saved = JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(vm.Capture()))!;
-        vm = FieldMachine.Restore(Program(Code(0xA1, 0, 0, 0xAD, 0x62, 0, 0, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1)), saved, host);
+        vm = FieldMachine.Restore(Program(code), saved, host);
         vm.AdvanceTick();
         Check(request.Id, host.Requests.Last().Id);
         Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
         host = new RecordingHost { Complete = true };
-        vm = New(Code(0, 0xAD, 0, 0x40, 0xFE, 0x10, 0xF4, 0x80, 0x50, 8, 9, 0x5F, 0x12, 1), host);
+        vm = New(Code(0, opcode, 0, 0x40, 0xFE, 0x10, 0xF4, 0x80, 0x50, 8, 9, 0x5F, 0x12, 1), host);
         vm.Initialize();
         vm.AdvanceTick();
         Check(0, host.Requests.Count);

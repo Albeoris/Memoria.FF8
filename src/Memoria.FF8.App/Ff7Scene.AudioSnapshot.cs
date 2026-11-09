@@ -11,14 +11,14 @@ internal sealed partial class Ff7Scene
     private Ff7MusicVoicePosition? musicSource;
     private bool legacyMusicPosition;
 
-    private (PcmAudio Pcm, bool Streamed, bool Loop, int LoopStart, int LoopEnd, string Fingerprint) DecodeSound(int soundId)
+    private (PcmAudio Pcm, bool Streamed, bool Loop, int LoopStart, int LoopEnd, string Fingerprint, int NativeRate, double? LoopDelay) DecodeSound(int soundId)
     {
         if (!soundCache.TryGetValue(soundId - 1, out var decoded))
         {
             Ff7SoundSample sample = Ff7SoundResources.Read(installation, soundId - 1);
             PcmAudio pcm = PcmAudioDecoder.ReadWave(sample.WaveBytes);
             (int start, int end) = sample.Loop ? Ff7SoundChannels.ConvertLoopBounds(sample, pcm.SampleRate, pcm.Channels) : default;
-            decoded = (pcm, !sample.Loop && sample.CompressedByteLength > 0x20000, sample.Loop, start, end, Convert.ToHexString(SHA256.HashData(sample.WaveBytes)));
+            decoded = (pcm, !sample.Loop && sample.CompressedByteLength > 0x20000, sample.Loop, start, end, Convert.ToHexString(SHA256.HashData(sample.WaveBytes)), sample.NativeSampleRate, sample.Loop && sample.LoopStartPcmByte != 0 ? Ff7NativeSoundFrequency.LoopDelayMilliseconds(sample.LoopStartPcmByte, sample.NativeSampleRate) / 1000d : null);
             soundCache.Add(soundId - 1, decoded);
         }
         return decoded;
@@ -83,7 +83,7 @@ internal sealed partial class Ff7Scene
             {
                 var decoded = DecodeSound(position.SoundId);
                 audioOutput ??= new PcmAudioOutput();
-                if (!soundChannels.RestoreVoice(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, position.SoundId, decoded.Streamed, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, position))
+                if (!soundChannels.RestoreVoice(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, position.SoundId, decoded.Streamed, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, position, decoded.NativeRate, decoded.LoopDelay))
                 {
                     Console.Error.WriteLine("FFVII compatibility: a saved SFX resource/format no longer matches the selected installation; that presentation voice was reset.");
                 }

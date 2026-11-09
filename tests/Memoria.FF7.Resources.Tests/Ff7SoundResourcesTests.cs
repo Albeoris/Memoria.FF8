@@ -18,6 +18,7 @@ public sealed class Ff7SoundResourcesTests
         Ff7SoundSample sample = Ff7SoundResources.Read(metadata, data, 1);
         Assert.Equal(1, sample.SampleIndex);
         Assert.Equal(4u, sample.CompressedByteLength);
+        Assert.Equal(44100, sample.NativeSampleRate);
         Assert.False(sample.Loop);
         Assert.Equal("RIFF"u8.ToArray(), sample.WaveBytes[..4]);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, sample.WaveBytes[^4..]);

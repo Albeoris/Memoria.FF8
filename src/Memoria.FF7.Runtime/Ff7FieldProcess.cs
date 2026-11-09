@@ -138,6 +138,9 @@ public sealed record Ff7FieldProcess
     public int MusicVolume { get; init; } = 127;
     public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
     public int[] SoundChannelVolumes { get; init; } = [127, 127, 127, 127, 127];
+    public int[] SoundChannelLoopIds { get; init; } = new int[5];
+    public int[] SoundChannelPitches { get; init; } = new int[5];
+    public int[] SoundChannelBaseFrequencies { get; init; } = new int[5];
     public Ff7SoundVolumeFade?[] SoundChannelVolumeFades { get; init; } = new Ff7SoundVolumeFade?[5];
     public bool[] SoundChannelStoppedByFade { get; init; } = new bool[5];
     public int SoundVolumeClockSubmillisecondTicks { get; init; }
@@ -184,6 +187,10 @@ public sealed record Ff7FieldProcess
         if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
         {
             throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");
+        }
+        if (SoundChannelLoopIds is not { Length: 5 } || SoundChannelLoopIds.Any(id => id is < 0 or > 750) || SoundChannelPitches is not { Length: 5 } || SoundChannelBaseFrequencies is not { Length: 5 } || SoundChannelPitches.Any(pitch => pitch is < -128 or > 127) || SoundChannelBaseFrequencies.Any(rate => rate < 0))
+        {
+            throw new InvalidDataException("FFVII native sound frequency owners are corrupt.");
         }
         if (SoundChannelVolumeFades is not { Length: 5 } || SoundChannelStoppedByFade is not { Length: 5 } || SoundVolumeClockSubmillisecondTicks is < 0 or >= (int)TimeSpan.TicksPerMillisecond || SoundChannelVolumeFades.Any(fade => fade is not null && (fade.Target is < 0 or > 127 || fade.RatePerSecond is < -7620 or > 7620)))
         {

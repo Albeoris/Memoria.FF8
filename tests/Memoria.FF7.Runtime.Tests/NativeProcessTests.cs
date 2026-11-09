@@ -141,6 +141,16 @@ internal static class NativeProcessTests
 
     public static void RunFixedAnimationMove()
     {
+        RunFixedMove(true);
+    }
+
+    public static void RunFixedFacingMove()
+    {
+        RunFixedMove(false);
+    }
+
+    private static void RunFixedMove(bool turn)
+    {
         Ff7FieldHost Build(Ff7FieldProcess process)
         {
             Ff7FieldHost result = Host(process);
@@ -150,14 +160,15 @@ internal static class NativeProcessTests
             result.Movement = new([triangle], directions, new byte[129]);
             return result;
         }
-        Ff7Actor actor = new() { Entity = 0, Slot = 0, Model = 0, X4096 = 10 * 4096, Y4096 = 10 * 4096, Triangle = 0, MoveSpeed = 2048, Animation = 7, AnimationSpeed = 8, AnimationFrame16 = 0, LastAnimationFrame = 0 };
+        Ff7Actor actor = new() { Entity = 0, Slot = 0, Model = 0, X4096 = 10 * 4096, Y4096 = 10 * 4096, Triangle = 0, MoveSpeed = 2048, Direction = 37, Animation = 7, AnimationSpeed = 8, AnimationFrame16 = 0, LastAnimationFrame = 0 };
         Ff7FieldHost host = Build(new() { Actors = [actor] });
-        FieldHostRequest request = Request(980, new FieldActorMove(10, 30, Animated: false));
+        FieldHostRequest request = Request(980, new FieldActorMove(10, 30, Turn: turn, Animated: false));
         Equal(false, host.Execute(request).Completed);
         Equal(7, host.GetActor(0).Animation);
         Equal(8, host.GetActor(0).AnimationSpeed);
         Equal(1, host.GetActor(0).AnimationStatus);
         Equal(false, host.Process.Motions.Single().Animated);
+        Equal(turn, host.Process.Motions.Single().Turn);
         Ff7FieldHost restored = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         for (int tick = 0; tick < 100 && host.Process.Motions.Length != 0; tick++)
         {
@@ -165,6 +176,10 @@ internal static class NativeProcessTests
             restored.AdvanceActors();
             Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
             Equal(7, host.GetActor(0).Animation);
+            if (!turn)
+            {
+                Equal(37, host.GetActor(0).Direction);
+            }
         }
         Equal(0, host.Process.Motions.Length);
         Equal(10 * 4096, host.GetActor(0).X4096);
@@ -173,6 +188,7 @@ internal static class NativeProcessTests
         Equal(true, restored.Execute(request).Completed);
         Equal(0, host.GetActor(0).AnimationStatus);
         Equal(7, host.GetActor(0).Animation);
+        Equal(turn, host.GetActor(0).Direction != 37);
     }
 
     public static void RunFade()

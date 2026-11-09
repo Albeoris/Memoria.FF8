@@ -3,9 +3,11 @@ using System.Diagnostics;
 namespace Memoria.FF8;
 
 /// <summary>Shared PCM intro-to-loop playback; game adapters retain track identity and saved logical time.</summary>
-internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false, int blockAlignment = 4) : IDisposable
+internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false, int blockAlignment = 4, Func<double>? elapsedSeconds = null) : IDisposable
 {
     private readonly Stopwatch clock = Stopwatch.StartNew();
+    private readonly double externalClockOrigin = elapsedSeconds?.Invoke() ?? 0;
+    private double ElapsedSeconds => elapsedSeconds is null ? clock.Elapsed.TotalSeconds : elapsedSeconds() - externalClockOrigin;
     private bool paused;
     private double tempo = 1;
     private double tempoOriginSeconds;
@@ -15,7 +17,7 @@ internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buf
 
     public void Update()
     {
-        UpdateAt(clock.Elapsed.TotalSeconds);
+        UpdateAt(ElapsedSeconds);
     }
 
     internal void UpdateAt(double elapsedSeconds)
@@ -35,7 +37,7 @@ internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buf
     {
         if (speed != tempo)
         {
-            SetTempoAt(speed, clock.Elapsed.TotalSeconds);
+            SetTempoAt(speed, ElapsedSeconds);
         }
     }
 
@@ -58,6 +60,19 @@ internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buf
         bool repeating = LoopStarted && loop?.HasStartedBeforeQueuedFrames(queuedFrames) == true;
         int position = repeating ? checked(loopStartBytes + loop!.PositionBytesBeforeQueuedFrames(queuedFrames)) : primary.PositionBytesBeforeQueuedFrames(queuedFrames);
         return (position, repeating);
+    }
+
+    internal double CaptureHandoffRemainingSeconds(int queuedFrames, int outputRate)
+    {
+        return CaptureHandoffRemainingAt(ElapsedSeconds, queuedFrames, outputRate);
+    }
+
+    internal double CaptureHandoffRemainingAt(double elapsedSeconds, int queuedFrames, int outputRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(queuedFrames);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(outputRate);
+        double audioSeconds = audioOriginSeconds + (elapsedSeconds - tempoOriginSeconds - queuedFrames / (double)outputRate) * tempo;
+        return Math.Max(0, initialSeconds - audioSeconds);
     }
 
     public void SetGain(int gain)

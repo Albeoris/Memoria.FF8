@@ -185,6 +185,8 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorPlacement(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), null), 9, true, yieldWithoutModel: true);
             case 0xA8:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4)), 6, firstCallYields: true);
+            case 0xA9:
+                return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4), Turn: false, Animated: false), 6, firstCallYields: true);
             case 0xAA:
                 int movementEntity = B(id, 1);
                 if (movementEntity >= entities.Length)

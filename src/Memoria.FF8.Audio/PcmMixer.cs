@@ -87,6 +87,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
         private double cursor;
         internal readonly AudioPlaybackTimeline timeline = new();
         private double volume = 1;
+        private double frequencyRatio = 1;
         private double leftPan = 1;
         private double rightPan = 1;
         private readonly AudioPlaybackTimeline startedTimeline = new();
@@ -205,6 +206,17 @@ public sealed class PcmMixer(int sampleRate = 44100)
             }
         }
 
+        public void PositionAtEnd()
+        {
+            lock (owner.gate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                cursor = pcm.Length / (channels * 2);
+                timeline.Reset((long)cursor);
+                playing = false;
+            }
+        }
+
         public void Position(int pcmByteOffset)
         {
             if (pcmByteOffset < 0 || pcmByteOffset >= pcm.Length || pcmByteOffset % (channels * 2) != 0)
@@ -215,6 +227,20 @@ public sealed class PcmMixer(int sampleRate = 44100)
             {
                 cursor = pcmByteOffset / (channels * 2);
                 timeline.Reset((long)cursor);
+            }
+        }
+
+        /// <summary>Changes playback frequency and pitch without resetting the original PCM cursor.</summary>
+        public void FrequencyRatio(double ratio)
+        {
+            if (!double.IsFinite(ratio) || ratio <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(ratio));
+            }
+            lock (owner.gate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                frequencyRatio = ratio;
             }
         }
 
@@ -269,7 +295,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
             double r = channels == 1 ? l : Read(first, 1) * (1 - fraction) + Read(second, 1) * fraction;
             left += l * volume * leftPan;
             right += r * volume * rightPan;
-            cursor += (double)rate / owner.SampleRate * originalFrames / frames;
+            cursor += (double)rate / owner.SampleRate * originalFrames / frames * frequencyRatio;
             if (cursor >= originalFrames)
             {
                 if (loop)

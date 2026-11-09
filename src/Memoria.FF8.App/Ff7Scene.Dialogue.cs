@@ -58,6 +58,16 @@ internal sealed partial class Ff7Scene
 
     private bool UseNativeDialogue => dialoguePreferences?.Invoke().TextFontMode == GameTextFontMode.Native;
 
+    internal void ToggleWindowMode()
+    {
+        if (dialoguePreferences is null || setDialoguePreferences is null)
+        {
+            throw new InvalidOperationException("FFVII presentation settings require the shared host preference writer.");
+        }
+        UiPreferences current = dialoguePreferences();
+        setDialoguePreferences(current with { BorderlessWindow = !current.BorderlessWindow });
+    }
+
     private bool AdvanceCommonDialogue(Ff7Dialogue dialogue)
     {
         if (UseNativeDialogue || !dialogue.TextVisible || dialogue.Presentation?.NativeState == 7)

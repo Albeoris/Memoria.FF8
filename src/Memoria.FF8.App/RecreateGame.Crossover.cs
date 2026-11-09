@@ -250,7 +250,7 @@ internal sealed partial class RecreateGame
         }
         if (crossoverSetup is not null)
         {
-            crossoverSetup.Update(physicalInput.ReadKeyboard(), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+            crossoverSetup.Update(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
             presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
@@ -273,7 +273,7 @@ internal sealed partial class RecreateGame
             GamePadState pad = physicalInput.ReadController();
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            ff7Scene!.Update(time, physicalInput.ReadKeyboard(), pad);
+            ff7Scene!.Update(time, windowModeHotkey.Filter(physicalInput.ReadKeyboard()), pad);
         }
         UpdateDiagnosticExit(time);
         presentationPacer.WaitForNextFrame(ff7Scene!.PresentationFrameLimit);
