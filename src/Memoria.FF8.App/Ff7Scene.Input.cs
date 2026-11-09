@@ -24,7 +24,7 @@ internal sealed partial class Ff7Scene
         pendingPressedKeys |= pressed;
         moveHorizontal = 0;
         moveVertical = 0;
-        Ff7Dialogue? dialogue = session.Host.Process.Dialogues.LastOrDefault(item => !item.Completed);
+        Ff7Dialogue? dialogue = session.Host.Process.Dialogues.LastOrDefault(item => !item.Completed && session.Host.CanConfirmDialogue(item.RequestId));
         if (dialogue is not null)
         {
             if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
@@ -99,6 +99,10 @@ internal sealed partial class Ff7Scene
             if (window.Style is not (0 or 1 or 2))
             {
                 throw new NotSupportedException($"FFVII dialogue window style {window.Style} is unsupported.");
+            }
+            if (DrawSpecialWindow(batch, dialogue, window, bounds))
+            {
+                continue;
             }
             if (!UseNativeDialogue)
             {

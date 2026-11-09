@@ -155,21 +155,26 @@ internal sealed partial class RecreateGame
                 using Ff7Session firstVisit = Ff7Session.NewGame(Ff7Installation.Discover(options.Ff7GameDirectory!));
                 return firstVisit.Capture();
             }, target => prepared = PrepareFf7Scene(current with { ActiveGame = SessionGame.Ff7, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, Ff7 = target }));
-            ff7Scene?.Dispose();
-            ff7Scene = prepared;
-            crossover = transaction.State;
-            suspendedFf8Session = session;
-            suspendedFf8World = world;
-            gameMenus?.Close();
-            fieldAudio?.SetFocusPaused(true);
-            Window.Title = "Memoria - Final Fantasy VII";
-            ResetElapsedTime();
+            CommitPreparedFf7Scene(transaction.State, prepared!);
         }
         catch
         {
             prepared?.Dispose();
             throw;
         }
+    }
+
+    private void CommitPreparedFf7Scene(CombinedSessionSave state, Ff7Scene prepared)
+    {
+        ff7Scene?.Dispose();
+        ff7Scene = prepared;
+        crossover = state;
+        suspendedFf8Session = session;
+        suspendedFf8World = world;
+        gameMenus?.Close();
+        fieldAudio?.SetFocusPaused(true);
+        Window.Title = "Memoria - Final Fantasy VII";
+        ResetElapsedTime();
     }
 
     private GameState RestoreFf8Payload(CombinedSessionSave saved)

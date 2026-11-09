@@ -147,6 +147,10 @@ internal sealed class Ff7SemanticRetargeter
                 posed[index] += correction;
             }
         }
+        if (posed.Any(vertex => !float.IsFinite(vertex.X) || !float.IsFinite(vertex.Y) || !float.IsFinite(vertex.Z)))
+        {
+            throw new InvalidDataException("The compatible source pose exceeds finite target geometry coordinates.");
+        }
         return posed;
     }
 

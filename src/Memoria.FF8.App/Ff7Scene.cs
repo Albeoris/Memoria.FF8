@@ -105,13 +105,13 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7SessionSave ff7 = saved.Ff7 ?? throw new InvalidDataException("This save contains no FFVII continuation.");
         Ff7Session restored = Ff7Session.Restore(installation, ff7);
         envelope = saved;
-        Attach(restored);
+        Attach(restored, ff7.AudioPresentation, restoring: true);
     }
 
     public CombinedSessionSave Capture()
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("The FFVII title has no gameplay continuation to save.");
-        CombinedSessionSave saved = envelope with { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture() };
+        CombinedSessionSave saved = envelope with { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture() with { AudioPresentation = CaptureAudioPresentation() } };
         saved.Validate();
         return saved;
     }
@@ -157,6 +157,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateDebugMenu();
                 return;
             }
+            Session.AdvanceClock(gameTime.ElapsedGameTime);
             UpdateAudio();
             if (autoPlay?.Running != true || autoPlay.Paused)
             {
@@ -185,7 +186,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 else
                 {
                     ApplyLogicalInput();
-                    Session.AdvanceTick();
+                    Session.AdvanceTick(advanceClock: false);
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
@@ -250,7 +251,7 @@ internal sealed partial class Ff7Scene : IDisposable
         }
     }
 
-    private void Attach(Ff7Session session)
+    private void Attach(Ff7Session session, Ff7AudioPresentationState? savedAudio = null, bool restoring = false)
     {
         autoPlay = null;
         DisposeNamingPresentation();
@@ -258,6 +259,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Session?.Dispose();
         StopMovie();
         Session = session;
+        RestoreAudioPresentation(savedAudio, restoring);
         Session.PresentationCommand = PresentationCommand;
         renderedGeneration = -1;
         renderer = null;
@@ -282,7 +284,7 @@ internal sealed partial class Ff7Scene : IDisposable
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion);
+        Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState is { UsesFieldColor: true } fade ? fade.FieldColorArgb : null };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 

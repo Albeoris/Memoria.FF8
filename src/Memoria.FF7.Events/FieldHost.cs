@@ -25,6 +25,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldAnimation), "animation")]
 [JsonDerivedType(typeof(FieldActorProperty), "actor-property")]
 [JsonDerivedType(typeof(FieldWindowCommand), "window")]
+[JsonDerivedType(typeof(FieldTimerCommand), "timer")]
 [JsonDerivedType(typeof(FieldDialogueCommand), "dialogue")]
 [JsonDerivedType(typeof(FieldTransitionCommand), "transition")]
 [JsonDerivedType(typeof(FieldBattleCommand), "battle")]
@@ -35,6 +36,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldPreloadCommand), "preload")]
 [JsonDerivedType(typeof(FieldRandomCommand), "random")]
 [JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
+[JsonDerivedType(typeof(FieldItemCommand), "item")]
 [JsonDerivedType(typeof(FieldTriangleCommand), "triangle")]
 [JsonDerivedType(typeof(FieldLineCommand), "line")]
 [JsonDerivedType(typeof(FieldAudioCommand), "audio")]
@@ -66,6 +68,7 @@ public sealed record FieldMovieCommand(FieldMovieOperation Operation, int MovieI
 public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
 public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
 public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true) : FieldCommand;
+public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind
 {
@@ -92,7 +95,8 @@ public enum FieldWindowOperation
     CloseAndWait,
     Move,
     Rows,
-    Reset
+    Reset,
+    Special
 }
 public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0) : FieldCommand;
 public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;
@@ -216,3 +220,4 @@ public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle,
 public sealed record FieldActorJump(short X, short Y, short Triangle, short Duration) : FieldCommand;
 
 public sealed record FieldMateriaCommand(uint Encoded) : FieldCommand;
+public sealed record FieldItemCommand(ushort Encoded) : FieldCommand;

@@ -88,6 +88,7 @@ internal sealed partial class RecreateGame : Game
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
         }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive, loadMemoria: path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources, resourceHost, () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, initialized => resourceHost is null ? initialized : GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost)), gameDirectory: options.GameDirectory);
+        playerSaves.ReadFf7OnlyLoadUnavailable = Ff7OnlyLoadUnavailable;
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -991,6 +992,13 @@ internal sealed partial class RecreateGame : Game
     private void LoadPlayerSlot(int slot)
     {
         Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
+        if (savedCrossover is not null && CrossoverSaveAdapter.RequiresCurrentFf8(savedCrossover))
+        {
+            LoadFf7OnlyPlayerSave(savedCrossover);
+            saveNotice = null;
+            saveNoticeSeconds = 0;
+            return;
+        }
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
         Ff7Scene? preparedCrossover = savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7 ? PrepareFf7Scene(savedCrossover) : null;
@@ -998,6 +1006,8 @@ internal sealed partial class RecreateGame : Game
         try
         {
             RestorePlayerState(state);
+            preparedCrossover?.ConfigureSharedControls(keyboard, gameplayClock);
+            preparedCrossover?.SuppressInitialPresses(physicalInput.ReadKeyboard());
             RestoreCrossover(savedCrossover, preparedCrossover);
         }
         catch

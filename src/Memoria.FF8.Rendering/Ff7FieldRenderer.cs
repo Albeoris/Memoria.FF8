@@ -11,7 +11,11 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
-public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0);
+public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
+{
+    public uint? FieldColorArgb { get; init; }
+}
+
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
 {
     public Vector3? Normal { get; init; }
@@ -78,20 +82,26 @@ public sealed class Ff7FieldRenderer
             tileImages.Clear();
         }
         renderer.Begin(width, height, new Vector4(0, 0, 0, frame.MovieActive ? 0 : 1));
-        if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+        try
         {
-            DrawBackground(renderer, width, height, frame, false);
+            if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+            {
+                DrawBackground(renderer, width, height, frame, false);
+            }
+            ModelMaterialState modelState = new();
+            foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
+            {
+                DrawActor(renderer, width, height, frame, actor, modelState);
+            }
+            if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+            {
+                DrawBackground(renderer, width, height, frame, true);
+            }
         }
-        ModelMaterialState modelState = new();
-        foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
+        finally
         {
-            DrawActor(renderer, width, height, frame, actor, modelState);
+            renderer.End();
         }
-        if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
-        {
-            DrawBackground(renderer, width, height, frame, true);
-        }
-        renderer.End();
     }
 
     public Vector3 Project(Vector3 world, PcFieldCamera camera, Vector2 cameraOffsetPixels)
@@ -162,7 +172,7 @@ public sealed class Ff7FieldRenderer
             } : TriangleBlend.Replace;
             TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
-            Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, material);
+            Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, material, FieldColor(frame));
         }
     }
 
@@ -195,7 +205,7 @@ public sealed class Ff7FieldRenderer
                 TriangleVertex Vertex(Ff7WorldVertex vertex)
                 {
                     Vector3 point = Project(vertex.Position, frame.CameraOverride ?? field.Cameras[frame.CameraIndex], frame.CameraOffsetPixels);
-                    Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, Argb(vertex.Color)) : vertex.Color;
+                    Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, Argb(vertex.Color), frame.FieldColorArgb) : Tint(vertex.Color, frame.FieldColorArgb);
                     return new(new Vector2(point.X * width / 320f, point.Y * height / 240f), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
                 TriangleVertex a = Vertex(triangle.A);
@@ -318,7 +328,7 @@ public sealed class Ff7FieldRenderer
                         {
                             originalColor = effectColor(model.Vertices[vertex], model.Normals[normalIndex], originalColor);
                         }
-                        Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor) : Color(originalColor);
+                        Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor, frame.FieldColorArgb) : Tint(Color(originalColor), frame.FieldColorArgb);
                         color.W *= state.VertexAlpha / 255f;
                         return new(new Vector2(position.X * width / 320f, position.Y * height / 240f), projection.Project(position.Z), 1 / position.Z, uv, color);
                     }
@@ -418,12 +428,23 @@ public sealed class Ff7FieldRenderer
         public TriangleSampler Sampler = TriangleSampler.PointWrap;
     }
 
-    private static void Quad(ITriangleRenderer renderer, Vector2 origin, Vector2 size, float depth, TriangleMaterial material)
+    private static Vector4 FieldColor(Ff7FieldRenderFrame frame) => frame.FieldColorArgb is uint argb ? Tint(Vector4.One, argb) : Vector4.One;
+
+    private static Vector4 Tint(Vector4 color, uint? argb)
     {
-        TriangleVertex a = new(origin, depth, 1, Vector2.Zero, Vector4.One);
-        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, Vector2.UnitX, Vector4.One);
-        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, Vector2.UnitY, Vector4.One);
-        TriangleVertex d = new(origin + size, depth, 1, Vector2.One, Vector4.One);
+        if (argb is not uint tint)
+        {
+            return color;
+        }
+        return new Vector4(color.X * ((tint >> 16) & 255) / 255f, color.Y * ((tint >> 8) & 255) / 255f, color.Z * (tint & 255) / 255f, color.W);
+    }
+
+    private static void Quad(ITriangleRenderer renderer, Vector2 origin, Vector2 size, float depth, TriangleMaterial material, Vector4 color)
+    {
+        TriangleVertex a = new(origin, depth, 1, Vector2.Zero, color);
+        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, Vector2.UnitX, color);
+        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, Vector2.UnitY, color);
+        TriangleVertex d = new(origin + size, depth, 1, Vector2.One, color);
         renderer.Draw(a, b, c, material);
         renderer.Draw(b, d, c, material);
     }

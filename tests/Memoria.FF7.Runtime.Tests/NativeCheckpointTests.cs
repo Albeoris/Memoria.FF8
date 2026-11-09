@@ -16,10 +16,11 @@ internal static class NativeCheckpointTests
         using FileStream stream = File.OpenRead(path);
         Ff7SessionSave save = CombinedSessionCodec.Read(stream).Ff7 ?? throw new InvalidDataException("The configured checkpoint has no FFVII continuation.");
         Ff7Installation installation = Ff7Installation.Discover(root);
-        string progress = JsonSerializer.Serialize(save.Progress);
+
         string vm = JsonSerializer.Serialize(save.Vm);
         using Ff7Session original = Ff7Session.Restore(installation, save);
         Ff7SessionSave restored = original.Capture();
+        string progress = JsonSerializer.Serialize(save.Progress with { Clock = save.Progress.Clock ?? restored.Progress.Clock });
         Check(progress == JsonSerializer.Serialize(restored.Progress), "Restoring the standalone checkpoint changed progress, rewards or RNG.");
         Check(vm == JsonSerializer.Serialize(restored.Vm), "Restoring the standalone checkpoint changed script PCs, banks or input.");
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(restored))!);

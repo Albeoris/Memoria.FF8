@@ -67,19 +67,20 @@ public sealed class Ff7FieldLighting
         }
     }
     /// <summary>The caller supplies the original normal rotated into the field light frame, excluding uniform geometry scale. Native normals and light directions are not renormalized.</summary>
-    public Vector4 Shade(Vector3 normal, uint vertexArgb)
+    public Vector4 Shade(Vector3 normal, uint vertexArgb, uint? fieldColorArgb = null)
     {
         if (!Finite(normal))
         {
             throw new InvalidDataException("Native field lighting cannot shade a non-finite normal.");
         }
-        float Channel(Vector3 coefficients, float minimum, byte original)
+        float Channel(Vector3 coefficients, float minimum, byte original, int tint)
         {
             float factor = MathF.Max(minimum, Vector3.Dot(coefficients, normal) + minimum);
             float value = MathF.Min(255, original * factor);
-            return MathF.Round(value, MidpointRounding.ToEven) / 255;
+            return MathF.Round(tint == 255 ? value : value * tint / 255f, MidpointRounding.ToEven) / 255;
         }
-        return new(Channel(red, ambient.X, (byte)(vertexArgb >> 16)), Channel(green, ambient.Y, (byte)(vertexArgb >> 8)), Channel(blue, ambient.Z, (byte)vertexArgb), (vertexArgb >> 24) / 255f);
+        uint tint = fieldColorArgb ?? uint.MaxValue;
+        return new(Channel(red, ambient.X, (byte)(vertexArgb >> 16), (byte)(tint >> 16)), Channel(green, ambient.Y, (byte)(vertexArgb >> 8), (byte)(tint >> 8)), Channel(blue, ambient.Z, (byte)vertexArgb, (byte)tint), (vertexArgb >> 24) / 255f);
     }
 
     private static Vector3 Rgb(uint rgb)

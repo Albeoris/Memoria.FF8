@@ -16,6 +16,7 @@ public sealed record Ff7Progress
     public required Ff7InventorySlot[] Inventory { get; init; }
     public required Ff7MateriaState[] Materia { get; init; }
     public uint Gil { get; init; }
+    public Ff7ClockState? Clock { get; init; }
     public ushort AvailableCharacters { get; init; }
     public ushort LockedCharacters { get; init; }
     public Ff7EncounterState Encounters { get; init; } = new();
@@ -27,6 +28,7 @@ public sealed record Ff7Progress
 
     public void Validate()
     {
+        Clock?.Validate();
         BattleRng?.Validate();
         if (Encounters is null || NextEncounterRequestId < 1L << 60)
         {
@@ -44,7 +46,7 @@ public sealed record Ff7Progress
         {
             throw new InvalidDataException("FFVII character progression is invalid.");
         }
-        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != character)) || Inventory.Any(item => item.ItemId is < 0 or > 511 || item.Quantity is < 1 or > 99) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Length > 200 || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
+        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != character)) || Inventory.Length > Ff7NativeInventory.SlotCount || Inventory.Any(item => item.ItemId is < 0 or > 511 || item.Quantity is < 0 or > 127 || item.ItemId == 511 && item.Quantity == 127) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Length > 200 || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
         {
             throw new InvalidDataException("FFVII party or inventory is invalid.");
         }

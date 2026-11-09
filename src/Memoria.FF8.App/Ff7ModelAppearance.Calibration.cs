@@ -42,7 +42,7 @@ internal sealed partial class Ff7ModelAppearance
             ["aaff.a"] = catalog.GetAnimation(entry.Id, 1).Id,
             ["aaga.a"] = catalog.GetAnimation(entry.Id, 2).Id
         };
-        return new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"], ["bvjf.a", "auee.a", "ajdd.a", "bxib.a", "byaa.a", "bxif.a", "byad.a", "apjf.a", "bxic.a"])
+        return new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"])
         {
             calibrationDescriptorScale = float.Parse(field.Models.Models[0].Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = StandardFieldSquallProfileVersion + "/" + catalog.GetSource(entry.Id).RigId

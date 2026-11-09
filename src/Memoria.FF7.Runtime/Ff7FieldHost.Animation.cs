@@ -4,6 +4,15 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    private Ff7FieldProcess SetPlayerControl(bool locked)
+    {
+        return Process with
+        {
+            PlayerLocked = locked,
+            Actors = locked ? Process.Actors : Process.Actors.Select(actor => actor.PlayerControlled ? actor with { AnimationStatus = 0 } : actor).ToArray()
+        };
+    }
+
     private FieldHostReply Animate(FieldHostRequest request, FieldAnimation animation)
     {
         Ff7Actor actor = GetActor(request.Entity);
@@ -101,12 +110,12 @@ public sealed partial class Ff7FieldHost
                                 throw new InvalidDataException("FFVII default animation has no native frames.");
                             }
                             last = defaultCount - 1;
-                            next = next with { Animation = actor.DefaultAnimation, AnimationSpeed = actor.DefaultAnimationSpeed, AnimationFrame16 = 0, LastAnimationFrame = last, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false };
+                            next = next with { Animation = actor.DefaultAnimation, AnimationSpeed = actor.DefaultAnimationSpeed, AnimationFrame16 = 0, LastAnimationFrame = last, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false, HoldAnimation = false };
                         }
                         else
                         {
                             last = count - 1;
-                            next = next with { LastAnimationFrame = last, AnimationLoop = true };
+                            next = next with { LastAnimationFrame = last, AnimationLoop = true, HoldAnimation = false };
                             if ((actor.AnimationFrame16 >> 4) >= last)
                             {
                                 next = next with { AnimationFrame16 = 0 };
@@ -149,6 +158,7 @@ public sealed partial class Ff7FieldHost
             if (!scriptControlled)
             {
                 last = animationLength(next.Model, next.Animation) - 1;
+                next = next with { LastAnimationFrame = last };
                 if (frame > (last << 4))
                 {
                     frame = 0;

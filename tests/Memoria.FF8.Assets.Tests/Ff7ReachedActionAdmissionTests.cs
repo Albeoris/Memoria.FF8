@@ -141,7 +141,7 @@ public sealed class Ff7ReachedActionAdmissionTests
         PcFieldAnimation unadmittedClip = original.Animations["acfe.a"];
         Ff7FieldModelResources unadmittedOriginal = original with { Animations = new Dictionary<string, PcFieldAnimation>(original.Animations, StringComparer.OrdinalIgnoreCase) { ["unadmitted-action.a"] = unadmittedClip } };
         PcFieldModelDescriptor unadmittedDescriptor = field.Models.Models[0] with { Animations = [.. field.Models.Models[0].Animations, "unadmitted-action.a"] };
-        Assert.Throws<NotSupportedException>(() => appearance.TryCreate(new Ff7ActorVisual(0, 0, 0, 0, 0, 0, unadmittedDescriptor.Animations.Count - 1, 0), unadmittedDescriptor, unadmittedOriginal, out _));
+        Assert.True(appearance.TryCreate(new Ff7ActorVisual(0, 0, 0, 0, 0, 0, unadmittedDescriptor.Animations.Count - 1, 0), unadmittedDescriptor, unadmittedOriginal, out _));
         if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ACTION_METRICS_REPORT") is string metrics)
         {
             File.WriteAllText(metrics, JsonSerializer.Serialize(measurements));

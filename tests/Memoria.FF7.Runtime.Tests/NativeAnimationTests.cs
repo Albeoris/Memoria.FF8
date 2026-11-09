@@ -10,6 +10,7 @@ internal static class NativeAnimationTests
         DefaultAndBaseSpeed();
         SynchronousClockAndRestore();
         PartialFramesAndHold();
+        PlayerUnlockAndDefaultOwnership();
         InstalledMovementSelectsNativeGait();
     }
 
@@ -121,6 +122,35 @@ internal static class NativeAnimationTests
             Equal(0, complete.GetActor(0).AnimationStatus);
             Equal(0, complete.Process.Motions.Length);
         }
+    }
+
+    private static void PlayerUnlockAndDefaultOwnership()
+    {
+        var field = new Ff7FieldResources("animation-fixture", null!, null!, null!, [], [], null!, null!, null!);
+        var partial = new Ff7Actor { Entity = 0, Slot = 0, Model = 0, PlayerControlled = true, Animation = 3, AnimationStatus = 6, AnimationFrame16 = 69 << 4, FirstAnimationFrame = 15, LastAnimationFrame = 69, HoldAnimation = true };
+        var host = new Ff7FieldHost(field, (_, animation) => animation == 3 ? 70 : 15, new() { PlayerLocked = true, Actors = [partial] });
+        host.Execute(Request(20, new FieldControlCommand(FieldControlKind.PlayerLocked, 0)));
+        Equal(0, host.GetActor(0).AnimationStatus);
+        host.ApplyPlayerMovement(new(host.GetActor(0) with { Animation = 2 }, false, true, []));
+        Equal(0, host.GetActor(0).AnimationFrame16);
+        host.AdvanceActors();
+        Equal(16, host.GetActor(0).AnimationFrame16);
+        Equal(14, host.GetActor(0).LastAnimationFrame);
+        host.Execute(Request(21, new FieldControlCommand(FieldControlKind.PlayerLocked, 1)));
+        host.Execute(Request(22, new FieldAnimation(3, 1, false, false, true)));
+        host.AdvanceActors();
+        Equal(3, host.GetActor(0).Animation);
+        Equal(16, host.GetActor(0).AnimationFrame16);
+        Equal(69, host.GetActor(0).LastAnimationFrame);
+        Equal(0, host.GetActor(0).AnimationStatus);
+        Equal(false, host.GetActor(0).HoldAnimation);
+
+        // Locking alone preserves an active partial owner; only unlocking clears it.
+        var locked = new Ff7FieldHost(field, (_, _) => 70, new() { PlayerLocked = true, Actors = [partial with { AnimationFrame16 = 20 << 4, LastAnimationFrame = 21 }] });
+        locked.AdvanceActors();
+        locked.AdvanceActors();
+        Equal(21 << 4, locked.GetActor(0).AnimationFrame16);
+        Equal(3, locked.GetActor(0).AnimationStatus);
     }
 
     private static Ff7FieldHost Host(Ff7FieldProcess? process = null)

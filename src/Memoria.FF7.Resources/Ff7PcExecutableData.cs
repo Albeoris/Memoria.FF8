@@ -9,7 +9,7 @@ public sealed class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, byte[] materiaClasses)
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses)
     {
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
@@ -19,6 +19,7 @@ public sealed class Ff7PcExecutableData
         NativeFieldRandomTable = Array.AsReadOnly(fieldRandomTable);
         FieldRandomStep = fieldRandomStep;
         NativeSoundPan = Array.AsReadOnly(soundPan);
+        NativeSoundVolume = Array.AsReadOnly(soundVolume);
         NativeMateriaClasses = Array.AsReadOnly(materiaClasses);
     }
 
@@ -30,6 +31,7 @@ public sealed class Ff7PcExecutableData
     public IReadOnlyList<byte> NativeFieldRandomTable { get; }
     public byte FieldRandomStep { get; }
     public IReadOnlyList<int> NativeSoundPan { get; }
+    public IReadOnlyList<int> NativeSoundVolume { get; }
     public IReadOnlyList<byte> NativeMateriaClasses { get; }
     public float FieldNearPlane => 50;
     public float FieldFarPlane => 32000;
@@ -41,6 +43,14 @@ public sealed class Ff7PcExecutableData
     public byte InitialPersistentBank3Byte0 => 1;
     public IReadOnlyList<byte> InitialParty => Array.AsReadOnly(new byte[] { 0, 255, 255 });
     public ushort InitialAvailableCharacters => 1;
+
+    /// <summary>Converts the original script volume to hundredths of a decibel, before shared host output preferences.</summary>
+    public int NativeSoundGain(int volume)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(volume);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(volume, 127);
+        return NativeSoundVolume[volume];
+    }
 
     public byte[] CreateInitialPersistentVariables()
     {
@@ -141,10 +151,24 @@ public sealed class Ff7PcExecutableData
                 throw new InvalidDataException("FF7 native sound panning exceeds the device range.");
             }
         }
+        byte[] nativeVolume = ReadVirtual(stream, pe, 0x967660, 128 * 4);
+        int[] soundVolume = new int[128];
+        for (int index = 0; index < soundVolume.Length; index++)
+        {
+            soundVolume[index] = BinaryPrimitives.ReadInt32LittleEndian(nativeVolume.AsSpan(index * 4));
+            if (soundVolume[index] is < -10000 or > 0)
+            {
+                throw new InvalidDataException("FF7 native sound volume exceeds the device attenuation range.");
+            }
+        }
+        if (soundVolume[0] != -10000 || soundVolume[^1] != 0)
+        {
+            throw new InvalidDataException("FF7 native sound volume endpoints are invalid.");
+        }
         byte[] materiaIndices = ReadVirtual(stream, pe, 0x91ABF8, 16);
         byte[] materiaClasses = ReadVirtual(stream, pe, 0x91ABF0, materiaIndices.Max() + 1);
         byte[] resolvedMateriaClasses = materiaIndices.Select(index => materiaClasses[index]).ToArray();
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, resolvedMateriaClasses);
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses);
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

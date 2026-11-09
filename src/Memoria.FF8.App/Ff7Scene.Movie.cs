@@ -46,7 +46,7 @@ internal sealed partial class Ff7Scene
             Session.Host.PublishMovieFrame(frame, false);
             for (int tick = 0; tick < 2; tick++)
             {
-                Session.AdvanceTick();
+                Session.AdvanceTick(advanceClock: false);
                 if (Session.FieldGeneration != identity.Value.Item1 || Session.Host.Process.Movie is not { Playing: true } current || current.RequestId != state.RequestId)
                 {
                     break;

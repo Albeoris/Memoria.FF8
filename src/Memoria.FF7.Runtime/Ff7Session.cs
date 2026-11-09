@@ -45,7 +45,7 @@ public sealed partial class Ff7Session : IDisposable
     public long FieldGeneration { get; private set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
 
-    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed);
+    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId));
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -62,6 +62,7 @@ public sealed partial class Ff7Session : IDisposable
                 Inventory = initial.Inventory.Where(item => item.Encoded != 0xFFFF && item.Quantity > 0).Select(item => new Ff7InventorySlot(item.ItemId, item.Quantity)).ToArray(),
                 Materia = initial.Materia.Where(materia => materia.MateriaId != 255).Select(materia => new Ff7MateriaState(materia.MateriaId, materia.AbilityPoints)).ToArray(),
                 Gil = initial.Gil,
+                Clock = new Ff7ClockState(),
                 AvailableCharacters = session.executable.InitialAvailableCharacters
             };
             session.Progress.Validate();
@@ -98,6 +99,7 @@ public sealed partial class Ff7Session : IDisposable
             session.FieldGeneration = save.FieldGeneration;
             session.LoadField(checked((ushort)map), null, save.Process);
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
+            session.Progress = session.Progress with { Clock = session.Clock };
             return session;
         }
         catch
@@ -109,6 +111,16 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick()
     {
+        AdvanceTick(true);
+    }
+
+    public void AdvanceTick(bool advanceClock)
+    {
+        if (advanceClock)
+        {
+            AdvanceNominalClockCallbacks();
+        }
+        Ff7NativeClock.PublishField(Clock, Machine.Variables);
         ResumeEncounter();
         AdvanceAudio();
         DispatchLineScripts();
@@ -184,6 +196,15 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldItemCommand item)
+        {
+            return AcquireItem(item);
+        }
+        if (command is FieldTimerCommand timer)
+        {
+            Progress = Progress with { Clock = Clock with { CountdownSeconds = timer.Seconds } };
+            return new(true);
+        }
         if (command is FieldMateriaCommand materia)
         {
             return AcquireMateria(materia);

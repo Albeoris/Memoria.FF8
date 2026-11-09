@@ -48,7 +48,12 @@ public sealed record Ff7Actor
     public bool PlayerControlled { get; init; }
 }
 
-public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0);
+public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0)
+{
+    public byte SpecialType { get; init; }
+    public byte SpecialX { get; init; }
+    public byte SpecialY { get; init; }
+}
 public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false);
 public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1, short X2, short Y2, short Z2, byte Enabled = 1, byte SlipDisabled = 0, bool Touch = false, bool Across = false, bool Push = false, bool Talk = false, bool Enter = false, bool Leave = false, byte ProximityAngle = 0, bool OnLine = false);
 public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
@@ -97,6 +102,7 @@ public sealed record Ff7FieldProcess
     public bool MovieBackgroundEnabled { get; init; }
     public bool MovieCameraDisabled { get; init; }
     public FieldFadeCommand? Fade { get; init; }
+    public Ff7FadeProcess? FadeState { get; init; }
     public FieldMusicCommand? Music { get; init; }
     public byte MusicLock { get; init; }
     public long MusicTicks { get; init; }
@@ -136,6 +142,7 @@ public sealed record Ff7FieldProcess
 
     public void Validate()
     {
+        FadeState?.Validate();
         if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
         {
             throw new InvalidDataException("FFVII music continuation has invalid native track, clock or volume state.");

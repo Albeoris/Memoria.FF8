@@ -82,13 +82,18 @@ internal static class NativeLadderTests
         Equal(true, both.GetActor(0).Ladder!.Completed);
         Equal(1, both.GetActor(0).Ladder!.Step);
         Equal(0, both.GetActor(0).Triangle);
+        Ff7FieldHost locked = Host(true, null, new() { PlayerLocked = true, Actors = [new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true }] });
+        locked.Execute(Request(404, 0));
+        locked.AdvanceActors();
+        locked.AdvanceActors();
+        Equal(1, locked.GetActor(0).Ladder!.Step);
     }
 
     private static Ff7FieldHost Host(bool player, Func<ushort>? input, Ff7FieldProcess? process = null)
     {
         PcWalkmeshTriangle triangle = new(0, Vector3.Zero, new(0, 100, 0), new(100, 0, 0), -1, -1, -1);
         Ff7FieldResources field = new("ladder-fixture", null!, null!, null!, [], [triangle, triangle with { Index = 1 }], null!, null!, null!);
-        process ??= new() { PlayerLocked = true, Actors = [new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = player }] };
+        process ??= new() { Actors = [new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = player }] };
         return new(field, (_, _) => 3, process) { ReadInputHeld = input, Movement = new([triangle], new short[512], new byte[129]) };
     }
 

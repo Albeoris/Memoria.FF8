@@ -11,12 +11,21 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
     private long waypointGeneration = -1;
     private int waypointDestination = -1;
     private Vector3? committedWaypoint;
+    private int waypointSourceTriangle = -1;
+    private int waypointTargetTriangle = -1;
     private Vector3? finalTarget;
     private bool finalApproach;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
     public void Apply(Ff7AutoplayInput input)
     {
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || player?.Ladder is not null || player?.Jump is not null || player is not null && session.Host.Process.Motions.Any(motion => motion.Entity == player.Entity))
+        {
+            committedWaypoint = null;
+            waypointGeneration = -1;
+            finalApproach = false;
+        }
         ushort pressed = (ushort)(input.Held & ~session.Machine.Input.Held);
         session.SetInput(input.Held, pressed);
         session.MovePlayer(input.Horizontal, input.Vertical, true);
@@ -132,13 +141,15 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
             waypoint = (mesh[next].A + mesh[next].B + mesh[next].C) / 3;
         }
         Vector2 currentPosition = new(player.X4096 / 4096f, player.Y4096 / 4096f);
-        if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
+        if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && (player.Triangle == waypointSourceTriangle || player.Triangle == waypointTargetTriangle) && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
         {
             waypoint = retained;
         }
         else
         {
             committedWaypoint = finalApproach || next == player.Triangle ? null : waypoint;
+            waypointSourceTriangle = player.Triangle;
+            waypointTargetTriangle = next;
             waypointGeneration = session.FieldGeneration;
             waypointDestination = destination;
         }

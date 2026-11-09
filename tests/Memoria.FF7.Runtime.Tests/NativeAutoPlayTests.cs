@@ -60,6 +60,18 @@ internal static class NativeAutoPlayTests
         failed.Start();
         failed.Advance();
         Check(!failed.Running && failed.Error!.Contains("Explicit native policy boundary.") && captured!.Vm.Tick == session.Machine.Tick, "Autoplay masked the native failure or failed to checkpoint its exact initialized boundary.");
+        Exception nativeFailure = new NotSupportedException("Preserve this native failure.");
+        int writes = 0;
+        Ff7AutoPlayController writeFailure = new(session, _ => throw nativeFailure, checkpoint: _ =>
+        {
+            if (++writes > 1)
+            {
+                throw new IOException("Checkpoint destination unavailable.");
+            }
+        });
+        writeFailure.Start();
+        writeFailure.Advance();
+        Check(ReferenceEquals(writeFailure.Failure, nativeFailure) && writeFailure.Error!.Contains("Checkpoint destination unavailable."), "Checkpoint writer failure replaced the original native exception or omitted its diagnostic.");
     }
 
     private static void Check(bool condition, string message)

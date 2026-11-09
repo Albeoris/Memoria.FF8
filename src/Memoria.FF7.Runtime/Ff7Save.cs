@@ -15,6 +15,52 @@ public enum SessionGame
 
 public sealed record CharacterAppearanceMapping(SessionGame StoryGame, int StoryCharacter, SessionGame AppearanceGame, int AppearanceCharacter, string RigProfile);
 
+public sealed record Ff7SoundVoicePosition(int Channel, int SoundId, string Fingerprint, int SampleRate, int Channels, long PositionFrames, bool Loop, int LoopStartFrames, int LoopEndFrames, bool LoopStarted, int Pan, int Gain);
+public sealed record Ff7MusicVoicePosition(int Track, string Fingerprint, int SampleRate, int Channels, long PositionFrames, int LoopStartFrames, int LoopEndFrames, bool LoopStarted);
+
+public sealed record Ff7AudioPresentationState
+{
+    public int Version { get; init; } = 1;
+    public Ff7SoundVoicePosition[] Sounds { get; init; } = [];
+    public Ff7MusicVoicePosition? Music { get; init; }
+
+    public void Validate()
+    {
+        if (Version != 1)
+        {
+            return;
+        }
+        if (Sounds is null || Sounds.Length > 6 || Sounds.Any(sound => sound is null) || Sounds.Select(sound => sound.Channel).Distinct().Count() != Sounds.Length)
+        {
+            throw new InvalidDataException("FFVII saved audio presentation has invalid voice ownership.");
+        }
+        foreach (Ff7SoundVoicePosition sound in Sounds)
+        {
+            ValidatePosition(sound.Fingerprint, sound.SampleRate, sound.Channels, sound.PositionFrames, sound.LoopStartFrames, sound.LoopEndFrames, sound.LoopStarted);
+            if (sound.Channel is < 0 or > 5 || sound.SoundId is < 1 or > 750 || sound.Pan is < -10000 or > 10000 || sound.Gain is < -10000 or > 0 || sound.Channel == 0 && sound.Loop || !sound.Loop && (sound.LoopStarted || sound.LoopStartFrames != 0))
+            {
+                throw new InvalidDataException("FFVII saved sound voice contract is corrupt.");
+            }
+        }
+        if (Music is Ff7MusicVoicePosition music)
+        {
+            ValidatePosition(music.Fingerprint, music.SampleRate, music.Channels, music.PositionFrames, music.LoopStartFrames, music.LoopEndFrames, music.LoopStarted);
+            if (music.Track is < 1 or > 98)
+            {
+                throw new InvalidDataException("FFVII saved music presentation has an invalid track.");
+            }
+        }
+    }
+
+    private static void ValidatePosition(string fingerprint, int rate, int channels, long position, int loopStart, int loopEnd, bool repeating)
+    {
+        if (fingerprint is null || fingerprint.Length != 64 || !fingerprint.All(Uri.IsHexDigit) || rate <= 0 || channels is not (1 or 2) || position < 0 || position >= loopEnd || loopStart < 0 || loopEnd <= loopStart || repeating && position < loopStart)
+        {
+            throw new InvalidDataException("FFVII saved PCM presentation cursor is corrupt.");
+        }
+    }
+}
+
 public sealed record Ff7SessionSave
 {
     public const int CurrentVersion = 1;
@@ -26,6 +72,7 @@ public sealed record Ff7SessionSave
     public required Ff7Progress Progress { get; init; }
     public required FieldVmSnapshot Vm { get; init; }
     public required Ff7FieldProcess Process { get; init; }
+    public Ff7AudioPresentationState? AudioPresentation { get; init; }
 
     public void Validate()
     {
@@ -35,6 +82,7 @@ public sealed record Ff7SessionSave
         }
         Progress.Validate();
         Process.Validate();
+        AudioPresentation?.Validate();
     }
 }
 

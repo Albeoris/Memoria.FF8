@@ -62,11 +62,12 @@ public sealed partial class Ff7FieldHost
             {
                 throw new InvalidDataException("FFVII jump's existing animation has no native frames.");
             }
-            int last = actor.PlayerControlled || actor.LastAnimationFrame < 0 ? count - 1 : actor.LastAnimationFrame;
+            bool freePlayer = actor.PlayerControlled && !Process.PlayerLocked;
+            int last = freePlayer || actor.LastAnimationFrame < 0 ? count - 1 : actor.LastAnimationFrame;
             int frame = unchecked((short)(actor.AnimationFrame16 + unchecked((short)actor.AnimationSpeed)));
             if (frame > last << 4)
             {
-                frame = actor.PlayerControlled ? 0 : unchecked((short)(last << 4));
+                frame = freePlayer ? 0 : unchecked((short)(last << 4));
             }
             updated = updated with { Jump = state, AnimationFrame16 = frame, LastAnimationFrame = last };
             SetActorSlot(actor.Slot, _ => updated);

@@ -50,6 +50,14 @@ internal static class NativeJumpTests
         Equal(16, npc.GetActor(0).AnimationFrame16);
         Equal(1, npc.GetActor(0).LastAnimationFrame);
         Equal(true, npc.Execute(request).Completed);
+        Ff7FieldHost locked = Host(true, new() { PlayerLocked = true, Actors = [new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true, Animation = 2, LastAnimationFrame = 1 }] });
+        locked.Execute(request);
+        for (int tick = 0; tick < 6; tick++)
+        {
+            locked.AdvanceActors();
+        }
+        Equal(16, locked.GetActor(0).AnimationFrame16);
+        Equal(1, locked.GetActor(0).LastAnimationFrame);
 
         void AdvanceBoth()
         {

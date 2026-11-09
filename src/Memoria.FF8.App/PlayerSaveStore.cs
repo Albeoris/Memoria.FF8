@@ -9,6 +9,7 @@ internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt
 {
     internal bool CanCopy { get; init; } = CanLoad;
     internal SessionGame? ActiveGame { get; init; }
+    internal bool RequiresFf8Continuation { get; init; }
     internal string? DetailsSystemId { get; init; }
     internal string? DetailsError { get; init; }
     internal Func<string?>? ReadLocation { get; init; }
@@ -64,6 +65,7 @@ internal sealed partial class PlayerSaveStore
     }
 
     internal int QuickSaveCount => quickSaveCount;
+    internal Func<string?>? ReadFf7OnlyLoadUnavailable { get; set; }
 
     public int PreviewQuickSaveCount(int count)
     {
@@ -286,7 +288,7 @@ internal sealed partial class PlayerSaveStore
             savedAtUtc = file.LastWriteTimeUtc;
             if (entries.TryGetValue(path, out CachedSaveEntry? cached) && cached.Length == file.Length && cached.ModifiedUtc == file.LastWriteTimeUtc)
             {
-                return cached.Entry with { Slot = slot, Label = cached.Entry.ActiveGame == SessionGame.Ff7 ? label + " · FINAL FANTASY VII" : label, SavedAt = savedAt, SavedAtUtc = savedAtUtc };
+                return ApplyFf7LoadContext(cached.Entry with { Slot = slot, Label = cached.Entry.ActiveGame == SessionGame.Ff7 ? label + " · FINAL FANTASY VII" : label, SavedAt = savedAt, SavedAtUtc = savedAtUtc });
             }
             PlayerSaveEntry entry;
             SaveSummary? summary = null;
@@ -295,19 +297,21 @@ internal sealed partial class PlayerSaveStore
                 CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
                 if (combined?.ActiveGame == SessionGame.Ff7)
                 {
+                    bool requiresFf8 = CrossoverSaveAdapter.RequiresCurrentFf8(combined);
                     bool canLoad = combined.Ff8Payload is { Length: > 0 } && combined.Ff8PayloadFormat == CrossoverSaveAdapter.Ff8Codec;
                     if (canLoad)
                     {
                         _ = CrossoverSaveAdapter.ReadFf8(combined);
                     }
                     string details = "FINAL FANTASY VII · " + combined.Ff7!.FieldName;
-                    if (!canLoad)
+                    if (!canLoad && !requiresFf8)
                     {
-                        details += " · Continue this FFVII-only save from the FFVII debug title; no supported suspended FFVIII continuation is stored.";
+                        details += " · This save contains an unsupported FFVIII continuation.";
                     }
                     entry = new(slot, label + " · FINAL FANTASY VII", savedAt, details, canLoad)
                     {
                         CanCopy = true,
+                        RequiresFf8Continuation = requiresFf8,
                         ActiveGame = SessionGame.Ff7,
                         SavedAtUtc = savedAtUtc
                     };
@@ -338,12 +342,22 @@ internal sealed partial class PlayerSaveStore
                 entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = exception.Message, SavedAtUtc = savedAtUtc, SavedLocalAt = summary?.SavedLocalAt };
             }
             entries[path] = new CachedSaveEntry(file.Length, file.LastWriteTimeUtc, entry);
-            return entry;
+            return ApplyFf7LoadContext(entry);
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {
             return new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = exception.Message, SavedAtUtc = savedAtUtc };
         }
+    }
+
+    private PlayerSaveEntry ApplyFf7LoadContext(PlayerSaveEntry entry)
+    {
+        if (!entry.RequiresFf8Continuation)
+        {
+            return entry;
+        }
+        string? reason = ReadFf7OnlyLoadUnavailable is null ? "Start or load an FFVIII game and reach a save-enabled boundary to preserve a world to return to." : ReadFf7OnlyLoadUnavailable();
+        return entry with { CanLoad = reason is null, Details = reason is null ? entry.Details : entry.Details + " · " + reason };
     }
 
     private GameState LoadPath(string path)

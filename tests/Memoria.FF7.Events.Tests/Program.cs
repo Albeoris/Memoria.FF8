@@ -13,6 +13,13 @@ if (args.Contains("--materia-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--fade-only", StringComparer.Ordinal))
+{
+    ExtendedTests.FadeOperandsAndYield();
+    Console.WriteLine("PASS native fade operands and yield");
+    return 0;
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
@@ -48,8 +55,11 @@ var tests = new (string Name, Action Run)[]
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
+    ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
+    ("native timer and special window operands", ExtendedTests.TimerAndSpecialWindowOperands),
     ("native view offset operands and yield", ExtendedTests.ViewOffsetOperandsAndYield),
     ("native materia operands and status", ExtendedTests.MateriaOperandsAndStatus),
+    ("native fade operands and yield", ExtendedTests.FadeOperandsAndYield),
     ("native coordinate query and signed remainder", ExtendedTests.CoordinateQueryAndRemainder)
 };
 int failed = 0;

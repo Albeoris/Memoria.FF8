@@ -34,6 +34,10 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldFadeCommand(B(id, 3), R8(id, 1, 4), R8(id, 2, 5), R8(id, 3, 6), R16(id, 4, 7), NewFade: true), 9);
             case 0x33:
                 return Host(id, new FieldControlCommand(FieldControlKind.PlayerLocked, B(id, 1)), 2);
+            case 0x36:
+                return Host(id, new FieldWindowCommand(FieldWindowOperation.Special, B(id, 1), B(id, 3), B(id, 4), Style: B(id, 2)), 5);
+            case 0x38:
+                return Host(id, new FieldTimerCommand((uint)(R8(id, 1, 3) * 3600 + R8(id, 2, 4) * 60 + R8(id, 4, 5))), 6);
             case 0x40:
                 return Host(id, new FieldDialogueCommand(B(id, 1), B(id, 2)), 3);
             case 0x43:
@@ -70,6 +74,9 @@ public sealed partial class FieldMachine
             case 0x5B:
                 uint encodedMateria = (uint)(R8(id, 1, 3) | R8(id, 2, 4) << 8 | R8(id, 3, 5) << 16 | R8(id, 4, 6) << 24);
                 return Host(id, new FieldMateriaCommand(encodedMateria), 7, result: value => Variables.WriteByte(FieldBank.Persistent3Byte, 31, value == -1 ? (byte)0 : (byte)1));
+            case 0x58:
+                ushort encodedItem = unchecked((ushort)((R8(id, 2, 4) << 9) | unchecked((ushort)R16(id, 1, 2))));
+                return Host(id, new FieldItemCommand(encodedItem), 5);
             case 0x60:
                 return Host(id, new FieldTransitionCommand(W(id, 1), S(id, 3), S(id, 5), W(id, 7), B(id, 9)), 10, firstCallYields: true);
             case 0x61:

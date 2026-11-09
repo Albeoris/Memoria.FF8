@@ -7,6 +7,45 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeProcessTests
 {
+    public static void RunFade()
+    {
+        Ff7FieldHost host = Host();
+        host.Execute(Request(800, new FieldFadeCommand(2, 255, 200, 200, 16)));
+        FieldHostRequest wait = Request(801, new FieldFadeCommand(0, Wait: true));
+        Equal(false, host.Execute(wait).Completed);
+        Equal(0, host.Process.FadeState!.Position);
+        host.AdvanceActors();
+        Equal(16, host.Process.FadeState!.Position);
+        Equal(0x80F7C8C8u, host.Process.FadeState!.FieldColorArgb);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        for (int tick = 0; tick < 15; tick++)
+        {
+            host.AdvanceActors();
+            cold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        }
+        Equal(255, host.Process.FadeState!.Position);
+        Equal(2, host.Process.FadeState!.Type);
+        Equal(0x80800D0Du, host.Process.FadeState!.FieldColorArgb);
+        Equal(true, host.Execute(wait).Completed);
+        host.Execute(Request(802, new FieldFadeCommand(1, 255, 230, 230, 4, 255)));
+        Equal(256, host.Process.FadeState!.Position);
+        for (int tick = 0; tick < 64; tick++)
+        {
+            host.AdvanceActors();
+        }
+        Equal(0, host.Process.FadeState!.Type);
+        Equal(0x80FFF4F4u, host.Process.FadeState!.FieldColorArgb);
+        host.AdvanceActors();
+        Equal(0x80FFFFFFu, host.Process.FadeState!.FieldColorArgb);
+        Equal(false, host.Process.FadeState!.UsesFieldColor);
+        Ff7FieldHost legacyColor = Host(new() { Tick = 99, Fade = new FieldFadeCommand(2, 255, 200, 200, 16) });
+        Equal(99L, legacyColor.Process.Tick);
+        Equal(0, legacyColor.Process.FadeState!.Position);
+        Equal(true, legacyColor.Process.FadeState!.UsesFieldColor);
+        Ff7FieldHost legacy = Host(new() { Fade = new FieldFadeCommand(4) });
+        Equal(true, legacy.Execute(Request(803, new FieldFadeCommand(0, Wait: true))).Completed);
+    }
     public static void RunViewOffset()
     {
         ViewOffsetTimingAndRestore();
@@ -19,6 +58,40 @@ internal static class NativeProcessTests
         InstalledCachedPaletteInitializationAndCompatibility();
     }
 
+    public static void RunSpecialWindow()
+    {
+        Ff7FieldHost host = Host();
+        host.Execute(Request(799, new FieldWindowCommand(FieldWindowOperation.Style, 1, Style: 1, Flags: 1)));
+        host.Execute(Request(800, new FieldWindowCommand(FieldWindowOperation.Special, 1, 250, 255, Style: 1)));
+        Ff7Window initial = host.Process.Windows.Single();
+        Equal((byte)1, initial.SpecialType);
+        Equal((byte)250, initial.SpecialX);
+        Equal((byte)255, initial.SpecialY);
+        Equal(8, initial.Y);
+        host.Execute(Request(801, new FieldWindowCommand(FieldWindowOperation.Size, 1, 16, 24, 120, 40)));
+        Equal((byte)1, host.Process.Windows.Single().SpecialType);
+        Equal((byte)250, host.Process.Windows.Single().SpecialX);
+        Equal(1, host.Process.Windows.Single().Flags);
+        Equal(1, host.Process.Windows.Single().Style);
+        host.Execute(Request(802, new FieldWindowCommand(FieldWindowOperation.Close, 1)));
+        Equal((byte)1, host.Process.Windows.Single().SpecialType);
+        Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        restored.Execute(Request(803, new FieldWindowCommand(FieldWindowOperation.Reset, 1)));
+        Equal((byte)0, restored.Process.Windows.Single().SpecialType);
+        Equal((byte)0, restored.Process.Windows.Single().SpecialX);
+        Equal((byte)0, restored.Process.Windows.Single().SpecialY);
+        Ff7Window counter = initial with { Flags = 1 };
+        Ff7Dialogue persistent = new(900, 1, 0, null, null, 0, AwaitingInput: true);
+        Ff7FieldHost active = Host(new() { Windows = [counter], Dialogues = [persistent] });
+        Equal(false, active.CanConfirmDialogue(900));
+        active.CompleteDialogue(900, 0);
+        Equal(false, active.Process.Dialogues.Single().Completed);
+        active.Execute(Request(901, new FieldWindowCommand(FieldWindowOperation.Close, 1)));
+        Equal(true, active.Process.Dialogues.Single().Completed);
+        Equal(false, active.CanConfirmDialogue(900));
+    }
+
     public static void Run()
     {
         TurnTimingAndRestore();
@@ -26,6 +99,7 @@ internal static class NativeProcessTests
         MovieAndBattleOwnership();
         PlayerControlTarget();
         ResetFade();
+        RunFade();
         PaletteBufferStrideAndColors();
         InstalledCachedPaletteInitializationAndCompatibility();
         NamingMenuOwnership();

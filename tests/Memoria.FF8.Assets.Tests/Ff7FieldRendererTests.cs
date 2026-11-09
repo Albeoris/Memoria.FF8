@@ -8,6 +8,38 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7FieldRendererTests
 {
+    [Fact]
+    public void ActorFailureClosesTheSharedFrameBeforeHostErrorPresentation()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original field frame cleanup.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), "md1stin");
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
+        Capture submitted = new();
+        Ff7ActorVisual missing = new(0, 0, 0, 0, 0, 0, 0, 0);
+        Assert.Throws<NotSupportedException>(() => renderer.Render(submitted, 320, 240, new(0, Vector2.Zero, [missing], new ushort[256], MovieActive: true)));
+        Assert.True(submitted.BeginCalled);
+        Assert.True(submitted.EndCalled);
+    }
+
+    [Fact]
+    public void NativeFieldTintUsesSharedVertexColorsAndDoesNotPaintMoviePixels()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original field tint submission.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), "md1stin");
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
+        Ff7FieldRenderFrame frame = new(0, Vector2.Zero, [], new ushort[256]) { FieldColorArgb = 0x80800D0D };
+        Capture submitted = new();
+        renderer.Render(submitted, 320, 240, frame);
+        Assert.NotEmpty(submitted.Colors);
+        Assert.All(submitted.Colors, color => Assert.Equal(new Vector4(128 / 255f, 13 / 255f, 13 / 255f, 1), color));
+        Capture movie = new();
+        renderer.Render(movie, 320, 240, frame with { MovieActive = true });
+        Assert.Empty(movie.Colors);
+        Assert.Equal(0, movie.ClearColor.W);
+    }
+
     [Theory]
     [InlineData(1u, false)]
     [InlineData(2u, true)]

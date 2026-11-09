@@ -6,9 +6,14 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Memoria.FF8.App/PcmAudioOutput.cs" Link="PcmAudioOutput.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/Ff7SoundChannels.cs" Link="Ff7SoundChannels.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PcmLoopPlayback.cs" Link="PcmLoopPlayback.cs" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF7.Runtime/Memoria.FF7.Runtime.csproj" />
   </ItemGroup>
 </Project>

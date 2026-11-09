@@ -69,7 +69,7 @@ public sealed partial class Ff7FieldHost
             }
             int frame = actor.AnimationFrame16;
             int triangle = actor.Triangle;
-            if (actor.PlayerControlled)
+            if (actor.PlayerControlled && !Process.PlayerLocked)
             {
                 ushort keys = ReadInputHeld?.Invoke() ?? throw new NotSupportedException("FFVII player ladder requires native held-key input.");
                 int backward = state.Mode < 2 ? 0x1000 : 0x8000;

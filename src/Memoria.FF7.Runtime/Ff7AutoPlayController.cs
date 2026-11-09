@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null)
+public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
@@ -82,9 +82,16 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 Ff7AutoplayInput input = chooseInput(driver);
                 AutoPlayRecording.AppendRecent(recent, AutoPlayRecording.LimitActionText($"{session.Field.Name}:{session.Host.Process.Tick} {input}"));
                 long previousGeneration = session.FieldGeneration;
-                lastSafe = session.Capture();
+                lastSafe = observed;
                 driver.Apply(input);
-                session.AdvanceTick();
+                if (advanceTick is null)
+                {
+                    session.AdvanceTick();
+                }
+                else
+                {
+                    advanceTick();
+                }
                 Steps++;
                 if (session.FieldGeneration != previousGeneration)
                 {
@@ -132,7 +139,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             session.CompleteNamingMenu(menu.RequestId, session.Progress.Characters.Single(character => character.Id == menu.Parameter).Name);
         }
-        foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput).ToArray())
+        foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && session.Host.CanConfirmDialogue(dialogue.RequestId)).ToArray())
         {
             Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(dialogue, FieldText.Read(session.Field.Scripts.Texts[dialogue.Text].Span));
             if (confirmed.Completed)

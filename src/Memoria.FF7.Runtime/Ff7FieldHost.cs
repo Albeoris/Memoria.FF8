@@ -34,6 +34,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             Process = Process with { BlockedTriangles = new byte[(field.Walkmesh.Count + 7) / 8] };
         }
         InitializePaletteState();
+        InitializeFadeState();
         Process.Validate();
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
@@ -202,13 +203,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldFadeCommand fade:
                 if (fade.Wait)
                 {
-                    return new(Process.Fade is null || Process.Fade.Type is 0 or 4);
+                    return new(Process.FadeState?.Completed ?? (Process.Fade is null || Process.Fade.Type is 0 or 4));
                 }
-                if (fade.Type is not (0 or 4))
-                {
-                    throw new NotSupportedException($"FFVII fade type {fade.Type} requires its native fade process.");
-                }
-                Process = Process with { Fade = fade };
+                Ff7FadeProcess nextFade = Ff7NativeFade.Start(fade, Process.FadeState);
+                Process = Process with { Fade = fade, FadeState = nextFade };
                 return new(true);
             default:
                 if (ExternalCommand is null)
@@ -251,6 +249,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
             }
         }
         AdvanceJoinedMovement();
+        if (Process.FadeState is Ff7FadeProcess fadeState)
+        {
+            Process = Process with { FadeState = Ff7NativeFade.Advance(fadeState) };
+        }
         Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };
     }
 
@@ -268,8 +270,18 @@ public sealed partial class Ff7FieldHost : IFieldHost
         Process = Process with { Movie = movie with { Frame = frame, Completed = completed, Playing = !completed }, GlobalCommand = completed ? Ff7GlobalCommand.None : Ff7GlobalCommand.Movie, GlobalRequestId = completed ? null : movie.RequestId };
     }
 
+    public bool CanConfirmDialogue(long requestId)
+    {
+        Ff7Dialogue? dialogue = Process.Dialogues.SingleOrDefault(item => item.RequestId == requestId);
+        return dialogue is { Completed: false } && (dialogue.FirstChoice is not null || (Process.Windows.Single(window => window.Id == dialogue.Window).Flags & 1) == 0);
+    }
+
     public void CompleteDialogue(long requestId, int selected)
     {
+        if (!CanConfirmDialogue(requestId))
+        {
+            return;
+        }
         Ff7Dialogue dialogue = Process.Dialogues.Single(item => item.RequestId == requestId);
         if (dialogue.FirstChoice is int first && (selected < first || selected > dialogue.LastChoice))
         {
@@ -305,7 +317,12 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             throw new InvalidDataException("FFVII movement cannot reassign the actor's model ownership.");
         }
-        SetActor(original.Entity, _ => result.Actor);
+        Ff7Actor selected = result.Actor;
+        if (original.Animation != selected.Animation)
+        {
+            selected = selected with { AnimationFrame16 = 0 };
+        }
+        SetActor(original.Entity, _ => selected);
     }
 
     public bool RequestGateway(FieldTransitionCommand transition)
@@ -402,32 +419,41 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     private FieldHostReply Window(FieldWindowCommand window)
     {
-        Ff7Window? current = Process.Windows.SingleOrDefault(item => item.Id == window.Window);
+        if (window.Window is < 0 or > 3)
+        {
+            throw new InvalidDataException("FFVII window references an absent native window slot.");
+        }
+        Ff7Window current = Process.Windows.SingleOrDefault(item => item.Id == window.Window) ?? new Ff7Window(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
         switch (window.Operation)
         {
             case FieldWindowOperation.Size:
-                Ff7Window configured = new(window.Window, window.X, window.Y, window.Width, window.Height);
+                Ff7Window configured = current with { X = window.X, Y = window.Y, Width = window.Width, Height = window.Height };
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), configured] };
+                break;
+            case FieldWindowOperation.Special:
+                Ff7Window special = current with { SpecialType = checked((byte)window.Style), SpecialX = checked((byte)window.X), SpecialY = checked((byte)window.Y) };
+                Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), special] };
                 break;
             case FieldWindowOperation.Close:
             case FieldWindowOperation.CloseAndWait:
             case FieldWindowOperation.Reset:
                 Process = Process with { Dialogues = Process.Dialogues.Select(item => item.Window == window.Window ? item with { Completed = true } : item).ToArray() };
+                if (window.Operation == FieldWindowOperation.Reset)
+                {
+                    Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
+                    Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), reset] };
+                }
                 break;
             case FieldWindowOperation.Style:
             case FieldWindowOperation.Move:
             case FieldWindowOperation.Rows:
-                if (current is null)
-                {
-                    throw new InvalidDataException("FFVII window configuration requires a defined window.");
-                }
                 Ff7Window changed = window.Operation switch
                 {
                     FieldWindowOperation.Style => current with { Style = window.Style, Flags = window.Flags },
                     FieldWindowOperation.Move => current with { X = window.X, Y = window.Y },
                     _ => current with { Rows = window.Height }
                 };
-                Process = Process with { Windows = Process.Windows.Select(item => item.Id == window.Window ? changed : item).ToArray() };
+                Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), changed] };
                 break;
             default:
                 throw new NotSupportedException("Unsupported FFVII window operation.");
@@ -494,7 +520,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         Process = command.Property switch
         {
-            FieldControlKind.PlayerLocked => Process with { PlayerLocked = command.Value != 0 },
+            FieldControlKind.PlayerLocked => SetPlayerControl(command.Value != 0),
             FieldControlKind.BattlesDisabled => Process with { BattlesDisabled = command.Value != 0 },
             FieldControlKind.MapJumpDisabled => Process with { MapJumpDisabled = command.Value != 0 },
             FieldControlKind.MenuDisabled => Process with { MenuDisabled = command.Value != 0 },

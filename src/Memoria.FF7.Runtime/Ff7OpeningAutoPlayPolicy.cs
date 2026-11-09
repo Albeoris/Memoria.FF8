@@ -8,6 +8,8 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
     private long generation = -1;
     private int stage;
 
+    private bool EscapingFirstReactor => session.Progress.CompletedBattles.Any(receipt => receipt.Formation == 324);
+
     private ushort ConfirmPulse => session.Host.Process.Tick % 16 == 0 ? (ushort)32 : (ushort)0;
 
     public string Goal => "Reach the church through the original story sequence";
@@ -28,7 +30,7 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         {
             return driver.Steer(new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12));
         }
-        if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed))
+        if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return default;
         }
@@ -44,8 +46,25 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "md1_2":
                 return driver.Gateway(119);
             case "nrthmk":
-                return driver.Gateway(120);
+                return driver.Gateway(EscapingFirstReactor ? 136 : 120);
             case "nmkin_1":
+                if (EscapingFirstReactor)
+                {
+                    var escapeVm = session.Machine.Capture();
+                    if (session.Host.Process.Motions.Length != 0 || escapeVm.Entities[9].Priority < 7 || escapeVm.Entities[10].Priority < 7)
+                    {
+                        return default;
+                    }
+                    if (session.Host.GetActor(10).TalkEnabled && session.Host.GetActor(10).Y4096 >> 12 > 3300)
+                    {
+                        return driver.TalkTo(10);
+                    }
+                    if (session.Host.GetActor(9).TalkEnabled && session.Host.GetActor(9).Y4096 >> 12 > 2800)
+                    {
+                        return driver.TalkTo(9);
+                    }
+                    return driver.Gateway(119);
+                }
                 Ff7Actor biggs = session.Host.Process.Actors.Single(actor => actor.Entity == 9);
                 Ff7Actor jessie = session.Host.Process.Actors.Single(actor => actor.Entity == 10);
                 if (y < 2500)
@@ -70,14 +89,44 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(121);
             case "elevtr1":
-                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled)
+                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled || EscapingFirstReactor && stage == 0)
                 {
+                    if (x > 70 && y > 20 && ConfirmPulse != 0)
+                    {
+                        stage = 1;
+                    }
                     return driver.Approach(new(99, 51, 5), 8) with { Held = ConfirmPulse };
                 }
                 return driver.Approach(new(-250, 0, 5), 0);
             case "nmkin_2":
-                return driver.Gateway(123);
+                return driver.Gateway(EscapingFirstReactor ? 121 : 123);
             case "nmkin_3":
+                if (EscapingFirstReactor)
+                {
+                    if (z < 1000)
+                    {
+                        return driver.Steer(new(265, 1450, 860)) with { Held = ConfirmPulse, Talk = ConfirmPulse != 0 };
+                    }
+                    if (z < 1500)
+                    {
+                        return player.Triangle is 12 or 13 ? default : driver.Approach(new(-190, 1410, 1643), 6);
+                    }
+                    if (z < 2000)
+                    {
+                        Ff7Actor walkwayPickup = session.Host.Process.Actors.Single(actor => actor.Entity == 5);
+                        if (walkwayPickup.TalkEnabled)
+                        {
+                            return driver.TalkTo(walkwayPickup.Entity);
+                        }
+                        Ff7Actor trappedGuide = session.Host.Process.Actors.Single(actor => actor.Entity == 4);
+                        if (trappedGuide.TalkEnabled && (trappedGuide.Y4096 >> 12) < 1500)
+                        {
+                            return driver.TalkTo(trappedGuide.Entity);
+                        }
+                        return driver.Steer(new(-200, 1780, 1641)) with { Held = ConfirmPulse, Talk = ConfirmPulse != 0 };
+                    }
+                    return x > -200 ? driver.Steer(new(-250, 1920, 2213)) : driver.Gateway(122);
+                }
                 if (z > 2000)
                 {
                     if (x < 100)
@@ -101,13 +150,21 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 return driver.Gateway(124);
             case "nmkin_4":
+                if (EscapingFirstReactor)
+                {
+                    return z < 0 ? driver.Approach(new(-245, 1950, -185)) with { Held = ConfirmPulse, Talk = ConfirmPulse != 0 } : driver.Gateway(123);
+                }
                 if (z > 0)
                 {
                     return driver.Approach(new(-380, 1990, 640));
                 }
                 return driver.Gateway(125);
             case "nmkin_5":
-                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled)
+                if (EscapingFirstReactor)
+                {
+                    return driver.Gateway(124);
+                }
+                if (session.Host.Process.Actors.Single(actor => actor.Entity == 6).TalkEnabled || EscapingFirstReactor && stage == 0)
                 {
                     return driver.TalkTo(6);
                 }

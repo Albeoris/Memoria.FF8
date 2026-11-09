@@ -20,10 +20,9 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     private readonly FieldModel geometry;
     private readonly Ff7SemanticRetargeter? retargeter;
     private readonly HashSet<string> loopingClips;
-    private readonly HashSet<string>? admittedRetargetClips;
     private readonly Dictionary<string, FieldModel> loadedClips = new(StringComparer.Ordinal);
 
-    public Ff7ModelAppearance(GameAssets assets, FieldCharacterCatalog catalog, string sourceId, string nativeHrc, Matrix4x4 targetToFf7, IReadOnlyDictionary<string, string> animationBindings, Ff7SemanticRetargeter? retargeter = null, IEnumerable<string>? loopingAnimations = null, IEnumerable<string>? retargetAnimations = null)
+    public Ff7ModelAppearance(GameAssets assets, FieldCharacterCatalog catalog, string sourceId, string nativeHrc, Matrix4x4 targetToFf7, IReadOnlyDictionary<string, string> animationBindings, Ff7SemanticRetargeter? retargeter = null, IEnumerable<string>? loopingAnimations = null)
     {
         this.assets = assets ?? throw new ArgumentNullException(nameof(assets));
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -32,7 +31,6 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         this.targetToFf7 = targetToFf7;
         this.retargeter = retargeter;
         loopingClips = new(loopingAnimations ?? [], StringComparer.OrdinalIgnoreCase);
-        admittedRetargetClips = retargetAnimations is null ? null : new(retargetAnimations, StringComparer.OrdinalIgnoreCase);
         clips = new Dictionary<string, string>(animationBindings, StringComparer.OrdinalIgnoreCase);
         if (!Matrix4x4.Invert(targetToFf7, out _) || !Finite(targetToFf7))
         {
@@ -82,7 +80,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
             posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
         }
-        else if (retargeter is not null && (admittedRetargetClips is null || admittedRetargetClips.Contains(originalName)))
+        else if (retargeter is not null)
         {
             posed = retargeter.Pose(original, sourceClip, actor.AnimationFrame16);
         }

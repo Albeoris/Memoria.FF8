@@ -3,6 +3,71 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void ItemOperandsAndContinuation()
+    {
+        var host = new RecordingHost { Complete = true, Value = -1 };
+        var vm = New(Code(0, 0x58, 0x65, 0, 0, 2, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 0, 0x0201);
+        vm.Variables.WriteByte(FieldBank.MapByte, 2, 128);
+        vm.Variables.WriteByte(FieldBank.Persistent3Byte, 31, 0xA5);
+        vm.AdvanceTick();
+        Check(new FieldItemCommand(0x0201), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        Check((byte)0xA5, vm.Variables.ReadByte(FieldBank.Persistent3Byte, 31));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x58, 0, 0, 0, 1, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldItemCommand(0x0200), host.Requests.Single().Command);
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x58, 0, 0xFF, 0xFF, 255, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldItemCommand(ushort.MaxValue), host.Requests.Single().Command);
+        byte[] truncated = new byte[20];
+        truncated[17] = 0x58;
+        vm = New(truncated, host);
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
+    public static void TimerAndSpecialWindowOperands()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x38, 0x55, 0xA5, 0, 1, 2, 0x36, 1, 1, 250, 255, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteByte(FieldBank.MapByte, 0, 2);
+        vm.Variables.WriteByte(FieldBank.MapByte, 1, 250);
+        vm.Variables.WriteByte(FieldBank.MapByte, 2, 255);
+        vm.AdvanceTick();
+        Check(new FieldTimerCommand(22455), host.Requests[0].Command);
+        Check(new FieldWindowCommand(FieldWindowOperation.Special, 1, 250, 255, Style: 1), host.Requests[1].Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x38, 0, 0, 0, 10, 0, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldTimerCommand(600), host.Requests.Single().Command);
+        byte[] truncated = new byte[20];
+        truncated[17] = 0x38;
+        vm = New(truncated, host);
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
+    public static void FadeOperandsAndYield()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x6B, 0x55, 0x05, 0, 1, 2, 16, 2, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteByte(FieldBank.MapByte, 0, 255);
+        vm.Variables.WriteByte(FieldBank.MapByte, 1, 200);
+        vm.Variables.WriteByte(FieldBank.MapByte, 2, 201);
+        vm.AdvanceTick();
+        Check(new FieldFadeCommand(2, 255, 200, 201, 16), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
     public static void MateriaOperandsAndStatus()
     {
         foreach (int result in new[] { -1, 0x12345635 })

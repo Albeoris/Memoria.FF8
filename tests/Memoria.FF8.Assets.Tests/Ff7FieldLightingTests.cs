@@ -8,6 +8,14 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class Ff7FieldLightingTests
 {
     [Fact]
+    public void FieldTintScalesTheClampedMaterialLightingBeforeRoundingAndKeepsPrimitiveAlpha()
+    {
+        Ff7FieldLighting lighting = new(Descriptor(0, [new(0xFFFFFF, new(-6144, 0, 0)), new(0, Vector3.Zero), new(0, Vector3.Zero)]));
+        Assert.Equal(new Vector4(96 / 255f, 64 / 255f, 12 / 255f, 127 / 255f), lighting.Shade(Vector3.UnitX, 0x7F80C840, 0x80804020));
+        Assert.Equal(lighting.Shade(Vector3.UnitX, 0x7F80C840), lighting.Shade(Vector3.UnitX, 0x7F80C840, 0x00FFFFFF));
+    }
+
+    [Fact]
     public void AmbientUsesDescriptorRgbOrderAndPreservesNativeAlpha()
     {
         Ff7FieldLighting lighting = new(Descriptor(0x204080, [new(0, Vector3.Zero), new(0, Vector3.Zero), new(0, Vector3.Zero)]));

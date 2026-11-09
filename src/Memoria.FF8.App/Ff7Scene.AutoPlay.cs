@@ -27,7 +27,7 @@ internal sealed partial class Ff7Scene
                 if (autoPlay is null || !autoPlay.Running)
                 {
                     Ff7OpeningAutoPlayPolicy policy = new(Session);
-                    autoPlay = new Ff7AutoPlayController(Session, policy.ChooseInput, checkpoint: SaveAutoPlayCheckpoint);
+                    autoPlay = new Ff7AutoPlayController(Session, policy.ChooseInput, checkpoint: SaveAutoPlayCheckpoint, advanceTick: () => Session.AdvanceTick(advanceClock: false));
                     autoPlay.Start();
                 }
                 else
@@ -49,7 +49,7 @@ internal sealed partial class Ff7Scene
     private void SaveAutoPlayCheckpoint(Ff7SessionSave state)
     {
         string path = autoPlayCheckpointPath ?? throw new InvalidOperationException("Automatic play requires its host checkpoint destination.");
-        AutoPlayCheckpoint.Save(path, () => envelope with { ActiveGame = SessionGame.Ff7, Ff7 = state }, CombinedSessionCodec.Save);
+        AutoPlayCheckpoint.Save(path, () => envelope with { ActiveGame = SessionGame.Ff7, Ff7 = state with { AudioPresentation = CaptureAudioPresentation() } }, CombinedSessionCodec.Save);
     }
 
     private void AdvanceAutoPlay()
