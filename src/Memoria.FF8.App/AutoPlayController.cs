@@ -1036,6 +1036,12 @@ internal sealed partial class AutoPlayController
     private void WaitForNativeFrontier()
     {
         GameWorld world = getWorld();
+        if (world.Events.FindAutoPlayMoveBlockedByPlayer() is { } move && world.StepAsideForAutoPlay(move))
+        {
+            RecordRecentAction($"Step aside for native MOVE {move.ScriptId}:{move.Operation}");
+            ResetIdleDeadline();
+            return;
+        }
         if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline))
         {
             RecordRecentAction($"Walk into native position gate R{gate.Register} < {gate.ExclusiveUpperBound}");

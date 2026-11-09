@@ -48,6 +48,36 @@ public sealed partial class EventEngine
 
     public float AutoPlayMovementStepDistance => AutoPlayMovementProbeSpeed / 256f;
 
+    /// <summary>Finds a waiting native MOVE whose next step is obstructed by the current player.</summary>
+    public NativeScriptMovementState? FindAutoPlayMoveBlockedByPlayer()
+    {
+        if (!CanAcceptMovementInput || PlayerActor is not { CollisionEnabled: true } player)
+        {
+            return null;
+        }
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            ActorState actor = actors[objectId];
+            if (actor == player || actor.NativeMovementCompletion542 != 1 || actor.NativeScriptMovement is not { Active: true, Suspended: false, Asynchronous: false, TargetNativeObjectId: null } move ||
+                SelectScheduledFiber(objectId) is not { WaitReason: WaitReason.NativeScriptMovement } fiber || fiber.Sequence != move.FiberSequence)
+            {
+                continue;
+            }
+            NativeScriptMovementState source = move with { FacingDirection = (byte)actor.Direction };
+            var (blocked, completion, _) = PrepareNativeScriptStep(actor, source);
+            if (completion != 1 || blocked.FixedX != source.FixedX || blocked.FixedY != source.FixedY)
+            {
+                continue;
+            }
+            var (clear, _, _) = PrepareNativeScriptStep(actor, source, ignoredContact: player.ObjectId);
+            if (clear.FixedX != source.FixedX || clear.FixedY != source.FixedY)
+            {
+                return move;
+            }
+        }
+        return null;
+    }
+
     private int AutoPlayFastStepSpeed(ActorState player, FieldFixedPosition position, int speed, float targetDistance)
     {
         if (!AutoPlayFastMovement || !CanAcceptMovementInput || services.IsMoviePlaying || targetDistance * 256 <= speed)

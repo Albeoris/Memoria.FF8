@@ -33,7 +33,7 @@ public sealed partial class EventEngine
         return pushContacts.ToArray();
     }
 
-    private (bool Collision, int[] PushContacts) EvaluateNativePlayerGroundContacts(ActorState player, NativePlayerGroundProbe probe)
+    private (bool Collision, int[] PushContacts) EvaluateNativePlayerGroundContacts(ActorState player, NativePlayerGroundProbe probe, int ignoredContact = -1)
     {
         bool collision = false;
         List<int> contacts = [];
@@ -44,7 +44,7 @@ public sealed partial class EventEngine
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             ActorState peer = actors[objectId];
-            if (peer.ObjectId == player.ObjectId || peer.ModelId is -1 or 65535 || !peer.CollisionEnabled && !peer.PushEnabled)
+            if (peer.ObjectId == player.ObjectId || peer.ObjectId == ignoredContact || peer.ModelId is -1 or 65535 || !peer.CollisionEnabled && !peer.PushEnabled)
             {
                 continue;
             }

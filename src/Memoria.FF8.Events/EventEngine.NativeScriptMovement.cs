@@ -351,7 +351,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private (NativeScriptMovementState State, ushort Completion, short TurnAccumulator) PrepareNativeScriptStep(ActorState actor, NativeScriptMovementState state, bool issuing = false)
+    private (NativeScriptMovementState State, ushort Completion, short TurnAccumulator) PrepareNativeScriptStep(ActorState actor, NativeScriptMovementState state, bool issuing = false, int ignoredContact = -1)
     {
         byte held = NativeMoveFacingHold(state);
         bool resettingHold = issuing && state.HoldsFacing;
@@ -365,7 +365,8 @@ public sealed partial class EventEngine
         {
             return (state with { FixedX = direction.FixedX, FixedY = direction.FixedY }, 2, direction.TurnAccumulator);
         }
-        NativeScriptMovementQuery query = new(actor.ObjectId, state.Triangle, state.FixedX, state.FixedY, state.FixedZ, direction.Direction, state.Speed, (ushort)actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight)).Collision);
+        bool HasActorCollision(NativeScriptGroundProbe probe) => EvaluateNativePlayerGroundContacts(actor, new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight), ignoredContact).Collision;
+        NativeScriptMovementQuery query = new(actor.ObjectId, state.Triangle, state.FixedX, state.FixedY, state.FixedZ, direction.Direction, state.Speed, (ushort)actor.PushRadius, HasActorCollision);
         NativeScriptMovementResult movement = ResolveNativeScriptMovement(query) ?? throw new NotSupportedException("Native scripted MOVE geometry needs unproved contact/retry behavior; original substep preserved.");
         if (!Enum.IsDefined(movement.Status) || movement.Proposals is null || movement.Proposals.Count is < 1 or > 16 || movement.Triangle is < 0 or > short.MaxValue || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || movement.Proposals[0].Direction != direction.Direction || movement.Status == NativeScriptMovementStatus.Blocked && (movement.FixedX != state.FixedX || movement.FixedY != state.FixedY || movement.FixedZ != state.FixedZ) || movement.Status == NativeScriptMovementStatus.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY || movement.Direction != movement.Proposals[^1].Direction || (movement.FixedZ & 4095) != 0))
         {
@@ -379,7 +380,7 @@ public sealed partial class EventEngine
             }
             foreach (NativeScriptGroundProbe probe in proposal.FanProbes)
             {
-                bool contact = EvaluateNativePlayerGroundContacts(actor, new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight)).Collision;
+                bool contact = HasActorCollision(probe);
                 if (contact != probe.ActorCollision || movement.Status == NativeScriptMovementStatus.Accepted && ReferenceEquals(proposal, movement.Proposals[^1]) && contact)
                 {
                     throw new NotSupportedException("Native MOVE actor-contact certificate differs from its retained peers or accepted final fan.");

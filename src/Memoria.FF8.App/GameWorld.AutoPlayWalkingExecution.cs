@@ -8,6 +8,51 @@ internal sealed record AutoPlayWalkResult(bool Arrived, bool Interrupted, int? G
 
 internal sealed partial class GameWorld
 {
+    internal bool StepAsideForAutoPlay(NativeScriptMovementState move)
+    {
+        if (Events.PlayerActor is not ActorState player || Events.Scene.NativePlayerPosition is not FieldFixedPosition position)
+        {
+            return false;
+        }
+        Vector2 start = new(move.FixedX / 4096f, move.FixedY / 4096f);
+        Vector2 segment = new Vector2(move.TargetX / 4096f, move.TargetY / 4096f) - start;
+        float lengthSquared = segment.LengthSquared();
+        if (lengthSquared == 0)
+        {
+            return false;
+        }
+        float Clearance(Vector2 point)
+        {
+            float along = Math.Clamp(Vector2.Dot(point - start, segment) / lengthSquared, 0, 1);
+            return Vector2.DistanceSquared(point, start + along * segment);
+        }
+        float best = Clearance(new(position.X / 4096f, position.Y / 4096f));
+        Vector2? selected = null;
+        for (int heading = 0; heading < 16; heading++)
+        {
+            float angle = heading * MathF.PI / 8;
+            Vector2 delta = new(MathF.Sin(angle), -MathF.Cos(angle));
+            NativePlayerMovementResult probe = Events.ProbeAutoPlayMovement(position, player.WalkmeshTriangle, delta);
+            if (!probe.Accepted)
+            {
+                continue;
+            }
+            float clearance = Clearance(new(probe.FixedX / 4096f, probe.FixedY / 4096f));
+            if (clearance > best)
+            {
+                best = clearance;
+                selected = delta;
+            }
+        }
+        if (selected is not Vector2 direction)
+        {
+            return false;
+        }
+        // Publish an ordinary input callback and leave all collision and script state native.
+        StepAutoPlayWalking(direction, Events.FieldId, [], -1, null, out bool moved, allowFast: false);
+        return moved;
+    }
+
     public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress)
     {
         int field = Events.FieldId;
