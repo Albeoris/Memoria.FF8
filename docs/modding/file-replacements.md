@@ -97,6 +97,8 @@ Packages can declare `external_music_path`, `external_music_ext` (`ogg`, `minips
 
 PSF background music runs continuously, preserving the emulated sequencer's own loops rather than resetting at the `length`/`fade` tags. Offsets advance that sequencer. Native concert masks select instrument stems, prepared together and consumed on one mixer clock; solo previews suppress only opening exactly-zero frames, with a 30-second bound. Pause, gain changes, replacement and cancellation retain the same output ownership as other music. These replacements do not change the VM's deterministic music-status contract or establish an unsupported historical concert-resume selection.
 
+Concert stems also support Ogg Vorbis replacements. Every selected stem must be available through the same OGG or PSF route. OGG stems decode together before playback, retain their individual configured offsets, volumes and Vorbis loop tags, and share a sample clock. Solo OGG previews skip exactly-zero opening frames after the configured offset; combined concerts preserve relative entrances. Saved PCM positions restore together when all selected stems remain compatible; otherwise the composition restarts at its configured offsets. Music volume and focus pause apply to the complete composition.
+
 An optional `config.toml` under the selected music directory supports global `volume` (0–100) and per-track `offset_seconds`, `intro_seconds` and `no_intro_track`. For a no-intro request, an alternate track takes precedence over the intro offset. Ogg Vorbis loop comments define the loop region. Invalid configuration fails the affected package with a diagnostic. Package changes apply when the next track starts; an already playing track retains its resources.
 
 ## Field dialogue voices

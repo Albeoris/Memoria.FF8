@@ -34,14 +34,26 @@ internal sealed partial class FieldAudioPresentation
         {
             return false;
         }
-        if (selections.Any(selection => selection is null || !IsPsf(selection.File.RelativePath)))
+        if (selections.Any(selection => selection is null))
         {
-            throw new NotSupportedException("Concert output requires a PSF replacement for every selected instrument.");
+            throw new NotSupportedException("Concert output requires a replacement for every selected instrument.");
         }
         nativeMidiPaused = false;
         musicKinds[0] = MusicKind.Midi;
         musicIds[0] = 43;
-        QueuePsfMusic(selections.Select(selection => selection!).ToArray(), MusicKind.Midi, 0, 43, NativeConcertSelection.IsPreview(mask));
+        ExternalMusicSelection[] selected = selections.Select(selection => selection!).ToArray();
+        if (selected.All(selection => IsPsf(selection.File.RelativePath)))
+        {
+            QueuePsfMusic(selected, MusicKind.Midi, 0, 43, NativeConcertSelection.IsPreview(mask));
+        }
+        else if (selected.All(selection => !IsPsf(selection.File.RelativePath)))
+        {
+            QueuePcmConcert(selected, NativeConcertSelection.IsPreview(mask));
+        }
+        else
+        {
+            throw new NotSupportedException("Concert output requires one common PCM or PSF decoder route for its selected instruments.");
+        }
         return true;
     }
 
