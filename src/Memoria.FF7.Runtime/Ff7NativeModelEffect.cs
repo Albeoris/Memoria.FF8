@@ -19,9 +19,13 @@ public sealed record Ff7NativeModelEffectState
 
     public void Validate()
     {
-        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile or Ff7NativeModelEffect.SinglePartDefaultProfile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
+        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile or Ff7NativeModelEffect.SinglePartDefaultProfile or Ff7NativeModelEffect.SinglePart72_140Profile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
         {
             throw new InvalidDataException("The native KAWAI13 presentation continuation is invalid or unsupported.");
+        }
+        if (Profile == Ff7NativeModelEffect.SinglePart72_140Profile && (Phase % 32 != 0 || SampleFrame > 9))
+        {
+            throw new InvalidDataException("The native step32 procedural-color continuation has an invalid cache index or phase.");
         }
     }
 }
@@ -32,6 +36,7 @@ public static class Ff7NativeModelEffect
     public const string Profile = "pc-kawai13-four-part-16-42-v1";
     public const string SinglePart35Profile = "pc-kawai13-single-part-35-v1";
     public const string SinglePartDefaultProfile = "pc-kawai13-single-part-default-v1";
+    public const string SinglePart72_140Profile = "pc-kawai13-single-part-72-140-v1";
 
     public static Ff7NativeModelEffectState Request(Ff7NativeModelEffectState? current, byte mode, IReadOnlyList<int> partVertexCounts, int nativeScale = 512, IReadOnlyList<int>? partPolygonCounts = null)
     {
@@ -60,12 +65,12 @@ public static class Ff7NativeModelEffect
             if (vertices is 112 or 109 or 94 or 95 or 72 or 80)
             {
                 int polygons = partPolygonCounts?[0] ?? throw new NotSupportedException("The native procedural color classifier requires this part's polygon count.");
-                if ((vertices is 112 or 109 or 94) && polygons == 64 || vertices == 95 && polygons == 62 || vertices == 72 && polygons == 140 || vertices == 80 && polygons == 76)
+                if ((vertices is 112 or 109 or 94) && polygons == 64 || vertices == 95 && polygons == 62 || vertices == 80 && polygons == 76)
                 {
                     throw new NotSupportedException("This native procedural color topology selects a distinct unsupported orbit or phase contract.");
                 }
             }
-            profile = SinglePartDefaultProfile;
+            profile = vertices == 72 && partPolygonCounts![0] == 140 ? SinglePart72_140Profile : SinglePartDefaultProfile;
         }
         else
         {
@@ -98,7 +103,7 @@ public static class Ff7NativeModelEffect
         {
             return state with { Initialized = true };
         }
-        Ff7NativeModelEffectState result = state with { Applied = true, SampleFrame = state.Phase / 16 };
+        Ff7NativeModelEffectState result = state with { Applied = true, SampleFrame = state.Phase / PhaseStep(state) };
         switch (state.Stage)
         {
             case 0:
@@ -109,7 +114,7 @@ public static class Ff7NativeModelEffect
                 }
                 break;
             case 1:
-                result = result with { Phase = (short)(state.Phase + 16) };
+                result = result with { Phase = (short)(state.Phase + PhaseStep(state)) };
                 if (result.Phase >= 288)
                 {
                     result = result with { Counter = 0, Stage = 2 };
@@ -123,7 +128,7 @@ public static class Ff7NativeModelEffect
                 }
                 break;
             case 3:
-                result = result with { Phase = (short)(state.Phase + 16) };
+                result = result with { Phase = (short)(state.Phase + PhaseStep(state)) };
                 if (result.Phase >= 288)
                 {
                     result = result with { Counter = 0, Stage = 0 };
@@ -138,7 +143,7 @@ public static class Ff7NativeModelEffect
     {
         state.Validate();
         ArgumentOutOfRangeException.ThrowIfNegative(part);
-        bool singlePart = state.Profile is SinglePart35Profile or SinglePartDefaultProfile;
+        bool singlePart = state.Profile is SinglePart35Profile or SinglePartDefaultProfile or SinglePart72_140Profile;
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(part, singlePart ? 1 : 4);
         return !state.Initialized || state.Restored || state.Applied && (singlePart || part is 1 or 3);
     }
@@ -146,17 +151,17 @@ public static class Ff7NativeModelEffect
     public static Vector3 OrbitPoint(Ff7NativeModelEffectState state, int frame, IReadOnlyList<short> nativeSinCos)
     {
         state.Validate();
-        if ((uint)frame > 18 || nativeSinCos.Count != 512 || nativeSinCos.Any(value => value is < -4096 or > 4096))
+        if ((uint)frame > 288 / PhaseStep(state) || nativeSinCos.Count != 512 || nativeSinCos.Any(value => value is < -4096 or > 4096))
         {
             throw new InvalidDataException("KAWAI13 requires its native orbit frame and original sine/cosine table.");
         }
         int scale = state.NativeScale > 512 ? state.NativeScale / 512 : 1;
-        int phase = frame * 16 & 255;
+        int phase = frame * PhaseStep(state) & 255;
         int sine = nativeSinCos[phase * 2];
         int cosine = nativeSinCos[phase * 2 + 1];
-        int xyShift = state.Profile == SinglePartDefaultProfile ? 4 : state.Profile == SinglePart35Profile ? 7 : 6;
+        int xyShift = UsesDefaultOrbit(state) ? 4 : state.Profile == SinglePart35Profile ? 7 : 6;
         int zShift = state.Profile == SinglePart35Profile ? 6 : 5;
-        int zOffset = state.Profile == SinglePartDefaultProfile ? 0 : 16;
+        int zOffset = UsesDefaultOrbit(state) ? 0 : 16;
         return new(unchecked((short)((cosine >> xyShift) * scale)), unchecked((short)((-sine >> xyShift) * scale)), unchecked((short)(((sine >> zShift) + zOffset) * scale)));
     }
 
@@ -179,7 +184,7 @@ public static class Ff7NativeModelEffect
         }
         int distance = (int)Math.Sqrt((int)squared) + 2;
         int scale = state.NativeScale > 512 ? state.NativeScale / 512 : 1;
-        int nativeRadius = state.Profile == SinglePartDefaultProfile ? 2048 : state.Profile == SinglePart35Profile ? 512 : 1024;
+        int nativeRadius = UsesDefaultOrbit(state) ? 2048 : state.Profile == SinglePart35Profile ? 512 : 1024;
         int radius = unchecked((short)(nativeRadius * scale)) + 1;
         int falloff = unchecked(Math.Max(radius - distance, 0) << 12) / radius;
         Vector3 direction = new(Component((int)delta.X), Component((int)delta.Y), Component((int)delta.Z));
@@ -208,6 +213,9 @@ public static class Ff7NativeModelEffect
             return (uint)MathF.Round(lit * (value / 255f), MidpointRounding.ToEven);
         }
     }
+
+    private static int PhaseStep(Ff7NativeModelEffectState state) => state.Profile == SinglePart72_140Profile ? 32 : 16;
+    private static bool UsesDefaultOrbit(Ff7NativeModelEffectState state) => state.Profile is SinglePartDefaultProfile or SinglePart72_140Profile;
 
     private static bool Finite(Vector3 value)
     {

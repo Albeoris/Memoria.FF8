@@ -24,6 +24,7 @@ public sealed partial class FieldMachine
     public long Tick { get; private set; }
     public bool Initialized { get; private set; }
     public FieldInputState Input { get; private set; } = new();
+    public FieldCycleCursor? CycleCursor { get; private set; }
 
     public void SetInput(ushort held, ushort pressed, ushort? rawHeld = null, ushort? rawPressed = null)
     {
@@ -111,16 +112,24 @@ public sealed partial class FieldMachine
         {
             throw new InvalidOperationException("Initialize the field before advancing ticks.");
         }
-        for (int id = 0; id < entities.Length; id++)
+        CycleCursor ??= new FieldCycleCursor(0, 0, entities[0].Pc);
+        while (CycleCursor is FieldCycleCursor cursor)
         {
-            for (int count = 0; count < 8; count++)
+            int id = cursor.Entity;
+            if (cursor.ProgramCounter != entities[id].Pc)
             {
-                bool yielded = Execute(id);
-                ReadOpcode(id);
-                if (yielded)
-                {
-                    break;
-                }
+                throw new InvalidOperationException("The active FFVII cycle cursor lost its entity program counter owner.");
+            }
+            bool yielded = Execute(id);
+            ReadOpcode(id);
+            int completed = cursor.HandlersCompleted + 1;
+            if (yielded || completed == 8)
+            {
+                CycleCursor = id + 1 < entities.Length ? new FieldCycleCursor(id + 1, 0, entities[id + 1].Pc) : null;
+            }
+            else
+            {
+                CycleCursor = new FieldCycleCursor(id, completed, entities[id].Pc);
             }
         }
         Tick++;
@@ -136,7 +145,11 @@ public sealed partial class FieldMachine
         {
             ReadOpcode(id);
         }
-        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone(), entity.ModelBound)).ToArray(), nextRequestId, pendingRequests.Values.OrderBy(request => request.Id).ToArray(), Input);
+        if (CycleCursor is FieldCycleCursor cursor && cursor.ProgramCounter != entities[cursor.Entity].Pc)
+        {
+            throw new InvalidOperationException("The active FFVII cycle cursor lost its entity program counter owner.");
+        }
+        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone(), entity.ModelBound)).ToArray(), nextRequestId, pendingRequests.Values.OrderBy(request => request.Id).ToArray(), Input, CycleCursor);
     }
 
     public static FieldMachine Restore(FieldProgram program, FieldVmSnapshot snapshot, IFieldHost? host = null)
@@ -182,6 +195,14 @@ public sealed partial class FieldMachine
         machine.Tick = snapshot.Tick;
         machine.Initialized = snapshot.Initialized;
         machine.Input = snapshot.Input ?? new FieldInputState();
+        if (snapshot.CycleCursor is FieldCycleCursor cursor)
+        {
+            if (cursor.Entity < 0 || cursor.Entity >= machine.entities.Length || cursor.HandlersCompleted is < 0 or > 7 || cursor.ProgramCounter != machine.entities[cursor.Entity].Pc)
+            {
+                throw new InvalidDataException("Invalid FFVII active cycle cursor or entity program counter owner.");
+            }
+            machine.CycleCursor = cursor;
+        }
         if (machine.Input.Horizontal is < -1 or > 1 || machine.Input.Vertical is < -1 or > 1)
         {
             throw new InvalidDataException("FFVII saved movement input is invalid.");

@@ -56,6 +56,7 @@ internal static class NativeModelEffectTests
         uint ambient = Ff7NativeModelEffect.ShadeVertex(requested, 0, table, Vector3.Zero, Vector3.Zero, 0x7F808080, Matrix4x4.Identity);
         Check(bright == 0x7FFFFFFF && dark == 0x7FC0C0C0 && ambient == 0x7F303030, "Native cached light modulation, original-color tint or alpha changed.");
         RunSinglePart(table);
+        RunStep32(table);
         RunInstalled();
     }
 
@@ -102,6 +103,53 @@ internal static class NativeModelEffectTests
         }
     }
 
+    private static void RunStep32(short[] table)
+    {
+        Ff7NativeModelEffectState requested = Ff7NativeModelEffect.Request(null, 0, [72], 400, [140]);
+        Check(requested.Profile == Ff7NativeModelEffect.SinglePart72_140Profile, "The native72/140 topology did not select its step32 profile.");
+        Check(Ff7NativeModelEffect.Request(null, 0, [72], 400, [139]).Profile == Ff7NativeModelEffect.SinglePartDefaultProfile, "A nonmatching polygon count selected the native exception.");
+        Check(Ff7NativeModelEffect.OrbitPoint(requested, 2, table) == new Vector3(0, -256, 128), "Step32 cache indices must multiply by32 before orbit lookup.");
+        Throws<InvalidDataException>(() => Ff7NativeModelEffect.OrbitPoint(requested, 10, table));
+        Throws<InvalidDataException>(() => (requested with { SampleFrame = 10 }).Validate());
+        Throws<InvalidDataException>(() => (requested with { Phase = 16 }).Validate());
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(requested, true);
+        Check(!Ff7NativeModelEffect.PartVisible(state, 0), "Create must hide the single original part for its initialization frame.");
+        for (int tick = 0; tick < 100; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state.Stage == 1 && state.Phase == 0, "Step32 changed the native initial100-update hold.");
+        for (int index = 0; index < 9; index++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == index, "Native step32 must sample phase/32 before increment.");
+        }
+        Check(state.Stage == 2 && state.Phase == 288 && state.SampleFrame == 8, "Step32 ramp length or cap changed.");
+        for (int tick = 0; tick < 10; tick++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == 9, "Native endpoint hold must use cache index9.");
+        }
+        Check(state.Stage == 3 && state.Phase == 0, "The native ten-update endpoint hold changed.");
+        for (int index = 0; index < 9; index++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == index, "Native second ramp cache sequence changed.");
+        }
+        Check(state.Stage == 0 && state.Phase == 288, "The second ramp must retain phase288 into the later100-update hold.");
+        for (int tick = 0; tick < 180; tick++)
+        {
+            bool eligible = tick % 7 != 0;
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+            Check(Ff7NativeModelEffect.Advance(state, eligible) == Ff7NativeModelEffect.Advance(cold, eligible), "Step32 cold continuation changed its next native sample.");
+            state = Ff7NativeModelEffect.Advance(state, eligible);
+        }
+        state = Ff7NativeModelEffect.Request(state, 2, [72], 400, [140]);
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.Restored && !state.Completed, "Step32 reset did not restore before completion.");
+        Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Step32 reset did not complete on its second processed update.");
+    }
+
     private static void RunInstalled()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -126,12 +174,16 @@ internal static class NativeModelEffectTests
         Ff7FieldModelResources objectModel = Ff7FieldModelResources.Load(characters, street.Models.Models[10]);
         Check(objectModel.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 34 }) && objectModel.Geometry[0].Polygon.Polygons.Count == 56, "The bounded original one-part34 topology changed.");
         CheckInstalledPulse(objectModel, native);
+        Ff7FieldResources basement = Ff7FieldResources.Load(installation, "mds7pb_2");
+        Ff7FieldModelResources materia = Ff7FieldModelResources.Load(characters, basement.Models.Models[8]);
+        Check(materia.HrcName.Equals("DABF.hrc", StringComparison.OrdinalIgnoreCase) && materia.Geometry.Count == 1 && materia.Geometry[0].Polygon.Vertices.Count == 72 && materia.Geometry[0].Polygon.Polygons.Count == 140, "The reached native materia topology changed.");
+        CheckInstalledPulse(materia, native, 400);
     }
 
-    private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native)
+    private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native, int nativeScale = 512)
     {
         int[] counts = model.Geometry.Select(part => part.Polygon.Vertices.Count).ToArray();
-        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(null, 1, counts), true), true);
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(null, 1, counts, nativeScale, model.Geometry.Select(part => part.Polygon.Polygons.Count).ToArray()), true), true);
         bool changed = false;
         foreach (Ff7BoneGeometry part in model.Geometry)
         {
@@ -152,7 +204,7 @@ internal static class NativeModelEffectTests
                 foreach ((int vertex, int normal) in normals)
                 {
                     uint first = Ff7NativeModelEffect.ShadeVertex(state, 0, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
-                    uint middle = Ff7NativeModelEffect.ShadeVertex(state, 8, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
+                    uint middle = Ff7NativeModelEffect.ShadeVertex(state, state.Profile == Ff7NativeModelEffect.SinglePart72_140Profile ? 4 : 8, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
                     changed |= first != middle;
                 }
             }

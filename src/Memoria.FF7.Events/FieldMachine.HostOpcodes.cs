@@ -14,6 +14,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldPartySplit(B(id, 14), splittingParty[0], splittingParty[1], splittingParty[2], R16(id, 1, 4), R16(id, 2, 6), R8(id, 3, 8), R16(id, 4, 9), R16(id, 5, 11), R8(id, 6, 13), new FieldByteOperand(Bank(id, 3), B(id, 8)), new FieldByteOperand(Bank(id, 6), B(id, 13))), 15);
             case 0x0D:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
+            case 0x0F when B(id, 1) == 0xF5:
+                return Host(id, new FieldControlCommand(FieldControlKind.CursorDisabled, B(id, 2)), 3);
             case 0x22:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode2, W(id, 1), W(id, 3)), 5);
             case 0x23:
@@ -204,6 +206,8 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorFace(faceEntity, B(id, 2), B(id, 3)), 4);
             case 0xAC:
                 return ActorProperty(id, FieldActorPropertyKind.AnimationWait, 0, 1);
+            case 0xDE:
+                return ActorProperty(id, FieldActorPropertyKind.TurnWait, 0, 1);
             case 0xB2:
                 return ActorProperty(id, FieldActorPropertyKind.MoveSpeed, unchecked((ushort)(R16(id, 2, 2) * program.FieldScale / 512)), 4);
             case 0xB3:

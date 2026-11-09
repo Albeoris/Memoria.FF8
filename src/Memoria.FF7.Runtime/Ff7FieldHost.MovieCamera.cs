@@ -2,6 +2,16 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public Func<int>? NativeMovieCameraRecordCount { get; set; }
+
+    public void PublishCurrentNativeMovieCameraFrame()
+    {
+        if (Process.Movie is { Playing: true, CameraDisabled: false } movie && !Process.MovieCameraDisabled && NativeMovieCameraRecordCount is { } count)
+        {
+            PublishMovieCameraFrame(movie.Frame, count());
+        }
+    }
+
     private void InitializeMovieCameraConsumption()
     {
         if (Process.Movie is Ff7Movie { CameraConsumption: null } movie)

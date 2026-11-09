@@ -73,7 +73,8 @@ public enum FieldSyncState : byte
 
 public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners, bool ModelBound = false);
 public sealed record FieldInputState(ushort Held = 0, ushort Pressed = 0, ushort Released = 0, ushort RawHeld = 0, ushort RawPressed = 0, ushort RawReleased = 0, int Horizontal = 0, int Vertical = 0, bool Run = false);
-public sealed record FieldVmSnapshot(int Version, string Profile, string ProgramIdentity, long Tick, bool Initialized, byte[] PersistentVariables, byte[] MapVariables, FieldEntitySnapshot[] Entities, long NextRequestId = 1, FieldHostRequest[]? PendingRequests = null, FieldInputState? Input = null);
+public sealed record FieldCycleCursor(int Entity, int HandlersCompleted, int ProgramCounter);
+public sealed record FieldVmSnapshot(int Version, string Profile, string ProgramIdentity, long Tick, bool Initialized, byte[] PersistentVariables, byte[] MapVariables, FieldEntitySnapshot[] Entities, long NextRequestId = 1, FieldHostRequest[]? PendingRequests = null, FieldInputState? Input = null, FieldCycleCursor? CycleCursor = null);
 public sealed record FieldFaultContext(string ProgramIdentity, long Tick, int Entity, int Priority, int ProgramCounter, byte Opcode);
 
 public sealed class FieldExecutionException : Exception

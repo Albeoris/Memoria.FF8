@@ -161,6 +161,14 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateDebugMenu();
                 return;
             }
+            if (Session.HasPendingTick)
+            {
+                Session.AdvanceTick(advanceClock: false);
+                RememberReportCheckpoint();
+                UpdateAudio();
+                PublishCurrentMovieCameraFrame();
+                return;
+            }
             Session.AdvanceClock(gameTime.ElapsedGameTime);
             UpdateAudio();
             if (autoPlay?.Running != true || autoPlay.Paused)

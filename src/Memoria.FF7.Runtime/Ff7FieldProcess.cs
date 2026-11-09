@@ -45,6 +45,7 @@ public sealed record Ff7Actor
     public int LastAnimationFrame { get; init; } = -1;
     public bool HoldAnimation { get; init; }
     public int Animation { get; init; }
+    public int? RequestedAnimation { get; init; }
     public int AnimationFrame16 { get; init; }
     public bool AnimationLoop { get; init; } = true;
     public bool AnimationStopped { get; init; }
@@ -174,7 +175,7 @@ public sealed record Ff7FieldProcess
         {
             throw new InvalidDataException("FFVII field process is missing required owners.");
         }
-        if (Actors.Any(actor => actor is null || actor.Slot < 0 || actor.Entity < 0 || actor.Model < 0 || actor.Direction is < 0 or > 255 || actor.Animation < 0 || actor.AnimationFrame16 < 0) || Actors.Where(actor => actor.EntityBound).Select(actor => actor.Entity).Distinct().Count() != Actors.Count(actor => actor.EntityBound) || Actors.Select(actor => actor.Slot).Distinct().Count() != Actors.Length)
+        if (Actors.Any(actor => actor is null || actor.Slot < 0 || actor.Entity < 0 || actor.Model < 0 || actor.Direction is < 0 or > 255 || actor.Animation < 0 || actor.RequestedAnimation is < 0 or > 127 || actor.AnimationFrame16 < 0) || Actors.Where(actor => actor.EntityBound).Select(actor => actor.Entity).Distinct().Count() != Actors.Count(actor => actor.EntityBound) || Actors.Select(actor => actor.Slot).Distinct().Count() != Actors.Length)
         {
             throw new InvalidDataException("FFVII field actor ownership is invalid.");
         }

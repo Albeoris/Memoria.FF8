@@ -94,7 +94,7 @@ public sealed class PcFieldScripts
             {
                 throw new InvalidDataException($"FF7 text {i} offset is invalid.");
             }
-            int terminator = FieldText.FindTerminatedLength(source.Slice(start, textEnd - start));
+            int terminator = FieldText.FindTerminatedLength(source[start..]);
             texts[i] = data.AsMemory(start, terminator);
         }
         return new PcFieldScripts(data, models, scale, textOffset, creator, name, entities, akao, texts);

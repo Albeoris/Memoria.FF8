@@ -30,7 +30,7 @@ public sealed partial class Ff7FieldHost
         }
         _ = animationLength(actor.Model, command.Animation);
         Ff7LadderProcess state = new(requestId, command.X << 12, command.Y << 12, command.Z << 12, command.Triangle, command.Mode);
-        SetActor(entity, current => current with { Ladder = state, Animation = command.Animation, AnimationSpeed = unchecked((short)current.BaseAnimationSpeed) / command.AnimationDivisor, Direction = command.Direction });
+        SetActor(entity, current => current with { Ladder = state, Animation = command.Animation, RequestedAnimation = null, AnimationSpeed = unchecked((short)current.BaseAnimationSpeed) / command.AnimationDivisor, Direction = command.Direction });
         return new(false);
     }
 

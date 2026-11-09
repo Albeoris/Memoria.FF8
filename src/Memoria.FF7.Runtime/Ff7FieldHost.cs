@@ -288,7 +288,18 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             throw new InvalidDataException("FFVII movie frames must advance monotonically.");
         }
-        Process = Process with { Movie = movie with { Frame = frame, Completed = completed, Playing = !completed }, GlobalCommand = completed ? Ff7GlobalCommand.None : Ff7GlobalCommand.Movie, GlobalRequestId = completed ? null : movie.RequestId };
+        int? cameraCount = !movie.CameraDisabled && !Process.MovieCameraDisabled ? NativeMovieCameraRecordCount?.Invoke() : null;
+        if (cameraCount < 0)
+        {
+            throw new InvalidDataException("Native movie camera record count cannot be negative.");
+        }
+        Process = Process with { Movie = movie with { Frame = frame } };
+        if (cameraCount is int count)
+        {
+            PublishMovieCameraFrame(frame, count);
+        }
+        Ff7Movie published = Process.Movie!;
+        Process = Process with { Movie = published with { Completed = completed, Playing = !completed }, GlobalCommand = completed ? Ff7GlobalCommand.None : Ff7GlobalCommand.Movie, GlobalRequestId = completed ? null : movie.RequestId };
     }
 
     public bool CanConfirmDialogue(long requestId)
@@ -417,6 +428,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             return WaitForAnimation(entity);
         }
+        if (property.Property == FieldActorPropertyKind.TurnWait)
+        {
+            return WaitForTurn(entity);
+        }
         if (property.Property == FieldActorPropertyKind.StopAnimation)
         {
             return StopAnimation(entity);
@@ -510,6 +525,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         switch (command.Operation)
         {
             case FieldMovieOperation.Play:
+                Process = Process with { CursorDisabled = true };
                 if (Process.GlobalCommand is not (Ff7GlobalCommand.None or Ff7GlobalCommand.Movie))
                 {
                     return new(false);
@@ -563,7 +579,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
             FieldControlKind.BattleTable => Process with { BattleTable = command.Value },
             FieldControlKind.BattleResult => Process,
             FieldControlKind.MovieCameraDisabled => Process with { MovieCameraDisabled = command.Value == 1 },
-            FieldControlKind.CursorDisabled => Process with { CursorDisabled = command.Value != 0 },
+            FieldControlKind.CursorDisabled when command.Value == 0 => throw new NotSupportedException("FFVII player-pointer enabling requires its native help-toggle presentation contract."),
+            FieldControlKind.CursorDisabled => Process with { CursorDisabled = true },
             FieldControlKind.CurrentMapName => Process with { MapName = command.Value },
             FieldControlKind.MapDisplay => Process with { MapDisplay = command.Value },
             _ => throw new NotSupportedException($"Unsupported FFVII host control {command.Property}.")

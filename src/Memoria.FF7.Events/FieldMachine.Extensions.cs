@@ -147,6 +147,13 @@ public sealed partial class FieldMachine
                 Advance(id, (keys & W(id, 1)) != 0 ? 4 : B(id, 3) + 3);
                 return false;
             }
+            case 0x76:
+            {
+                int value = Math.Min(255, R8(id, 1, 2) + R8(id, 2, 3));
+                Variables.WriteByte(Bank(id, 1), B(id, 2), (byte)value);
+                Advance(id, 4);
+                return false;
+            }
             case >= 0x82 and <= 0x84:
             {
                 int bit = R8(id, 2, 3);

@@ -61,6 +61,8 @@ public sealed record Ff7AudioPresentationState
     }
 }
 
+public sealed record Ff7TickContinuation(FieldInputState Input);
+
 public sealed record Ff7SessionSave
 {
     public const int CurrentVersion = 1;
@@ -73,6 +75,7 @@ public sealed record Ff7SessionSave
     public required FieldVmSnapshot Vm { get; init; }
     public required Ff7FieldProcess Process { get; init; }
     public Ff7AudioPresentationState? AudioPresentation { get; init; }
+    public Ff7TickContinuation? TickContinuation { get; init; }
 
     public void Validate()
     {
@@ -83,6 +86,10 @@ public sealed record Ff7SessionSave
         Progress.Validate();
         Process.Validate();
         AudioPresentation?.Validate();
+        if ((TickContinuation is null) != (Vm.CycleCursor is null) || TickContinuation is not null && (TickContinuation.Input is null || TickContinuation.Input != Vm.Input))
+        {
+            throw new InvalidDataException("A partial FFVII field tick requires matching scheduler and latched-input ownership.");
+        }
     }
 }
 

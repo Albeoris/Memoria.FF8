@@ -116,7 +116,7 @@ public sealed partial class Ff7FieldHost
             TalkEnabled = false,
             Visible = true,
             AnimationStatus = 1,
-            Animation = animation,
+            Animation = animation, RequestedAnimation = null,
             AnimationSpeed = current.Animation == animation ? current.AnimationSpeed : 16,
             AnimationFrame16 = current.Animation == animation ? current.AnimationFrame16 : 0,
             LastAnimationFrame = current.Animation == animation ? current.LastAnimationFrame : animationLength(current.Model, animation) - 1,

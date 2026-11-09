@@ -31,10 +31,14 @@ if (args.Contains("--model-effect-only", StringComparer.Ordinal))
 var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
+    ("native saturated byte addition and cold continuation", SaturatedByteAddTests.Run),
+    ("native SPECIAL arrow suppression operands", ExtendedTests.SpecialArrowOperandsAndContinuation),
+    ("native turn wait operands and cold continuation", ExtendedTests.TurnWaitOperandsAndContinuation),
     ("initialization first RET continuation", InitContinuation),
     ("WAIT zero yields", WaitZero),
     ("WAIT counter and continuation", WaitCount),
     ("eight instruction cycle budget", CycleBudget),
+    ("partial cycle cursor retries exact handler and budget", CycleCursorTests.Run),
     ("short forward and backward control flow", ShortBranches),
     ("long forward and backward operand widths", LongBranches),
     ("request completion and suspended continuation", RequestCompletion),

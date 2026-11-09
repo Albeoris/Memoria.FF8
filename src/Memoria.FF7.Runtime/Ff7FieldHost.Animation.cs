@@ -44,6 +44,7 @@ public sealed partial class Ff7FieldHost
             SetActor(request.Entity, current => current with
             {
                 Animation = animation.Animation,
+                RequestedAnimation = null,
                 AnimationSpeed = current.BaseAnimationSpeed / animation.Speed,
                 AnimationFrame16 = initial,
                 FirstAnimationFrame = first,
@@ -102,7 +103,7 @@ public sealed partial class Ff7FieldHost
                 switch (actor.AnimationStatus)
                 {
                     case 0:
-                        if (actor.Animation != actor.DefaultAnimation)
+                        if ((actor.RequestedAnimation ?? actor.Animation) != actor.DefaultAnimation)
                         {
                             int defaultCount = animationLength(actor.Model, actor.DefaultAnimation);
                             if (defaultCount < 1)
@@ -110,7 +111,7 @@ public sealed partial class Ff7FieldHost
                                 throw new InvalidDataException("FFVII default animation has no native frames.");
                             }
                             last = defaultCount - 1;
-                            next = next with { Animation = actor.DefaultAnimation, AnimationSpeed = actor.DefaultAnimationSpeed, AnimationFrame16 = 0, LastAnimationFrame = last, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false, HoldAnimation = false };
+                            next = next with { Animation = actor.DefaultAnimation, RequestedAnimation = null, AnimationSpeed = actor.DefaultAnimationSpeed, AnimationFrame16 = 0, LastAnimationFrame = last, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false, HoldAnimation = false };
                         }
                         else
                         {
@@ -153,6 +154,11 @@ public sealed partial class Ff7FieldHost
                     default:
                         throw new InvalidDataException("FFVII actor has an invalid native animation status.");
                 }
+            }
+            // A rejected model binding retains the clip, but the native actor request retries and resets its phase.
+            if (next.RequestedAnimation is int requested && requested != next.Animation)
+            {
+                next = next with { AnimationFrame16 = 0 };
             }
             int frame = unchecked((short)(next.AnimationFrame16 + next.AnimationSpeed));
             if (!scriptControlled)

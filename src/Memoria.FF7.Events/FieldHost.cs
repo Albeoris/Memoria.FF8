@@ -88,7 +88,8 @@ public enum FieldActorPropertyKind
     AnimationWait,
     StopAnimation,
     PartyCharacter,
-    OffsetWait
+    OffsetWait,
+    TurnWait
 }
 public sealed record FieldActorProperty(FieldActorPropertyKind Property, int Value) : FieldCommand;
 public enum FieldWindowOperation

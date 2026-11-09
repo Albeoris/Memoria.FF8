@@ -35,6 +35,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         {
             return default;
         }
+        if (session.Host.Process.Tick == 0)
+        {
+            return default;
+        }
         int x = player.X4096 >> 12;
         int y = player.Y4096 >> 12;
         int z = player.Z4096 >> 12;
@@ -62,15 +66,29 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.Approach(new(300, 430, 76));
             case "mds7pb_1":
                 int pubStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
-                if (pubStory == 69)
+                if (pubStory is 69 or 78)
                 {
                     return driver.Gateway(151);
+                }
+                if (pubStory == 72)
+                {
+                    return driver.Approach(new(-30, 180, 0)) with { Held = ConfirmPulse };
                 }
                 if (pubStory < 69)
                 {
                     return default;
                 }
                 throw new NotSupportedException($"FFVII autoplay has reached the next pub story handoff at native story {pubStory}.");
+            case "mds7pb_2":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 72)
+                {
+                    return driver.Approach(new(12, 168, 0));
+                }
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 78)
+                {
+                    return driver.Approach(new(142, -40, 0)) with { Held = ConfirmPulse };
+                }
+                throw new NotSupportedException("FFVII autoplay has reached the next basement story handoff.");
             case "md1_2":
                 return driver.Gateway(119);
             case "md8_1":

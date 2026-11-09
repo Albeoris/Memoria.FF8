@@ -65,9 +65,13 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             try
             {
-                present?.Invoke();
+                bool continuingTick = session.HasPendingTick;
+                if (!continuingTick)
+                {
+                    present?.Invoke();
+                    ConfirmDefaultDialogueAndNames();
+                }
                 transitions.Observe(session);
-                ConfirmDefaultDialogueAndNames();
                 Ff7SessionSave observed = session.Capture();
                 string progress = $"{session.FieldGeneration}:{session.Progress.CompletedBattles.Length}:{session.Host.Process.Movie?.Frame}:{session.Host.Process.CameraScroll?.Step}:{session.Host.Process.CameraViewOffset?.Step}:"
                     + string.Join(";", observed.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
@@ -82,11 +86,15 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 {
                     throw new TimeoutException("FFVII autoplay made no native scene, dialogue or battle progress within its idle deadline.");
                 }
-                Ff7AutoplayInput input = chooseInput(driver);
-                AutoPlayRecording.AppendRecent(recent, AutoPlayRecording.LimitActionText($"{session.Field.Name}:{session.Host.Process.Tick} {input}"));
+                Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
+                string action = continuingTick ? "resume native cycle" : input.ToString();
+                AutoPlayRecording.AppendRecent(recent, AutoPlayRecording.LimitActionText($"{session.Field.Name}:{session.Host.Process.Tick} {action}"));
                 long previousGeneration = session.FieldGeneration;
                 lastSafe = observed;
-                driver.Apply(input);
+                if (!continuingTick)
+                {
+                    driver.Apply(input);
+                }
                 if (advanceTick is null)
                 {
                     session.AdvanceTick();

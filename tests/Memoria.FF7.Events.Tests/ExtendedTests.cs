@@ -3,6 +3,55 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void TurnWaitOperandsAndContinuation()
+    {
+        var host = new RecordingHost { Complete = true };
+        byte[] code = Code(0xA1, 0, 0, 0xDE, 0x80, 0x50, 8, 7, 0x5F, 0x12, 0);
+        var vm = New(code, host);
+        vm.Initialize();
+        host.Complete = false;
+        vm.AdvanceTick();
+        FieldVmSnapshot snapshot = vm.Capture();
+        FieldHostRequest pending = snapshot.PendingRequests!.Single();
+        Check(new FieldActorProperty(FieldActorPropertyKind.TurnWait, 0), pending.Command);
+        Check(19, snapshot.Entities[0].ProgramCounter);
+        Check((byte)0, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        var coldHost = new RecordingHost { Complete = true };
+        vm = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(snapshot))!, coldHost);
+        vm.AdvanceTick();
+        Check(pending.Id, coldHost.Requests.Single().Id);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        Check(25, vm.Capture().Entities[0].ProgramCounter);
+
+        var unboundHost = new RecordingHost { Complete = false };
+        var unbound = New(Code(0, 0xDE, 0x80, 0x50, 8, 7, 0x5F, 0x12, 0), unboundHost);
+        unbound.Initialize();
+        unbound.AdvanceTick();
+        Check(0, unboundHost.Requests.Count);
+        Check((byte)7, unbound.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
+    public static void SpecialArrowOperandsAndContinuation()
+    {
+        foreach (byte value in new byte[] { 0, 1, 255 })
+        {
+            var host = new RecordingHost { Complete = true };
+            var vm = New(Code(0, 0x0F, 0xF5, value, 0x80, 0x50, 8, 7, 0x5F, 0x12, 0), host);
+            vm.Initialize();
+            vm.AdvanceTick();
+            Check(new FieldControlCommand(FieldControlKind.CursorDisabled, value), host.Requests.Single().Command);
+            Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+            Check(25, vm.Capture().Entities[0].ProgramCounter);
+        }
+        byte[] truncated = Code(0, 0x0F, 0xF5)[..19];
+        var malformed = New(truncated, new RecordingHost());
+        malformed.Initialize();
+        Throws<FieldExecutionException>(() => malformed.AdvanceTick());
+        var unsupported = New(Code(0, 0x0F, 0xF6, 1), new RecordingHost());
+        unsupported.Initialize();
+        Throws<FieldExecutionException>(() => unsupported.AdvanceTick());
+    }
+
     public static void ModelEffectPayloadAndLegacyPendingRestore()
     {
         byte[] code = Code(0xA1, 0, 0, 0x28, 7, 0, 1, 1, 0, 255, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1);

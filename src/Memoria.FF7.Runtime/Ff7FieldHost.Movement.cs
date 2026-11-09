@@ -54,15 +54,17 @@ public sealed partial class Ff7FieldHost
     {
         int threshold = unchecked(1536 * field.Scripts.Scale) / 512;
         int animation = actor.MoveSpeed > threshold ? 2 : 1;
-        if (actor.Animation == animation)
+        if ((actor.RequestedAnimation ?? actor.Animation) == animation)
         {
             return actor;
         }
-        int count = animationLength(actor.Model, animation);
+        bool binds = field.Models is null || animation < field.Models.Models[actor.Model].Animations.Count;
+        int boundAnimation = binds ? animation : actor.Animation;
+        int count = animationLength(actor.Model, boundAnimation);
         if (count < 1)
         {
             throw new InvalidDataException("FFVII movement animation has no native frames.");
         }
-        return actor with { Animation = animation, AnimationSpeed = 16, AnimationFrame16 = 0, LastAnimationFrame = count - 1, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false };
+        return actor with { Animation = boundAnimation, RequestedAnimation = binds ? null : animation, BaseAnimationSpeed = 16, AnimationSpeed = 16, AnimationFrame16 = 0, LastAnimationFrame = count - 1, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false };
     }
 }

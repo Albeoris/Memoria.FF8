@@ -4,6 +4,17 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    private FieldHostReply WaitForTurn(int entity)
+    {
+        Ff7Actor actor = GetActor(entity);
+        if (actor.TurnMode == 3)
+        {
+            SetActor(entity, current => current with { TurnMode = 0, TurnStep = 0, TurnSteps = 0 });
+            return new(true);
+        }
+        return new(actor.TurnMode == 0);
+    }
+
     private FieldHostReply FaceActor(int entity, FieldActorFace command)
     {
         Ff7Actor actor = GetActor(entity);

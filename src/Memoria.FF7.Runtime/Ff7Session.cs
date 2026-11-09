@@ -45,7 +45,7 @@ public sealed partial class Ff7Session : IDisposable
     public long FieldGeneration { get; private set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
 
-    public bool CanSave => Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId));
+    public bool CanSave => !HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId));
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -100,6 +100,7 @@ public sealed partial class Ff7Session : IDisposable
             session.FieldGeneration = save.FieldGeneration;
             session.LoadField(checked((ushort)map), null, save.Process);
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
+            session.tickContinuation = save.TickContinuation;
             session.Progress = session.Progress with { Clock = session.Clock };
             return session;
         }
@@ -117,27 +118,40 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick(bool advanceClock)
     {
-        if (Host.Process.Transition is not null)
+        if (tickTailInProgress)
+        {
+            throw new InvalidOperationException("A failed field update tail requires its preceding standalone checkpoint.");
+        }
+        if (tickContinuation is null && Host.Process.Transition is not null)
         {
             CompleteFieldTransition();
             AdvanceDialogues();
             return;
         }
-        if (advanceClock)
+        if (tickContinuation is null)
         {
-            AdvanceNominalClockCallbacks();
+            if (advanceClock)
+            {
+                AdvanceNominalClockCallbacks();
+            }
+            Ff7NativeClock.PublishField(Clock, Machine.Variables);
+            ResumeEncounter();
+            AdvanceAudio();
+            DispatchLineScripts();
+            tickContinuation = new(Machine.Input);
         }
-        Ff7NativeClock.PublishField(Clock, Machine.Variables);
-        ResumeEncounter();
-        AdvanceAudio();
-        DispatchLineScripts();
         Machine.AdvanceTick();
+        tickTailInProgress = true;
+        tickContinuation = null;
+        Host.PublishCurrentNativeMovieCameraFrame();
         AdvancePlayerInput();
         Host.AdvanceActors();
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
+        tickTailInProgress = false;
         CompleteFieldTransition();
         AdvanceDialogues();
+        ApplyDeferredInput();
     }
 
     private void CompleteFieldTransition()
@@ -163,11 +177,11 @@ public sealed partial class Ff7Session : IDisposable
 
     public Ff7SessionSave Capture()
     {
-        if (fieldLoadIncomplete)
+        if (fieldLoadIncomplete || tickTailInProgress)
         {
-            throw new InvalidOperationException("Snapshots require a completed field load.");
+            throw new InvalidOperationException("Snapshots require a completed field load and an atomic field-update tail.");
         }
-        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = Machine.Capture(), Process = Host.Capture() };
+        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = Machine.Capture(), Process = Host.Capture(), TickContinuation = tickContinuation };
     }
 
     private bool fieldLoadIncomplete;
@@ -192,7 +206,8 @@ public sealed partial class Ff7Session : IDisposable
         Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             AudioRequested = Host?.AudioRequested,
-            NativeBlinkCamera = Host?.NativeBlinkCamera,
+            NativeBlinkCamera = Host?.NativeBlinkCamera ?? ReadNativeMovieCamera,
+            NativeMovieCameraRecordCount = ReadNativeMovieCameraRecordCount,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,
             NativeModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
             Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
