@@ -26,6 +26,11 @@ public sealed record Ff7Progress
     public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];
 
+    public Ff7Progress AddGil(uint amount)
+    {
+        return this with { Gil = (uint)Math.Min((ulong)Gil + amount, uint.MaxValue) };
+    }
+
     public void Validate()
     {
         Clock?.Validate();

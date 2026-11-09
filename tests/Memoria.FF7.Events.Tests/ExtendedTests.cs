@@ -3,6 +3,40 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void GilOperandsAndContinuation()
+    {
+        foreach (uint amount in new[] { 0u, 1500u, 0x8000FFFEu, uint.MaxValue })
+        {
+            byte[] code = Code(0, 0x39, 0, (byte)amount, (byte)(amount >> 8), (byte)(amount >> 16), (byte)(amount >> 24), 0x80, 0x50, 8, 7, 0x5F, 0x12, 0);
+            var host = new RecordingHost { Complete = false };
+            var vm = New(code, host);
+            vm.Initialize();
+            vm.AdvanceTick();
+            FieldVmSnapshot snapshot = vm.Capture();
+            FieldHostRequest request = snapshot.PendingRequests!.Single();
+            Check(new FieldGilCommand(amount), request.Command);
+            Check(17, snapshot.Entities[0].ProgramCounter);
+            var coldHost = new RecordingHost { Complete = true };
+            vm = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(snapshot))!, coldHost);
+            vm.AdvanceTick();
+            Check(request.Id, coldHost.Requests.Single().Id);
+            Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+            Check(28, vm.Capture().Entities[0].ProgramCounter);
+        }
+        var bankedHost = new RecordingHost { Complete = true };
+        var banked = New(Code(0, 0x39, 0x62, 4, 0xF2, 8, 0xA3, 0x5F, 0x12, 0), bankedHost);
+        banked.Initialize();
+        banked.Variables.WriteWord(FieldBank.MapWord, 4, -1);
+        banked.Variables.WriteWord(FieldBank.Persistent0Word, 8, short.MinValue);
+        banked.AdvanceTick();
+        Check(new FieldGilCommand(0x8000FFFF), bankedHost.Requests.Single().Command);
+        Check((short)-1, banked.Variables.ReadWord(FieldBank.MapWord, 4));
+        Check(short.MinValue, banked.Variables.ReadWord(FieldBank.Persistent0Word, 8));
+        var truncated = New(Code(0, 0x39, 0, 0, 0, 0)[..22], new RecordingHost());
+        truncated.Initialize();
+        Throws<FieldExecutionException>(() => truncated.AdvanceTick());
+    }
+
     public static void TurnWaitOperandsAndContinuation()
     {
         var host = new RecordingHost { Complete = true };
@@ -190,6 +224,27 @@ internal static class ExtendedTests
         vm.AdvanceTick();
         Check(new FieldPartyRecovery(), host.Requests.Single().Command);
         Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
+    public static void AllRecoveryContinuation()
+    {
+        byte[] code = Code(0, 0x3E, 0x80, 0x50, 8, 7, 0x5F, 0x12, 0);
+        var host = new RecordingHost { Complete = false };
+        var vm = New(code, host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        FieldVmSnapshot snapshot = vm.Capture();
+        FieldHostRequest pending = snapshot.PendingRequests!.Single();
+        Check(new FieldPartyRecovery(AllCharacters: true), pending.Command);
+        Check(17, snapshot.Entities[0].ProgramCounter);
+        var coldHost = new RecordingHost { Complete = true };
+        vm = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(snapshot))!, coldHost);
+        vm.AdvanceTick();
+        Check(pending.Id, coldHost.Requests.Single().Id);
+        Check(new FieldPartyRecovery(AllCharacters: true), coldHost.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        Check(23, vm.Capture().Entities[0].ProgramCounter);
+        Check(new FieldPartyRecovery(), JsonSerializer.Deserialize<FieldCommand>("{\"command\":\"partyRecovery\"}")!);
     }
 
     public static void ImmediateFaceOperandsAndYield()

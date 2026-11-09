@@ -6,7 +6,7 @@ namespace Memoria.FF7.Runtime;
 public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical = 0, ushort Held = 0, bool Talk = false);
 
 /// <summary>Native FFVII navigation and interaction adapter. The host owns scheduling, recording and presentation.</summary>
-public sealed class Ff7AutoplayDriver(Ff7Session session)
+public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 {
     private long waypointGeneration = -1;
     private int waypointDestination = -1;
@@ -29,6 +29,7 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
             committedWaypoint = null;
             waypointGeneration = -1;
             finalApproach = false;
+            ResetObstacleEscape();
         }
         ushort pressed = (ushort)(input.Held & ~session.Machine.Input.Held);
         session.SetInput(input.Held, pressed);
@@ -186,6 +187,6 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
                 result = new(direction.X, direction.Y);
             }
         }
-        return result;
+        return TryObstacleEscape(controlled, target, waypoint, movement, out Ff7AutoplayInput escape) ? escape : result;
     }
 }

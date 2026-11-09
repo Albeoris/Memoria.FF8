@@ -32,8 +32,11 @@ var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
     ("native saturated byte addition and cold continuation", SaturatedByteAddTests.Run),
+    ("native saturated byte subtraction and cold continuation", SaturatedByteAddTests.RunSubtract),
     ("native SPECIAL arrow suppression operands", ExtendedTests.SpecialArrowOperandsAndContinuation),
     ("native turn wait operands and cold continuation", ExtendedTests.TurnWaitOperandsAndContinuation),
+    ("native gil operands and cold continuation", ExtendedTests.GilOperandsAndContinuation),
+    ("native all-character recovery and cold continuation", ExtendedTests.AllRecoveryContinuation),
     ("initialization first RET continuation", InitContinuation),
     ("WAIT zero yields", WaitZero),
     ("WAIT counter and continuation", WaitCount),

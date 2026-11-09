@@ -8,6 +8,22 @@ public static class Ff7NativePartyRecovery
 {
     public static Ff7PartyRecoveryResult Apply(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
     {
+        return ApplyCore(progress, materiaRecords, statModifiers, clearStatus: false);
+    }
+
+    public static Ff7PartyRecoveryResult ApplyAll(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        Ff7Progress recovered = progress;
+        for (int group = 0; group < 3; group++)
+        {
+            recovered = ApplyCore(recovered with { Party = [group * 3, group * 3 + 1, group * 3 + 2] }, materiaRecords, statModifiers, clearStatus: true).Progress;
+        }
+        return ApplyCore(recovered with { Party = progress.Party }, materiaRecords, statModifiers, clearStatus: true);
+    }
+
+    private static Ff7PartyRecoveryResult ApplyCore(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, bool clearStatus)
+    {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(materiaRecords);
         ArgumentNullException.ThrowIfNull(statModifiers);
@@ -101,6 +117,10 @@ public static class Ff7NativePartyRecovery
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), currentMp);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(56), checked((ushort)hp));
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(58), checked((ushort)mp));
+            if (clearStatus)
+            {
+                record[31] = 0;
+            }
             return character with { HitPoints = currentHp, MagicPoints = currentMp, NativeRecord = record };
         }).ToArray();
         return new(progress with { Characters = characters }, underwater);

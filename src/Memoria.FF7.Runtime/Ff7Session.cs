@@ -238,9 +238,12 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
-        if (command is FieldPartyRecovery)
+        if (command is FieldPartyRecovery recovery)
         {
-            Ff7PartyRecoveryResult recovered = Ff7NativePartyRecovery.Apply(Progress, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
+            IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords = Ff7MateriaResources.LoadRecords(installation);
+            Ff7PartyRecoveryResult recovered = recovery.AllCharacters
+                ? Ff7NativePartyRecovery.ApplyAll(Progress, materiaRecords, executable.NativeMateriaStatModifiers)
+                : Ff7NativePartyRecovery.Apply(Progress, materiaRecords, executable.NativeMateriaStatModifiers);
             Progress = recovered.Progress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (recovered.Underwater ? 128 : 0)));
@@ -249,6 +252,11 @@ public sealed partial class Ff7Session : IDisposable
         if (command is FieldItemCommand item)
         {
             return AcquireItem(item);
+        }
+        if (command is FieldGilCommand gil)
+        {
+            Progress = Progress.AddGil(gil.Amount);
+            return new(true);
         }
         if (command is FieldTimerCommand timer)
         {

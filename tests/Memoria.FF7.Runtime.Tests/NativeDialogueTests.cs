@@ -43,6 +43,20 @@ internal static class NativeDialogueTests
         catch (NotSupportedException)
         {
         }
+        Ff7Dialogue question = new(2, 0, 0, 2, 3, 2, AwaitingInput: true);
+        Ff7Dialogue selected = Ff7DialogueCursor.Select(question, 3);
+        Equal(2, question.Selected);
+        Equal(3, selected.Selected);
+        Equal(true, Ff7DialogueCursor.Confirm(selected, []).Completed);
+        Equal(3, Ff7DialogueCursor.Confirm(selected, []).Selected);
+        try
+        {
+            Ff7DialogueCursor.Select(question, 1);
+            throw new Exception("A reply outside the original question bounds was accepted.");
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+        }
     }
 
     public static void Run()

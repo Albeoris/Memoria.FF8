@@ -6,6 +6,66 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePartyRecoveryTests
 {
+    public static void RunAll()
+    {
+        byte[] underwater = new byte[20];
+        underwater[14] = 12;
+        ReadOnlyMemory<byte>[] materia = [underwater];
+        short[] modifiers = new short[17 * 8];
+        Ff7CharacterState[] characters = Enumerable.Range(0, 9).Select(id => Character(id, (ushort)(200 + id), (ushort)(50 + id))).ToArray();
+        foreach (Ff7CharacterState character in characters)
+        {
+            character.NativeRecord[31] = 0x30;
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(characters[8].NativeRecord.AsSpan(64), 0);
+        Ff7Progress progress = new() { InitialKernelData = [1], Characters = characters, Party = [0, 2, 255], Inventory = [], Materia = [], Gil = 678 };
+        Ff7PartyRecoveryResult result = Ff7NativePartyRecovery.ApplyAll(progress, materia, modifiers);
+        Equal(true, result.Progress.Party.SequenceEqual(progress.Party));
+        Equal(false, result.Underwater);
+        Equal(678u, result.Progress.Gil);
+        for (int id = 0; id < 9; id++)
+        {
+            Equal(200 + id, result.Progress.Characters[id].HitPoints);
+            Equal(50 + id, result.Progress.Characters[id].MagicPoints);
+            Equal((byte)0, result.Progress.Characters[id].NativeRecord[31]);
+            Equal((byte)0x30, characters[id].NativeRecord[31]);
+            Equal(1, characters[id].HitPoints);
+            foreach (int index in Enumerable.Range(0, 132).Except(new[] { 31, 44, 45, 48, 49, 56, 57, 58, 59 }))
+            {
+                Equal(characters[id].NativeRecord[index], result.Progress.Characters[id].NativeRecord[index]);
+            }
+        }
+        Equal(true, Ff7NativePartyRecovery.ApplyAll(progress with { Party = [8, 255, 255] }, materia, modifiers).Underwater);
+        Ff7CharacterState active = Character(0, 340, 62);
+        Ff7CharacterState reserve = Character(1, 340, 62);
+        BinaryPrimitives.WriteUInt16LittleEndian(active.NativeRecord.AsSpan(44), 40000);
+        BinaryPrimitives.WriteUInt16LittleEndian(reserve.NativeRecord.AsSpan(44), 40000);
+        result = Ff7NativePartyRecovery.ApplyAll(progress with { Characters = [active, reserve], Party = [0, 255, 255] }, materia, modifiers);
+        Equal(60000, result.Progress.Characters[0].HitPoints);
+        Equal(50000, result.Progress.Characters[1].HitPoints);
+        Ff7Progress owner = progress with { Characters = [active, reserve], Party = [0, 255, 255] };
+        int applications = 0;
+        var field = new Ff7FieldResources("recovery-fixture", null!, null!, null!, [], [], null!, null!, null!);
+        var host = new Ff7FieldHost(field, (_, _) => 1, new() { BlinkStateInitialized = true });
+        host.ExternalCommand = command =>
+        {
+            Equal(new FieldPartyRecovery(true), command);
+            applications++;
+            owner = Ff7NativePartyRecovery.ApplyAll(owner, materia, modifiers).Progress;
+            return new(true);
+        };
+        var request = new FieldHostRequest(1, 0, 6, 16, new FieldPartyRecovery(true));
+        host.Execute(request);
+        host.Execute(request);
+        Equal(1, applications);
+        Equal(60000, owner.Characters[0].HitPoints);
+        var cold = new Ff7FieldHost(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        cold.ExternalCommand = _ => throw new Exception("A saved all-character recovery must not reapply the signed-word additions.");
+        cold.Execute(request);
+        Equal(60000, owner.Characters[0].HitPoints);
+        InstalledContinuation(allCharacters: true);
+    }
+
     public static void Run()
     {
         short[] modifiers = new short[17 * 8];
@@ -82,7 +142,7 @@ internal static class NativePartyRecoveryTests
         return new(id, "Fixture", 8, 0, 1, 1, record);
     }
 
-    private static void InstalledContinuation()
+    private static void InstalledContinuation(bool allCharacters = false)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_AUTOPLAY_CHECKPOINT");
@@ -104,8 +164,9 @@ internal static class NativePartyRecoveryTests
         using Ff7Session session = Ff7Session.Restore(installation, envelope.Ff7!);
         string vm = JsonSerializer.Serialize(session.Capture().Vm);
         Ff7Progress before = session.Progress;
-        var expected = Ff7NativePartyRecovery.Apply(before, Ff7MateriaResources.LoadRecords(installation), native.NativeMateriaStatModifiers);
-        FieldHostRequest request = new(long.MaxValue - 300, 0, 7, 0, new FieldPartyRecovery());
+        IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords = Ff7MateriaResources.LoadRecords(installation);
+        var expected = allCharacters ? Ff7NativePartyRecovery.ApplyAll(before, materiaRecords, native.NativeMateriaStatModifiers) : Ff7NativePartyRecovery.Apply(before, materiaRecords, native.NativeMateriaStatModifiers);
+        FieldHostRequest request = new(long.MaxValue - 300, 0, 7, 0, new FieldPartyRecovery(allCharacters));
         Equal(new FieldHostReply(true), session.Host.Execute(request));
         Equal(JsonSerializer.Serialize(expected.Progress.Characters), JsonSerializer.Serialize(session.Progress.Characters));
         Equal(vm, JsonSerializer.Serialize(session.Capture().Vm));

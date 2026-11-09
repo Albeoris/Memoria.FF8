@@ -39,6 +39,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldRandomCommand), "random")]
 [JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
 [JsonDerivedType(typeof(FieldItemCommand), "item")]
+[JsonDerivedType(typeof(FieldGilCommand), "gil")]
 [JsonDerivedType(typeof(FieldTriangleCommand), "triangle")]
 [JsonDerivedType(typeof(FieldLineCommand), "line")]
 [JsonDerivedType(typeof(FieldAudioCommand), "audio")]
@@ -71,7 +72,8 @@ public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
 public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
 public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true, int? TargetEntity = null) : FieldCommand;
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
-public sealed record FieldPartyRecovery : FieldCommand;
+public sealed record FieldPartyRecovery(bool AllCharacters = false) : FieldCommand;
+public sealed record FieldGilCommand(uint Amount) : FieldCommand;
 public sealed record FieldCameraShake(byte Axes, byte XAmplitude, byte XDuration, byte YAmplitude, byte YDuration) : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind

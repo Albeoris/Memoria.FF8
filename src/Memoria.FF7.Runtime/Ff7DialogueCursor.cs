@@ -4,6 +4,15 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7DialogueCursor
 {
+    public static Ff7Dialogue Select(Ff7Dialogue dialogue, int selected)
+    {
+        if (dialogue.FirstChoice is not int first || dialogue.LastChoice is not int last || selected < first || selected > last)
+        {
+            throw new ArgumentOutOfRangeException(nameof(selected), "The selected reply is outside this native question's choices.");
+        }
+        return dialogue with { Selected = selected };
+    }
+
     public static Ff7Dialogue AdvanceTick(Ff7Dialogue dialogue, IReadOnlyList<FieldTextToken> tokens)
     {
         Validate(dialogue, tokens);

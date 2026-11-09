@@ -15,6 +15,15 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     public string Goal => "Reach the church through the original story sequence";
 
+    public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
+    {
+        if (session.Field.Name == "mds7pb_1" && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 105 && dialogue.Text == 112 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 3)
+        {
+            return 3;
+        }
+        return null;
+    }
+
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -51,6 +60,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "rootmap":
                 return default;
             case "tin_1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 108)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the second-mission carriage handoff.");
+                }
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) < 51)
                 {
                     return default;
@@ -59,20 +72,36 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
             case "cargoin":
                 return session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 48 ? driver.Steer(new(20, -140, 0)) : default;
             case "mds7st3":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
+                {
+                    return driver.Approach(new(-2880, 3370, 101));
+                }
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 108)
+                {
+                    throw new NotSupportedException("FFVII autoplay has reached the second-mission train boarding handoff.");
+                }
                 return driver.Gateway(156);
             case "mds7plr1":
-                return driver.Gateway(151);
+                return driver.Gateway(session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108 ? 146 : 151);
             case "mds7":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
+                {
+                    return driver.Gateway(156);
+                }
                 return driver.Approach(new(300, 430, 76));
             case "mds7pb_1":
                 int pubStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
-                if (pubStory is 69 or 78)
+                if (pubStory is 69 or 78 or 108)
                 {
                     return driver.Gateway(151);
                 }
                 if (pubStory == 72)
                 {
                     return driver.Approach(new(-30, 180, 0)) with { Held = ConfirmPulse };
+                }
+                if (pubStory == 105)
+                {
+                    return driver.TalkTo((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xD6) & 0x80) == 0 ? 20 : 19);
                 }
                 if (pubStory < 69)
                 {
@@ -84,7 +113,7 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 {
                     return driver.Approach(new(12, 168, 0));
                 }
-                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 78)
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) is 78 or 105)
                 {
                     return driver.Approach(new(142, -40, 0)) with { Held = ConfirmPulse };
                 }

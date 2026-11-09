@@ -34,6 +34,10 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldMovieCommand(FieldMovieOperation.SetBackground, B(id, 1)), 2);
             case 0x3F:
                 return Host(id, new FieldPartyRecovery(), 1);
+            case 0x3E:
+                return Host(id, new FieldPartyRecovery(AllCharacters: true), 1);
+            case 0x39:
+                return Host(id, new FieldGilCommand((uint)(ushort)R16(id, 1, 2) | (uint)(ushort)R16(id, 2, 4) << 16), 6);
             case 0x5E:
                 byte shakeAxes = B(id, 3);
                 return Host(id, new FieldCameraShake(shakeAxes, (shakeAxes & 1) != 0 ? R8(id, 1, 4) : (byte)0, (shakeAxes & 1) != 0 ? R8(id, 2, 5) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 3, 6) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 4, 7) : (byte)0), 8);

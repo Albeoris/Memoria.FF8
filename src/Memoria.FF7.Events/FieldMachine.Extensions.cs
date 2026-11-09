@@ -148,8 +148,11 @@ public sealed partial class FieldMachine
                 return false;
             }
             case 0x76:
+            case 0x78:
             {
-                int value = Math.Min(255, R8(id, 1, 2) + R8(id, 2, 3));
+                int left = R8(id, 1, 2);
+                int right = R8(id, 2, 3);
+                int value = opcode == 0x76 ? Math.Min(255, left + right) : Math.Max(0, left - right);
                 Variables.WriteByte(Bank(id, 1), B(id, 2), (byte)value);
                 Advance(id, 4);
                 return false;
