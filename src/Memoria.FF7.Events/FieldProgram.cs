@@ -43,7 +43,14 @@ public sealed class FieldProgram
         Identity = Convert.ToHexString(hash.GetHashAndReset());
     }
 
+    public static FieldProgram FromPcScripts(Memoria.FF7.Formats.PcFieldScripts scripts)
+    {
+        ArgumentNullException.ThrowIfNull(scripts);
+        return new FieldProgram(scripts.Data.ToArray(), scripts.Entities.Select(entity => entity.ScriptOffsets.ToArray()).ToArray()) { FieldScale = scripts.Scale };
+    }
+
     public string Identity { get; }
+    public short FieldScale { get; private init; } = 512;
     public int EntityCount => entries.Length;
     internal int Length => code.Length;
     internal ushort Entry(int entity, int script) => entries[entity][script];
@@ -64,8 +71,9 @@ public enum FieldSyncState : byte
     Done
 }
 
-public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners);
-public sealed record FieldVmSnapshot(int Version, string Profile, string ProgramIdentity, long Tick, bool Initialized, byte[] PersistentVariables, byte[] MapVariables, FieldEntitySnapshot[] Entities);
+public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners, bool ModelBound = false);
+public sealed record FieldInputState(ushort Held = 0, ushort Pressed = 0, ushort Released = 0, ushort RawHeld = 0, ushort RawPressed = 0, ushort RawReleased = 0, int Horizontal = 0, int Vertical = 0, bool Run = false);
+public sealed record FieldVmSnapshot(int Version, string Profile, string ProgramIdentity, long Tick, bool Initialized, byte[] PersistentVariables, byte[] MapVariables, FieldEntitySnapshot[] Entities, long NextRequestId = 1, FieldHostRequest[]? PendingRequests = null, FieldInputState? Input = null);
 public sealed record FieldFaultContext(string ProgramIdentity, long Tick, int Entity, int Priority, int ProgramCounter, byte Opcode);
 
 public sealed class FieldExecutionException : Exception

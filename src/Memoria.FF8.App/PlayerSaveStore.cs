@@ -285,7 +285,7 @@ internal sealed partial class PlayerSaveStore
             SaveSummary? summary = null;
             try
             {
-                summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : GameSession.ReadSummary(path);
+                summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
                 GameState state = summary?.ToLocationState() ?? LoadPath(path);
                 if (state.Scene == SceneKind.Title)
                 {

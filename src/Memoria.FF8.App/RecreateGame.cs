@@ -129,6 +129,7 @@ internal sealed partial class RecreateGame : Game
             fieldAudio = new FieldAudioPresentation(options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
         }
         InitializeGameUi();
+        InitializeCrossover();
         if (options.ControlDirectory is not null)
         {
             controls = new ControlQueue(options.ControlDirectory, DispatchControl);
@@ -160,6 +161,10 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        if (UpdateCrossover(gameTime))
+        {
+            return;
+        }
         presentationTiming.BeginPresentationFrame(ActiveBattle, CanAdvanceBattleRenderPhase);
         SynchronizationContext.SetSynchronizationContext(dialogContext);
         dialogContext.Drain();
@@ -963,15 +968,17 @@ internal sealed partial class RecreateGame : Game
         {
             throw new InvalidOperationException("Start or load a game before saving.");
         }
-        return world.WriteGameplaySave(path, validateContinuation, savedAtUtc, fieldAudio?.CapturePlaybackPositions());
+        return crossover is null ? world.WriteGameplaySave(path, validateContinuation, savedAtUtc, fieldAudio?.CapturePlaybackPositions()) : WriteCombinedPlayerSave(path, validateContinuation, savedAtUtc);
     }
 
     private void LoadPlayerSlot(int slot)
     {
+        Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
         StopAutoPlayForPlayerSession();
         RestorePlayerState(state);
+        RestoreCrossover(savedCrossover);
         saveNotice = null;
         saveNoticeSeconds = 0;
     }
@@ -1367,6 +1374,10 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        if (DrawCrossover(gameTime))
+        {
+            return;
+        }
         authoringHits.Clear();
         authoringDrawGroup = 0;
         uiCanvas?.BeginFrame(gameTime.TotalGameTime);
@@ -1603,6 +1614,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            ff7Scene?.Dispose();
 #if MEMORIA_NATIVE
             nativeBackBuffer?.Dispose();
 #endif

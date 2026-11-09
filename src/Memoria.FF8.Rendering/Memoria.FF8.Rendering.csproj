@@ -4,5 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
+    <ProjectReference Include="../Memoria.FF7.Formats/Memoria.FF7.Formats.csproj" />
+    <ProjectReference Include="../Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
   </ItemGroup>
 </Project>

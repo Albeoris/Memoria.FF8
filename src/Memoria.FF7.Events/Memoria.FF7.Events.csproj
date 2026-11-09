@@ -3,4 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Memoria.FF7.Events</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Memoria.FF7.Formats/Memoria.FF7.Formats.csproj" />
+  </ItemGroup>
 </Project>

@@ -4,6 +4,7 @@ namespace Memoria.FF8.Assets;
 public sealed record ModelCatalogEntry(string Id, string Name, string Category, string ResourcePath, string SearchText, int? FieldId = null, int ModelIndex = 0)
 {
     public string? LoadError { get; init; }
+    public string? ModelLibraryResource { get; init; }
 }
 
 /// <summary>Supplies optional models without introducing a mod dependency into resource consumers.</summary>

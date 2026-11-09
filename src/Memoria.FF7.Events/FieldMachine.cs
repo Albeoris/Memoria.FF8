@@ -1,17 +1,18 @@
 namespace Memoria.FF7.Events;
 
 /// <summary>A bounded FFVII field VM. The semantic profile is explicit and independent of FFVIII.</summary>
-public sealed class FieldMachine
+public sealed partial class FieldMachine
 {
     public const string SemanticProfile = "ff7-ps1-field-2.5-subset-v1";
     private readonly FieldProgram program;
     private readonly Entity[] entities;
 
     /// <summary>Initial entity PCs are explicit prior-state facts, needed only for preemption before an entity begins initialization.</summary>
-    public FieldMachine(FieldProgram program, FieldVariables? variables = null, IReadOnlyList<ushort>? initialEntityProgramCounters = null)
+    public FieldMachine(FieldProgram program, FieldVariables? variables = null, IReadOnlyList<ushort>? initialEntityProgramCounters = null, IFieldHost? host = null)
     {
         this.program = program ?? throw new ArgumentNullException(nameof(program));
         Variables = variables ?? new FieldVariables();
+        this.host = host;
         if (initialEntityProgramCounters is not null && (initialEntityProgramCounters.Count != program.EntityCount || initialEntityProgramCounters.Any(pc => pc >= program.Length)))
         {
             throw new ArgumentException("Initial FFVII entity PCs must match the entity count and refer inside the section.", nameof(initialEntityProgramCounters));
@@ -22,6 +23,51 @@ public sealed class FieldMachine
     public FieldVariables Variables { get; }
     public long Tick { get; private set; }
     public bool Initialized { get; private set; }
+    public FieldInputState Input { get; private set; } = new();
+
+    public void SetInput(ushort held, ushort pressed, ushort? rawHeld = null, ushort? rawPressed = null)
+    {
+        ushort raw = rawHeld ?? held;
+        Input = new FieldInputState(held, pressed, (ushort)(Input.Held & ~held), raw, rawPressed ?? pressed, (ushort)(Input.RawHeld & ~raw));
+    }
+
+    public void SetMovementInput(int horizontal, int vertical, bool run)
+    {
+        Input = Input with { Horizontal = Math.Sign(horizontal), Vertical = Math.Sign(vertical), Run = run };
+    }
+
+    /// <summary>Admits an external field trigger. Talk/push/line scripts use priority 1 and IDs 1/2/3–6.</summary>
+    public bool TryRequestScript(int entityId, int scriptId, int priority = 1)
+    {
+        if (!Initialized)
+        {
+            throw new InvalidOperationException("Field triggers require completed initialization.");
+        }
+        if ((uint)entityId >= entities.Length || scriptId is < 0 or > 31 || priority is < 0 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entityId), "Invalid FFVII field trigger target, script or priority.");
+        }
+        Entity target = entities[entityId];
+        if (target.Priority <= priority)
+        {
+            return false;
+        }
+        if (target.Sync[priority] != FieldSyncState.None)
+        {
+            return true;
+        }
+        int entry = program.Entry(entityId, scriptId);
+        if (program.Read(entry) == 0)
+        {
+            return true;
+        }
+        CancelPreemptedMove(entityId);
+        target.Saved[target.Priority] = target.Pc;
+        target.Pc = entry;
+        target.Priority = priority;
+        target.Wait = 0;
+        return true;
+    }
 
     /// <summary>Runs initialization to the first RET per entity. Yields do not advance logical time here.</summary>
     public void Initialize(int instructionLimit = 100000)
@@ -34,6 +80,8 @@ public sealed class FieldMachine
         {
             throw new ArgumentOutOfRangeException(nameof(instructionLimit));
         }
+        Variables.ClearMap();
+        Variables.WriteByte(FieldBank.Persistent0Byte, 31, (byte)(Variables.ReadByte(FieldBank.Persistent0Byte, 31) | 3));
         for (int id = 0; id < entities.Length; id++)
         {
             entities[id].Pc = program.Entry(id, 0);
@@ -88,10 +136,10 @@ public sealed class FieldMachine
         {
             ReadOpcode(id);
         }
-        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone())).ToArray());
+        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone(), entity.ModelBound)).ToArray(), nextRequestId, pendingRequests.Values.OrderBy(request => request.Id).ToArray(), Input);
     }
 
-    public static FieldMachine Restore(FieldProgram program, FieldVmSnapshot snapshot)
+    public static FieldMachine Restore(FieldProgram program, FieldVmSnapshot snapshot, IFieldHost? host = null)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -103,7 +151,7 @@ public sealed class FieldMachine
         {
             throw new InvalidDataException("Invalid FFVII snapshot state.");
         }
-        var machine = new FieldMachine(program, new FieldVariables(snapshot.PersistentVariables, snapshot.MapVariables));
+        var machine = new FieldMachine(program, new FieldVariables(snapshot.PersistentVariables, snapshot.MapVariables), host: host);
         for (int id = 0; id < machine.entities.Length; id++)
         {
             var source = snapshot.Entities[id];
@@ -122,6 +170,7 @@ public sealed class FieldMachine
                 }
             }
             var target = machine.entities[id];
+            target.ModelBound = source.ModelBound;
             target.Pc = source.ProgramCounter;
             target.Priority = source.Priority;
             target.Wait = source.WaitCounter;
@@ -129,8 +178,14 @@ public sealed class FieldMachine
             source.SyncStates.CopyTo(target.Sync, 0);
             source.SyncOwners.CopyTo(target.Owners, 0);
         }
+        machine.RestoreHostRequests(snapshot);
         machine.Tick = snapshot.Tick;
         machine.Initialized = snapshot.Initialized;
+        machine.Input = snapshot.Input ?? new FieldInputState();
+        if (machine.Input.Horizontal is < -1 or > 1 || machine.Input.Vertical is < -1 or > 1)
+        {
+            throw new InvalidDataException("FFVII saved movement input is invalid.");
+        }
         return machine;
     }
 
@@ -195,7 +250,7 @@ public sealed class FieldMachine
                     entity.Pc = unchecked((ushort)(entity.Pc + 5));
                     return false;
                 default:
-                    throw new NotSupportedException("Opcode is outside the proved command subset.");
+                    return ExecuteExtended(id, opcode);
             }
         }
         catch (Exception error) when (error is InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
@@ -256,6 +311,7 @@ public sealed class FieldMachine
             {
                 throw new NotSupportedException("Initialization request preempts an unvisited entity whose initial PC has not been supplied.");
             }
+            CancelPreemptedMove(targetId);
             target.Saved[target.Priority] = target.Pc;
             target.Pc = program.Entry(targetId, script);
             target.Priority = priority;
@@ -312,6 +368,7 @@ public sealed class FieldMachine
 
     private sealed class Entity
     {
+        public bool ModelBound;
         public int Pc;
         public int Priority = 7;
         public ushort Wait;

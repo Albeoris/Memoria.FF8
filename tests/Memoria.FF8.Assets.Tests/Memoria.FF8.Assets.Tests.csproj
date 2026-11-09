@@ -6,6 +6,9 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.cs" Link="Ff7ModelAppearance.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Retarget.cs" Link="Ff7ModelAppearance.Retarget.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Calibration.cs" Link="Ff7ModelAppearance.Calibration.cs" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />

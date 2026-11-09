@@ -1,0 +1,154 @@
+using System.Text.Json.Serialization;
+
+namespace Memoria.FF7.Events;
+
+public interface IFieldHost
+{
+    /// <summary>Idempotently starts or polls this request. Restore reattaches using the same ID.</summary>
+    FieldHostReply Execute(FieldHostRequest request);
+    /// <summary>Stops a scripted move interrupted by request preemption. Repeated cancellation is harmless.</summary>
+    void Cancel(FieldHostRequest request)
+    {
+        throw new NotSupportedException("The host cannot cancel this FFVII scripted move.");
+    }
+}
+
+public sealed record FieldHostRequest(long Id, int Entity, int Priority, int ProgramCounter, FieldCommand Command);
+public sealed record FieldHostReply(bool Completed, int Value = 0);
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "command")]
+[JsonDerivedType(typeof(FieldMovieCommand), "movie")]
+[JsonDerivedType(typeof(FieldActorBind), "bind")]
+[JsonDerivedType(typeof(FieldActorPlacement), "place")]
+[JsonDerivedType(typeof(FieldActorMove), "move")]
+[JsonDerivedType(typeof(FieldAnimation), "animation")]
+[JsonDerivedType(typeof(FieldActorProperty), "actor-property")]
+[JsonDerivedType(typeof(FieldWindowCommand), "window")]
+[JsonDerivedType(typeof(FieldDialogueCommand), "dialogue")]
+[JsonDerivedType(typeof(FieldTransitionCommand), "transition")]
+[JsonDerivedType(typeof(FieldBattleCommand), "battle")]
+[JsonDerivedType(typeof(FieldControlCommand), "control")]
+[JsonDerivedType(typeof(FieldBackgroundCommand), "background")]
+[JsonDerivedType(typeof(FieldAudioCommand), "audio")]
+[JsonDerivedType(typeof(FieldCameraCommand), "camera")]
+[JsonDerivedType(typeof(FieldPartyCommand), "party")]
+[JsonDerivedType(typeof(FieldFadeCommand), "fade")]
+[JsonDerivedType(typeof(FieldMusicCommand), "music")]
+[JsonDerivedType(typeof(FieldActorTurn), "turn")]
+[JsonDerivedType(typeof(FieldActorQuery), "actor-query")]
+[JsonDerivedType(typeof(FieldPartyProjection), "party-projection")]
+[JsonDerivedType(typeof(FieldPartyCharacter), "party-character")]
+public abstract record FieldCommand;
+
+public enum FieldMovieOperation
+{
+    Prepare,
+    Play,
+    ReadFrame,
+    SetBackground
+}
+public sealed record FieldMovieCommand(FieldMovieOperation Operation, int MovieId = 0) : FieldCommand;
+public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
+public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
+public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true) : FieldCommand;
+public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
+public enum FieldActorPropertyKind
+{
+    Visible,
+    Direction,
+    MoveSpeed,
+    AnimationSpeed,
+    TalkEnabled,
+    CollisionEnabled,
+    TalkRadius,
+    CollisionRadius,
+    PlayerCharacter,
+    AnimationWait,
+    StopAnimation,
+    PartyCharacter
+}
+public sealed record FieldActorProperty(FieldActorPropertyKind Property, int Value) : FieldCommand;
+public enum FieldWindowOperation
+{
+    Size,
+    Style,
+    Close,
+    CloseAndWait,
+    Move,
+    Rows,
+    Reset
+}
+public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0) : FieldCommand;
+public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;
+public sealed record FieldTransitionCommand(ushort Map, short X, short Y, ushort Triangle, byte Direction) : FieldCommand;
+public sealed record FieldBattleCommand(ushort Formation) : FieldCommand;
+public enum FieldControlKind
+{
+    PlayerLocked,
+    BattlesDisabled,
+    MapJumpDisabled,
+    MenuDisabled,
+    BattleMode,
+    BattleMode2,
+    BattleTable,
+    BattleResult,
+    CurrentMapName,
+    CursorDisabled,
+    MovieCameraDisabled,
+    MapDisplay
+}
+public sealed record FieldControlCommand(FieldControlKind Property, int Value, int Value2 = 0) : FieldCommand;
+public enum FieldBackgroundOperation
+{
+    On,
+    Off,
+    Clear,
+    Roll,
+    RollBack
+}
+public sealed record FieldBackgroundCommand(FieldBackgroundOperation Operation, int Parameter, int State) : FieldCommand;
+public sealed record FieldAudioCommand(int Operation, int Parameter0 = 0, int Parameter1 = 0, int Parameter2 = 0, int Parameter3 = 0, int Parameter4 = 0) : FieldCommand;
+
+
+
+public enum FieldCameraOperation
+{
+    Coordinates,
+    Entity,
+    Player,
+    ResetToPlayer,
+    Wait,
+    Lock
+}
+public sealed record FieldCameraCommand(FieldCameraOperation Operation, int Mode = 0, short X = 0, short Y = 0, short Steps = 0, int Entity = -1) : FieldCommand;
+public enum FieldPartyOperation
+{
+    Add,
+    Remove,
+    Replace,
+    Contains,
+    Available,
+    SetAvailable,
+    SetLocked
+}
+public sealed record FieldPartyCommand(FieldPartyOperation Operation, int Member0, int Member1 = 255, int Member2 = 255) : FieldCommand;
+public sealed record FieldFadeCommand(int Type, int Red = 0, int Green = 0, int Blue = 0, int Speed = 0, int Adjustment = 0, bool NewFade = false, bool Wait = false) : FieldCommand;
+public enum FieldMusicOperation
+{
+    Play,
+    NextField,
+    NextBattle,
+    SaveCurrentAndPlay,
+    SwapSaved,
+    Lock
+}
+public sealed record FieldMusicCommand(FieldMusicOperation Operation, int Track) : FieldCommand;
+public sealed record FieldActorTurn(short Direction, byte DirectionPolicy, byte Steps, byte Mode, bool SignedTarget = false) : FieldCommand;
+public enum FieldActorQueryKind
+{
+    Triangle,
+    Direction
+}
+public sealed record FieldActorQuery(FieldActorQueryKind Query, int Entity) : FieldCommand;
+public sealed record FieldPartyProjection(int Member0, int Member1, int Member2, ushort VisibilityOrMask = 0) : FieldCommand;
+public sealed record FieldPartyCharacter(int CharacterId, int PartySlot) : FieldCommand;

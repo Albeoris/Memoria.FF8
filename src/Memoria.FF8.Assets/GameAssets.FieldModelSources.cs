@@ -81,13 +81,44 @@ public sealed partial class GameAssets
             for (int index = 0; index < directory.Count; index++)
             {
                 string model = directory[index].Name;
-                yield return new($"field/{name}/{index}", $"{model} · {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index);
+                yield return new($"field/{name}/{index}", $"{model} · {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index)
+                {
+                    ModelLibraryResource = directory[index].Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
+                };
             }
         }
     }
 
+    /// <summary>Resolves one explicit native field/model address without traversing unrelated fields.</summary>
+    public ModelCatalogEntry GetFieldModelSource(string fieldName, int modelIndex)
+    {
+        int fieldId = Array.FindIndex(fieldNames, name => string.Equals(name, fieldName, StringComparison.Ordinal));
+        if (fieldId < 0 || modelIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fieldName), "An existing native field and nonnegative model index are required.");
+        }
+        string path = $"field/{fieldName}/chara.one";
+        ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey(path), 65536);
+        IReadOnlyList<NativeFieldOneModelEntry> directory = FieldModelReader.ReadDirectory(prefix.Bytes, prefix.Length ?? prefix.Bytes.Length);
+        if ((uint)modelIndex >= directory.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(modelIndex));
+        }
+        NativeFieldOneModelEntry entry = directory[modelIndex];
+        string model = entry.Name;
+        return new($"field/{fieldName}/{modelIndex}", $"{model} · {fieldName}/{modelIndex}", "Field", path, $"field {fieldId} {fieldName} {modelIndex} {model} {path}", fieldId, modelIndex)
+        {
+            ModelLibraryResource = entry.Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
+        };
+    }
     /// <summary>Decodes and registers one original field model without initializing its scene.</summary>
     public FieldModel LoadFieldModelSource(ModelCatalogEntry entry)
+    {
+        FieldModel model = ReadFieldModelCatalogSource(entry);
+        return RegisterFieldModelTextures(fieldNames[entry.FieldId!.Value], entry.ModelIndex, model);
+    }
+
+    private FieldModel ReadFieldModelCatalogSource(ModelCatalogEntry entry)
     {
         if (entry.Category != "Field" || entry.FieldId is not int fieldId || (uint)fieldId >= fieldNames.Length || entry.ResourcePath != $"field/{fieldNames[fieldId]}/chara.one" || entry.LoadError is not null)
         {
@@ -96,6 +127,6 @@ public sealed partial class GameAssets
         ResourceKey owner = new(entry.ResourcePath);
         byte[] one = resources.Read(owner);
         FieldModel model = resources.GetSource<IFieldModelSource>() is { } source ? source.ReadModel(owner, one, ReadMainCharacter, entry.ModelIndex) : FieldModelReader.ReadSingle(one, ReadMainCharacter, entry.ModelIndex);
-        return RegisterFieldModelTextures(fieldNames[fieldId], entry.ModelIndex, model);
+        return model;
     }
 }

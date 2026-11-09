@@ -1,0 +1,358 @@
+using System.Globalization;
+using System.Numerics;
+using Albeoris.Games.FF8.Imaging;
+using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
+
+namespace Memoria.FF8.Rendering;
+
+public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true);
+public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false);
+public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color);
+public sealed record Ff7AppearanceTriangle(Ff7WorldVertex A, Ff7WorldVertex B, Ff7WorldVertex C, TriangleMaterial Material);
+public interface IFf7ActorAppearance
+{
+    bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles);
+}
+
+/// <summary>Explicit selected PC projection contract. These values must come from the admitted resource/execution profile.</summary>
+public readonly record struct Ff7ProjectionDepth(float NearPlane, float FarPlane)
+{
+    public float Project(float cameraZ)
+    {
+        if (!float.IsFinite(NearPlane) || !float.IsFinite(FarPlane) || NearPlane <= 0 || FarPlane <= NearPlane)
+        {
+            throw new InvalidDataException("FF7 rendering requires a finite admitted near/far projection contract.");
+        }
+        return FarPlane / (FarPlane - NearPlane) - FarPlane * NearPlane / ((FarPlane - NearPlane) * cameraZ);
+    }
+}
+
+/// <summary>Native FF7 field resources submitted to the shared triangle backend. It never advances simulation or animation waits.</summary>
+public sealed class Ff7FieldRenderer
+{
+    private readonly Ff7FieldResources field;
+    private readonly IReadOnlyDictionary<int, Ff7FieldModelResources> models;
+    private readonly Ff7ProjectionDepth projection;
+    private readonly IFf7ActorAppearance? appearance;
+    private readonly Dictionary<PcFieldTile, PixelImage> tileImages = [];
+    private readonly Dictionary<PcTexture, PixelImage> modelImages = new(ReferenceEqualityComparer.Instance);
+
+    public Ff7FieldRenderer(Ff7FieldResources field, IReadOnlyDictionary<int, Ff7FieldModelResources> models, Ff7ProjectionDepth projection, IFf7ActorAppearance? appearance = null)
+    {
+        this.field = field ?? throw new ArgumentNullException(nameof(field));
+        this.models = models ?? throw new ArgumentNullException(nameof(models));
+        this.projection = projection;
+        this.appearance = appearance;
+        _ = projection.Project(projection.NearPlane);
+    }
+
+    public void Render(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(frame);
+        if (width < 1 || height < 1 || width > 8192 || height > 8192 || frame.BackgroundParameters.Count != 256 || (uint)frame.CameraIndex >= field.Cameras.Count)
+        {
+            throw new InvalidDataException("FF7 field render dimensions, camera or background parameter state is invalid.");
+        }
+        renderer.Begin(width, height, new Vector4(0, 0, 0, frame.MovieActive ? 0 : 1));
+        if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+        {
+            DrawBackground(renderer, width, height, frame, false);
+        }
+        ModelMaterialState modelState = new();
+        foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
+        {
+            DrawActor(renderer, width, height, frame, actor, modelState);
+        }
+        if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+        {
+            DrawBackground(renderer, width, height, frame, true);
+        }
+        renderer.End();
+    }
+
+    public Vector3 Project(Vector3 world, PcFieldCamera camera, Vector2 cameraOffsetPixels)
+    {
+        Vector3 view = new(Vector3.Dot(world, camera.AxisX) / 4096 + camera.Translation.X, Vector3.Dot(world, camera.AxisY) / 4096 + camera.Translation.Y, Vector3.Dot(world, camera.AxisZ) / 4096 + camera.Translation.Z);
+        return new Vector3(160 + cameraOffsetPixels.X + camera.FocalLength * view.X / view.Z, 120 + cameraOffsetPixels.Y + camera.FocalLength * view.Y / view.Z, view.Z);
+    }
+
+    public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex)
+    {
+        if (animation.RotationOrder != 0x020001 || animation.BoneCount != resources.Hierarchy.DeclaredBoneCount || (uint)frameIndex >= animation.Frames.Count)
+        {
+            throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, exact HRC binding and an original frame within the clip.");
+        }
+        PcFieldAnimationFrame frame = animation.Frames[frameIndex];
+        Matrix4x4 root = Rotate(frame.RootRotation) * Matrix4x4.CreateTranslation(frame.RootTranslation * new Vector3(1, -1, 1));
+        Matrix4x4[] transforms = new Matrix4x4[resources.Hierarchy.Bones.Count];
+        Dictionary<string, int> indices = resources.Hierarchy.Bones.ToDictionary(bone => bone.Name, bone => bone.Index, StringComparer.OrdinalIgnoreCase);
+        foreach (HrcBone bone in resources.Hierarchy.Bones)
+        {
+            Matrix4x4 parent = root;
+            if (!bone.ParentName.Equals("root", StringComparison.OrdinalIgnoreCase))
+            {
+                HrcBone parentBone = resources.Hierarchy.Bones[indices[bone.ParentName]];
+                parent = Matrix4x4.CreateTranslation(0, 0, -parentBone.Length) * transforms[parentBone.Index];
+            }
+            Vector3 rotation = resources.Hierarchy.IsRootOnly ? Vector3.Zero : frame.BoneRotations[bone.Index];
+            transforms[bone.Index] = Rotate(rotation) * parent;
+        }
+        return Array.AsReadOnly(transforms);
+    }
+
+    private void DrawBackground(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, bool blended)
+    {
+        foreach (PcFieldTile tile in field.Background.Layers.SelectMany(layer => layer))
+        {
+            if ((tile.Blending != 0) != blended || tile.Layer > 0 && tile.State != 0 && (frame.BackgroundParameters[tile.Parameter] & tile.State) == 0)
+            {
+                continue;
+            }
+            if (!tileImages.TryGetValue(tile, out PixelImage? image))
+            {
+                image = DecodeTile(field.Background, field.Palettes, tile);
+                tileImages.Add(tile, image);
+            }
+            float z = tile.Layer == 0 ? 0.9997f : tile.Z / 10000000f;
+            if (!float.IsFinite(z) || z < 0 || z > 1)
+            {
+                throw new InvalidDataException($"FF7 tile {tile.Layer}/{tile.Index} has invalid persisted normalized depth.");
+            }
+            TriangleBlend blend = blended ? tile.BlendMode switch
+            {
+                0 => TriangleBlend.HalfAdd,
+                1 => TriangleBlend.Add,
+                2 => TriangleBlend.Subtract,
+                3 => TriangleBlend.QuarterAdd,
+                _ => throw new NotSupportedException($"FF7 tile blend {tile.BlendMode} is unsupported.")
+            } : TriangleBlend.Replace;
+            TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false };
+            Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
+            Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, material);
+        }
+    }
+
+    private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, ModelMaterialState currentState)
+    {
+        if ((uint)actor.ModelIndex >= field.Models.Models.Count || !models.TryGetValue(actor.ModelIndex, out Ff7FieldModelResources? resources))
+        {
+            throw new NotSupportedException($"FF7 entity {actor.EntityId} has no decoded model descriptor {actor.ModelIndex}.");
+        }
+        PcFieldModelDescriptor descriptor = field.Models.Models[actor.ModelIndex];
+        if ((uint)actor.AnimationIndex >= descriptor.Animations.Count || actor.AnimationFrame16 < 0)
+        {
+            throw new InvalidDataException($"FF7 entity {actor.EntityId} has invalid animation state.");
+        }
+        string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
+        if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
+        {
+            foreach (Ff7AppearanceTriangle triangle in replacement)
+            {
+                TriangleVertex Vertex(Ff7WorldVertex vertex)
+                {
+                    Vector3 point = Project(vertex.Position, frame.CameraOverride ?? field.Cameras[frame.CameraIndex], frame.CameraOffsetPixels);
+                    return new(new Vector2(point.X * width / 320f, point.Y * height / 240f), projection.Project(point.Z), 1 / point.Z, vertex.Uv, vertex.Color);
+                }
+                TriangleVertex a = Vertex(triangle.A);
+                TriangleVertex b = Vertex(triangle.B);
+                TriangleVertex c = Vertex(triangle.C);
+                if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
+                {
+                    renderer.Draw(a, b, c, triangle.Material);
+                }
+            }
+            return;
+        }
+        PcFieldAnimation animation = resources.Animations[animationName];
+        int animationFrame = actor.AnimationFrame16 >> 4;
+        IReadOnlyList<Matrix4x4> bones = Pose(resources, animation, animationFrame);
+        float scale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 128;
+        Matrix4x4 actorTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        PcFieldCamera camera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
+        foreach (Ff7BoneGeometry part in resources.Geometry)
+        {
+            PcPolygonModel model = part.Polygon;
+            Matrix4x4 transform = bones[part.BoneIndex] * actorTransform;
+            for (int groupIndex = 0; groupIndex < model.Groups.Count; groupIndex++)
+            {
+                PcModelGroup group = model.Groups[groupIndex];
+                if (model.RenderStates.Count != model.Groups.Count)
+                {
+                    throw new NotSupportedException("FF7 P groups require their corresponding original render-state records.");
+                }
+                PcRenderState state = PcRenderState.Read(model.RenderStates[groupIndex].Span);
+                PixelImage? texture = null;
+                if (group.TexturesUsed != 0)
+                {
+                    if ((uint)group.TextureNumber >= part.Textures.Count)
+                    {
+                        throw new InvalidDataException("FF7 model group references an absent texture.");
+                    }
+                    PcTexture tex = part.Textures[group.TextureNumber];
+                    if (!modelImages.TryGetValue(tex, out texture))
+                    {
+                        texture = DecodeTexture(tex);
+                        modelImages.Add(tex, texture);
+                    }
+                }
+                const uint supportedStateMask = 0x2 | 0x4 | 0x8 | 0x100 | 0x200 | 0x400 | 0x800 | 0x2000 | 0x4000 | 0x8000 | 0x10000 | 0x20000;
+                if ((state.Features & ~supportedStateMask) != 0)
+                {
+                    throw new NotSupportedException($"FF7 P state update mask {state.Features:X8} contains unsupported required features {state.Features & ~supportedStateMask:X8}.");
+                }
+                bool Updated(uint flag) => (state.Features & flag) != 0;
+                bool Enabled(uint flag) => (state.Options & flag) != 0;
+                if (Updated(0x400))
+                {
+                    currentState.Blend = !Enabled(0x400) ? TriangleBlend.Replace : state.BlendMode switch
+                    {
+                        0 => TriangleBlend.HalfAdd,
+                        1 => TriangleBlend.Add,
+                        2 => TriangleBlend.Subtract,
+                        3 => TriangleBlend.QuarterAdd,
+                        4 => TriangleBlend.Replace,
+                        _ => throw new NotSupportedException($"FF7 P blend mode {state.BlendMode} is unsupported.")
+                    };
+                }
+                if (Updated(0x8000))
+                {
+                    currentState.DepthTest = Enabled(0x8000);
+                }
+                if (Updated(0x10000))
+                {
+                    currentState.DepthWrite = Enabled(0x10000);
+                }
+                if (Updated(0x800))
+                {
+                    currentState.AlphaReference = Enabled(0x800) ? state.AlphaReference / 255f : 1f / 255;
+                }
+                if (Updated(0x4))
+                {
+                    currentState.Sampler = Enabled(0x4) ? TriangleSampler.LinearWrap : TriangleSampler.PointWrap;
+                }
+                if (Updated(0x2000))
+                {
+                    currentState.Cull = Enabled(0x2000);
+                }
+                if (Updated(0x4000) && Enabled(0x4000))
+                {
+                    currentState.Cull = false;
+                }
+                if (Updated(0x20000))
+                {
+                    currentState.Gouraud = Enabled(0x20000) && state.ShadeMode > 0;
+                }
+                TriangleMaterial material = new(texture, currentState.Blend, currentState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, currentState.DepthWrite, currentState.AlphaReference, currentState.Sampler) { PreserveTargetAlpha = false };
+                for (int index = group.PolygonStart; index < group.PolygonStart + group.PolygonCount; index++)
+                {
+                    PcModelPolygon polygon = model.Polygons[index];
+                    TriangleVertex Vertex(int local)
+                    {
+                        int vertex = group.VertexStart + local;
+                        Vector3 position = Project(Vector3.Transform(model.Vertices[vertex], transform), camera, frame.CameraOffsetPixels);
+                        Vector2 uv = texture is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
+                        Vector4 color = vertex < model.VertexColors.Count ? Color(model.VertexColors[vertex]) : Vector4.One;
+                        color.W *= state.VertexAlpha / 255f;
+                        return new(new Vector2(position.X * width / 320f, position.Y * height / 240f), projection.Project(position.Z), 1 / position.Z, uv, color);
+                    }
+                    TriangleVertex a = Vertex(polygon.A);
+                    TriangleVertex b = Vertex(polygon.B);
+                    TriangleVertex c = Vertex(polygon.C);
+                    if (!currentState.Gouraud)
+                    {
+                        b = b with { Color = a.Color };
+                        c = c with { Color = a.Color };
+                    }
+                    if (currentState.Cull && Cross(b.Position - a.Position, c.Position - a.Position) >= 0)
+                    {
+                        continue;
+                    }
+                    if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
+                    {
+                        renderer.Draw(a, b, c, material);
+                    }
+                }
+            }
+        }
+    }
+
+    public static PixelImage DecodeTile(PcFieldBackground background, PcFieldPalettes palettes, PcFieldTile tile)
+    {
+        PcFieldTexturePage page = background.Textures.Single(texture => texture.Id == tile.EffectiveTextureId);
+        int size = tile.PixelSize;
+        if (tile.EffectiveSourceX < 0 || tile.EffectiveSourceY < 0 || tile.EffectiveSourceX > 256 - size || tile.EffectiveSourceY > 256 - size)
+        {
+            throw new NotSupportedException($"FF7 tile {tile.Layer}/{tile.Index}: shape {tile.Width}x{tile.Height}, source {tile.EffectiveSourceX},{tile.EffectiveSourceY}, texture {tile.EffectiveTextureId} has an unsupported extent.");
+        }
+        PixelImage image = new(size, size);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int index = page.GetIndex(tile.EffectiveSourceX + x, tile.EffectiveSourceY + y);
+                ushort color = page.Depth == 2 ? checked((ushort)index) : palettes.Palettes[tile.PaletteId][index];
+                bool transparent = page.Depth == 2 ? color == 0 : index == 0 && background.PaletteZeroTransparent[tile.PaletteId] != 0;
+                image[x, y] = new Rgba32(Expand(color & 31), Expand((color >> 5) & 31), Expand((color >> 10) & 31), transparent ? (byte)0 : (byte)255);
+            }
+        }
+        return image;
+    }
+
+    public static PixelImage DecodeTexture(PcTexture texture)
+    {
+        if (texture.RenderInfo.UsePaletteColorKey != 0)
+        {
+            throw new NotSupportedException("FF7 TEX per-palette color keys require their original selected-palette contract.");
+        }
+        if (texture.BytesPerPixel is not (1 or 4) || texture.BytesPerPixel == 1 && texture.Palettes.Count == 0)
+        {
+            throw new NotSupportedException("FF7 model texture requires the admitted indexed8 or BGRA32 profile.");
+        }
+        int palette = checked((int)texture.RenderInfo.PaletteIndex);
+        if (texture.BytesPerPixel == 1 && (texture.RenderInfo.UsePalette == 0 || texture.RenderInfo.BitsPerIndex != 8 || (uint)palette >= texture.Palettes.Count))
+        {
+            throw new NotSupportedException("FF7 indexed texture has an unsupported selected-palette or index-width contract.");
+        }
+        PixelImage image = new(texture.Width, texture.Height);
+        ReadOnlySpan<byte> bytes = texture.Pixels.Span;
+        for (int i = 0; i < image.Pixels.Length; i++)
+        {
+            uint color = texture.BytesPerPixel == 1 ? texture.Palettes[palette][bytes[i]] : System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes[(i * 4)..]);
+            image.Pixels[i] = new Rgba32((byte)(color >> 16), (byte)(color >> 8), (byte)color, (byte)(color >> 24));
+        }
+        return image;
+    }
+
+    private static Matrix4x4 Rotate(Vector3 degrees)
+    {
+        Vector3 radians = degrees * (MathF.PI / 180);
+        return Matrix4x4.CreateRotationZ(radians.Z) * Matrix4x4.CreateRotationX(radians.X) * Matrix4x4.CreateRotationY(radians.Y);
+    }
+
+    private static Vector4 Color(uint argb) => new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f);
+    private static float Cross(Vector2 first, Vector2 second) => first.X * second.Y - first.Y * second.X;
+    private static byte Expand(int channel) => (byte)((channel << 3) | (channel >> 2));
+
+    private sealed class ModelMaterialState
+    {
+        public TriangleBlend Blend = TriangleBlend.Replace;
+        public bool DepthTest = true;
+        public bool DepthWrite = true;
+        public bool Cull;
+        public bool Gouraud = true;
+        public float AlphaReference = 1f / 255;
+        public TriangleSampler Sampler = TriangleSampler.PointWrap;
+    }
+
+    private static void Quad(ITriangleRenderer renderer, Vector2 origin, Vector2 size, float depth, TriangleMaterial material)
+    {
+        TriangleVertex a = new(origin, depth, 1, Vector2.Zero, Vector4.One);
+        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, Vector2.UnitX, Vector4.One);
+        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, Vector2.UnitY, Vector4.One);
+        TriangleVertex d = new(origin + size, depth, 1, Vector2.One, Vector4.One);
+        renderer.Draw(a, b, c, material);
+        renderer.Draw(b, d, c, material);
+    }
+}

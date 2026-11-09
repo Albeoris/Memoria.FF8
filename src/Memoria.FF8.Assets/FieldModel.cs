@@ -59,6 +59,19 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         return TransformVertices(transforms, skinTranslations);
     }
 
+    /// <summary>Native global bone transforms for a presentation adapter. This does not mutate animation state.</summary>
+    public IReadOnlyList<Matrix4x4> ReadBoneTransforms(int animationId, float frameNumber) => Array.AsReadOnly(BuildTransforms(animationId, frameNumber, null, 0));
+
+    /// <summary>Poses original rigid vertices with adapter-supplied global transforms while retaining native skin ownership.</summary>
+    public Vector3[] PoseWithBoneTransforms(IReadOnlyList<Matrix4x4> transforms)
+    {
+        if (transforms.Count != Bones.Count)
+        {
+            throw new InvalidDataException("Presentation bone transforms must retain the complete original indexed rig.");
+        }
+        return TransformVertices(transforms.ToArray(), null);
+    }
+
     /// <summary>Blends two committed animation samples for presentation without advancing animation state.</summary>
     /// <remarks>Supply unwrapped phases across a loop boundary. The terminal frame is exclusive.</remarks>
     public Vector3[] PoseInterpolated(int animationId, float previousFrameNumber, float currentFrameNumber, float blend, Vector3? firstControlRotation = null, float rootTranslationZ = 0, IReadOnlyDictionary<int, Vector3>? skinTranslations = null, int firstFrame = 0, int? terminalFrame = null, bool loop = false)

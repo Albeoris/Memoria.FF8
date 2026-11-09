@@ -39,6 +39,7 @@ public sealed class FieldVariables
 
     public byte[] CopyPersistent() => (byte[])persistent.Clone();
     public byte[] CopyMap() => (byte[])map.Clone();
+    internal void ClearMap() => Array.Clear(map);
 
     public byte ReadByte(FieldBank bank, byte address)
     {

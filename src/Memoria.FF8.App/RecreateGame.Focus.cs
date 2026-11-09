@@ -68,7 +68,7 @@ internal sealed partial class RecreateGame
         presentationTiming.DiscardPendingTime();
         presentationPacer.Reset();
         ResetElapsedTime();
-        fieldAudio?.SetFocusPaused(pause);
+        fieldAudio?.SetFocusPaused(pause || InFf7);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
         if (!pause)

@@ -18,7 +18,7 @@ internal sealed partial class RecreateGame
         return DispatchControl(request);
     }
 
-    private SaveBoundaryState ReadSaveBoundaryState()
+    private SaveBoundaryState ReadSaveBoundaryState(bool ignoreInterface = false)
     {
         SaveBoundaryState state = new()
         {
@@ -26,7 +26,7 @@ internal sealed partial class RecreateGame
             Scene = session.State.Scene,
             StartupActive = startup.Active,
             WorldLoaded = world is not null,
-            InterfaceOpen = gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || modelBrowser is not null || capturingControls || drainUiButtons,
+            InterfaceOpen = !ignoreInterface && (gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || modelBrowser is not null || capturingControls || drainUiButtons),
             AutomaticPlayActive = autoPlay?.Running == true || autoPlayFailureHeld,
             BattleOrCardPending = ActiveBattle is not null || battleEntryTransition is not null || battleDebug is not null || world?.HasPendingBattle == true || world?.ActiveTripleTriad is not null,
             InteractionPending = world?.PendingEntityName is not null || world?.CurrentDialogue is not null || world?.Tutorial is not null

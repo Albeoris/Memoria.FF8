@@ -20,6 +20,18 @@ public sealed class ModelReaderTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("# original hierarchy comment\n")]
+    public void HrcPreservesZeroBoneRootAttachmentAndIgnoresComments(string comment)
+    {
+        byte[] source = Encoding.ASCII.GetBytes($":HEADER_BLOCK 2\n:SKELETON root_attachment\n:BONES 0\n{comment}mesh\nroot\n0\n1 AAAA\n");
+        HrcHierarchy hierarchy = HrcHierarchy.Read(source);
+        Assert.Equal(0, hierarchy.DeclaredBoneCount);
+        Assert.True(hierarchy.IsRootOnly);
+        Assert.Equal("mesh", Assert.Single(hierarchy.Bones).Name);
+    }
+
+    [Theory]
     [InlineData("root", "1", "0")]
     [InlineData("missing", "1", "0")]
     [InlineData("root", "NaN", "0")]

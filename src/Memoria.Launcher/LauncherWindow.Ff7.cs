@@ -52,7 +52,7 @@ internal sealed partial class LauncherWindow
             Ff7Installation installation = Ff7Installation.Discover(selectedFf7GameDirectory);
             ff7Status.Text = $"Resource layout found: {installation.Layout}. Gameplay remains unavailable; this does not certify release or save compatibility.";
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
         {
             ff7Status.Text = "Configured resources are unavailable: " + exception.Message;
         }

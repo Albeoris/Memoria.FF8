@@ -7,13 +7,16 @@ public sealed record HrcBone(int Index, string Name, string ParentName, float Le
 
 public sealed class HrcHierarchy
 {
-    private HrcHierarchy(string name, HrcBone[] bones)
+    private HrcHierarchy(string name, int declaredBoneCount, HrcBone[] bones)
     {
         Name = name;
+        DeclaredBoneCount = declaredBoneCount;
         Bones = Array.AsReadOnly(bones);
     }
 
     public string Name { get; }
+    public int DeclaredBoneCount { get; }
+    public bool IsRootOnly => DeclaredBoneCount == 0;
     public IReadOnlyList<HrcBone> Bones { get; }
 
     public static HrcHierarchy Read(ReadOnlySpan<byte> source, int maximumBones = 4096, int maximumBytes = 1024 * 1024)
@@ -24,12 +27,17 @@ public sealed class HrcHierarchy
         {
             throw new InvalidDataException("HRC text exceeds its limit or contains non-ASCII bytes.");
         }
-        string[] lines = Encoding.ASCII.GetString(source).Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] lines = Encoding.ASCII.GetString(source).Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Where(line => !line.StartsWith('#')).ToArray();
         if (lines.Length < 3 || lines[0] != ":HEADER_BLOCK 2" || !lines[1].StartsWith(":SKELETON ", StringComparison.Ordinal) || !lines[2].StartsWith(":BONES ", StringComparison.Ordinal))
         {
             throw new InvalidDataException("Unsupported HRC header directives.");
         }
-        if (!int.TryParse(lines[2].AsSpan(7), NumberStyles.None, CultureInfo.InvariantCulture, out int count) || count < 0 || count > maximumBones || lines.Length != 3L + 4L * count)
+        if (!int.TryParse(lines[2].AsSpan(7), NumberStyles.None, CultureInfo.InvariantCulture, out int declaredCount) || declaredCount < 0 || declaredCount > maximumBones)
+        {
+            throw new InvalidDataException("HRC declared bone count exceeds its limit.");
+        }
+        int count = declaredCount == 0 ? 1 : declaredCount;
+        if (lines.Length != 3L + 4L * count)
         {
             throw new InvalidDataException("HRC bone count exceeds its limit or does not match its records.");
         }
@@ -55,6 +63,6 @@ public sealed class HrcHierarchy
             }
             bones[i] = new HrcBone(i, name, parent, length, Array.AsReadOnly(descriptors[1..]));
         }
-        return new HrcHierarchy(lines[1][10..], bones);
+        return new HrcHierarchy(lines[1][10..], declaredCount, bones);
     }
 }

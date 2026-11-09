@@ -66,6 +66,10 @@ internal static partial class PlayerStateLoader
     private static GameplaySaveComponentDocument? ReadGameplayDocument(string path)
     {
         using FileStream source = File.OpenRead(path);
+        if (Memoria.FF7.Runtime.CombinedSessionCodec.HasSignature(source))
+        {
+            return CrossoverSaveAdapter.ReadFf8(Memoria.FF7.Runtime.CombinedSessionCodec.Read(source));
+        }
         return GameplaySaveCodec.HasSignature(source) ? GameplaySaveCodec.Read(source) : null;
     }
 

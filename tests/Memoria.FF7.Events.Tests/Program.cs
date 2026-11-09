@@ -1,6 +1,11 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--audit-installed", StringComparer.Ordinal))
+{
+    return InstalledAudit.Run();
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
@@ -26,7 +31,15 @@ var tests = new (string Name, Action Run)[]
     ("initialization request preserves slots but resets script0 PC", InitRequestReset),
     ("initialization request requires unvisited entity PC facts", InitRequestUnknownPc),
     ("initialization RET continuation is restorable", InitReturnBoundary),
-    ("yielded continuation must remain inside section", YieldedContinuationBoundary)
+    ("yielded continuation must remain inside section", YieldedContinuationBoundary),
+    ("conditional comparisons and widths", ExtendedTests.Comparisons),
+    ("typed host requests survive JSON continuation", ExtendedTests.HostSnapshot),
+    ("typed host operand decode and choice result", ExtendedTests.HostOperands),
+    ("field initialization bank locks and bit operations", ExtendedTests.FieldResetAndBits),
+    ("request preemption cancels pending movement", ExtendedTests.CancelMove),
+    ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
+    ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
+    ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget)
 };
 int failed = 0;
 foreach (var test in tests)

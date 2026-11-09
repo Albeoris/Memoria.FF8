@@ -16,6 +16,10 @@ public sealed record LaunchOptions
     }
     /// <summary>Optional independent FF7 resource root. This does not select FF7 gameplay or the FF8 resource source.</summary>
     public string? Ff7GameDirectory { get; init; } = ConfiguredFf7GameDirectory;
+    public bool Ff7Debug { get; init; }
+    public bool Ff7StartNewGame { get; init; }
+    public string? CrossoverStatePath { get; init; }
+    public string CrossoverSavePath { get; init; } = Path.Combine(ApplicationPaths.Current.Saves, "crossover.ffsave");
     public string? ResourceLanguage { get; init; }
     public string? ModelSourceDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODEL_SOURCE_DIR");
     public string? ModsDirectory { get; init; }
@@ -82,6 +86,10 @@ public sealed record LaunchOptions
             {
                 "--game-dir" => options with { GameDirectory = Path.GetFullPath(Value()) },
                 "--ff7-game-dir" => options with { Ff7GameDirectory = Path.GetFullPath(Value()) },
+                "--ff7-debug" => options with { Ff7Debug = true },
+                "--ff7-new-game" => options with { Ff7Debug = true, Ff7StartNewGame = true },
+                "--crossover-state" => options with { CrossoverStatePath = Path.GetFullPath(Value()) },
+                "--crossover-save" => options with { CrossoverSavePath = Path.GetFullPath(Value()) },
                 "--resource-language" => options with { ResourceLanguage = GameResourceLanguages.Normalize(Value()) },
                 "--model-source-dir" => options with { ModelSourceDirectory = Path.GetFullPath(Value()) },
                 "--achievements-local-only" => options with { AchievementsLocalOnly = true },

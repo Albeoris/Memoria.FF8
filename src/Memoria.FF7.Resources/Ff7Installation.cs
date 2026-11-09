@@ -20,7 +20,9 @@ public enum Ff7ResourceRole
     SoundData,
     SoundIndex,
     Movies,
-    Music
+    Music,
+    MovieCameraArchive,
+    Window
 }
 
 public sealed record Ff7ResourceLocation(Ff7ResourceRole Role, string Path);
@@ -75,9 +77,11 @@ public sealed class Ff7Installation
         AddFile(Ff7ResourceRole.MagicArchive, "battle", "magic.lgp");
         AddFile(Ff7ResourceRole.WorldArchive, "wm", world);
         AddFile(Ff7ResourceRole.MenuArchive, "menu", menu);
+        AddFile(Ff7ResourceRole.MovieCameraArchive, "cd", "moviecam.lgp");
         string localized = Path.Combine(data, $"lang-{language.ToLowerInvariant()}");
         AddLocalized(Ff7ResourceRole.Kernel, "kernel", "kernel.bin");
         AddLocalized(Ff7ResourceRole.Kernel2, "kernel", "kernel2.bin");
+        AddLocalized(Ff7ResourceRole.Window, "kernel", "window.bin");
         AddLocalized(Ff7ResourceRole.BattleScenes, "battle", "scene.bin");
         AddFile(Ff7ResourceRole.SoundData, "sound", "audio.dat");
         AddFile(Ff7ResourceRole.SoundIndex, "sound", "audio.fmt");
