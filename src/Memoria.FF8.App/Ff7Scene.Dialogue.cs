@@ -11,6 +11,15 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
+    private Func<ushort, string>? buttonPrompts;
+
+    public void ConfigureButtonPrompts(Func<ushort, string> prompts)
+    {
+        buttonPrompts = prompts ?? throw new ArgumentNullException(nameof(prompts));
+    }
+
+    private string ButtonLabel(FieldTextToken token) => Ff7DialogueButtons.Label(token.Code, buttonPrompts ?? throw new InvalidOperationException("FFVII button prompts require the shared input profile."));
+
     private SystemTextRenderer? ownedDialogueText;
     private MonoGameUiCanvas? ownedDialogueCanvas;
     private readonly Dictionary<(long Generation, long Request), (int NativePage, string Key, IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager)> commonDialoguePages = [];
@@ -78,7 +87,7 @@ internal sealed partial class Ff7Scene
         {
             if (value.Length > 0)
             {
-                if (runs.LastOrDefault() is DialogueRun previous && previous.Color == color)
+                if (runs.LastOrDefault() is DialogueRun previous && previous.Color == color && !previous.IsButton)
                 {
                     runs[^1] = previous with { Text = previous.Text + value };
                 }
@@ -109,6 +118,9 @@ internal sealed partial class Ff7Scene
                 case FieldTextTokenKind.NewLine:
                     lines.Add(new DialogueLine(runs.ToArray(), row++));
                     runs.Clear();
+                    break;
+                case FieldTextTokenKind.ControllerButton:
+                    runs.Add(new DialogueRun(ButtonLabel(token), color, IsButton: true));
                     break;
                 case FieldTextTokenKind.CharacterName:
                     Add(Session!.Progress.Characters[token.Argument].Name);
@@ -188,7 +200,15 @@ internal sealed partial class Ff7Scene
             }
             foreach (DialoguePlacedRun run in line.Runs)
             {
-                dialogueText!.DrawLine(batch, run.Run.Text, preferences.DialogueFontSize * scale, origin + new Vector2(run.X * scale, 0), run.Run.Color, preferences.DialogueFontFamily);
+                Vector2 position = origin + new Vector2(run.X * scale, 0);
+                if (run.Run.IsButton)
+                {
+                    ButtonPrompt.Draw(batch, pixel, dialogueText!, run.Run.Text, preferences.DialogueFontSize * scale, position, lineHeight, 1, preferences.DialogueFontFamily, bounds, dialogueCanvas);
+                }
+                else
+                {
+                    dialogueText!.DrawLine(batch, run.Run.Text, preferences.DialogueFontSize * scale, position, run.Run.Color, preferences.DialogueFontFamily);
+                }
             }
             origin.Y += lineHeight;
         }

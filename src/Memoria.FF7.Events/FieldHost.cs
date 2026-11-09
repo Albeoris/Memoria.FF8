@@ -34,6 +34,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldMenuCommand), "menu")]
 [JsonDerivedType(typeof(FieldPreloadCommand), "preload")]
 [JsonDerivedType(typeof(FieldRandomCommand), "random")]
+[JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
 [JsonDerivedType(typeof(FieldTriangleCommand), "triangle")]
 [JsonDerivedType(typeof(FieldLineCommand), "line")]
 [JsonDerivedType(typeof(FieldAudioCommand), "audio")]
@@ -133,7 +134,8 @@ public enum FieldCameraOperation
     Player,
     ResetToPlayer,
     Wait,
-    Lock
+    Lock,
+    ViewOffset
 }
 public sealed record FieldCameraCommand(FieldCameraOperation Operation, int Mode = 0, short X = 0, short Y = 0, short Steps = 0, int Entity = -1) : FieldCommand;
 public enum FieldPartyOperation
@@ -212,3 +214,5 @@ public sealed record FieldActorFace(int TargetEntity, byte Steps, byte Direction
 public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle, byte Mode, byte Animation, byte Direction, byte AnimationDivisor) : FieldCommand;
 
 public sealed record FieldActorJump(short X, short Y, short Triangle, short Duration) : FieldCommand;
+
+public sealed record FieldMateriaCommand(uint Encoded) : FieldCommand;

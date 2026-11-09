@@ -375,8 +375,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        long started = Stopwatch.GetTimestamp();
-        for (int step = 0; step < stepBudget && Running && !Paused; step++)
+        Memoria.AutoPlay.AutoPlayScheduler.Advance(stepBudget, () => Running && !Paused, () =>
         {
             try
             {
@@ -447,11 +446,7 @@ internal sealed partial class AutoPlayController
                 }
                 watchedWorlds.Clear();
             }
-            if (Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(12))
-            {
-                break;
-            }
-        }
+        });
     }
 
     internal static int ProgressScore(AutoPlayRunState state)

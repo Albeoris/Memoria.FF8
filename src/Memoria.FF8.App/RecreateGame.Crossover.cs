@@ -120,6 +120,9 @@ internal sealed partial class RecreateGame
                 uiPreferences = preferences;
                 gameMenus?.InvalidateLiveData();
             });
+            scene.ConfigureSharedControls(keyboard, gameplayClock);
+            scene.InterpolatePresentation = !options.ControlStep;
+            scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay", "ff7", "current.ffsave"));
             scene.Continue(state);
             scene.SuppressInitialPresses(physicalInput.ReadKeyboard());
             scene.SaveRequested += SaveCrossoverFromFf7;
@@ -262,10 +265,13 @@ internal sealed partial class RecreateGame
         }
         if (!options.ControlStep)
         {
-            ff7Scene!.Update(time, physicalInput.ReadKeyboard());
+            GamePadState pad = physicalInput.ReadController();
+            keyboard.ControllerPresentation = controller!.Presentation;
+            keyboard.ControllerGeneration = controller.Generation;
+            ff7Scene!.Update(time, physicalInput.ReadKeyboard(), pad);
         }
         UpdateDiagnosticExit(time);
-        presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+        presentationPacer.WaitForNextFrame(ff7Scene!.PresentationFrameLimit);
         return true;
     }
 

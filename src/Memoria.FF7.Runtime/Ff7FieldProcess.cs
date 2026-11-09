@@ -58,6 +58,8 @@ public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Compl
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
 public sealed record Ff7CameraScroll(int Mode, int StartX, int StartY, int TargetX, int TargetY, int Steps, int Step = 0, bool Completed = false);
+public sealed record Ff7CameraViewOffset(byte Mode, byte Steps, short Start, short Target, byte Step = 0);
+public sealed record Ff7CameraTracking(int Mode, int Slot, int Steps, int StartX, int StartY, int Step = 0, bool Completed = false);
 public sealed record Ff7PartyJoin(long RequestId, int LeaderEntity, Ff7JoinFollower[] Followers, bool Split = false);
 public sealed record Ff7JoinFollower(int Entity, int Stage = 0, int PreviousSpeed = 0, short TargetX = 0, short TargetY = 0, bool Arrived = false);
 
@@ -86,6 +88,7 @@ public sealed record Ff7FieldProcess
     public ushort[] BackgroundStates { get; init; } = new ushort[256];
     public ushort[] PaletteBuffer { get; init; } = new ushort[1024];
     public ushort[][] PaletteRows { get; init; } = [];
+    public bool PaletteRowsUseCachedIndices { get; init; }
     public long PaletteVersion { get; init; }
     public byte[] BlockedTriangles { get; init; } = [];
     public Ff7Menu? Menu { get; init; }
@@ -114,6 +117,10 @@ public sealed record Ff7FieldProcess
     public int BattleResult { get; init; }
     public int CameraX { get; init; }
     public int CameraY { get; init; }
+    public short? CameraFocusOffset { get; init; }
+    public Ff7CameraViewOffset? CameraViewOffset { get; init; }
+    public Ff7CameraTracking? CameraTracking { get; init; }
+    public bool? CameraFollowPlayer { get; init; }
     public int CameraEntity { get; init; } = -1;
     public Ff7CameraScroll? CameraScroll { get; init; }
     public bool CameraLocked { get; init; }
@@ -140,6 +147,10 @@ public sealed record Ff7FieldProcess
         if (Actors.Any(actor => actor is null || actor.Slot < 0 || actor.Entity < 0 || actor.Model < 0 || actor.Direction is < 0 or > 255 || actor.Animation < 0 || actor.AnimationFrame16 < 0) || Actors.Where(actor => actor.EntityBound).Select(actor => actor.Entity).Distinct().Count() != Actors.Count(actor => actor.EntityBound) || Actors.Select(actor => actor.Slot).Distinct().Count() != Actors.Length)
         {
             throw new InvalidDataException("FFVII field actor ownership is invalid.");
+        }
+        if (CameraTracking is Ff7CameraTracking tracking && (tracking.Mode is < 1 or > 3 || tracking.Slot < 0 || !Actors.Any(actor => actor.Slot == tracking.Slot) || tracking.Steps is < 0 or > short.MaxValue || tracking.Step < 0 || tracking.Step > tracking.Steps))
+        {
+            throw new InvalidDataException("FFVII camera tracking has invalid native target ownership or timing.");
         }
         foreach (Ff7Actor actor in Actors)
         {

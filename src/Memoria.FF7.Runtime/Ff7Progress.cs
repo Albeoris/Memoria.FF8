@@ -44,7 +44,7 @@ public sealed record Ff7Progress
         {
             throw new InvalidDataException("FFVII character progression is invalid.");
         }
-        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != character)) || Inventory.Any(item => item.ItemId is < 0 or > 511 || item.Quantity is < 1 or > 99) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
+        if (Party.Any(character => character != 255 && Characters.All(candidate => candidate.Id != character)) || Inventory.Any(item => item.ItemId is < 0 or > 511 || item.Quantity is < 1 or > 99) || Inventory.Select(item => item.ItemId).Distinct().Count() != Inventory.Length || Materia.Length > 200 || Materia.Any(materia => materia.MateriaId is < 0 or > 254 || materia.AbilityPoints > 0xFFFFFF))
         {
             throw new InvalidDataException("FFVII party or inventory is invalid.");
         }

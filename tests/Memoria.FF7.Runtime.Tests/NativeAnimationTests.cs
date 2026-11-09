@@ -1,4 +1,5 @@
 using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -9,6 +10,7 @@ internal static class NativeAnimationTests
         DefaultAndBaseSpeed();
         SynchronousClockAndRestore();
         PartialFramesAndHold();
+        InstalledMovementSelectsNativeGait();
     }
 
     private static void DefaultAndBaseSpeed()
@@ -73,6 +75,52 @@ internal static class NativeAnimationTests
         Equal(10, host.GetActor(0).LastAnimationFrame);
         host.Execute(Request(3, new FieldAnimation(0, 1, false, false, true)));
         Equal(0, host.GetActor(0).AnimationStatus);
+    }
+
+    private static void InstalledMovementSelectsNativeGait()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+        var installation = Ff7Installation.Discover(root);
+        var native = Ff7PcExecutableData.Load(installation);
+        foreach (string name in new[] { "md1stin", "md1_1" })
+        {
+            var field = Ff7FieldResources.Load(installation, name);
+            using var characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+            var model = Ff7FieldModelResources.Load(characters, field.Models.Models[0]);
+            int Length(int modelIndex, int animation) => model.Animations[Path.GetFileNameWithoutExtension(field.Models.Models[modelIndex].Animations[animation]) + ".a"].Frames.Count;
+            var triangle = field.Walkmesh[0];
+            int x = ((int)triangle.A.X + (int)triangle.B.X + (int)triangle.C.X) / 3;
+            int y = ((int)triangle.A.Y + (int)triangle.B.Y + (int)triangle.C.Y) / 3;
+            var initial = new Ff7Actor { Slot = 0, Entity = 0, Model = 0, X4096 = x * 4096, Y4096 = y * 4096, Triangle = 0, MoveSpeed = 1536 * field.Scripts.Scale / 512 };
+            var process = new Ff7FieldProcess { PlayerLocked = true, Actors = [initial] };
+            var host = new Ff7FieldHost(field, Length, process);
+            host.Movement = new Ff7NativeMovement(field.Walkmesh, native.NativeSinCos, native.NativeArcAngles);
+            var request = Request(100, new FieldActorMove(checked((short)(x + 30)), checked((short)y)));
+            Equal(false, host.Execute(request).Completed);
+            Equal(1, host.GetActor(0).Animation);
+            Equal(1, host.GetActor(0).AnimationStatus);
+            host.AdvanceActors();
+            Equal(16, host.GetActor(0).AnimationFrame16);
+            var restored = new Ff7FieldHost(field, Length, host.Capture());
+            Equal(false, restored.Execute(request).Completed);
+            Equal(16, restored.GetActor(0).AnimationFrame16);
+            var run = new Ff7FieldHost(field, Length, process with { Actors = [initial with { MoveSpeed = initial.MoveSpeed + 1 }] });
+            Equal(false, run.Execute(request).Completed);
+            Equal(2, run.GetActor(0).Animation);
+            var custom = new Ff7FieldHost(field, Length, process with { Actors = [initial with { Animation = 3, AnimationFrame16 = 32, AnimationSpeed = 8 }] });
+            Equal(false, custom.Execute(Request(101, new FieldActorMove(checked((short)(x + 30)), checked((short)y), Animated: false))).Completed);
+            Equal(3, custom.GetActor(0).Animation);
+            Equal(32, custom.GetActor(0).AnimationFrame16);
+            Equal(8, custom.GetActor(0).AnimationSpeed);
+            var complete = new Ff7FieldHost(field, Length, process);
+            Equal(true, complete.Execute(Request(102, new FieldActorMove(checked((short)x), checked((short)y)))).Completed);
+            Equal(0, complete.GetActor(0).AnimationStatus);
+            Equal(0, complete.Process.Motions.Length);
+        }
     }
 
     private static Ff7FieldHost Host(Ff7FieldProcess? process = null)

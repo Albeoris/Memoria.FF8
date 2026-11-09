@@ -96,8 +96,7 @@ public sealed class Ff7FieldRenderer
 
     public Vector3 Project(Vector3 world, PcFieldCamera camera, Vector2 cameraOffsetPixels)
     {
-        Vector3 view = new(Vector3.Dot(world, camera.AxisX) / 4096 + camera.Translation.X, Vector3.Dot(world, camera.AxisY) / 4096 + camera.Translation.Y, Vector3.Dot(world, camera.AxisZ) / 4096 + camera.Translation.Z);
-        return new Vector3(160 + cameraOffsetPixels.X + camera.FocalLength * view.X / view.Z, 120 + cameraOffsetPixels.Y + camera.FocalLength * view.Y / view.Z, view.Z);
+        return PcFieldProjection.Project(world, camera, new Vector2(160 + cameraOffsetPixels.X, 120 + cameraOffsetPixels.Y));
     }
 
     public static Matrix4x4 ModelBasis(PcFieldModelDescriptor descriptor)
@@ -144,7 +143,7 @@ public sealed class Ff7FieldRenderer
             }
             if (!tileImages.TryGetValue(tile, out PixelImage? image))
             {
-                image = DecodeTile(field.Background, renderedPalettes ?? field.Palettes, tile);
+                image = DecodeTile(field.Background, renderedPalettes ?? field.Palettes, tile, frame.PaletteRows is { Count: > 0 });
                 tileImages.Add(tile, image);
             }
             // Native background records persist normalized device depth scaled by ten million.
@@ -344,7 +343,7 @@ public sealed class Ff7FieldRenderer
         }
     }
 
-    public static PixelImage DecodeTile(PcFieldBackground background, PcFieldPalettes palettes, PcFieldTile tile)
+    public static PixelImage DecodeTile(PcFieldBackground background, PcFieldPalettes palettes, PcFieldTile tile, bool paletteRowsUseCachedIndices = false)
     {
         PcFieldTexturePage page = background.Textures.Single(texture => texture.Id == tile.EffectiveTextureId);
         int size = tile.PixelSize;
@@ -359,7 +358,12 @@ public sealed class Ff7FieldRenderer
             {
                 int index = page.GetIndex(tile.EffectiveSourceX + x, tile.EffectiveSourceY + y);
                 ushort color = page.Depth == 2 ? checked((ushort)index) : palettes.Palettes[tile.PaletteId][index];
-                bool transparent = page.Depth == 2 ? color == 0 : index == 0 && background.PaletteZeroTransparent[tile.PaletteId] != 0;
+                if (!paletteRowsUseCachedIndices && page.Depth != 2 && background.PaletteHasTransparentColor[tile.PaletteId] != 0)
+                {
+                    // Cached PC texture indices already reserve zero; its original color occupies every formerly zero palette entry.
+                    color = index == 0 ? (ushort)0 : color == 0 ? palettes.Palettes[tile.PaletteId][0] : color;
+                }
+                bool transparent = color == 0;
                 image[x, y] = new Rgba32(Expand(color & 31), Expand((color >> 5) & 31), Expand((color >> 10) & 31), transparent ? (byte)0 : (byte)255);
             }
         }

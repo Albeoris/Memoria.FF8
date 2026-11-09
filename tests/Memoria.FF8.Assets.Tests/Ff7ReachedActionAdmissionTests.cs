@@ -14,6 +14,17 @@ public sealed class Ff7ReachedActionAdmissionTests
     [Fact]
     public void ReachedOpeningActionsPreserveRigidityFootContactsRootMotionAndNativePhases()
     {
+        ValidateActions(actions);
+    }
+
+    [Fact]
+    public void ReachedReactorBxicPreservesRigidityFootContactsRootMotionAndNativePhases()
+    {
+        ValidateActions(["bxic.a"]);
+    }
+
+    private static void ValidateActions(IReadOnlyList<string> reached)
+    {
         string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(ff7) || string.IsNullOrWhiteSpace(ff8), "Selected FF7 and FF8 installations are required for the reached-action admission check.");
@@ -32,7 +43,7 @@ public sealed class Ff7ReachedActionAdmissionTests
         List<object> measurements = [];
         List<object> controlledPoses = [];
         Ff7ModelAppearance appearance = Ff7ModelAppearance.CreateStandardFieldSquall(installation, assets);
-        foreach (string name in actions)
+        foreach (string name in reached)
         {
             byte[] bytes = archive.ReadEntry(Assert.Single(archive.Find(name)));
             PcFieldAnimation clip = PcFieldAnimation.Read(bytes);
@@ -71,7 +82,7 @@ public sealed class Ff7ReachedActionAdmissionTests
                 Ff7ActorVisual actor = new(0, 0, 123 * 4096, 456 * 4096, 789 * 4096, 73, admittedDescriptor.Animations.Count - 1, phase);
                 Assert.True(appearance.TryCreate(actor, admittedDescriptor, admittedOriginal, out IReadOnlyList<Ff7AppearanceTriangle> submitted));
                 Assert.NotEmpty(submitted);
-                Assert.All(submitted.SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }), vertex => Assert.True(Finite(vertex.Position) && vertex.Normal is Vector3 normal && MathF.Abs(normal.LengthSquared() - 1) < 0.0001f));
+                Assert.All(submitted.SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }), vertex => Assert.True(Finite(vertex.Position) && vertex.Normal is null));
                 Matrix4x4 world = calibration * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(123, 456, 789);
                 List<Vector3> expectedVertices = [];
                 foreach (ModelFace face in target.Faces)

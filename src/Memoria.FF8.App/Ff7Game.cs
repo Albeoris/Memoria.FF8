@@ -21,6 +21,10 @@ internal sealed partial class Ff7Game : Game
     private readonly LaunchOptions? launchOptions;
     private SpriteBatch batch = null!;
     private Ff7Scene scene = null!;
+    private readonly KeyboardInput keyboard = new();
+    private readonly GameplayClock gameplayClock = new();
+    private ControllerDevice? controller;
+    private readonly PresentationPacer presentationPacer = new();
     private int updateFrames;
     private bool frameCaptured;
     private readonly Func<CombinedSessionSave, PreparedCrossover>? prepareCrossover;
@@ -58,6 +62,11 @@ internal sealed partial class Ff7Game : Game
             }
         };
         scene.ConfigureSharedDialogueDefaults(batch, launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII shared presentation requires its primary game installation."), launchOptions?.SettingsDirectory);
+        keyboard.Profile = ControlsProfile.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).ControlsPreferencesPath);
+        controller = new ControllerDevice();
+        scene.ConfigureSharedControls(keyboard, gameplayClock);
+        scene.InterpolatePresentation = launchOptions?.ControlStep != true;
+        scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(savePath))!, "autoplay", "ff7", "current.ffsave"));
         InitializeUpdateHandoff();
         scene.SaveRequested += saved => CombinedSessionCodec.Save(savePath, saved);
         scene.ContinueRequested += () =>
@@ -113,7 +122,19 @@ internal sealed partial class Ff7Game : Game
         scene.SetFocusPaused(updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
         if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {
-            scene.Update(gameTime, ReadControlKeys());
+            GamePadState pad = launchOptions?.AcceptsPhysicalInput == false ? default : controller!.Read();
+            keyboard.ControllerPresentation = controller!.Presentation;
+            keyboard.ControllerGeneration = controller.Generation;
+            scene.Update(gameTime, ReadControlKeys(), pad);
+        }
+        if (graphics.SynchronizeWithVerticalRetrace != scene.PresentationPreferences.VSync)
+        {
+            graphics.SynchronizeWithVerticalRetrace = scene.PresentationPreferences.VSync;
+            graphics.ApplyChanges();
+        }
+        if (launchOptions?.ControlStep != true)
+        {
+            presentationPacer.WaitForNextFrame(scene.PresentationFrameLimit);
         }
         updateFrames++;
         if (launchOptions?.ExitAfterFrames is int frames && updateFrames >= frames || launchOptions?.ExitAfterSeconds is double seconds && gameTime.TotalGameTime.TotalSeconds >= seconds)
@@ -148,6 +169,8 @@ internal sealed partial class Ff7Game : Game
 
     protected override void UnloadContent()
     {
+        presentationPacer.Dispose();
+        controller?.Dispose();
         scene?.Dispose();
         controlAppearanceAssets?.Dispose();
         batch?.Dispose();

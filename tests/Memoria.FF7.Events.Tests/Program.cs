@@ -6,6 +6,13 @@ if (args.Contains("--audit-installed", StringComparer.Ordinal))
     return InstalledAudit.Run();
 }
 
+if (args.Contains("--materia-only", StringComparer.Ordinal))
+{
+    ExtendedTests.MateriaOperandsAndStatus();
+    Console.WriteLine("PASS native materia operands and status");
+    return 0;
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
@@ -41,6 +48,8 @@ var tests = new (string Name, Action Run)[]
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
+    ("native view offset operands and yield", ExtendedTests.ViewOffsetOperandsAndYield),
+    ("native materia operands and status", ExtendedTests.MateriaOperandsAndStatus),
     ("native coordinate query and signed remainder", ExtendedTests.CoordinateQueryAndRemainder)
 };
 int failed = 0;

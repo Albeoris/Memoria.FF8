@@ -6,4 +6,7 @@
     <ProjectReference Include="../Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
     <ProjectReference Include="../Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Memoria.AutoPlay/Memoria.AutoPlay.csproj" />
+  </ItemGroup>
 </Project>

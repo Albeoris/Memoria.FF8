@@ -3,6 +3,57 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void MateriaOperandsAndStatus()
+    {
+        foreach (int result in new[] { -1, 0x12345635 })
+        {
+            var host = new RecordingHost { Complete = true, Value = result };
+            var vm = New(Code(0, 0x5B, 0x55, 0x55, 0, 1, 2, 3, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+            vm.Initialize();
+            vm.Variables.WriteByte(FieldBank.MapByte, 0, 0x35);
+            vm.Variables.WriteByte(FieldBank.MapByte, 1, 0x56);
+            vm.Variables.WriteByte(FieldBank.MapByte, 2, 0x34);
+            vm.Variables.WriteByte(FieldBank.MapByte, 3, 0x12);
+            vm.AdvanceTick();
+            Check(new FieldMateriaCommand(0x12345635), host.Requests.Single().Command);
+            Check(result == -1 ? (byte)0 : (byte)1, vm.Variables.ReadByte(FieldBank.Persistent3Byte, 31));
+            Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        }
+    }
+    public static void ViewOffsetOperandsAndYield()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0x6A, 0x0F, 0x85, 0xFF, 0xFF, 0xFF, 0, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldCameraCommand(FieldCameraOperation.ViewOffset, 0, -123), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x6A, 0x66, 0, 0, 2, 0, 1, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 0, -300);
+        vm.Variables.WriteWord(FieldBank.MapWord, 2, 260);
+        vm.AdvanceTick();
+        Check(new FieldCameraCommand(FieldCameraOperation.ViewOffset, 1, -300, Steps: 4), host.Requests.Single().Command);
+        Check((byte)0, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        vm.AdvanceTick();
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        Check(1, host.Requests.Count);
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0xA1, 0, 0, 0x63, 0xF6, 4, 0, 0, 2, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 4, 300);
+        vm.AdvanceTick();
+        Check(new FieldCameraCommand(FieldCameraOperation.Entity, 2, Steps: 300, Entity: 0), host.Requests.Last().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        host = new RecordingHost { Complete = true };
+        vm = New(Code(0, 0x63, 0xFF, 0xFF, 0xFF, 0, 2, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(0, host.Requests.Count);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
     public static void CoordinateQueryAndRemainder()
     {
         var host = new RecordingHost { Complete = true, Value = (456 << 16) | 65413 };

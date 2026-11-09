@@ -67,17 +67,94 @@ public sealed class Ff7FieldRendererTests
     }
 
     [Fact]
-    public void IndexedTilePreservesPaletteZeroAndDirectCameraProjection()
+    public void CachedTileReservesPaletteZeroAndPreservesDirectCameraProjection()
     {
         PcFieldTexturePage page = new(0, 0, 1, new byte[65536]);
         PcFieldBackground background = new(320, 240, new byte[] { 1 }, [], new[] { page });
         PcFieldPalettes palettes = new(0, 0, 1, new IReadOnlyList<ushort>[] { new ushort[] { 31 } });
         PcFieldTile tile = new(0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 0, 4095, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
         var image = Ff7FieldRenderer.DecodeTile(background, palettes, tile);
-        Assert.Equal((byte)255, image.Pixels[0].R);
+        Assert.Equal((byte)0, image.Pixels[0].R);
         Assert.Equal((byte)0, image.Pixels[0].A);
         Assert.Equal(0, new Ff7ProjectionDepth(50, 32000).Project(50), 5);
         Assert.Equal(1, new Ff7ProjectionDepth(50, 32000).Project(32000), 5);
+    }
+
+    [Fact]
+    public void IndexedZeroColorIsTransparentAtEveryPaletteIndexButStpBlackIsOpaque()
+    {
+        byte[] pixels = new byte[65536];
+        pixels[0] = 1;
+        pixels[1] = 2;
+        PcFieldTexturePage page = new(0, 0, 1, pixels);
+        PcFieldBackground background = new(320, 240, new byte[] { 0 }, [], [page]);
+        PcFieldPalettes palettes = new(0, 0, 3, new IReadOnlyList<ushort>[] { new ushort[] { 31, 0, 0x8000 } });
+        PcFieldTile tile = new(0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 0, 4095, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
+        var image = Ff7FieldRenderer.DecodeTile(background, palettes, tile);
+        Assert.Equal((byte)0, image.Pixels[0].A);
+        Assert.Equal((byte)255, image.Pixels[1].A);
+        Assert.Equal((byte)255, image.Pixels[2].A);
+    }
+
+    [Fact]
+    public void LiveCanonicalPaletteRowsAreNotExchangedAgainAfterScriptEdits()
+    {
+        byte[] pixels = new byte[65536];
+        pixels[1] = 1;
+        PcFieldTexturePage page = new(0, 0, 1, pixels);
+        PcFieldBackground background = new(320, 240, new byte[] { 1 }, [], [page]);
+        PcFieldPalettes raw = new(0, 0, 3, new IReadOnlyList<ushort>[] { new ushort[] { 31, 0, 0x8000 } });
+        PcFieldTile tile = new(0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 0, 4095, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
+        ushort[][] rows = raw.CreateCachedBackgroundRows(background);
+        PcFieldPalettes canonical = raw with { Palettes = rows.Select(row => (IReadOnlyList<ushort>)row).ToArray() };
+        var initial = Ff7FieldRenderer.DecodeTile(background, raw, tile);
+        var live = Ff7FieldRenderer.DecodeTile(background, canonical, tile, paletteRowsUseCachedIndices: true);
+        Assert.Equal(initial.Pixels, live.Pixels);
+        rows[0][0] = 31;
+        rows[0][1] = 0;
+        var changed = Ff7FieldRenderer.DecodeTile(background, canonical, tile, paletteRowsUseCachedIndices: true);
+        Assert.Equal((byte)255, changed.Pixels[0].A);
+        Assert.Equal((byte)255, changed.Pixels[0].R);
+        Assert.Equal((byte)0, changed.Pixels[1].A);
+    }
+
+    [Theory]
+    [InlineData("md1stin")]
+    [InlineData("nmkin_4")]
+    [InlineData("md1_1")]
+    [InlineData("nrthmk")]
+    public void InstalledCachedIndicesUseTheNativeRemappedPaletteColors(string name)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original background checks.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), name);
+        int checkedPixels = 0;
+        foreach (PcFieldTile tile in field.Background.Layers.SelectMany(layer => layer))
+        {
+            PcFieldTexturePage page = field.Background.Textures.Single(texture => texture.Id == tile.EffectiveTextureId);
+            ushort first = field.Palettes.Palettes[tile.PaletteId][0];
+            if (page.Depth == 2 || field.Background.PaletteHasTransparentColor[tile.PaletteId] == 0 || first == 0)
+            {
+                continue;
+            }
+            var image = Ff7FieldRenderer.DecodeTile(field.Background, field.Palettes, tile);
+            for (int y = 0; y < tile.PixelSize; y++)
+            {
+                for (int x = 0; x < tile.PixelSize; x++)
+                {
+                    int index = page.GetIndex(tile.EffectiveSourceX + x, tile.EffectiveSourceY + y);
+                    if (index != 0 && field.Palettes.Palettes[tile.PaletteId][index] == 0)
+                    {
+                        Assert.Equal((byte)255, image[x, y].A);
+                        Assert.Equal((byte)(((first & 31) << 3) | ((first & 31) >> 2)), image[x, y].R);
+                        Assert.Equal((byte)((((first >> 5) & 31) << 3) | (((first >> 5) & 31) >> 2)), image[x, y].G);
+                        Assert.Equal((byte)((((first >> 10) & 31) << 3) | (((first >> 10) & 31) >> 2)), image[x, y].B);
+                        checkedPixels++;
+                    }
+                }
+            }
+        }
+        Assert.True(checkedPixels > 0, "The selected original background must exercise indices whose original transparent color was exchanged with palette zero.");
     }
 
     [Fact]

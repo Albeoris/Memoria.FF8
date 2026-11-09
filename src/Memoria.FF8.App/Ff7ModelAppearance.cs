@@ -15,6 +15,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     private readonly string sourceId;
     private readonly string nativeHrc;
     private readonly Matrix4x4 targetToFf7;
+    private float? calibrationDescriptorScale;
     private readonly IReadOnlyDictionary<string, string> clips;
     private readonly FieldModel geometry;
     private readonly Ff7SemanticRetargeter? retargeter;
@@ -89,7 +90,16 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         {
             throw new NotSupportedException($"FF7 appearance motion '{originalName}' has no admitted target field animation binding or semantic retarget profile.");
         }
-        Matrix4x4 world = targetToFf7 * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        float descriptorRatio = 1;
+        if (calibrationDescriptorScale is float referenceScale)
+        {
+            descriptorRatio = float.Parse(descriptor.Scale, System.Globalization.CultureInfo.InvariantCulture) / referenceScale;
+            if (!float.IsFinite(descriptorRatio) || descriptorRatio <= 0)
+            {
+                throw new InvalidDataException("Mapped FF7 descriptor scale must remain finite and positive.");
+            }
+        }
+        Matrix4x4 world = targetToFf7 * Matrix4x4.CreateScale(descriptorRatio) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
         List<Ff7AppearanceTriangle> output = [];
         foreach (ModelFace face in target.Faces)
         {
@@ -110,7 +120,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
                 AddTriangle(Vertex(1), Vertex(3), Vertex(2), material);
             }
         }
-        // The selected appearance uses deformed surface normals; native MCH field vertices do not expose a normal channel.
+        // Preserve the target field appearance: MCH geometry has no normal channel and its textures/vertex colors already own its shading.
         void AddTriangle(Ff7WorldVertex a, Ff7WorldVertex b, Ff7WorldVertex c, TriangleMaterial material)
         {
             Vector3 normal = Vector3.Cross(b.Position - a.Position, c.Position - a.Position);
@@ -118,8 +128,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             {
                 return;
             }
-            normal = Vector3.Normalize(normal);
-            output.Add(new(a with { Normal = normal }, b with { Normal = normal }, c with { Normal = normal }, material));
+            output.Add(new(a, b, c, material));
         }
         triangles = output.AsReadOnly();
         return true;

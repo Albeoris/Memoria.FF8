@@ -7,6 +7,18 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeProcessTests
 {
+    public static void RunViewOffset()
+    {
+        ViewOffsetTimingAndRestore();
+        NativeProjectedCameraTracking();
+    }
+
+    public static void RunPalette()
+    {
+        PaletteBufferStrideAndColors();
+        InstalledCachedPaletteInitializationAndCompatibility();
+    }
+
     public static void Run()
     {
         TurnTimingAndRestore();
@@ -15,6 +27,7 @@ internal static class NativeProcessTests
         PlayerControlTarget();
         ResetFade();
         PaletteBufferStrideAndColors();
+        InstalledCachedPaletteInitializationAndCompatibility();
         NamingMenuOwnership();
         OffsetTimingAndRestore();
         EncounterOwnerRetainsReceipt();
@@ -77,6 +90,100 @@ internal static class NativeProcessTests
         Equal(true, host.Execute(Request(4, new FieldCameraCommand(FieldCameraOperation.Wait))).Completed);
     }
 
+    private static void ViewOffsetTimingAndRestore()
+    {
+        Ff7FieldHost host = Host();
+        Equal((short?)0, host.Process.CameraFocusOffset);
+        Equal(true, host.Execute(Request(700, new FieldCameraCommand(FieldCameraOperation.ViewOffset, X: 90))).Completed);
+        Equal((short?)90, host.Process.CameraFocusOffset);
+        host.Execute(Request(701, new FieldCameraCommand(FieldCameraOperation.ViewOffset, 1, -300, Steps: 4)));
+        host.AdvanceActors();
+        Equal((short?)90, host.Process.CameraFocusOffset);
+        host.AdvanceActors();
+        Equal((short?)249, host.Process.CameraFocusOffset);
+        Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        foreach (short expected in new short[] { 151, 54, 212, 212 })
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            Equal((short?)expected, host.Process.CameraFocusOffset);
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Equal((byte)3, host.Process.CameraViewOffset!.Mode);
+        host.Execute(Request(702, new FieldCameraCommand(FieldCameraOperation.ViewOffset, X: -300)));
+        Equal((short?)-300, host.Process.CameraFocusOffset);
+        Equal<Ff7CameraViewOffset?>(null, host.Process.CameraViewOffset);
+    }
+
+    private static void NativeProjectedCameraTracking()
+    {
+        PcFieldCamera camera = new(new Vector3(4096, 0, 0), new Vector3(0, 0, 4096), new Vector3(0, 4096, 0), 0, new Vector3(0, 0, 1000), 0, 1000);
+        PcFieldTriggers triggers = new("camera-fixture", 0, 0, -256, -256, 256, 256, [], [], [], []);
+        Ff7NativeCamera projection = new(camera, triggers);
+        Ff7Actor actor = new() { Slot = 0, Entity = 0, Model = 0, X4096 = 40 * 4096, Z4096 = 10 * 4096 };
+        Equal(((short)-40, (short)-10), projection.Follow(actor, 0));
+        Equal(((short)-40, (short)-100), projection.Follow(actor, 90));
+        Equal(((short)-96, (short)-136), projection.Follow(actor with { X4096 = 1000 * 4096, Z4096 = 1000 * 4096 }, 0));
+        PcFieldTriggers diagonal = triggers with { CameraLeft = -320, CameraBottom = -280, CameraRight = 320, CameraTop = 280, CameraScrollConstraint = 1 };
+        Equal(((short)-50, (short)-50), new Ff7NativeCamera(camera, diagonal).Follow(actor with { X4096 = 100 * 4096, Z4096 = 0 }, 0));
+        Equal(((short)-50, (short)50), new Ff7NativeCamera(camera, diagonal with { CameraScrollConstraint = 2 }).Follow(actor with { X4096 = 100 * 4096, Z4096 = 0 }, 0));
+        Ff7FieldHost legacy = Host(new() { Actors = [actor], CameraEntity = 0, CameraX = 12, CameraY = 34 });
+        Equal((bool?)false, legacy.Process.CameraFollowPlayer);
+        Equal(0, legacy.Process.CameraTracking!.Slot);
+        Equal(1, legacy.Process.CameraTracking.Mode);
+        Equal(12, legacy.Process.CameraX);
+        Equal(34, legacy.Process.CameraY);
+        Ff7FieldHost host = Host(new() { Actors = [actor], CameraFocusOffset = 90 });
+        host.CameraProjection = projection;
+        host.Execute(Request(710, new FieldCameraCommand(FieldCameraOperation.Entity, 2, Steps: 4, Entity: 0)));
+        host.AdvanceActors();
+        Equal(0, host.Process.CameraX);
+        Equal(0, host.Process.CameraY);
+        host.AdvanceActors();
+        Equal(-10, host.Process.CameraX);
+        Equal(-25, host.Process.CameraY);
+        Ff7FieldHost restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        restored.CameraProjection = projection;
+        host.Execute(Request(711, new FieldActorPlacement(80, 0, 10, 0)));
+        restored.Execute(Request(711, new FieldActorPlacement(80, 0, 10, 0)));
+        for (int tick = 2; tick <= 4; tick++)
+        {
+            host.AdvanceActors();
+            restored.AdvanceActors();
+            Equal(-20 * tick, host.Process.CameraX);
+            Equal(-25 * tick, host.Process.CameraY);
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Equal(true, host.Execute(Request(712, new FieldCameraCommand(FieldCameraOperation.Wait))).Completed);
+        host.Execute(Request(713, new FieldActorPlacement(0, 0, 10, 0)));
+        host.AdvanceActors();
+        Equal(-80, host.Process.CameraX);
+        host.Execute(Request(714, new FieldCameraCommand(FieldCameraOperation.Entity, 1, Entity: 0)));
+        host.AdvanceActors();
+        Equal(0, host.Process.CameraX);
+        Equal(-100, host.Process.CameraY);
+        Equal(false, host.Execute(Request(715, new FieldCameraCommand(FieldCameraOperation.Wait))).Completed);
+        host.Execute(Request(716, new FieldCameraCommand(FieldCameraOperation.Entity, 2, Steps: 0, Entity: 0)));
+        host.AdvanceActors();
+        Equal(-100, host.Process.CameraY);
+        Equal(true, host.Execute(Request(717, new FieldCameraCommand(FieldCameraOperation.Wait))).Completed);
+        host.Execute(Request(718, new FieldActorPlacement(80, 0, 10, 0)));
+        host.Execute(Request(719, new FieldCameraCommand(FieldCameraOperation.Entity, 3, Steps: 2, Entity: 0)));
+        host.AdvanceActors();
+        Equal(0, host.Process.CameraX);
+        host.AdvanceActors();
+        Equal(-40, host.Process.CameraX);
+        host.AdvanceActors();
+        Equal(-80, host.Process.CameraX);
+        Ff7FieldHost player = Host(new() { Actors = [actor with { PlayerControlled = true }] });
+        player.CameraProjection = projection;
+        player.AdvanceActors();
+        Equal(-10, player.Process.CameraY);
+        player.Execute(Request(720, new FieldCameraCommand(FieldCameraOperation.ViewOffset, X: 90)));
+        player.AdvanceActors();
+        Equal(-100, player.Process.CameraY);
+    }
+
     private static void MovieAndBattleOwnership()
     {
         Ff7FieldHost host = Host();
@@ -118,6 +225,55 @@ internal static class NativeProcessTests
         host.Execute(Request(2, new FieldFadeCommand(0, NewFade: true)));
         Equal(0, host.Process.Fade!.Type);
         Equal(true, host.Execute(Request(3, new FieldFadeCommand(0, Wait: true))).Completed);
+    }
+
+    private static void InstalledCachedPaletteInitializationAndCompatibility()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+        var installation = Ff7Installation.Discover(root);
+        foreach (string name in new[] { "md1stin", "nmkin_4" })
+        {
+            Ff7FieldResources field = Ff7FieldResources.Load(installation, name);
+            int row = Enumerable.Range(0, field.Palettes.Palettes.Count).First(index => field.Background.PaletteHasTransparentColor[index] != 0 && field.Palettes.Palettes[index][0] != 0);
+            ushort first = field.Palettes.Palettes[row][0];
+            int exchanged = Enumerable.Range(1, 255).First(index => field.Palettes.Palettes[row][index] == 0);
+            Ff7FieldHost host = new(field, (_, _) => 1);
+            Equal(true, host.Process.PaletteRowsUseCachedIndices);
+            Equal((ushort)0, host.Process.PaletteRows[row][0]);
+            Equal(first, host.Process.PaletteRows[row][exchanged]);
+            host.Execute(Request(201, new FieldPaletteCommand(FieldPaletteOperation.Store, row, 0, 256)));
+            Equal((ushort)0, host.Process.PaletteBuffer[0]);
+            Equal(first, host.Process.PaletteBuffer[exchanged]);
+            host.Execute(Request(202, new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 16, 256)));
+            Equal(first, host.Process.PaletteBuffer[256 + exchanged]);
+            host.Execute(Request(203, new FieldPaletteCommand(FieldPaletteOperation.Add, 16, 16, 256, Red: 1)));
+            ushort added = (ushort)((first & ~31) | Math.Min(31, (first & 31) + 1));
+            Equal(added, host.Process.PaletteBuffer[256 + exchanged]);
+            host.Execute(Request(204, new FieldPaletteCommand(FieldPaletteOperation.Multiply, 0, 32, 256, Red: 0, Green: 0, Blue: 0)));
+            Equal((ushort)0, host.Process.PaletteBuffer[512]);
+            Equal((ushort)32768, host.Process.PaletteBuffer[512 + exchanged]);
+            host.Execute(Request(205, new FieldPaletteCommand(FieldPaletteOperation.Load, 32, row, 256)));
+            Equal((ushort)0, host.Process.PaletteRows[row][0]);
+            Equal((ushort)32768, host.Process.PaletteRows[row][exchanged]);
+            Ff7FieldProcess saved = JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!;
+            Ff7FieldHost restored = new(field, (_, _) => 1, saved);
+            Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(restored.Capture()));
+            var legacy = saved with { Tick = 991, PaletteRowsUseCachedIndices = false, PaletteRows = field.Palettes.Palettes.Select(colors => colors.ToArray()).ToArray() };
+            string original = JsonSerializer.Serialize(legacy);
+            Ff7FieldHost compatible = new(field, (_, _) => 1, legacy);
+            Equal(true, compatible.Process.PaletteRowsUseCachedIndices);
+            Equal(991L, compatible.Process.Tick);
+            Equal(legacy.PaletteVersion + 1, compatible.Process.PaletteVersion);
+            Equal((ushort)0, compatible.Process.PaletteRows[row][0]);
+            Equal(first, compatible.Process.PaletteRows[row][exchanged]);
+            Equal(true, compatible.Process.PaletteBuffer.All(color => color == 0));
+            Equal(original, JsonSerializer.Serialize(legacy));
+            Equal(JsonSerializer.Serialize(legacy.Receipts), JsonSerializer.Serialize(compatible.Process.Receipts));
+        }
     }
 
     private static void PaletteBufferStrideAndColors()

@@ -43,9 +43,16 @@ internal sealed partial class Ff7Game
         {
             case "status":
                 return new { Game = "FFVII", Field = scene.Session?.Field.Name, Tick = scene.Session?.Host.Process.Tick, scene.CanSave, scene.Error, Process = scene.Session?.Host.Process, Progress = scene.Session?.Progress };
+            case "autoplay":
+                scene.ApplyAutoPlayCommand(request.Name ?? "start");
+                return new { scene.AutoPlayStatus };
             case "new-game":
                 scene.StartNewGame();
                 return new { Started = true };
+            case "actions":
+                controlledKeys = scene.KeysForActions((request.Name ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(name => Enum.Parse<ControlAction>(name, true))).GetPressedKeys();
+                remainingInputFrames = Math.Clamp(request.Frames, 1, 3600);
+                return new { Frames = remainingInputFrames };
             case "input":
                 controlledKeys = (request.Name ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Enum.Parse<Keys>).ToArray();
                 remainingInputFrames = Math.Clamp(request.Frames, 1, 3600);

@@ -4,6 +4,33 @@ namespace Memoria.FF7.Formats;
 
 public sealed record PcFieldPalettes(short X, short Y, ushort ColorsPerPalette, IReadOnlyList<IReadOnlyList<ushort>> Palettes)
 {
+    public ushort[][] CreateCachedBackgroundRows(PcFieldBackground background)
+    {
+        ArgumentNullException.ThrowIfNull(background);
+        ushort[][] rows = Palettes.Select(row => row.ToArray()).ToArray();
+        for (int row = 0; row < rows.Length; row++)
+        {
+            if (row >= background.PaletteHasTransparentColor.Count)
+            {
+                throw new InvalidDataException("FFVII background palette flags do not cover its palette rows.");
+            }
+            if (background.PaletteHasTransparentColor[row] == 0)
+            {
+                continue;
+            }
+            ushort first = rows[row][0];
+            for (int index = 0; index < rows[row].Length; index++)
+            {
+                if (rows[row][index] == 0)
+                {
+                    rows[row][index] = first;
+                }
+            }
+            rows[row][0] = 0;
+        }
+        return rows;
+    }
+
     public static PcFieldPalettes Read(ReadOnlySpan<byte> source)
     {
         BinaryCursor cursor = new(source);
@@ -55,7 +82,7 @@ public sealed record PcFieldTexturePage(int Id, ushort BigTile, ushort Depth, Re
         };
     }
 }
-public sealed record PcFieldBackground(short Width, short Height, IReadOnlyList<byte> PaletteZeroTransparent, IReadOnlyList<IReadOnlyList<PcFieldTile>> Layers, IReadOnlyList<PcFieldTexturePage> Textures)
+public sealed record PcFieldBackground(short Width, short Height, IReadOnlyList<byte> PaletteHasTransparentColor, IReadOnlyList<IReadOnlyList<PcFieldTile>> Layers, IReadOnlyList<PcFieldTexturePage> Textures)
 {
     public ReadOnlyMemory<byte> Footer { get; init; }
     public static PcFieldBackground Read(ReadOnlySpan<byte> source)

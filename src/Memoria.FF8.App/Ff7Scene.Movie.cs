@@ -2,6 +2,8 @@ using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF7.Resources;
 using Memoria.FF8.Media;
+using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -12,6 +14,62 @@ internal sealed partial class Ff7Scene
     private MoviePresentation? movie;
     private Ff7MovieSource? movieSource;
     private int movieId = -1;
+    private readonly MovieSkipGesture movieSkipGesture = new();
+    private (long Generation, long? Request)? movieSkipIdentity;
+
+    private void UpdateMovieSkip(TimeSpan elapsed)
+    {
+        Ff7Movie? state = Session?.Host.Process.Movie;
+        var identity = state is { Playing: true } ? (Session!.FieldGeneration, state.RequestId) : ((long, long?)?)null;
+        if (movieSkipIdentity != identity)
+        {
+            movieSkipGesture.Reset();
+            movieSkipIdentity = identity;
+        }
+        if (identity is null || !movieSkipGesture.Update(elapsed, sharedInput.CancelHeld))
+        {
+            return;
+        }
+        Ff7MovieSource source = movieSource ?? throw new InvalidOperationException("Movie skipping requires its prepared presentation source.");
+        // Skipping pixels and PCM still admits every native movie frame and both
+        // 30 Hz field callbacks. Frame-dependent scripts retain their ordinary PCs.
+        movie?.Suspend();
+        Session!.SetInput(0, 0);
+        Session.MovePlayer(0, 0, false);
+        for (int frame = state!.Frame + 1; frame < source.NativeFrameCount; frame++)
+        {
+            if (Session.FieldGeneration != identity.Value.Item1 || Session.Host.Process.Movie is not { Playing: true } active || active.RequestId != state.RequestId)
+            {
+                break;
+            }
+            source.PublishCameraFrame?.Invoke(frame);
+            Session.Host.PublishMovieFrame(frame, false);
+            for (int tick = 0; tick < 2; tick++)
+            {
+                Session.AdvanceTick();
+                if (Session.FieldGeneration != identity.Value.Item1 || Session.Host.Process.Movie is not { Playing: true } current || current.RequestId != state.RequestId)
+                {
+                    break;
+                }
+            }
+        }
+        if (Session.FieldGeneration == identity.Value.Item1 && Session.Host.Process.Movie is { Playing: true } remaining && remaining.RequestId == state.RequestId)
+        {
+            Session.Host.PublishMovieFrame(source.NativeFrameCount - 1, true);
+        }
+        StopMovie();
+        tickRemainder = 0;
+        previousActorGeneration = -1;
+        UpdateAudio();
+    }
+
+    private void DrawMovieSkipHint(Rectangle bounds)
+    {
+        if (dialogueCanvas is not null && dialoguePreferences?.Invoke() is { } preferences)
+        {
+            MovieSkipHint.Draw(dialogueCanvas, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), Session?.Host.Process.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, movieSkipGesture, sharedInput.BindingPrompt(ControlAction.Cancel), preferences.UiFontFamily);
+        }
+    }
 
     public static Ff7MovieSource ResolveMovie(Ff7Installation installation, string mediaToolsDirectory, int movieId)
     {

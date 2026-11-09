@@ -16,14 +16,24 @@ public sealed partial class Ff7FieldHost : IFieldHost
         this.field = field ?? throw new ArgumentNullException(nameof(field));
         this.animationLength = animationLength ?? throw new ArgumentNullException(nameof(animationLength));
         Process = process ?? new Ff7FieldProcess();
+        if (Process.CameraFollowPlayer is null)
+        {
+            Ff7Actor? legacyTarget = Process.CameraEntity < 0 ? null : Process.Actors?.SingleOrDefault(actor => actor.EntityBound && actor.Entity == Process.CameraEntity);
+            Process = Process with
+            {
+                CameraFollowPlayer = Process.CameraEntity < 0 && Process.CameraScroll is null && Process.CameraX == 0 && Process.CameraY == 0,
+                CameraTracking = Process.CameraTracking ?? (legacyTarget is not null && Process.CameraScroll is null ? new(1, legacyTarget.Slot, 0, Process.CameraX, Process.CameraY) : null)
+            };
+        }
+        if (Process.CameraFocusOffset is null)
+        {
+            Process = Process with { CameraFocusOffset = field.Triggers?.CameraFocus ?? 0 };
+        }
         if (Process.BlockedTriangles.Length == 0)
         {
             Process = Process with { BlockedTriangles = new byte[(field.Walkmesh.Count + 7) / 8] };
         }
-        if (Process.PaletteRows.Length == 0 && field.Palettes is not null)
-        {
-            Process = Process with { PaletteRows = field.Palettes.Palettes.Select(row => row.ToArray()).ToArray() };
-        }
+        InitializePaletteState();
         Process.Validate();
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
@@ -37,6 +47,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
     public Ff7NativeMovement? Movement { get; set; }
+    public Ff7NativeCamera? CameraProjection { get; set; }
     public Func<int, IReadOnlyList<int>>? ModelPartVertexCounts { get; set; }
     public Func<FieldByteOperand, byte>? ReadFieldByte { get; set; }
     public Func<int[]>? ReadScriptParty { get; set; }
@@ -134,12 +145,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldActorTurn turn:
                 return Turn(request.Entity, turn);
             case FieldActorMove movement:
-                if (!Process.Motions.Any(motion => motion.RequestId == request.Id))
-                {
-                    Process = Process with { Motions = [.. Process.Motions, new Ff7Motion(request.Id, request.Entity, movement.X, movement.Y, movement.Turn, movement.Animated)] };
-                }
-                Ff7Actor moving = GetActor(request.Entity);
-                return new(moving.X4096 == movement.X * 4096 && moving.Y4096 == movement.Y * 4096);
+                return MoveActor(request, movement);
             case FieldWindowCommand window:
                 return Window(window);
             case FieldDialogueCommand dialogue:
@@ -225,6 +231,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     public void AdvanceActors()
     {
+        AdvanceViewOffset();
         AdvanceCamera();
         AdvanceOffsets();
         AdvanceTurns();

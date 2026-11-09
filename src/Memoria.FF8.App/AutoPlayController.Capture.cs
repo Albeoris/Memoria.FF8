@@ -62,11 +62,7 @@ internal sealed partial class AutoPlayController
 
     private void RecordRecentAction(string action)
     {
-        run.RecentActions.Add(new(run.Steps, session.State.FieldId, session.State.Scene.ToString(), action.Length > 512 ? action[..512] : action));
-        if (run.RecentActions.Count > 32)
-        {
-            run.RecentActions.RemoveRange(0, run.RecentActions.Count - 32);
-        }
+        Memoria.AutoPlay.AutoPlayRecording.AppendRecent(run.RecentActions, new AutoPlayRecentAction(run.Steps, session.State.FieldId, session.State.Scene.ToString(), Memoria.AutoPlay.AutoPlayRecording.LimitActionText(action)));
     }
 
     internal static void RetireClosedSearchSnapshots(AutoPlayRunState state)

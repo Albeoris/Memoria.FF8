@@ -9,10 +9,13 @@ var tests = new (string Name, Action Run)[]
     ("envelope corruption and missing active game rejected", InvalidEnvelope),
     ("world switch requires save permission and prepares before commit", SwitchGuard),
     ("world revisits resume each independent continuation", ResumeBothWorlds),
+    ("native materia acquisition and cold continuation", NativeMateriaTests.Run),
+    ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native movement authored contracts", NativeMovementTests.Run),
     ("native animation authored contracts", NativeAnimationTests.Run),
     ("native dialogue continuation contracts", NativeDialogueTests.Run),
     ("native turn, camera and global process contracts", NativeProcessTests.Run),
+    ("native camera focus and tracking contracts", NativeProcessTests.RunViewOffset),
     ("native character growth contracts", NativeGrowthTests.Run),
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
     ("native field encounter-step contracts", NativeEncounterTests.Run),
@@ -25,8 +28,9 @@ var tests = new (string Name, Action Run)[]
     ("installed New Game and cold continuation", InstalledSession),
     ("installed opening and cold process continuation", InstalledOpeningTests.Run)
 };
+var selected = tests.Where(test => args.Length == 0 || test.Name.Contains(args[0], StringComparison.OrdinalIgnoreCase)).ToArray();
 int failed = 0;
-foreach (var test in tests)
+foreach (var test in selected)
 {
     try
     {
@@ -39,7 +43,7 @@ foreach (var test in tests)
         Console.Error.WriteLine("FAIL " + test.Name + ": " + error);
     }
 }
-Console.WriteLine($"{tests.Length - failed}/{tests.Length} groups passed");
+Console.WriteLine($"{selected.Length - failed}/{selected.Length} groups passed");
 return failed == 0 ? 0 : 1;
 
 static Ff7SessionSave Fixture(long tick = 0)

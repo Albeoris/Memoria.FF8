@@ -67,6 +67,9 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.CloseAndWait, B(id, 1)), 2);
             case 0x55:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Rows, B(id, 1), Height: (short)((B(id, 2) << 4) | 9)), 3);
+            case 0x5B:
+                uint encodedMateria = (uint)(R8(id, 1, 3) | R8(id, 2, 4) << 8 | R8(id, 3, 5) << 16 | R8(id, 4, 6) << 24);
+                return Host(id, new FieldMateriaCommand(encodedMateria), 7, result: value => Variables.WriteByte(FieldBank.Persistent3Byte, 31, value == -1 ? (byte)0 : (byte)1));
             case 0x60:
                 return Host(id, new FieldTransitionCommand(W(id, 1), S(id, 3), S(id, 5), W(id, 7), B(id, 9)), 10, firstCallYields: true);
             case 0x61:
@@ -95,6 +98,9 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldCameraCommand(FieldCameraOperation.Wait), 1);
             case 0x69:
                 return Host(id, new FieldControlCommand(FieldControlKind.MapDisplay, B(id, 1)), 2);
+            case 0x6A:
+                byte viewMode = B(id, 6);
+                return Host(id, new FieldCameraCommand(FieldCameraOperation.ViewOffset, viewMode, R16(id, 1, 2), Steps: viewMode == 0 ? (short)0 : unchecked((byte)R16(id, 2, 4))), 7, yieldAfter: viewMode != 0);
             case 0x6B:
                 return Host(id, new FieldFadeCommand(B(id, 7), R8(id, 1, 3), R8(id, 2, 4), R8(id, 4, 5), B(id, 6), B(id, 8)), 9);
             case 0x6C:

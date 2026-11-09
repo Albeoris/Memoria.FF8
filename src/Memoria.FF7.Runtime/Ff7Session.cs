@@ -8,6 +8,7 @@ public sealed partial class Ff7Session : IDisposable
 {
     private readonly Ff7Installation installation;
     private readonly Ff7PcExecutableData executable;
+    private readonly byte[] materiaTypes;
     private readonly LgpArchive fields;
     private readonly LgpArchive characters;
     private readonly IReadOnlyList<string> mapList;
@@ -17,6 +18,7 @@ public sealed partial class Ff7Session : IDisposable
     {
         this.installation = installation;
         executable = Ff7PcExecutableData.Load(installation);
+        materiaTypes = Ff7MateriaResources.LoadTypes(installation);
         fields = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.FieldArchive).Path);
         try
         {
@@ -169,6 +171,7 @@ public sealed partial class Ff7Session : IDisposable
         Host = new Ff7FieldHost(Field, (model, animation) => models[model].Animations[Path.ChangeExtension(Field.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
+            CameraProjection = new Ff7NativeCamera(Field.Cameras[0], Field.Triggers),
             CompleteBattleRequest = CompleteDebugBattle,
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
@@ -181,6 +184,10 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldMateriaCommand materia)
+        {
+            return AcquireMateria(materia);
+        }
         if (command is FieldRandomCommand)
         {
             byte index = unchecked((byte)(Progress.FieldRandomIndex + executable.FieldRandomStep));

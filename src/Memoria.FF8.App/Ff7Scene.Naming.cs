@@ -4,7 +4,6 @@ using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
@@ -20,7 +19,7 @@ internal sealed partial class Ff7Scene
         return !focusPaused && !debugMenu && namingMenus?.EnterNameCharacter(character) == true;
     }
 
-    private bool UpdateNamingMenu(KeyboardState keys)
+    private bool UpdateNamingMenu()
     {
         if (Session!.Host.Process.Menu is not { Completed: false } menu)
         {
@@ -53,16 +52,25 @@ internal sealed partial class Ff7Scene
             namingMenus.OpenNamePrompt(menu.Parameter, current, name => Session.CompleteNamingMenu(menu.RequestId, name), new NamePromptOptions(9, current, new UiImageSource(UiImageKind.HostArtwork, portraitId), value => value.All(character => character is >= ' ' and <= '~')));
             namingRequest = menu.RequestId;
         }
-        foreach ((Keys key, MenuInput input) in new[] { (Keys.Up, MenuInput.Up), (Keys.Down, MenuInput.Down), (Keys.Left, MenuInput.Left), (Keys.Right, MenuInput.Right), (Keys.Tab, MenuInput.Tab), (Keys.PageUp, MenuInput.PageUp), (Keys.PageDown, MenuInput.PageDown), (Keys.Enter, MenuInput.Confirm), (Keys.Escape, MenuInput.Cancel) })
+        if (semanticInput.MenuVertical != 0)
         {
-            if (Pressed(keys, key))
-            {
-                namingMenus.Navigate(input);
-            }
+            namingMenus.Navigate(semanticInput.MenuVertical < 0 ? MenuInput.Up : MenuInput.Down);
         }
-        if (!namingMenus.IsTypingName && Pressed(keys, Keys.Z))
+        if (semanticInput.MenuHorizontal != 0)
+        {
+            namingMenus.Navigate(semanticInput.MenuHorizontal < 0 ? MenuInput.Left : MenuInput.Right);
+        }
+        if (sharedInput.UiTabRequested)
+        {
+            namingMenus.Navigate(MenuInput.Tab);
+        }
+        if (semanticInput.Confirm)
         {
             namingMenus.Navigate(MenuInput.Confirm);
+        }
+        if (semanticInput.Cancel)
+        {
+            namingMenus.Navigate(MenuInput.Cancel);
         }
         return true;
     }

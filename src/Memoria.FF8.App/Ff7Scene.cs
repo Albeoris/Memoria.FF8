@@ -32,7 +32,6 @@ internal sealed partial class Ff7Scene : IDisposable
     private CombinedSessionSave envelope;
     private Ff7FieldRenderer? renderer;
     private long renderedGeneration = -1;
-    private KeyboardState previousKeys;
     private double tickRemainder;
     private int titleSelection;
     private bool debugMenu;
@@ -70,7 +69,8 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void SuppressInitialPresses(KeyboardState keys)
     {
-        previousKeys = keys;
+        sharedInput.Read(keys, false);
+        sharedInput.SuppressHeldUiInput();
         pendingPressedKeys = 0;
     }
 
@@ -82,8 +82,8 @@ internal sealed partial class Ff7Scene : IDisposable
     public void SetFocusPaused(bool paused)
     {
         focusPaused = paused;
-        SetAudioPaused(paused || debugMenu || error is not null);
-        if (paused || debugMenu || error is not null)
+        SetAudioPaused(paused || userPaused || debugMenu || error is not null);
+        if (paused || userPaused || debugMenu || error is not null)
         {
             movie?.Suspend();
         }
@@ -116,17 +116,19 @@ internal sealed partial class Ff7Scene : IDisposable
         return saved;
     }
 
-    public void Update(GameTime gameTime, KeyboardState keys)
+    public void Update(GameTime gameTime, KeyboardState keys, GamePadState pad = default)
     {
         try
         {
             ownedDialogueText?.BeginFrame();
             ownedDialogueCanvas?.BeginFrame(gameTime.TotalGameTime);
-            if (focusPaused)
+            SampleSharedInput(keys, pad);
+            if (focusPaused || userPaused)
             {
+                movieSkipGesture.Reset();
                 return;
             }
-            if (Pressed(keys, Keys.F2))
+            if (sharedInput.DebugRoomRequested)
             {
                 debugMenu = !debugMenu;
                 SetAudioPaused(debugMenu);
@@ -142,41 +144,56 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (error is not null)
             {
+                UpdateErrorPresentation();
                 return;
             }
             if (Session is null)
             {
-                UpdateTitle(keys);
+                UpdateTitle();
                 return;
             }
             if (debugMenu)
             {
-                UpdateDebugMenu(keys);
+                UpdateDebugMenu();
                 return;
             }
             UpdateAudio();
-            if (UpdateNamingMenu(keys))
+            if (autoPlay?.Running != true || autoPlay.Paused)
             {
-                return;
+                if (UpdateNamingMenu())
+                {
+                    return;
+                }
+                UpdateSessionInput();
             }
-            UpdateSessionInput(keys);
             UpdateMovie();
-            tickRemainder += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25);
+            UpdateMovieSkip(gameTime.ElapsedGameTime);
+            SceneKind timingScene = Session.Host.Process.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field;
+            tickRemainder += sharedClock.Advance(TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), timingScene).TotalSeconds;
             while (tickRemainder >= 1d / 30)
             {
                 tickRemainder -= 1d / 30;
-                ApplyLogicalInput();
-                Session.AdvanceTick();
+                CapturePreviousActors();
+                if (autoPlay?.Running == true && !autoPlay.Paused)
+                {
+                    AdvanceAutoPlay();
+                    if (error is not null)
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    ApplyLogicalInput();
+                    Session.AdvanceTick();
+                }
+                RememberReportCheckpoint();
                 UpdateAudio();
             }
         }
-        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
+        catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
         {
             SetError(exception);
-        }
-        finally
-        {
-            previousKeys = keys;
         }
     }
 
@@ -209,6 +226,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
             }
             DrawNamingMenu(windowBounds);
+            DrawMovieSkipHint(windowBounds);
             if (debugMenu)
             {
                 DrawDebugMenu(batch, bounds);
@@ -219,12 +237,10 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (error is not null)
             {
-                DrawWindow(batch, new Rectangle(4, 4, 312, 224), bounds);
-                DrawPlain(batch, "FFVII stopped at an unsupported contract", 12, 14, bounds, 6);
-                DrawPlain(batch, Wrap(error, 42), 12, 38, bounds, 7);
+                DrawErrorPresentation(windowBounds);
             }
         }
-        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
+        catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
         {
             SetError(exception);
         }
@@ -236,6 +252,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void Attach(Ff7Session session)
     {
+        autoPlay = null;
         DisposeNamingPresentation();
         StopAudio();
         Session?.Dispose();
@@ -250,6 +267,7 @@ internal sealed partial class Ff7Scene : IDisposable
         notice = null;
         debugMenu = false;
         tickRemainder = 0;
+        RememberReportCheckpoint();
     }
 
     private void RenderField(Rectangle bounds)
@@ -263,7 +281,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        Ff7ActorVisual[] actors = state.Actors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
+        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
         Ff7FieldRenderFrame frame = new(0, new Vector2N(state.CameraX, state.CameraY), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion);
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
@@ -273,13 +291,13 @@ internal sealed partial class Ff7Scene : IDisposable
         throw new NotSupportedException($"FFVII presentation does not implement {command.GetType().Name}.");
     }
 
-    private void UpdateTitle(KeyboardState keys)
+    private void UpdateTitle()
     {
-        if (Pressed(keys, Keys.Up) || Pressed(keys, Keys.Down))
+        if (semanticInput.MenuVertical != 0)
         {
             titleSelection = 1 - titleSelection;
         }
-        if (Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z))
+        if (semanticInput.Confirm)
         {
             if (titleSelection == 0)
             {
@@ -292,22 +310,30 @@ internal sealed partial class Ff7Scene : IDisposable
         }
     }
 
-    private void UpdateDebugMenu(KeyboardState keys)
+    private void UpdateDebugMenu()
     {
-        if (Pressed(keys, Keys.Escape))
+        if (semanticInput.Cancel)
         {
             debugMenu = false;
             movie?.Resume();
             SetAudioPaused(false);
             return;
         }
-        if (Pressed(keys, Keys.Up) || Pressed(keys, Keys.Down))
+        if (semanticInput.MenuVertical != 0)
         {
-            int direction = Pressed(keys, Keys.Up) ? -1 : 1;
-            debugSelection = (debugSelection + direction + 3) % 3;
+            int direction = semanticInput.MenuVertical < 0 ? -1 : 1;
+            debugSelection = (debugSelection + direction + 4) % 4;
         }
-        if (Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z))
+        if (semanticInput.Confirm)
         {
+            if (debugSelection == 3)
+            {
+                ApplyAutoPlayCommand(autoPlay?.Running == true && !autoPlay.Paused ? "pause" : "start");
+                debugMenu = false;
+                SetAudioPaused(false);
+                movie?.Resume();
+                return;
+            }
             if (debugSelection == 2)
             {
                 ToggleDialoguePresentation();
@@ -346,13 +372,14 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void DrawDebugMenu(SpriteBatch batch, Rectangle bounds)
     {
-        DrawWindow(batch, new Rectangle(56, 54, 208, 138), bounds);
+        DrawWindow(batch, new Rectangle(56, 44, 208, 160), bounds);
         DrawPlain(batch, "Debug menu", 80, 76, bounds, 6);
         DrawPlain(batch, "Save", 96, 100, bounds, CanSave ? 7 : 0);
         DrawPlain(batch, "Switch world: FFVIII", 96, 122, bounds, CanSave && envelope.Ff8Payload is { Length: > 0 } ? 7 : 0);
         DrawPlain(batch, ">", 80, 100 + debugSelection * 22, bounds);
         DrawPlain(batch, "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), 96, 144, bounds, 7);
-        DrawPlain(batch, "Instant text: on (debug)", 80, 170, bounds, 0);
+        DrawPlain(batch, "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), 96, 166, bounds, 7);
+        DrawPlain(batch, "Instant text: on (debug)", 80, 190, bounds, 0);
     }
 
     private void DrawPlain(SpriteBatch batch, string value, int x, int y, Rectangle bounds, int color = 7)
@@ -410,11 +437,6 @@ internal sealed partial class Ff7Scene : IDisposable
         return texture;
     }
 
-    private bool Pressed(KeyboardState keys, Keys key)
-    {
-        return keys.IsKeyDown(key) && previousKeys.IsKeyUp(key);
-    }
-
     private static string Wrap(string value, int columns)
     {
         List<string> lines = new();
@@ -442,7 +464,7 @@ internal sealed partial class Ff7Scene : IDisposable
         {
             action();
         }
-        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
+        catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
         {
             SetError(exception);
         }
@@ -457,6 +479,7 @@ internal sealed partial class Ff7Scene : IDisposable
         error = exception.Message;
         movie?.Suspend();
         SetAudioPaused(true);
+        CaptureFf7Error(exception);
         Console.Error.WriteLine($"FFVII stopped: {exception}");
     }
 
@@ -467,6 +490,8 @@ internal sealed partial class Ff7Scene : IDisposable
         StopAudio();
         Session?.Dispose();
         DisposeDialoguePresentation();
+        errorReporter?.Dispose();
+        reportClipboard.Dispose();
         triangles.Dispose();
         titleArtwork.Dispose();
         pixel.Dispose();

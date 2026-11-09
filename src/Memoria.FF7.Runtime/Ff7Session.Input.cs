@@ -6,6 +6,21 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7Session
 {
+    private int movementSpeedPercent = 100;
+
+    public void ConfigureMovementSpeed(int percent)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(percent, 50);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 300);
+        movementSpeedPercent = percent;
+    }
+
+    public int GetPlayerMovementSpeed(bool run)
+    {
+        int scale = Field.Scripts.Scale;
+        int speed = Host.Process.MovieBackgroundEnabled ? run ? (6144 * scale) >> 9 : (3072 * scale) >> 10 : run ? (scale << 12) >> 9 : (scale << 10) >> 9;
+        return checked(speed * movementSpeedPercent / 100);
+    }
     public void SetInput(ushort held, ushort pressed)
     {
         Machine.SetInput(held, pressed);
@@ -104,11 +119,10 @@ public sealed partial class Ff7Session
         }
         int rotation = (Machine.Input.Held & 8) != 0 ? 224 : (Machine.Input.Held & 4) != 0 ? 32 : 0;
         direction = (direction + Field.Triggers.ControlDirection + rotation) & 255;
-        int scale = Field.Scripts.Scale;
         bool run = Machine.Input.Run;
-        int speed = process.MovieBackgroundEnabled ? run ? (6144 * scale) >> 9 : (3072 * scale) >> 10 : run ? (scale << 12) >> 9 : (scale << 10) >> 9;
+        int speed = GetPlayerMovementSpeed(run);
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII control requires its native movement contract.");
-        var controlled = player with { MoveSpeed = unchecked((ushort)speed), Animation = 0, AnimationSpeed = 16 };
+        var controlled = player with { MoveSpeed = unchecked((ushort)speed), Animation = 0, AnimationSpeed = checked((ushort)(16 * movementSpeedPercent / 100)) };
         Ff7NativeMoveResult result = movement.StepDirection(controlled, (byte)direction, process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
         int animation = run ? 2 : 1;
         if (Field.Models.Models[player.Model].Animations.Count <= animation)

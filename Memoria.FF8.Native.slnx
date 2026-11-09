@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="src/Memoria.AutoPlay/Memoria.AutoPlay.csproj" />
   <Project Path="tools/Memoria.FF8.LinuxTesting/Memoria.FF8.LinuxTesting.csproj" />
   <Project Path="tests/Memoria.FF8.LinuxTesting.Tests/Memoria.FF8.LinuxTesting.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />
@@ -46,4 +47,5 @@
   <Project Path="tests/Memoria.FF7.Resources.Tests/Memoria.FF7.Resources.Tests.csproj" />
   <Project Path="tests/Memoria.FF7.Events.Tests/Memoria.FF7.Events.Tests.csproj" />
     <Project Path="tests/Memoria.FF7.Runtime.Tests/Memoria.FF7.Runtime.Tests.csproj" />
+  <Project Path="tests/Memoria.AutoPlay.Tests/Memoria.AutoPlay.Tests.csproj" />
 </Solution>

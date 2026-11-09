@@ -3,7 +3,6 @@ using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
@@ -16,11 +15,11 @@ internal sealed partial class Ff7Scene
     private int moveVertical;
     private bool runHeld;
 
-    private void UpdateSessionInput(KeyboardState keys)
+    private void UpdateSessionInput()
     {
         Ff7Session session = Session!;
-        ushort held = NativeKeys(keys);
-        ushort pressed = (ushort)(held & ~NativeKeys(previousKeys));
+        ushort held = Ff7ControlButtons.FromShared(sharedInput.HeldFieldButtons);
+        ushort pressed = (ushort)(held & ~heldKeys);
         heldKeys = held;
         pendingPressedKeys |= pressed;
         moveHorizontal = 0;
@@ -31,18 +30,18 @@ internal sealed partial class Ff7Scene
             if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
             {
                 int selected = Math.Clamp(dialogue.Selected, first, last);
-                if (Pressed(keys, Keys.Up))
+                if (semanticInput.MenuVertical < 0)
                 {
                     selected = selected <= first ? last : selected - 1;
                 }
-                if (Pressed(keys, Keys.Down))
+                if (semanticInput.MenuVertical > 0)
                 {
                     selected = selected >= last ? first : selected + 1;
                 }
                 session.Host.UpdateDialogue(dialogue.RequestId, dialogue.Page, selected, dialogue.TokenPosition, dialogue.WaitTicks, dialogue.AwaitingInput);
                 dialogue = session.Host.Process.Dialogues.Single(item => item.RequestId == dialogue.RequestId);
             }
-            if ((Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z)) && dialogue.AwaitingInput)
+            if (semanticInput.Confirm && dialogue.AwaitingInput)
             {
                 if (AdvanceCommonDialogue(dialogue))
                 {
@@ -60,13 +59,13 @@ internal sealed partial class Ff7Scene
             }
             return;
         }
-        if (Pressed(keys, Keys.Enter) || Pressed(keys, Keys.Z))
+        if (semanticInput.Confirm)
         {
             session.TryTalk();
         }
-        moveHorizontal = (keys.IsKeyDown(Keys.Right) ? 1 : 0) - (keys.IsKeyDown(Keys.Left) ? 1 : 0);
-        moveVertical = (keys.IsKeyDown(Keys.Down) ? 1 : 0) - (keys.IsKeyDown(Keys.Up) ? 1 : 0);
-        runHeld = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
+        moveHorizontal = Math.Sign(semanticInput.Horizontal);
+        moveVertical = Math.Sign(semanticInput.Vertical);
+        runHeld = Ff7ControlButtons.Run(sharedInput.HeldFieldButtons);
     }
 
     private void ApplyLogicalInput()
@@ -173,6 +172,14 @@ internal sealed partial class Ff7Scene
                 case FieldTextTokenKind.CharacterName:
                     DrawExpansion(Session!.Progress.Characters[token.Argument].Name);
                     break;
+                case FieldTextTokenKind.ControllerButton:
+                    string label = ButtonLabel(token);
+                    float lineHeight = Ff7FontResources.LineHeight * scale.Y;
+                    string family = dialoguePreferences!().DialogueFontFamily;
+                    float size = lineHeight * 0.8f;
+                    ButtonPrompt.Draw(batch, pixel, dialogueText!, label, size, position, lineHeight, 1, family, bounds, dialogueCanvas);
+                    position.X += ButtonPrompt.Measure(label, value => dialogueText!.MeasureWrapped(value, size, float.PositiveInfinity, family).X, lineHeight);
+                    break;
                 case FieldTextTokenKind.PartyName:
                     int character = Session!.Progress.Party[token.Argument];
                     if (character is < 0 or >= 9)
@@ -199,37 +206,4 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    private static ushort NativeKeys(KeyboardState keys)
-    {
-        ushort mask = 0;
-        if (keys.IsKeyDown(Keys.Up))
-        {
-            mask |= 0x1000;
-        }
-        if (keys.IsKeyDown(Keys.Right))
-        {
-            mask |= 0x2000;
-        }
-        if (keys.IsKeyDown(Keys.Down))
-        {
-            mask |= 0x4000;
-        }
-        if (keys.IsKeyDown(Keys.Left))
-        {
-            mask |= 0x8000;
-        }
-        if (keys.IsKeyDown(Keys.Z) || keys.IsKeyDown(Keys.Enter))
-        {
-            mask |= 0x0020;
-        }
-        if (keys.IsKeyDown(Keys.X) || keys.IsKeyDown(Keys.Escape))
-        {
-            mask |= 0x0040;
-        }
-        if (keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift))
-        {
-            mask |= 0x0040;
-        }
-        return mask;
-    }
 }

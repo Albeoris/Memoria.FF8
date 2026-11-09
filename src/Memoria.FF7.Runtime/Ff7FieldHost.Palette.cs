@@ -4,6 +4,30 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    private void InitializePaletteState()
+    {
+        if (field.Palettes is null || field.Background is null)
+        {
+            return;
+        }
+        if (Process.PaletteRowsUseCachedIndices && Process.PaletteRows.Length != 0)
+        {
+            return;
+        }
+        bool legacy = Process.PaletteRows.Length != 0;
+        Process = Process with
+        {
+            PaletteRows = field.Palettes.CreateCachedBackgroundRows(field.Background),
+            PaletteRowsUseCachedIndices = true,
+            PaletteBuffer = legacy ? new ushort[1024] : Process.PaletteBuffer,
+            PaletteVersion = legacy ? Process.PaletteVersion + 1 : Process.PaletteVersion
+        };
+        if (legacy)
+        {
+            Console.Error.WriteLine("FFVII compatibility: legacy palette presentation and scratch colors were reset from the selected field resources; recorded progress is preserved.");
+        }
+    }
+
     private void Palette(FieldPaletteCommand command)
     {
         if (command.Source is < 0 or > 255 || command.Destination is < 0 or > 255 || command.Count is < 1 or > 256 || command.First is < 0 or > 255)
