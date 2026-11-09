@@ -12,7 +12,7 @@ public static class Ff7NativeBlink
         {
             return false;
         }
-        Vector3 point = new(unchecked((short)((actor.X4096 >> 12) + actor.OffsetX)), unchecked((short)((actor.Y4096 >> 12) + actor.OffsetY + configuration.ExtraY)), unchecked((short)((actor.Z4096 >> 12) + actor.OffsetZ + configuration.ExtraZ - 10)));
+        Vector3 point = Ff7NativeModelPosition.PresentationPoint(actor, configuration);
         Vector3 projected = PcFieldProjection.Project(point, camera, new(originX, originY));
         int depth = unchecked((int)((double)projected.Z * 0.25));
         if (depth >= 3840)

@@ -94,6 +94,11 @@ public sealed partial class Ff7FieldHost
                 channelVolumes[audio.Operation - 0xA0] = Math.Min(unchecked((byte)audio.Parameter0), (byte)127);
                 Process = Process with { SoundChannelVolumes = channelVolumes };
                 break;
+            case 0xA6 when unchecked((byte)audio.Parameter0) == 0:
+                int[] immediateVolumes = (int[])Process.SoundChannelVolumes.Clone();
+                immediateVolumes[2] = Math.Min(unchecked((byte)audio.Parameter1), (byte)127);
+                Process = Process with { SoundChannelVolumes = immediateVolumes };
+                break;
             case 0xF0:
                 PlayNativeMusic(0);
                 break;

@@ -52,6 +52,14 @@ internal static class NativeMusicFadeTests
         Equal("127,0,127,127,127", string.Join(',', restoredChannels.CreateNextFieldProcess().SoundChannelVolumes));
         restoredChannels.Execute(Request(8, new FieldAudioCommand(0xA1, 511)));
         Equal(127, restoredChannels.Process.SoundChannelVolumes[1]);
+        restoredChannels.Execute(Request(20, new FieldAudioCommand(0xA6, 0, 10)));
+        Equal("127,127,10,127,127", string.Join(',', restoredChannels.Process.SoundChannelVolumes));
+        Ff7FieldHost coldImmediate = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(restoredChannels.Capture()))!);
+        Equal("127,127,10,127,127", string.Join(',', coldImmediate.CreateNextFieldProcess().SoundChannelVolumes));
+        coldImmediate.AdvanceAudioClock(TimeSpan.FromSeconds(10));
+        Equal(10, coldImmediate.Process.SoundChannelVolumes[2]);
+        coldImmediate.Execute(Request(21, new FieldAudioCommand(0xA6, 256, 511)));
+        Equal(127, coldImmediate.Process.SoundChannelVolumes[2]);
         Ff7FieldHost changing = Host();
         changing.Execute(Request(9, new FieldAudioCommand(0xC2, 127, 60, 0)));
         Ff7MusicVolumeFade originalFade = changing.Process.MusicVolumeFade!;

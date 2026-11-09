@@ -27,6 +27,14 @@ internal static class NativeBlinkTests
             Check(JsonSerializer.Serialize(next) == JsonSerializer.Serialize(cold), "Cold blink ownership diverged.");
             cold = JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold))!;
         }
+        Ff7Actor fractional = Actor(0) with { X4096 = -1, Y4096 = 2 * 4096 + 2048, Z4096 = 7 * 4096 + 4095, OffsetX = 2, OffsetY = 3, OffsetZ = 4 };
+        string untouched = JsonSerializer.Serialize(fractional);
+        Check(Ff7NativeModelPosition.PresentationPoint(fractional, new(22, -34, 1)) == new Vector3(1, 27, -33), "Native visual endpoints must use arithmetic Q12 shift, original offsets and the same per-field presentation corrections.");
+        Check(untouched == JsonSerializer.Serialize(fractional), "Native visual preparation changed the logical actor.");
+        Ff7Actor prepared = Ff7NativeModelPosition.PrepareActorPresentation(fractional, new(22, -34, 0));
+        Check(!prepared.Visible && prepared.OffsetX == 0 && prepared.OffsetY == 0 && prepared.OffsetZ == 0 && prepared.X4096 == 4096 && prepared.Y4096 == 27 * 4096 && prepared.Z4096 == -33 * 4096, "Native model mask and quantized endpoint must affect only the presentation copy.");
+        Check(untouched == JsonSerializer.Serialize(fractional), "Native mask preparation changed logical visibility or coordinates.");
+        Check(Ff7NativeModelPosition.PresentationPoint(Actor(0) with { X4096 = 32767 * 4096, OffsetX = 1 }, new(0, 0, 1)).X == -32768, "Native visual endpoint must preserve signed16 narrowing.");
         PcFieldCamera camera = new(Vector3.UnitX * 4096, Vector3.UnitY * 4096, Vector3.UnitZ * 4096, 0, new(0, 0, 1000), 0, 1000);
         Ff7Actor actor = Actor(0) with { Z4096 = 10 * 4096 };
         bool Gate(Ff7Actor selected, Vector2 offset = default, bool bypass = false, Ff7NativeModelPresentation? config = null) => Ff7NativeBlink.Eligible(selected, camera, config ?? new(0, 0, 1), offset, bypass);

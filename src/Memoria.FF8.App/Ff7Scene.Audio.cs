@@ -123,6 +123,10 @@ internal sealed partial class Ff7Scene
                 int nativeVolume = Session!.Host.Process.SoundChannelVolumes[gainChannel - 1];
                 soundChannels.SetGain(gainChannel, NativeGain(nativeVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), nativeVolume);
                 return;
+            case 0xA6 when unchecked((byte)command.Parameter0) == 0:
+                int thirdVolume = Session!.Host.Process.SoundChannelVolumes[2];
+                soundChannels.SetGain(3, NativeGain(thirdVolume, dialoguePreferences?.Invoke().SoundVolume ?? 100), thirdVolume);
+                return;
             case 0xF0:
             case 0xC0:
             case 0xC1:

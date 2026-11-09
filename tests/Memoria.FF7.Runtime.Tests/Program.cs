@@ -18,6 +18,7 @@ var tests = new (string Name, Action Run)[]
     ("native wait-free window size and cold continuation", NativeProcessTests.RunWindowSizeWhenFree),
     ("native dynamic actor approach and cold continuation", NativeActorApproachTests.Run),
     ("native camera shake and cold continuation", NativeCameraShakeTests.Run),
+    ("native player entry movement and cold continuation", NativePlayerEntryTests.Run),
     ("native preload request and cold continuation", NativePreloadTests.Run),
     ("native eye disable owner and cold continuation", NativeEyeControlTests.Run),
     ("native automatic blink eligibility and cold continuation", NativeBlinkTests.Run),

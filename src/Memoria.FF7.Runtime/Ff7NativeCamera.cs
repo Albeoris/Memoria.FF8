@@ -5,7 +5,24 @@ namespace Memoria.FF7.Runtime;
 
 public sealed class Ff7NativeCamera(PcFieldCamera camera, PcFieldTriggers triggers)
 {
-    public static Vector2 PresentationOffset(Ff7FieldProcess process) => new(process.CameraX + (process.CameraShakeX?.Offset ?? 0), process.CameraY + (process.CameraShakeY?.Offset ?? 0));
+    public static Vector2 PresentationOffset(Ff7FieldProcess process, PcFieldCamera? movieCamera = null)
+    {
+        if (process.Movie is { Playing: true } movie && !process.MovieBackgroundEnabled)
+        {
+            if (process.MovieCameraDisabled || movie.CameraDisabled)
+            {
+                return new(process.CameraX, process.CameraY);
+            }
+            if (movieCamera is null)
+            {
+                throw new NotSupportedException("Native movie projection requires its current original camera screen offsets.");
+            }
+            short x = unchecked((short)-unchecked((short)movieCamera.Reserved2));
+            short y = unchecked((short)(movieCamera.Reserved2 >> 16));
+            return new(x, y);
+        }
+        return new(process.CameraX + (process.CameraShakeX?.Offset ?? 0), process.CameraY + (process.CameraShakeY?.Offset ?? 0));
+    }
 
     public (short X, short Y) Follow(Ff7Actor actor, short focus)
     {

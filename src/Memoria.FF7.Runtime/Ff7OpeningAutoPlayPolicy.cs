@@ -58,6 +58,19 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return driver.Gateway(156);
             case "mds7plr1":
                 return driver.Gateway(151);
+            case "mds7":
+                return driver.Approach(new(300, 430, 76));
+            case "mds7pb_1":
+                int pubStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+                if (pubStory == 69)
+                {
+                    return driver.Gateway(151);
+                }
+                if (pubStory < 69)
+                {
+                    return default;
+                }
+                throw new NotSupportedException($"FFVII autoplay has reached the next pub story handoff at native story {pubStory}.");
             case "md1_2":
                 return driver.Gateway(119);
             case "md8_1":

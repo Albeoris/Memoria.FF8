@@ -9,6 +9,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
     private readonly AutoPlayIdleDeadline deadline = new(clock ?? TimeProvider.System, TimeSpan.FromSeconds(10));
+    private readonly Ff7AutoPlayTransitionGuard transitions = new();
     private string? previousProgress;
     private Ff7SessionSave lastSafe = session.Capture();
 
@@ -27,6 +28,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         Running = true;
         Paused = false;
         deadline.Reset();
+        transitions.Reset();
         CaptureCheckpoint();
     }
 
@@ -64,6 +66,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
             try
             {
                 present?.Invoke();
+                transitions.Observe(session);
                 ConfirmDefaultDialogueAndNames();
                 Ff7SessionSave observed = session.Capture();
                 string progress = $"{session.FieldGeneration}:{session.Progress.CompletedBattles.Length}:{session.Host.Process.Movie?.Frame}:{session.Host.Process.CameraScroll?.Step}:{session.Host.Process.CameraViewOffset?.Step}:"

@@ -16,6 +16,22 @@ for (int action = 0; action < 40; action++)
 }
 Check(recorded.Count == 32 && recorded[0] == 8 && recorded[^1] == 39, "Recent action recording exceeded its storage bound or changed order.");
 Check(AutoPlayRecording.LimitActionText(new string('x', 600)).Length == 512, "Recorded action text exceeded its shared bound.");
+AutoPlayTransitionCycleGuard<(string Field, int Story)> transitions = new();
+for (int index = 0; index < 6; index++)
+{
+    Check(!transitions.Observe((index % 2 == 0 ? "a" : "b", 72)), "Transition guard rejected fewer than three complete round trips.");
+}
+Check(transitions.Observe(("a", 72)), "Transition guard accepted three unchanged two-field round trips.");
+transitions.Reset();
+for (int index = 0; index < 30; index++)
+{
+    Check(!transitions.Observe(("a", 72)), "Transition guard rejected ordinary same-field activity.");
+}
+transitions.Reset();
+for (int index = 0; index < 12; index++)
+{
+    Check(!transitions.Observe((index % 2 == 0 ? "a" : "b", 72 + index / 4)), "Transition guard rejected a route with native story handoffs.");
+}
 string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".checkpoint");
 try
 {

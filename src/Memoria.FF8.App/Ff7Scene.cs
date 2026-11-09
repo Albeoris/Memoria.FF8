@@ -293,7 +293,7 @@ internal sealed partial class Ff7Scene : IDisposable
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState) };
+        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState) };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 
@@ -307,15 +307,9 @@ internal sealed partial class Ff7Scene : IDisposable
         };
     }
 
-    internal static Vector2N FieldCameraOffset(Ff7FieldProcess state)
+    internal static Vector2N FieldCameraOffset(Ff7FieldProcess state, PcFieldCamera? movieCamera = null)
     {
-        int shakeX = state.CameraShakeX?.Offset ?? 0;
-        int shakeY = state.CameraShakeY?.Offset ?? 0;
-        if (state.Movie is { Playing: true } && (shakeX != 0 || shakeY != 0))
-        {
-            throw new NotSupportedException("FFVII camera shake during a movie requires its native composition contract.");
-        }
-        return Ff7NativeCamera.PresentationOffset(state);
+        return Ff7NativeCamera.PresentationOffset(state, movieCamera);
     }
 
     private void PresentationCommand(FieldCommand command)

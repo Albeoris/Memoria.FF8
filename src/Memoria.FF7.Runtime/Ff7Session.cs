@@ -69,6 +69,7 @@ public sealed partial class Ff7Session : IDisposable
             FieldVariables variables = new(session.executable.CreateInitialPersistentVariables(), new byte[256]);
             session.LoadField(session.executable.InitialField, variables);
             session.Machine.Initialize();
+            session.Host.InitializePlayerMovement(session.Field.Scripts.Scale);
             session.Host.InitializeBackgroundTriggers();
             return session;
         }
@@ -148,9 +149,10 @@ public sealed partial class Ff7Session : IDisposable
             FieldGeneration++;
             fieldLoadIncomplete = true;
             Machine.Initialize();
+            Host.InitializePlayerMovement(Field.Scripts.Scale);
             Host.InitializeBackgroundTriggers();
             Ff7Actor? player = Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-            if (player is not null)
+            if (player is not null && !Host.Process.PlayerLocked)
             {
                 Host.Execute(new FieldHostRequest(long.MaxValue - 1, player.Entity, 7, 0, new FieldActorPlacement(transition.X, transition.Y, null, checked((short)transition.Triangle))));
                 Host.Execute(new FieldHostRequest(long.MaxValue, player.Entity, 7, 0, new FieldActorProperty(FieldActorPropertyKind.Direction, transition.Direction)));
@@ -192,7 +194,7 @@ public sealed partial class Ff7Session : IDisposable
             AudioRequested = Host?.AudioRequested,
             NativeBlinkCamera = Host?.NativeBlinkCamera,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,
-            NativeBlinkModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
+            NativeModelConfiguration = slot => map == 502 ? throw new NotSupportedException("This native field requires its dynamic party presentation-mask owner.") : executable.NativePresentation.Model(map, slot),
             Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,

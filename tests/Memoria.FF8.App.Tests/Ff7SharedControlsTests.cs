@@ -79,5 +79,8 @@ public sealed class Ff7SharedControlsTests
         Assert.Equal(8, current.AnimationFrame16);
         Memoria.FF7.Runtime.Ff7Actor replacement = current with { Model = 1 };
         Assert.Same(replacement, Ff7ActorPresentation.Interpolate(previous, replacement, 0.5f, 10));
+        Memoria.FF7.Runtime.Ff7Actor beforeWrap = current with { X4096 = short.MaxValue * 4096 };
+        Memoria.FF7.Runtime.Ff7Actor afterWrap = current with { X4096 = short.MinValue * 4096 };
+        Assert.Same(afterWrap, Ff7ActorPresentation.Interpolate(beforeWrap, afterWrap, 0.5f, 10));
     }
 }

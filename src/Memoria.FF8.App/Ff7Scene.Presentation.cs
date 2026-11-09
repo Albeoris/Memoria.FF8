@@ -16,12 +16,18 @@ internal sealed partial class Ff7Scene
 
     private Ff7Actor PresentationActor(Ff7Actor actor)
     {
-        if (!actor.Visible || !InterpolatePresentation || PresentationPreferences.FieldFps != 60 || focusPaused || userPaused || debugMenu || error is not null || previousActorGeneration != Session!.FieldGeneration || !previousActors.TryGetValue(actor.Slot, out Ff7Actor? previous))
+        if (!actor.Visible)
         {
             return actor;
         }
+        Ff7Actor current = Session!.PrepareActorPresentation(actor);
+        if (!InterpolatePresentation || PresentationPreferences.FieldFps != 60 || focusPaused || userPaused || debugMenu || error is not null || previousActorGeneration != Session.FieldGeneration || !previousActors.TryGetValue(actor.Slot, out Ff7Actor? previous))
+        {
+            return current;
+        }
         int frames = Session.Models[actor.Model].Animations[Path.ChangeExtension(Session.Field.Models.Models[actor.Model].Animations[actor.Animation], ".a")].Frames.Count;
-        return Ff7ActorPresentation.Interpolate(previous, actor, (float)Math.Clamp(tickRemainder * 30, 0, 1), frames);
+        Ff7Actor before = previous.Visible && previous.Model == actor.Model ? Session.PrepareActorPresentation(previous) : previous;
+        return Ff7ActorPresentation.Interpolate(before, current, (float)Math.Clamp(tickRemainder * 30, 0, 1), frames);
     }
 }
 
@@ -30,6 +36,10 @@ internal static class Ff7ActorPresentation
     public static Ff7Actor Interpolate(Ff7Actor previous, Ff7Actor current, float fraction, int animationFrames)
     {
         if (previous.Model != current.Model || previous.Visible != current.Visible || previous.Entity != current.Entity || previous.Slot != current.Slot)
+        {
+            return current;
+        }
+        if (Math.Abs((long)current.X4096 - previous.X4096) > 32767L * 4096 || Math.Abs((long)current.Y4096 - previous.Y4096) > 32767L * 4096 || Math.Abs((long)current.Z4096 - previous.Z4096) > 32767L * 4096)
         {
             return current;
         }
