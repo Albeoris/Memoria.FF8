@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null)
+public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
@@ -152,16 +152,13 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         }
         foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && session.Host.CanConfirmDialogue(dialogue.RequestId)).ToArray())
         {
+            if (advanceDialoguePresentation?.Invoke(dialogue) == true)
+            {
+                continue;
+            }
             Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
             Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(selected, FieldText.Read(session.Field.Scripts.Texts[dialogue.Text].Span));
-            if (confirmed.Completed)
-            {
-                session.Host.CompleteDialogue(dialogue.RequestId, confirmed.Selected);
-            }
-            else
-            {
-                session.Host.UpdateDialogue(dialogue.RequestId, confirmed.Page, confirmed.Selected, confirmed.TokenPosition, confirmed.WaitTicks, confirmed.AwaitingInput);
-            }
+            session.Host.UpdateDialogue(confirmed);
         }
     }
 }

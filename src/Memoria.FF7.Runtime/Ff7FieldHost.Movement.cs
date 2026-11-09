@@ -4,6 +4,11 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public bool HasScriptedMotion(Ff7Actor actor)
+    {
+        return actor.EntityBound && Process.Motions.Any(motion => motion.Entity == actor.Entity);
+    }
+
     private FieldHostReply MoveActor(FieldHostRequest request, FieldActorMove movement)
     {
         if (movement.TargetEntity is int targetEntity)

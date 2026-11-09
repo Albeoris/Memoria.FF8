@@ -6,62 +6,8 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeDialogueTests
 {
-    private static void CursorTimingAndRestore()
-    {
-        IReadOnlyList<FieldTextToken> tokens = FieldText.Read(new byte[] { 0x21, 0xFE, 0xDD, 3, 0, 0x22, 0xE8, 0x23, 0xFE, 0xDC, 0x24, 0xFF });
-        Ff7Dialogue state = new(1, 0, 0, null, null, 0);
-        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
-        Equal(3, state.WaitTicks);
-        Equal(false, state.AwaitingInput);
-        Equal(state, Ff7DialogueCursor.Confirm(state, tokens));
-        Ff7Dialogue restored = System.Text.Json.JsonSerializer.Deserialize<Ff7Dialogue>(System.Text.Json.JsonSerializer.Serialize(state))!;
-        for (int tick = 0; tick < 3; tick++)
-        {
-            state = Ff7DialogueCursor.AdvanceTick(state, tokens);
-            restored = Ff7DialogueCursor.AdvanceTick(restored, tokens);
-            Equal(state, restored);
-            Equal(false, state.AwaitingInput);
-        }
-        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
-        Equal(true, state.AwaitingInput);
-        Equal(0, state.Page);
-        state = Ff7DialogueCursor.Confirm(state, tokens);
-        Equal(1, state.Page);
-        Equal(false, state.Completed);
-        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
-        Equal(true, state.AwaitingInput);
-        state = Ff7DialogueCursor.Confirm(state, tokens);
-        Equal(1, state.Page);
-        state = Ff7DialogueCursor.AdvanceTick(state, tokens);
-        Equal(true, Ff7DialogueCursor.Confirm(state, tokens).Completed);
-        IReadOnlyList<FieldTextToken> scroll = FieldText.Read(new byte[] { 0xFE, 0xE0, 0xFF });
-        try
-        {
-            Ff7DialogueCursor.AdvanceTick(new(1, 0, 0, null, null, 0), scroll);
-            throw new Exception("Unsupported scrolling text was accepted.");
-        }
-        catch (NotSupportedException)
-        {
-        }
-        Ff7Dialogue question = new(2, 0, 0, 2, 3, 2, AwaitingInput: true);
-        Ff7Dialogue selected = Ff7DialogueCursor.Select(question, 3);
-        Equal(2, question.Selected);
-        Equal(3, selected.Selected);
-        Equal(true, Ff7DialogueCursor.Confirm(selected, []).Completed);
-        Equal(3, Ff7DialogueCursor.Confirm(selected, []).Selected);
-        try
-        {
-            Ff7DialogueCursor.Select(question, 1);
-            throw new Exception("A reply outside the original question bounds was accepted.");
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-        }
-    }
-
     public static void Run()
     {
-        CursorTimingAndRestore();
         Ff7FieldResources field = Field();
         Ff7FieldHost host = new(field, (_, _) => 1, new Ff7FieldProcess { Tick = 42, Windows = [new Ff7Window(0, 10, 20, 200, 70)] });
         FieldHostRequest request = new(1, 0, 1, 104, new FieldDialogueCommand(0, 0, 0, 1, 0));
@@ -101,8 +47,14 @@ internal static class NativeDialogueTests
         Equal(true, page.AwaitingInput);
         Ff7FieldHost resumed = new(field, (_, _) => 1, paused.Ff7.Process);
         resumed.UpdateDialogue(1, 1, 1, 7, 0, true);
+        resumed.UpdateDialogue(resumed.Process.Dialogues.Single() with { Presentation = new(6, 200, 70) });
         resumed.CompleteDialogue(1, 1);
         FieldHostReply result = resumed.Execute(request);
+        Equal(false, result.Completed);
+        for (int callback = 0; callback < 16 && !result.Completed; callback++)
+        {
+            result = resumed.Execute(request);
+        }
         Equal(true, result.Completed);
         Equal(1, result.Value);
         Equal(42L, resumed.Process.Tick);
@@ -125,9 +77,9 @@ internal static class NativeDialogueTests
         return CombinedSessionCodec.Read(bytes);
     }
 
-    private static Ff7FieldResources Field()
+    internal static Ff7FieldResources Field(byte[]? text = null)
     {
-        byte[] text = [0x21, 0xFE, 0xDD, 3, 0, 0x22, 0xE8, 0xEA, 0xFE, 0xDC, 0x23, 0xFF];
+        text ??= [0x21, 0xFE, 0xDD, 3, 0, 0x22, 0xE8, 0xEA, 0xFE, 0xDC, 0x23, 0xFF];
         byte[] section = new byte[110 + text.Length];
         BinaryPrimitives.WriteUInt16LittleEndian(section, 0x0502);
         section[2] = 1;

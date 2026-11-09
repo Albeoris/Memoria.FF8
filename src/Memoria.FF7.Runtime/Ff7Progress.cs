@@ -16,6 +16,7 @@ public sealed record Ff7Progress
     public required Ff7InventorySlot[] Inventory { get; init; }
     public required Ff7MateriaState[] Materia { get; init; }
     public uint Gil { get; init; }
+    public byte NativeMessageSpeed { get; init; } = 128;
     public Ff7ClockState? Clock { get; init; }
     public ushort AvailableCharacters { get; init; }
     public ushort LockedCharacters { get; init; }

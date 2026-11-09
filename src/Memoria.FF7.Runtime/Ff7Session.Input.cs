@@ -117,7 +117,7 @@ public sealed partial class Ff7Session
             return;
         }
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (player is null || player.Ladder is not null || player.Jump is not null || process.Motions.Any(motion => motion.Entity == player.Entity))
+        if (player is null || player.Ladder is not null || player.Jump is not null || Host.HasScriptedMotion(player))
         {
             return;
         }

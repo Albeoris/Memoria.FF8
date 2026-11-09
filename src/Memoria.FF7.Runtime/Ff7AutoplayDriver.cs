@@ -24,7 +24,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             return;
         }
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || player?.Ladder is not null || player?.Jump is not null || player is not null && session.Host.Process.Motions.Any(motion => motion.Entity == player.Entity))
+        if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || player?.Ladder is not null || player?.Jump is not null || player is not null && session.Host.HasScriptedMotion(player))
         {
             committedWaypoint = null;
             waypointGeneration = -1;
@@ -126,8 +126,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         finalApproach |= player.Triangle == destination;
         int[] previous = Enumerable.Repeat(-1, mesh.Count).ToArray();
+        int[] routeDistance = Enumerable.Repeat(int.MaxValue, mesh.Count).ToArray();
         Queue<int> queue = new();
         previous[destination] = destination;
+        routeDistance[destination] = 0;
         queue.Enqueue(destination);
         while (queue.TryDequeue(out int current))
         {
@@ -139,6 +141,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                     continue;
                 }
                 previous[adjacent] = current;
+                routeDistance[adjacent] = routeDistance[current] + 1;
                 queue.Enqueue(adjacent);
             }
         }
@@ -150,8 +153,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         Vector3 waypoint = target;
         if (next != player.Triangle && !finalApproach)
         {
-            PcWalkmeshTriangle current = mesh[player.Triangle];
-            waypoint = current.AdjacentAB == next ? (current.A + current.B) / 2 : current.AdjacentBC == next ? (current.B + current.C) / 2 : (current.C + current.A) / 2;
             waypoint = (mesh[next].A + mesh[next].B + mesh[next].C) / 3;
         }
         Vector2 currentPosition = new(player.X4096 / 4096f, player.Y4096 / 4096f);
@@ -170,6 +171,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(true)) };
         Ff7NativeMovement movement = session.Host.Movement ?? throw new NotSupportedException("FFVII navigation requires native movement.");
         float best = float.PositiveInfinity;
+        bool bestBacktracks = true;
         Ff7AutoplayInput result = default;
         foreach (var direction in Directions)
         {
@@ -181,9 +183,11 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             }
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             float distance = Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y));
-            if (distance < best)
+            bool backtracks = !finalApproach && routeDistance[probe.Actor.Triangle] > routeDistance[player.Triangle];
+            if (bestBacktracks && !backtracks || bestBacktracks == backtracks && distance < best)
             {
                 best = distance;
+                bestBacktracks = backtracks;
                 result = new(direction.X, direction.Y);
             }
         }

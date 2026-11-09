@@ -14,10 +14,11 @@ internal static class NativeProcessTests
         Equal(true, host.Execute(Request(1600, command)).Completed);
         Equal(new Ff7Window(0, 145, 8, 136, 41) { Style = 1, SpecialType = 1, SpecialX = 10 }, host.Process.Windows.Single());
         FieldHostRequest dialogue = Request(1601, new FieldDialogueCommand(0, 0));
-        host = Host(new()
+        Ff7FieldResources dialogueField = NativeDialogueTests.Field([0x21, 255]);
+        host = new(dialogueField, (_, _) => 1, new()
         {
             Windows = [new(0, 8, 149, 304, 74)],
-            Dialogues = [new(1601, 0, 0, null, null, 0)],
+            Dialogues = [new(1601, 0, 0, null, null, 0, TokenPosition: 1, AwaitingInput: true, Presentation: new(6, 304, 74))],
             Receipts = [new(dialogue, new(false))]
         });
         FieldHostRequest foreign = new(1602, 1, 7, 16, command);
@@ -34,10 +35,14 @@ internal static class NativeProcessTests
             unsupported = true;
         }
         Equal(true, unsupported);
-        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Ff7FieldHost cold = new(dialogueField, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         foreach (Ff7FieldHost current in new[] { host, cold })
         {
             current.CompleteDialogue(1601, 0);
+            for (int callback = 0; callback < 4; callback++)
+            {
+                current.Execute(dialogue);
+            }
             Equal(true, current.Execute(foreign).Completed);
             Equal(145, current.Process.Windows.Single().X);
             Equal(136, current.Process.Windows.Single().Width);
@@ -425,13 +430,14 @@ internal static class NativeProcessTests
         Equal((byte)0, restored.Process.Windows.Single().SpecialX);
         Equal((byte)0, restored.Process.Windows.Single().SpecialY);
         Ff7Window counter = initial with { Flags = 1 };
-        Ff7Dialogue persistent = new(900, 1, 0, null, null, 0, AwaitingInput: true);
+        Ff7Dialogue persistent = new(900, 1, 0, null, null, 0, AwaitingInput: true, Presentation: new(6, counter.Width, counter.Height));
         Ff7FieldHost active = Host(new() { Windows = [counter], Dialogues = [persistent] });
         Equal(false, active.CanConfirmDialogue(900));
         active.CompleteDialogue(900, 0);
         Equal(false, active.Process.Dialogues.Single().Completed);
         active.Execute(Request(901, new FieldWindowCommand(FieldWindowOperation.Close, 1)));
-        Equal(true, active.Process.Dialogues.Single().Completed);
+        Equal(false, active.Process.Dialogues.Single().Completed);
+        Equal(7, active.Process.Dialogues.Single().Presentation!.NativeState);
         Equal(false, active.CanConfirmDialogue(900));
     }
 

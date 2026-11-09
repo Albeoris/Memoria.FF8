@@ -59,7 +59,13 @@ public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int 
     public byte SpecialX { get; init; }
     public byte SpecialY { get; init; }
 }
-public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false);
+public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false, Ff7DialoguePresentation? Presentation = null)
+{
+    public bool TextVisible => !Completed && (Presentation?.NativeState ?? 2) >= 2;
+    public bool ChoiceReady => !Completed && AwaitingInput && FirstChoice is not null && (Presentation is null || Presentation.NativeState == 6);
+}
+public sealed record Ff7DialoguePresentation(int NativeState, int AnimatedWidth, int AnimatedHeight, short RevealBudget = 0, short FastCounter = 1, int ExpansionOffset = 0, bool ConfirmPending = false, int Row = 0);
+public readonly record struct Ff7DialogueBounds(float X, float Y, int Width, int Height);
 public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1, short X2, short Y2, short Z2, byte Enabled = 1, byte SlipDisabled = 0, bool Touch = false, bool Across = false, bool Push = false, bool Talk = false, bool Enter = false, bool Leave = false, byte ProximityAngle = 0, bool OnLine = false);
 public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7LadderProcess(long RequestId, int TargetX, int TargetY, int TargetZ, int TargetTriangle, byte Mode, int StartX = 0, int StartY = 0, int StartZ = 0, int Steps = 0, int Step = 0, bool Initialized = false, bool Completed = false);
@@ -186,6 +192,10 @@ public sealed record Ff7FieldProcess
         if (Actors.Any(actor => actor is null || actor.Slot < 0 || actor.Entity < 0 || actor.Model < 0 || actor.Direction is < 0 or > 255 || actor.Animation < 0 || actor.RequestedAnimation is < 0 or > 127 || actor.AnimationFrame16 < 0) || Actors.Where(actor => actor.EntityBound).Select(actor => actor.Entity).Distinct().Count() != Actors.Count(actor => actor.EntityBound) || Actors.Select(actor => actor.Slot).Distinct().Count() != Actors.Length)
         {
             throw new InvalidDataException("FFVII field actor ownership is invalid.");
+        }
+        if (Actors.Count(actor => actor.PlayerControlled) > 1)
+        {
+            throw new InvalidDataException("FFVII controlled-actor selection must identify a unique physical slot.");
         }
         if (CameraTracking is Ff7CameraTracking tracking && (tracking.Mode is < 1 or > 3 || tracking.Slot < 0 || !Actors.Any(actor => actor.Slot == tracking.Slot) || tracking.Steps is < 0 or > short.MaxValue || tracking.Step < 0 || tracking.Step > tracking.Steps))
         {

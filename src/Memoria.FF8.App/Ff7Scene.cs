@@ -275,6 +275,7 @@ internal sealed partial class Ff7Scene : IDisposable
         preparedMovieIdentity = null;
         Session = session;
         Session.Host.NativeBlinkCamera = BlinkCamera;
+        Session.DialogueMessageSpeed = native => Ff7DialoguePresentationPolicy.MessageSpeed(native, dialoguePreferences?.Invoke().FieldMessageSpeed ?? 3);
         RestoreAudioPresentation(savedAudio, restoring);
         Session.PresentationCommand = PresentationCommand;
         renderedGeneration = -1;
@@ -413,7 +414,6 @@ internal sealed partial class Ff7Scene : IDisposable
         DrawPlain(batch, ">", 80, 100 + debugSelection * 22, bounds);
         DrawPlain(batch, "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), 96, 144, bounds, 7);
         DrawPlain(batch, "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), 96, 166, bounds, 7);
-        DrawPlain(batch, "Instant text: on (debug)", 80, 190, bounds, 0);
     }
 
     private void DrawPlain(SpriteBatch batch, string value, int x, int y, Rectangle bounds, int color = 7)
@@ -437,19 +437,28 @@ internal sealed partial class Ff7Scene : IDisposable
     private void DrawWindow(SpriteBatch batch, Rectangle window, Rectangle bounds)
     {
         Rectangle area = Logical(window, bounds);
+        DrawWindow(batch, new UiRect(area.X, area.Y, area.Width, area.Height), Math.Max(1, bounds.Width / 320));
+    }
+
+    private void DrawWindow(SpriteBatch batch, UiRect area, int line)
+    {
         if (!UseNativeDialogue && dialogueCanvas is not null && dialoguePreferences is not null)
         {
             UiPreferences preferences = dialoguePreferences();
             UiTheme theme = dialogueTheme?.Invoke() ?? (preferences.MenuPresentation == MenuPresentation.Vector ? new VectorUiTheme { FontFamily = preferences.UiFontFamily } : new UiTheme { FontFamily = preferences.UiFontFamily });
-            theme.Panel(dialogueCanvas, new UiRect(area.X, area.Y, area.Width, area.Height));
+            theme.Panel(dialogueCanvas, area);
             return;
         }
-        batch.Draw(pixel, area, new Color(0, 0, 80, 240));
-        int line = Math.Max(1, bounds.Width / 320);
-        batch.Draw(pixel, new Rectangle(area.X, area.Y, area.Width, line), Color.White);
-        batch.Draw(pixel, new Rectangle(area.X, area.Bottom - line, area.Width, line), Color.White);
-        batch.Draw(pixel, new Rectangle(area.X, area.Y, line, area.Height), Color.White);
-        batch.Draw(pixel, new Rectangle(area.Right - line, area.Y, line, area.Height), Color.White);
+        Fill(area.X, area.Y, area.Width, area.Height, new Color(0, 0, 80, 240));
+        Fill(area.X, area.Y, area.Width, line, Color.White);
+        Fill(area.X, area.Y + area.Height - line, area.Width, line, Color.White);
+        Fill(area.X, area.Y, line, area.Height, Color.White);
+        Fill(area.X + area.Width - line, area.Y, line, area.Height, Color.White);
+
+        void Fill(float x, float y, float width, float height, Color color)
+        {
+            batch.Draw(pixel, new Vector2(x, y), null, color, 0, Vector2.Zero, new Vector2(width, height), SpriteEffects.None, 0);
+        }
     }
 
     private static Rectangle Logical(Rectangle value, Rectangle bounds)

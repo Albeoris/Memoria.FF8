@@ -27,7 +27,7 @@ internal sealed partial class Ff7Scene
         Ff7Dialogue? dialogue = session.Host.Process.Dialogues.LastOrDefault(item => !item.Completed && session.Host.CanConfirmDialogue(item.RequestId));
         if (dialogue is not null)
         {
-            if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
+            if (dialogue.ChoiceReady && CanSelectCommonDialogueChoice(dialogue) && dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
             {
                 int selected = Math.Clamp(dialogue.Selected, first, last);
                 if (semanticInput.MenuVertical < 0)
@@ -38,24 +38,22 @@ internal sealed partial class Ff7Scene
                 {
                     selected = selected >= last ? first : selected + 1;
                 }
-                session.Host.UpdateDialogue(dialogue.RequestId, dialogue.Page, selected, dialogue.TokenPosition, dialogue.WaitTicks, dialogue.AwaitingInput);
+                session.Host.UpdateDialogue(dialogue with { Selected = selected });
                 dialogue = session.Host.Process.Dialogues.Single(item => item.RequestId == dialogue.RequestId);
             }
-            if (semanticInput.Confirm && dialogue.AwaitingInput)
+            if (semanticInput.Confirm)
             {
                 if (AdvanceCommonDialogue(dialogue))
+                {
+                    pendingPressedKeys &= unchecked((ushort)~0x20);
+                    return;
+                }
+                if (!dialogue.AwaitingInput)
                 {
                     return;
                 }
                 Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(dialogue, Tokens(dialogue));
-                if (confirmed.Completed)
-                {
-                    session.Host.CompleteDialogue(confirmed.RequestId, confirmed.Selected);
-                }
-                else
-                {
-                    session.Host.UpdateDialogue(confirmed.RequestId, confirmed.Page, confirmed.Selected, confirmed.TokenPosition, confirmed.WaitTicks, confirmed.AwaitingInput);
-                }
+                session.Host.UpdateDialogue(confirmed);
             }
             return;
         }
@@ -109,15 +107,32 @@ internal sealed partial class Ff7Scene
                 DrawCommonDialogue(batch, dialogue, window, bounds);
                 continue;
             }
+            Memoria.FF8.Ui.UiRect animated = Ff7DialoguePresentationPolicy.NativePanel(dialogue, window, bounds);
+            Rectangle clip = Ff7DialoguePresentationPolicy.Clip(animated, bounds);
+            if (clip.Width == 0 || clip.Height == 0)
+            {
+                continue;
+            }
             if (window.Style == 0)
             {
-                DrawWindow(batch, new Rectangle(window.X, window.Y, window.Width, window.Height), bounds);
+                DrawWindow(batch, animated, Math.Max(1, bounds.Width / 320));
             }
-            DrawDialogueText(batch, dialogue, window, bounds);
+            if (dialogue.TextVisible)
+            {
+                dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));
+                try
+                {
+                    DrawDialogueText(batch, dialogue, window, bounds, clip);
+                }
+                finally
+                {
+                    dialogueCanvas.PopClip();
+                }
+            }
         }
     }
 
-    private void DrawDialogueText(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds)
+    private void DrawDialogueText(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Rectangle clip)
     {
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
         int start = 0;
@@ -131,12 +146,12 @@ internal sealed partial class Ff7Scene
             }
         }
         Vector2 scale = new(bounds.Width / 320f, bounds.Height / 240f);
-        Vector2 origin = new(bounds.X + (window.X + 8) * scale.X, bounds.Y + (window.Y + 8) * scale.Y);
+        Vector2 origin = new(bounds.X + (window.X + 8) * scale.X, bounds.Y + (window.Y + 6) * scale.Y);
         Vector2 position = origin;
         int color = 7;
         int row = 0;
         bool fixedSpacing = false;
-        int limit = Math.Min(dialogue.TokenPosition, tokens.Count);
+        int limit = Math.Min(dialogue.TokenPosition + ((dialogue.Presentation?.ExpansionOffset ?? 0) > 0 ? 1 : 0), tokens.Count);
         for (int i = start; i < limit; i++)
         {
             FieldTextToken token = tokens[i];
@@ -145,11 +160,11 @@ internal sealed partial class Ff7Scene
                 case FieldTextTokenKind.Glyph:
                     if (token.Code < 224)
                     {
-                        position.X += font.DrawGlyph(batch, token.Code, position, scale, color, fixedSpacing);
+                        position.X += font.DrawGlyph(batch, token.Code, position, scale, color, fixedSpacing, clip);
                     }
                     else
                     {
-                        DrawExpansion(token.Text);
+                        DrawTokenExpansion(token, i);
                     }
                     break;
                 case FieldTextTokenKind.NewLine:
@@ -161,9 +176,9 @@ internal sealed partial class Ff7Scene
                 case FieldTextTokenKind.Scroll:
                     return;
                 case FieldTextTokenKind.ChoiceTab:
-                    if (dialogue.FirstChoice is not null && row == dialogue.Selected)
+                    if (dialogue.ChoiceReady && row == dialogue.Selected)
                     {
-                        font.DrawPlain(batch, ">", position, scale, color);
+                        font.DrawPlain(batch, ">", position, scale, color, clip);
                     }
                     position.X += 10 * 3 * scale.X;
                     break;
@@ -174,7 +189,7 @@ internal sealed partial class Ff7Scene
                     color = token.Argument;
                     break;
                 case FieldTextTokenKind.CharacterName:
-                    DrawExpansion(Session!.Progress.Characters[token.Argument].Name);
+                    DrawTokenExpansion(token, i);
                     break;
                 case FieldTextTokenKind.ControllerButton:
                     string label = ButtonLabel(token);
@@ -185,7 +200,7 @@ internal sealed partial class Ff7Scene
                     {
                         if (run.IsButton)
                         {
-                            ButtonPrompt.Draw(batch, pixel, dialogueText!, run.Text, size, position, lineHeight, 1, family, bounds, dialogueCanvas);
+                            ButtonPrompt.Draw(batch, pixel, dialogueText!, run.Text, size, position, lineHeight, 1, family, clip, dialogueCanvas);
                             position.X += ButtonPrompt.Measure(run.Text, value => dialogueText!.MeasureWrapped(value, size, float.PositiveInfinity, family).X, lineHeight);
                         }
                         else
@@ -195,12 +210,7 @@ internal sealed partial class Ff7Scene
                     }
                     break;
                 case FieldTextTokenKind.PartyName:
-                    int character = Session!.Progress.Party[token.Argument];
-                    if (character is < 0 or >= 9)
-                    {
-                        throw new InvalidDataException("FFVII text references an empty party name.");
-                    }
-                    DrawExpansion(Session.Progress.Characters[character].Name);
+                    DrawTokenExpansion(token, i);
                     break;
                 case FieldTextTokenKind.FixedSpacing:
                     fixedSpacing = !fixedSpacing;
@@ -215,8 +225,19 @@ internal sealed partial class Ff7Scene
 
         void DrawExpansion(string text)
         {
-            font.DrawPlain(batch, text, position, scale, color);
+            font.DrawPlain(batch, text, position, scale, color, clip);
             position.X += font.MeasurePlain(text) * scale.X;
+        }
+
+        void DrawTokenExpansion(FieldTextToken token, int index)
+        {
+            string text = Session!.ExpandDialogueToken(token);
+            if (index == dialogue.TokenPosition)
+            {
+                int remaining = dialogue.Presentation?.ExpansionOffset ?? 0;
+                text = DialoguePager.VisiblePrefix(text, ref remaining);
+            }
+            DrawExpansion(text);
         }
     }
 

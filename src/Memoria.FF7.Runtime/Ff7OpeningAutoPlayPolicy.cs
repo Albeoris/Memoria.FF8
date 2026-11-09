@@ -21,6 +21,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         {
             return 3;
         }
+        if (session.Field.Name == "tunnel_2" && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108 && dialogue.Text == 14 && dialogue.FirstChoice == 1 && dialogue.LastChoice == 3)
+        {
+            return 2;
+        }
         return null;
     }
 
@@ -68,6 +72,12 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 }
                 Ff7Line forwardTunnelExit = session.Host.Process.Lines.Single(line => line.Entity == 2);
                 return driver.Approach(new((forwardTunnelExit.X1 + forwardTunnelExit.X2) / 2f, (forwardTunnelExit.Y1 + forwardTunnelExit.Y2) / 2f, forwardTunnelExit.Z1));
+            case "tunnel_2":
+                Ff7Line serviceCover = session.Host.Process.Lines.Single(line => line.Entity == 5);
+                return driver.Approach(new((serviceCover.X1 + serviceCover.X2) / 2f, (serviceCover.Y1 + serviceCover.Y2) / 2f, serviceCover.Z1));
+            case "sbwy4_1":
+                Ff7Line serviceExit = session.Host.Process.Lines.Single(line => line.Entity == 2);
+                return driver.Approach(new((serviceExit.X1 + serviceExit.X2) / 2f, (serviceExit.Y1 + serviceExit.Y2) / 2f, serviceExit.Z1));
             case "tin_1":
                 if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 108)
                 {

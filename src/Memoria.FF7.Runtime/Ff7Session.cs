@@ -99,6 +99,8 @@ public sealed partial class Ff7Session : IDisposable
             session.Progress = save.Progress;
             session.FieldGeneration = save.FieldGeneration;
             session.LoadField(checked((ushort)map), null, save.Process);
+            session.Host.RestorePlayerSelection();
+            session.Host.RestoreDialoguePresentation();
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
             session.tickContinuation = save.TickContinuation;
             session.Progress = session.Progress with { Clock = session.Clock };
@@ -125,7 +127,6 @@ public sealed partial class Ff7Session : IDisposable
         if (tickContinuation is null && Host.Process.Transition is not null)
         {
             CompleteFieldTransition();
-            AdvanceDialogues();
             return;
         }
         if (tickContinuation is null)
@@ -150,7 +151,6 @@ public sealed partial class Ff7Session : IDisposable
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;
         CompleteFieldTransition();
-        AdvanceDialogues();
         ApplyDeferredInput();
     }
 
@@ -165,12 +165,7 @@ public sealed partial class Ff7Session : IDisposable
             Machine.Initialize();
             Host.InitializePlayerMovement(Field.Scripts.Scale);
             Host.InitializeBackgroundTriggers();
-            Ff7Actor? player = Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-            if (player is not null && !Host.Process.PlayerLocked)
-            {
-                Host.Execute(new FieldHostRequest(long.MaxValue - 1, player.Entity, 7, 0, new FieldActorPlacement(transition.X, transition.Y, null, checked((short)transition.Triangle))));
-                Host.Execute(new FieldHostRequest(long.MaxValue, player.Entity, 7, 0, new FieldActorProperty(FieldActorPropertyKind.Direction, transition.Direction)));
-            }
+            Host.PlacePlayerAtEntry(transition);
             fieldLoadIncomplete = false;
         }
     }
@@ -219,7 +214,8 @@ public sealed partial class Ff7Session : IDisposable
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
             ModelPartVertexCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
             ModelPartPolygonCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
-            ExternalCommand = ExecuteExternal
+            ExternalCommand = ExecuteExternal,
+            AdvanceDialogue = AdvanceDialogue
         };
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
         fieldLoadIncomplete = true;

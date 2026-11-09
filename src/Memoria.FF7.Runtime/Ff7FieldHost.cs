@@ -59,6 +59,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<FieldByteOperand, byte>? ReadFieldByte { get; set; }
     public Func<int[]>? ReadScriptParty { get; set; }
     public Func<ushort>? ReadInputHeld { get; set; }
+    public Func<Ff7Dialogue, Ff7Window, Ff7Dialogue>? AdvanceDialogue { get; set; }
 
     public FieldHostReply Execute(FieldHostRequest request)
     {
@@ -120,8 +121,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     throw new InvalidDataException("The FFVII CHAR descriptor does not exist.");
                 }
                 int scale = field.Scripts.Scale;
-                Ff7Actor actor = new() { Slot = Process.Actors.Length, Entity = request.Entity, Model = bind.ModelIndex, Visible = true, MoveSpeed = 1024 * scale / 512, CollisionRadius = 30 * scale / 512, TalkRadius = 80 * scale / 512 };
-                Process = Process with { Actors = [.. Process.Actors.Select(current => current.Entity == request.Entity && current.EntityBound ? current with { EntityBound = false, PlayerControlled = false } : current), actor] };
+                Ff7Actor actor = new() { Slot = Process.Actors.Length, Entity = request.Entity, Model = bind.ModelIndex, PlayerControlled = Process.Actors.Length == 0, Visible = true, MoveSpeed = 1024 * scale / 512, CollisionRadius = 30 * scale / 512, TalkRadius = 80 * scale / 512 };
+                Process = Process with { Actors = [.. Process.Actors.Select(current => current.Entity == request.Entity && current.EntityBound ? current with { EntityBound = false } : current), actor] };
                 return new(true);
             case FieldActorPlacement placement:
                 SetActor(request.Entity, current => Place(current, placement));
@@ -129,7 +130,11 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldActorProperty property:
                 return SetProperty(request.Entity, property);
             case FieldPartyCharacter character:
-                SetActor(request.Entity, current => current with { PartyCharacter = character.CharacterId, PlayerControlled = character.PartySlot == 0, Visible = character.PartySlot == 0 && current.Visible, CollisionEnabled = character.PartySlot == 0 && current.CollisionEnabled, TalkEnabled = character.PartySlot == 0 && current.TalkEnabled });
+                SetActor(request.Entity, current => current with { PartyCharacter = character.CharacterId, Visible = character.PartySlot == 0 && current.Visible, CollisionEnabled = character.PartySlot == 0 && current.CollisionEnabled, TalkEnabled = character.PartySlot == 0 && current.TalkEnabled });
+                if (character.PartySlot == 0)
+                {
+                    SelectPlayerActor(request.Entity);
+                }
                 return new(true);
             case FieldActorQuery query:
                 Ff7Actor queried = GetActor(query.Entity);
@@ -174,8 +179,23 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     {
                         throw new InvalidDataException("The FFVII message index is outside the field text table.");
                     }
-                    active = new Ff7Dialogue(request.Id, dialogue.Window, dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected);
+                    active = new Ff7Dialogue(request.Id, dialogue.Window, dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected, Presentation: new(0, 0, 0));
                     Process = Process with { Dialogues = [.. Process.Dialogues, active] };
+                }
+                if (!active.Completed)
+                {
+                    Ff7Dialogue? owner = Process.Dialogues.FirstOrDefault(item => item.RequestId != active.RequestId && item.Window == active.Window && !item.Completed && (item.Presentation?.NativeState ?? 2) != 0);
+                    if (owner is not null)
+                    {
+                        if (receipts.TryGetValue(owner.RequestId, out Ff7HostReceipt? previousOwner) && previousOwner.Request.Entity == request.Entity)
+                        {
+                            throw new NotSupportedException("Overlapping FFVII messages from one entity require their shared native window continuation.");
+                        }
+                        return new(false);
+                    }
+                    Ff7Window activeWindow = Process.Windows.Single(item => item.Id == active.Window);
+                    active = AdvanceDialogue?.Invoke(active, activeWindow) ?? Ff7DialogueCursor.AdvanceTick(active, FieldText.Read(field.Scripts.Texts[active.Text].Span), activeWindow);
+                    UpdateDialogue(active);
                 }
                 return new(active.Completed, active.Selected);
             case FieldMenuCommand menu:
@@ -307,7 +327,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public bool CanConfirmDialogue(long requestId)
     {
         Ff7Dialogue? dialogue = Process.Dialogues.SingleOrDefault(item => item.RequestId == requestId);
-        return dialogue is { Completed: false } && (dialogue.FirstChoice is not null || (Process.Windows.Single(window => window.Id == dialogue.Window).Flags & 1) == 0);
+        return dialogue is { Completed: false } && (dialogue.Presentation?.NativeState is 13 or 14 || (Process.Windows.Single(window => window.Id == dialogue.Window).Flags & 1) == 0);
     }
 
     public void CompleteDialogue(long requestId, int selected)
@@ -317,11 +337,15 @@ public sealed partial class Ff7FieldHost : IFieldHost
             return;
         }
         Ff7Dialogue dialogue = Process.Dialogues.Single(item => item.RequestId == requestId);
+        if (!dialogue.AwaitingInput)
+        {
+            return;
+        }
         if (dialogue.FirstChoice is int first && (selected < first || selected > dialogue.LastChoice))
         {
             throw new ArgumentOutOfRangeException(nameof(selected));
         }
-        Process = Process with { Dialogues = Process.Dialogues.Select(item => item.RequestId == requestId ? item with { Selected = selected, Completed = true } : item).ToArray() };
+        UpdateDialogue(Ff7DialogueCursor.Confirm(dialogue with { Selected = selected }, FieldText.Read(field.Scripts.Texts[dialogue.Text].Span)));
     }
 
     public Ff7FieldProcess Capture()
@@ -346,8 +370,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public void ApplyPlayerMovement(Ff7NativeMoveResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        Ff7Actor original = GetActor(result.Actor.Entity);
-        if (original.Slot != result.Actor.Slot || original.Model != result.Actor.Model)
+        Ff7Actor? original = Process.Actors.SingleOrDefault(actor => actor.Slot == result.Actor.Slot);
+        if (original is null || original.Model != result.Actor.Model || original.Entity != result.Actor.Entity || original.EntityBound != result.Actor.EntityBound)
         {
             throw new InvalidDataException("FFVII movement cannot reassign the actor's model ownership.");
         }
@@ -356,7 +380,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             selected = selected with { AnimationFrame16 = 0 };
         }
-        SetActor(original.Entity, _ => selected);
+        SetActorSlot(original.Slot, _ => selected);
     }
 
     public bool RequestGateway(FieldTransitionCommand transition)
@@ -422,8 +446,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         if (property.Property == FieldActorPropertyKind.PlayerCharacter)
         {
-            GetActor(property.Value);
-            Process = Process with { Actors = Process.Actors.Select(actor => actor with { PlayerControlled = actor.Entity == property.Value }).ToArray() };
+            SelectPlayerActor(property.Value);
             return new(true);
         }
         if (property.Property == FieldActorPropertyKind.AnimationWait)
@@ -462,7 +485,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
             throw new InvalidDataException("FFVII window references an absent native window slot.");
         }
         Ff7Window current = Process.Windows.SingleOrDefault(item => item.Id == window.Window) ?? new Ff7Window(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
-        if (window.Operation == FieldWindowOperation.SizeWhenFree && Process.Dialogues.SingleOrDefault(dialogue => dialogue.Window == window.Window && !dialogue.Completed) is Ff7Dialogue active)
+        Ff7Dialogue? active = Process.Dialogues.SingleOrDefault(dialogue => dialogue.Window == window.Window && !dialogue.Completed && (dialogue.Presentation?.NativeState ?? 2) != 0);
+        if (window.Operation == FieldWindowOperation.SizeWhenFree && active is not null)
         {
             if (!receipts.TryGetValue(active.RequestId, out Ff7HostReceipt? owner))
             {
@@ -486,9 +510,26 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), special] };
                 break;
             case FieldWindowOperation.Close:
+                if (active is not null)
+                {
+                    Ff7Dialogue restored = active.Presentation is not null ? active : Ff7DialogueCursor.RestorePresentation(active, FieldText.Read(field.Scripts.Texts[active.Text].Span), current);
+                    if (restored.Presentation!.NativeState == 1)
+                    {
+                        return new(false);
+                    }
+                    if (restored.Presentation.NativeState is 2 or 4 or 6 or 8 or 11 or 13)
+                    {
+                        Ff7Dialogue closing = restored with { AwaitingInput = false, Presentation = restored.Presentation with { NativeState = 7, ConfirmPending = false } };
+                        Process = Process with { Dialogues = Process.Dialogues.Select(item => item.RequestId == closing.RequestId ? closing : item).ToArray() };
+                    }
+                }
+                break;
             case FieldWindowOperation.CloseAndWait:
             case FieldWindowOperation.Reset:
-                Process = Process with { Dialogues = Process.Dialogues.Select(item => item.Window == window.Window ? item with { Completed = true } : item).ToArray() };
+                if (active is not null)
+                {
+                    throw new NotSupportedException("FFVII active-window reset and close-wait require their native lifecycle contract.");
+                }
                 if (window.Operation == FieldWindowOperation.Reset)
                 {
                     Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);

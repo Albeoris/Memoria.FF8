@@ -32,15 +32,23 @@ internal sealed class Ff7FontRenderer : IDisposable
         }
     }
 
-    public float DrawGlyph(SpriteBatch batch, byte code, Vector2 position, Vector2 scale, int color = 7, bool fixedSpacing = false)
+    public float DrawGlyph(SpriteBatch batch, byte code, Vector2 position, Vector2 scale, int color = 7, bool fixedSpacing = false, Rectangle? clip = null)
     {
         Ff7FontGlyph glyph = resources.GetGlyph(code, color, fixedSpacing);
         Rectangle source = new(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height);
-        batch.Draw(atlases[color], position + new Vector2(glyph.LeftPadding * scale.X, 0), source, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+        Vector2 target = position + new Vector2(glyph.LeftPadding * scale.X, 0);
+        if (clip is Rectangle bounds)
+        {
+            SpriteRegionDrawing.DrawClipped(batch, atlases[color], target, source, Color.White, bounds, scale);
+        }
+        else
+        {
+            batch.Draw(atlases[color], target, source, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+        }
         return glyph.Advance * scale.X;
     }
 
-    public void DrawPlain(SpriteBatch batch, string text, Vector2 position, Vector2 scale, int color = 7)
+    public void DrawPlain(SpriteBatch batch, string text, Vector2 position, Vector2 scale, int color = 7, Rectangle? clip = null)
     {
         float origin = position.X;
         foreach (char character in text)
@@ -53,7 +61,7 @@ internal sealed class Ff7FontRenderer : IDisposable
             else
             {
                 byte code = character is >= ' ' and <= '~' ? (byte)(character - 32) : (byte)31;
-                position.X += DrawGlyph(batch, code, position, scale, color);
+                position.X += DrawGlyph(batch, code, position, scale, color, clip: clip);
             }
         }
     }

@@ -60,7 +60,22 @@ internal sealed partial class Ff7Scene
 
     private bool AdvanceCommonDialogue(Ff7Dialogue dialogue)
     {
-        return !UseNativeDialogue && commonDialoguePages.TryGetValue((Session!.FieldGeneration, dialogue.RequestId), out var presentation) && presentation.NativePage == dialogue.Page && presentation.Pager.Advance(presentation.Pages.Count);
+        if (UseNativeDialogue || !dialogue.TextVisible || dialogue.Presentation?.NativeState == 7)
+        {
+            return false;
+        }
+        if (!commonDialoguePages.TryGetValue((Session!.FieldGeneration, dialogue.RequestId), out var presentation) || presentation.NativePage != dialogue.Page)
+        {
+            return true;
+        }
+        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, Tokens(dialogue), Session!.ExpandDialogueToken, ButtonLabel);
+        int pageEnd = presentation.Pages.Take(presentation.Pager.PageIndex + 1).Sum(DialoguePager.CharacterCount);
+        return content.VisibleCharacters >= pageEnd && presentation.Pager.Advance(presentation.Pages.Count);
+    }
+
+    private bool CanSelectCommonDialogueChoice(Ff7Dialogue dialogue)
+    {
+        return UseNativeDialogue || commonDialoguePages.TryGetValue((Session!.FieldGeneration, dialogue.RequestId), out var presentation) && presentation.NativePage == dialogue.Page && presentation.Pages[presentation.Pager.PageIndex].HasChoices;
     }
 
     private void ToggleDialoguePresentation()
@@ -78,89 +93,8 @@ internal sealed partial class Ff7Scene
     {
         UiPreferences preferences = dialoguePreferences?.Invoke() ?? throw new InvalidOperationException("FFVII dialogue requires the shared host presentation context.");
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
-        int page = 0;
-        int row = 0;
-        List<DialogueLine> lines = [];
-        List<DialogueRun> runs = [];
-        Color color = Color.White;
-        void Add(string value)
-        {
-            if (value.Length > 0)
-            {
-                if (runs.LastOrDefault() is DialogueRun previous && previous.Color == color && !previous.IsButton)
-                {
-                    runs[^1] = previous with { Text = previous.Text + value };
-                }
-                else
-                {
-                    runs.Add(new DialogueRun(value, color));
-                }
-            }
-        }
-        for (int index = 0; index < Math.Min(tokens.Count, dialogue.TokenPosition); index++)
-        {
-            FieldTextToken token = tokens[index];
-            if (token.Kind == FieldTextTokenKind.NewPage)
-            {
-                page++;
-                row = 0;
-                continue;
-            }
-            if (page != dialogue.Page)
-            {
-                continue;
-            }
-            switch (token.Kind)
-            {
-                case FieldTextTokenKind.Glyph:
-                    Add(token.Text);
-                    break;
-                case FieldTextTokenKind.NewLine:
-                    lines.Add(new DialogueLine(runs.ToArray(), row++));
-                    runs.Clear();
-                    break;
-                case FieldTextTokenKind.ControllerButton:
-                    runs.AddRange(ButtonPromptText.BindingRuns(ButtonLabel(token), color));
-                    break;
-                case FieldTextTokenKind.CharacterName:
-                    Add(Session!.Progress.Characters[token.Argument].Name);
-                    break;
-                case FieldTextTokenKind.PartyName:
-                    int character = Session!.Progress.Party[token.Argument];
-                    if (character is < 0 or >= 9)
-                    {
-                        throw new InvalidDataException("FFVII text references an empty party name.");
-                    }
-                    Add(Session.Progress.Characters[character].Name);
-                    break;
-                case FieldTextTokenKind.Color:
-                    color = token.Argument switch
-                    {
-                        0 => Color.Gray,
-                        1 => Color.CornflowerBlue,
-                        2 => Color.Red,
-                        3 => Color.Violet,
-                        4 => Color.LimeGreen,
-                        5 => Color.Cyan,
-                        6 => Color.Yellow,
-                        7 => Color.White,
-                        _ => throw new InvalidDataException("FFVII dialogue color exceeds its native palette.")
-                    };
-                    break;
-                case FieldTextTokenKind.Tab:
-                    Add("    ");
-                    break;
-                case FieldTextTokenKind.ChoiceTab:
-                case FieldTextTokenKind.FixedSpacing:
-                case FieldTextTokenKind.Wait:
-                case FieldTextTokenKind.Pause:
-                    break;
-                default:
-                    throw new NotSupportedException($"FFVII dialogue token {token.Kind} requires its native layout or variable binding.");
-            }
-        }
-        lines.Add(new DialogueLine(runs.ToArray(), row));
-        DialogueDocument document = new([new DialoguePage(lines)]);
+        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, tokens, Session!.ExpandDialogueToken, ButtonLabel);
+        DialogueDocument document = content.Document;
         DialogueState state = new(dialogue.Window, dialogue.Text, document.Text, window.X, window.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected);
         DialogueWindow nativeWindow = new(dialogue.Window, window.X, window.Y, window.Width, window.Height);
         using var measurer = SystemTextLayout.CreateMeasurer(preferences.DialogueFontSize, preferences.DialogueFontFamily);
@@ -180,37 +114,60 @@ internal sealed partial class Ff7Scene
             commonDialoguePages[identity] = presentation;
         }
         DialogueVisualPage visual = presentation.Pages[presentation.Pager.PageIndex];
-        presentation.Pager.RevealCurrentPage(visual);
         float scale = bounds.Width / 320f;
         PixelBounds panel = DialoguePresentation.Bounds(state, nativeWindow, new PixelBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height), visual.Width * scale, visual.Height * scale);
+        UiRect animated = Ff7DialoguePresentationPolicy.AnimatedPanel(panel, dialogue, window);
+        Rectangle clip = Ff7DialoguePresentationPolicy.Clip(animated, bounds);
+        if (clip.Width == 0 || clip.Height == 0)
+        {
+            return;
+        }
         if (window.Style == 0)
         {
             UiTheme theme = dialogueTheme?.Invoke() ?? (preferences.MenuPresentation == MenuPresentation.Vector
                 ? new VectorUiTheme { FontFamily = preferences.UiFontFamily }
                 : new UiTheme { FontFamily = preferences.UiFontFamily });
-            theme.Panel(dialogueCanvas!, new UiRect(panel.X, panel.Y, panel.Width, panel.Height));
+            theme.Panel(dialogueCanvas!, animated);
         }
+        if (!dialogue.TextVisible)
+        {
+            return;
+        }
+        int remaining = Math.Max(0, content.VisibleCharacters - presentation.Pages.Take(presentation.Pager.PageIndex).Sum(DialoguePager.CharacterCount));
         float lineHeight = measurer.LineHeight * scale;
         Vector2 origin = new(panel.X + DialoguePresentation.Padding * scale, panel.Y + DialoguePresentation.Padding * scale);
-        foreach (DialogueVisualLine line in visual.Lines)
+        dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));
+        try
         {
-            if (line.IsChoice && line.SourceLineIndex == dialogue.Selected)
+            foreach (DialogueVisualLine line in visual.Lines)
             {
-                dialogueCanvas!.MenuPointer(new UiRect(origin.X, origin.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
-            }
-            foreach (DialoguePlacedRun run in line.Runs)
-            {
-                Vector2 position = origin + new Vector2(run.X * scale, 0);
-                if (run.Run.IsButton)
+                if (dialogue.ChoiceReady && line.IsChoice && line.SourceLineIndex == dialogue.Selected)
                 {
-                    ButtonPrompt.Draw(batch, pixel, dialogueText!, run.Run.Text, preferences.DialogueFontSize * scale, position, lineHeight, 1, preferences.DialogueFontFamily, bounds, dialogueCanvas);
+                    dialogueCanvas.MenuPointer(new UiRect(origin.X, origin.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
                 }
-                else
+                foreach (DialoguePlacedRun run in line.Runs)
                 {
-                    dialogueText!.DrawLine(batch, run.Run.Text, preferences.DialogueFontSize * scale, position, run.Run.Color, preferences.DialogueFontFamily);
+                    string visible = ButtonPrompt.VisibleText(run.Run, ref remaining);
+                    if (visible.Length == 0)
+                    {
+                        continue;
+                    }
+                    Vector2 position = origin + new Vector2(run.X * scale, 0);
+                    if (run.Run.IsButton)
+                    {
+                        ButtonPrompt.Draw(batch, pixel, dialogueText!, visible, preferences.DialogueFontSize * scale, position, lineHeight, 1, preferences.DialogueFontFamily, clip, dialogueCanvas);
+                    }
+                    else
+                    {
+                        dialogueText!.DrawLineClipped(batch, visible, preferences.DialogueFontSize * scale, position, run.Run.Color, clip, preferences.DialogueFontFamily);
+                    }
                 }
+                origin.Y += lineHeight;
             }
-            origin.Y += lineHeight;
+        }
+        finally
+        {
+            dialogueCanvas.PopClip();
         }
     }
 }
