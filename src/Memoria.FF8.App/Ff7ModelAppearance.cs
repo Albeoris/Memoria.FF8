@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 /// <summary>An explicit appearance profile. Bindings affect poses only; FF7 retains frame and event completion ownership.</summary>
 internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
 {
+    private readonly Dictionary<string, Ff7ModelAppearance> variants = new(StringComparer.OrdinalIgnoreCase);
     private readonly GameAssets assets;
     private readonly FieldCharacterCatalog catalog;
     private readonly string sourceId;
@@ -50,6 +51,14 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         triangles = [];
         if (!Path.GetFileName(descriptor.Hrc).Equals(nativeHrc, StringComparison.OrdinalIgnoreCase))
         {
+            if (variants.TryGetValue(Path.GetFileName(descriptor.Hrc), out Ff7ModelAppearance? variant))
+            {
+                return variant.TryCreate(actor, descriptor, original, out triangles);
+            }
+            if (actor.PartyCharacter == 0)
+            {
+                throw new NotSupportedException("The story Cloud actor requires an explicit compatible source rig in the selected appearance profile.");
+            }
             return false;
         }
         if ((uint)actor.AnimationIndex >= descriptor.Animations.Count || actor.AnimationFrame16 < 0)

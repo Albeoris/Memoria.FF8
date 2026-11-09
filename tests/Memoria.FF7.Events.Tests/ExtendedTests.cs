@@ -3,6 +3,47 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void ModelEffectPayloadAndLegacyPendingRestore()
+    {
+        byte[] code = Code(0xA1, 0, 0, 0x28, 7, 0, 1, 1, 0, 255, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1);
+        FieldProgram program = Program(code);
+        RecordingHost host = new() { Complete = true };
+        FieldMachine vm = new(program, host: host);
+        vm.Initialize();
+        host.Complete = false;
+        vm.AdvanceTick();
+        FieldVmSnapshot saved = vm.Capture();
+        FieldHostRequest request = saved.PendingRequests!.Single();
+        FieldModelEffectCommand decoded = (FieldModelEffectCommand)request.Command;
+        Check(true, decoded.Payload!.SequenceEqual(new byte[] { 1, 1, 0, 255 }));
+        FieldVmSnapshot legacy = saved with { PendingRequests = [request with { Command = decoded with { Payload = null } }] };
+        FieldVmSnapshot corrupt = legacy with { PendingRequests = [request with { Command = decoded with { Mode = 0, Payload = null } }] };
+        Throws<InvalidDataException>(() => FieldMachine.Restore(program, corrupt, host));
+        vm = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(legacy))!, host);
+        FieldHostRequest restored = vm.Capture().PendingRequests!.Single();
+        Check(request.Id, restored.Id);
+        Check(saved.NextRequestId, vm.Capture().NextRequestId);
+        Check(true, ((FieldModelEffectCommand)restored.Command).Payload!.SequenceEqual(decoded.Payload));
+        host.Complete = true;
+        vm.AdvanceTick();
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+    }
+
+    public static void PreloadRequestRawWordAndContinuation()
+    {
+        var host = new RecordingHost { Complete = true };
+        var vm = New(Code(0, 0xD8, 255, 255, 0x80, 0x50, 8, 7, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.AdvanceTick();
+        Check(new FieldPreloadCommand(ushort.MaxValue), host.Requests.Single().Command);
+        Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+        byte[] truncated = new byte[19];
+        truncated[17] = 0xD8;
+        vm = New(truncated, new RecordingHost());
+        vm.Initialize();
+        Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
     public static void CameraShakeOperandsAndContinuation()
     {
         var host = new RecordingHost { Complete = true };
@@ -341,7 +382,7 @@ internal static class ExtendedTests
         Check(true, host.Requests.Any(request => request.Command == new FieldActorFace(0, 15, 2)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPartyJoin(30, 0, 0, 0)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPartySplit(30, 0, 0, 0, -7, -9, 112, -6, -8, 32, new(FieldBank.Immediate, 112), new(FieldBank.Immediate, 32))));
-        Check(true, host.Requests.Any(request => request.Command == new FieldModelEffectCommand(13, 0)));
+        Check(true, host.Requests.Any(request => request.Command is FieldModelEffectCommand { Operation: 13, Mode: 0, Wait: false } effect && effect.Payload!.SequenceEqual(new byte[] { 0, 99 })));
         Check(true, host.Requests.Any(request => request.Command == new FieldModelEffectCommand(13, Wait: true)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(118)));
         Check(true, host.Requests.Any(request => request.Command == new FieldPreloadCommand(Wait: true)));

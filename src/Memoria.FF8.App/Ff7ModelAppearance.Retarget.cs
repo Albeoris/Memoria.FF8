@@ -88,15 +88,15 @@ internal sealed class Ff7SemanticRetargeter
 
     public Vector3[] Pose(Ff7FieldModelResources original, PcFieldAnimation animation, int frame16)
     {
-        if (HierarchyIdentity(original.Hierarchy) != sourceIdentity || animation.BoneCount != original.Hierarchy.DeclaredBoneCount || frame16 < 0 || frame16 / 16f >= animation.Frames.Count)
+        if (HierarchyIdentity(original.Hierarchy) != sourceIdentity || frame16 < 0 || frame16 / 16f >= animation.Frames.Count)
         {
             throw new InvalidDataException("Retarget source hierarchy, animation binding or original frame is incompatible with this profile.");
         }
         int first = frame16 >> 4;
         int second = Math.Min(first + 1, animation.Frames.Count - 1);
         float fraction = (frame16 & 15) / 16f;
-        IReadOnlyList<Matrix4x4> firstPose = Ff7FieldRenderer.Pose(original, animation, first);
-        IReadOnlyList<Matrix4x4> secondPose = Ff7FieldRenderer.Pose(original, animation, second);
+        IReadOnlyList<Matrix4x4> firstPose = Ff7FieldRenderer.Pose(original, animation, first, sourceBasis.M11);
+        IReadOnlyList<Matrix4x4> secondPose = fraction == 0 ? firstPose : Ff7FieldRenderer.Pose(original, animation, second, sourceBasis.M11);
         Matrix4x4[] current = new Matrix4x4[firstPose.Count];
         for (int index = 0; index < current.Length; index++)
         {

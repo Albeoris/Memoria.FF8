@@ -26,12 +26,8 @@ public static class Ff7NativeFade
         bool fieldColor = previous?.UsesFieldColor ?? false;
         if (command.Type is 1 or 2)
         {
-            if (command.Type == 2 && command.Red == 0 && command.Green == 0 && command.Blue == 0)
-            {
-                throw new NotSupportedException("FFVII fullscreen fade-out requires its native quad output contract.");
-            }
             fieldColor |= command.Red is > 20 and < 220 || command.Green is > 20 and < 220 || command.Blue is > 20 and < 220;
-            if (!fieldColor && !(command.Type == 1 && command.Red == 0 && command.Green == 0 && command.Blue == 0))
+            if (!fieldColor && !(command.Red == 0 && command.Green == 0 && command.Blue == 0))
             {
                 throw new NotSupportedException("FFVII fullscreen fade composition requires its native quad output contract.");
             }
@@ -52,14 +48,10 @@ public static class Ff7NativeFade
         {
             return process;
         }
-        if (process.Type == 2 && process.Red == 0 && process.Green == 0 && process.Blue == 0)
-        {
-            throw new NotSupportedException("FFVII fullscreen fade-out requires its native quad output contract.");
-        }
         int position = process.Type == 1 ? (movieActive ? 0 : Math.Max(0, process.Position - process.Speed)) : Math.Min(255, process.Position + process.Speed);
-        if (process.Type == 1 && process.Red == 0 && process.Green == 0 && process.Blue == 0)
+        if (process.Red == 0 && process.Green == 0 && process.Blue == 0)
         {
-            return process with { Type = position == 0 ? 0 : 1, Position = position, UsesFieldColor = false, QuadColorArgb = (uint)Math.Min(position, 255) << 24 };
+            return process with { Type = process.Type == 1 && position == 0 ? 0 : process.Type, Position = position, UsesFieldColor = false, QuadColorArgb = (uint)Math.Min(position, 255) << 24 };
         }
         int red = unchecked((byte)((256 - position / 2) * process.Red / 256));
         int green = unchecked((byte)((272 - position) * process.Green / 256));

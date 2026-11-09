@@ -65,6 +65,7 @@ internal static class NativeCameraShakeTests
             MusicVolume = 47,
             MusicLock = 7,
             SoundChannelVolumes = [0, 1, 64, 126, 127],
+            PreloadedMap = ushort.MaxValue,
             CameraShakeX = x,
             CameraShakeY = y
         };
@@ -80,6 +81,7 @@ internal static class NativeCameraShakeTests
         Equal(1234L, next.MusicTicks);
         Equal(47, next.MusicVolume);
         Equal((byte)7, next.MusicLock);
+        Equal((ushort?)ushort.MaxValue, next.PreloadedMap);
         Equal(true, process.SoundChannelVolumes.SequenceEqual(next.SoundChannelVolumes));
         Equal(false, ReferenceEquals(process.SoundChannelVolumes, next.SoundChannelVolumes));
         Equal(x, host.Process.CameraShakeX);

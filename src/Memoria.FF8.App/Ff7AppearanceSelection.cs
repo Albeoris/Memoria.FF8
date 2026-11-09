@@ -13,7 +13,7 @@ internal static class Ff7AppearanceSelection
         {
             return null;
         }
-        if (mappings.Length != 1 || mappings[0] is not { StoryGame: SessionGame.Ff7, StoryCharacter: 0, AppearanceGame: SessionGame.Ff8, AppearanceCharacter: 0, RigProfile: Ff7ModelAppearance.StandardFieldSquallProfileVersion })
+        if (mappings.Length != 1 || mappings[0] is not { StoryGame: SessionGame.Ff7, StoryCharacter: 0, AppearanceGame: SessionGame.Ff8, AppearanceCharacter: 0, RigProfile: Ff7ModelAppearance.StandardFieldSquallProfileVersion or Ff7ModelAppearance.LegacyStandardFieldSquallProfileVersion })
         {
             throw new NotSupportedException("This save requires an unsupported character appearance profile.");
         }

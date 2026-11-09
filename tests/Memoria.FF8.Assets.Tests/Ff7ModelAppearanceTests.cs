@@ -8,6 +8,42 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7ModelAppearanceTests
 {
+    [Fact]
+    public void CloseupCloudUsesTheExplicitSquallRigAndRetainsNativeChannelBounds()
+    {
+        string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(ff7) || string.IsNullOrWhiteSpace(ff8), "Installed source and target field resources are required.");
+        using GameAssets assets = new(ff8!);
+        Ff7Installation installation = Ff7Installation.Discover(ff7!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "rootmap");
+        PcFieldModelDescriptor descriptor = field.Models.Models[0];
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources original = Ff7FieldModelResources.Load(characters, descriptor);
+        Ff7ModelAppearance appearance = Ff7ModelAppearance.CreateStandardFieldSquall(installation, assets);
+        Assert.StartsWith(Ff7ModelAppearance.StandardFieldSquallProfileVersion, appearance.ProfileId);
+        Ff7ActorVisual actor = new(12, 0, 0, 0, 0, 0, 0, 0) { PartyCharacter = 0 };
+        Assert.True(appearance.TryCreate(actor, descriptor, original, out var neutral));
+        Assert.NotEmpty(neutral);
+        foreach (int clipIndex in new[] { 0, 2, 3, 4 })
+        {
+            PcFieldAnimation clip = original.Animations[Path.ChangeExtension(descriptor.Animations[clipIndex], ".a")];
+            int final = clip.BoneCount == 23 ? clip.Frames.Count - 1 : clip.Frames.Count - 2;
+            foreach (int frame in new[] { 0, final }.Distinct())
+            {
+                Assert.True(appearance.TryCreate(actor with { AnimationIndex = clipIndex, AnimationFrame16 = frame * 16 }, descriptor, original, out var triangles));
+                Assert.NotEmpty(triangles);
+                Assert.All(triangles.SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }), vertex =>
+                {
+                    Assert.True(float.IsFinite(vertex.Position.X) && float.IsFinite(vertex.Position.Y) && float.IsFinite(vertex.Position.Z));
+                    Assert.Null(vertex.Normal);
+                });
+            }
+        }
+        Assert.Throws<NotSupportedException>(() => appearance.TryCreate(actor with { AnimationIndex = 3, AnimationFrame16 = 29 * 16 }, descriptor, original, out _));
+        Assert.Throws<NotSupportedException>(() => appearance.TryCreate(actor, descriptor with { Hrc = "unrecognized.hrc" }, original, out _));
+    }
+
     private static PcFieldAnimation ControlledAnimation(Ff7FieldModelResources original, string joint)
     {
         PcFieldAnimation neutral = original.Animations["acfe.a"];

@@ -27,10 +27,6 @@ public sealed record Ff7FieldModelResources(string HrcName, HrcHierarchy Hierarc
         {
             string name = Path.GetFileNameWithoutExtension(descriptor) + ".a";
             PcFieldAnimation animation = PcFieldAnimation.Read(Read(characters, name));
-            if (animation.BoneCount != hierarchy.DeclaredBoneCount)
-            {
-                throw new InvalidDataException($"FF7 animation '{name}' does not match HRC '{hrcName}' bone count.");
-            }
             animations.TryAdd(name, animation);
         }
         return new Ff7FieldModelResources(hrcName, hierarchy, geometry.AsReadOnly(), new System.Collections.ObjectModel.ReadOnlyDictionary<string, PcFieldAnimation>(animations));

@@ -22,6 +22,43 @@ public sealed class PcFieldAnimation
     public int BoneCount { get; }
     public IReadOnlyList<PcFieldAnimationFrame> Frames { get; }
 
+    /// <summary>Reads an ordinal channel from the native contiguous frame allocation, without extending its bounds.</summary>
+    public Vector3 ReadNativeBoneRotation(int frameIndex, int boneIndex, float nativeTranslationScale)
+    {
+        if ((uint)frameIndex >= Frames.Count || boneIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frameIndex), "Native animation channel addressing requires an original frame, nonnegative bone.");
+        }
+        if (BoneCount == 0)
+        {
+            return Vector3.Zero;
+        }
+        long vectorsPerFrame = 2L + BoneCount;
+        long ordinal = frameIndex * vectorsPerFrame + 2 + boneIndex;
+        if (ordinal >= Frames.Count * vectorsPerFrame)
+        {
+            throw new NotSupportedException("The selected HRC bone channel addresses beyond the original native animation allocation.");
+        }
+        PcFieldAnimationFrame selected = Frames[(int)(ordinal / vectorsPerFrame)];
+        int channel = (int)(ordinal % vectorsPerFrame);
+        // The native loader scales root translations in place before ordinal channel traversal.
+        if (channel == 1 && (!float.IsFinite(nativeTranslationScale) || nativeTranslationScale <= 0))
+        {
+            throw new NotSupportedException("An aliased native root-translation channel requires the resolved descriptor scale.");
+        }
+        Vector3 rotation = channel switch
+        {
+            0 => selected.RootRotation,
+            1 => selected.RootTranslation * nativeTranslationScale,
+            _ => selected.BoneRotations[channel - 2]
+        };
+        if (!float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z))
+        {
+            throw new InvalidDataException("The native animation channel exceeds finite coordinates after translation scaling.");
+        }
+        return rotation;
+    }
+
     public static PcFieldAnimation Read(ReadOnlySpan<byte> source, int maximumFrames = 100_000, int maximumBones = 4096, int maximumBytes = 64 * 1024 * 1024)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumFrames);

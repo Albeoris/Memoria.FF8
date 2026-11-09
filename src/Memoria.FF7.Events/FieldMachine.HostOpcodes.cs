@@ -25,7 +25,7 @@ public sealed partial class FieldMachine
                     throw new InvalidDataException("FFVII KAWAI requires its native length, selector and payload.");
                 }
                 _ = B(id, effectLength - 1);
-                return Actor(id, new FieldModelEffectCommand(B(id, 2), B(id, 3)), effectLength);
+                return Actor(id, ReadModelEffectCommand(entities[id].Pc), effectLength);
             case 0x29:
                 return Actor(id, new FieldModelEffectCommand(13, Wait: true), 1);
             case 0x27:

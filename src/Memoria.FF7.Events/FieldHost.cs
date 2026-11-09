@@ -210,7 +210,26 @@ public enum FieldLineOperation
 }
 public sealed record FieldLineCommand(FieldLineOperation Operation, short X1 = 0, short Y1 = 0, short Z1 = 0, short X2 = 0, short Y2 = 0, short Z2 = 0, byte Value = 0) : FieldCommand;
 
-public sealed record FieldModelEffectCommand(byte Operation, byte Mode = 0, bool Wait = false) : FieldCommand;
+public sealed record FieldModelEffectCommand(byte Operation, byte Mode = 0, bool Wait = false) : FieldCommand
+{
+    public byte[]? Payload { get; init; }
+
+    public bool Equals(FieldModelEffectCommand? other) => other is not null && Operation == other.Operation && Mode == other.Mode && Wait == other.Wait && (Payload is null ? other.Payload is null : other.Payload is not null && Payload.AsSpan().SequenceEqual(other.Payload));
+
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(Operation);
+        hash.Add(Mode);
+        hash.Add(Wait);
+        hash.Add(Payload is null);
+        foreach (byte value in Payload ?? [])
+        {
+            hash.Add(value);
+        }
+        return hash.ToHashCode();
+    }
+}
 
 public sealed record FieldPartyJoin(byte Duration, int Leader, int Follower1, int Follower2) : FieldCommand;
 

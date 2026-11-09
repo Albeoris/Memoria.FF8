@@ -20,6 +20,14 @@ if (args.Contains("--fade-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--model-effect-only", StringComparer.Ordinal))
+{
+    ExtendedTests.ModelEffectPayloadAndLegacyPendingRestore();
+    ExtendedTests.OpeningHostOperands();
+    Console.WriteLine("PASS native model effect payload, legacy pending restoration and existing KAWAI13 decoding");
+    return 0;
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("typed bank aliases and widths", BankWidths),
@@ -63,6 +71,8 @@ var tests = new (string Name, Action Run)[]
     ("native wait-free window rectangle operands", ExtendedTests.WindowSizeWhenFreeOperands),
     ("native dynamic actor approach operands and cancellation", ExtendedTests.ActorApproachOperandsAndPreemption),
     ("native camera shake bank selectors and continuation", ExtendedTests.CameraShakeOperandsAndContinuation),
+    ("native preload raw word and same-cycle continuation", ExtendedTests.PreloadRequestRawWordAndContinuation),
+    ("native model effect payload and legacy pending restoration", ExtendedTests.ModelEffectPayloadAndLegacyPendingRestore),
     ("native timer and special window operands", ExtendedTests.TimerAndSpecialWindowOperands),
     ("native view offset operands and yield", ExtendedTests.ViewOffsetOperandsAndYield),
     ("native materia operands and status", ExtendedTests.MateriaOperandsAndStatus),

@@ -8,6 +8,107 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7FieldRendererTests
 {
+    [Fact]
+    public void BiggsEyeDisableRetainsOriginalTexturedHeadSubmissions()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set installed resources for the reached eye-disable render contract.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "tin_1");
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, field.Models.Models[3]);
+        Assert.Equal("BWFD.hrc", model.HrcName, ignoreCase: true);
+        Ff7BoneGeometry head = model.Geometry.Single(part => model.Hierarchy.Bones[part.BoneIndex].Name == "head");
+        Assert.Equal(3, head.Textures.Count);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources> { [3] = model }, new(50, 32000));
+        Ff7ActorVisual actor = new(33, 3, 0, 0, 0, 0, 0, 0);
+        Capture before = new();
+        Capture after = new();
+        renderer.Render(before, 320, 240, new(0, Vector2.Zero, [actor], new ushort[256], MovieActive: true));
+        renderer.Render(after, 320, 240, new(0, Vector2.Zero, [actor with { AutomaticBlinkDisabled = true }], new ushort[256], MovieActive: true));
+        Assert.True(before.ModelTriangles > 0);
+        Assert.Contains(before.Materials, material => material.Texture is not null);
+        Assert.Equal(before.Materials, after.Materials);
+        Assert.Equal(before.Positions, after.Positions);
+        Assert.Equal(before.Colors, after.Colors);
+    }
+
+    [Fact]
+    public void NativeOrdinalChannelsScaleOnlyAliasedTranslationsAndRejectAllocationOverread()
+    {
+        using MemoryStream bytes = new();
+        using BinaryWriter writer = new(bytes);
+        writer.Write(1);
+        writer.Write(2);
+        writer.Write(1);
+        writer.Write(0x020001);
+        writer.Write(new byte[20]);
+        foreach (Vector3 vector in new[] { new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), new Vector3(10, 11, 12), new Vector3(13, 14, 15), new Vector3(16, 17, 18) })
+        {
+            writer.Write(vector.X);
+            writer.Write(vector.Y);
+            writer.Write(vector.Z);
+        }
+        PcFieldAnimation animation = PcFieldAnimation.Read(bytes.ToArray());
+        Assert.Equal(new Vector3(7, 8, 9), animation.ReadNativeBoneRotation(0, 0, float.NaN));
+        Assert.Equal(new Vector3(10, 11, 12), animation.ReadNativeBoneRotation(0, 1, 2));
+        Assert.Equal(new Vector3(26, 28, 30), animation.ReadNativeBoneRotation(0, 2, 2));
+        Assert.Equal(new Vector3(16, 17, 18), animation.ReadNativeBoneRotation(0, 3, 2));
+        Assert.Throws<NotSupportedException>(() => animation.ReadNativeBoneRotation(0, 2, float.NaN));
+        Assert.Throws<NotSupportedException>(() => animation.ReadNativeBoneRotation(1, 1, 2));
+    }
+
+    [Fact]
+    public void ModelDirectoryKeepsUnboundClipsAndSelectedPoseUsesBoundedNativeChannels()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original selected-animation binding.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "rootmap");
+        PcFieldModelDescriptor descriptor = field.Models.Models[0];
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, descriptor);
+        Assert.Equal(23, model.Hierarchy.DeclaredBoneCount);
+        Assert.Equal(21, model.Animations["AAFF.a"].BoneCount);
+        Assert.Equal(21, model.Animations["CMDC.a"].BoneCount);
+        foreach (string name in new[] { "CMDA.a", "CMDB.a", "CMDD.a" })
+        {
+            PcFieldAnimation clip = model.Animations[name];
+            for (int frame = 0; frame < clip.Frames.Count; frame++)
+            {
+                IReadOnlyList<Matrix4x4> pose = Ff7FieldRenderer.Pose(model, clip, frame);
+                Assert.Equal(23, pose.Count);
+                for (int bone = 0; bone < clip.BoneCount; bone++)
+                {
+                    Assert.Equal(clip.Frames[frame].BoneRotations[bone], clip.ReadNativeBoneRotation(frame, bone, float.NaN));
+                }
+                foreach (Ff7BoneGeometry part in model.Geometry)
+                {
+                    Assert.All(part.Polygon.Vertices, vertex =>
+                    {
+                        Vector3 point = Vector3.Transform(vertex, pose[part.BoneIndex]);
+                        Assert.True(float.IsFinite(point.X) && float.IsFinite(point.Y) && float.IsFinite(point.Z));
+                    });
+                }
+            }
+        }
+        float nativeScale = Ff7FieldRenderer.ModelBasis(descriptor).M11;
+        foreach (string name in new[] { "AAFF.a", "CMDC.a" })
+        {
+            PcFieldAnimation clip = model.Animations[name];
+            for (int frame = 0; frame < clip.Frames.Count - 1; frame++)
+            {
+                Assert.Equal(clip.Frames[frame].BoneRotations[20], clip.ReadNativeBoneRotation(frame, 20, nativeScale));
+                Assert.Equal(clip.Frames[frame + 1].RootRotation, clip.ReadNativeBoneRotation(frame, 21, nativeScale));
+                Assert.Equal(clip.Frames[frame + 1].RootTranslation * nativeScale, clip.ReadNativeBoneRotation(frame, 22, nativeScale));
+                Assert.Equal(23, Ff7FieldRenderer.Pose(model, clip, frame, nativeScale).Count);
+            }
+            Assert.Throws<NotSupportedException>(() => Ff7FieldRenderer.Pose(model, clip, 0));
+            Assert.Throws<NotSupportedException>(() => Ff7FieldRenderer.Pose(model, clip, clip.Frames.Count - 1, nativeScale));
+        }
+        Assert.Equal(38.03862762451172f, Ff7FieldRenderer.ModelBasis(descriptor).M11);
+    }
+
     [Theory]
     [InlineData(320, 240)]
     [InlineData(960, 720)]
@@ -30,6 +131,7 @@ public sealed class Ff7FieldRendererTests
             Assert.Equal(TriangleBlend.Alpha, material.Blend);
             Assert.Equal(TriangleDepthComparison.Always, material.DepthComparison);
             Assert.False(material.DepthWrite);
+            Assert.False(material.PreserveTargetAlpha);
             Assert.Null(material.Texture);
         });
         Assert.Contains(new Vector2(0, height * 8f / 240), faded.Positions.TakeLast(6));
@@ -37,6 +139,11 @@ public sealed class Ff7FieldRendererTests
         Capture clear = new();
         renderer.Render(clear, width, height, frame with { QuadColorArgb = 0 });
         Assert.Equal(baseline.Count, clear.Count);
+        Capture movie = new();
+        renderer.Render(movie, width, height, frame with { MovieActive = true, QuadColorArgb = 0x80000000 });
+        Assert.Equal(0, movie.ClearColor.W);
+        Assert.Equal(2, movie.Count);
+        Assert.All(movie.Materials, material => Assert.False(material.PreserveTargetAlpha));
     }
 
     [Fact]

@@ -42,8 +42,23 @@ public sealed partial class Ff7Session
         {
             return false;
         }
-        Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
         bool lineTalk = Host.RequestLineTalk(player);
+        Ff7Actor? selected = GetTalkTarget();
+        return selected is not null && Machine.TryRequestScript(selected.Entity, 1) || lineTalk;
+    }
+
+    public Ff7Actor? GetTalkTarget()
+    {
+        if (Host.Process.PlayerLocked || Host.Process.Join is not null)
+        {
+            return null;
+        }
+        Ff7Actor? player = Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        if (player is null)
+        {
+            return null;
+        }
+        Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
         int best = 64;
         Ff7Actor? selected = null;
         foreach (Ff7Actor actor in Host.Process.Actors.OrderBy(actor => actor.Slot))
@@ -80,7 +95,7 @@ public sealed partial class Ff7Session
                 selected = actor;
             }
         }
-        return selected is not null && Machine.TryRequestScript(selected.Entity, 1) || lineTalk;
+        return selected;
     }
 
     private void AdvancePlayerInput()

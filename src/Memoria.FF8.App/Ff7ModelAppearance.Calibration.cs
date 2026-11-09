@@ -10,7 +10,9 @@ internal sealed record Ff7AppearanceCalibration(Matrix4x4 Transform, float Facin
 
 internal sealed partial class Ff7ModelAppearance
 {
-    public const string StandardFieldSquallProfileVersion = "ff7-cloud-aaaa-to-ff8-field-d000-v1";
+    public const string StandardFieldSquallProfileVersion = "ff7-cloud-field-to-ff8-field-d000-v2";
+    public const string LegacyStandardFieldSquallProfileVersion = "ff7-cloud-aaaa-to-ff8-field-d000-v1";
+    private const string CloseupCloudRig = "A057CEA5A410EEB03236E35337E04A8D056B959A0797EE22A169FBC3A93D8F6F";
 
     private const string StandardFieldSquallRig = "ff8/field/rig/EC6C2019C6DCE78C9139054606A84422C426A40840EDE4D2B0EBA63E16893FE1";
     private const string OpeningCloudRig = "0F96ADB43ECEDBBC0375FBA00AE29DB330F725A049F2F04915FAA339D71E3EED";
@@ -42,11 +44,31 @@ internal sealed partial class Ff7ModelAppearance
             ["aaff.a"] = catalog.GetAnimation(entry.Id, 1).Id,
             ["aaga.a"] = catalog.GetAnimation(entry.Id, 2).Id
         };
-        return new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"])
+        Ff7ModelAppearance appearance = new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"])
         {
             calibrationDescriptorScale = float.Parse(field.Models.Models[0].Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = StandardFieldSquallProfileVersion + "/" + catalog.GetSource(entry.Id).RigId
         };
+        Ff7FieldResources closeupField = Ff7FieldResources.Load(installation, "rootmap");
+        PcFieldModelDescriptor closeupDescriptor = closeupField.Models.Models.Single(model => Path.GetFileName(model.Hrc).Equals("clgd.hrc", StringComparison.OrdinalIgnoreCase));
+        Ff7FieldModelResources closeup = Ff7FieldModelResources.Load(characters, closeupDescriptor);
+        if (Ff7SemanticRetargeter.HierarchyIdentity(closeup.Hierarchy) != CloseupCloudRig)
+        {
+            throw new NotSupportedException("The selected closeup Cloud source does not implement its ordered anatomical rig profile.");
+        }
+        Ff7AppearanceCalibration closeupCalibration = CalibrateNeutralGeometry(target, closeupDescriptor, closeup, [19, 20], 21, 22);
+        if (!closeupCalibration.FirstHandIsLeft)
+        {
+            throw new NotSupportedException("The closeup Cloud source does not retain the calibrated anatomical sides.");
+        }
+        Ff7FootContactBinding closeupFeet = new(["l_foot", "l_toes", "r_foot", "r_toes"], [19, 20]);
+        Ff7SemanticRetargeter closeupRetargeter = new(target, closeupDescriptor, closeup, closeupCalibration.Transform, StandardFieldSquallJoints, closeupFeet);
+        appearance.variants.Add("clgd.hrc", new(assets, catalog, entry.Id, "clgd.hrc", closeupCalibration.Transform, new Dictionary<string, string>(), closeupRetargeter)
+        {
+            calibrationDescriptorScale = float.Parse(closeupDescriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
+            ProfileId = appearance.ProfileId
+        });
+        return appearance;
     }
 
     internal static Ff7FootContactBinding StandardFieldSquallFeet { get; } = new(["l_foot", "r_foot"], [19, 20]);

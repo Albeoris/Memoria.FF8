@@ -17,6 +17,21 @@ public sealed partial class Ff7FieldHost
             }
             return new(completed);
         }
+        if (command.Operation == 0)
+        {
+            byte[] payload = command.Payload ?? throw new InvalidDataException("FFVII eye control requires the complete original payload.");
+            if (payload.Length != 4 || command.Mode != payload[0])
+            {
+                throw new InvalidDataException("FFVII eye control requires its four native payload bytes.");
+            }
+            if (payload[0] != 0 || payload[1] != 0 || payload[2] != 0 || actor.ModelEffect is not null)
+            {
+                throw new NotSupportedException("FFVII eye selection, automatic blink activation or concurrent procedural colors require their native presentation owners.");
+            }
+            // This command disables automatic blinking without changing the current eye textures or countdown.
+            SetActor(entity, current => current with { AutomaticBlinkDisabled = true });
+            return new(true);
+        }
         if (command.Operation != 13)
         {
             throw new NotSupportedException($"FFVII KAWAI selector {command.Operation} is not supported.");

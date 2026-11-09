@@ -17,6 +17,7 @@ public sealed partial class Ff7FieldHost
             SoundChannelVolumes = (int[])Process.SoundChannelVolumes.Clone(),
             CameraShakeX = Ff7NativeCameraShake.ResetForField(Process.CameraShakeX ?? new()),
             CameraShakeY = Ff7NativeCameraShake.ResetForField(Process.CameraShakeY ?? new()),
+            PreloadedMap = Process.PreloadedMap,
             MusicLock = Process.MusicLock
         };
     }

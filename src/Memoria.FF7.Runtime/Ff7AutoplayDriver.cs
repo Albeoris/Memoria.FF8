@@ -19,6 +19,10 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
 
     public void Apply(Ff7AutoplayInput input)
     {
+        if (session.Host.Process.Transition is not null)
+        {
+            return;
+        }
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || player?.Ladder is not null || player?.Jump is not null || player is not null && session.Host.Process.Motions.Any(motion => motion.Entity == player.Entity))
         {
@@ -76,10 +80,19 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor target = session.Host.GetActor(entity);
+        if (!target.TalkEnabled)
+        {
+            return default;
+        }
         Vector3 position = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
         int dx = (target.X4096 >> 12) - (player.X4096 >> 12);
         int dy = (target.Y4096 >> 12) - (player.Y4096 >> 12);
-        if (dx * dx + dy * dy > 160 * 160)
+        if (session.GetTalkTarget()?.Entity == entity)
+        {
+            return new(Talk: true);
+        }
+        int range = target.TalkRadius + player.CollisionRadius;
+        if (dx * dx + dy * dy >= range * range)
         {
             return Approach(position, target.Triangle);
         }
@@ -89,7 +102,7 @@ public sealed class Ff7AutoplayDriver(Ff7Session session)
         }
         int desired = session.Host.Movement!.Direction(dx, dy);
         var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128));
-        return new(direction.X, direction.Y, Talk: true);
+        return new(direction.X, direction.Y);
     }
 
     public Ff7AutoplayInput Approach(Vector3 target, int? targetTriangle = null)

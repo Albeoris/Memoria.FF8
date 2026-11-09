@@ -19,6 +19,7 @@ public sealed record Ff7Actor
     public int OffsetZ { get; init; }
     public Ff7OffsetProcess? Offset { get; init; }
     public Ff7NativeModelEffectState? ModelEffect { get; init; }
+    public bool AutomaticBlinkDisabled { get; init; }
     public Ff7LadderProcess? Ladder { get; init; }
     public Ff7JumpProcess? Jump { get; init; }
     public int TurnStart { get; init; }

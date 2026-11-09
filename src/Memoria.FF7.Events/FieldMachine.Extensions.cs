@@ -47,6 +47,17 @@ public sealed partial class FieldMachine
         return yieldAfter;
     }
 
+    private FieldModelEffectCommand ReadModelEffectCommand(int pc)
+    {
+        int length = program.Read(pc + 1);
+        if (program.Read(pc) != 0x28 || length < 4)
+        {
+            throw new InvalidDataException("A native model effect requires its original length and payload.");
+        }
+        byte[] payload = Enumerable.Range(3, length - 3).Select(offset => program.Read(pc + offset)).ToArray();
+        return new(program.Read(pc + 2), payload[0]) { Payload = payload };
+    }
+
     private void RestoreHostRequests(FieldVmSnapshot snapshot)
     {
         if (snapshot.NextRequestId < 1)
@@ -57,9 +68,23 @@ public sealed partial class FieldMachine
         HashSet<long> ids = [];
         foreach (FieldHostRequest request in snapshot.PendingRequests ?? [])
         {
-            if (request is null || request.Command is null || request.Id < 1 || request.Id >= nextRequestId || !ids.Add(request.Id) || request.Entity < 0 || request.Entity >= entities.Length || request.Priority is < 0 or > 7 || request.ProgramCounter < 0 || request.ProgramCounter >= program.Length || !pendingRequests.TryAdd((request.Entity, request.Priority, request.ProgramCounter), request))
+            if (request is null || request.Command is null || request.Id < 1 || request.Id >= nextRequestId || !ids.Add(request.Id) || request.Entity < 0 || request.Entity >= entities.Length || request.Priority is < 0 or > 7 || request.ProgramCounter < 0 || request.ProgramCounter >= program.Length)
             {
                 throw new InvalidDataException("Invalid FFVII pending host request.");
+            }
+            FieldHostRequest restored = request;
+            if (request.Command is FieldModelEffectCommand { Wait: false, Payload: null } legacyEffect)
+            {
+                FieldModelEffectCommand decoded = ReadModelEffectCommand(request.ProgramCounter);
+                if (decoded.Operation != legacyEffect.Operation || decoded.Mode != legacyEffect.Mode)
+                {
+                    throw new InvalidDataException("The saved model-effect request differs from its original script operands.");
+                }
+                restored = request with { Command = decoded };
+            }
+            if (!pendingRequests.TryAdd((request.Entity, request.Priority, request.ProgramCounter), restored))
+            {
+                throw new InvalidDataException("Duplicate FFVII pending host request owner.");
             }
             Entity entity = entities[request.Entity];
             int ownerPc = entity.Priority == request.Priority ? entity.Pc : entity.Saved[request.Priority];

@@ -8,6 +8,8 @@ namespace Memoria.FF8.Rendering;
 
 public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true)
 {
+    public int PartyCharacter { get; init; } = -1;
+    public bool AutomaticBlinkDisabled { get; init; }
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
@@ -102,7 +104,7 @@ public sealed class Ff7FieldRenderer
             {
                 Vector4 clip = FieldClip(width, height);
                 Vector4 color = new((quad >> 16 & 255) / 255f, (quad >> 8 & 255) / 255f, (quad & 255) / 255f, (quad >> 24) / 255f);
-                TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false) { ClipRectangle = clip };
+                TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false) { ClipRectangle = clip, PreserveTargetAlpha = false };
                 TrianglePrimitives.Quad(renderer, new Vector2(clip.X, clip.Y), new Vector2(clip.Z - clip.X, clip.W - clip.Y), BitConverter.Int32BitsToSingle(0x358637BD), color, material, Vector2.One);
             }
         }
@@ -127,11 +129,11 @@ public sealed class Ff7FieldRenderer
         return Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(scale);
     }
 
-    public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex)
+    public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex, float nativeTranslationScale = float.NaN)
     {
-        if (animation.RotationOrder != 0x020001 || animation.BoneCount != resources.Hierarchy.DeclaredBoneCount || (uint)frameIndex >= animation.Frames.Count)
+        if (animation.RotationOrder != 0x020001 || (uint)frameIndex >= animation.Frames.Count)
         {
-            throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, exact HRC binding and an original frame within the clip.");
+            throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, bounded native HRC channels and an original frame within the clip.");
         }
         PcFieldAnimationFrame frame = animation.Frames[frameIndex];
         Matrix4x4 root = Rotate(frame.RootRotation) * Matrix4x4.CreateTranslation(frame.RootTranslation * new Vector3(1, -1, 1));
@@ -145,7 +147,7 @@ public sealed class Ff7FieldRenderer
                 HrcBone parentBone = resources.Hierarchy.Bones[indices[bone.ParentName]];
                 parent = Matrix4x4.CreateTranslation(0, 0, -parentBone.Length) * transforms[parentBone.Index];
             }
-            Vector3 rotation = resources.Hierarchy.IsRootOnly ? Vector3.Zero : frame.BoneRotations[bone.Index];
+            Vector3 rotation = resources.Hierarchy.IsRootOnly ? Vector3.Zero : animation.ReadNativeBoneRotation(frameIndex, bone.Index, nativeTranslationScale);
             transforms[bone.Index] = Rotate(rotation) * parent;
         }
         return Array.AsReadOnly(transforms);
@@ -228,7 +230,7 @@ public sealed class Ff7FieldRenderer
         }
         PcFieldAnimation animation = resources.Animations[animationName];
         int animationFrame = actor.AnimationFrame16 >> 4;
-        IReadOnlyList<Matrix4x4> bones = Pose(resources, animation, animationFrame);
+        IReadOnlyList<Matrix4x4> bones = Pose(resources, animation, animationFrame, ModelBasis(descriptor).M11);
         Matrix4x4 actorTransform = ModelBasis(descriptor) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
         Matrix4x4 actorNormalTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256);
         PcFieldCamera camera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];

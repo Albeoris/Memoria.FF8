@@ -233,6 +233,30 @@ internal static class NativeProcessTests
         Equal(0, interrupted.Position);
         Equal(0, interrupted.Type);
         Equal((uint?)0, interrupted.QuadColorArgb);
+        Ff7FieldHost fadeOut = Host(new() { FadeState = new(0, 0, 0, 0, 0, 0, true, 0x80123456) });
+        fadeOut.Execute(Request(805, new FieldFadeCommand(2, 0, 0, 0, 8)));
+        FieldHostRequest fadeOutWait = Request(806, new FieldFadeCommand(0, Wait: true));
+        Equal(false, fadeOut.Execute(fadeOutWait).Completed);
+        fadeOut.AdvanceActors();
+        Equal((uint?)0x08000000, fadeOut.Process.FadeState!.QuadColorArgb);
+        Equal(false, fadeOut.Process.FadeState!.UsesFieldColor);
+        Equal(0x80123456u, fadeOut.Process.FadeState!.FieldColorArgb);
+        Ff7FieldHost fadeOutCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(fadeOut.Capture()))!);
+        for (int tick = 0; tick < 31; tick++)
+        {
+            fadeOut.AdvanceActors();
+            fadeOutCold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(fadeOut.Capture()), JsonSerializer.Serialize(fadeOutCold.Capture()));
+        }
+        Equal(255, fadeOut.Process.FadeState!.Position);
+        Equal(2, fadeOut.Process.FadeState!.Type);
+        Equal((uint?)0xFF000000, fadeOut.Process.FadeState!.QuadColorArgb);
+        Equal(true, fadeOut.Execute(fadeOutWait).Completed);
+        fadeOut.AdvanceActors();
+        Equal((uint?)0xFF000000, fadeOut.Process.FadeState!.QuadColorArgb);
+        Ff7FadeProcess movieFadeOut = Ff7NativeFade.Advance(new(2, 0, 8, 0, 0, 0, false), movieActive: true);
+        Equal(8, movieFadeOut.Position);
+        Equal(2, movieFadeOut.Type);
     }
     public static void RunViewOffset()
     {

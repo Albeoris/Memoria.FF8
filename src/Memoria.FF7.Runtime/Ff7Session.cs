@@ -116,6 +116,12 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick(bool advanceClock)
     {
+        if (Host.Process.Transition is not null)
+        {
+            CompleteFieldTransition();
+            AdvanceDialogues();
+            return;
+        }
         if (advanceClock)
         {
             AdvanceNominalClockCallbacks();
@@ -129,11 +135,18 @@ public sealed partial class Ff7Session : IDisposable
         Host.AdvanceActors();
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
+        CompleteFieldTransition();
+        AdvanceDialogues();
+    }
+
+    private void CompleteFieldTransition()
+    {
         if (Host.Process.Transition is FieldTransitionCommand transition)
         {
             FieldVariables variables = Machine.Variables;
-            FieldGeneration++;
             LoadField(transition.Map, variables);
+            FieldGeneration++;
+            fieldLoadIncomplete = true;
             Machine.Initialize();
             Host.InitializeBackgroundTriggers();
             Ff7Actor? player = Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -142,20 +155,26 @@ public sealed partial class Ff7Session : IDisposable
                 Host.Execute(new FieldHostRequest(long.MaxValue - 1, player.Entity, 7, 0, new FieldActorPlacement(transition.X, transition.Y, null, checked((short)transition.Triangle))));
                 Host.Execute(new FieldHostRequest(long.MaxValue, player.Entity, 7, 0, new FieldActorProperty(FieldActorPropertyKind.Direction, transition.Direction)));
             }
+            fieldLoadIncomplete = false;
         }
-        AdvanceDialogues();
     }
 
     public Ff7SessionSave Capture()
     {
+        if (fieldLoadIncomplete)
+        {
+            throw new InvalidOperationException("Snapshots require a completed field load.");
+        }
         return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = Machine.Capture(), Process = Host.Capture() };
     }
 
+    private bool fieldLoadIncomplete;
+
     private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null)
     {
-        if (process is null)
+        bool enteringField = process is null;
+        if (enteringField)
         {
-            Progress = Progress with { Encounters = Progress.Encounters with { MovementCounter = 0 } };
             if (Host is not null)
             {
                 process = Host.CreateNextFieldProcess();
@@ -165,36 +184,36 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new InvalidDataException("FFVII field transition is outside the original maplist.");
         }
-        if (preloadedMap == map && preloadedField is not null && preloadedModels is not null)
-        {
-            Field = preloadedField;
-            models = preloadedModels;
-            preloadedField = null;
-            preloadedModels = null;
-            preloadedMap = null;
-        }
-        else
-        {
-            Field = Ff7FieldResources.Load(fields, mapList[map]);
-            models = Field.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
-        }
-        dialogueTokens.Clear();
-        encounterTables = PcFieldEncounterTable.Read(Field.Container.GetSection(PcFieldSectionKind.Encounters).Span);
-        Host = new Ff7FieldHost(Field, (model, animation) => models[model].Animations[Path.ChangeExtension(Field.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
+        Ff7FieldResources loadedField = Ff7FieldResources.Load(fields, mapList[map]);
+        Ff7FieldModelResources[] loadedModels = loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model)).ToArray();
+        IReadOnlyList<PcFieldEncounterTable> loadedEncounterTables = PcFieldEncounterTable.Read(loadedField.Container.GetSection(PcFieldSectionKind.Encounters).Span);
+        Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process)
         {
             AudioRequested = Host?.AudioRequested,
-            Movement = new Ff7NativeMovement(Field.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
-            CameraProjection = new Ff7NativeCamera(Field.Cameras[0], Field.Triggers),
+            Movement = new Ff7NativeMovement(loadedField.Walkmesh, executable.NativeSinCos, executable.NativeArcAngles),
+            CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,
             CompleteBattleRequest = CompleteDebugBattle,
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
-            ModelPartVertexCounts = model => models[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
-            ModelPartPolygonCounts = model => models[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
+            ModelPartVertexCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
+            ModelPartPolygonCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
             ExternalCommand = ExecuteExternal
         };
-        Machine = new FieldMachine(FieldProgram.FromPcScripts(Field.Scripts), variables, host: Host);
+        FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
+        fieldLoadIncomplete = true;
+        Field = loadedField;
+        models = loadedModels;
+        encounterTables = loadedEncounterTables;
+        Host = loadedHost;
+        Machine = loadedMachine;
+        dialogueTokens.Clear();
+        if (enteringField)
+        {
+            Progress = Progress with { Encounters = Progress.Encounters with { MovementCounter = 0 } };
+        }
+        fieldLoadIncomplete = false;
     }
 
     private FieldHostReply ExecuteExternal(FieldCommand command)

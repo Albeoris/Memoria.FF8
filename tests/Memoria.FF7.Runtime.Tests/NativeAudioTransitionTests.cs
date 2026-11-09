@@ -1,3 +1,4 @@
+using Memoria.AutoPlay;
 using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -17,7 +18,12 @@ internal static class NativeAudioTransitionTests
         using MemoryStream input = new(original);
         CombinedSessionSave envelope = CombinedSessionCodec.Read(input);
         Ff7Installation installation = Ff7Installation.Discover(root);
-        using Ff7Session session = Ff7Session.Restore(installation, envelope.Ff7!);
+        Ff7SessionSave source = envelope.Ff7!;
+        if (ushort.TryParse(Environment.GetEnvironmentVariable("MEMORIA_FF7_AUDIO_TARGET_MAP"), out ushort target))
+        {
+            source = source with { Process = source.Process with { Transition = new(target, 0, 0, 0, 0) } };
+        }
+        using Ff7Session session = Ff7Session.Restore(installation, source);
         Ff7FieldHost previous = session.Host;
         NotSupportedException marker = new("Explicit initializer audio output boundary.");
         Action<FieldAudioCommand> callback = _ => throw marker;
@@ -29,7 +35,10 @@ internal static class NativeAudioTransitionTests
         {
             for (int tick = 0; tick < 8; tick++)
             {
-                driver.Apply(policy.ChooseInput(driver));
+                if (session.Host.Process.Transition is null)
+                {
+                    driver.Apply(policy.ChooseInput(driver));
+                }
                 session.AdvanceTick();
             }
         }
@@ -40,6 +49,30 @@ internal static class NativeAudioTransitionTests
         Check(observed, "The destination initializer did not propagate its original audio callback failure.");
         Check(!ReferenceEquals(previous, session.Host), "The fixture did not reach a new native field host.");
         Check(ReferenceEquals(callback, session.Host.AudioRequested), "The new field host lost its presentation audio binding.");
+        string temporary = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".ffsave");
+        try
+        {
+            CombinedSessionCodec.Save(temporary, envelope);
+            byte[] valid = File.ReadAllBytes(temporary);
+            bool wrote = false;
+            try
+            {
+                AutoPlayCheckpoint.Save(temporary, session.Capture, (destination, captured) =>
+                {
+                    wrote = true;
+                    CombinedSessionCodec.Save(destination, envelope with { Ff7 = captured });
+                });
+                throw new Exception("An incomplete published initializer produced a snapshot.");
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            Check(!wrote && File.ReadAllBytes(temporary).SequenceEqual(valid), "The failed initializer replaced its valid standalone checkpoint.");
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
         Check(File.ReadAllBytes(path).SequenceEqual(original), "The initializer regression rewrote its supplied standalone checkpoint.");
         using Ff7Session cold = Ff7Session.Restore(installation, envelope.Ff7!);
         Check(cold.Field.Name == envelope.Ff7!.FieldName && cold.Host.Process.Tick == envelope.Ff7.Process.Tick, "The supplied pre-transition standalone did not cold-restore after the initializer failure.");
