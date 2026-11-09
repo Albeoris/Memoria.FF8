@@ -41,6 +41,8 @@ internal sealed partial class Ff7Scene
         Ff7FieldProcess state = session.Host.Process;
         int soundVolume = dialoguePreferences?.Invoke().SoundVolume ?? 100;
         soundChannels.RefreshGains(state.SoundChannelVolumes, volume => NativeGain(volume, soundVolume));
+        RefreshNativePans();
+        RefreshNativeFrequencies();
         soundChannels.SetTempo(sharedClock.EffectiveSpeed(state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, false));
         int track = state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
         track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
@@ -110,6 +112,27 @@ internal sealed partial class Ff7Scene
         audioOutput?.ThrowIfFailed();
     }
 
+    private void RefreshNativeFrequencies()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+        Ff7FieldProcess state = Session.Host.Process;
+        soundChannels.RefreshFrequencies(state.SoundChannelPitches, state.SoundChannelBaseFrequencies, state.SoundChannelFrequencyVersions);
+    }
+
+    private void RefreshNativePans()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+        audioNative ??= Ff7PcExecutableData.Load(installation);
+        Ff7FieldProcess state = Session.Host.Process;
+        soundChannels.RefreshPans(state.SoundChannelPans, state.SoundChannelPanVersions, audioNative.NativeSoundPan);
+    }
+
     private void ApplyNativeResidentStops()
     {
         if (Session is null)
@@ -139,9 +162,25 @@ internal sealed partial class Ff7Scene
         ApplyNativeResidentStops();
         switch (command.Operation)
         {
+            case 0xA8:
+            case 0xA9:
+            case 0xAA:
+            case 0xAB:
+            case 0xAC:
+            case 0xAD:
+            case 0xAE:
+            case 0xAF:
+                RefreshNativePans();
+                return;
             case 0xB0:
-                Ff7FieldProcess frequencyState = Session!.Host.Process;
-                soundChannels.SetNativeFrequency(1, Ff7NativeSoundFrequency.Frequency(frequencyState.SoundChannelBaseFrequencies[0], frequencyState.SoundChannelPitches[0]));
+            case 0xB1:
+            case 0xB2:
+            case 0xB3:
+            case 0xB4:
+            case 0xB5:
+            case 0xB6:
+            case 0xB7:
+                RefreshNativeFrequencies();
                 return;
             case 0xA0:
             case 0xA1:
@@ -199,7 +238,7 @@ internal sealed partial class Ff7Scene
                 audioNative ??= Ff7PcExecutableData.Load(installation);
                 int channel = command.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
                 int soundIntensity = Session!.Host.Process.SoundChannelVolumes[decoded.Streamed ? 0 : channel - 1];
-                soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: channel, stopStream: command.Operation == 0x20, nativeVolume: soundIntensity, nativeSampleRate: decoded.NativeRate, nativePitch: Session.Host.Process.SoundChannelPitches[decoded.Streamed ? 0 : channel - 1], nativeLoopDelaySeconds: decoded.LoopDelay);
+                soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: channel, stopStream: command.Operation == 0x20, nativeVolume: soundIntensity, nativeSampleRate: decoded.NativeRate, nativePitch: Session.Host.Process.SoundChannelPitches[decoded.Streamed ? 0 : channel - 1], nativeLoopDelaySeconds: decoded.LoopDelay, nativePanVersion: Session.Host.Process.SoundChannelPanVersions[decoded.Streamed ? 0 : channel - 1], nativeFrequencyVersion: Session.Host.Process.SoundChannelFrequencyVersions[decoded.Streamed ? 0 : channel - 1]);
                 soundChannels.Pause(audioPaused);
                 return;
             default:

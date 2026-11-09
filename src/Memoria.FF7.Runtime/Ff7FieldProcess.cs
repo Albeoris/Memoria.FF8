@@ -139,7 +139,13 @@ public sealed record Ff7FieldProcess
     public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
     public int[] SoundChannelVolumes { get; init; } = [127, 127, 127, 127, 127];
     public int[] SoundChannelLoopIds { get; init; } = new int[5];
+    public int[] SoundChannelPans { get; init; } = [64, 64, 64, 64, 64];
+    public long[] SoundChannelPanVersions { get; init; } = new long[5];
+    public Ff7SoundVolumeFade?[] SoundChannelPanFades { get; init; } = new Ff7SoundVolumeFade?[5];
+    public bool SoundPanStateInitialized { get; init; }
     public int[] SoundChannelPitches { get; init; } = new int[5];
+    public long[] SoundChannelFrequencyVersions { get; init; } = new long[5];
+    public Ff7SoundVolumeFade?[] SoundChannelFrequencyFades { get; init; } = new Ff7SoundVolumeFade?[5];
     public int[] SoundChannelBaseFrequencies { get; init; } = new int[5];
     public Ff7SoundVolumeFade?[] SoundChannelVolumeFades { get; init; } = new Ff7SoundVolumeFade?[5];
     public bool[] SoundChannelStoppedByFade { get; init; } = new bool[5];
@@ -187,6 +193,14 @@ public sealed record Ff7FieldProcess
         if (SoundChannelVolumes is null || SoundChannelVolumes.Length != 5 || SoundChannelVolumes.Any(volume => volume is < 0 or > 127))
         {
             throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");
+        }
+        if (SoundChannelPans is not { Length: 5 } || SoundChannelPans.Any(pan => pan is < 0 or > 127) || SoundChannelPanVersions is not { Length: 5 } || SoundChannelPanVersions.Any(version => version < 0) || SoundChannelPanFades is not { Length: 5 } || SoundChannelPanFades.Any(fade => fade is not null && (fade.Target is < 0 or > 127 || fade.RatePerSecond is < -7620 or > 7620)))
+        {
+            throw new InvalidDataException("FFVII native sound pan state is corrupt.");
+        }
+        if (SoundChannelFrequencyVersions is not { Length: 5 } || SoundChannelFrequencyVersions.Any(version => version < 0) || SoundChannelFrequencyFades is not { Length: 5 } || SoundChannelFrequencyFades.Any(fade => fade is not null && (fade.Target is < -128 or > 127 || fade.RatePerSecond is < -15300 or > 15300)))
+        {
+            throw new InvalidDataException("FFVII native frequency ramp state is corrupt.");
         }
         if (SoundChannelLoopIds is not { Length: 5 } || SoundChannelLoopIds.Any(id => id is < 0 or > 750) || SoundChannelPitches is not { Length: 5 } || SoundChannelBaseFrequencies is not { Length: 5 } || SoundChannelPitches.Any(pitch => pitch is < -128 or > 127) || SoundChannelBaseFrequencies.Any(rate => rate < 0))
         {

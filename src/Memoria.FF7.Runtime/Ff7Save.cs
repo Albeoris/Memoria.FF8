@@ -15,7 +15,7 @@ public enum SessionGame
 
 public sealed record CharacterAppearanceMapping(SessionGame StoryGame, int StoryCharacter, SessionGame AppearanceGame, int AppearanceCharacter, string RigProfile);
 
-public sealed record Ff7SoundVoicePosition(int Channel, int SoundId, string Fingerprint, int SampleRate, int Channels, long PositionFrames, bool Loop, int LoopStartFrames, int LoopEndFrames, bool LoopStarted, int Pan, int Gain, int NativeVolume = 127, int NativeSampleRate = 0, int PrimaryFrequency = 0, int SecondaryFrequency = 0, double? LoopHandoffRemainingSeconds = null);
+public sealed record Ff7SoundVoicePosition(int Channel, int SoundId, string Fingerprint, int SampleRate, int Channels, long PositionFrames, bool Loop, int LoopStartFrames, int LoopEndFrames, bool LoopStarted, int Pan, int Gain, int NativeVolume = 127, int NativeSampleRate = 0, int PrimaryFrequency = 0, int SecondaryFrequency = 0, double? LoopHandoffRemainingSeconds = null, long NativePanVersion = 0, int? SecondaryPan = null, long NativeFrequencyVersion = 0);
 public sealed record Ff7MusicVoicePosition(int Track, string Fingerprint, int SampleRate, int Channels, long PositionFrames, int LoopStartFrames, int LoopEndFrames, bool LoopStarted);
 
 public sealed record Ff7AudioPresentationState
@@ -37,7 +37,7 @@ public sealed record Ff7AudioPresentationState
         foreach (Ff7SoundVoicePosition sound in Sounds)
         {
             ValidatePosition(sound.Fingerprint, sound.SampleRate, sound.Channels, sound.PositionFrames, sound.LoopStartFrames, sound.LoopEndFrames, sound.LoopStarted, allowEnd: sound.Loop && !sound.LoopStarted && sound.LoopHandoffRemainingSeconds is not null);
-            if (sound.Channel is < 0 or > 5 || sound.SoundId is < 1 or > 750 || sound.Pan is < -10000 or > 10000 || sound.Gain is < -10000 or > 0 || sound.NativeVolume is < 0 or > 127 || sound.NativeSampleRate < 0 || sound.PrimaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.PrimaryFrequency) || sound.SecondaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.SecondaryFrequency) || sound.LoopHandoffRemainingSeconds is double remaining && (!double.IsFinite(remaining) || remaining < 0 || !sound.Loop || sound.LoopStarted) || sound.Channel == 0 && sound.Loop || !sound.Loop && (sound.LoopStarted || sound.LoopStartFrames != 0))
+            if (sound.Channel is < 0 or > 5 || sound.SoundId is < 1 or > 750 || sound.Pan is < -10000 or > 10000 || sound.Gain is < -10000 or > 0 || sound.NativeVolume is < 0 or > 127 || sound.NativeSampleRate < 0 || sound.NativePanVersion < 0 || sound.NativeFrequencyVersion < 0 || sound.SecondaryPan is < -10000 or > 10000 || sound.PrimaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.PrimaryFrequency) || sound.SecondaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.SecondaryFrequency) || sound.LoopHandoffRemainingSeconds is double remaining && (!double.IsFinite(remaining) || remaining < 0 || !sound.Loop || sound.LoopStarted) || sound.Channel == 0 && sound.Loop || !sound.Loop && (sound.LoopStarted || sound.LoopStartFrames != 0))
             {
                 throw new InvalidDataException("FFVII saved sound voice contract is corrupt.");
             }

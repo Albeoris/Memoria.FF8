@@ -107,6 +107,7 @@ public sealed class Ff7NativeMovement
         bool leftContact = false;
         bool rightContact = false;
         int finalTriangle = actor.Triangle;
+        int probeTriangle = actor.Triangle;
         int lastProbeX = 0;
         int lastProbeY = 0;
         for (int attempt = 0; attempt < attempts; attempt++)
@@ -115,7 +116,6 @@ public sealed class Ff7NativeMovement
             int stepY = unchecked(-VectorY(moveDirection) * slopeY) / 4096;
             candidateX = unchecked(actor.X4096 + actor.MoveSpeed * stepX / 256);
             candidateY = unchecked(actor.Y4096 + actor.MoveSpeed * stepY / 256);
-            int probeTriangle = actor.Triangle;
             int x = unchecked(candidateX + VectorX(moveDirection + 32) * actor.CollisionRadius);
             int y = unchecked(candidateY - VectorY(moveDirection + 32) * actor.CollisionRadius);
             int probeX = VectorX(moveDirection + 32) * actor.CollisionRadius;

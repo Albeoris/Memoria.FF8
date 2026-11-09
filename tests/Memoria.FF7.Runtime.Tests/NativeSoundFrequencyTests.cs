@@ -67,6 +67,15 @@ internal static class NativeSoundFrequencyTests
         Equal(-1, cold.Process.SoundChannelPitches[0]);
         cold.Execute(Request(10, new FieldAudioCommand(0xB0, 128)));
         Equal(-128, cold.Process.SoundChannelPitches[0]);
+        cold.Execute(Request(11, new FieldAudioCommand(0xB1, 464)));
+        Equal(-48, cold.Process.SoundChannelPitches[1]);
+        Equal(-128, cold.Process.SoundChannelPitches[0]);
+        Equal(1L, cold.Process.SoundChannelFrequencyVersions[1]);
+        Equal(44100, cold.Process.SoundChannelBaseFrequencies[1]);
+        Ff7FieldHost secondCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold.Capture()))!);
+        secondCold.Execute(Request(11, new FieldAudioCommand(0xB1, 464)));
+        Equal(JsonSerializer.Serialize(cold.Capture()), JsonSerializer.Serialize(secondCold.Capture()));
+
     }
 
     private static FieldHostRequest Request(long id, FieldCommand command) => new(id, 0, 7, 16, command);

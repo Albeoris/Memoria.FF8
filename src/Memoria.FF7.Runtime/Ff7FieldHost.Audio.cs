@@ -11,6 +11,14 @@ public sealed partial class Ff7FieldHost
     public void ConfigureNativeSoundResources(Func<int, Ff7NativeSoundDescription> describe, bool restoring = false)
     {
         nativeSoundDescription = describe ?? throw new ArgumentNullException(nameof(describe));
+        if (!Process.SoundPanStateInitialized)
+        {
+            Process = Process with { SoundPanStateInitialized = true };
+            if (restoring)
+            {
+                Console.Error.WriteLine("FFVII compatibility: absent channel pan presentation defaults to native center with inactive ramps; captured voice pans and recorded progress are preserved.");
+            }
+        }
         if (Process.SoundChannelBaseFrequencies.Any(rate => rate == 0))
         {
             int initialRate = describe(1).SampleRate;
@@ -115,7 +123,7 @@ public sealed partial class Ff7FieldHost
                     Ff7NativeSoundDescription description = nativeSoundDescription(audio.Parameter1);
                     int[] frequencies = (int[])Process.SoundChannelBaseFrequencies.Clone();
                     bool? reusedLoop = description.Loop && !Process.SoundChannelStoppedByFade[soundChannel - 1] ? NativeSoundLoopAlreadyPlaying?.Invoke(soundChannel, audio.Parameter1) : false;
-                    if (reusedLoop is null && loopIds[soundChannel - 1] == audio.Parameter1 && frequencies[soundChannel - 1] != description.SampleRate)
+                    if (reusedLoop is null && loopIds[soundChannel - 1] == audio.Parameter1 && (frequencies[soundChannel - 1] != description.SampleRate || Process.SoundChannelPans[soundChannel - 1] != unchecked((byte)audio.Parameter0) || Process.SoundChannelPanFades[soundChannel - 1] is not null))
                     {
                         throw new NotSupportedException("FFVII reused looping sound requires its current native playback-status provider.");
                     }
@@ -133,6 +141,7 @@ public sealed partial class Ff7FieldHost
                         if (reusedLoop != true)
                         {
                             frequencies[soundChannel - 1] = description.SampleRate;
+                            SetSoundPan(soundChannel, 0, unchecked((byte)audio.Parameter0));
                         }
                         loopIds[soundChannel - 1] = description.Loop ? audio.Parameter1 : 0;
                     }
@@ -153,14 +162,29 @@ public sealed partial class Ff7FieldHost
             case 0xA7:
                 SetSoundVolume(audio.Operation - 0xA4 + 1, unchecked((byte)audio.Parameter0), unchecked((byte)audio.Parameter1));
                 break;
+            case 0xA8:
+            case 0xA9:
+            case 0xAA:
+            case 0xAB:
+                SetSoundPan(audio.Operation - 0xA8 + 1, 0, unchecked((byte)audio.Parameter0));
+                break;
+            case 0xAC:
+            case 0xAD:
+            case 0xAE:
+            case 0xAF:
+                SetSoundPan(audio.Operation - 0xAC + 1, unchecked((byte)audio.Parameter0), unchecked((byte)audio.Parameter1));
+                break;
             case 0xB0:
-                if (Process.SoundChannelBaseFrequencies[0] == 0)
-                {
-                    throw new NotSupportedException("FFVII native sound frequency requires the selected sound-resource metadata.");
-                }
-                int[] pitches = (int[])Process.SoundChannelPitches.Clone();
-                pitches[0] = unchecked((sbyte)audio.Parameter0);
-                Process = Process with { SoundChannelPitches = pitches };
+            case 0xB1:
+            case 0xB2:
+            case 0xB3:
+                SetSoundFrequency(audio.Operation - 0xB0 + 1, 0, unchecked((sbyte)audio.Parameter0));
+                break;
+            case 0xB4:
+            case 0xB5:
+            case 0xB6:
+            case 0xB7:
+                SetSoundFrequency(audio.Operation - 0xB4 + 1, unchecked((byte)audio.Parameter0), unchecked((sbyte)audio.Parameter1));
                 break;
             case 0xF0:
                 PlayNativeMusic(0);
@@ -245,6 +269,56 @@ public sealed partial class Ff7FieldHost
         Process = Process with { SoundChannelVolumes = volumes, SoundChannelVolumeFades = fades };
     }
 
+    private void SetSoundPan(int channel, byte duration, byte target)
+    {
+        int index = channel - 1;
+        if (target > 127 || duration != 0 && Process.SoundChannelPans[index] == target)
+        {
+            return;
+        }
+        int[] pans = (int[])Process.SoundChannelPans.Clone();
+        long[] versions = (long[])Process.SoundChannelPanVersions.Clone();
+        Ff7SoundVolumeFade?[] fades = (Ff7SoundVolumeFade?[])Process.SoundChannelPanFades.Clone();
+        if (duration == 0)
+        {
+            pans[index] = target;
+            versions[index] = checked(versions[index] + 1);
+            fades[index] = null;
+        }
+        else
+        {
+            fades[index] = new(target, (int)((target - pans[index]) / (duration / 60d)));
+        }
+        Process = Process with { SoundChannelPans = pans, SoundChannelPanVersions = versions, SoundChannelPanFades = fades };
+    }
+
+    private void SetSoundFrequency(int channel, byte duration, sbyte target)
+    {
+        int index = channel - 1;
+        if (Process.SoundChannelBaseFrequencies[index] == 0)
+        {
+            throw new NotSupportedException("FFVII native sound frequency requires the selected sound-resource metadata.");
+        }
+        if (duration != 0 && Process.SoundChannelPitches[index] == target)
+        {
+            return;
+        }
+        int[] pitches = (int[])Process.SoundChannelPitches.Clone();
+        long[] versions = (long[])Process.SoundChannelFrequencyVersions.Clone();
+        Ff7SoundVolumeFade?[] fades = (Ff7SoundVolumeFade?[])Process.SoundChannelFrequencyFades.Clone();
+        if (duration == 0)
+        {
+            pitches[index] = target;
+            versions[index] = checked(versions[index] + 1);
+            fades[index] = null;
+        }
+        else
+        {
+            fades[index] = new(target, (int)((target - pitches[index]) / (duration / 60d)));
+        }
+        Process = Process with { SoundChannelPitches = pitches, SoundChannelFrequencyVersions = versions, SoundChannelFrequencyFades = fades };
+    }
+
     public void AdvanceAudioClock(TimeSpan elapsed, bool paused = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(elapsed, TimeSpan.Zero);
@@ -287,6 +361,44 @@ public sealed partial class Ff7FieldHost
                 stopped[index] = true;
             }
         }
-        Process = Process with { SoundChannelVolumes = volumes, SoundChannelVolumeFades = fades, SoundChannelStoppedByFade = stopped, SoundVolumeClockSubmillisecondTicks = (int)(soundTicks % TimeSpan.TicksPerMillisecond) };
+        int[] pans = (int[])Process.SoundChannelPans.Clone();
+        long[] versions = (long[])Process.SoundChannelPanVersions.Clone();
+        Ff7SoundVolumeFade?[] panFades = (Ff7SoundVolumeFade?[])Process.SoundChannelPanFades.Clone();
+        for (int index = 0; index < panFades.Length; index++)
+        {
+            if (panFades[index] is not { } current)
+            {
+                continue;
+            }
+            if (!current.Started)
+            {
+                panFades[index] = current with { Started = true };
+                continue;
+            }
+            (int pan, int accumulated) = Ff7NativeVolumeRamp.Advance(pans[index], current.Target, current.RatePerSecond, current.AccumulatedMilliseconds, milliseconds);
+            pans[index] = pan;
+            versions[index] = checked(versions[index] + 1);
+            panFades[index] = pan == current.Target ? null : current with { AccumulatedMilliseconds = accumulated };
+        }
+        int[] pitches = (int[])Process.SoundChannelPitches.Clone();
+        long[] frequencyVersions = (long[])Process.SoundChannelFrequencyVersions.Clone();
+        Ff7SoundVolumeFade?[] frequencyFades = (Ff7SoundVolumeFade?[])Process.SoundChannelFrequencyFades.Clone();
+        for (int index = 0; index < frequencyFades.Length; index++)
+        {
+            if (frequencyFades[index] is not { } current)
+            {
+                continue;
+            }
+            if (!current.Started)
+            {
+                frequencyFades[index] = current with { Started = true };
+                continue;
+            }
+            (int pitch, int accumulated) = Ff7NativeVolumeRamp.Advance(pitches[index], current.Target, current.RatePerSecond, current.AccumulatedMilliseconds, milliseconds);
+            pitches[index] = pitch;
+            frequencyVersions[index] = checked(frequencyVersions[index] + 1);
+            frequencyFades[index] = pitch == current.Target ? null : current with { AccumulatedMilliseconds = accumulated };
+        }
+        Process = Process with { SoundChannelPitches = pitches, SoundChannelFrequencyVersions = frequencyVersions, SoundChannelFrequencyFades = frequencyFades, SoundChannelPans = pans, SoundChannelPanVersions = versions, SoundChannelPanFades = panFades, SoundChannelVolumes = volumes, SoundChannelVolumeFades = fades, SoundChannelStoppedByFade = stopped, SoundVolumeClockSubmillisecondTicks = (int)(soundTicks % TimeSpan.TicksPerMillisecond) };
     }
 }
