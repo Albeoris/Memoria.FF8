@@ -91,13 +91,14 @@ internal sealed partial class FieldAudioPresentation
         CancelMusicDecode(MusicKind.Midi);
         StopExternalMusic(MusicKind.Midi);
         int outputGain = OutputGain(Catalog.MusicVolume(gain), musicPreference);
+        int previewMeasure = Memoria.FF8.Assets.NativeConcertSelection.PreviewMeasure(mask);
         if (ResumeSegmentPosition(0, 43) is { } position)
         {
-            Music.PlayConcertAtPosition(paths, outputGain, position);
+            Music.PlayConcertAtPosition(paths, outputGain, position, previewMeasure);
         }
         else
         {
-            Music.PlayConcert(paths, outputGain);
+            Music.PlayConcert(paths, outputGain, previewMeasure);
         }
         RegisterSegmentPosition(0);
         DiscardMusicResumePosition(0);

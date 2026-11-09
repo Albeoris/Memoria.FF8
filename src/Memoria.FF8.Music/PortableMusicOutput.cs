@@ -44,11 +44,11 @@ internal sealed class PortableMusicOutput : IDisposable
         concertSelected = false;
     }
 
-    public void PlayConcert(string[] paths, int volume)
+    public void PlayConcert(string[] paths, int volume, int previewMeasure = 0)
     {
         output.ThrowIfFailed();
         (MusicSegment[] segments, string fingerprint) = Load(paths);
-        concert.Play(segments, volume);
+        concert.Play(segments, volume, ConcertStartPoint(segments, previewMeasure));
         synthesizer.Stop();
         contentSha256 = fingerprint;
         concertSelected = true;
@@ -64,10 +64,14 @@ internal sealed class PortableMusicOutput : IDisposable
         });
     }
 
-    public void PlayAtPosition(string[] paths, MusicPlaybackPosition saved, int volume, bool isConcert, int fallbackStartPoint = 0)
+    public void PlayAtPosition(string[] paths, MusicPlaybackPosition saved, int volume, bool isConcert, int fallbackStartPoint = 0, int previewMeasure = 0)
     {
         output.ThrowIfFailed();
         (MusicSegment[] segments, string fingerprint) = Load(paths);
+        if (isConcert)
+        {
+            fallbackStartPoint = ConcertStartPoint(segments, previewMeasure);
+        }
         bool compatible = string.Equals(saved.ContentSha256, fingerprint, StringComparison.Ordinal);
         try
         {
@@ -78,7 +82,7 @@ internal sealed class PortableMusicOutput : IDisposable
             else
             {
                 saved.Position.Validate();
-                compatible &= saved.Position.SampleRate == output.Mixer.SampleRate && segments.All(segment => saved.Position.StartPoint < segment.Length) && (!isConcert || saved.Position.InitialSystemGain == 1);
+                compatible &= saved.Position.SampleRate == output.Mixer.SampleRate && segments.All(segment => saved.Position.StartPoint < segment.Length) && (!isConcert || saved.Position.InitialSystemGain == 1 && saved.Position.StartPoint == fallbackStartPoint);
             }
         }
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
@@ -96,12 +100,12 @@ internal sealed class PortableMusicOutput : IDisposable
                 }
                 catch (OperationCanceledException) when (budget.IsCancellationRequested)
                 {
-                    concert.Play(segments, volume);
+                    concert.Play(segments, volume, fallbackStartPoint);
                 }
             }
             else
             {
-                concert.Play(segments, volume);
+                concert.Play(segments, volume, fallbackStartPoint);
             }
             synthesizer.Stop();
         }
@@ -131,6 +135,20 @@ internal sealed class PortableMusicOutput : IDisposable
         }
         contentSha256 = fingerprint;
         concertSelected = isConcert;
+    }
+
+    private static int ConcertStartPoint(MusicSegment[] segments, int previewMeasure)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(previewMeasure);
+        if (previewMeasure == 0)
+        {
+            return 0;
+        }
+        if (segments.Length != 1)
+        {
+            throw new InvalidDataException("Instrument preview requires one selected segment.");
+        }
+        return segments[0].GetMeasureStart(previewMeasure);
     }
 
     private (MusicSegment[] Segments, string Fingerprint) Load(string[] paths)

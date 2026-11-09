@@ -87,7 +87,7 @@ internal static class AudioFixtures
 
     }
 
-    public static MusicSegment Segment(uint repeats = 0, int loopStart = 0, int loopEnd = 768, int length = 768, int duration = 768, int channel = 0)
+    public static MusicSegment Segment(uint repeats = 0, int loopStart = 0, int loopEnd = 768, int length = 768, int duration = 768, int channel = 0, (int Tick, byte Beats, byte Unit)[]? timeSignatures = null)
     {
         byte[] header = Data(w =>
         {
@@ -117,7 +117,23 @@ internal static class AudioFixtures
             w.Write((byte)127);
             w.Write(new byte[3]);
         });
-        return new MusicSegment(Form("RIFF", "DMSG", Chunk("segh", header), Form("LIST", "trkl", Track("tetr", Chunk("tetr", tempo)), Track("seqt", Chunk("seqt", Chunk("evtl", events))))));
+        List<byte[]> tracks = [Track("tetr", Chunk("tetr", tempo)), Track("seqt", Chunk("seqt", Chunk("evtl", events)))];
+        if (timeSignatures is not null)
+        {
+            byte[] signatures = Data(w =>
+            {
+                w.Write(8);
+                foreach (var signature in timeSignatures)
+                {
+                    w.Write(signature.Tick);
+                    w.Write(signature.Beats);
+                    w.Write(signature.Unit);
+                    w.Write((ushort)0);
+                }
+            });
+            tracks.Add(Track("tims", Chunk("tims", signatures)));
+        }
+        return new MusicSegment(Form("RIFF", "DMSG", Chunk("segh", header), Form("LIST", "trkl", tracks.ToArray())));
 
     }
 
@@ -149,6 +165,7 @@ internal static class AudioFixtures
             "tetr" => 0x85,
             "seqt" => 0x86,
             "syex" => 0x87,
+            "tims" => 0x88,
             _ => throw new ArgumentException(nameof(identifier))
         };
         byte[] header = Data(w =>

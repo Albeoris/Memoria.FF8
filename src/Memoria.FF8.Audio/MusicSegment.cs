@@ -5,6 +5,7 @@ namespace Memoria.FF8.Audio;
 
 public sealed record SegmentEvent(int Tick, int Channel, int Status, int Data1, int Data2, int Duration = 0, uint Patch = 0, uint Flags = 0, int Transpose = 0);
 public sealed record SegmentTempo(int Tick, double BeatsPerMinute);
+public sealed record SegmentTimeSignature(int Tick, int BeatsPerMeasure, int BeatUnit);
 
 /// <summary>DirectMusic fixed sequence tracks use 768 music ticks per quarter note.</summary>
 public sealed class MusicSegment
@@ -17,6 +18,7 @@ public sealed class MusicSegment
     public uint Repeats { get; }
     public IReadOnlyList<SegmentEvent> Events { get; }
     public IReadOnlyList<SegmentTempo> Tempos { get; }
+    public IReadOnlyList<SegmentTimeSignature> TimeSignatures { get; }
 
     public MusicSegment(byte[] bytes)
     {
@@ -38,6 +40,7 @@ public sealed class MusicSegment
         }
         List<SegmentEvent> events = [];
         List<SegmentTempo> tempos = [];
+        List<SegmentTimeSignature> timeSignatures = [];
         foreach (RiffChunk chunk in root.Descendants())
         {
             ReadOnlySpan<byte> data = chunk.Data.Span;
@@ -56,6 +59,25 @@ public sealed class MusicSegment
                         throw new InvalidDataException("Invalid DirectMusic tempo.");
                     }
                     tempos.Add(new SegmentTempo(I32(data, offset), tempo));
+                }
+            }
+            else if (chunk.Id == "tims")
+            {
+                int size = I32(data, 0);
+                if (size != 8 || (data.Length - 4) % size != 0)
+                {
+                    throw new NotSupportedException("Unsupported DirectMusic time-signature record size.");
+                }
+                for (int offset = 4; offset < data.Length; offset += size)
+                {
+                    int tick = I32(data, offset);
+                    int beats = data[offset + 4];
+                    int unit = data[offset + 5];
+                    if (tick < 0 || beats == 0 || unit == 0 || (unit & (unit - 1)) != 0)
+                    {
+                        throw new InvalidDataException("Invalid DirectMusic time signature.");
+                    }
+                    timeSignatures.Add(new SegmentTimeSignature(tick, beats, unit));
                 }
             }
             else if (chunk.Id == "seqt")
@@ -109,6 +131,11 @@ public sealed class MusicSegment
         }
         Events = events.OrderBy(e => e.Tick).ThenBy(e => e.Status == 0xc0 ? 0 : e.Status == 0x90 ? 2 : 1).ToArray();
         Tempos = tempos.OrderBy(t => t.Tick).ToArray();
+        if (timeSignatures.All(signature => signature.Tick > 0))
+        {
+            timeSignatures.Add(new SegmentTimeSignature(0, 4, 4));
+        }
+        TimeSignatures = timeSignatures.OrderBy(signature => signature.Tick).ToArray();
     }
 
     private static void ValidateTracks(RiffChunk root)
@@ -199,6 +226,36 @@ public sealed class MusicSegment
                 events.Add(new SegmentEvent(tick, I32(item, 12), status, item[26], BinaryPrimitives.ReadInt16LittleEndian(item[18..])));
             }
         }
+    }
+
+    public int GetMeasureStart(int zeroBasedMeasure)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(zeroBasedMeasure);
+        int remaining = zeroBasedMeasure;
+        for (int index = 0; index < TimeSignatures.Count; index++)
+        {
+            SegmentTimeSignature signature = TimeSignatures[index];
+            int measureTicks = checked(TicksPerQuarter * 4 * signature.BeatsPerMeasure / signature.BeatUnit);
+            if (index + 1 < TimeSignatures.Count)
+            {
+                int duration = TimeSignatures[index + 1].Tick - signature.Tick;
+                int completeMeasures = duration / measureTicks;
+                if (remaining < completeMeasures || remaining == completeMeasures && duration % measureTicks != 0)
+                {
+                    return checked(signature.Tick + remaining * measureTicks);
+                }
+                if (duration % measureTicks != 0)
+                {
+                    throw new NotSupportedException("Measure conversion across a time-signature change inside a measure is unsupported.");
+                }
+                remaining -= completeMeasures;
+            }
+            else
+            {
+                return checked(signature.Tick + remaining * measureTicks);
+            }
+        }
+        throw new InvalidOperationException("A segment requires an initial time signature.");
     }
 
     public double SecondsAt(int tick)

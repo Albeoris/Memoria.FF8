@@ -35,9 +35,9 @@ internal sealed class MusicWorkerOutput : IDisposable
     public Exception? Error => Volatile.Read(ref error);
 
     public void Play(string path, int volume, int startPoint = 0) => Enqueue(new { Command = "Play", Path = path, Volume = volume, StartPoint = startPoint });
-    public void PlayConcert(string[] paths, int volume) => Enqueue(new { Command = "Concert", Paths = paths, Volume = volume });
+    public void PlayConcert(string[] paths, int volume, int previewMeasure = 0) => Enqueue(new { Command = "Concert", Paths = paths, Volume = volume, PreviewMeasure = previewMeasure });
     public void PlayAtPosition(string path, int volume, MusicPlaybackPosition position, int startPoint = 0) => Enqueue(new { Command = "PlayAtPosition", Paths = new[] { path }, Volume = volume, Position = position, FallbackStartPoint = startPoint });
-    public void PlayConcertAtPosition(string[] paths, int volume, MusicPlaybackPosition position) => Enqueue(new { Command = "ConcertAtPosition", Paths = paths, Volume = volume, Position = position });
+    public void PlayConcertAtPosition(string[] paths, int volume, MusicPlaybackPosition position, int previewMeasure = 0) => Enqueue(new { Command = "ConcertAtPosition", Paths = paths, Volume = volume, Position = position, PreviewMeasure = previewMeasure });
     public void Volume(int hundredthDecibels) => Enqueue(new { Command = "Volume", Volume = hundredthDecibels });
     public void Stop() => Enqueue(new { Command = "Stop" });
     public void Pause() => Enqueue(new { Command = "Pause" });

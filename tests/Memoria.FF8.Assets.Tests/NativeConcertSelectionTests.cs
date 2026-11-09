@@ -3,6 +3,23 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeConcertSelectionTests
 {
     [Theory]
+    [InlineData(0x2u, 0)]
+    [InlineData(0x4u, 6)]
+    [InlineData(0x8u, 6)]
+    [InlineData(0xFF0u, 2)]
+    [InlineData(0x1000u, 4)]
+    [InlineData(0x7E000u, 0)]
+    [InlineData(0x380000u, 0)]
+    [InlineData(0x400000u, 0)]
+    [InlineData(4095u, 0)]
+    [InlineData(0x03FFFFFFu, 0)]
+    [InlineData(0x5u, 0)]
+    public void SoloPreviewsUseTheirNativeZeroBasedMeasureAndCombinationsStartTogether(uint mask, int measure)
+    {
+        Assert.Equal(measure, NativeConcertSelection.PreviewMeasure(mask));
+    }
+
+    [Theory]
     [InlineData(0x2u, "043a-concert-tap.sgt")]
     [InlineData(0x4u, "043b-concert-flute.sgt")]
     [InlineData(0x8u, "043c-concert-fiddle.sgt")]
@@ -86,5 +103,6 @@ public sealed class NativeConcertSelectionTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeConcertSelection.Tracks(mask));
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeConcertSelection.IsPreview(mask));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeConcertSelection.PreviewMeasure(mask));
     }
 }

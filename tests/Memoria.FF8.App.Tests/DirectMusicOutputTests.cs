@@ -2,11 +2,42 @@ using System.Diagnostics;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Audio;
+using Memoria.FF8.Events;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class MusicWorkerOutputTests
 {
+    [Theory]
+    [InlineData(0x4u, 6)]
+    [InlineData(0x8u, 6)]
+    [InlineData(0xFF0u, 2)]
+    [InlineData(0x1000u, 4)]
+    [InlineData(4095u, 0)]
+    public void ExecutedConcertSelectionPassesItsPreviewMeasureToTheMusicWorker(uint mask, int measure)
+    {
+        using HelperFixture fixture = new("normal");
+        using MusicWorkerOutput music = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using FieldAudioPresentation presentation = new(TestResources.GameDirectory, "");
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(FieldAudioPresentation).GetField("music", flags)!.SetValue(presentation, music);
+        NativeMusicPlayRequest request = new(1, 634, 0, 0, 0, 0, "CHOICEMUSIC", true, 43, null, null, null, null, null, 0, GlobalSoundBackendStatus.Muted, ChoiceMask: mask)
+        {
+            Playback = new(0, 43, false, true, true, null, null)
+        };
+        presentation.Execute(request);
+        Assert.True(music.IsPlaying);
+        JsonElement command = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line)).Single(item => item.GetProperty("Command").GetString() == "Concert");
+        Assert.Equal(measure, command.GetProperty("PreviewMeasure").GetInt32());
+        Assert.Equal(mask == 4095 ? 4 : 1, command.GetProperty("Paths").GetArrayLength());
+        presentation.StopAll();
+        NativeMusicPlaybackState playback = NativeMusicPlaybackState.FromColdProcess().Concert46B990(mask, () => 634);
+        presentation.ResumeMusic(playback);
+        Assert.True(music.IsPlaying);
+        JsonElement resumed = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line)).Last(item => item.GetProperty("Command").GetString() == "Concert");
+        Assert.Equal(measure, resumed.GetProperty("PreviewMeasure").GetInt32());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -19,7 +50,7 @@ public sealed class MusicWorkerOutputTests
         MusicPlaybackPosition position = new(new string('A', 64), new(123456, 44100, 17, 0.5, true));
         if (concert)
         {
-            output.PlayConcertAtPosition(["first.sgt", "second.sgt"], -2000, position);
+            output.PlayConcertAtPosition(["first.sgt"], -2000, position, 6);
         }
         else
         {
@@ -30,11 +61,15 @@ public sealed class MusicWorkerOutputTests
         Assert.Null(output.Error);
         JsonElement[] commands = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToArray();
         Assert.Equal(new[] { "Play", "Position", concert ? "ConcertAtPosition" : "PlayAtPosition", "Position", "Playing" }, commands.Select(command => command.GetProperty("Command").GetString()));
-        Assert.Equal(concert ? 2 : 1, commands[2].GetProperty("Paths").GetArrayLength());
+        Assert.Equal(1, commands[2].GetProperty("Paths").GetArrayLength());
         Assert.Equal(-2000, commands[2].GetProperty("Volume").GetInt32());
         if (!concert)
         {
             Assert.Equal(23, commands[2].GetProperty("FallbackStartPoint").GetInt32());
+        }
+        else
+        {
+            Assert.Equal(6, commands[2].GetProperty("PreviewMeasure").GetInt32());
         }
     }
 

@@ -35,6 +35,19 @@ public static class NativeConcertSelection
         return Instruments.Any(instrument => instrument.Group == mask);
     }
 
+    /// <summary>Returns the zero-based entry measure for an exact solo preview; combined concerts start together at zero.</summary>
+    public static int PreviewMeasure(uint mask)
+    {
+        ValidateMask(mask);
+        return mask switch
+        {
+            0x4 or 0x8 => 6,
+            0xFF0 => 2,
+            0x1000 => 4,
+            _ => 0
+        };
+    }
+
     private static void ValidateMask(uint mask)
     {
         if (mask > 0x03FFFFFF)
