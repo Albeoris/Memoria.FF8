@@ -27,6 +27,7 @@ internal sealed partial class Ff7Scene
     private Ff7AudioPresentationState CaptureAudioPresentation()
     {
         ApplyNativeResidentStops();
+        RefreshNativeGains();
         RefreshNativePans();
         RefreshNativeFrequencies();
         Ff7AudioPresentationState Capture(int queued)

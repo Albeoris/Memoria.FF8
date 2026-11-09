@@ -17,6 +17,24 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     public string Goal => "Reach the church through the original story sequence";
 
+    public bool HasReachedGoal()
+    {
+        Ff7FieldProcess process = session.Host.Process;
+        if (session.HasPendingTick || session.Field.Name != "chrin_1b" || session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 140 || (process.PreviousMap is ushort previousMap && previousMap != 127) || process.Movie is { Playing: true })
+        {
+            return false;
+        }
+        if (process.FadeState is Ff7FadeProcess fade && (!fade.Completed || fade.QuadColorArgb is not null || (fade.FieldColorArgb & 0xFFFFFF) != 0xFFFFFF))
+        {
+            return false;
+        }
+        if (!process.Actors.Any(actor => actor.Entity == 5 && actor.PlayerControlled && session.PrepareActorPresentation(actor).Visible) || !process.Actors.Any(actor => actor.Entity == 6 && session.PrepareActorPresentation(actor).Visible))
+        {
+            return false;
+        }
+        return process.Dialogues.Any(dialogue => dialogue.Window == 1 && dialogue.Text == 18 && !dialogue.Completed && dialogue.AwaitingInput && dialogue.Presentation is not { ConfirmPending: true } && session.Host.CanConfirmDialogue(dialogue.RequestId));
+    }
+
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
         if (session.Field.Name == "mds7pb_1" && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 105 && dialogue.Text == 112 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 3)

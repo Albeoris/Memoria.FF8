@@ -1,12 +1,55 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF7.Runtime;
+using Memoria.FF7.Events;
+using Memoria.FF7.Resources;
 using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
 public sealed class PcmFrequencyTests
 {
+    [Fact]
+    public void PendingFrequencyWriterKeepsItsOldAbsoluteHzAcrossAnotherSourceStartAndColdRestore()
+    {
+        Ff7FieldResources field = new("frequency-publication", null!, null!, null!, [], [], null!, null!, null!);
+        Ff7FieldHost host = new(field, (_, _) => 1);
+        host.ConfigureNativeSoundResources(id => new(id == 60 ? 22050 : 44100, id == 59));
+        byte[] pcm = Sequence(1000, 2000, 3000, 4000, 5000, 6000);
+        string fingerprint = new('F', 64);
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        using Ff7SoundChannels sounds = new();
+        sounds.Play(output, pcm, 44100, 1, true, 0, 0, 59, fingerprint: fingerprint);
+        host.Execute(new(1, 0, 7, 16, new FieldAudioCommand(0xB0, 208)));
+        host.Execute(new(2, 0, 7, 16, new FieldAudioCommand(0xB4, 255, 209)));
+        host.AdvanceAudioClock(TimeSpan.FromMilliseconds(30));
+        host.AdvanceAudioClock(TimeSpan.FromMilliseconds(30));
+        host.Execute(new(3, 0, 7, 16, new FieldAudioCommand(0x28, 64, 60)));
+        Assert.Equal(22050, host.Process.SoundChannelBaseFrequencies[0]);
+        Assert.Equal(35832, host.Process.SoundChannelFrequencyPublications[0]);
+        sounds.RefreshFrequencies(host.Process.SoundChannelFrequencyPublications, host.Process.SoundChannelFrequencyVersions);
+        sounds.Play(output, pcm, 44100, 1, false, 0, 0, 60, fingerprint: fingerprint, stopStream: false, nativeSampleRate: 22050, nativePitch: -48, nativeFrequencyVersion: host.Process.SoundChannelFrequencyVersions[0]);
+        Ff7SoundVoicePosition[] saved = sounds.Capture(0);
+        Assert.Equal(35832, saved.Single(voice => voice.Channel == 0).PrimaryFrequency);
+        Assert.Equal(17916, saved.Single(voice => voice.Channel == 1).PrimaryFrequency);
+        Ff7FieldProcess process = JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!;
+        PcmMixer coldMixer = new();
+        using PcmAudioOutput coldOutput = new(coldMixer);
+        using Ff7SoundChannels cold = new();
+        foreach (Ff7SoundVoicePosition voice in JsonSerializer.Deserialize<Ff7SoundVoicePosition[]>(JsonSerializer.Serialize(saved))!)
+        {
+            Assert.True(cold.RestoreVoice(coldOutput, pcm, 44100, 1, voice.SoundId, voice.Channel == 0, false, 0, 0, fingerprint, voice, voice.NativeSampleRate));
+        }
+        foreach (Ff7SoundChannels current in new[] { sounds, cold })
+        {
+            current.RefreshFrequencies(process.SoundChannelFrequencyPublications, process.SoundChannelFrequencyVersions);
+            Assert.Equal(35832, current.Capture(0).Single(voice => voice.Channel == 0).PrimaryFrequency);
+            Assert.Equal(17916, current.Capture(0).Single(voice => voice.Channel == 1).PrimaryFrequency);
+        }
+        Assert.Equal(JsonSerializer.Serialize(sounds.Capture(0)), JsonSerializer.Serialize(cold.Capture(0)));
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
@@ -21,11 +64,11 @@ public sealed class PcmFrequencyTests
         sounds.Play(output, pcm, 44100, 1, true, 0, 0, 59, fingerprint: fingerprint);
         sounds.Play(output, pcm, 44100, 1, false, 0, 0, 60, fingerprint: fingerprint, channel: channel, stopStream: false);
         sounds.Play(output, pcm, 44100, 1, false, 0, 0, 61, fingerprint: fingerprint, stopStream: false);
-        int[] pitches = new int[5];
+        int[] frequencies = Enumerable.Repeat(44100, 5).ToArray();
         long[] versions = new long[5];
-        pitches[channel - 1] = -48;
+        frequencies[channel - 1] = 35832;
         versions[channel - 1] = 1;
-        sounds.RefreshFrequencies(pitches, [44100, 44100, 44100, 44100, 44100], versions);
+        sounds.RefreshFrequencies(frequencies, versions);
         Ff7SoundVoicePosition[] voices = sounds.Capture(0);
         Assert.Equal(35832, voices.Single(voice => voice.Channel == channel).PrimaryFrequency);
         Assert.Equal(1L, voices.Single(voice => voice.Channel == channel).NativeFrequencyVersion);
@@ -44,19 +87,18 @@ public sealed class PcmFrequencyTests
         using Ff7SoundChannels sounds = new(() => time);
         sounds.Play(output, pcm, 44100, 1, true, 0, 0, 59, fingerprint: fingerprint, nativeSampleRate: 44100);
         sounds.Play(output, pcm, 44100, 1, false, 0, 0, 60, true, 4, pcm.Length, fingerprint, stopStream: false, nativeSampleRate: 22050, nativeLoopDelaySeconds: 1);
-        int[] pitches = [-48, 0, 0, 0, 0];
-        int[] bases = [44100, 44100, 44100, 44100, 44100];
+        int[] frequencies = [35832, 44100, 44100, 44100, 44100];
         long[] versions = [1, 0, 0, 0, 0];
-        sounds.RefreshFrequencies(pitches, bases, versions);
+        sounds.RefreshFrequencies(frequencies, versions);
         Ff7SoundVoicePosition[] saved = sounds.Capture(0);
         Assert.Equal(35832, saved.Single(voice => voice.Channel == 0).PrimaryFrequency);
         Assert.Equal(35832, saved.Single(voice => voice.Channel == 1).PrimaryFrequency);
         Assert.Equal(22050, saved.Single(voice => voice.Channel == 1).SecondaryFrequency);
-        bases[0] = 22050;
-        sounds.RefreshFrequencies(pitches, bases, versions);
+        frequencies[0] = 17916;
+        sounds.RefreshFrequencies(frequencies, versions);
         Assert.All(sounds.Capture(0), voice => Assert.Equal(35832, voice.PrimaryFrequency));
         versions[0] = 2;
-        sounds.RefreshFrequencies(pitches, bases, versions);
+        sounds.RefreshFrequencies(frequencies, versions);
         Assert.All(sounds.Capture(0), voice => Assert.Equal(17916, voice.PrimaryFrequency));
         saved = sounds.Capture(0);
         PcmMixer coldMixer = new();
@@ -68,22 +110,22 @@ public sealed class PcmFrequencyTests
         }
         foreach (Ff7SoundChannels current in new[] { sounds, cold })
         {
-            current.RefreshFrequencies(pitches, bases, versions);
+            current.RefreshFrequencies(frequencies, versions);
             Assert.All(current.Capture(0), voice => Assert.Equal(17916, voice.PrimaryFrequency));
-            bases[0] = 200000;
+            frequencies[0] = 162500;
             versions[0] = 3;
-            current.RefreshFrequencies(pitches, bases, versions);
+            current.RefreshFrequencies(frequencies, versions);
             Assert.All(current.Capture(0), voice => Assert.Equal(17916, voice.PrimaryFrequency));
             Assert.All(current.Capture(0), voice => Assert.Equal(3L, voice.NativeFrequencyVersion));
-            bases[0] = 44100;
-            current.RefreshFrequencies(pitches, bases, versions);
+            frequencies[0] = 35832;
+            current.RefreshFrequencies(frequencies, versions);
             Assert.All(current.Capture(0), voice => Assert.Equal(17916, voice.PrimaryFrequency));
             versions[0] = 4;
-            current.RefreshFrequencies(pitches, bases, versions);
+            current.RefreshFrequencies(frequencies, versions);
             Assert.All(current.Capture(0), voice => Assert.Equal(35832, voice.PrimaryFrequency));
             Assert.Equal(22050, current.Capture(0).Single(voice => voice.Channel == 1).SecondaryFrequency);
             versions[0] = 2;
-            bases[0] = 22050;
+            frequencies[0] = 17916;
         }
         Assert.Equal(JsonSerializer.Serialize(sounds.Capture(0)), JsonSerializer.Serialize(cold.Capture(0)));
     }

@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null)
+public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
@@ -15,9 +15,10 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
 
     public bool Running { get; private set; }
     public bool Paused { get; private set; }
+    public bool Completed { get; private set; }
     public string? Error { get; private set; }
     public Exception? Failure { get; private set; }
-    public string Status => $"{session.Field.Name}, frame {session.Host.Process.Tick}, {Steps} steps";
+    public string Status => $"{(Completed ? "Completed: " : "")}{session.Field.Name}, frame {session.Host.Process.Tick}, {Steps} steps";
     public long Steps { get; private set; }
     public IReadOnlyList<string> RecentActions => recent.ToArray();
 
@@ -25,6 +26,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
     {
         Error = null;
         Failure = null;
+        Completed = false;
         Running = true;
         Paused = false;
         deadline.Reset();
@@ -65,10 +67,18 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             try
             {
+                if (CompleteIfReached())
+                {
+                    return;
+                }
                 bool continuingTick = session.HasPendingTick;
                 if (!continuingTick)
                 {
                     present?.Invoke();
+                    if (CompleteIfReached())
+                    {
+                        return;
+                    }
                     ConfirmDefaultDialogueAndNames();
                 }
                 transitions.Observe(session);
@@ -104,6 +114,10 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     advanceTick();
                 }
                 Steps++;
+                if (CompleteIfReached())
+                {
+                    return;
+                }
                 if (session.FieldGeneration != previousGeneration)
                 {
                     CaptureCheckpoint();
@@ -111,6 +125,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
             }
             catch (Exception error)
             {
+                Completed = false;
                 Failure = error;
                 Error = error.ToString();
                 Running = false;
@@ -124,6 +139,17 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 }
             }
         });
+    }
+
+    private bool CompleteIfReached()
+    {
+        if (session.HasPendingTick || hasReachedGoal?.Invoke() != true)
+        {
+            return false;
+        }
+        SaveAndStop();
+        Completed = Failure is null;
+        return true;
     }
 
     private void CaptureCheckpoint()

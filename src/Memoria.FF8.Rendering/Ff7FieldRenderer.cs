@@ -142,6 +142,10 @@ public sealed class Ff7FieldRenderer
         {
             throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, bounded native HRC channels and an original frame within the clip.");
         }
+        if (resources.KnownPoseBinding is { } binding && ReferenceEquals(animation, binding.Motion))
+        {
+            return Ff7KnownFieldPoseRetargeter.Pose(resources, binding, frameIndex);
+        }
         PcFieldAnimationFrame frame = animation.Frames[frameIndex];
         Matrix4x4 root = Rotate(frame.RootRotation) * Matrix4x4.CreateTranslation(frame.RootTranslation * new Vector3(1, -1, 1));
         Matrix4x4[] transforms = new Matrix4x4[resources.Hierarchy.Bones.Count];
@@ -427,7 +431,7 @@ public sealed class Ff7FieldRenderer
         return image;
     }
 
-    private static Matrix4x4 Rotate(Vector3 degrees)
+    internal static Matrix4x4 Rotate(Vector3 degrees)
     {
         Vector3 radians = degrees * (MathF.PI / 180);
         return Matrix4x4.CreateRotationZ(radians.Z) * Matrix4x4.CreateRotationX(radians.X) * Matrix4x4.CreateRotationY(radians.Y);

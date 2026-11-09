@@ -19,12 +19,26 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode != 6)
+        if (command.Mode is not (6 or 17))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
         Process = Process with { Menu = new(requestId, command.Mode, command.Parameter), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
         return new(false);
+    }
+
+    public void AdvanceNativeMenu()
+    {
+        if (Process.Menu is not { Mode: 17, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
+        {
+            return;
+        }
+        FieldHostReply reply = ExternalCommand?.Invoke(new FieldMenuCommand(menu.Mode, menu.Parameter)) ?? throw new NotSupportedException("FFVII equipment removal requires its native progress owner.");
+        if (!reply.Completed)
+        {
+            throw new NotSupportedException("FFVII equipment removal must complete within its native global process.");
+        }
+        CompleteMenu(menu.RequestId);
     }
 
     public void CompleteMenu(long requestId)

@@ -148,6 +148,7 @@ public sealed partial class Ff7Session : IDisposable
         Host.PublishCurrentNativeMovieCameraFrame();
         AdvancePlayerInput();
         Host.AdvanceActors();
+        Host.AdvanceNativeMenu();
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;
@@ -244,6 +245,14 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldMenuCommand { Mode: 17 } equipment)
+        {
+            Ff7EquipmentRemovalResult removed = Ff7NativeEquipmentRemoval.Apply(Progress, equipment.Parameter, materiaTypes, executable.NativeMateriaClasses);
+            Progress = removed.Progress;
+            byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 75);
+            Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 75, (byte)(flags | removed.MateriaFlags));
+            return new(true);
+        }
         if (command is FieldPartyRecovery recovery)
         {
             IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords = Ff7MateriaResources.LoadRecords(installation);

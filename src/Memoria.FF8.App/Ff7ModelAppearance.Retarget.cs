@@ -126,11 +126,7 @@ internal sealed class Ff7SemanticRetargeter
             Matrix4x4 localRotation = Matrix4x4.CreateFromQuaternion(Rotation(restLocal));
             if (joints.TryGetValue(bone, out int source))
             {
-                Matrix4x4 restTargetRotation = Matrix4x4.CreateFromQuaternion(Rotation(targetRest[bone])) * calibratedAxes;
-                Matrix4x4 inverseSourceRest = Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion(Rotation(sourceRest[source])));
-                Matrix4x4 desiredGlobal = restTargetRotation * inverseSourceRest * Matrix4x4.CreateFromQuaternion(Rotation(current[source])) * inverseCalibratedAxes;
-                Matrix4x4 inverseParentRotation = Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion(Rotation(parentCurrent)));
-                localRotation = desiredGlobal * inverseParentRotation;
+                localRotation = SemanticJointRotation.Transfer(Matrix4x4.CreateFromQuaternion(Rotation(targetRest[bone])), Matrix4x4.CreateFromQuaternion(Rotation(sourceRest[source])), Matrix4x4.CreateFromQuaternion(Rotation(current[source])), Matrix4x4.CreateFromQuaternion(Rotation(parentCurrent)), calibratedAxes, inverseCalibratedAxes);
             }
             localRotation.Translation = restLocal.Translation + (parent < 0 ? rootMotion : Vector3.Zero);
             adjusted[bone] = localRotation * parentCurrent;

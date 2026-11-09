@@ -78,7 +78,10 @@ internal static class NativeSoundRampTests
         retarget.AdvanceAudioClock(TimeSpan.FromSeconds(100));
         Equal(0, retarget.Process.SoundChannelVolumes[0]);
         Equal(true, retarget.Process.SoundChannelVolumeFades[0] is not null);
+        long lastGainVersion = retarget.Process.SoundChannelGainVersions[0];
         retarget.Execute(Request(16, new FieldAudioCommand(0x20, 64, 0)));
+        Equal(lastGainVersion, retarget.Process.SoundChannelGainVersions[0]);
+        Equal(0, retarget.Process.SoundChannelGainPublications[0]);
         Equal(127, retarget.Process.SoundChannelVolumes[0]);
         Equal(true, retarget.Process.SoundChannelVolumeFades[0] is null);
         retarget.Execute(Request(17, new FieldAudioCommand(0xA4, 256, 511)));

@@ -21,15 +21,11 @@ internal sealed partial class Ff7Scene
 
     private bool UpdateNamingMenu()
     {
-        if (Session!.Host.Process.Menu is not { Completed: false } menu)
+        if (Session!.Host.Process.Menu is not { Mode: 6, Completed: false } menu)
         {
             namingMenus?.Close();
             namingRequest = -1;
             return false;
-        }
-        if (menu.Mode != 6)
-        {
-            throw new NotSupportedException($"FFVII menu mode {menu.Mode} requires its native shared-menu adapter.");
         }
         if (dialogueCanvas is null || dialoguePreferences is null)
         {

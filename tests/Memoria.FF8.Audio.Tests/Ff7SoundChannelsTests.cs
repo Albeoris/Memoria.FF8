@@ -347,13 +347,14 @@ public sealed class Ff7SoundChannelsTests
         sounds.Play(output, Tone(200), 44100, 1, true, 0, 0, 12, fingerprint: hash, nativeVolume: 80);
         sounds.Play(output, Tone(300), 44100, 1, false, 0, 0, 11, true, 0, 64, hash, channel: 2, stopStream: false, nativeVolume: 64);
         int[] native = [127, 64, 127, 127, 127];
-        sounds.RefreshGains(native, _ => -10000);
+        sounds.RefreshGains(_ => -10000);
         AssertFrame(mixer, 0);
         Ff7SoundVoicePosition[] muted = sounds.Capture(0);
         Assert.Equal(80, muted.Single(voice => voice.Channel == 0).NativeVolume);
         Assert.Equal(64, muted.Single(voice => voice.Channel == 2).NativeVolume);
         native[1] = 0;
-        sounds.RefreshGains(native, volume => volume == 0 ? -10000 : 0);
+        sounds.RefreshNativeGains(native, [0, 1, 0, 0, 0], volume => volume == 0 ? -10000 : 0);
+        sounds.RefreshGains(volume => volume == 0 ? -10000 : 0);
         AssertFrame(mixer, 800);
         Ff7SoundVoicePosition[] saved = JsonSerializer.Deserialize<Ff7SoundVoicePosition[]>(JsonSerializer.Serialize(sounds.Capture(0)))!;
         string legacy = JsonSerializer.Serialize(saved.Single(voice => voice.Channel == 0)).Replace(",\"NativeVolume\":80", "", StringComparison.Ordinal);
@@ -364,7 +365,7 @@ public sealed class Ff7SoundChannelsTests
             short sample = voice.Channel == 0 ? (short)200 : voice.Channel == 1 ? (short)600 : (short)300;
             Assert.True(sounds.RestoreVoice(output, Tone(sample), 44100, 1, voice.SoundId, voice.Channel == 0, voice.Loop, 0, voice.Loop ? 64 : 0, hash, voice));
         }
-        sounds.RefreshGains(native, volume => volume == 0 ? -10000 : 0);
+        sounds.RefreshGains(volume => volume == 0 ? -10000 : 0);
         AssertFrame(mixer, 800);
         Assert.Equal(80, sounds.Capture(0).Single(voice => voice.Channel == 0).NativeVolume);
     }
