@@ -207,7 +207,31 @@ internal sealed partial class AutoPlayController
             (rejection.ScriptedReturn is null ? rejection.Position == position && SameWalkSourceDomain(rejection.Source, source) : rejection.ScriptedReturn == scriptedReturn && SameScriptedWalkSource(rejection.Source, source)));
     }
 
-    private IReadOnlyList<AutoPlayTarget> FilterRejectedWalkTargets(GameWorld world, string visit, string navigation, IReadOnlyList<AutoPlayTarget> targets)
+    private IReadOnlySet<int>? FindAvoidedWalkLines(GameWorld world, string visit, string navigation)
+    {
+        if (world.Events.Scene.NativePlayerPosition is not FieldFixedPosition position)
+        {
+            return null;
+        }
+        HashSet<int>? lines = null;
+        foreach (AutoPlayWalkRejection rejection in run.WalkRejections)
+        {
+            int objectId = rejection.Guard.ObjectId;
+            if (rejection.ScriptedReturn is not null || rejection.Position != position || rejection.Source.VisitKey != visit || rejection.Source.NavigationKey != navigation ||
+                lines?.Contains(objectId) == true || !world.Events.HasAutoPlayDoorCrossingTransition(objectId))
+            {
+                continue;
+            }
+            AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, rejection.Source.Target);
+            if (IsWalkRejected(source, position, CaptureWalkRejectionGuard(world, rejection.Guard.EventId, objectId), [rejection]))
+            {
+                (lines ??= []).Add(objectId);
+            }
+        }
+        return lines;
+    }
+
+    private IReadOnlyList<AutoPlayTarget> FilterRejectedWalkTargets(GameWorld world, string visit, string navigation, IReadOnlyList<AutoPlayTarget> targets, IReadOnlySet<int>? avoidedLines)
     {
         if (run.WalkRejections.Count == 0)
         {
@@ -222,6 +246,10 @@ internal sealed partial class AutoPlayController
                 throw new InvalidDataException("Unsupported automatic walking rejection receipt.");
             }
             if (rejection.Source.VisitKey != visit || rejection.Source.NavigationKey != navigation || rejection.Source.Target != target)
+            {
+                return false;
+            }
+            if (rejection.ScriptedReturn is null && rejection.Guard.ObjectId != target.ObjectId && avoidedLines?.Contains(rejection.Guard.ObjectId) == true)
             {
                 return false;
             }

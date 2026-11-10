@@ -1,6 +1,6 @@
 namespace Memoria.FF8;
 
-internal sealed record AutoPlayJourneyHop(string Source, string Destination, string EventId, string? Conditions, AutoPlayTravelGoal Goal);
+internal sealed record AutoPlayJourneyHop(string Source, string Destination, string EventId, string? Conditions, AutoPlayTravelGoal Goal, int WalkingEvidenceRevision = 0, int WalkingSearchRevision = 0);
 
 internal sealed partial class AutoPlayController
 {
@@ -9,8 +9,14 @@ internal sealed partial class AutoPlayController
     private Func<AutoPlayPlanStep, bool>? TravelAdmission(string navigation)
     {
         ResetJourneyOnStoryChange();
-        return run.JourneyHops.Count == 0 ? null : step => step.Goal is not { } goal || step.Route is not { } route ||
-            !run.JourneyHops.Contains(new(navigation, route.DestinationVisitKey, step.Event.Id, step.Event.ConditionSignature, goal));
+        if (run.JourneyHops.Count == 0)
+        {
+            return null;
+        }
+        Dictionary<string, int> walkingEvidence = run.WalkRejections.CountBy(item => item.Source.VisitKey, StringComparer.Ordinal).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        // A newly rejected approach can expose a different route on the next arrival.
+        return step => step.Goal is not { } goal || step.Route is not { } route ||
+            !run.JourneyHops.Contains(new(navigation, route.DestinationVisitKey, step.Event.Id, step.Event.ConditionSignature, goal, walkingEvidence.GetValueOrDefault(route.DestinationVisitKey), AutoPlayPlanner.CurrentWalkingSearchRevision));
     }
 
     private void RecordJourneyHop(string destination, string destinationNavigation)
@@ -21,7 +27,8 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        var hop = new AutoPlayJourneyHop(source, destination, eventId, run.ActiveConditionSignature, goal);
+        int walkingEvidence = run.WalkRejections.Count(item => item.Source.VisitKey == destination);
+        var hop = new AutoPlayJourneyHop(source, destination, eventId, run.ActiveConditionSignature, goal, walkingEvidence, AutoPlayPlanner.CurrentWalkingSearchRevision);
         if (run.JourneyHops.Count >= MaximumJourneyHops && !run.JourneyHops.Contains(hop))
         {
             throw new NotSupportedException("Autoplay exhausted the bounded journey history without story progress.");

@@ -53,22 +53,35 @@ internal sealed partial class GameWorld
         return moved;
     }
 
-    public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress, AutoPlayIdleDeadline? idleDeadline = null)
+    public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress, AutoPlayIdleDeadline? idleDeadline = null, IReadOnlySet<int>? avoidedLines = null)
     {
         int field = Events.FieldId;
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
         Vector2 destination = new(target.ApproachX ?? target.X, target.ApproachY ?? target.Y);
         int approachObjectId = target.ObjectId;
         AutoPlayTarget? contactTarget = target.Kind == AutoPlayTargetKind.Talk ? null : target;
+        NativePlayerMovementResult Probe(FieldFixedPosition position, int triangle, Vector2 delta)
+        {
+            NativePlayerMovementResult result = Events.ProbeAutoPlayMovement(position, triangle, delta);
+            if (result.Accepted && avoidedLines is { Count: > 0 })
+            {
+                FieldFixedPosition proposed = new(result.FixedX, result.FixedY, result.FixedZ);
+                if (avoidedLines.Any(line => line != approachObjectId && Events.CrossesAutoPlayDoor(position, proposed, line)))
+                {
+                    return result with { Accepted = false };
+                }
+            }
+            return result;
+        }
         for (int frame = 0; frame < 20_000; frame++)
         {
             if (Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput)
             {
                 return new(false, true);
             }
-            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline))
+            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline, Probe))
             {
-                return WalkAutoPlayRoute(route, onProgress, approachObjectId, approachTarget: contactTarget);
+                return WalkAutoPlayRoute(route, onProgress, approachObjectId, approachTarget: contactTarget, stepProbe: avoidedLines is { Count: > 0 } ? Probe : null);
             }
             // A frozen peer layout cannot prove that future party-following steps
             // are unavailable. Publish only a certified local advance, then plan
@@ -79,7 +92,7 @@ internal sealed partial class GameWorld
             Vector2? advance;
             using (idleDeadline?.Suspend())
             {
-                advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Events.ProbeAutoPlayMovement);
+                advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Probe);
             }
             if (advance is null)
             {
@@ -126,7 +139,7 @@ internal sealed partial class GameWorld
         return selected;
     }
 
-    public AutoPlayWalkResult WalkAutoPlayRoute(AutoPlayWalkingRoute route, Action onProgress, int approachObjectId = -1, AutoPlayTarget? contact = null, AutoPlayTarget? approachTarget = null)
+    public AutoPlayWalkResult WalkAutoPlayRoute(AutoPlayWalkingRoute route, Action onProgress, int approachObjectId = -1, AutoPlayTarget? contact = null, AutoPlayTarget? approachTarget = null, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult>? stepProbe = null)
     {
         int field = Events.FieldId;
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
@@ -161,6 +174,10 @@ internal sealed partial class GameWorld
                 {
                     float angle = contact.Direction * MathF.PI / 128;
                     delta = new(MathF.Sin(angle), -MathF.Cos(angle));
+                }
+                if (stepProbe is not null && !stepProbe(position, player.WalkmeshTriangle, delta).Accepted)
+                {
+                    return new(false, false);
                 }
                 AutoPlayWalkResult step = StepAutoPlayWalking(delta, field, pending, approachObjectId, contact ?? approachTarget, out bool moved);
                 if (step.Interrupted)

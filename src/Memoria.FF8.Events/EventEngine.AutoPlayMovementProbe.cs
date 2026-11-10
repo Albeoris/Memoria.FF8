@@ -171,6 +171,31 @@ public sealed partial class EventEngine
         return ResolveNativePlayerMovement(query) ?? throw new NotSupportedException("Autoplay walking encountered an unsupported native movement probe.");
     }
 
+    public bool HasAutoPlayDoorCrossingTransition(int objectId)
+    {
+        return IsNativeDoorRequest(objectId) && program!.Objects[objectId].Scripts.Count > 4 &&
+            program.Objects[objectId].Scripts[4].ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3);
+    }
+
+    /// <summary>Checks the native crossing query for a line the planner intends to walk around.</summary>
+    public bool CrossesAutoPlayDoor(FieldFixedPosition from, FieldFixedPosition to, int objectId)
+    {
+        ActorState line = actors[objectId];
+        if (!line.LineEnabled || line.LineStart is not Vector3 start || line.LineEnd is not Vector3 end || PlayerActor is not { } player)
+        {
+            return false;
+        }
+        Vector3 current = new(from.X >> 12, from.Y >> 12, from.Z >> 12);
+        Vector3 proposed = new(to.X >> 12, to.Y >> 12, from.Z >> 12);
+        int distance = NativeInfDistance(start, end, proposed, out _);
+        if (distance < -1)
+        {
+            throw new NotSupportedException("Native autoplay door distance overflow is unsupported.");
+        }
+        int radius = (ushort)player.PushRadius;
+        return distance >= 0 && distance < (long)radius * radius && NativeInfCrosses(start, end, current, proposed);
+    }
+
     /// <summary>Observes a real callback while preserving the host's existing movement and gateway observers.</summary>
     public (bool? MovementAccepted, int? GatewayIndex) ObserveAutoPlayMovement(Action callback, float targetDistance = 0)
     {

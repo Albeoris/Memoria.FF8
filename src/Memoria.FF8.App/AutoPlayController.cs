@@ -727,12 +727,14 @@ internal sealed partial class AutoPlayController
         run.ScriptedInputSteps = 0;
         FinishWalkInterruption(world);
         string visit = VisitKey();
+        string currentNavigation = CurrentNavigationKey(world, visit);
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         if (run.ContactInterruptions.Count != 0)
         {
-            targets = FilterInterruptedContactTargets(world, visit, CurrentNavigationKey(world, visit), targets);
+            targets = FilterInterruptedContactTargets(world, visit, currentNavigation, targets);
         }
-        targets = FilterRejectedWalkTargets(world, visit, CurrentNavigationKey(world, visit), targets);
+        IReadOnlySet<int>? avoidedLines = FindAvoidedWalkLines(world, visit, currentNavigation);
+        targets = FilterRejectedWalkTargets(world, visit, currentNavigation, targets, avoidedLines);
         planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group =>
         {
             AutoPlayTarget target = group.First();
@@ -866,7 +868,7 @@ internal sealed partial class AutoPlayController
                     break;
                 }
                 RecordRecentAction("Walk " + variant.Id);
-                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline);
+                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline, avoidedLines);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (walk.Interrupted)
                 {
@@ -931,7 +933,7 @@ internal sealed partial class AutoPlayController
                 string checkpoint = BeforeVariant();
                 RecordRecentAction("Walk " + variant.Id);
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
-                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline);
+                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline, avoidedLines);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (!walk.Interrupted && !walk.Arrived)
                 {
