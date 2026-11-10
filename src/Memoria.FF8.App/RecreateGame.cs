@@ -362,6 +362,17 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
+        if (session.State.NativeGameOver is not null)
+        {
+            UpdateAchievements(force: true);
+            ReplacePlayerSession(GameWorld.CreateColdProcess(options.GameDirectory));
+            titleSelection = 0;
+            drainUiButtons = true;
+            fieldAudio?.PlayTitleMusic();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (session.State.Scene == SceneKind.Title)
         {
             fieldAudio?.PlayTitleMusic();
@@ -666,7 +677,7 @@ internal sealed partial class RecreateGame : Game
                     metrics.Simulate(1);
                 }
                 world.CommitFieldPresentation();
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.NativeGameOver || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
                 {
                     SynchronizeNativeNamePrompt();
                     fieldSeconds = 0;
