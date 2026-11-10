@@ -20,7 +20,7 @@ public sealed partial class BattleAssets
         }
         byte[] commands = [(passives & 1) != 0 ? (byte)12 : (byte)1, 0, 0, 0];
         //495530 creates Attack/Mug plus exactly the first three saved command slots, preserving holes and duplicates.
-        for (int slot = 0; slot < 3; slot++)
+        for (int slot = 0; slot < NativeCharacterJunction.EquippedCommandCount; slot++)
         {
             int ability = unchecked((byte)(character.Junction.Commands >> (slot * 8)));
             if (ability is >= 20 and < 39)

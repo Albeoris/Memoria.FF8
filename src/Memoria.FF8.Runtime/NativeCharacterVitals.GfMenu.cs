@@ -4,6 +4,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeCharacterVitals
 {
+    public byte GetReservedBattleCommand(int row)
+    {
+        byte ability = (byte)(Records[row].Junction.Commands >> 24);
+        return ability is >= 20 and < 39 ? MenuDefinitions.CommandAbilityCommands[ability - 20] : (byte)0;
+    }
+
     /// <summary>Combines equipped party abilities with the party-wide GF passive abilities.</summary>
     public byte GetEncounterAbilityFlags()
     {

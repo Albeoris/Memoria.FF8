@@ -145,12 +145,18 @@ public sealed class NativeOrdinaryCommandTests
     }
 
     [Theory]
-    [InlineData(0x0D, 2400, false, null)]
-    [InlineData(0x0D, 2400, true, null)]
-    [InlineData(0x0D, 2399, false, 53)]
-    [InlineData(0x01, 2400, false, 72)]
-    [InlineData(0x0F, 2400, false, 72)]
-    public void InstalledMiniMogSelectionRunsItsNativeCommandAndRestoresAcrossAdmission(byte flags, uint selectedGil, bool dream, int? failureMessage)
+    [InlineData(0x0D, 2400, false, null, null, false)]
+    [InlineData(0x0D, 2400, true, null, null, false)]
+    [InlineData(0x0D, 2399, false, 53, null, false)]
+    [InlineData(0x01, 2400, false, 72, null, false)]
+    [InlineData(0x0F, 2400, false, 72, null, false)]
+    [InlineData(0x00, 2400, false, null, ChocoboWorldMode.Memoria, true)]
+    [InlineData(0x01, 2400, false, null, ChocoboWorldMode.AngeloSearch, true)]
+    [InlineData(0x00, 2400, false, 72, ChocoboWorldMode.NativeImport, true)]
+    [InlineData(0x00, 2400, false, 72, ChocoboWorldMode.Memoria, false)]
+    [InlineData(0x03, 2400, false, 72, ChocoboWorldMode.Memoria, true)]
+    [InlineData(0x05, 2400, false, 72, ChocoboWorldMode.AngeloSearch, true)]
+    public void InstalledMiniMogSelectionRunsItsNativeCommandAndRestoresAcrossAdmission(byte flags, uint selectedGil, bool dream, int? failureMessage, ChocoboWorldMode? mode, bool amulet)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -176,6 +182,8 @@ public sealed class NativeOrdinaryCommandTests
             NativeSavedBattleFlags = dream ? (byte)1 : (byte)0,
             NativeSavedBattleFlagsKnownMask = 255,
             NativePocketStation = new(NativeInputConfiguration.OriginalInitHash, pocket.ToImmutableArray()),
+            ChocoboWorldMode = mode,
+            ChocoboRewards = amulet ? new() { AcquiredUniqueRewardIds = ImmutableHashSet.Create("mogs_amulet") } : new(),
             NativeGil = gil,
             GuardianForces = [new(0, 500, 1000), new(1, 960, 1000), new(2, 500, 1000)],
             Combatants =

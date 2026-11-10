@@ -192,7 +192,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(actor);
         int casts = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         MagicCastQuote quote = MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId);
-        return quote.Available >= MagicCost(actor, casts) && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic));
+        return quote.Available >= MagicCost(actor, casts) && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && (actor.Abilities.Contains(BattleAbility.Magic) || HasRetainedReservedCommand(actor, command.Ability, command.NativeQueuedCommand)));
     }
 
     private BattleAttackCommand RevalidateSmartAttack(BattleCombatant actor, BattleAttackCommand command)

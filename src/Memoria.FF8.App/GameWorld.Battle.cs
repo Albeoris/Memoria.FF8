@@ -51,7 +51,7 @@ internal sealed partial class GameWorld
             NativeBattleGil gil = new(economy.Gil, economy.PastGil);
             saved = saved with { Definition = saved.Definition with { NativeGil = gil }, NativeGil = gil };
         }
-        battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
+        battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources)));
         synchronizedNativeBattleCallbacks = battle?.NativeHostCallbacks ?? battle?.Frame ?? 0;
         if (battle is not null)
         {

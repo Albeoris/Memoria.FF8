@@ -59,7 +59,9 @@ internal static class BattlePartyProjection
             BattlePlayerStats stats = resources.ReadPlayerStats(vitals, row);
             NativeBattleStatusAllocation nativeStatuses = resources.ReadPlayerNativeStatusData(vitals, row);
             BattleWeaponDefinition equipped = resources.WeaponDefinitions[weapon];
-            party.Add(new BattleCombatantDefinition { Id = $"party-{row}", MagicRecordId = row, Name = name, IsPlayer = true, ModelId = character, Costume = costume, MaximumHp = vitals.GetMagicMaximumHitPoints(row), CurrentHp = saved.HitPoints.Minimum, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Luck = stats.Luck, NativeKillCount = saved.KillCount, NativeDeathCount = saved.DeathCount, Hit = stats.Hit, Evasion = stats.Evasion, PhysicalPower = equipped.AttackPower, Spirit = stats.Spirit, ElementAttack = stats.ElementAttack, ElementAttackPercent = stats.ElementAttackPercent, ElementDefenses = stats.ElementDefenses, WeaponId = weapon, WeaponName = equipped.Name, EquipmentIds = saved.Junction.GuardianForceAssignments.ToArray(), Level = level, Magic = stats.Magic, NativeMagicInventory = saved.MagicInventory.ToArray(), Abilities = Commands(saved, vitals), NativeCommands = NativeCommands(saved, vitals, resources), NativeCommandSlots = resources.ReadPlayerNativeCommandSlots(vitals, row), NativeLimit = resources.ReadNativeLimitDefinition(character), NativeAttack = resources.ReadPlayerNativeAttackData(vitals, row), NativePlayerStatRules = resources.ReadPlayerNativeStatRules(vitals, row), NativeGrowth = new BattleNativeCharacterGrowth(saved.HitPointBonus, saved.StatBonuses.ToImmutableArray()), NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeRetainedStatusBits = (ushort)(saved.Status & 0x80), GuardianForceCompatibility = saved.GuardianForceCompatibility?.ToArray(), NativeCharacterFlag100 = resources.ReadCharacterNativeConditionFlag100(character) });
+            ImmutableArray<byte> nativeCommandSlots = resources.ReadPlayerNativeCommandSlots(vitals, row);
+            ImmutableArray<BattleNativeCommandBinding> nativeCommands = ReadCommandBindings(nativeCommandSlots, resources);
+            party.Add(new BattleCombatantDefinition { Id = $"party-{row}", MagicRecordId = row, Name = name, IsPlayer = true, ModelId = character, Costume = costume, MaximumHp = vitals.GetMagicMaximumHitPoints(row), CurrentHp = saved.HitPoints.Minimum, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Luck = stats.Luck, NativeKillCount = saved.KillCount, NativeDeathCount = saved.DeathCount, Hit = stats.Hit, Evasion = stats.Evasion, PhysicalPower = equipped.AttackPower, Spirit = stats.Spirit, ElementAttack = stats.ElementAttack, ElementAttackPercent = stats.ElementAttackPercent, ElementDefenses = stats.ElementDefenses, WeaponId = weapon, WeaponName = equipped.Name, EquipmentIds = saved.Junction.GuardianForceAssignments.ToArray(), Level = level, Magic = stats.Magic, NativeMagicInventory = saved.MagicInventory.ToArray(), Abilities = ReadCommandAbilities(nativeCommands), NativeCommands = nativeCommands, NativeCommandSlots = nativeCommandSlots, NativeLimit = resources.ReadNativeLimitDefinition(character), NativeAttack = resources.ReadPlayerNativeAttackData(vitals, row), NativePlayerStatRules = resources.ReadPlayerNativeStatRules(vitals, row), NativeGrowth = new BattleNativeCharacterGrowth(saved.HitPointBonus, saved.StatBonuses.ToImmutableArray()), NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeRetainedStatusBits = (ushort)(saved.Status & 0x80), GuardianForceCompatibility = saved.GuardianForceCompatibility?.ToArray(), NativeCharacterFlag100 = resources.ReadCharacterNativeConditionFlag100(character) });
         }
         if (party.Count == 0)
         {
@@ -68,58 +70,61 @@ internal static class BattlePartyProjection
         return party.ToArray();
     }
 
-    private static BattleAbility[] Commands(NativeCharacterVital character, NativeCharacterVitals vitals)
+    internal static BattleSnapshot RestoreLegacyCommandProjection(BattleSnapshot snapshot, BattleAssets resources)
     {
-        List<BattleAbility> result = [BattleAbility.Attack];
-        for (int slot = 0; slot < 4; slot++)
+        if (snapshot.Definition.MagicVitals is not { } vitals)
         {
-            int ability = (byte)(character.Junction.Commands >> (8 * slot));
-            if (ability == 0)
+            return snapshot;
+        }
+        BattleCombatantDefinition[]? corrected = null;
+        BattleCombatantDefinition[] saved = snapshot.Definition.Combatants;
+        for (int index = 0; index < saved.Length; index++)
+        {
+            BattleCombatantDefinition actor = saved[index];
+            if (!actor.IsPlayer || actor.MagicRecordId is not int row || (uint)row >= vitals.Records.Length || actor.NativeCommandSlots.Length != 4 || actor.NativeCommands.IsDefaultOrEmpty)
             {
                 continue;
             }
-            if (ability is < 20 or >= 39)
+            byte command = vitals.GetReservedBattleCommand(row);
+            if (command is 0 or 1 || actor.NativeCommandSlots.Contains(command) || actor.NativeCommands[^1].Command != command)
             {
-                throw new NotSupportedException($"Saved command ability {ability} has no native command mapping.");
+                continue;
             }
-            BattleAbility command = vitals.MenuDefinitions.CommandAbilityCommands[ability - 20] switch
+            ImmutableArray<byte> slots = resources.ReadPlayerNativeCommandSlots(vitals, row);
+            if (!actor.NativeCommandSlots.SequenceEqual(slots))
             {
-                2 => BattleAbility.Magic,
-                3 => BattleAbility.GuardianForce,
-                4 => BattleAbility.Item,
-                6 => BattleAbility.Draw,
-                _ => BattleAbility.NativeCommand
-            };
-            if (!result.Contains(command))
-            {
-                result.Add(command);
+                continue;
             }
+            ImmutableArray<BattleNativeCommandBinding> current = ReadCommandBindings(slots, resources);
+            ImmutableArray<BattleNativeCommandBinding> previous = current.Add(resources.ReadNativeCommand(command));
+            if (!actor.NativeCommands.SequenceEqual(previous) || !actor.Abilities.SequenceEqual(ReadCommandAbilities(previous)))
+            {
+                continue;
+            }
+            corrected ??= saved.ToArray();
+            corrected[index] = actor with { NativeCommands = current, Abilities = ReadCommandAbilities(current) };
         }
-        return result.ToArray();
+        return corrected is null ? snapshot : snapshot with { Definition = snapshot.Definition with { Combatants = corrected } };
     }
 
-    private static ImmutableArray<BattleNativeCommandBinding> NativeCommands(NativeCharacterVital character, NativeCharacterVitals vitals, BattleAssets resources)
+    private static ImmutableArray<BattleNativeCommandBinding> ReadCommandBindings(ImmutableArray<byte> slots, BattleAssets resources)
     {
-        List<byte> commands = [1];
-        for (int slot = 0; slot < 4; slot++)
-        {
-            int ability = (byte)(character.Junction.Commands >> (8 * slot));
-            if (ability == 0)
-            {
-                continue;
-            }
-            if (ability is < 20 or >= 39)
-            {
-                throw new NotSupportedException($"Saved command ability {ability} has no native command mapping.");
-            }
-            byte command = vitals.MenuDefinitions.CommandAbilityCommands[ability - 20];
-            if (!commands.Contains(command))
-            {
-                commands.Add(command);
-            }
-        }
-        return commands.Select(resources.ReadNativeCommand).ToImmutableArray();
+        return slots.Skip(1).Where(command => command != 0).Prepend((byte)1).Distinct().Select(resources.ReadNativeCommand).ToImmutableArray();
     }
+
+    private static BattleAbility[] ReadCommandAbilities(ImmutableArray<BattleNativeCommandBinding> commands)
+    {
+        return commands.Select(binding => binding.Command switch
+        {
+            1 => BattleAbility.Attack,
+            2 => BattleAbility.Magic,
+            3 => BattleAbility.GuardianForce,
+            4 => BattleAbility.Item,
+            6 => BattleAbility.Draw,
+            _ => BattleAbility.NativeCommand
+        }).Distinct().ToArray();
+    }
+
     public static BattleCombatantDefinition[] CreateNewGame(GameAssets assets, LiveMenuCatalog catalog, BattleAssets resources)
     {
         return Create(new GameState { CharacterVitals = assets.ReadNewGameCharacterVitals(), CharacterAppearance = assets.ReadNewGameCharacterAppearance() }, null, catalog, resources);

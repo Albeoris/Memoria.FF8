@@ -9,6 +9,19 @@ public sealed class NativeDrawPointCatalogTests
     private static GameAssets Assets() => new(TestResources.GameDirectory);
 
     [Fact]
+    public void DrawPointEligibilityUsesTheThreeEquippedCommandBytes()
+    {
+        using GameAssets assets = Assets();
+        NativeDrawPointCatalog catalog = assets.ReadNativeDrawPointCatalog();
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        uint draw = checked((uint)(20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf(6)));
+        NativeCharacterVital actor = vitals.Records[0];
+
+        Assert.True(catalog.HasDrawCommand(actor with { Junction = actor.Junction with { Commands = draw << 16 } }));
+        Assert.False(catalog.HasDrawCommand(actor with { Junction = actor.Junction with { Commands = draw << 24 } }));
+    }
+
+    [Fact]
     public void OriginalCommonResourcesRetainTemplatesHashesAndMagicNames()
     {
         using GameAssets assets = Assets();

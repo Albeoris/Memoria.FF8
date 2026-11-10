@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Original saved record GF WORD+88, command/ability bytes+80..87 and magic junction bytes+92..111.</summary>
 public sealed record NativeCharacterJunction([property: JsonRequired] ushort GuardianForces, [property: JsonRequired] uint Commands, [property: JsonRequired] uint Abilities, [property: JsonRequired] byte[] MagicJunctions)
 {
+    public const int EquippedCommandCount = 3;
+
     [JsonIgnore]
     public IEnumerable<int> GuardianForceAssignments => Enumerable.Range(0, 16).Where(id => (GuardianForces & (1 << id)) != 0);
 

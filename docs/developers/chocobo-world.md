@@ -10,6 +10,8 @@ Choose a provider during New Game setup or through **Config > Gameplay > Chocobo
 
 The ledger migrates reliable evidence from current stock, learned MiniMog/Ribbon abilities, and retained item-taught history even after an ability was forgotten. A previously consumed item without a lasting trace cannot be reconstructed from an older save. Legacy duplicate stock is preserved. Native FFVIII save formats cannot retain this ledger or provider choice; saves requiring this metadata must use Memoria format.
 
+In Angelo Search and Memoria modes, an acquired Mog's Amulet lets the equipped MiniMog command call Moogle Dance when the save has no native MiniMog state and Boko is home. Moogle Dance uses the saved PocketStation level and treats level zero as 1% healing. Native Import uses the original availability flags. Switching providers preserves the acquired reward and its taught ability.
+
 ## Native import
 
 `NativeChocoboWorldReader` identifies containers from their contents:

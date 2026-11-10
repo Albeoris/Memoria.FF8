@@ -133,7 +133,7 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
     }
     public bool HasDrawCommand(NativeCharacterVital character)
     {
-        for (int slot = 0; slot < 4; slot++)
+        for (int slot = 0; slot < NativeCharacterJunction.EquippedCommandCount; slot++)
         {
             byte ability = unchecked((byte)(character.Junction.Commands >> (8 * slot)));
             if (ability is >= 20 and < 39 && CommandIds[ability - 20] == 6)

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -7,6 +8,124 @@ namespace Memoria.FF8.App.Tests;
 // Installed canonical party records exercise Memoria's projection; native combat-stat parity is not claimed.
 public sealed class BattlePartyProjectionTests
 {
+    [Fact]
+    public void Every_installed_command_ability_reaches_its_battle_menu_route()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets resources = new(game.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(game);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals() with { CombatParty = [0, 255, 255] };
+        GameState state = new() { CharacterVitals = vitals, CharacterAppearance = game.ReadNewGameCharacterAppearance() };
+        BattleNativeAction[] nativeActions = resources.NativeActions.ToArray();
+        NativeCharacterVital initial = vitals.Records[0];
+        for (int index = 0; index < vitals.MenuDefinitions.CommandAbilityCommands.Length; index++)
+        {
+            byte command = vitals.MenuDefinitions.CommandAbilityCommands[index];
+            int reservedAbility = command == 38 ? 20 : 38;
+            byte reservedCommand = vitals.MenuDefinitions.CommandAbilityCommands[reservedAbility - 20];
+            uint commands = (uint)(20 + index) << (8 * (index % 3)) | (uint)reservedAbility << 24;
+            vitals.Records[0] = initial with { Junction = initial.Junction with { Commands = commands } };
+            BattleCombatantDefinition actor = Assert.Single(BattlePartyProjection.Create(state, null, catalog, resources));
+            Assert.Equal(command, actor.NativeCommandSlots[index % 3 + 1]);
+            Assert.DoesNotContain(reservedCommand, actor.NativeCommandSlots);
+            Assert.DoesNotContain(actor.NativeCommands, binding => binding.Command == reservedCommand);
+            if (command == 0)
+            {
+                Assert.Equal(BattleAbility.Attack, Assert.Single(actor.Abilities));
+                Assert.Equal((byte)1, Assert.Single(actor.NativeCommands).Command);
+                continue;
+            }
+            BattleNativeCommandBinding binding = resources.ReadNativeCommand(command);
+            Assert.Contains(binding, actor.NativeCommands);
+            BattleAbility ability = command switch
+            {
+                2 => BattleAbility.Magic,
+                3 => BattleAbility.GuardianForce,
+                4 => BattleAbility.Item,
+                6 => BattleAbility.Draw,
+                _ => BattleAbility.NativeCommand
+            };
+            Assert.Contains(ability, actor.Abilities);
+            BattleSession battle = new(new BattleDefinition
+            {
+                Combatants = [actor with { InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy" }],
+                NativeActions = nativeActions
+            }, BattleAtbMode.Normal);
+            IReadOnlyList<BattleActionDefinition> choices = battle.GetNativePlayerActionChoices(actor.Id, false);
+            if (ability != BattleAbility.NativeCommand)
+            {
+                Assert.Empty(choices);
+                continue;
+            }
+            BattleActionDefinition choice = Assert.Single(choices);
+            Assert.Equal(binding.Name, choice.Name);
+            Assert.Equal(command, choice.NativeAction!.Command);
+            battle.QueueAction(actor.Id, choice.Allies ? actor.Id : "enemy", choice.Ability, choice.Id);
+            Assert.Equal(command, Assert.Single(battle.QueuedActions).NativeQueuedCommand);
+        }
+    }
+
+    [Theory]
+    [InlineData(20, 2, BattleAbility.Magic, 1)]
+    [InlineData(30, 28, BattleAbility.NativeCommand, 28 << 16)]
+    public void Legacy_fourth_command_is_removed_from_menu_and_retains_queued_and_active_actions(int savedAbility, byte command, BattleAbility ability, int actionId)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets resources = new(game.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(game);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals() with { CombatParty = [0, 255, 255] };
+        NativeCharacterVital initial = vitals.Records[0];
+        NativeMagicStock[] inventory = initial.MagicInventory.ToArray();
+        inventory[0] = new(1, 4);
+        uint savedCommands = (uint)savedAbility << 24;
+        vitals.Records[0] = initial with { Junction = initial.Junction with { Commands = savedCommands }, MagicInventory = inventory };
+        GameState state = new() { CharacterVitals = vitals, CharacterAppearance = game.ReadNewGameCharacterAppearance() };
+        BattleCombatantDefinition current = Assert.Single(BattlePartyProjection.Create(state, null, catalog, resources)) with { InitialAtb = BattleSession.AtbMaximum };
+        BattleNativeCommandBinding obsolete = resources.ReadNativeCommand(command);
+        BattleCombatantDefinition legacy = current with { Abilities = [.. current.Abilities, ability], NativeCommands = current.NativeCommands.Add(obsolete) };
+        BattleSession old = new(new BattleDefinition
+        {
+            Combatants = [legacy, new() { Id = "enemy", Name = "Enemy" }],
+            MagicVitals = vitals,
+            ActionDefinitions = resources.ActionDefinitions.ToArray(),
+            NativeActions = resources.NativeActions.ToArray(),
+            NativeCommandNames = resources.ReadNativeCommandNames(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory()
+        }, BattleAtbMode.Normal);
+        old.QueueAction(current.Id, "enemy", ability, actionId);
+        BattleSnapshot queued = old.Capture();
+        BattleSession restored = NormalizeAndRestore(queued);
+        Assert.Equal(JsonSerializer.Serialize(Assert.Single(old.QueuedActions)), JsonSerializer.Serialize(Assert.Single(restored.QueuedActions)));
+
+        old.Tick();
+        restored.Tick();
+        Assert.NotNull(old.ActiveAction);
+        BattleSession restoredActive = NormalizeAndRestore(old.Capture());
+        Assert.Equal(JsonSerializer.Serialize(old.ActiveAction), JsonSerializer.Serialize(restoredActive.ActiveAction));
+        Assert.Equal(JsonSerializer.Serialize(restored.Capture()), JsonSerializer.Serialize(restoredActive.Capture()));
+
+        BattleCombatantDefinition unrelated = legacy with { NativeCommands = current.NativeCommands.Add(obsolete with { Name = "Unexpected command" }) };
+        BattleSnapshot inconsistent = queued with { Definition = queued.Definition with { Combatants = [unrelated, queued.Definition.Combatants[1]] } };
+        Assert.Same(inconsistent, BattlePartyProjection.RestoreLegacyCommandProjection(inconsistent, resources));
+
+        BattleSession NormalizeAndRestore(BattleSnapshot snapshot)
+        {
+            BattleSnapshot corrected = BattlePartyProjection.RestoreLegacyCommandProjection(snapshot, resources);
+            BattleDefinition expected = snapshot.Definition with { Combatants = [current, snapshot.Definition.Combatants[1]] };
+            GameWorld.ValidateBattleDefinition(expected, corrected.Definition);
+            Assert.Equal(savedCommands, corrected.Definition.MagicVitals!.Records[0].Junction.Commands);
+            Assert.Equal(savedCommands, corrected.MagicVitals!.Records[0].Junction.Commands);
+            Assert.Same(snapshot.QueuedActions, corrected.QueuedActions);
+            Assert.Same(snapshot.ActiveAction, corrected.ActiveAction);
+            Assert.Same(corrected, BattlePartyProjection.RestoreLegacyCommandProjection(corrected, resources));
+            BattleSession session = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(corrected))!);
+            Assert.DoesNotContain(ability, session.Combatants.Single(actor => actor.IsPlayer).Abilities);
+            Assert.Empty(session.GetNativePlayerActionChoices(current.Id, false));
+            return session;
+        }
+    }
+
     [Fact]
     public void Laboratory_uses_current_party_order_names_hp_costume_weapon_and_gf_owners()
     {

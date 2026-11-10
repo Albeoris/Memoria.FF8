@@ -9,11 +9,62 @@ public sealed class ChocoboWorldInstalledItemTests
     [Theory]
     [InlineData("MEMORIA_FF8_GAME_DIR")]
     [InlineData("MEMORIA_FF8_REMASTERED_DIR")]
+    public void Memoria_amulet_teaches_a_usable_MiniMog_command_on_a_cold_PocketStation(string installationVariable)
+    {
+        using GameAssets game = ReadInstalled(installationVariable);
+        using BattleAssets resources = new(game.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(game);
+        GameState source = new()
+        {
+            GameplayPreferences = new() { ChocoboWorldMode = ChocoboWorldMode.Memoria },
+            CharacterVitals = game.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0),
+            CharacterAppearance = game.ReadNewGameCharacterAppearance(),
+            Economy = game.ReadNewGameEconomy(),
+            PocketStation = game.ReadNewGamePocketStation()
+        };
+        ChocoboRewardGrantResult claim = ChocoboRewardTransactions.ClaimRemaining(source);
+        Assert.Equal(ChocoboRewardGrantStatus.Granted, claim.Status);
+        var taught = catalog.FieldItem(65)!.Use(claim.State.CharacterVitals!, claim.State.Economy!, 65, 16);
+        Assert.True(taught.Changed);
+        GameState equipped = claim.State with { CharacterVitals = taught.Vitals.SetJunctionAbility(0, 0, 38, true), Economy = taught.Economy };
+        BattleCombatantDefinition actor = Assert.Single(BattlePartyProjection.Create(equipped, null, catalog, resources));
+        NativeEconomy economy = equipped.Economy!;
+        uint price = checked((uint)(100 * actor.Level));
+        BattleSession battle = new(new BattleDefinition
+        {
+            Combatants = [actor with { InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy" }],
+            NativeActions = resources.NativeActions.ToArray(),
+            NativeCommandNames = resources.ReadNativeCommandNames(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
+            NativeGlobalMessages = resources.ReadNativeGlobalBattleMessages(),
+            NativeMessageSpeed = 1,
+            NativeFieldBattleRules = 0,
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativePocketStation = equipped.PocketStation,
+            NativeSavedBattleFlags = 0,
+            NativeSavedBattleFlagsKnownMask = 255,
+            ChocoboWorldMode = equipped.GameplayPreferences.ChocoboWorldMode,
+            ChocoboRewards = equipped.ChocoboRewards,
+            NativeGil = new(economy.Gil, economy.PastGil),
+            GuardianForces = [new(0, 500, 1000)]
+        }, BattleAtbMode.Normal);
+
+        BattleActionDefinition choice = Assert.Single(battle.GetNativePlayerActionChoices(actor.Id, false));
+        battle.QueueAction(actor.Id, actor.Id, choice.Ability, choice.Id);
+        battle.Tick();
+
+        Assert.Equal(10, Assert.Single(battle.Events, entry => entry.Kind == "GuardianForceHealing").Amount);
+        Assert.Equal(new NativeBattleGil(economy.Gil - price, economy.PastGil), battle.Capture().NativeGil);
+        Assert.Equal((byte)0, battle.Capture().Definition.NativePocketStation!.Flags);
+        Assert.DoesNotContain(economy.Items, stock => stock.ItemId == 65);
+    }
+
+    [Theory]
+    [InlineData("MEMORIA_FF8_GAME_DIR")]
+    [InlineData("MEMORIA_FF8_REMASTERED_DIR")]
     public void InstalledExclusiveRewardsTeachAbilitiesAndOpenBokoNaming(string installationVariable)
     {
-        string? directory = Environment.GetEnvironmentVariable(installationVariable);
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), $"Set {installationVariable} to run the optional installed item check.");
-        using GameAssets assets = new(directory!);
+        using GameAssets assets = ReadInstalled(installationVariable);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         GameState source = new()
         {
@@ -43,5 +94,12 @@ public sealed class ChocoboWorldInstalledItemTests
         Assert.Equal(GameNames.BokoSubject, naming.Subject);
         Assert.DoesNotContain(naming.Economy.Items, stock => stock.ItemId == 165);
         Assert.Contains("chocobos_tag", claim.State.ChocoboRewards.AcquiredUniqueRewardIds);
+    }
+
+    private static GameAssets ReadInstalled(string installationVariable)
+    {
+        string? directory = Environment.GetEnvironmentVariable(installationVariable);
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), $"Set {installationVariable} to run the optional installed item check.");
+        return new(directory!);
     }
 }

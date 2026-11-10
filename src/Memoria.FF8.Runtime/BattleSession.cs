@@ -1320,7 +1320,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Queued GF item cannot already own a dispatched invocation.");
             }
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, command.NativeHeaderIndex is not null, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, command.NativeHeaderIndex, duel: command.NativeDuel, slots: command.NativeSlots);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, command.NativeHeaderIndex is not null, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, command.NativeHeaderIndex, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand);
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
@@ -1337,7 +1337,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle presentation timer.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.NativeHeaderIndex is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeaderIndex, duel: action.NativeDuel, slots: action.NativeSlots);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.NativeHeaderIndex is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeaderIndex, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             ValidateNativeSequenceProgress(byId[action.ActorId], action);
             if (action.NativeAction?.AttackType is 17 or 19 && action.NativeSpecial is null)
@@ -1464,7 +1464,7 @@ public sealed partial class BattleSession
         ValidateOriginalMaximumHitPoints(snapshot);
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
@@ -1507,10 +1507,28 @@ public sealed partial class BattleSession
         //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
         //Graphicsless components preserve the same initialization/reaction gauge in their logical clock.
         bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
-        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability))
+        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }
+    }
+
+    private bool HasRetainedReservedCommand(BattleCombatant actor, BattleAbility ability, byte? nativeQueuedCommand)
+    {
+        byte command = (ability, nativeQueuedCommand) switch
+        {
+            (BattleAbility.Magic, 2) => 2,
+            (BattleAbility.GuardianForce, 3 or 254) => 3,
+            (BattleAbility.Item, 4) => 4,
+            (BattleAbility.Draw, 6) => 6,
+            _ => 0
+        };
+        return command != 0 && HasRetainedReservedCommand(actor, command);
+    }
+
+    private bool HasRetainedReservedCommand(BattleCombatant actor, byte command)
+    {
+        return actor.IsPlayer && actor.NativeCommandSlots.Length == 4 && !actor.NativeCommandSlots.Contains(command) && actor.MagicRecordId is int row && definition.MagicVitals is { } vitals && (uint)row < vitals.Records.Length && vitals.GetReservedBattleCommand(row) == command;
     }
 
     private void PublishCandidate(BattleSession candidate)

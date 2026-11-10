@@ -41,7 +41,8 @@ public sealed partial class BattleSession
             }
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
             BattleNativeCommandBinding? binding = actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
-            return attack with { Command = command, DispatchCommand = command, Name = binding?.Name ?? attack.Name, TargetFlags = binding?.TargetFlags ?? attack.TargetFlags };
+            string? name = binding?.Name ?? (command == 28 && HasRetainedReservedCommand(actor, command) ? definition.NativeCommandNames.ElementAtOrDefault(command) : null);
+            return attack with { Command = command, DispatchCommand = command, Name = name ?? attack.Name, TargetFlags = binding?.TargetFlags ?? attack.TargetFlags };
         }
         return FindInstalledNativeAction(command, id, crisis);
     }
@@ -189,7 +190,9 @@ public sealed partial class BattleSession
     {
         NativePocketStationState pocket = definition.NativePocketStation ?? throw new NotSupportedException("MiniMog requires the saved PocketStation block.");
         pocket.Validate();
-        if ((pocket.Flags & 0x0F) != 0x0D)
+        bool availableInPocketStation = (pocket.Flags & 0x0F) == 0x0D;
+        bool availableThroughProvider = (pocket.Flags & 0x0E) == 0 && definition.ChocoboWorldMode is ChocoboWorldMode.AngeloSearch or ChocoboWorldMode.Memoria && definition.ChocoboRewards.AcquiredUniqueRewardIds.Contains(ChocoboRewardCatalog.MogsAmulet);
+        if (!availableInPocketStation && !availableThroughProvider)
         {
             return 72;
         }

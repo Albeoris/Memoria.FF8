@@ -21,10 +21,12 @@ public sealed record ChocoboRewardDefinition(string Id, byte ItemId, string Disp
 /// <summary>Names are fallbacks; presentation resolves names, descriptions and icons from installed item metadata by ItemId.</summary>
 public static class ChocoboRewardCatalog
 {
+    internal const string MogsAmulet = "mogs_amulet";
+
     public static ImmutableArray<ChocoboRewardDefinition> Entries { get; } =
     [
         new("ribbon", 100, "Ribbon", "Teaches a Guardian Force Ribbon.", 77),
-        new("mogs_amulet", 65, "Mog's Amulet", "Teaches a Guardian Force MiniMog.", 38),
+        new(MogsAmulet, 65, "Mog's Amulet", "Teaches a Guardian Force MiniMog.", 38),
         new("friendship", 32, "Friendship", "Calls a Moomba in battle."),
         new("chocobos_tag", 165, "Chocobo's Tag", "Renames Boko.")
     ];
