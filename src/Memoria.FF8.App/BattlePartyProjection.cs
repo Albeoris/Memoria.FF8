@@ -85,6 +85,17 @@ internal static class BattlePartyProjection
             {
                 continue;
             }
+            if (actor.NativeCommandSlots[0] == 12 && actor.NativeCommandSlots.SequenceEqual(resources.ReadPlayerNativeCommandSlots(vitals, row)))
+            {
+                ImmutableArray<BattleNativeCommandBinding> legacyBindings = actor.NativeCommandSlots.Skip(1).Where(value => value != 0).Prepend((byte)1).Distinct().Select(resources.ReadNativeCommand).ToImmutableArray();
+                if (actor.NativeCommands.SequenceEqual(legacyBindings) && actor.Abilities.SequenceEqual(ReadCommandAbilities(legacyBindings)))
+                {
+                    ImmutableArray<BattleNativeCommandBinding> bindings = ReadCommandBindings(actor.NativeCommandSlots, resources);
+                    actor = actor with { NativeCommands = bindings, Abilities = ReadCommandAbilities(bindings) };
+                    corrected ??= saved.ToArray();
+                    corrected[index] = actor;
+                }
+            }
             byte command = vitals.GetReservedBattleCommand(row);
             if (command is 0 or 1 || actor.NativeCommandSlots.Contains(command) || actor.NativeCommands[^1].Command != command)
             {
@@ -109,14 +120,14 @@ internal static class BattlePartyProjection
 
     private static ImmutableArray<BattleNativeCommandBinding> ReadCommandBindings(ImmutableArray<byte> slots, BattleAssets resources)
     {
-        return slots.Skip(1).Where(command => command != 0).Prepend((byte)1).Distinct().Select(resources.ReadNativeCommand).ToImmutableArray();
+        return slots.Where(command => command != 0).Distinct().Select(resources.ReadNativeCommand).ToImmutableArray();
     }
 
     private static BattleAbility[] ReadCommandAbilities(ImmutableArray<BattleNativeCommandBinding> commands)
     {
         return commands.Select(binding => binding.Command switch
         {
-            1 => BattleAbility.Attack,
+            1 or 12 => BattleAbility.Attack,
             2 => BattleAbility.Magic,
             3 => BattleAbility.GuardianForce,
             4 => BattleAbility.Item,

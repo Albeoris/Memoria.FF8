@@ -8,6 +8,54 @@ namespace Memoria.FF8.App.Tests;
 // Installed canonical party records exercise Memoria's projection; native combat-stat parity is not claimed.
 public sealed class BattlePartyProjectionTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Mug_uses_the_saved_physical_slot_for_smart_attack_and_legacy_restore(bool legacy, bool forcePhysical)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets resources = new(game.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(game);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals() with { CombatParty = [0, 255, 255] };
+        NativeCharacterVital initial = vitals.Records[0];
+        int mug = Enumerable.Range(58, 20).First(ability =>
+        {
+            vitals.Records[0] = initial with { Junction = initial.Junction with { Abilities = (uint)ability } };
+            return resources.ReadPlayerNativeCommandSlots(vitals, 0)[0] == 12;
+        });
+        vitals.Records[0] = initial with { Junction = initial.Junction with { Commands = 0, Abilities = (uint)mug } };
+        GameState state = new() { CharacterVitals = vitals, CharacterAppearance = game.ReadNewGameCharacterAppearance() };
+        BattleCombatantDefinition actor = Assert.Single(BattlePartyProjection.Create(state, null, catalog, resources)) with { InitialAtb = BattleSession.AtbMaximum };
+        Assert.Equal((byte)12, Assert.Single(actor.NativeCommands).Command);
+        Assert.Equal(BattleAbility.Attack, Assert.Single(actor.Abilities));
+        BattleDefinition definition = new()
+        {
+            Combatants = [actor, new() { Id = "enemy", Name = "Enemy", MaximumHp = 500, CurrentHp = 500 }],
+            MagicVitals = vitals,
+            NativeActions = resources.NativeActions.ToArray()
+        };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        if (legacy)
+        {
+            BattleSnapshot saved = battle.Capture();
+            BattleCombatantDefinition old = actor with { NativeCommands = [resources.ReadNativeCommand(1)] };
+            saved = saved with { Definition = definition with { Combatants = [old, definition.Combatants[1]] } };
+            BattleSnapshot corrected = BattlePartyProjection.RestoreLegacyCommandProjection(saved, resources);
+            Assert.Same(saved.Combatants, corrected.Combatants);
+            Assert.Same(saved.QueuedActions, corrected.QueuedActions);
+            Assert.Equal(JsonSerializer.Serialize(saved.MagicVitals), JsonSerializer.Serialize(corrected.MagicVitals));
+            Assert.Same(corrected, BattlePartyProjection.RestoreLegacyCommandProjection(corrected, resources));
+            battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(corrected))!);
+        }
+        Assert.Empty(battle.GetNativePlayerActionChoices(actor.Id, false));
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack(actor.Id, "enemy", forcePhysical);
+        Assert.Equal(resources.ReadNativeCommand(12).Name, preview.Name);
+        battle.QueueSmartAttack(preview);
+        Assert.Equal((byte)12, Assert.Single(battle.QueuedActions).NativeQueuedCommand);
+    }
+
     [Fact]
     public void Every_installed_command_ability_reaches_its_battle_menu_route()
     {

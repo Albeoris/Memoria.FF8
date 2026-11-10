@@ -78,7 +78,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            foreach (BattleNativeCommandBinding binding in actor.NativeCommands.Where(binding => binding.Command is not (1 or 2 or 3 or 4 or 6)))
+            foreach (BattleNativeCommandBinding binding in actor.NativeCommands.Where(binding => binding.Command is not (1 or 2 or 3 or 4 or 6 or 12)))
             {
                 choices.Add(FindNativeCommandAction(actor, binding.Command, NativeBindingActionId(binding)));
             }
