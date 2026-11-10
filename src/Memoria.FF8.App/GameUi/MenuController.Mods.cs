@@ -33,6 +33,7 @@ public sealed partial class MenuController
 
     internal void ConnectMods(IModService service)
     {
+        RegisterModSettingsScreen();
         modSubscription?.Dispose();
         modService = service;
         modSubscription = service.Subscribe(_ => RestoreModSelection());
@@ -97,6 +98,10 @@ public sealed partial class MenuController
         {
             actions.Insert(2, new("gf-review", SystemText("ui.modactions.entry.label.review.gf.changes", "Review GF changes"), SystemText("ui.modactions.entry.help.review.the.pending.gameplay.proposal", "Review the pending gameplay proposal."), Destination: "gf-mod-review"));
         }
+        if (HasSelectedModSettings)
+        {
+            actions.Insert(2, new("mod-settings", SystemText("mods.settings.title", "Settings"), "", Action: new("mod-settings-open")));
+        }
         if (modLibrary is not null)
         {
             actions.Add(new("catalog", "Catalog", "Browse the saved catalog and check packages.", Destination: "mods-catalog"));
@@ -149,7 +154,7 @@ public sealed partial class MenuController
             2 => !view.Package.RequestedEnabled,
             3 => view.NeedsAttention,
             _ => true
-        }) && (modFormat == 0 || view.Package.Format.ToString() == ModFormats[modFormat])).ToArray();
+        }) && (modFormat == 0 || view.Package.Format.ToString() == ModFormats[modFormat])).OrderByDescending(view => IsBundledMemoriaMod(view.Package)).ToArray();
     }
 
     private ModPackageView? SelectedModView => FilteredModViews().FirstOrDefault(view => view.Package.Id.Equals(selectedModId, StringComparison.OrdinalIgnoreCase));
@@ -314,6 +319,10 @@ public sealed partial class MenuController
 
     private bool ExecuteModAction(MenuAction action)
     {
+        if (ExecuteModSettingsAction(action))
+        {
+            return true;
+        }
         if (!action.Kind.StartsWith("mod-", StringComparison.Ordinal))
         {
             return false;

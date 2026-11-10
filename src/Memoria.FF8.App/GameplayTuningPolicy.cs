@@ -7,11 +7,21 @@ namespace Memoria.FF8;
 internal sealed class GameplayTuningPolicy
 {
     private readonly Dictionary<JunctionGameplaySetting, (decimal Value, string Owner)> settings = [];
+    private (int Value, string Owner)? meltdown;
     public static GameplayTuningPolicy Empty { get; } = new();
 
-    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog)
+    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null)
     {
+        if (behaviorMods is null && !BehaviorMods.TryPrepare(catalog, out behaviorMods, out IReadOnlyList<ModDiagnostic> diagnostics))
+        {
+            throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(diagnostic => diagnostic.Message)));
+        }
         GameplayTuningPolicy policy = new();
+        if (behaviorMods.MeltdownDefenseReductionPercent is int reduction)
+        {
+            ModPackage owner = catalog.Packages.Single(package => package.Id.Equals(behaviorMods.MeltdownPackageId, StringComparison.OrdinalIgnoreCase));
+            policy.meltdown = (reduction, owner.Name);
+        }
         foreach (ModPackage package in catalog.Packages.Where(package => package.Format == ModFormat.Junction && package.Status == ModEffectiveStatus.Active))
         {
             foreach (JunctionGameplayOverride setting in package.JunctionMetadata?.GameplayOverrides ?? [])
@@ -45,12 +55,20 @@ internal sealed class GameplayTuningPolicy
                 _ => throw new NotSupportedException($"Unsupported gameplay setting {setting}.")
             };
         }
+        if (meltdown is { } behavior)
+        {
+            result = result with { MeltdownDefenseReductionPercent = behavior.Value };
+        }
         result.Validate();
         return result;
     }
 
     public string? UnavailableReason(string field)
     {
+        if (field == nameof(GameplayTuning.MeltdownDefenseReductionPercent) && meltdown is { } behavior)
+        {
+            return $"Controlled by {behavior.Owner}. Change its mod option to release this rule.";
+        }
         foreach (var (setting, entry) in settings)
         {
             if (Field(setting) == field)
@@ -65,7 +83,7 @@ internal sealed class GameplayTuningPolicy
     {
         submitted.Validate();
         GameplayTuning effective = Apply(previous);
-        foreach (string field in settings.Keys.Select(Field).Distinct())
+        foreach (string field in ControlledFields)
         {
             System.Reflection.PropertyInfo property = typeof(GameplayTuning).GetProperty(field)!;
             if (!Equals(property.GetValue(effective), property.GetValue(submitted)))
@@ -74,7 +92,7 @@ internal sealed class GameplayTuningPolicy
             }
         }
         GameplayTuning configured = submitted with { };
-        foreach (string field in settings.Keys.Select(Field).Distinct())
+        foreach (string field in ControlledFields)
         {
             System.Reflection.PropertyInfo property = typeof(GameplayTuning).GetProperty(field)!;
             property.SetValue(configured, property.GetValue(previous));
@@ -82,6 +100,8 @@ internal sealed class GameplayTuningPolicy
         configured.Validate();
         return configured;
     }
+
+    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(meltdown is null ? [] : new[] { nameof(GameplayTuning.MeltdownDefenseReductionPercent) }).Distinct();
 
     private static string Field(JunctionGameplaySetting setting) => setting switch
     {

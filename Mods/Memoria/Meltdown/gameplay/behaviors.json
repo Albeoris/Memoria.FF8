@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "meltdown": {
+    "defenseReductionPercent": 50
+  }
+}

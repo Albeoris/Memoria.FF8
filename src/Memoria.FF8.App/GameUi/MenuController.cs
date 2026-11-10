@@ -304,6 +304,11 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
+        if (ScreenId == "mod-settings" && input is MenuInput.Left or MenuInput.Right)
+        {
+            BuildView().Key(input == MenuInput.Left ? UiKey.Left : UiKey.Right);
+            return;
+        }
         if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown or MenuInput.PageLeft or MenuInput.PageRight)
         {
             Select(Math.Clamp(SelectedIndex + (input is MenuInput.PageUp or MenuInput.PageLeft ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);

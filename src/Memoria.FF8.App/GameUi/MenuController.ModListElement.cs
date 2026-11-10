@@ -82,6 +82,7 @@ public sealed partial class MenuController
             });
             Button("mod-selected-toggle", menus.SystemText("mods.list.enable.disable", "Enable / Disable"), () => menus.Execute(new("mod-selected-toggle")));
             Button("mod-diagnostics", menus.SystemText("mods.list.view.diagnostics", "View diagnostics"), () => menus.Push("mods-diagnostics"));
+            Button("mod-settings", menus.SystemText("mods.settings.title", "Settings"), () => menus.Execute(new("mod-settings-open")));
             Button("mod-prev", menus.SystemText("mods.list.previous", "← Previous"), () => menus.MoveModSelection(-1, true));
             Button("mod-next", menus.SystemText("mods.list.next", "Next →"), () => menus.MoveModSelection(1, true));
             Button("mod-auto", (snapshot.AutoEnableNewMods ? "☑ " : "☐ ") + menus.SystemText("mods.list.automatically.enable.new.mods", "Automatically enable new mods"), () => menus.Execute(new("mod-auto")));
@@ -207,6 +208,7 @@ public sealed partial class MenuController
             }
             controls["mod-selected-toggle"].Visible = showInspector && packages.Length > 0;
             controls["mod-diagnostics"].Visible = showInspector;
+            controls["mod-settings"].Visible = showInspector && menus.HasSelectedModSettings;
             controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected)?.CanToggle == true;
             if (packages.ElementAtOrDefault(selected) is { } package)
             {
@@ -215,6 +217,7 @@ public sealed partial class MenuController
             float actionWidth = Math.Min(130 * unit, inspector.Width);
             Place("mod-selected-toggle", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
             Place("mod-diagnostics", inspector.X, inspector.Bottom - control, inspector.Width, control);
+            Place("mod-settings", inspector.X + actionWidth + gap, inspector.Bottom - control * 2 - gap, Math.Max(0, inspector.Width - actionWidth - gap), control);
         }
 
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
@@ -286,10 +289,18 @@ public sealed partial class MenuController
                     }
                     canvas.Fill(new UiRect(row.X, row.Bottom - 1, row.Width, 1), new UiColor(52, 69, 91));
                     Text(view.Package.RequestedEnabled ? "☑" : "☐", row.X + 8, row.Y, check - 8, row.Height, view.CanToggle ? theme.Foreground : theme.Muted, 20);
-                    Text(view.Package.Name, row.X + check, row.Y, nameWidth - 8, compact ? row.Height * 0.6f : row.Height, theme.Foreground, 17);
+                    float nameLeft = row.X + check;
+                    float nameInset = 0;
+                    if (IsBundledMemoriaMod(view.Package))
+                    {
+                        float crestSize = Math.Min(26 * scale, row.Height - 8 * scale);
+                        canvas.Image(new UiImageSource(UiImageKind.SilverCrest, 0), new UiRect(nameLeft, row.Y + (row.Height - crestSize) / 2, crestSize, crestSize));
+                        nameInset = crestSize + 6 * scale;
+                    }
+                    Text(view.Package.Name, nameLeft + nameInset, row.Y, nameWidth - nameInset - 8, compact ? row.Height * 0.6f : row.Height, theme.Foreground, 17);
                     if (compact)
                     {
-                        Text(view.Package.Format.ToString(), row.X + check, row.Y + row.Height * 0.6f, nameWidth - 8, row.Height * 0.4f, theme.Muted, 12);
+                        Text(view.Package.Format.ToString(), nameLeft + nameInset, row.Y + row.Height * 0.6f, nameWidth - nameInset - 8, row.Height * 0.4f, theme.Muted, 12);
                     }
                     else
                     {

@@ -4,6 +4,8 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
+    private static bool IsBundledMemoriaMod(ModPackage package) => package.IsBundled && package.Format == ModFormat.Memoria;
+
     private string ModStateText(ModPackageView view, bool disabled = false) => view.CommittedStatus == ModEffectiveStatus.Active ? SystemText("mods.state.active", "Active") : disabled || !view.Package.RequestedEnabled ? SystemText("mods.state.disabled", "Disabled") : SystemText("mods.state.not-active", "Not active");
 
     private string ModStatusText(ModPackageView view)

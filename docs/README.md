@@ -26,6 +26,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Texture mods](modding/texture-mods.md) | Package discovery, manifests, adapters and supported replacements. |
 | [Model browser and Blender](modding/model-mods.md) | F2 catalog, GLB exchange, skeleton warnings and model replacements. |
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
+| [Existing ability behaviors](modding/behaviors.md) | Minimal behavior defaults, user sliders and conflict handling. |
 | [GF ability payload](modding/gf-abilities.md) | Declarative gameplay patches, guards, ordering and producer dependencies. |
 | [Encounter documents](modding/encounters.md) | Atomic semantic encounter patches, stable identities, dependencies and runtime capability boundaries. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |

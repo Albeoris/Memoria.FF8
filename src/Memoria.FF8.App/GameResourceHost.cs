@@ -188,7 +188,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
         }
         StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
-        GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(catalog);
+        if (!BehaviorMods.TryPrepare(catalog, out BehaviorMods behaviorMods, out IReadOnlyList<ModDiagnostic> behaviorDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: behaviorDiagnostics);
+        }
+        GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(catalog, behaviorMods);
         if (!JunctionEncodedResources.TryPrepare(catalog, out IReadOnlyList<EncodedResource> encodedResources, out IReadOnlyList<ModDiagnostic> encodedDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
@@ -318,6 +322,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsUnusedFieldMember(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
+        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog, (source as SelectedModelResourceSource)?.ModelSourceDescriptor);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
         {

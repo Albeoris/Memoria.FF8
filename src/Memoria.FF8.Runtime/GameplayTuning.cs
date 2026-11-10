@@ -11,11 +11,13 @@ public sealed record GameplayTuning
     /// <summary>The default retains native per-action primary caps; other values override the primary damage cap.</summary>
     public int MaximumDamage { get; init; } = 9999;
     public RareItemProbabilities RareItem { get; init; } = new();
+    /// <summary>Defense reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
+    public int MeltdownDefenseReductionPercent { get; init; } = 100;
     public bool UnrestrictedScanRotation { get; init; }
 
     public void Validate()
     {
-        if (DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
+        if (MeltdownDefenseReductionPercent is < 0 or > 100 || DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
         {
             throw new InvalidDataException("Gameplay rule values exceed their supported ranges.");
         }

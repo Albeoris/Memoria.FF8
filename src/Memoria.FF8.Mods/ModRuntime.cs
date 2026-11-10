@@ -641,7 +641,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
+                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { IsBundled = bundledRoot is not null, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())

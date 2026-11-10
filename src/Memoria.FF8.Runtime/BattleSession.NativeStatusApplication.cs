@@ -29,11 +29,7 @@ public sealed partial class BattleSession
         uint before = NativeBattleStatusBits(recipient);
         bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
         int attack = physical ? actor.Attack : actor.Magic;
-        int defense = physical ? recipient.Defense : recipient.Spirit;
-        if ((before & 0x1000000) != 0)
-        {
-            defense = 0;
-        }
+        int defense = EffectiveNativeDefense(recipient, physical ? recipient.Defense : recipient.Spirit);
         for (int bit = 0; bit < 7; bit++)
         {
             uint mask = 1u << bit;
@@ -53,6 +49,10 @@ public sealed partial class BattleSession
         MarkNativeContactStatusResult(recipient, action, applied);
         //48F9A0/492090 retain unchanged exclusive groups, otherwise only their newly added bits.
         uint after = recipient.NativeStatus1;
+        if ((before & 0x1000000) == 0 && (after & 0x1000000) != 0 && IsNativeMeltdown(action))
+        {
+            recipient.MeltdownDefenseReductionPercent = definition.Tuning.MeltdownDefenseReductionPercent;
+        }
         uint speed = after & 0xE;
         uint crisis = after & 0x300;
         if (speed != (before & 0xE))

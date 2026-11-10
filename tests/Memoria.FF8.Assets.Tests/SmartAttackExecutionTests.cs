@@ -151,6 +151,37 @@ public sealed class SmartAttackExecutionTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public void InstalledMeltdownAppliesRecordedReductionAndContinuesAfterJsonRestore(int reduction)
+    {
+        BattleDefinition definition = Create(true, false, true, enemyHp: 60_000).Capture().Definition;
+        NativeCharacterVitals vitals = definition.MagicVitals!.ChangeMagicStock(0, 49, 10, MagicOperationReason.ScriptReward, out _);
+        BattleSession battle = new(definition with
+        {
+            MagicVitals = vitals,
+            Tuning = new() { MeltdownDefenseReductionPercent = reduction },
+            Combatants = [definition.Combatants[0], definition.Combatants[1] with { Defense = 200, Spirit = 150 }]
+        }, BattleAtbMode.TurnBased);
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 49);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        NativeBattleStatusSnapshot status = battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!;
+        Assert.Equal(0x1000000u, status.Battle & 0x1000000);
+        Assert.Equal(reduction, status.MeltdownDefenseReductionPercent);
+        Assert.Equal(9, battle.MagicVitals!.GetMagicCount(1, 49));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        BattleSession after = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        after.AdvanceTurn();
+        after.QueueAction("caster", "enemy", BattleAbility.Magic, 1);
+        Complete(after);
+        Assert.Equal(reduction, after.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.MeltdownDefenseReductionPercent);
+        Assert.True(after.Combatants.Single(actor => actor.Id == "enemy").CurrentHp < battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+    }
+
     private static BattleSession Create(bool shared, bool infinite, bool smart, uint status = 0, bool bound = false, int stock = 10, int enemyHp = 10_000, uint statusSpell = 0)
     {
         string directory = TestResources.GameDirectory;

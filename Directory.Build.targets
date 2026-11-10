@@ -5,6 +5,6 @@
       <BundledMemoriaModFile Include="$(MSBuildThisFileDirectory)Mods/Memoria/**/*" />
     </ItemGroup>
     <MakeDir Directories="$(TargetDir)Mods/Tonberry;$(TargetDir)Mods/Demaster;$(TargetDir)Mods/Junction" />
-    <Copy SourceFiles="%(BundledMemoriaModFile.Identity)" DestinationFiles="$(TargetDir)Mods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)" Condition="!Exists('$(TargetDir)Mods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)')" />
+    <Copy SourceFiles="%(BundledMemoriaModFile.Identity)" DestinationFiles="$(TargetDir)BundledMods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

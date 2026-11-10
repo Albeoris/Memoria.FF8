@@ -133,7 +133,7 @@ public sealed class ModMenuTests : IDisposable
     }
 
     [Fact]
-    public void RefreshActionEnqueuesRuntimeAndGlobalOffPreservesExistingEnabledPackage()
+    public void RefreshActionEnqueuesRuntimeAndGlobalOffUpdatesInheritedPackageWithoutWritingExplicitChoice()
     {
         Write("Demaster/example/test.png", "metadata only");
         using ModRuntime runtime = Runtime();
@@ -145,10 +145,11 @@ public sealed class ModMenuTests : IDisposable
         Publish(runtime);
         menu.Execute(new("mod-auto"));
         Assert.False(runtime.AutoEnableNewMods);
-        Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(root, "Mods/Demaster/example/mod.ini")));
+        Assert.False(File.Exists(Path.Combine(root, "Mods/Demaster/example/mod.ini")));
         Publish(runtime);
         Assert.Contains(menu.Entries, entry => entry.Id == "mod-auto" && entry.Label == "Automatically enable new mods");
-        Assert.True(runtime.Catalog.Packages[0].RequestedEnabled);
+        Assert.False(runtime.Catalog.Packages[0].RequestedEnabled);
+        Assert.Null(runtime.Catalog.Packages[0].ExplicitEnabled);
     }
 
     [Fact]

@@ -78,7 +78,7 @@ The distribution script builds a complete RID-specific, self-contained graph wit
 
 The required Albeoris.Frameworks source closure is included in [vendor/Albeoris.Frameworks](../../vendor/Albeoris.Frameworks/README.md), with its license, upstream revision and retained changes. No sibling checkout or submodule is needed. NuGet versions are centralized in [Directory.Packages.props](../../Directory.Packages.props).
 
-Ordinary builds copy missing bundled native mod files beside the app and launcher without overwriting existing files. Edit source packages under `Mods/Memoria` to change future distributions; preserve or remove an output copy explicitly when testing changed defaults.
+Ordinary builds copy bundled native mod files into `BundledMods/Memoria` beside the app and launcher, updating changed source defaults. Edit source packages under `Mods/Memoria` to change future distributions. User preferences and behavior overrides stay in the writable `Mods/Memoria` overlay; builds do not overwrite them.
 
 Ordinary builds use the checked-in compiled title shader. Shader regeneration and artwork preparation are component authoring tasks; see [Rendering](rendering.md) and the linked component READMEs.
 

@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleStatusSnapshot CaptureNativeStatus(BattleCombatant actor)
     {
-        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray()) { Resistances = actor.MutableNativeStatusResistances.ToArray(), Presentation = actor.NativePresentationStatus };
+        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray()) { Resistances = actor.MutableNativeStatusResistances.ToArray(), Presentation = actor.NativePresentationStatus, MeltdownDefenseReductionPercent = actor.MeltdownDefenseReductionPercent };
     }
 
     private static int GetNativeStatusResistance(BattleCombatant actor, int index)
@@ -106,7 +106,12 @@ public sealed partial class BattleSession
         (snapshot.Presentation ?? throw new InvalidDataException("Native B92/B1C mirror owner is missing; migrate the standalone snapshot explicitly.")).Validate();
         actor.NativePresentationStatus = snapshot.Presentation;
         actor.NativeStatus0 = snapshot.Saved;
+        if (snapshot.MeltdownDefenseReductionPercent is < 0 or > 100 || snapshot.MeltdownDefenseReductionPercent is not null && (snapshot.Battle & 0x1000000) == 0)
+        {
+            throw new InvalidDataException("Meltdown defense reduction requires an active Vit0 status and a percentage from zero to one hundred.");
+        }
         actor.NativeStatus1 = snapshot.Battle;
+        actor.MeltdownDefenseReductionPercent = snapshot.MeltdownDefenseReductionPercent;
         snapshot.Timers.CopyTo(actor.NativeStatusTimers, 0);
         snapshot.Resistances.CopyTo(actor.MutableNativeStatusResistances, 0);
     }

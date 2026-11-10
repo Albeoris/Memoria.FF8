@@ -449,7 +449,20 @@ public sealed partial class BattleCombatant
     internal BattleCombatantDefinition SourceDefinition => definition;
     internal readonly List<BattleStatusState> Effects;
     internal ushort NativeStatus0 { get; set; }
-    internal uint NativeStatus1 { get; set; }
+    private uint nativeStatus1;
+    internal int? MeltdownDefenseReductionPercent { get; set; }
+    internal uint NativeStatus1
+    {
+        get => nativeStatus1;
+        set
+        {
+            nativeStatus1 = value;
+            if ((value & 0x1000000) == 0)
+            {
+                MeltdownDefenseReductionPercent = null;
+            }
+        }
+    }
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
     internal byte[] MutableNativeStatusResistances { get; private set; }
 
@@ -590,6 +603,7 @@ public sealed partial class BattleCombatant
         MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeStatus0 = allocation?.Saved ?? (ushort)(definition.NativeStatus0 | definition.NativeRetainedStatusBits);
         NativeStatus1 = allocation?.Battle ?? definition.NativeStatus1;
+        MeltdownDefenseReductionPercent = null;
         Array.Fill(NativeStatusTimers, (short)-1111);
         Effects.Clear();
         Effects.AddRange(definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)));
