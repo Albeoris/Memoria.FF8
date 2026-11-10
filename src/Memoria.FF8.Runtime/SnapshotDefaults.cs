@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -6,49 +7,80 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Completes absent saved properties from the same initial state used by New Game.</summary>
 internal static class SnapshotDefaults
 {
+    private static readonly ConditionalWeakTable<JsonSerializerOptions, JsonObject> ColdDefaults = new();
+
     internal static GameState Deserialize(Stream stream, JsonSerializerOptions options, Func<NativeLimitProgress>? initializeLegacyAngelo = null)
     {
-        JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
+        JsonDocumentOptions documentOptions = new()
+        {
+            AllowDuplicateProperties = options.AllowDuplicateProperties,
+            AllowTrailingCommas = options.AllowTrailingCommas,
+            CommentHandling = options.ReadCommentHandling,
+            MaxDepth = options.MaxDepth
+        };
+        using JsonDocument document = JsonDocument.Parse(stream, documentOptions);
+        JsonElement payload = document.RootElement;
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("Expected a saved game object.");
+        }
+        JsonObject saved = JsonObject.Create(payload, new JsonNodeOptions { PropertyNameCaseInsensitive = options.PropertyNameCaseInsensitive })!;
         int originalVersion = SnapshotMigrations.ReadVersion(saved);
+        // The versioned migrations, including initial owner completion, only mutate older saves.
+        bool modified = originalVersion < GameState.CurrentSnapshotSchemaVersion;
         bool requiresLegacyLimitInitialization = SnapshotLimitProgressMigration.Apply(saved, options, originalVersion, initializeLegacyAngelo);
         SnapshotMigrations.Apply(saved, options);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
-        CompleteSelphieCardSlots(saved);
-        CompleteTripleTriadSettings(saved, options);
-        PreserveHistoricalWorldGlobals(saved);
+        modified |= CompleteSelphieCardSlots(saved);
+        modified |= CompleteTripleTriadSettings(saved, options);
+        modified |= PreserveHistoricalWorldGlobals(saved);
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
         {
-            return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+            return ReadState(payload, saved, options, modified);
         }
-        GameSession initial = GameSession.CreateColdProcess();
-        JsonObject defaults = JsonSerializer.SerializeToNode(initial.State, options)!.AsObject();
-        JsonObject effects = defaults[nameof(GameState.NativeBattleMemory)]![nameof(NativeBattleRetainedMemory.EffectMemory)]!.AsObject();
-        effects.Remove(nameof(NativeBattleEffectMemory.Sigh46));
-        SnapshotRetainedEffectMigration.ExcludeFromDefaults(effects);
-        Complete(saved, defaults);
+        JsonObject defaults = ColdDefaults.GetValue(options, CreateColdDefaults);
+        modified |= Complete(saved, defaults);
 
         // A live battle is a continuation, not a new process. Its missing execution state must remain invalid.
         if (saved["Battle"] is JsonObject battle)
         {
             JsonObject retained = defaults["NativeBattleMemory"]!.AsObject();
-            CompleteProperty(battle, "NativeEffectMemory", retained["EffectMemory"]);
+            modified |= CompleteProperty(battle, "NativeEffectMemory", retained["EffectMemory"]);
             if (battle["Definition"] is JsonObject definition)
             {
-                CompleteProperty(definition, "NativeRetainedMemory", retained);
+                modified |= CompleteProperty(definition, "NativeRetainedMemory", retained);
             }
         }
 
         SnapshotMigrations.CompleteInitialOwners(saved, options, originalVersion);
-        GameState state = saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+        GameState state = ReadState(payload, saved, options, modified);
         return state with { RequiresLegacyLimitInitialization = requiresLegacyLimitInitialization };
     }
 
-    internal static void PreserveHistoricalWorldGlobals(JsonObject saved)
+    private static GameState ReadState(JsonElement payload, JsonObject completed, JsonSerializerOptions options, bool modified)
     {
+        // Current, complete saves can deserialize directly from the original UTF-8 payload.
+        GameState? state = modified ? completed.Deserialize<GameState>(options) : payload.Deserialize<GameState>(options);
+        return state ?? throw new JsonException("Empty checkpoint.");
+    }
+
+    private static JsonObject CreateColdDefaults(JsonSerializerOptions options)
+    {
+        GameSession initial = GameSession.CreateColdProcess();
+        JsonObject defaults = JsonSerializer.SerializeToNode(initial.State, options)!.AsObject();
+        JsonObject effects = defaults[nameof(GameState.NativeBattleMemory)]![nameof(NativeBattleRetainedMemory.EffectMemory)]!.AsObject();
+        effects.Remove(nameof(NativeBattleEffectMemory.Sigh46));
+        SnapshotRetainedEffectMigration.ExcludeFromDefaults(effects);
+        return defaults;
+    }
+
+    private static bool PreserveHistoricalWorldGlobals(JsonObject saved)
+    {
+        bool modified = false;
         if (saved["WorldProcess"] is JsonObject worldProcess && worldProcess["MainLoopCallbacks"] is JsonValue callbacks && callbacks.TryGetValue(out long count) && count > 0)
         {
             // A historical process has no cold-start proof for newly retained presentation globals.
@@ -57,13 +89,16 @@ internal static class SnapshotDefaults
                 if (!worldProcess.ContainsKey(owner))
                 {
                     worldProcess[owner] = null;
+                    modified = true;
                 }
             }
         }
+        return modified;
     }
 
-    internal static void CompleteSelphieCardSlots(JsonObject saved)
+    internal static bool CompleteSelphieCardSlots(JsonObject saved)
     {
+        bool modified = false;
         foreach (string owner in new[] { "GameplayPreferences", "PendingGameplayPreferences" })
         {
             if (saved[owner] is JsonObject preferences && !preferences.ContainsKey("SelphieCardSlots"))
@@ -71,16 +106,20 @@ internal static class SnapshotDefaults
                 JsonNode? difficulty = preferences["Difficulty"];
                 bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
                 preferences["SelphieCardSlots"] = hardcore;
+                modified = true;
             }
         }
         if (saved["Battle"] is JsonObject battle && battle["Definition"] is JsonObject definition && !definition.ContainsKey("SelphieCardSlots"))
         {
             definition["SelphieCardSlots"] = saved["GameplayPreferences"]?["SelphieCardSlots"]?.DeepClone() ?? JsonValue.Create(false);
+            modified = true;
         }
+        return modified;
     }
 
-    internal static void CompleteTripleTriadSettings(JsonObject saved, JsonSerializerOptions options)
+    private static bool CompleteTripleTriadSettings(JsonObject saved, JsonSerializerOptions options)
     {
+        bool modified = false;
         foreach (string owner in new[] { nameof(GameState.GameplayPreferences), nameof(GameState.PendingGameplayPreferences) })
         {
             if (saved[owner] is not JsonObject preferences)
@@ -93,12 +132,15 @@ internal static class SnapshotDefaults
             {
                 TripleTriadSettings defaults = new TripleTriadSettings().NormalizeForDifficulty(hardcore ? BattleDifficulty.Hardcore : BattleDifficulty.Normal);
                 preferences[nameof(GameplayPreferences.TripleTriad)] = JsonSerializer.SerializeToNode(defaults, options);
+                modified = true;
             }
             else if (hardcore && preferences[nameof(GameplayPreferences.TripleTriad)] is JsonObject triad && !triad.ContainsKey(nameof(TripleTriadSettings.BlockedCellCount)))
             {
                 triad[nameof(TripleTriadSettings.BlockedCellCount)] = 2;
+                modified = true;
             }
         }
+        return modified;
     }
 
     private static bool IsIdleBattle(JsonObject battle)
@@ -115,8 +157,9 @@ internal static class SnapshotDefaults
 
     private static bool IsKnownNull(JsonObject value, string name) => value.TryGetPropertyValue(name, out JsonNode? property) && property is null;
 
-    internal static void Complete(JsonObject saved, JsonObject defaults, bool effectMemory = false)
+    internal static bool Complete(JsonObject saved, JsonObject defaults, bool effectMemory = false)
     {
+        bool modified = false;
         foreach ((string name, JsonNode? value) in defaults)
         {
             // Retained effect processes with an executed entry need their own saved counters.
@@ -124,26 +167,29 @@ internal static class SnapshotDefaults
             {
                 continue;
             }
-            CompleteProperty(saved, name, value);
+            modified |= CompleteProperty(saved, name, value);
         }
+        return modified;
     }
 
-    internal static void CompleteProperty(JsonObject saved, string name, JsonNode? value)
+    internal static bool CompleteProperty(JsonObject saved, string name, JsonNode? value)
     {
         // Versioned migration owns this complete state; filling individual fields can erase unknown history.
         if (name == nameof(NativeBattleEffectMemory.Sigh46) || name == nameof(NativeWorldProcess.TextureAnimation) || SnapshotRetainedEffectMigration.Owns(name))
         {
-            return;
+            return false;
         }
         if (!saved.TryGetPropertyValue(name, out JsonNode? current))
         {
             // An absent enemy map selects the historical Guest domain; cold-process ownership is not a missing default.
             saved.Add(name, name == nameof(NativeBattleModelCpuResources.EnemyResources) ? null : value?.DeepClone());
+            return true;
         }
         // A retained timer's display intensity is optional. The cold process cannot supply it to only one saved copy.
-        else if (name is not ("MagicSystem" or nameof(GameState.ExamTimer)) && current is JsonObject savedObject && value is JsonObject defaultObject)
+        if (name is not ("MagicSystem" or nameof(GameState.ExamTimer)) && current is JsonObject savedObject && value is JsonObject defaultObject)
         {
-            Complete(savedObject, defaultObject, name is "EffectMemory" or "NativeEffectMemory");
+            return Complete(savedObject, defaultObject, name is "EffectMemory" or "NativeEffectMemory");
         }
+        return false;
     }
 }

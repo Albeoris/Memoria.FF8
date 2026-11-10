@@ -52,25 +52,28 @@ internal static class SaveAccountPrivacy
         {
             return state;
         }
-        JsonObject saved = JsonNode.Parse(value.GetRawText())!.AsObject();
+        JsonObject saved = JsonObject.Create(value)!;
+        bool modified = false;
         if (saved["LastFault"] is JsonObject fault)
         {
             // Keep the blocked VM and native source coordinates, without exception text from the host.
             fault["Message"] = "Saved script fault.";
+            modified = true;
         }
-        saved.Remove("FaultContext");
-        saved.Remove("LatestFaultContext");
-        if (saved["CharacterVitals"] is JsonObject vitals)
+        modified |= saved.Remove("FaultContext");
+        modified |= saved.Remove("LatestFaultContext");
+        if (saved["CharacterVitals"] is JsonObject vitals && vitals["GuardianForceCompatibilityDiagnostics"] is not JsonArray { Count: 0 })
         {
             vitals["GuardianForceCompatibilityDiagnostics"] = new JsonArray();
+            modified = true;
         }
         if (saved["MovieSource"] is JsonObject movie)
         {
             foreach (string member in movie.Select(property => property.Key).Where(member => member is not (nameof(NativeMovieSource.DiscIndex) or nameof(NativeMovieSource.MovieIndex))).ToArray())
             {
-                movie.Remove(member);
+                modified |= movie.Remove(member);
             }
         }
-        return JsonSerializer.SerializeToElement(saved);
+        return modified ? JsonSerializer.SerializeToElement(saved) : value;
     }
 }

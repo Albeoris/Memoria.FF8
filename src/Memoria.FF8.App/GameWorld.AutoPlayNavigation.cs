@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using Memoria.FF8.Assets;
@@ -6,10 +7,18 @@ namespace Memoria.FF8;
 
 internal sealed record AutoPlayNavigationReceipt(int Version, int FieldId, string ProgramHash, string WalkmeshHash, IReadOnlyList<int> LockedTriangles, IReadOnlyList<int> ReachableTriangles)
 {
+    private static readonly ConditionalWeakTable<AutoPlayNavigationReceipt, string> IdentityHashes = new();
+    public IReadOnlyList<int> LockedTriangles { get; } = Array.AsReadOnly(LockedTriangles.ToArray());
+    public IReadOnlyList<int> ReachableTriangles { get; } = Array.AsReadOnly(ReachableTriangles.ToArray());
+
     internal string Key(string visitKey)
     {
-        string identity = $"{Version}|{FieldId}|{ProgramHash}|{WalkmeshHash}|{string.Join(',', LockedTriangles)}|{string.Join(',', ReachableTriangles)}";
-        return visitKey + ":nav:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+        string hash = IdentityHashes.GetValue(this, static receipt =>
+        {
+            string identity = $"{receipt.Version}|{receipt.FieldId}|{receipt.ProgramHash}|{receipt.WalkmeshHash}|{string.Join(',', receipt.LockedTriangles)}|{string.Join(',', receipt.ReachableTriangles)}";
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+        });
+        return visitKey + ":nav:" + hash;
     }
 }
 

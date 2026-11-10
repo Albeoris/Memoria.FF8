@@ -108,6 +108,7 @@ internal sealed partial class AutoPlayPlanner
     internal const int CurrentWalkingSearchRevision = 1;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
+    private sealed record PlanCandidate(AutoPlayVisitCoverage Visit, AutoPlayEventCoverage Coverage);
 
     public AutoPlayPlannerState State { get; }
 
@@ -350,20 +351,29 @@ internal sealed partial class AutoPlayPlanner
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
     public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null)
     {
-        AutoPlayVisitCoverage current = FindVisit(currentVisitKey);
+        Dictionary<string, AutoPlayVisitCoverage> visits = IndexVisits(State.Visits, item => item.Visit.Key);
+        if (!visits.TryGetValue(currentVisitKey, out AutoPlayVisitCoverage? current))
+        {
+            throw new InvalidOperationException($"Unknown visit '{currentVisitKey}'.");
+        }
         Dictionary<string, AutoPlayPlanStep?> routes = new(StringComparer.Ordinal) { [currentVisitKey] = null };
         Dictionary<string, int> distances = new(StringComparer.Ordinal) { [currentVisitKey] = 0 };
+        List<PlanCandidate> candidates = [];
         Queue<string> pending = new();
         pending.Enqueue(currentVisitKey);
         while (pending.TryDequeue(out string? key))
         {
-            AutoPlayVisitCoverage visit = FindVisit(key);
+            AutoPlayVisitCoverage visit = visits[key];
             foreach (AutoPlayEventCoverage edge in OrderedEvents(visit))
             {
+                if (NeedsExecution(edge))
+                {
+                    candidates.Add(new(visit, edge));
+                }
                 foreach (AutoPlayEventRoute route in TravelRoutes(edge))
                 {
                     string destination = route.DestinationVisitKey;
-                    if (routes.ContainsKey(destination) || !State.Visits.Any(item => item.Visit.Key == destination))
+                    if (routes.ContainsKey(destination) || !visits.ContainsKey(destination))
                     {
                         continue;
                     }
@@ -373,7 +383,6 @@ internal sealed partial class AutoPlayPlanner
                 }
             }
         }
-        var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
         var ordered = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0)
             .ThenBy(item => item.Coverage.Event.ChangesStory)
@@ -395,9 +404,9 @@ internal sealed partial class AutoPlayPlanner
             }
             else
             {
-                string? refresh = refreshVisitKey is not null && refreshVisitKey != currentVisitKey && routes.ContainsKey(refreshVisitKey) ? refreshVisitKey : routes.Keys.Where(key => key != currentVisitKey && needsRefresh(FindVisit(key).Visit))
-                    .OrderBy(key => phaseOrder(FindVisit(key).Visit, routes[key]!.Event))
-                    .ThenBy(key => FindVisit(key).Visit.Region != current.Visit.Region)
+                string? refresh = refreshVisitKey is not null && refreshVisitKey != currentVisitKey && routes.ContainsKey(refreshVisitKey) ? refreshVisitKey : routes.Keys.Where(key => key != currentVisitKey && needsRefresh(visits[key].Visit))
+                    .OrderBy(key => phaseOrder(visits[key].Visit, routes[key]!.Event))
+                    .ThenBy(key => visits[key].Visit.Region != current.Visit.Region)
                     .ThenBy(key => distances[key])
                     .ThenBy(key => key, StringComparer.Ordinal)
                     .FirstOrDefault();
@@ -635,6 +644,18 @@ internal sealed partial class AutoPlayPlanner
     private AutoPlayVisitCoverage FindVisit(string key)
     {
         return State.Visits.SingleOrDefault(item => item.Visit.Key == key) ?? throw new InvalidOperationException($"Unknown visit '{key}'.");
+    }
+
+    private static Dictionary<string, TVisit> IndexVisits<TVisit>(IEnumerable<TVisit> visits, Func<TVisit, string> key)
+    {
+        try
+        {
+            return visits.ToDictionary(key, StringComparer.Ordinal);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidOperationException("The autoplay graph contains an invalid or duplicate visit key.", exception);
+        }
     }
 
     private AutoPlayEventCoverage FindEvent(string visitKey, string eventId)

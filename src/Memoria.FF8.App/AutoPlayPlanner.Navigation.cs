@@ -160,24 +160,25 @@ internal sealed partial class AutoPlayPlanner
     private AutoPlayPlanner CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent, string? hintOrigin = null)
     {
         AutoPlayPlannerState view = new();
-        Dictionary<string, AutoPlayNavigationVisit[]> navigationByKey = State.NavigationVisits.GroupBy(visit => visit.Key, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
-        AutoPlayNavigationVisit? Navigation(string key)
-        {
-            return navigationByKey.TryGetValue(key, out AutoPlayNavigationVisit[]? matches) ? matches.SingleOrDefault() : null;
-        }
+        Dictionary<string, AutoPlayNavigationVisit> navigationByKey = IndexVisits(State.NavigationVisits, visit => visit.Key);
+        Dictionary<string, AutoPlayVisitCoverage> aggregateByKey = IndexVisits(State.Visits, visit => visit.Visit.Key);
+        ILookup<(string Source, string Event), AutoPlayNavigationRoute> routesByEvent = State.NavigationRoutes.ToLookup(edge => (edge.SourceKey, edge.EventId));
+        Dictionary<(string Source, string Event), (AutoPlayEventCoverage Scoped, AutoPlayEventRoute[] Travel)> travelByEvent = [];
         HashSet<string> valid = State.NavigationVisits.Where(visit => isCurrent?.Invoke(visit) != false).Select(visit => visit.Key).ToHashSet(StringComparer.Ordinal);
         foreach (AutoPlayNavigationVisit observation in State.NavigationVisits.Where(visit => valid.Contains(visit.Key)))
         {
-            AutoPlayVisitCoverage aggregate = FindVisit(observation.VisitKey);
+            AutoPlayVisitCoverage aggregate = aggregateByKey[observation.VisitKey];
             AutoPlayVisitCoverage scoped = new() { Visit = new(observation.Key, aggregate.Visit.Region) };
             foreach (AutoPlayEvent observed in observation.Events)
             {
-                AutoPlayEventCoverage shared = FindEvent(observation.VisitKey, observed.Id);
+                AutoPlayEventCoverage shared = aggregate.Events.Single(item => item.Event.Id == observed.Id);
+                var key = (observation.Key, observed.Id);
+                IEnumerable<AutoPlayNavigationRoute> recorded = routesByEvent[key];
                 bool sameCondition = observed.ConditionSignature == shared.Event.ConditionSignature;
                 // A previously executed local transition can guide travel to its
                 // remote source. It cannot authorize an action at the current vertex.
-                bool hint = !sameCondition && hintOrigin is not null && observation.Key != hintOrigin && State.NavigationRoutes.Any(edge =>
-                    edge.SourceKey == observation.Key && edge.EventId == observed.Id && edge.Route.ConditionSignature == observed.ConditionSignature &&
+                bool hint = !sameCondition && hintOrigin is not null && observation.Key != hintOrigin && recorded.Any(edge =>
+                    edge.Route.ConditionSignature == observed.ConditionSignature &&
                     edge.Route.DestinationVisitKey == observation.VisitKey && valid.Contains(edge.DestinationKey));
                 AutoPlayEventCoverage local = new()
                 {
@@ -196,64 +197,72 @@ internal sealed partial class AutoPlayPlanner
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
                     RouteNeedsRediscovery = !hint && shared.RouteNeedsRediscovery
                 };
-                if (!hint && UnconfirmedNavigationRoutes(observation, local, valid).Any())
+                if (shared.Completed && shared.Routes.Count != 0)
                 {
-                    local.RouteNeedsRediscovery = true;
-                    if (!NeedsExecution(shared))
+                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey).ToArray();
+                    if (travel.Length != 0)
                     {
-                        local.Event = observed with { ChangesStory = false };
+                        travelByEvent.Add(key, (local, travel));
+                        if (!hint && CanProbeNavigation(local) && travel.Any(route => !recorded.Any(edge => valid.Contains(edge.DestinationKey) && SameTravelRoute(edge.Route, route))))
+                        {
+                            local.RouteNeedsRediscovery = true;
+                            if (!NeedsExecution(shared))
+                            {
+                                local.Event = observed with { ChangesStory = false };
+                            }
+                        }
                     }
                 }
                 scoped.Events.Add(local);
             }
             view.Visits.Add(scoped);
         }
-        Dictionary<string, AutoPlayVisitCoverage[]> scopedByKey = view.Visits.GroupBy(visit => visit.Visit.Key, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         foreach (AutoPlayNavigationRoute edge in State.NavigationRoutes)
         {
-            AutoPlayNavigationVisit? source = Navigation(edge.SourceKey);
-            AutoPlayNavigationVisit? destination = Navigation(edge.DestinationKey);
-            if (source is null || destination is null || !valid.Contains(source.Key) || !valid.Contains(destination.Key) || edge.Route.DestinationVisitKey != destination.VisitKey)
+            if (!travelByEvent.TryGetValue((edge.SourceKey, edge.EventId), out var candidate) ||
+                !valid.Contains(edge.DestinationKey) || edge.Route.DestinationVisitKey != navigationByKey[edge.DestinationKey].VisitKey)
             {
                 continue;
             }
-            AutoPlayEventCoverage? scoped = scopedByKey.GetValueOrDefault(edge.SourceKey, []).Single().Events.SingleOrDefault(item => item.Event.Id == edge.EventId);
-            AutoPlayEventCoverage shared = FindEvent(source.VisitKey, edge.EventId);
-            if (scoped is null || !shared.Routes.Any(route => SameTravelRoute(route, edge.Route)) || !NavigationTravelRoutes(source, scoped).Any(route => SameTravelRoute(route, edge.Route)))
+            if (candidate.Travel.Any(route => SameTravelRoute(route, edge.Route)))
             {
-                continue;
+                candidate.Scoped.Routes.Add(edge.Route with { DestinationVisitKey = edge.DestinationKey });
             }
-            scoped.Routes.Add(edge.Route with { DestinationVisitKey = destination.Key });
         }
         AutoPlayVisit AggregateVisit(AutoPlayVisit visit)
         {
-            AutoPlayNavigationVisit navigation = Navigation(visit.Key) ?? throw new InvalidOperationException($"Unknown navigation visit '{visit.Key}'.");
-            return FindVisit(navigation.VisitKey).Visit;
+            return aggregateByKey[navigationByKey[visit.Key].VisitKey].Visit;
         }
         return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false);
     }
 
     private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage scoped, IReadOnlySet<string> valid)
     {
-        if (!scoped.Available || scoped.Unavailable || scoped.PolicyDeferred || scoped.BlockedReason is not null)
+        if (!CanProbeNavigation(scoped))
         {
             return [];
         }
-        return NavigationTravelRoutes(observation, scoped).Where(route => !State.NavigationRoutes.Any(edge => valid.Contains(edge.SourceKey) && valid.Contains(edge.DestinationKey) && edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id && SameTravelRoute(edge.Route, route)));
+        AutoPlayEvent observed = observation.Events.Single(item => item.Id == scoped.Event.Id);
+        AutoPlayEventCoverage shared = FindEvent(observation.VisitKey, observed.Id);
+        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key)).Where(route => !State.NavigationRoutes.Any(edge => valid.Contains(edge.SourceKey) && valid.Contains(edge.DestinationKey) && edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id && SameTravelRoute(edge.Route, route)));
     }
 
-    private IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage scoped)
+    private static bool CanProbeNavigation(AutoPlayEventCoverage scoped)
     {
-        AutoPlayEventCoverage shared = FindEvent(observation.VisitKey, scoped.Event.Id);
+        return scoped.Available && !scoped.Unavailable && !scoped.PolicyDeferred && scoped.BlockedReason is null;
+    }
+
+    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage shared, Func<string, bool> visitExists)
+    {
         AutoPlayEventCoverage candidates = new()
         {
-            Event = observation.Events.Single(item => item.Id == scoped.Event.Id),
+            Event = observed,
             Completed = shared.Completed,
             Routes = shared.Routes,
             UnavailableVariants = shared.UnavailableVariants,
             PolicyDeferredVariants = shared.PolicyDeferredVariants
         };
-        return TravelRoutes(candidates).Where(route => State.Visits.Any(visit => visit.Visit.Key == route.DestinationVisitKey));
+        return TravelRoutes(candidates).Where(route => visitExists(route.DestinationVisitKey));
     }
 
     private AutoPlayNavigationVisit FindNavigationVisit(string key)

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -11,7 +12,7 @@ public sealed class ImmutableBytesJsonConverter : JsonConverter<ImmutableArray<b
     {
         if (reader.TokenType == JsonTokenType.String)
         {
-            return reader.GetBytesFromBase64().ToImmutableArray();
+            return ImmutableCollectionsMarshal.AsImmutableArray(reader.GetBytesFromBase64());
         }
         if (reader.TokenType != JsonTokenType.StartArray)
         {
