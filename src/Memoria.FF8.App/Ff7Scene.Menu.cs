@@ -15,10 +15,17 @@ internal sealed partial class Ff7Scene
     private readonly Dictionary<int, int> menuPortraits = [];
     private Action<ControlsProfile>? writeSharedControls;
     private bool menuPointerPressed;
+    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
 
     internal bool IsPlayerMenuOpen => playerMenu?.IsOpen == true;
 
-    private bool CanOpenPlayerMenu => Session is { HasPendingTick: false } session && (session.World?.CanSave ?? (!session.Host.Process.MenuDisabled && !session.Host.Process.PlayerLocked && session.Host.Process.GlobalCommand == Ff7GlobalCommand.None && session.Host.Process.Transition is null && session.Host.Process.Movie is not { Playing: true } && session.Host.Process.Dialogues.All(dialogue => dialogue.Completed) && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0));
+    private bool CanOpenPlayerMenu => Session is { HasPendingTick: false } session && (session.World is { } world
+        ? CanOpenWorldPlayerMenu(world.Process, world.ReadPersistentByte(31))
+        : CanOpenFieldPlayerMenu(session.Host.Process, session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31)));
+
+    internal static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process, byte nativeControlFlags) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed) && (nativeControlFlags & 2) == 0;
+
+    internal static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process, byte nativeControlFlags) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlLock == 0 && process.Dialogue is not { Completed: false } && (nativeControlFlags & 2) == 0;
 
     private void EnsurePlayerMenu()
     {
@@ -72,24 +79,9 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("FFVII party menus require an active continuation.");
         menuText ??= Ff7KernelTextResources.Load(installation);
-        MenuData data = new() { Location = session.World is null ? session.Field.Name : "World map", Currency = checked((int)session.Progress.Gil), PlayTime = TimeSpan.FromSeconds(session.Clock.ElapsedSeconds), SaveAvailable = CanSave };
-        data.SupportedActions.UnionWith(["config", "ff7-save", "ff7-load", "ff7-world", "ff7-close"]);
-        HashSet<int> party = Enumerable.Range(9, 3).Select(address => (int)(session.World?.ReadPersistentByte(256 + address) ?? session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address))).ToHashSet();
-        foreach (Ff7CharacterState character in session.Progress.Characters)
-        {
-            Ff7CharacterDisplayIdentity identity = characterIdentity.Resolve(character.Id, character.Name);
-            MenuCharacter display = new() { Id = "ff7-character/" + character.Id, Name = identity.Name, InParty = party.Contains(character.Id), Level = character.Level, CurrentHp = character.HitPoints, HpDisplay = character.HitPoints.ToString(System.Globalization.CultureInfo.InvariantCulture), Experience = checked((int)character.Experience), Portrait = PlayerMenuPortrait(identity) };
-            display.Stats["MP"] = character.MagicPoints;
-            data.Characters.Add(display);
-        }
-        foreach (Ff7InventorySlot item in session.Progress.Inventory.Where(item => item.Quantity > 0))
-        {
-            if (!menuText.ItemNames.TryGetValue(item.ItemId, out string? name) || string.IsNullOrWhiteSpace(name))
-            {
-                throw new NotSupportedException("The saved FFVII item requires its original menu text entry.");
-            }
-            data.Items.Add(new() { Id = "ff7-item/" + item.ItemId, Name = name, Quantity = item.Quantity, Description = menuText.ItemDescriptions[item.ItemId] });
-        }
+        MenuData data = Ff7PlayerMenuProjection.Create(session.Progress, session.Progress.Party, characterIdentity, menuText.ItemNames, menuText.ItemDescriptions, session.World is null ? session.Field.Name : "World map", TimeSpan.FromSeconds(session.Clock.ElapsedSeconds), CanSave, PlayerMenuPortrait);
+        playerMenu!.PopulateHostSettingValues(data, PlayerPreferenceKeys);
+        data.Settings["Difficulty"] = PresentationPreferences.Difficulty.ToString();
         return data;
     }
 
@@ -114,7 +106,17 @@ internal sealed partial class Ff7Scene
     {
         if (action.Kind == "config")
         {
-            setDialoguePreferences?.Invoke(PresentationPreferences.WithSetting(action.SubjectId, action.Value));
+            if (!PlayerPreferenceKeys.Contains(action.SubjectId))
+            {
+                throw new NotSupportedException("This FFVII menu exposes only shared presentation and speed preferences.");
+            }
+            UiPreferences current = PresentationPreferences;
+            UiPreferences updated = current.WithSetting(action.SubjectId, action.Value);
+            if (updated != current)
+            {
+                (setDialoguePreferences ?? throw new InvalidOperationException("Shared preferences are read-only in this host."))(updated);
+                playerMenu!.Presentation = updated.MenuPresentation;
+            }
             return;
         }
         if (action.Kind == "ff7-save")
@@ -218,7 +220,8 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        playerMenu!.PrepareViewport(bounds.Width, bounds.Height);
+        playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
+        playerMenu.PrepareViewport(bounds.Width, bounds.Height);
         UiView view = playerMenu.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(dialogueCanvas!, SharedTheme());

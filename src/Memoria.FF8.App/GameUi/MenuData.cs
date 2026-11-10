@@ -40,6 +40,7 @@ public sealed class MenuData
     public int? Currency { get; set; }
     public TimeSpan? PlayTime { get; set; }
     public int? SeeDRank { get; set; }
+    public bool ShowSeeDRank { get; set; } = true;
     public string SourceDescription { get; set; } = "No live menu provider";
     public string UnavailableReason { get; set; } = "";
     public bool SaveAvailable { get; set; }

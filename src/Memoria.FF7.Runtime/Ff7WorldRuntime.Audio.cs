@@ -3,7 +3,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7WorldAudioState(bool Initialized = false, int Song = 0, int PreviousSong = 0, bool PlaybackEnabled = false, int LastPublishedTrack = -1, int LastOperation = 0, long Publications = 0);
+public sealed record Ff7WorldAudioState(bool Initialized = false, int Song = 0, int PreviousSong = 0, bool PlaybackEnabled = false, int LastPublishedTrack = -1, int LastOperation = 0, long Publications = 0, int SoundPriority = 0);
 
 public sealed partial class Ff7WorldRuntime
 {
@@ -11,6 +11,22 @@ public sealed partial class Ff7WorldRuntime
     private IReadOnlyList<byte> audioSongs = [];
 
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
+    public Action? ResetSoundPitchesRequested { get; set; }
+
+    private void PlayPrioritizedWorldSound(int sound)
+    {
+        if (sound > audio.SoundPriority)
+        {
+            audio = audio with { SoundPriority = sound };
+            PublishAudio(new(0x20, 64, sound));
+        }
+        else if (sound == -audio.SoundPriority)
+        {
+            audio = audio with { SoundPriority = 0 };
+            PublishAudio(new(0xF1));
+            ResetSoundPitchesRequested?.Invoke();
+        }
+    }
 
     private static int ResolveAudioArea(int world, int selector, byte[] variables)
     {

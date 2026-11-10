@@ -1,4 +1,5 @@
 using Memoria.FF7.Events;
+using Memoria.AutoPlay;
 
 namespace Memoria.FF7.Runtime;
 
@@ -9,7 +10,8 @@ public enum Ff7FieldEventCoverageKind
     Inactive,
     ResetHazard,
     Automatic,
-    Exit
+    Exit,
+    Conditional
 }
 
 public sealed record Ff7FieldEventCoverageTarget(string Id, int Entity, int Script, string Availability, Ff7FieldEventCoverageKind Kind, string Reason);
@@ -21,11 +23,49 @@ public static class Ff7FieldEventCoverageCatalog
     private const string UpstairsProgram = "64B4BFE6C3BBAFC9AED64CA64879ED9FD217215DE28466E0DC921ACF1D08A611";
     private const string DownstairsProgram = "40A6A33601F78A04E6B6D6C1F6435844DFE0B9FD55512473305CF78A07028FE0";
     private const string GardenProgram = "FFE1DEC6B475EF7B61E2AF0EAF5CBF005AD4E5BF9F5E7A37CB999F8FA58ADF70";
+    private const string SlumsProgram = "46398AA80E1F1E9D91B77E05E4C7504AD89F7303611E66D1BEC2BD35C4FF72E5";
+    private const string ReunionProgram = "4181F8A3DDB2BE363CD6543D9E5F5B06E96B9A34E4B1D4F5ED4EA9877AA556D9";
+    private const string RoadProgram = "2467803CD4D309398A0447509109D501A3E1D48B1ACAA2F5F40F32229EA865C7";
+
+    internal static bool RecognizesReunion(Ff7Session session) => session.Field.Name == "mds5_3" && session.Machine.ProgramIdentity == ReunionProgram;
+    internal static bool RecognizesUpstairsScope(string scope) => scope == $"ealin_2:{UpstairsProgram}:170";
+
+    public static bool CompletesOwnedReset(AutoPlayEventCoverageScope scope, AutoPlayEventCoverageEntry entry, Ff7NativeTickObservation observation)
+    {
+        if (!RecognizesUpstairsScope(scope.Id) || entry.Status != AutoPlayEventCoverageStatus.Active || observation.Field != "ealin_2" || observation.Transition?.Map != 190 || observation.TransitionOwner is not { Entity: 2, Priority: 3, Command: FieldTransitionCommand { Map: 190 } } owner)
+        {
+            return false;
+        }
+        int separator = entry.BeforeWitness?.IndexOf('/') ?? -1;
+        if (separator < 0 || !long.TryParse(entry.BeforeWitness!.AsSpan(0, separator), out long generation) || generation != observation.Generation)
+        {
+            return false;
+        }
+        int expected = entry.Id switch
+        {
+            "line:11:script:2" => 0x09CF,
+            "line:14:script:2" => 0x0944,
+            _ => -1
+        };
+        return owner.ProgramCounter == expected;
+    }
 
     public static Ff7FieldEventCoveragePlan Inspect(Ff7Session session)
     {
         ArgumentNullException.ThrowIfNull(session);
         int story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+        if (session.Field.Name == "mds6_1" && session.Machine.ProgramIdentity == RoadProgram && story == 176)
+        {
+            return InspectRoad(session);
+        }
+        if (RecognizesReunion(session) && story is 173 or 176)
+        {
+            return InspectReunion(session, story == 173);
+        }
+        if (session.Field.Name == "mds5_1" && session.Machine.ProgramIdentity == SlumsProgram && story == 173)
+        {
+            return InspectSlums(session);
+        }
         if (session.Field.Name == "eals_1" && session.Machine.ProgramIdentity == GardenProgram && story == 173)
         {
             return InspectGarden(session);
@@ -78,7 +118,8 @@ public static class Ff7FieldEventCoverageCatalog
                 else if (line.Entity is 11 or 14)
                 {
                     kind = Ff7FieldEventCoverageKind.ResetHazard;
-                    reason = "This native contact exits into a reset of the same room, mutually exclusive with a successful downstairs exit during this visit. It remains deferred rather than completed.";
+                    reason = "Execute this finite native room-reset interaction once; retain its exact child-owned field handoff before a successful downstairs departure.";
+                    availability += ":owned-reset";
                 }
                 else if (line.Entity == 9 && script == 2)
                 {
@@ -228,5 +269,111 @@ public static class Ff7FieldEventCoverageCatalog
         events.Add(new("exit:0:map:177", -1, -1, "native-gateway:177", Ff7FieldEventCoverageKind.Exit, "The slums gateway is a navigation goal after the native garden interactions finish."));
         events.Add(new("automatic:0:script:0", 0, 0, "story:173", Ff7FieldEventCoverageKind.Automatic, "The native director owns the story transition and automatic party scene; it is not a physical interaction request."));
         return new(true, "Both garden rewards, save-point enter/leave, departure message, alternative house crossing and outside exit are classified.", false, events.AsReadOnly());
+    }
+
+    private static Ff7FieldEventCoveragePlan InspectSlums(Ff7Session session)
+    {
+        List<Ff7FieldEventCoverageTarget> events = new();
+        if (session.Host.Process.Lines.Length != 0)
+        {
+            return new(false, "The native slums LINE allocation differs from its reviewed story state.", false, events.AsReadOnly());
+        }
+        foreach (Ff7Actor actor in session.Host.Process.Actors.Where(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled))
+        {
+            int entry = session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1];
+            if (session.Field.Scripts.Data.Span[entry] == 0)
+            {
+                continue;
+            }
+            if (actor.Entity != 15)
+            {
+                return new(false, "An additional slums actor interaction requires a reviewed native classification.", false, events.AsReadOnly());
+            }
+            events.Add(new("actor:15:script:1", 15, 1, $"{entry:X4}:{actor.Model}:{actor.TalkRadius}", Ff7FieldEventCoverageKind.Interaction, "Interact with the dog through its native party-facing, bark, animation and movement handler."));
+        }
+        int[] expectedExits = [172, 174, 176, 178, 179, 180, 187];
+        var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
+        if (!exits.Select(value => (int)value.gateway.DestinationField).Order().SequenceEqual(expectedExits))
+        {
+            return new(false, "The native slums exit directory differs from its reviewed state.", false, events.AsReadOnly());
+        }
+        foreach (var (gateway, index) in exits)
+        {
+            events.Add(new($"exit:{index}:map:{gateway.DestinationField}", -1, -1, $"native-gateway:{gateway.DestinationField}", Ff7FieldEventCoverageKind.Exit, gateway.DestinationField == 172 ? "Continue through the native road exit after available interactions complete." : "This gateway is an alternative native visit handoff, mutually exclusive with the road departure during this visit."));
+        }
+        events.Add(new("automatic:0:script:0", 0, 0, "native-background", Ff7FieldEventCoverageKind.Automatic, "The native television background owner runs automatically without a player interaction."));
+        return new(true, "The native dog interaction, inactive story-conditioned residents, background owner and seven alternative exits are classified.", false, events.AsReadOnly());
+    }
+
+    private static Ff7FieldEventCoveragePlan InspectRoad(Ff7Session session)
+    {
+        List<Ff7FieldEventCoverageTarget> events = new();
+        if (!session.Host.Process.Lines.Select(line => line.Entity).Order().SequenceEqual(new[] { 6, 7 }) || session.Host.Process.Lines.Single(line => line.Entity == 6).Enabled != 0 || session.Host.Process.Lines.Single(line => line.Entity == 7).Enabled != 1)
+        {
+            return new(false, "The native road contact allocation differs from the reviewed story state.", false, events.AsReadOnly());
+        }
+        if (session.Host.Process.Actors.Any(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && session.Field.Scripts.Data.Span[session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1]] != 0))
+        {
+            return new(false, "An additional native road conversation requires classification.", false, events.AsReadOnly());
+        }
+        foreach (Ff7Line line in session.Host.Process.Lines)
+        {
+            for (int script = 1; script <= 6; script++)
+            {
+                int entry = session.Field.Scripts.Entities[line.Entity].ScriptOffsets[script];
+                Ff7FieldEventCoverageKind kind;
+                string reason;
+                if (session.Field.Scripts.Data.Span[entry] == 0)
+                {
+                    kind = Ff7FieldEventCoverageKind.Empty;
+                    reason = "This native road contact callback immediately returns.";
+                }
+                else if (line.Entity == 6)
+                {
+                    kind = Ff7FieldEventCoverageKind.Inactive;
+                    reason = "The native road scene contact is disabled before story239.";
+                }
+                else if (script == 5)
+                {
+                    kind = Ff7FieldEventCoverageKind.Exit;
+                    reason = "Entering this native contact transfers to map192 at story176; its later-story branch instead selects map193.";
+                }
+                else
+                {
+                    return new(false, "An enabled road contact callback requires a reviewed policy.", false, events.AsReadOnly());
+                }
+                events.Add(new($"line:{line.Entity}:script:{script}", line.Entity, script, $"{entry:X4}:{line.Enabled}", kind, reason));
+            }
+        }
+        var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
+        if (exits.Length != 1 || exits[0].gateway.DestinationField != 172)
+        {
+            return new(false, "The native road gateway directory differs from the reviewed state.", false, events.AsReadOnly());
+        }
+        events.Add(new($"exit:{exits[0].index}:map:172", -1, -1, "native-gateway:172", Ff7FieldEventCoverageKind.Exit, "This native gateway returns toward the slums and is an alternative to the forward contact handoff."));
+        events.Add(new("automatic:0:script:0", 0, 0, "story:176", Ff7FieldEventCoverageKind.Automatic, "The director configures native music and map state; its story239 and245 scenes are inactive."));
+        return new(true, "Both road contact owners, empty conversations, inactive later scenes and alternative native handoffs are classified.", false, events.AsReadOnly());
+    }
+
+    internal static Ff7FieldEventCoveragePlan InspectReunion(Ff7Session session, bool available)
+    {
+        List<Ff7FieldEventCoverageTarget> events = new();
+        if (session.Host.Process.Lines.Length != 0 || session.Host.Process.Actors.Any(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && session.Field.Scripts.Data.Span[session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1]] != 0))
+        {
+            return new(false, "An additional native reunion-field contact requires classification.", false, events.AsReadOnly());
+        }
+        events.Add(new("conditional:2:script:0", 2, 0, "030D:triangles57/47", available ? Ff7FieldEventCoverageKind.Conditional : Ff7FieldEventCoverageKind.Inactive, available ? "Approach the native reunion triangle and observe Aerith's original scene through its final return." : "The native story predicate no longer exposes the reunion event; completed progress must not be replayed."));
+        int[] expectedExits = [173, 177, 191];
+        var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
+        if (!exits.Select(value => (int)value.gateway.DestinationField).Order().SequenceEqual(expectedExits))
+        {
+            return new(false, "The native reunion-field exit directory differs from its reviewed state.", false, events.AsReadOnly());
+        }
+        foreach (var (gateway, index) in exits)
+        {
+            events.Add(new($"exit:{index}:map:{gateway.DestinationField}", -1, -1, $"native-gateway:{gateway.DestinationField}", Ff7FieldEventCoverageKind.Exit, gateway.DestinationField == 191 ? "Continue toward the park after the original reunion finishes." : "This native gateway is an alternative visit handoff to park departure during this visit."));
+        }
+        events.Add(new("automatic:0:script:0", 0, 0, "native-director", Ff7FieldEventCoverageKind.Automatic, "The native director configures map, music and battle permission automatically."));
+        return new(true, "The native triangle-conditioned reunion, inactive resident conversations, director and three exits are classified.", false, events.AsReadOnly());
     }
 }

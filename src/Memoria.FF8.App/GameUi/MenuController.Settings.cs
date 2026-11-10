@@ -68,11 +68,28 @@ public sealed partial class MenuController
         }).ToArray();
     }
 
+    internal void PopulateHostSettingValues(MenuData data, IEnumerable<string> keys)
+    {
+        foreach (string key in keys)
+        {
+            data.Settings[key] = HostSettingValue(key);
+            data.SupportedActions.Add("config:" + key);
+        }
+    }
+
     private string HostSettingValue(string key)
     {
         UiPreferences preferences = FontPreferences;
         return key switch
         {
+            "Graphics backend" => preferences.Graphics.Backend.ToString(),
+            "Anti-aliasing" => preferences.Graphics.AntiAliasingLabel,
+            "Window mode" => preferences.BorderlessWindow ? "Borderless" : "Windowed",
+            "V-Sync" => preferences.VSync ? "On" : "Off",
+            "Field FPS" => preferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "World FPS" => preferences.WorldFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "Battle FPS" => preferences.BattleFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "Menu FPS" => preferences.MenuFps == 0 ? "Unlimited" : preferences.MenuFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Achievement progress" => preferences.ShowAchievementProgress ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),

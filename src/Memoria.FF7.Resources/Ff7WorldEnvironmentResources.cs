@@ -9,12 +9,13 @@ public sealed record Ff7WorldSkyColors(Vector3 Upper, Vector3 Lower);
 
 public sealed class Ff7WorldEnvironmentResources
 {
-    private Ff7WorldEnvironmentResources(PcTexture radar, PcTexture map, PcTexture clouds, PcTexture largeMap, Vector3 upper, Vector3 lower)
+    private Ff7WorldEnvironmentResources(PcTexture radar, PcTexture map, PcTexture clouds, PcTexture largeMap, PcTexture shadow, Vector3 upper, Vector3 lower)
     {
         Radar = radar;
         Map = map;
         Clouds = clouds;
         LargeMap = largeMap;
+        Shadow = shadow;
         DefaultSkyColors = new(upper, lower);
     }
 
@@ -22,6 +23,7 @@ public sealed class Ff7WorldEnvironmentResources
     public PcTexture Map { get; }
     public PcTexture Clouds { get; }
     public PcTexture LargeMap { get; }
+    public PcTexture Shadow { get; }
     public Ff7WorldSkyColors DefaultSkyColors { get; }
     public Vector4 ClearColor => new(0, 0, 0, 1);
 
@@ -33,7 +35,7 @@ public sealed class Ff7WorldEnvironmentResources
             throw new NotSupportedException("FFVII surface environment requires the original overworld resource set.");
         }
         Ff7WorldSkyColors colors = Ff7PcExecutableData.LoadWorldSkyColors(installation);
-        return new(PcTexture.Read(resources.ReadRequired("radar.tex")), PcTexture.Read(resources.ReadRequired("map.tex")), PcTexture.Read(resources.ReadRequired("wm_kumo.tex")), PcTexture.Read(resources.ReadRequired(alternateMap ? "midlmap2.tex" : "midlmap.tex")), colors.Upper, colors.Lower);
+        return new(PcTexture.Read(resources.ReadRequired("radar.tex")), PcTexture.Read(resources.ReadRequired("map.tex")), PcTexture.Read(resources.ReadRequired("wm_kumo.tex")), PcTexture.Read(resources.ReadRequired(alternateMap ? "midlmap2.tex" : "midlmap.tex")), PcTexture.Read(resources.ReadRequired("shadow.tex")), colors.Upper, colors.Lower);
     }
 
     public Ff7WorldSkyColors SkyColorsAt(Vector3 player, IEnumerable<Ff7WorldSkyZone> zones)

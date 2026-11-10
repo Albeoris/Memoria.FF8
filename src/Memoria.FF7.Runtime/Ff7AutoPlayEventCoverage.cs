@@ -34,13 +34,13 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
         {
             return true;
         }
-        string scope = $"{session.Field.Name}:{session.Machine.ProgramIdentity}:{session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}";
-        ledger.Enter(scope);
-        if (ledger.Current!.Events.Any(entry => entry.Status == AutoPlayEventCoverageStatus.Active))
+        if (ledger.Current?.Events.Any(entry => entry.Status == AutoPlayEventCoverageStatus.Active) == true)
         {
             Publish();
             return true;
         }
+        string scope = $"{session.Field.Name}:{session.Machine.ProgramIdentity}:{session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}";
+        ledger.Enter(scope);
         Ff7Actor[] actors = session.Host.Process.Actors.Where(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && HasTalkScript(actor.Entity)).OrderBy(actor => actor.Entity).ToArray();
         AutoPlayEventCoverageEntry[] catalog = actors.Select(actor => new AutoPlayEventCoverageEntry(EventId(actor.Entity), Availability(actor))).ToArray();
         List<AutoPlayEventCoverageEntry> allEvents = catalog.ToList();
@@ -101,6 +101,7 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
 
     private void ObserveCompletedTick(Ff7NativeTickObservation observation)
     {
+        ObserveConditionalCoverage(observation);
         AutoPlayEventCoverageEntry? active = ledger.Current?.Events.SingleOrDefault(entry => entry.Status == AutoPlayEventCoverageStatus.Active);
         int separator = active?.BeforeWitness?.IndexOf('/') ?? -1;
         if (active is null || active.BeforeWitness is null || separator < 0 || !long.TryParse(active.BeforeWitness.AsSpan(0, separator), out long generation) || observation.Generation != generation || !TryReadTarget(active.Id, out int entity, out _))
@@ -144,6 +145,7 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
     }
 
     partial void ExtendCoverageCatalog(List<AutoPlayEventCoverageEntry> catalog, ref bool complete, ref string reason);
+    partial void ObserveConditionalCoverage(Ff7NativeTickObservation observation);
     partial void ConfigureCoverageNavigation(Ff7AutoplayDriver driver, ref bool run);
     partial void ChooseLineCoverageInput(Ff7AutoplayDriver driver, AutoPlayEventCoverageEntry entry, ref Ff7AutoplayInput input, ref bool handled);
     private void Publish() => session.EventCoverage = ledger.Capture();

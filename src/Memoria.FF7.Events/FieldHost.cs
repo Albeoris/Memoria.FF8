@@ -49,6 +49,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldMusicCommand), "music")]
 [JsonDerivedType(typeof(FieldActorTurn), "turn")]
 [JsonDerivedType(typeof(FieldActorFace), "face-actor")]
+[JsonDerivedType(typeof(FieldActorFaceParty), "face-party")]
 [JsonDerivedType(typeof(FieldActorLadder), "ladder")]
 [JsonDerivedType(typeof(FieldActorJump), "jump")]
 [JsonDerivedType(typeof(FieldActorOffset), "offset")]
@@ -242,6 +243,7 @@ public sealed record FieldPartySplit(byte Duration, int Leader, int Follower1, i
 public sealed record FieldByteOperand(FieldBank Bank, byte Value);
 
 public sealed record FieldActorFace(int TargetEntity, byte Steps, byte DirectionPolicy, bool Immediate = false) : FieldCommand;
+public sealed record FieldActorFaceParty(byte PartySlot, byte Steps, byte DirectionPolicy) : FieldCommand;
 
 public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle, byte Mode, byte Animation, byte Direction, byte AnimationDivisor) : FieldCommand;
 

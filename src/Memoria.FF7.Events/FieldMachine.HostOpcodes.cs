@@ -45,6 +45,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldFadeCommand(B(id, 3), R8(id, 1, 4), R8(id, 2, 5), R8(id, 3, 6), R16(id, 4, 7), NewFade: true), 9);
             case 0x33:
                 return Host(id, new FieldControlCommand(FieldControlKind.PlayerLocked, B(id, 1)), 2);
+            case 0x35:
+                return Actor(id, new FieldActorFaceParty(B(id, 1), B(id, 2), B(id, 3)), 4);
             case 0x36:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Special, B(id, 1), B(id, 3), B(id, 4), Style: B(id, 2)), 5);
             case 0x38:

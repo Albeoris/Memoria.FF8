@@ -65,7 +65,13 @@ public sealed partial class MenuController
         Place(sidebar, Panel(null, Commands(40, 29)), 0);
         Place(page, Panel(null, Label(Data.Location, 29)), 2);
         string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, Panel(null, Readouts([FormatSystemText("ui.buildmain.details.play", "PLAY  {0}", time), FormatSystemText("ui.buildmain.details.seed", "SeeD  {0}", Number(Data.SeeDRank)), FormatSystemText("ui.buildmain.details.g", "{0}G", Number(Data.Currency))], 23)), 2);
+        List<string> readouts = [FormatSystemText("ui.buildmain.details.play", "PLAY  {0}", time)];
+        if (Data.ShowSeeDRank)
+        {
+            readouts.Add(FormatSystemText("ui.buildmain.details.seed", "SeeD  {0}", Number(Data.SeeDRank)));
+        }
+        readouts.Add(FormatSystemText("ui.buildmain.details.g", "{0}G", Number(Data.Currency)));
+        Place(sidebar, Panel(null, Readouts(readouts, 23)), 2);
         return page;
     }
 

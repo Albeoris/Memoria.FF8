@@ -11,6 +11,14 @@ public sealed partial class Ff7FieldHost
         ApplyAudio(command);
     }
 
+    public void ResetNativeSoundPitches()
+    {
+        for (int channel = 1; channel <= 5; channel++)
+        {
+            SetSoundFrequency(channel, 0, 0);
+        }
+    }
+
     private void ApplyNativeModuleAudio(FieldAudioCommand command)
     {
         if (command.Operation is 0x10 or 0x14 or 0x18)

@@ -12,7 +12,7 @@ public sealed partial class Ff7AutoPlayEventCoverage
         reason = plan.Reason;
         foreach (Ff7FieldEventCoverageTarget target in plan.Events)
         {
-            AutoPlayEventCoverageEntry entry = target.Kind == Ff7FieldEventCoverageKind.Interaction
+            AutoPlayEventCoverageEntry entry = target.Kind is Ff7FieldEventCoverageKind.Interaction or Ff7FieldEventCoverageKind.Conditional or Ff7FieldEventCoverageKind.ResetHazard
                 ? new(target.Id, target.Availability)
                 : new(target.Id, target.Availability, AutoPlayEventCoverageStatus.Deferred, Reason: target.Reason);
             int existing = catalog.FindIndex(value => value.Id == target.Id);
@@ -33,15 +33,29 @@ public sealed partial class Ff7AutoPlayEventCoverage
         if (plan.WalkOnly)
         {
             run = false;
-            driver.AvoidLinePush(11, 14);
+            AutoPlayEventCoverageEntry? next = ledger.Current?.Events.FirstOrDefault(value => value.Status == AutoPlayEventCoverageStatus.Available);
+            driver.AvoidLinePush(new[] { 11, 14 }.Where(entity => next?.Id != $"line:{entity}:script:2").ToArray());
         }
     }
 
     partial void ChooseLineCoverageInput(Ff7AutoplayDriver driver, AutoPlayEventCoverageEntry entry, ref Ff7AutoplayInput input, ref bool handled)
     {
         Ff7FieldEventCoveragePlan plan = Ff7FieldEventCoverageCatalog.Inspect(session);
-        Ff7FieldEventCoverageTarget? target = plan.Events.SingleOrDefault(value => value.Id == entry.Id && value.Kind == Ff7FieldEventCoverageKind.Interaction);
-        if (target is null || !entry.Id.StartsWith("line:", StringComparison.Ordinal))
+        Ff7FieldEventCoverageTarget? target = plan.Events.SingleOrDefault(value => value.Id == entry.Id && value.Kind is Ff7FieldEventCoverageKind.Interaction or Ff7FieldEventCoverageKind.Conditional or Ff7FieldEventCoverageKind.ResetHazard);
+        if (target is null)
+        {
+            return;
+        }
+        if (target.Kind == Ff7FieldEventCoverageKind.Conditional && Ff7FieldEventCoverageCatalog.RecognizesReunion(session))
+        {
+            ledger.Arm(entry.Id, $"{session.FieldGeneration}/{session.Machine.Tick}/{session.CaptureEventProgressWitness()}");
+            Publish();
+            var triangle = session.Field.Walkmesh[57];
+            input = driver.Approach((triangle.A + triangle.B + triangle.C) / 3, triangle.Index);
+            handled = true;
+            return;
+        }
+        if (!entry.Id.StartsWith("line:", StringComparison.Ordinal))
         {
             return;
         }

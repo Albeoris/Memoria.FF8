@@ -72,6 +72,12 @@ public sealed class AutoPlayEventCoverageLedger
         Change(id, entry => entry.Status == AutoPlayEventCoverageStatus.Available ? entry with { Status = AutoPlayEventCoverageStatus.Active, BeforeWitness = witness } : throw new InvalidOperationException("Only an available native event can begin."));
     }
 
+    public void Arm(string id, string witness)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(witness);
+        Change(id, entry => entry.Status == AutoPlayEventCoverageStatus.Available ? entry with { BeforeWitness = entry.BeforeWitness ?? witness } : throw new InvalidOperationException("Only an available native event can be armed."));
+    }
+
     public void Complete(string id, string witness, string outcome)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outcome);

@@ -59,7 +59,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "eals_1" when story == 173 => driver.Gateway(177),
             "mds5_1" when story == 173 => driver.Gateway(172),
             "mds5_3" when story is 173 or 176 => driver.Gateway(191),
-            "mds6_1" when story == 176 => ApproachLine(driver, 8),
+            "mds6_1" when story == 176 => ApproachLine(driver, 7),
             "mds6_2" when story is 176 or 179 or 183 => default,
             "mds6_2" when story == 185 => driver.Gateway(194),
             "mds6_3" when story == 185 => driver.Gateway(195),

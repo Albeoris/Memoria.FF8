@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--party-turn-only", StringComparer.Ordinal))
+{
+    NativePartyTurnOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--line-slip-only", StringComparer.Ordinal))
 {
     ExtendedTests.LineSlipOperandsAndContinuation();
@@ -50,6 +56,7 @@ if (args.Contains("--model-effect-only", StringComparer.Ordinal))
 
 var tests = new (string Name, Action Run)[]
 {
+    ("native PTURA operands and cold continuation", NativePartyTurnOpcodeTests.Run),
     ("native SLIP raw operands and cold continuation", ExtendedTests.LineSlipOperandsAndContinuation),
     ("typed bank aliases and widths", BankWidths),
     ("native saturated byte addition and cold continuation", SaturatedByteAddTests.Run),

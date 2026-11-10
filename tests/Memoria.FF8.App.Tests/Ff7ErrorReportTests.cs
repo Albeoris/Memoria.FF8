@@ -16,7 +16,7 @@ public sealed class Ff7ErrorReportTests
     {
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Selected FFVIII resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        GameplaySaveComponentDocument native = GameplaySaveSessionLoaderTests.Document(assets, world: true);
+        GameplaySaveComponentDocument native = Memoria.FF8.App.Tests.GameplaySaveSessionLoaderTests.Document(assets, world: true);
         using MemoryStream source = new();
         GameplaySaveCodec.Write(source, native);
         ReportSave normalized = RuntimeErrorReport.NormalizeSave(new(source.ToArray(), "retained world", DateTimeOffset.UnixEpoch, "native component fixture"));

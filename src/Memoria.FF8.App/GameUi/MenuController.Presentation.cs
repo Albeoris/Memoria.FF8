@@ -124,7 +124,13 @@ public sealed partial class MenuController
         commands.TextInset = 22;
         Place(sidebar, commands, 0);
         string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, new VectorReadouts([(SystemText("ui.buildvectormain.caption.p.l.a.y.t.i.m.e", "P L A Y   T I M E"), time), (SystemText("ui.buildvectormain.caption.s.e.e.d.r.a.n.k", "S e e D   R A N K"), Number(Data.SeeDRank)), ("", FormatSystemText("ui.buildvectormain.caption.g.template", "{0} G", Number(Data.Currency)))]), 1);
+        List<(string, string)> readouts = [(SystemText("ui.buildvectormain.caption.p.l.a.y.t.i.m.e", "P L A Y   T I M E"), time)];
+        if (Data.ShowSeeDRank)
+        {
+            readouts.Add((SystemText("ui.buildvectormain.caption.s.e.e.d.r.a.n.k", "S e e D   R A N K"), Number(Data.SeeDRank)));
+        }
+        readouts.Add(("", FormatSystemText("ui.buildvectormain.caption.g.template", "{0} G", Number(Data.Currency))));
+        Place(sidebar, new VectorReadouts(readouts.ToArray()), 1);
         Place(page, VectorPanel(null, sidebar, 16), 0, 1, 2);
         var footer = Grid([1], [1, 1], 8);
         Place(footer, VectorLabel(Data.Location, 14, true), 0);

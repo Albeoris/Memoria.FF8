@@ -1,3 +1,4 @@
+using System.Text;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Microsoft.Xna.Framework;
@@ -51,16 +52,16 @@ internal sealed class Ff7FontRenderer : IDisposable
     public void DrawPlain(SpriteBatch batch, string text, Vector2 position, Vector2 scale, int color = 7, Rectangle? clip = null)
     {
         float origin = position.X;
-        foreach (char character in text)
+        foreach (Rune character in text.EnumerateRunes())
         {
-            if (character == '\n')
+            if (character.Value == '\n')
             {
                 position.X = origin;
                 position.Y += Ff7FontResources.LineHeight * scale.Y;
             }
             else
             {
-                byte code = character is >= ' ' and <= '~' ? (byte)(character - 32) : (byte)31;
+                byte code = PlainGlyphCode(character);
                 position.X += DrawGlyph(batch, code, position, scale, color, clip: clip);
             }
         }
@@ -68,8 +69,10 @@ internal sealed class Ff7FontRenderer : IDisposable
 
     public float MeasurePlain(string text)
     {
-        return text.Sum(character => resources.GetGlyph(character is >= ' ' and <= '~' ? (byte)(character - 32) : (byte)31).Advance);
+        return text.EnumerateRunes().Sum(character => resources.GetGlyph(PlainGlyphCode(character)).Advance);
     }
+
+    private static byte PlainGlyphCode(Rune character) => character.Value is >= ' ' and <= '~' ? (byte)(character.Value - 32) : (byte)31;
 
     public void Dispose()
     {

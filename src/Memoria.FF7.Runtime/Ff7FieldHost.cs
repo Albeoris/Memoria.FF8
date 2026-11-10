@@ -162,6 +162,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 return Ladder(request.Id, request.Entity, ladder);
             case FieldActorFace face:
                 return FaceActor(request.Entity, face);
+            case FieldActorFaceParty faceParty:
+                return FacePartyActor(request.Entity, faceParty);
             case FieldActorTurn turn:
                 return Turn(request.Entity, turn);
             case FieldActorMove movement:

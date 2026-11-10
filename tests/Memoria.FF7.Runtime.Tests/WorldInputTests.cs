@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -24,6 +25,62 @@ internal static class WorldInputTests
         PcWorldMesh degenerate = mesh with { Vertices = new Vector3[] { new(0, 1, 0), new(0, 2, 0), new(0, 3, 0) } };
         Check(Height(degenerate, 0, 0) == 2, "A zero projected normal must use the native mean-vertex height fallback.");
         CollisionBatch();
+        BridgeAndHeightOwners();
+    }
+
+    private static void BridgeAndHeightOwners()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+        using Ff7WorldRuntime runtime = new(Ff7Installation.Discover(root), new byte[1280], 1, new byte[] { 0, 1, 2 });
+        runtime.Advance();
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        FieldInfo inputField = typeof(Ff7WorldRuntime).GetField("input", flags)!;
+        MethodInfo height = typeof(Ff7WorldRuntime).GetMethod("ResolveFootHeight", flags)!;
+        Type resultType = typeof(Ff7WorldRuntime).GetNestedType("FootCollisionResult", BindingFlags.NonPublic)!;
+        object result = Activator.CreateInstance(resultType, [0, 0, 0, 1, 0, 0])!;
+        Ff7WorldEntity player = new(0, 0, 100, 0);
+        inputField.SetValue(runtime, new Ff7WorldInputState(PreviousY: 100));
+        Check((int)height.Invoke(runtime, [player, result, true, 1])! == 100, "A native large forest-height step must start smoothing without teleporting vertically.");
+        Ff7WorldInputState first = (Ff7WorldInputState)inputField.GetValue(runtime)!;
+        Check(first.HeightSmoothVelocity == -1 && first.HeightSmoothRemaining == 29, "Native smoothing must retain its signed initial velocity and movement countdown.");
+        Check((int)height.Invoke(runtime, [player, result, true, 1])! == 99, "The next moving callback must apply the retained one-unit velocity.");
+        Ff7WorldInputState second = (Ff7WorldInputState)inputField.GetValue(runtime)!;
+        Check(second.HeightSmoothVelocity == -2, "Native smoothing velocity must double after applying an incomplete step.");
+        Check((int)height.Invoke(runtime, [player, result, false, 1])! == 100, "An idle callback must preserve previous height while smoothing is active.");
+        height.Invoke(runtime, [player, result, true, 2]);
+        Check(((Ff7WorldInputState)inputField.GetValue(runtime)!).HeightSmoothVelocity == 0, "Native terrain2 must clear the smoothing owner.");
+
+        var definitions = (IReadOnlyList<Ff7WorldBridgeDefinition>)typeof(Ff7WorldRuntime).GetField("bridgeDefinitions", flags)!.GetValue(runtime)!;
+        Ff7WorldBridgeDefinition bridge = definitions[0];
+        var entities = (Dictionary<int, Ff7WorldEntity>)typeof(Ff7WorldRuntime).GetField("entities", flags)!.GetValue(runtime)!;
+        entities[0] = entities[0] with { X = bridge.ChunkX * 8192 + bridge.CenterX, Z = bridge.ChunkZ * 8192 + bridge.CenterZ, Y = 20000, Terrain = 14 };
+        inputField.SetValue(runtime, new Ff7WorldInputState(Bridge: new(16, 100), HeightSmoothVelocity: -2, HeightSmoothRemaining: 29));
+        typeof(Ff7WorldRuntime).GetMethod("PrepareBridgeTerrain", flags)!.Invoke(runtime, [bridge.ChunkX, bridge.ChunkZ]);
+        Ff7WorldInputState prepared = (Ff7WorldInputState)inputField.GetValue(runtime)!;
+        Check(prepared.Bridge is { Phase: 17, Deformation.Index: 0, Deformation.Tilt: 3 }, "Native bridge preparation must sample the old phase once before incrementing it.");
+        Ff7WorldProcess saved = JsonSerializer.Deserialize<Ff7WorldProcess>(JsonSerializer.Serialize(runtime.Process))!;
+        using Ff7WorldRuntime cold = new(Ff7Installation.Discover(root), runtime.Machine.CopyPersistent(), 1, new byte[] { 0, 1, 2 });
+        cold.Restore(saved);
+        Check(JsonSerializer.Serialize(cold.Process) == JsonSerializer.Serialize(runtime.Process), "Cold continuation must preserve bridge phase, sampled deformation, drift and smoothing owners.");
+        cold.Restore(saved with { Input = saved.Input! with { Bridge = null } });
+        Check(cold.Process.Input!.Bridge is { Counter0: 0, Phase: 0 }, "An older snapshot without presentation bridge state must recover the native saved counters instead of rejecting progress.");
+        List<Memoria.FF7.Events.FieldAudioCommand> sounds = [];
+        runtime.AudioRequested = sounds.Add;
+        inputField.SetValue(runtime, prepared with { Horizontal = 1 });
+        MethodInfo audio = typeof(Ff7WorldRuntime).GetMethod("AdvanceBridgeAudio", flags)!;
+        audio.Invoke(runtime, null);
+        audio.Invoke(runtime, null);
+        Check(sounds.Count == 1 && sounds[0].Operation == 0x20, "Repeated bridge movement must keep one native prioritized sound owner.");
+        Check(((Ff7WorldInputState)inputField.GetValue(runtime)!).Bridge!.Counter0 == 108, "Bridge excitation must add ten below100, then decrement each callback.");
+        int resets = 0;
+        runtime.ResetSoundPitchesRequested = () => resets++;
+        inputField.SetValue(runtime, new Ff7WorldInputState(Bridge: new(17, 2)));
+        audio.Invoke(runtime, null);
+        Check(sounds.Count == 2 && sounds[1].Operation == 0xF1 && resets == 1, "Counter decay to one must stop the native bridge sound and reset its shared pitch owners once.");
     }
 
     private static void CollisionBatch()

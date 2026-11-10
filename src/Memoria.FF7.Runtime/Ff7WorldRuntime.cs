@@ -153,6 +153,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             }
         }
         AdvanceWorldDialogue();
+        AdvanceBridgeAudio();
         fadeDisplayedAlpha = fadeAlpha;
         if (fadeRate != 0)
         {
@@ -387,7 +388,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             throw new InvalidDataException("FFVII world model and script snapshot identities differ.");
         }
         ValidateDialogue(state);
-        if (state.Audio is { } savedAudio && (savedAudio.Publications < 0 || savedAudio.Song is < 0 or > 8 || savedAudio.PreviousSong is < 0 or > 8 || savedAudio.LastPublishedTrack is < -1 or > 98 || savedAudio.Initialized != state.Initialized))
+        if (state.Audio is { } savedAudio && (savedAudio.Publications < 0 || savedAudio.Song is < 0 or > 8 || savedAudio.PreviousSong is < 0 or > 8 || savedAudio.LastPublishedTrack is < -1 or > 98 || savedAudio.SoundPriority is < 0 or > 751 || savedAudio.Initialized != state.Initialized))
         {
             throw new InvalidDataException("FFVII world audio snapshot has invalid native song or publication state.");
         }
@@ -420,6 +421,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         tick = state.Tick;
         presentationCounter = state.PresentationCounter;
         input = state.Input is null ? new() : state.Input with { TerrainCache = state.Input.TerrainCache?.ToArray() };
+        input = input with { Bridge = input.Bridge ?? initialBridge };
         HeldConfirm = (input.Held & 32) != 0;
         audio = state.Audio ?? new(Initialized: initialized, Song: initialized ? 1 : 0, PlaybackEnabled: initialized);
         sky = state.Sky ?? new();

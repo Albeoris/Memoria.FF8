@@ -26,7 +26,7 @@ public sealed partial class Ff7WorldRuntime
     {
         int dx = unchecked((short)WrappedDifference(player.X - input.PreviousX, 0x48000));
         int dz = unchecked((short)WrappedDifference(player.Z - input.PreviousZ, 0x38000));
-        int angleStep = input.BridgeCooldown == 0 ? 160 : 320;
+        int angleStep = input.BridgeCooldown == 0 && input.CollisionRecovery != 1 ? 160 : 320;
         FootCandidate[][] candidates = new FootCandidate[2][];
         for (int side = 0; side < 2; side++)
         {
@@ -42,6 +42,7 @@ public sealed partial class Ff7WorldRuntime
             }
         }
         FootTerrainPoint first = candidates[0][0].Points[0];
+        PrepareBridgeTerrain(first.ChunkX, first.ChunkZ);
         List<(int X, int Z)> chunks = [(first.ChunkX, first.ChunkZ)];
         for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
         {

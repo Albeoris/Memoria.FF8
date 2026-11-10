@@ -21,8 +21,9 @@ internal sealed partial class Ff7Scene
         {
             return null;
         }
-        PcFieldCamera camera = CurrentMovieCamera() ?? Session.Field.Cameras[0];
-        Ff7PlayerPointerBounds? placed = Ff7PlayerPointer.Project(actor, Session.Field.Scripts.Scale, camera, FieldCameraOffset(Session.Host.Process, CurrentMovieCamera()));
+        PcFieldCamera? movieCamera = CurrentMovieCamera();
+        PcFieldCamera camera = movieCamera ?? Session.Field.Cameras[0];
+        Ff7PlayerPointerBounds? placed = Ff7PlayerPointer.Project(PresentationActor(actor), Session.Field.Scripts.Scale, camera, PresentationCameraOffset(Session.Host.Process, movieCamera));
         if (placed is not { } point)
         {
             return null;

@@ -4,6 +4,35 @@ namespace Memoria.FF7.Resources;
 
 public sealed class Ff7WorldMath(Ff7WorldPresentationData data)
 {
+    public int Sine(int angle) => (int)(Math.Sin((double)(float)(angle * data.DegreesPerAngleUnit) * data.RadiansPerDegree) * 4096);
+    public int Cosine(int angle) => (int)(Math.Cos((double)(float)(angle * data.DegreesPerAngleUnit) * data.RadiansPerDegree) * 4096);
+
+    public int Direction(int x, int z)
+    {
+        if (x == 0 && z == 0)
+        {
+            return 0;
+        }
+        if (data.ArcAngles.Count < 257)
+        {
+            throw new InvalidDataException("FFVII world direction requires the original arc-angle resource.");
+        }
+        int Arc(int numerator, int denominator) => data.ArcAngles[checked((numerator << 8) / denominator)];
+        if (z >= 0)
+        {
+            if (x >= 0)
+            {
+                return x >= z ? 1024 - Arc(z, x) : Arc(x, z);
+            }
+            return -x <= z ? -Arc(-x, z) : Arc(z, -x) - 1024;
+        }
+        if (x < 0)
+        {
+            return -x >= -z ? -Arc(-z, -x) - 1024 : Arc(-x, -z) - 2048;
+        }
+        return x <= -z ? 2048 - Arc(x, -z) : Arc(-z, x) + 1024;
+    }
+
     public Vector3 TransformRotation(Vector3 value, int x, int y, int z)
     {
         Matrix4x4 matrix = Rotation(x, y, z);

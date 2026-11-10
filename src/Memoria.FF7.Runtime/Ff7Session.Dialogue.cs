@@ -22,6 +22,7 @@ public sealed partial class Ff7Session
             World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
             World.ExpandDialogueToken = ExpandDialogueToken;
             World.AudioRequested = Host.SubmitNativeAudio;
+            World.ResetSoundPitchesRequested = Host.ResetNativeSoundPitches;
         }
     }
     private readonly Dictionary<(long Generation, int Text), IReadOnlyList<FieldTextToken>> dialogueTokens = [];
