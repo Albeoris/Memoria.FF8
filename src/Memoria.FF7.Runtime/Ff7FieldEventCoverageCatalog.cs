@@ -66,6 +66,7 @@ public static partial class Ff7FieldEventCoverageCatalog
         InspectWallMarketRestaurant(session, story, ref extension);
         InspectWallMarketAbandonedItemStore(session, story, ref extension);
         InspectWallMarketMainStreet(session, story, ref extension);
+        InspectWallMarketPub(session, story, ref extension);
         if (extension is not null)
         {
             return extension;

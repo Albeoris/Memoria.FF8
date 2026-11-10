@@ -41,4 +41,3 @@ public sealed record PcWorldEvents(IReadOnlyList<PcWorldFunction> Functions, IRe
         return new(functions.AsReadOnly(), Array.AsReadOnly(code));
     }
 }
-

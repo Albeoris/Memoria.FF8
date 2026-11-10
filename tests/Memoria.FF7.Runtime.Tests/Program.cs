@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--pub-only", StringComparer.Ordinal))
+{
+    NativeWallMarketPubCoverageTests.Run();
+    return 0;
+}
+
 if (args.Contains("--abandoned-item-store-only", StringComparer.Ordinal))
 {
     NativeWallMarketAbandonedItemStoreCoverageTests.Run();
@@ -111,6 +117,7 @@ var tests = new (string Name, Action Run)[]
     ("native optional coupon production tour and changed information", NativeOptionalInnTourTests.RunCoupon),
     ("native optional abandoned item store production tour", NativeOptionalInnTourTests.RunAbandonedItemStore),
     ("native main-street local subset and frontiers", NativeWallMarketMainStreetCoverageTests.Run),
+    ("native main-street nested tour entry and gate", NativeWallMarketMainStreetCoverageTests.RunNested),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),

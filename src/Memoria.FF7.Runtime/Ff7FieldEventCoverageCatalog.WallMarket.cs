@@ -6,7 +6,7 @@ namespace Memoria.FF7.Runtime;
 public sealed record Ff7WallMarketTourEdge(string Id, int DestinationField, string DestinationName, AutoPlayTourKind Kind, string Reason, bool CatalogReady, int? ReturnField, string? Availability = null);
 public sealed record Ff7WallMarketTourPlan(string RootField, bool Complete, string Reason, IReadOnlyList<Ff7WallMarketTourEdge> Edges);
 
-public static class Ff7WallMarketTourCatalog
+public static partial class Ff7WallMarketTourCatalog
 {
     public static Ff7WallMarketTourPlan Inspect(Ff7Session session)
     {
@@ -22,7 +22,7 @@ public static class Ff7WallMarketTourCatalog
         bool pharmacyCoupon = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 0x40) != 0;
         Ff7WallMarketTourEdge[] edges =
         [
-            new("gateway:0:205", 205, "mrkt1", AutoPlayTourKind.OptionalGameplay, "The south market has available native NPC and door events plus additional gameplay rooms; local and nested frontier catalogs remain pending.", false, 195),
+            new("gateway:0:205", 205, "mrkt1", AutoPlayTourKind.OptionalGameplay, "The south market has available native NPC and door events plus additional gameplay rooms; required nested frontier catalogs remain pending.", false, 195),
             new("gateway:1:200", 200, "mkt_m", AutoPlayTourKind.OptionalGameplay, "Native story188 keeper conversation from reachable floor and return195 are physically proved; meaningful reward predicates retain their availability epoch.", story == 188, 195, materiaAvailability),
             new("gateway:2:201", 201, "mkt_s1", AutoPlayTourKind.OptionalGameplay, "Native boutique entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
             new("gateway:3:202", 202, "mkt_s2", AutoPlayTourKind.OptionalGameplay, "Native story188 patrons, warning, paid meal, rating, coupon and return195 are physically proved before holding a coupon.", story == 188 && !pharmacyCoupon, 195),

@@ -1,14 +1,43 @@
+using Memoria.AutoPlay;
 using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
+
+public static partial class Ff7WallMarketTourCatalog
+{
+    internal static Ff7WallMarketTourPlan InspectMainStreet(Ff7Session session)
+    {
+        if (!Ff7FieldEventCoverageCatalog.RecognizesMainStreet(session, session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)))
+        {
+            return new("mrkt1", false, "This native main-street epoch requires its own reviewed tour frontier.", []);
+        }
+        Ff7WallMarketTourEdge[] edges =
+        [
+            new("main-street:206", 206, "colne_1", AutoPlayTourKind.StoryExit, "The native later-story route enters the mansion exterior through this doorway.", false, null),
+            new("main-street:222", 222, "mrkt4", AutoPlayTourKind.OptionalGameplay, "The native adjoining district requires classification of current events and physical routes.", false, null),
+            new("main-street:196", 196, "mkt_w", AutoPlayTourKind.OptionalGameplay, "The native weapon shop requires review of its local gameplay and return.", false, null),
+            new("main-street:197", 197, "mkt_mens", AutoPlayTourKind.OptionalGameplay, "The native gym requires review of its local gameplay and return.", false, null),
+            new("main-street:195", 195, "mrkt2", AutoPlayTourKind.Return, "The native doorway returns to the outer market after required child visits.", false, null),
+            new("main-street:204", 204, "mktpb", AutoPlayTourKind.OptionalGameplay, "The native pub's current dialogue and return require a complete local catalog.", false, 205)
+        ];
+        int[] destinations = session.Field.Triggers.Gateways.Where(gateway => gateway.DestinationField != 32767).Select(gateway => (int)gateway.DestinationField).ToArray();
+        if (!destinations.SequenceEqual(edges.Select(edge => edge.DestinationField)))
+        {
+            return new("mrkt1", false, "The native main-street gateway directory differs from the reviewed frontier.", []);
+        }
+        return new("mrkt1", false, "Native main-street child catalogs and covered returns remain pending.", edges);
+    }
+}
 
 public static partial class Ff7FieldEventCoverageCatalog
 {
     private const string WallMarketMainStreetProgram = "FD73131AC3CEDBD9811B0D59A4255E20656A38B20C1F69CF66DDF86CADF079F1";
 
+    internal static bool RecognizesMainStreet(Ff7Session session, int story) => session.Field.Name == "mrkt1" && session.Machine.ProgramIdentity == WallMarketMainStreetProgram && story == 188;
+
     private static void InspectWallMarketMainStreet(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan)
     {
-        if (session.Field.Name != "mrkt1" || session.Machine.ProgramIdentity != WallMarketMainStreetProgram || story != 188)
+        if (!RecognizesMainStreet(session, story))
         {
             return;
         }
@@ -40,6 +69,7 @@ public static partial class Ff7FieldEventCoverageCatalog
         {
             events.Add(new($"exit:map:{destination}", -1, -1, $"native-gateway:{destination}:188", Ff7FieldEventCoverageKind.Exit, destination == 195 ? "This original gateway returns to the outer market." : "This distinct native doorway is an unresolved regional frontier; local resident conversations do not complete its destination."));
         }
-        plan = new(false, "The native main street has local conversations and six gateways; nested gameplay destinations and conditional door availability remain under review. It is not an empty corridor or a completed pub visit.", false, events.AsReadOnly());
+        bool complete = session.Host.Process.Lines.Select(line => (line.Entity, (int)line.Enabled)).OrderBy(line => line.Entity).SequenceEqual([(8, 1), (9, 0)]);
+        plan = new(complete, complete ? "Native main-street conversations and door contact are classified locally; the regional directory owns child visits and their covered returns." : "The native main-street LINE allocation differs from the reviewed local state.", false, events.AsReadOnly());
     }
 }

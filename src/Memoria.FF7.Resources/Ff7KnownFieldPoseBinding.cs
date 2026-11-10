@@ -33,7 +33,7 @@ public sealed class Ff7KnownFieldPoseBinding
 
     public static Ff7KnownFieldPoseBinding? TryCreate(ReadOnlySpan<byte> sourceHierarchyBytes, ReadOnlySpan<byte> sourceBindBytes, ReadOnlySpan<byte> motionBytes, ReadOnlySpan<byte> targetHierarchyBytes, ReadOnlySpan<byte> targetBindBytes)
     {
-        // TODO(TD-022): The authenticated original motion has fewer channels than its selected target rig.
+        // TODO(TD-023): The authenticated original motion has fewer channels than its selected target rig.
         if (!Matches(sourceHierarchyBytes, "2C6A3319EE4B8508D7EE9A4F96928AFF6E3E7FCF03CA7E5ED293F8A3BBED20C3") || !Matches(sourceBindBytes, "6057907E474F677FD10C4D091446494AE9D96444872F2B8BA802F456F373C764") || !IsKnownMotion(motionBytes) || !IsTargetHierarchy(targetHierarchyBytes) || !Matches(targetBindBytes, "DB732B0AD3D078C75685039D545BA51555CD15EF86C5D481E3E679C76EEB5D92"))
         {
             return null;

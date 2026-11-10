@@ -26,16 +26,30 @@ internal static class NativeWallMarketPubCoverageTests
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
         Ff7AutoplayDriver driver = new(session);
         Ff7AutoplayDriver coldDriver = new(cold);
+        (int Entity, int Pc)[] residents = [(12, 0x09A4), (13, 0x09FF), (14, 0x0C19), (15, 0x0C9D), (16, 0x0D1E)];
         HashSet<(int Entity, int Pc)> returns = [];
         int leaves = 0;
+        bool acceptedClosedLeave = false;
+        bool acceptedOpenLeave = false;
         int knocks = 0;
-        int womanReturns = 0;
+        int rewardReturns = 0;
+        int perfumeTransitions = 0;
+        bool hadPerfume = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 8) != 0;
+        bool rewardText = false;
+        bool rewardDisabledLine = false;
+        bool postRewardChecked = false;
         bool declineSelected = false;
         bool declineReturned = false;
         session.InteractionScriptRequested += (entity, script, accepted) =>
         {
             if (entity == 4 && script == 6)
             {
+                if (accepted)
+                {
+                    bool wasOpen = session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C) == 1;
+                    acceptedClosedLeave |= !wasOpen;
+                    acceptedOpenLeave |= wasOpen;
+                }
                 FieldEntitySnapshot owner = session.Machine.Capture().Entities[4];
                 Console.WriteLine($"PUB_LEAVE_ADMISSION tick={session.Machine.Tick} accepted={accepted} priority={owner.Priority} pc={owner.ProgramCounter:X4}");
             }
@@ -51,18 +65,24 @@ internal static class NativeWallMarketPubCoverageTests
                 returns.Add((returned.Entity, returned.ProgramCounter));
                 if (returned.Entity == 4 && returned.ProgramCounter == 0x06BB)
                 {
+                    Check(session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C) == 0, "The native leave callback did not finish with its door closed.");
                     leaves++;
                     Console.WriteLine($"PUB_LEAVE_RETURN {observation.Tick} count={leaves}");
                 }
                 if (returned.Entity == 4 && returned.ProgramCounter == 0x069A)
                 {
+                    Check(session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C) == 1, "The native knock callback did not finish with its door open.");
                     knocks++;
                     Console.WriteLine($"PUB_KNOCK_RETURN {observation.Tick} count={knocks}");
                 }
                 if (returned.Entity == 11 && returned.ProgramCounter == 0x091F)
                 {
-                    womanReturns++;
-                    declineReturned |= declineSelected && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7) == 0;
+                    int reward = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7;
+                    declineReturned |= declineSelected && reward == 0;
+                    if (reward == 4)
+                    {
+                        rewardReturns++;
+                    }
                 }
             }
         };
@@ -103,6 +123,7 @@ internal static class NativeWallMarketPubCoverageTests
                         driver.Approach(midpoint);
                         driver.Approach(midpoint);
                         Check(before == JsonSerializer.Serialize(session.Capture()), "Pub door navigation preview changed native state.");
+                        CheckCatalog(session, rewarded: false);
                         previewPure = true;
                     }
                     if (phase == 0 && line.Touch && idle)
@@ -125,7 +146,7 @@ internal static class NativeWallMarketPubCoverageTests
                     {
                         phase = 5;
                     }
-                    int target = new[] { (12, 0x09A4), (13, 0x09FF), (14, 0x0C19), (15, 0x0C9D), (16, 0x0D1E) }.Where(value => session.Host.Process.Actors.Any(actor => actor.Entity == value.Item1 && actor.Visible && actor.TalkEnabled) && !returns.Contains(value)).Select(value => value.Item1).FirstOrDefault(-1);
+                    int target = residents.Where(value => session.Host.Process.Actors.Any(actor => actor.Entity == value.Entity && actor.Visible && actor.TalkEnabled) && !returns.Contains(value)).Select(value => value.Entity).FirstOrDefault(-1);
                     if (phase == 5 && target < 0)
                     {
                         phase = 6;
@@ -138,8 +159,13 @@ internal static class NativeWallMarketPubCoverageTests
                     {
                         phase = 8;
                     }
-                    if (phase == 8 && womanReturns > 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7) == 4 && !session.Host.Process.PlayerLocked)
+                    if (phase == 8 && rewardReturns > 0 && !session.Host.Process.PlayerLocked)
                     {
+                        Check(session.Host.Process.Lines.Single(value => value.Entity == 4).Enabled == 1, "The native reward did not restore the pub door line.");
+                        Check(session.Host.Process.Actors.Single(value => value.Entity == 11) is { Visible: false, TalkEnabled: false }, "The rewarded woman remained available in the pub.");
+                        Check(session.Host.Process.Actors.Single(value => value.Entity == 12) is { Visible: true, TalkEnabled: true, X4096: -640 * 4096, Y4096: 409 * 4096, Triangle: 148 }, "The original reward did not finish the man's movement.");
+                        CheckCatalog(session, rewarded: true);
+                        postRewardChecked = true;
                         phase = 9;
                     }
                     command = phase switch
@@ -156,6 +182,7 @@ internal static class NativeWallMarketPubCoverageTests
             }
             foreach (Ff7Session current in new[] { session, cold })
             {
+                rewardText |= current.Field.Name == "mktpb" && current.Host.Process.Dialogues.Any(value => !value.Completed && value.Text == 12);
                 foreach (var dialogue in current.Host.Process.Dialogues.Where(value => !value.Completed && value.AwaitingInput && current.Host.CanConfirmDialogue(value.RequestId)).ToArray())
                 {
                     Ff7Dialogue chosen = dialogue;
@@ -178,11 +205,21 @@ internal static class NativeWallMarketPubCoverageTests
             session.AdvanceTick();
             cold.AdvanceTick();
             Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The native pub continuation diverged after cold restore.");
+            bool hasPerfume = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 8) != 0;
+            if (hasPerfume && !hadPerfume)
+            {
+                perfumeTransitions++;
+            }
+            hadPerfume = hasPerfume;
+            rewardDisabledLine |= hasPerfume && session.Field.Name == "mktpb" && session.Host.Process.Lines.Single(value => value.Entity == 4).Enabled == 0;
         }
         Ff7Actor finalPlayer = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Console.WriteLine($"PUB_FINAL callbacks={callbacks} phase={phase} field={session.Field.Name} tick={session.Machine.Tick} player={finalPlayer.X4096 / 4096f},{finalPlayer.Y4096 / 4096f}/triangle{finalPlayer.Triangle} leaves={leaves} knocks={knocks} declineSelected={declineSelected} declineReturned={declineReturned} returns={string.Join(';', returns.OrderBy(value => value.Entity).ThenBy(value => value.Pc).Select(value => $"{value.Entity}:{value.Pc:X4}"))}");
-        Console.WriteLine("PUB_DOOR_OWNER " + JsonSerializer.Serialize(session.Machine.Capture().Entities[4]));
-        Console.WriteLine("PUB_DOOR_LINE " + JsonSerializer.Serialize(session.Host.Process.Lines.Single(value => value.Entity == 4)));
+        if (session.Field.Name == "mktpb")
+        {
+            Console.WriteLine("PUB_DOOR_OWNER " + JsonSerializer.Serialize(session.Machine.Capture().Entities[4]));
+            Console.WriteLine("PUB_DOOR_LINE " + JsonSerializer.Serialize(session.Host.Process.Lines.Single(value => value.Entity == 4)));
+        }
         string? diagnostic = Environment.GetEnvironmentVariable("MEMORIA_FF7_WALL_MARKET_PUB_DIAGNOSTIC");
         if (session.Field.Name == "mktpb" && !string.IsNullOrWhiteSpace(diagnostic))
         {
@@ -190,11 +227,73 @@ internal static class NativeWallMarketPubCoverageTests
             using FileStream output = File.Create(diagnostic);
             CombinedSessionCodec.Write(output, envelope with { Ff7 = session.Capture() });
         }
-        Check(SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))), "The pub probe changed its source.");
         Check(entered && session.Field.Name == "mrkt1" && leaves >= requiredLeaves && previewPure && declineReturned, "The native pub sequence did not complete within its selected callback bound.");
+        Check(acceptedOpenLeave && (continuation || acceptedClosedLeave), "The native pub sequence skipped a required door leave branch.");
+        Check(residents.All(returns.Contains), "The native pub sequence skipped a required current resident.");
         Check((session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7) == 4 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA2) & 4) == 0, "The legitimate Digestive outcome is missing.");
         Check((session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 8) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x42) & 8) == 0, "The original perfume/medicine key-item bits are inconsistent.");
+        Check(postRewardChecked && rewardText && rewardDisabledLine && perfumeTransitions == 1 && rewardReturns == 1, "The pub did not complete exactly one native Sexy Cologne reward.");
         Console.WriteLine($"PASS native pub finite door sequence, residents, medicine and return: {callbacks} cold-equal callbacks.");
+        int revisitKnock = knocks + 1;
+        int revisitLeave = leaves + 1;
+        bool revisited = false;
+        bool departure = false;
+        bool revisitDoorText = false;
+        int revisitCallbacks = 0;
+        for (; revisitCallbacks < 1200; revisitCallbacks++)
+        {
+            if (departure && session.Field.Name == "mrkt1")
+            {
+                break;
+            }
+            Ff7AutoplayInput command = session.Field.Name == "mrkt1" ? driver.Gateway(204) : default;
+            if (session.Field.Name == "mktpb" && session.Machine.Tick >= 12)
+            {
+                Ff7Line line = session.Host.Process.Lines.Single(value => value.Entity == 4);
+                if (!revisited)
+                {
+                    Check(line.Enabled == 1 && session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C) == 0, "The original pub revisit must initialize an enabled, closed door.");
+                    Check(session.Host.Process.Actors.Single(value => value.Entity == 11) is { Visible: false, TalkEnabled: false }, "The native revisit exposed a claimed medicine reward.");
+                    Check(session.Host.Process.Actors.Single(value => value.Entity == 12) is { Visible: true, TalkEnabled: true, X4096: -625 * 4096, Y4096: 405 * 4096, Triangle: 148 }, "The native revisit did not select the rewarded man's placement.");
+                    CheckCatalog(session, rewarded: true);
+                    revisited = true;
+                }
+                if (knocks < revisitKnock)
+                {
+                    command = driver.TalkToLine(4, run: false);
+                }
+                else if (leaves < revisitLeave)
+                {
+                    command = driver.LeaveLine(4, run: false);
+                }
+                else
+                {
+                    departure = true;
+                    command = driver.Gateway(205);
+                }
+            }
+            foreach (Ff7Session current in new[] { session, cold })
+            {
+                foreach (Ff7Dialogue dialogue in current.Host.Process.Dialogues.Where(value => !value.Completed).ToArray())
+                {
+                    Check(dialogue.FirstChoice is null && dialogue.Text != 12, "The rewarded pub revisit repeated a medicine offer or reward.");
+                    revisitDoorText |= dialogue.Text == 14;
+                    if (dialogue.AwaitingInput && current.Host.CanConfirmDialogue(dialogue.RequestId))
+                    {
+                        current.Host.UpdateDialogue(Ff7DialogueCursor.Confirm(dialogue, FieldText.Read(current.Field.Scripts.Texts[dialogue.Text].Span)));
+                    }
+                }
+            }
+            driver.Apply(command);
+            coldDriver.Apply(command);
+            session.AdvanceTick();
+            cold.AdvanceTick();
+            Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The native pub revisit diverged after cold restore.");
+        }
+        Check(revisited && session.Field.Name == "mrkt1" && revisitDoorText && knocks == revisitKnock && leaves == revisitLeave && rewardReturns == 1, "The native pub revisit did not finish its current door callbacks and return.");
+        Check((session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7) == 4 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA2) & 4) == 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 8) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x42) & 8) == 0, "The original pub revisit changed the claimed medicine outcome.");
+        Check(SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))), "The pub proof changed its source.");
+        Console.WriteLine($"PASS native post-reward pub revisit and return: {revisitCallbacks} cold-equal callbacks.");
     }
 
     public static void RunOutcome()
@@ -259,6 +358,17 @@ internal static class NativeWallMarketPubCoverageTests
         Check((session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 7) == 4 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA2) & 4) == 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 8) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x42) & 8) == 0, "The native exclusive perfume gain or medicine removal is wrong.");
         Check(SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path!))), "The pub outcome wrote its genuine source.");
         Console.WriteLine("PASS original pub medicine outcome, once-only reward, native return and every-callback cold equality.");
+    }
+
+    private static void CheckCatalog(Ff7Session session, bool rewarded)
+    {
+        Ff7FieldEventCoveragePlan plan = Ff7FieldEventCoverageCatalog.Inspect(session);
+        Check(!plan.Complete, "The current pub catalog must not admit a nested visit before outcome-aware observers exist.");
+        Check(plan.Events.Single(value => value.Id == "actor:11:script:1").Kind == (rewarded ? Ff7FieldEventCoverageKind.Inactive : Ff7FieldEventCoverageKind.Conditional), "The pub catalog exposed the wrong medicine availability.");
+        Check(plan.Events.Single(value => value.Id == "actor:12:script:1").Kind == (rewarded ? Ff7FieldEventCoverageKind.Empty : Ff7FieldEventCoverageKind.Interaction), "The pub catalog exposed the wrong conversation for the man.");
+        Check(plan.Events.Single(value => value.Id == "line:4:script:1").Kind == Ff7FieldEventCoverageKind.Conditional && plan.Events.Single(value => value.Id == "line:4:script:6").Kind == Ff7FieldEventCoverageKind.Conditional, "The enabled pub door must expose both native callback owners.");
+        Check(plan.Events.Single(value => value.Id == "alternative:11:other-medicines").Kind == Ff7FieldEventCoverageKind.Inactive, "The legitimate Digestive visit exposed a mutually exclusive lower medicine outcome.");
+        Check(plan.Events.Single(value => value.Kind == Ff7FieldEventCoverageKind.Exit).Id == "exit:map:205", "The pub catalog did not identify its sole native return.");
     }
 
     private static void Check(bool condition, string message)

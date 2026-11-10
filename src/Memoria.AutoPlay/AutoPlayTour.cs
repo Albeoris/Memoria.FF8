@@ -47,7 +47,7 @@ public sealed class AutoPlayTourLedger
         Replace(state with { Directories = directories });
     }
 
-    public void PublishCatalog(IEnumerable<AutoPlayTourFrontier> frontiers, bool complete, string reason)
+    public void PublishCatalog(IEnumerable<AutoPlayTourFrontier> frontiers, bool complete, string? reason)
     {
         Dictionary<string, AutoPlayTourFrontier> entries = state.Frontiers.ToDictionary(edge => edge.Id, StringComparer.Ordinal);
         List<AutoPlayTourFrontier> completed = (state.CompletedPredicates ?? []).ToList();
@@ -92,19 +92,27 @@ public sealed class AutoPlayTourLedger
         Change(id, edge => edge.Status == AutoPlayTourStatus.Active && edge.EntryWitness is null ? edge with { EntryWitness = witness } : throw new InvalidOperationException("Native entry requires the active outbound visit."));
     }
 
+    public bool CanCompleteActiveVisit
+    {
+        get
+        {
+            AutoPlayTourFrontier? active = ActiveLeaf;
+            if (active?.EntryWitness is null || state.Frontiers.Any(edge => IsDescendant(state.Frontiers, edge, active.Id) && edge.Status is AutoPlayTourStatus.Pending or AutoPlayTourStatus.Active) || state.Directories?.Any(directory => directory.ParentId == active.Id && !directory.Complete) == true)
+            {
+                return false;
+            }
+            return !state.Frontiers.Any(edge => edge.ParentId == active.Id) || state.Directories?.Any(directory => directory.ParentId == active.Id && directory.Source == active.Destination && directory.Complete) == true;
+        }
+    }
+
     public void CompleteVisit(string id, string witness)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(witness);
-        AutoPlayTourFrontier target = state.Frontiers.Single(edge => edge.Id == id);
-        if (ActiveLeaf?.Id != id || state.Frontiers.Any(edge => IsDescendant(state.Frontiers, edge, id) && edge.Status is AutoPlayTourStatus.Pending or AutoPlayTourStatus.Active) || state.Directories?.Any(directory => directory.ParentId == id && !directory.Complete) == true)
+        if (ActiveLeaf?.Id != id || !CanCompleteActiveVisit)
         {
-            throw new InvalidOperationException("A native parent return cannot complete while its child directory or required descendants remain unfinished.");
+            throw new InvalidOperationException("An optional-area completion requires its observed native entry and any required child coverage.");
         }
-        if (state.Frontiers.Any(edge => edge.ParentId == id) && state.Directories?.Any(directory => directory.ParentId == id && directory.Source == target.Destination && directory.Complete) != true)
-        {
-            throw new InvalidOperationException("A nested optional-area parent requires its reviewed source directory before completion.");
-        }
-        Change(id, edge => edge.Status == AutoPlayTourStatus.Active && edge.EntryWitness is not null ? edge with { Status = AutoPlayTourStatus.Completed, ReturnWitness = witness } : throw new InvalidOperationException("An optional-area completion requires its native entry and return."));
+        Change(id, edge => edge with { Status = AutoPlayTourStatus.Completed, ReturnWitness = witness });
     }
 
     private void Change(string id, Func<AutoPlayTourFrontier, AutoPlayTourFrontier> update)

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Memoria.AutoPlay;
 
 namespace Memoria.FF7.Runtime;
@@ -8,15 +9,26 @@ public sealed partial class Ff7AutoPlayEventCoverage
 
     public void RefreshTourCatalog()
     {
-        if (session.Field.Name != "mrkt2")
+        AutoPlayTourState? saved = ledger.Capture().Tour;
+        if (session.Field.Name != "mrkt2" && saved is null)
         {
             return;
         }
-        Ff7WallMarketTourPlan plan = Ff7WallMarketTourCatalog.Inspect(session);
-        AutoPlayTourState? saved = ledger.Capture().Tour;
         AutoPlayTourLedger tour = new(saved ?? new("midgar-wall-market", [], CatalogReason: "Native optional-area classifications are pending."));
+        AutoPlayTourFrontier? active = tour.ActiveLeaf;
+        Ff7WallMarketTourPlan? plan = InspectTourSource(active);
+        if (plan is null)
+        {
+            return;
+        }
         string availability = $"{session.Machine.ProgramIdentity}:market-visit";
-        tour.PublishCatalog(plan.Edges.Select(edge => new AutoPlayTourFrontier(edge.Id, plan.RootField, edge.DestinationName, $"{availability}:{edge.Kind}:{edge.Availability}", edge.Kind, edge.Reason, EntryRoute: edge.DestinationField.ToString(System.Globalization.CultureInfo.InvariantCulture), ReturnRoute: edge.ReturnField?.ToString(System.Globalization.CultureInfo.InvariantCulture))), plan.Complete, plan.Reason);
+        string? parent = active?.Id;
+        var frontiers = plan.Edges.Select(edge => new AutoPlayTourFrontier(edge.Id, plan.RootField, edge.DestinationName, $"{availability}:{edge.Kind}:{edge.Availability}", edge.Kind, edge.Reason, EntryRoute: edge.DestinationField.ToString(CultureInfo.InvariantCulture), ReturnRoute: edge.ReturnField?.ToString(CultureInfo.InvariantCulture), ParentId: parent));
+        tour.PublishCatalog(frontiers, parent is null ? plan.Complete : saved!.CatalogComplete, parent is null ? plan.Reason : saved!.CatalogReason);
+        if (parent is not null)
+        {
+            tour.PublishDirectory(new(plan.RootField, availability, plan.Complete, plan.Reason, parent));
+        }
         ledger.UpdateTour(tour.Capture());
         Publish();
     }
@@ -33,89 +45,88 @@ public sealed partial class Ff7AutoPlayEventCoverage
         {
             throw new NotSupportedException("FFVII optional-area touring requires the current native field event catalog to be complete first.");
         }
-        if (session.Field.Name == "mrkt2")
+        if (saved is null)
         {
-            Ff7WallMarketTourPlan plan = Ff7WallMarketTourCatalog.Inspect(session);
             RefreshTourCatalog();
-            AutoPlayTourLedger tour = new(ledger.Capture().Tour!);
-            if (tour.Capture().Frontiers.Any(edge => edge.Status == AutoPlayTourStatus.Active))
-            {
-                throw new NotSupportedException("FFVII optional-area tour returned with an unfinished visit; its local event coverage and native return require resolution before another departure.");
-            }
-            AutoPlayTourFrontier? next = tour.Capture().Frontiers.FirstOrDefault(edge => edge.Status == AutoPlayTourStatus.Pending && plan.Edges.Any(target => target.Id == edge.Id && target.CatalogReady));
-            if (next is null)
-            {
-                if (!plan.Complete || !tour.Complete)
-                {
-                    throw new NotSupportedException($"FFVII Wall Market optional-area frontier remains incomplete: {plan.Reason}");
-                }
-                return false;
-            }
-            Ff7WallMarketTourEdge target = plan.Edges.Single(edge => edge.Id == next.Id);
-            if (!target.CatalogReady)
-            {
-                throw new NotSupportedException($"FFVII optional room {target.DestinationName} requires its native local event catalog before entry.");
-            }
-            input = driver.Gateway(target.DestinationField);
-            return true;
+            saved = ledger.Capture().Tour!;
         }
-        AutoPlayTourLedger restored = new(saved!);
-        AutoPlayTourFrontier? active = restored.Capture().Frontiers.SingleOrDefault(edge => edge.Status == AutoPlayTourStatus.Active);
+        AutoPlayTourLedger tour = new(saved);
+        AutoPlayTourFrontier? active = tour.ActiveLeaf;
+        if (active is not null && (session.Field.Name != active.Destination || active.EntryWitness is null))
+        {
+            throw new NotSupportedException("FFVII optional-area tour reached a field without its matching native entry witness.");
+        }
+        Ff7WallMarketTourPlan? plan = InspectTourSource(active);
+        if (plan is not null)
+        {
+            Ff7WallMarketTourEdge? target = plan.Edges.FirstOrDefault(candidate => candidate.CatalogReady && saved.Frontiers.Any(edge => edge.Id == candidate.Id && edge.ParentId == active?.Id && edge.Status == AutoPlayTourStatus.Pending));
+            if (target is not null)
+            {
+                input = driver.Gateway(target.DestinationField);
+                return true;
+            }
+            if (!plan.Complete || active is null && !tour.Complete || active is not null && !tour.CanCompleteActiveVisit)
+            {
+                throw new NotSupportedException($"FFVII Wall Market optional-area frontier remains incomplete: {plan.Reason}");
+            }
+        }
         if (active is null)
         {
             return false;
         }
-        if (session.Field.Name != active.Destination || active.EntryWitness is null)
+        if (!tour.CanCompleteActiveVisit || !int.TryParse(active.ReturnRoute, out int returnField))
         {
-            throw new NotSupportedException("FFVII optional-area tour reached a field without its matching native entry witness.");
-        }
-        if (!int.TryParse(active.ReturnRoute, out int returnField))
-        {
-            throw new NotSupportedException("FFVII optional-area tour requires its reviewed native return route.");
+            throw new NotSupportedException("FFVII optional-area tour requires covered children and a reviewed native return route.");
         }
         input = driver.Gateway(returnField);
         return true;
     }
 
+    private Ff7WallMarketTourPlan? InspectTourSource(AutoPlayTourFrontier? active)
+    {
+        if (active is null && session.Field.Name == "mrkt2")
+        {
+            return Ff7WallMarketTourCatalog.Inspect(session);
+        }
+        if (active is { Destination: "mrkt1", EntryWitness: not null } && session.Field.Name == active.Destination)
+        {
+            return Ff7WallMarketTourCatalog.InspectMainStreet(session);
+        }
+        return null;
+    }
+
     private void ObserveTourCoverage(Ff7NativeTickObservation observation, string? coveredScope)
     {
         AutoPlayTourState? saved = ledger.Capture().Tour;
-        if (saved is null || observation.Transition is null)
+        if (saved is null || coveredScope is null || observation.Transition is null || observation.TransitionOwner is not null)
         {
             return;
         }
         AutoPlayTourLedger tour = new(saved);
-        AutoPlayTourFrontier? active = saved.Frontiers.SingleOrDefault(edge => edge.Status == AutoPlayTourStatus.Active);
-        if (active is not null)
+        AutoPlayTourFrontier? active = tour.ActiveLeaf;
+        string witness = $"{coveredScope}/{observation.Generation}/{observation.Tick}/{observation.ProgressWitness}";
+        if (active is not null && MatchesGateway(active.Destination, active.Source, active.ReturnRoute))
         {
-            if (observation.Field == active.Destination && int.TryParse(active.ReturnRoute, out int returnField) && observation.Transition.Map == returnField && session.Field.Name == active.Source)
-            {
-                if (coveredScope is null)
-                {
-                    return;
-                }
-                tour.CompleteVisit(active.Id, $"{coveredScope}/{observation.Generation}/{observation.Tick}/{observation.ProgressWitness}");
-            }
-            else
+            if (!tour.CanCompleteActiveVisit)
             {
                 return;
             }
+            tour.CompleteVisit(active.Id, witness);
         }
         else
         {
-            AutoPlayTourFrontier? entered = saved.Frontiers.FirstOrDefault(edge => edge.Status == AutoPlayTourStatus.Pending && edge.Source == observation.Field && edge.Destination == session.Field.Name && int.TryParse(edge.EntryRoute, out int destination) && observation.Transition.Map == destination);
+            AutoPlayTourFrontier? entered = saved.Frontiers.SingleOrDefault(edge => edge.Status == AutoPlayTourStatus.Pending && edge.ParentId == active?.Id && MatchesGateway(edge.Source, edge.Destination, edge.EntryRoute));
             if (entered is null)
             {
                 return;
             }
-            if (coveredScope is null)
-            {
-                return;
-            }
-            tour.Begin(entered.Id, $"{coveredScope}/{observation.Generation}/{observation.Tick}/{observation.ProgressWitness}");
+            tour.Begin(entered.Id, witness);
             tour.Arrive(entered.Id, $"{session.FieldGeneration}/{session.Field.Name}/{observation.Transition.Map}");
         }
         ledger.UpdateTour(tour.Capture());
         Publish();
+
+        bool MatchesGateway(string source, string destination, string? route) =>
+            observation.Field == source && session.Field.Name == destination && int.TryParse(route, out int map) && observation.Transition.Map == map;
     }
 }
