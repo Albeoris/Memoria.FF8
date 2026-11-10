@@ -11,7 +11,7 @@ public sealed class ControlledHostIsolationTests : IDisposable
     [Fact]
     public void ExclusiveInputNeverPollsPhysicalDevicesAndKeepsPermanentKeysAndSticksNeutral()
     {
-        HostPhysicalInput physical = new(false, () => throw new InvalidOperationException("keyboard polled"), () => throw new InvalidOperationException("controller polled"), () => throw new InvalidOperationException("mouse polled"));
+        HostPhysicalInput physical = new(false, () => true, () => throw new InvalidOperationException("keyboard polled"), () => throw new InvalidOperationException("controller polled"), () => throw new InvalidOperationException("mouse polled"));
         KeyboardInput input = new() { RecoveryNavigationEnabled = true, NativeButtonsOwnInput = true };
         InputFrame frame = input.Read(physical.ReadKeyboard(), physical.ReadController(), true);
         Assert.Equal(default(InputFrame), frame);
@@ -30,7 +30,7 @@ public sealed class ControlledHostIsolationTests : IDisposable
         KeyboardState keys = new(Keys.F5, Keys.Enter, Keys.Up);
         GamePadState pad = new(new Vector2(1, -1), new Vector2(-1, 1), 1, 1, Buttons.A);
         MouseState mouse = new(12, 24, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
-        HostPhysicalInput physical = new(true, () => keys, () => pad, () => mouse);
+        HostPhysicalInput physical = new(true, () => true, () => keys, () => pad, () => mouse);
         Assert.Equal(keys, physical.ReadKeyboard());
         Assert.Equal(pad, physical.ReadController());
         Assert.Equal(mouse, physical.ReadMouse());
@@ -39,6 +39,51 @@ public sealed class ControlledHostIsolationTests : IDisposable
         Assert.True(frame.Confirm);
         Assert.True(frame.Save);
         Assert.NotEqual((ushort)0, input.HeldFieldButtons);
+    }
+
+    [Fact]
+    public void RunningHostDropsBackgroundInputAndRequiresHeldControlsToBeReleasedAfterRefocus()
+    {
+        bool focused = false;
+        KeyboardState keys = new(Keys.F5, Keys.Enter, Keys.Up);
+        GamePadState pad = new(Vector2.UnitX, Vector2.UnitY, 1, 1, Buttons.A);
+        MouseState mouse = new(12, 24, 120, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        HostPhysicalInput physical = new(true, () => focused, () => ReadFocused(keys), () => ReadFocused(pad), () => ReadFocused(mouse));
+        KeyboardInput input = new();
+
+        Assert.False(physical.CanRead);
+        Assert.Equal(default(InputFrame), Sample());
+
+        focused = true;
+        Assert.Equal(default(InputFrame), Sample());
+        Assert.Equal((ushort)0, input.HeldControlButtons);
+        Assert.Equal(mouse, physical.ReadMouse());
+
+        keys = default;
+        pad = new(Vector2.Zero, Vector2.Zero, 0, 0, (Buttons)0);
+        Sample();
+        keys = new(Keys.F5, Keys.Enter, Keys.Up);
+        pad = new(Vector2.UnitX, Vector2.UnitY, 1, 1, Buttons.A);
+        InputFrame resumed = Sample();
+        Assert.True(resumed.Save);
+        Assert.True(resumed.Confirm);
+        Assert.NotEqual(0f, resumed.SecondaryVertical);
+        Assert.NotEqual((ushort)0, input.HeldControlButtons);
+
+        focused = false;
+        Assert.Equal(default(InputFrame), Sample());
+        Assert.Equal((ushort)0, input.HeldControlButtons);
+        MouseState inactiveMouse = physical.ReadMouse();
+        Assert.Equal(mouse.ScrollWheelValue, inactiveMouse.ScrollWheelValue);
+        Assert.Equal(ButtonState.Released, inactiveMouse.LeftButton);
+
+        InputFrame Sample() => input.Read(physical.ReadKeyboard(), physical.ReadController(), physical.CanRead);
+
+        T ReadFocused<T>(T value)
+        {
+            Assert.True(focused);
+            return value;
+        }
     }
 
     [Fact]
@@ -64,7 +109,7 @@ public sealed class ControlledHostIsolationTests : IDisposable
     [Fact]
     public void ExclusivePhysicalInputDoesNotBlockTheFileCommandQueue()
     {
-        HostPhysicalInput physical = new(false, () => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => throw new InvalidOperationException());
+        HostPhysicalInput physical = new(false, () => true, () => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => throw new InvalidOperationException());
         List<string> commands = [];
         ControlQueue queue = new(root, request =>
         {

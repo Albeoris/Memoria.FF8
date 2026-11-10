@@ -29,6 +29,19 @@ public sealed class FocusPauseTests
     }
 
     [Fact]
+    public void Windows_background_window_ignores_input_even_when_monogame_reports_active()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Requires the Windows foreground window contract.");
+        using RecreateGame game = CreateGame();
+        object platform = typeof(Game).GetField("Platform", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game)!;
+        platform.GetType().GetProperty(nameof(Game.IsActive))!.SetValue(platform, true);
+
+        Assert.True(game.IsActive);
+        Assert.False(Get<bool>(game, "focusPaused"));
+        Assert.False(Get<HostPhysicalInput>(game, "physicalInput").CanRead);
+    }
+
+    [Fact]
     public void Background_host_does_not_update_or_draw_and_resume_discards_elapsed_time()
     {
         using RecreateGame game = CreateGame();
@@ -92,7 +105,7 @@ public sealed class FocusPauseTests
 
     private static RecreateGame CreateGame(string? controlDirectory = null)
     {
-        LaunchOptions options = new() { MuteAudio = true, ControlDirectory = controlDirectory };
+        LaunchOptions options = new() { MuteAudio = true, ControlDirectory = controlDirectory, GameDirectory = AppContext.BaseDirectory, SettingsDirectory = AppContext.BaseDirectory };
         return new RecreateGame(options, new GameSession(new GameState()));
     }
 

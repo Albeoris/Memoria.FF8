@@ -166,8 +166,8 @@ internal sealed partial class RecreateGame
         }
         ModelBrowserController browser = modelBrowser;
         KeyboardState keys = windowModeHotkey.Filter(physicalInput.ReadKeyboard());
-        bool enter = IsActive && keys.IsKeyDown(Keys.Enter);
-        bool escape = IsActive && keys.IsKeyDown(Keys.Escape);
+        bool enter = physicalInput.CanRead && keys.IsKeyDown(Keys.Enter);
+        bool escape = physicalInput.CanRead && keys.IsKeyDown(Keys.Escape);
         if (modelBrowserDialogInputDrain)
         {
             previousModelBrowserEnter = enter;
@@ -206,7 +206,7 @@ internal sealed partial class RecreateGame
                 browser.Navigate(input.MenuPage > 0 ? MenuInput.PageDown : MenuInput.PageUp);
             }
         }
-        bool space = IsActive && keys.IsKeyDown(Keys.Space);
+        bool space = physicalInput.CanRead && keys.IsKeyDown(Keys.Space);
         if (browser.AssetsOpen && !browser.SearchFocused && !browser.PreviewFocused && space && !previousBrowserSpace && !input.Confirm && !(enter && !previousModelBrowserEnter))
         {
             browser.Navigate(MenuInput.Confirm);
@@ -239,7 +239,7 @@ internal sealed partial class RecreateGame
         float pointerX = (mouse.X - (GraphicsDevice.Viewport.Width - 960 * pointerScale) / 2) / pointerScale;
         float pointerY = (mouse.Y - (GraphicsDevice.Viewport.Height - 672 * pointerScale) / 2) / pointerScale;
         bool overPreview = browser.PreviewBounds.Contains(pointerX, pointerY);
-        if (IsActive && wheel != 0)
+        if (physicalInput.CanRead && wheel != 0)
         {
             if (browser.Mode == ModelBrowserMode.Viewer && overPreview)
             {
@@ -254,11 +254,11 @@ internal sealed partial class RecreateGame
                 browser.Select(browser.SelectedIndex - Math.Sign(wheel) * 3);
             }
         }
-        bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool mousePressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         UiView view = browser.BuildView();
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         view.Pointer(mouse.X, mouse.Y, mousePressed && !previousModelBrowserMouse);
-        browser.UpdatePreviewPointer(pointerX, pointerY, mousePressed, mouse.MiddleButton == ButtonState.Pressed, mouse.RightButton == ButtonState.Pressed, keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift), IsActive);
+        browser.UpdatePreviewPointer(pointerX, pointerY, mousePressed, mouse.MiddleButton == ButtonState.Pressed, mouse.RightButton == ButtonState.Pressed, keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift), physicalInput.CanRead);
         previousModelBrowserMouse = mousePressed;
         return true;
     }

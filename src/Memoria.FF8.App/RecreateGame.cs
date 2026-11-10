@@ -72,7 +72,7 @@ internal sealed partial class RecreateGame : Game
     public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false)
     {
         this.options = options;
-        physicalInput = new(options.AcceptsPhysicalInput, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
+        physicalInput = new(options.AcceptsPhysicalInput, HasPhysicalInputFocus, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
         achievementToolSession = !playerSession || options.IsAchievementToolSession;
@@ -168,6 +168,7 @@ internal sealed partial class RecreateGame : Game
         }
         // Keep launcher handoff and recovery responsive during native pickers and exit confirmation.
         updateControls?.Poll();
+        SynchronizePhysicalInputFocus();
         if (UpdateWindowCloseConfirmation())
         {
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
@@ -236,7 +237,7 @@ internal sealed partial class RecreateGame : Game
         {
             if (battleEntryTransition is null)
             {
-                controllerFeedback?.Update(session.State.VibrationProcess, IsActive && !userPaused && !capturingControls && !fieldFaulted && !fieldRenderFaulted && gameMenus?.IsOpen != true && !saveMenu.IsOpen, keyboard.Profile.Controller.VibrationEnabled);
+                controllerFeedback?.Update(session.State.VibrationProcess, physicalInput.CanRead && !userPaused && !capturingControls && !fieldFaulted && !fieldRenderFaulted && gameMenus?.IsOpen != true && !saveMenu.IsOpen, keyboard.Profile.Controller.VibrationEnabled);
             }
         }
     }
@@ -247,7 +248,7 @@ internal sealed partial class RecreateGame : Game
         SynchronizeMenuPresentation();
         ControllerDevice inputController = controller ?? throw new InvalidOperationException("The graphical host requires its initialized input device.");
         GamePadState pad = physicalInput.ReadController();
-        if (gameMenus is not null)
+        if (physicalInput.CanRead && gameMenus is not null)
         {
             gameMenus.NamingControllerConnected = pad.IsConnected;
         }
@@ -260,7 +261,8 @@ internal sealed partial class RecreateGame : Game
         keyboard.ControllerPresentation = inputController.Presentation;
         keyboard.ControllerGeneration = inputController.Generation;
         bool wasCapturing = gameMenus?.IsCapturingControls == true;
-        bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
+        bool acceptsInput = physicalInput.CanRead;
+        bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, acceptsInput) == true;
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing || DuelOwnsInput);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
@@ -275,9 +277,9 @@ internal sealed partial class RecreateGame : Game
         keyboard.TextEntryEnabled = typingName;
         keyboard.NamingNavigationEnabled = namingNavigation;
         keyboard.NativeButtonsOwnInput = DuelOwnsInput;
-        InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
+        InputFrame input = keyboard.Read(keys, pad, acceptsInput && !capturing);
         var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
-        if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !IsActive)
+        if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !acceptsInput)
         {
             movieSkipGesture.Reset();
         }
@@ -683,11 +685,11 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (!physicalInput.Enabled || windowCloseDecision is not null)
+        if (!physicalInput.CanRead || windowCloseDecision is not null)
         {
             return;
         }
-        if (IsActive && localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard)
+        if (localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard)
         {
             if (!char.IsControl(args.Character))
             {
@@ -700,7 +702,7 @@ internal sealed partial class RecreateGame : Game
         {
             return;
         }
-        if (IsActive && modelBrowser?.SearchFocused == true)
+        if (modelBrowser?.SearchFocused == true)
         {
             if (args.Character == '\b')
             {
@@ -712,7 +714,7 @@ internal sealed partial class RecreateGame : Game
             }
             return;
         }
-        if (IsActive && keyboard.AllowsNameText(args.Key))
+        if (keyboard.AllowsNameText(args.Key))
         {
             if (gameMenus?.EnterGameplayNumberCharacter(args.Character) != true && gameMenus?.EnterLocalizationCharacter(args.Character) != true && gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
             {

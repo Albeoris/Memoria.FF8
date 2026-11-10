@@ -26,7 +26,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        InputFrame input = keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), IsActive);
+        InputFrame input = keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), physicalInput.CanRead);
         if (input.Cancel)
         {
             overlay.Handle(UiKey.Cancel);
@@ -51,7 +51,7 @@ internal sealed partial class RecreateGame
             }
         }
         MouseState mouse = physicalInput.ReadMouse();
-        overlay.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
+        overlay.Pointer(mouse.X, mouse.Y, physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed);
     }
 
     private void DrawGameConfirmation(Rectangle bounds)

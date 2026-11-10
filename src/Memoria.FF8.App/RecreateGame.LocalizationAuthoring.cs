@@ -693,7 +693,7 @@ internal sealed partial class RecreateGame
             }
             return true;
         }
-        if (!IsActive || !localizationWorkbench.Enabled || !localizationWorkbench.OwnsKeyboard)
+        if (!physicalInput.CanRead || !localizationWorkbench.Enabled || !localizationWorkbench.OwnsKeyboard)
         {
             authoringTextInput?.Reset();
         }
@@ -727,7 +727,7 @@ internal sealed partial class RecreateGame
             }
         }
         MouseState mouse = physicalInput.ReadMouse();
-        bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool pressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         bool clicked = pressed && !authoringPreviousMouse;
         bool released = !pressed && authoringPreviousMouse;
         bool ownsPointer = localizationWorkbench.OwnsPointer(mouse.X, mouse.Y);

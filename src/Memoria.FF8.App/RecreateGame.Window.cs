@@ -6,6 +6,7 @@ internal sealed partial class RecreateGame
     private readonly WindowModeHotkey windowModeHotkey = new();
 #if MEMORIA_NATIVE
     private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
+    private nint nativeInputWindow;
 #endif
 
     protected override void Initialize()
@@ -15,7 +16,8 @@ internal sealed partial class RecreateGame
         ModelBrowserDialogs.Desktop = desktopDialogs;
         ModelBrowserDialogs.Confirmation = ShowGameConfirmationAsync;
 #if MEMORIA_NATIVE
-        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics);
+        nativeInputWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
+        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
 #endif
         IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
         if (!options.IsDiagnosticGraphicalHost)
@@ -29,10 +31,27 @@ internal sealed partial class RecreateGame
 #endif
     }
 
+    private bool HasPhysicalInputFocus()
+    {
+        if (focusDisposed)
+        {
+            return false;
+        }
+        if (OperatingSystem.IsWindows())
+        {
+#if MEMORIA_NATIVE
+            return NativeWindowsGameWindow.HasForeground(nativeInputWindow);
+#else
+            return NativeWindowsGameWindow.HasForeground(Window?.Handle ?? 0);
+#endif
+        }
+        return IsActive;
+    }
+
     private void UpdateWindowModeHotkey()
     {
         Microsoft.Xna.Framework.Input.KeyboardState keys = physicalInput.ReadKeyboard();
-        if (windowModeHotkey.Read(keys, IsActive))
+        if (windowModeHotkey.Read(keys, physicalInput.CanRead))
         {
             var preferences = uiPreferences with { BorderlessWindow = !uiPreferences.BorderlessWindow };
             preferences.Save(UiPreferencesPath);

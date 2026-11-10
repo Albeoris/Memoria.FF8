@@ -69,12 +69,12 @@ internal sealed partial class RecreateGame
             MouseState mouse = physicalInput.ReadMouse();
             int wheel = mouse.ScrollWheelValue - previousSceneInspectorWheel;
             previousSceneInspectorWheel = mouse.ScrollWheelValue;
-            if (IsActive && wheel != 0)
+            if (physicalInput.CanRead && wheel != 0)
             {
                 int distance = Math.Clamp(Math.Abs(wheel / 120), 1, 3);
                 sceneInspector.Select(sceneInspector.SelectedIndex - Math.Sign(wheel) * distance);
             }
-            bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+            bool pressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
             UiView view = sceneInspector.BuildView();
             view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
             view.Pointer(mouse.X, mouse.Y, pressed && !previousSceneInspectorMouse);

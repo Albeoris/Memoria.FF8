@@ -578,7 +578,7 @@ internal sealed partial class RecreateGame
         MouseState mouse = physicalInput.ReadMouse();
         int wheelDelta = previousMenuWheel is int previousWheel ? mouse.ScrollWheelValue - previousWheel : 0;
         previousMenuWheel = mouse.ScrollWheelValue;
-        bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool mousePressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
         previousUiMousePressed = mousePressed;
         bool searchOwnedInput = gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing;
@@ -763,15 +763,15 @@ internal sealed partial class RecreateGame
                     keyboard.SuppressHeldUiInput();
                 }
             }
-            if (!searchOwnershipChanged && IsActive && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" && wheelDelta != 0)
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" && wheelDelta != 0)
             {
                 gameMenus.HandleModsWheel(mouse.X, mouse.Y, wheelDelta);
             }
-            if (!searchOwnershipChanged && IsActive && gameMenus.IsGuardianAbilityEditor && wheelDelta != 0)
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.IsGuardianAbilityEditor && wheelDelta != 0)
             {
                 gameMenus.HandleGuardianAbilityEditorWheel(mouse.X, mouse.Y, wheelDelta);
             }
-            if (!searchOwnershipChanged && IsActive && gameMenus.IsJunctionDashboard && wheelDelta != 0)
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.IsJunctionDashboard && wheelDelta != 0)
             {
                 gameMenus.HandleJunctionWheel(mouse.X, mouse.Y, wheelDelta);
             }
@@ -835,7 +835,7 @@ internal sealed partial class RecreateGame
     private void UpdateControlsCapturePointer()
     {
         MouseState mouse = physicalInput.ReadMouse();
-        bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool pressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         UiView view = gameMenus!.BuildView();
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         view.Pointer(mouse.X, mouse.Y, pressed && !previousUiMousePressed);
@@ -884,7 +884,7 @@ internal sealed partial class RecreateGame
     private void UpdateMenuPresentationHotkey(KeyboardState keys, bool capturing)
     {
         bool pressed = keys.IsKeyDown(Keys.F7);
-        if (IsActive && !capturing && pressed && !previousPresentationTogglePressed)
+        if (physicalInput.CanRead && !capturing && pressed && !previousPresentationTogglePressed)
         {
             MenuPresentation presentation = uiPreferences.MenuPresentation == MenuPresentation.Vector ? MenuPresentation.Classic : MenuPresentation.Vector;
             uiPreferences = uiPreferences with { MenuPresentation = presentation };

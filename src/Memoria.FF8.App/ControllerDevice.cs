@@ -33,7 +33,7 @@ internal sealed class ControllerDevice : IDisposable
 
     public ControllerDevice()
     {
-        // The MonoGame host controls focus and suppresses input and motors when inactive.
+        // SDL has no window in this host. The game window gates polling and vibration.
         SDL.SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
         if (!SDL.InitSubSystem(SDL.InitFlags.Gamepad))
         {

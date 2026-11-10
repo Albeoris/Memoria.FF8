@@ -12,11 +12,11 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
     private readonly NativeSwapchainRecreation? swapchainRecreation;
     private bool synchronizing;
 
-    internal NativeWindowBackBufferSynchronizer(GameWindow window, GraphicsDeviceManager graphics)
+    internal NativeWindowBackBufferSynchronizer(GameWindow window, GraphicsDeviceManager graphics, nint handle)
     {
         this.window = window;
         this.graphics = graphics;
-        handle = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(window.Title) : 0;
+        this.handle = handle;
         swapchainRecreation = OperatingSystem.IsMacOS() ? new NativeSwapchainRecreation() : null;
         window.ClientSizeChanged += OnClientSizeChanged;
     }

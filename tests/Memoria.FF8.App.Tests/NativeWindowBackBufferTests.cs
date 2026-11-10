@@ -24,7 +24,8 @@ public sealed class NativeWindowBackBufferTests
                 game.Window.AllowUserResizing = true;
                 using GraphicsDeviceManager graphics = new(game) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 240, GraphicsProfile = GraphicsProfile.HiDef };
                 game.RunOneFrame();
-                using NativeWindowBackBufferSynchronizer synchronizer = new(game.Window, graphics);
+                nint handle = NativeWindowsGameWindow.ResolveHandle(game.Window.Title);
+                using NativeWindowBackBufferSynchronizer synchronizer = new(game.Window, graphics, handle);
                 IGameWindowPlatform platform = WindowModeController.CreatePlatform(game.Window);
                 WindowModeController controller = new(platform);
                 platform.Maximize();
@@ -37,7 +38,7 @@ public sealed class NativeWindowBackBufferTests
                 void AssertDimensions()
                 {
                     synchronizer.Synchronize();
-                    Point actual = NativeWindowsGameWindow.GetClientSize(NativeWindowsGameWindow.ResolveHandle(game.Window.Title));
+                    Point actual = NativeWindowsGameWindow.GetClientSize(handle);
                     PresentationParameters presentation = game.GraphicsDevice.PresentationParameters;
                     Assert.Equal(actual.X, game.Window.ClientBounds.Width);
                     Assert.Equal(actual.Y, game.Window.ClientBounds.Height);

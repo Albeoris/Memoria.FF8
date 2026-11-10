@@ -99,7 +99,7 @@ internal sealed partial class RecreateGame
     private void UpdatePlayerSavePointer()
     {
         MouseState mouse = physicalInput.ReadMouse();
-        bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool pressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         if (savesWindowUi is not null)
         {
             savesWindowUi.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);

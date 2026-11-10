@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
@@ -9,6 +8,7 @@ internal sealed partial class RecreateGame
     private bool windowActivityInitialized;
     private bool discardFocusElapsed;
     private bool focusDisposed;
+    private bool inputWasFocused = true;
 
     protected override void OnActivated(object sender, EventArgs args)
     {
@@ -22,11 +22,40 @@ internal sealed partial class RecreateGame
         base.OnDeactivated(sender, args);
     }
 
+    private void SynchronizePhysicalInputFocus()
+    {
+        if (physicalInput.CanRead)
+        {
+            inputWasFocused = true;
+        }
+        else
+        {
+            ResetUnfocusedInput();
+        }
+    }
+
+    private void ResetUnfocusedInput()
+    {
+        if (!inputWasFocused || focusDisposed)
+        {
+            return;
+        }
+        inputWasFocused = false;
+        keyboard.Read(default, default, false);
+        movieSkipGesture.Reset();
+        windowModeHotkey.Read(default, false);
+        previousMenuWheel = null;
+    }
+
     internal void SetWindowActive(bool active)
     {
         if (focusDisposed)
         {
             return;
+        }
+        if (!active)
+        {
+            ResetUnfocusedInput();
         }
         windowActivityInitialized = true;
         // Explicitly controlled diagnostic hosts must also work with a hidden window.
@@ -39,8 +68,6 @@ internal sealed partial class RecreateGame
         presentationTiming.DiscardPendingTime();
         presentationPacer.Reset();
         ResetElapsedTime();
-        movieSkipGesture.Reset();
-        keyboard.Read(physicalInput.ReadKeyboard(), physicalInput.ReadController(), false);
         fieldAudio?.SetFocusPaused(pause);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);

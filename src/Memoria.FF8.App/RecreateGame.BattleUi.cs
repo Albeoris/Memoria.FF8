@@ -274,7 +274,7 @@ internal sealed partial class RecreateGame
             return;
         }
         MouseState mouse = physicalInput.ReadMouse();
-        bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        bool pressed = physicalInput.CanRead && mouse.LeftButton == ButtonState.Pressed;
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         view.Pointer(mouse.X, mouse.Y, pressed && !previousBattleMouse);
         previousBattleMouse = pressed;

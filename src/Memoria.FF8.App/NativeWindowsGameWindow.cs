@@ -9,6 +9,11 @@ namespace Memoria.FF8;
 [SupportedOSPlatform("windows")]
 internal static class NativeWindowsGameWindow
 {
+    internal static bool HasForeground(nint handle) => handle != 0 && GetForegroundWindow() == handle;
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
     internal static Microsoft.Xna.Framework.Point GetClientSize(nint handle)
     {
         if (!GetClientRect(handle, out ClientRectangle rectangle))
