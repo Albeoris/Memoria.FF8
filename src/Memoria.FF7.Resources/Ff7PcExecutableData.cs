@@ -75,18 +75,7 @@ public sealed partial class Ff7PcExecutableData
 
     public static Ff7PcExecutableData Load(Ff7Installation installation)
     {
-        ArgumentNullException.ThrowIfNull(installation);
-        string path = Path.Combine(installation.RootDirectory, "ff7", "resources", "ff7_1.02", "ff7_en");
-        if (!File.Exists(path))
-        {
-            throw new InvalidDataException("The selected FF7 installation has no supported native execution-data profile.");
-        }
-        using FileStream stream = File.OpenRead(path);
-        if (stream.Length > 64 * 1024 * 1024 || !Convert.ToHexString(SHA256.HashData(stream)).Equals(SupportedSha256, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException("The installed FF7 native execution-data content hash is unsupported.");
-        }
-        stream.Position = 0;
+        using FileStream stream = OpenSupportedImage(installation);
         using PEReader pe = new(stream, PEStreamOptions.LeaveOpen);
         PEHeader header = pe.PEHeaders.PEHeader ?? throw new InvalidDataException("FF7 native execution data has no PE header.");
         if (header.Magic != PEMagic.PE32)
@@ -188,6 +177,31 @@ public sealed partial class Ff7PcExecutableData
             throw new InvalidDataException("FF7 native field-entry fade alpha table has invalid endpoints or ordering.");
         }
         return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha);
+    }
+
+    private static FileStream OpenSupportedImage(Ff7Installation installation)
+    {
+        ArgumentNullException.ThrowIfNull(installation);
+        string path = Path.Combine(installation.RootDirectory, "ff7", "resources", "ff7_1.02", "ff7_en");
+        if (!File.Exists(path))
+        {
+            throw new InvalidDataException("The selected FF7 installation has no supported native execution-data profile.");
+        }
+        FileStream stream = File.OpenRead(path);
+        try
+        {
+            if (stream.Length > 64 * 1024 * 1024 || !Convert.ToHexString(SHA256.HashData(stream)).Equals(SupportedSha256, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The installed FF7 native execution-data content hash is unsupported.");
+            }
+            stream.Position = 0;
+            return stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)

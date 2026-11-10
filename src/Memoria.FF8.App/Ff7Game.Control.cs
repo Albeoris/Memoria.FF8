@@ -49,6 +49,13 @@ internal sealed partial class Ff7Game
         }
         switch (request.Command.ToLowerInvariant())
         {
+            case "world-switch":
+            case "world-open":
+                OpenWorldSwitchMapping(scene.Capture());
+                return new { Open = mappingMenu is not null };
+            case "world-ui":
+                (mappingMenu ?? throw new InvalidOperationException("Open the world setup first.")).Apply(Enum.Parse<Memoria.FF8.GameUi.MenuInput>(request.Name ?? throw new ArgumentException("A menu input name is required."), true));
+                return new { Open = mappingMenu is not null };
             case "status":
                 return new { Game = "FFVII", Field = scene.Session?.Field.Name, Tick = scene.Session?.Host.Process.Tick, scene.CanSave, scene.Error, Process = scene.Session?.Host.Process, Progress = scene.Session?.Progress };
             case "autoplay":

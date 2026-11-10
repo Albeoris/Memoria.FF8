@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--world-only", StringComparer.Ordinal))
+{
+    WorldMachineTests.Run();
+    return 0;
+}
+
 if (args.Contains("--audit-installed", StringComparer.Ordinal))
 {
     return InstalledAudit.Run();
@@ -511,3 +517,4 @@ static void YieldedContinuationBoundary()
         Equal(item.InvalidPc, captureFault.Context.ProgramCounter);
     }
 }
+

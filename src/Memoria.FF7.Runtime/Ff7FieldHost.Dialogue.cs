@@ -30,7 +30,7 @@ public sealed partial class Ff7FieldHost
         }
         IReadOnlyList<FieldTextToken> tokens = FieldText.Read(field.Scripts.Texts[updated.Text].Span);
         Ff7DialogueCursor.Validate(updated, tokens);
-        if (updated.FirstChoice is int first && updated.LastChoice is int last && (updated.Selected < first || updated.Selected > last))
+        if (updated.Selected is < 0 or > 255 || (updated.Completed || updated.Presentation?.NativeState == 7) && updated.FirstChoice is int first && updated.LastChoice is int last && (updated.Selected < first || updated.Selected > last))
         {
             throw new InvalidDataException("FFVII dialogue selection is outside its native question bounds.");
         }

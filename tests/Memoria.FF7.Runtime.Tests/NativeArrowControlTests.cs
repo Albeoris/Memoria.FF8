@@ -15,16 +15,10 @@ internal static class NativeArrowControlTests
             Ff7FieldHost cold = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
             Equal(true, cold.Process.CursorDisabled);
             Equal(false, cold.CreateNextFieldProcess().CursorDisabled);
-            string before = JsonSerializer.Serialize(cold.Capture());
-            try
-            {
-                cold.Execute(new(2, 0, 7, 16, new FieldControlCommand(FieldControlKind.CursorDisabled, 0)));
-                throw new Exception("Unimplemented pointer enabling must remain explicit.");
-            }
-            catch (NotSupportedException)
-            {
-                Equal(before, JsonSerializer.Serialize(cold.Capture()));
-            }
+            Equal(true, cold.Execute(new(2, 0, 7, 16, new FieldControlCommand(FieldControlKind.CursorDisabled, 0))).Completed);
+            Equal(false, cold.Process.CursorDisabled);
+            Ff7FieldHost enabledCold = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold.Capture()))!);
+            Equal(false, enabledCold.Process.CursorDisabled);
         }
         var movie = new Ff7Movie(0, false, 0, false, null, CameraConsumption: new(-1, 0, 0));
         Ff7FieldHost playing = Build(new() { BlinkStateInitialized = true, NativeMusicTrack = 0, Movie = movie });

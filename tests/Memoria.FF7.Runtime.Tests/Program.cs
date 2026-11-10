@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-only", StringComparer.Ordinal))
+{
+    WorldRuntimeTests.Run();
+    return 0;
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("envelope preserves both game namespaces and exact FFVIII payload", EnvelopeRoundTrip),
@@ -64,6 +70,7 @@ var tests = new (string Name, Action Run)[]
     ("native resident sound frequency and cold continuation", NativeSoundFrequencyTests.Run),
     ("standalone FFVII cold checkpoint continuation", NativeCheckpointTests.Run),
     ("native procedural model color and visibility contracts", NativeModelEffectTests.Run),
+    ("native part visibility and cold continuation", NativePartVisibilityTests.Run),
     ("native interactive ladder continuation contracts", NativeLadderTests.Run),
     ("native jump and actor position query contracts", NativeJumpTests.Run),
     ("installed native movement contracts", NativeMovementTests.RunInstalled),
@@ -116,6 +123,16 @@ static void EnvelopeRoundTrip()
     Check(restored.Ff8Payload!.SequenceEqual(ff8), "FFVIII payload changed.");
     Check(restored.Ff7!.Vm.Tick == 18 && restored.Ff7.Progress.Gil == 240 && restored.Ff7.Progress.Inventory[0].Quantity == 2, "FFVII progression or PC clock changed.");
     Check(restored.Mappings.Single().AppearanceGame == SessionGame.Ff8, "Appearance identity was lost.");
+    for (int appearance = 0; appearance <= 10; appearance++)
+    {
+        CharacterAppearanceMapping[] mappings = Enumerable.Range(0, 9).Select(story => new CharacterAppearanceMapping(SessionGame.Ff7, story, SessionGame.Ff8, appearance, "fixture-general-profile")).ToArray();
+        using MemoryStream mappedStream = new();
+        CombinedSessionCodec.Write(mappedStream, save with { Mappings = mappings });
+        mappedStream.Position = 0;
+        CombinedSessionSave mapped = CombinedSessionCodec.Read(mappedStream);
+        Check(mapped.Mappings.SequenceEqual(mappings), "A general character association changed during its codec round trip.");
+        Check(mapped.Ff8Payload!.SequenceEqual(ff8) && JsonSerializer.Serialize(mapped.Ff7) == JsonSerializer.Serialize(save.Ff7), "An appearance association changed native progress.");
+    }
 }
 
 static void InvalidEnvelope()
@@ -127,7 +144,10 @@ static void InvalidEnvelope()
     byte[] corrupt = stream.ToArray();
     corrupt[^1] ^= 127;
     Throws<InvalidDataException>(() => CombinedSessionCodec.Read(new MemoryStream(corrupt)));
-    Throws<NotSupportedException>(() => (source with { Mappings = [new(SessionGame.Ff7, 1, SessionGame.Ff8, 0, "wrong")] }).Validate());
+    Throws<NotSupportedException>(() => (source with { Mappings = [new(SessionGame.Ff7, 9, SessionGame.Ff8, 0, "fixture")] }).Validate());
+    Throws<NotSupportedException>(() => (source with { Mappings = [new(SessionGame.Ff7, 0, SessionGame.Ff8, 11, "fixture")] }).Validate());
+    Throws<NotSupportedException>(() => (source with { Mappings = [new(SessionGame.Ff8, 0, SessionGame.Ff7, 0, "fixture")] }).Validate());
+    Throws<NotSupportedException>(() => (source with { Mappings = [new(SessionGame.Ff7, 0, SessionGame.Ff8, 0, "fixture"), new(SessionGame.Ff7, 0, SessionGame.Ff8, 1, "fixture")] }).Validate());
 }
 
 static void SwitchGuard()
@@ -197,3 +217,4 @@ static void Throws<T>(Action action) where T : Exception
     }
     throw new InvalidOperationException("Expected " + typeof(T).Name);
 }
+

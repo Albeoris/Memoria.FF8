@@ -78,7 +78,15 @@ public static class Ff7DialogueCursor
                     ? dialogue with { Presentation = presentation with { NativeState = 2 } }
                     : dialogue with { WaitTicks = dialogue.WaitTicks - 1 };
             case 6:
-                if (!confirm || (window.Flags & 1) != 0)
+                if ((window.Flags & 1) != 0)
+                {
+                    return dialogue;
+                }
+                if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
+                {
+                    dialogue = dialogue with { Selected = Math.Clamp(dialogue.Selected, first, last) };
+                }
+                if (!confirm)
                 {
                     return dialogue;
                 }

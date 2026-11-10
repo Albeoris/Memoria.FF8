@@ -14,6 +14,7 @@ public sealed partial class Ff7Session
         if (deferredButtons is { } buttons)
         {
             Machine.SetInput(buttons.Held, buttons.Pressed);
+            UpdatePlayerHelp(buttons.Pressed);
             deferredButtons = null;
         }
         if (deferredMovement is { } movement)

@@ -41,25 +41,34 @@ internal sealed partial class RecreateGame
                 ff7Scene!.StepActions(Math.Clamp(request.Frames, 1, 900), actions);
                 return new { Tick = ff7Scene.Session?.Host.Process.Tick, ff7Scene.Error };
             case "world-switch":
-                if (InFf7)
+                CombinedSessionSave? outgoing = InFf7 ? ff7Scene!.Capture() : null;
+                if (request.Name is string appearance)
                 {
-                    SwitchToFf8(ff7Scene!.Capture());
-                }
-                else
-                {
-                    if (request.Name is string appearance)
+                    CharacterAppearanceMapping[] mappings;
+                    if (appearance == "Original")
                     {
-                        pendingCrossoverMappings = appearance switch
-                        {
-                            "Squall" => [new(SessionGame.Ff7, 0, SessionGame.Ff8, 0, Ff7ModelAppearance.StandardFieldSquallProfileVersion)],
-                            "Original" => [],
-                            _ => throw new NotSupportedException("Only Cloud to Squall appearance is currently supported.")
-                        };
+                        mappings = [];
                     }
-                    SwitchToFf7();
-                    CloseCrossoverSetup();
+                    else
+                    {
+                        int target = Array.FindIndex(CrossoverCharacterCatalog.AppearanceNames, name => name.Equals(appearance, StringComparison.OrdinalIgnoreCase));
+                        if (target < 0)
+                        {
+                            throw new NotSupportedException("Choose an available character in the world association editor.");
+                        }
+                        mappings = CharacterMappingAssociations.Assign(outgoing?.Mappings ?? crossover?.Mappings ?? [], 0, target);
+                    }
+                    if (outgoing is not null)
+                    {
+                        outgoing = outgoing with { Mappings = mappings };
+                    }
+                    else
+                    {
+                        pendingCrossoverMappings = mappings;
+                    }
                 }
-                return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII" };
+                OpenCrossoverSetup(outgoing);
+                return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", Open = true };
             case "world-snapshot":
                 string path = Path.GetFullPath(request.Path ?? throw new ArgumentException("Snapshot requires Path."));
                 CombinedSessionSave saved = InFf7 ? ff7Scene!.Capture() : (crossover ?? new CombinedSessionSave()) with { ActiveGame = SessionGame.Ff8, Ff8Payload = CaptureFf8Payload(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };

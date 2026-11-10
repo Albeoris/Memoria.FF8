@@ -6,6 +6,10 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Memoria.FF8.App/Ff7FieldAnatomy.cs" Link="Ff7FieldAnatomy.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/Ff8FieldAnatomy.cs" Link="Ff8FieldAnatomy.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Characters.cs" Link="Ff7ModelAppearance.Characters.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/CrossoverCharacterCatalog.cs" Link="CrossoverCharacterCatalog.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.cs" Link="Ff7ModelAppearance.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Retarget.cs" Link="Ff7ModelAppearance.Retarget.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Calibration.cs" Link="Ff7ModelAppearance.Calibration.cs" />

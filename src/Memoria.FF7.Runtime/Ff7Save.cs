@@ -115,9 +115,9 @@ public sealed record CombinedSessionSave
         {
             throw new InvalidDataException("The active game or stored FFVIII codec is missing from the crossover save.");
         }
-        if (Mappings.Select(mapping => (mapping.StoryGame, mapping.StoryCharacter)).Distinct().Count() != Mappings.Length || Mappings.Any(mapping => mapping.StoryGame != SessionGame.Ff7 || mapping.StoryCharacter != 0 || mapping.AppearanceGame != SessionGame.Ff8 || mapping.AppearanceCharacter != 0 || string.IsNullOrWhiteSpace(mapping.RigProfile)))
+        if (Mappings.Select(mapping => (mapping.StoryGame, mapping.StoryCharacter)).Distinct().Count() != Mappings.Length || Mappings.Any(mapping => mapping.StoryGame != SessionGame.Ff7 || mapping.StoryCharacter is < 0 or > 8 || mapping.AppearanceGame != SessionGame.Ff8 || mapping.AppearanceCharacter is < 0 or > 10 || string.IsNullOrWhiteSpace(mapping.RigProfile)))
         {
-            throw new NotSupportedException("Only the explicit Cloud to Squall appearance mapping is currently supported.");
+            throw new NotSupportedException("The appearance mapping requires a supported character identity and explicit rig profile.");
         }
         Ff7?.Validate();
     }

@@ -46,6 +46,8 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         geometry = assets.LoadFieldModelSource(source.Entry);
     }
 
+    public bool SupportsPartVisibility => true;
+
     public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
     {
         triangles = [];
@@ -108,9 +110,30 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         }
         Matrix4x4 world = targetToFf7 * Matrix4x4.CreateScale(descriptorRatio) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
         var eyeMaterial = EyeMaterial(actor, target);
+        bool[]? visibleBones = null;
+        if (actor.ModelEffects is { } effects)
+        {
+            if (effects.VertexColor is not null || effects.SuppressNativeLighting || retargeter is null)
+            {
+                throw new NotSupportedException("Mapped model effects require an admitted semantic part-visibility profile; source vertex colors and lighting mutations have no target binding.");
+            }
+            visibleBones = retargeter.TargetPartVisibility(original, effects.PartVisible);
+        }
         List<Ff7AppearanceTriangle> output = [];
         foreach (ModelFace face in target.Faces)
         {
+            if (visibleBones is not null)
+            {
+                bool[] faceVisibility = face.Vertices.Take(face.Quad ? 4 : 3).Select(vertex => visibleBones[target.Vertices[vertex].Bone]).Distinct().ToArray();
+                if (faceVisibility.Length != 1)
+                {
+                    throw new NotSupportedException("Mapped part visibility crosses a target face's anatomical attachment owners; an explicit face-part binding is required.");
+                }
+                if (!faceVisibility[0])
+                {
+                    continue;
+                }
+            }
             if ((uint)face.Texture >= target.Textures.Count)
             {
                 throw new InvalidDataException("Mapped target field face references an absent texture.");

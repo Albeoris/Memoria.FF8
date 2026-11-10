@@ -8,9 +8,32 @@ public sealed partial class Ff7FieldHost
     public Func<int, int, bool>? NativeSoundLoopAlreadyPlaying { get; set; }
     public Action<TimeSpan, bool>? NativeSoundClockAdvanced { get; set; }
 
+    public int ResolveNativeSoundPlaybackPan(FieldAudioCommand command, bool streamed)
+    {
+        int channel = command.Operation switch { 0x20 or 0x28 => 1, 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => throw new ArgumentException("A native sound start command is required.", nameof(command)) };
+        if (!streamed)
+        {
+            return Process.SoundChannelBufferPans[channel - 1]?.Pan ?? Process.SoundChannelPans[channel - 1];
+        }
+        int authored = unchecked((byte)command.Parameter0);
+        if (authored > 127)
+        {
+            throw new NotSupportedException("FFVII streamed sound panning exceeds the admitted native table.");
+        }
+        return authored;
+    }
+
     public void ConfigureNativeSoundResources(Func<int, Ff7NativeSoundDescription> describe, bool restoring = false)
     {
         nativeSoundDescription = describe ?? throw new ArgumentNullException(nameof(describe));
+        if (!Process.SoundBufferPanStateInitialized)
+        {
+            Process = Process with { SoundBufferPanStateInitialized = true };
+            if (restoring)
+            {
+                Console.Error.WriteLine("FFVII compatibility: absent inactive resident-buffer presentation owners reset to fresh buffers; recorded channel controls and captured active voices are preserved.");
+            }
+        }
         if (!Process.SoundGainStateInitialized)
         {
             Process = Process with { SoundGainStateInitialized = true, SoundChannelGainPublications = (int[])Process.SoundChannelVolumes.Clone() };
@@ -165,6 +188,12 @@ public sealed partial class Ff7FieldHost
                     {
                         if (reusedLoop != true)
                         {
+                            Ff7SoundBufferPanState?[] buffers = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone();
+                            if (buffers[soundChannel - 1]?.Sample != audio.Parameter1)
+                            {
+                                buffers[soundChannel - 1] = new(audio.Parameter1, 64);
+                                Process = Process with { SoundChannelBufferPans = buffers };
+                            }
                             frequencies[soundChannel - 1] = description.SampleRate;
                             SetSoundPan(soundChannel, 0, unchecked((byte)audio.Parameter0));
                         }
@@ -316,6 +345,12 @@ public sealed partial class Ff7FieldHost
             pans[index] = target;
             versions[index] = checked(versions[index] + 1);
             fades[index] = null;
+            Ff7SoundBufferPanState?[] buffers = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone();
+            if (buffers[index] is Ff7SoundBufferPanState buffer)
+            {
+                buffers[index] = buffer with { Pan = target };
+                Process = Process with { SoundChannelBufferPans = buffers };
+            }
         }
         else
         {
@@ -402,6 +437,7 @@ public sealed partial class Ff7FieldHost
         int[] pans = (int[])Process.SoundChannelPans.Clone();
         long[] versions = (long[])Process.SoundChannelPanVersions.Clone();
         Ff7SoundVolumeFade?[] panFades = (Ff7SoundVolumeFade?[])Process.SoundChannelPanFades.Clone();
+        Ff7SoundBufferPanState?[] bufferPans = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone();
         for (int index = 0; index < panFades.Length; index++)
         {
             if (panFades[index] is not { } current)
@@ -416,6 +452,10 @@ public sealed partial class Ff7FieldHost
             (int pan, int accumulated) = Ff7NativeVolumeRamp.Advance(pans[index], current.Target, current.RatePerSecond, current.AccumulatedMilliseconds, milliseconds);
             pans[index] = pan;
             versions[index] = checked(versions[index] + 1);
+            if (bufferPans[index] is Ff7SoundBufferPanState buffer)
+            {
+                bufferPans[index] = buffer with { Pan = pan };
+            }
             panFades[index] = pan == current.Target ? null : current with { AccumulatedMilliseconds = accumulated };
         }
         int[] pitches = (int[])Process.SoundChannelPitches.Clone();
@@ -439,6 +479,6 @@ public sealed partial class Ff7FieldHost
             frequencyVersions[index] = checked(frequencyVersions[index] + 1);
             frequencyFades[index] = pitch == current.Target ? null : current with { AccumulatedMilliseconds = accumulated };
         }
-        Process = Process with { SoundChannelGainPublications = gainPublications, SoundChannelGainVersions = gainVersions, SoundChannelFrequencyPublications = frequencyPublications, SoundChannelPitches = pitches, SoundChannelFrequencyVersions = frequencyVersions, SoundChannelFrequencyFades = frequencyFades, SoundChannelPans = pans, SoundChannelPanVersions = versions, SoundChannelPanFades = panFades, SoundChannelVolumes = volumes, SoundChannelVolumeFades = fades, SoundChannelStoppedByFade = stopped, SoundVolumeClockSubmillisecondTicks = (int)(soundTicks % TimeSpan.TicksPerMillisecond) };
+        Process = Process with { SoundChannelGainPublications = gainPublications, SoundChannelGainVersions = gainVersions, SoundChannelFrequencyPublications = frequencyPublications, SoundChannelPitches = pitches, SoundChannelFrequencyVersions = frequencyVersions, SoundChannelFrequencyFades = frequencyFades, SoundChannelPans = pans, SoundChannelPanVersions = versions, SoundChannelPanFades = panFades, SoundChannelBufferPans = bufferPans, SoundChannelVolumes = volumes, SoundChannelVolumeFades = fades, SoundChannelStoppedByFade = stopped, SoundVolumeClockSubmillisecondTicks = (int)(soundTicks % TimeSpan.TicksPerMillisecond) };
     }
 }

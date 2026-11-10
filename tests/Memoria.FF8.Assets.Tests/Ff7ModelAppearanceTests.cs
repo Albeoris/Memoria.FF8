@@ -44,7 +44,7 @@ public sealed class Ff7ModelAppearanceTests
         Assert.Throws<NotSupportedException>(() => appearance.TryCreate(actor, descriptor with { Hrc = "unrecognized.hrc" }, original, out _));
     }
 
-    private static PcFieldAnimation ControlledAnimation(Ff7FieldModelResources original, string joint)
+    internal static PcFieldAnimation ControlledAnimation(Ff7FieldModelResources original, string joint)
     {
         PcFieldAnimation neutral = original.Animations["acfe.a"];
         int selected = original.Hierarchy.Bones.Single(bone => bone.Name == joint).Index;

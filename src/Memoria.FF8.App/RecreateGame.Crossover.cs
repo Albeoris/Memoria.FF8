@@ -63,23 +63,40 @@ internal sealed partial class RecreateGame
 
     private void OpenCrossoverSetup()
     {
+        OpenCrossoverSetup(InFf7 ? ff7Scene?.Capture() : null);
+    }
+
+    private void OpenCrossoverSetup(CombinedSessionSave? outgoing)
+    {
+        SessionGame destination = InFf7 ? SessionGame.Ff8 : SessionGame.Ff7;
+        string? reason;
         if (InFf7)
         {
-            throw new InvalidOperationException("Return to FFVIII before changing the world mapping.");
+            reason = ff7Scene?.CanSave != true ? "World switching is available only where saving is allowed." : outgoing?.Ff8Payload is not { Length: > 0 } ? "No suspended FFVIII session is available." : null;
         }
-        string? reason = Ff8WorldSwitchUnavailable();
+        else
+        {
+            reason = Ff8WorldSwitchUnavailable();
+        }
         if (reason is not null)
         {
             throw new InvalidOperationException(reason);
         }
-        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme());
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination);
         menu.Cancelled += CloseCrossoverSetup;
         menu.Confirmed += mappings =>
         {
             try
             {
-                pendingCrossoverMappings = mappings;
-                SwitchToFf7();
+                if (destination == SessionGame.Ff8)
+                {
+                    SwitchToFf8((outgoing ?? throw new InvalidOperationException("The outgoing FFVII continuation is absent.")) with { Mappings = mappings });
+                }
+                else
+                {
+                    pendingCrossoverMappings = mappings;
+                    SwitchToFf7();
+                }
                 CloseCrossoverSetup();
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or InvalidOperationException)
@@ -89,6 +106,7 @@ internal sealed partial class RecreateGame
         };
         crossoverSetup?.Dispose();
         crossoverSetup = menu;
+        ff7Scene?.SetFocusPaused(true);
     }
 
     private void CloseCrossoverSetup()
@@ -96,6 +114,8 @@ internal sealed partial class RecreateGame
         crossoverSetup?.Dispose();
         crossoverSetup = null;
         pendingCrossoverMappings = null;
+        ff7Scene?.SuppressInitialPresses(physicalInput.ReadKeyboard());
+        ff7Scene?.SetFocusPaused(focusPaused || updateSave.Paused);
         keyboard.SuppressHeldUiInput();
         drainUiButtons = true;
     }
@@ -121,12 +141,13 @@ internal sealed partial class RecreateGame
                 gameMenus?.InvalidateLiveData();
             });
             scene.ConfigureSharedControls(keyboard, gameplayClock);
+            scene.RenderLimit = options.WorldRenderLimit;
             scene.InterpolatePresentation = !options.ControlStep;
             scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay", "ff7", "current.ffsave"));
             scene.Continue(state);
             scene.SuppressInitialPresses(physicalInput.ReadKeyboard());
             scene.SaveRequested += SaveCrossoverFromFf7;
-            scene.WorldSwitchRequested += SwitchToFf8;
+            scene.WorldSwitchRequested += OpenCrossoverSetup;
             return scene;
         }
         catch
@@ -250,7 +271,13 @@ internal sealed partial class RecreateGame
         }
         if (crossoverSetup is not null)
         {
-            crossoverSetup.Update(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+            keyboard.NativeButtonsOwnInput = false;
+            keyboard.TextEntryEnabled = false;
+            keyboard.NamingNavigationEnabled = false;
+            keyboard.ControllerPresentation = controller!.Presentation;
+            keyboard.ControllerGeneration = controller.Generation;
+            var input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), !focusPaused && IsActive);
+            crossoverSetup.Update(input, Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
             presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }

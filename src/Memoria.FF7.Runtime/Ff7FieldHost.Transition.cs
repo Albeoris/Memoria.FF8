@@ -28,6 +28,8 @@ public sealed partial class Ff7FieldHost
             SoundChannelPanVersions = (long[])Process.SoundChannelPanVersions.Clone(),
             SoundChannelPanFades = (Ff7SoundVolumeFade?[])Process.SoundChannelPanFades.Clone(),
             SoundPanStateInitialized = Process.SoundPanStateInitialized,
+            SoundBufferPanStateInitialized = Process.SoundBufferPanStateInitialized,
+            SoundChannelBufferPans = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone(),
             SoundChannelFrequencyPublications = (int[])Process.SoundChannelFrequencyPublications.Clone(),
             SoundChannelFrequencyVersions = (long[])Process.SoundChannelFrequencyVersions.Clone(),
             SoundChannelFrequencyFades = (Ff7SoundVolumeFade?[])Process.SoundChannelFrequencyFades.Clone(),

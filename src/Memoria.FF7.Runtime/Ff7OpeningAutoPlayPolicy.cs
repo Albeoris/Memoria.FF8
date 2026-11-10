@@ -37,6 +37,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
+        if (session.Field.Name == "chrin_2" && dialogue.Text == 17 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 4)
+        {
+            return 3;
+        }
         if (session.Field.Name == "mds7pb_1" && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 105 && dialogue.Text == 112 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 3)
         {
             return 3;
@@ -76,6 +80,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
                 return new(Held: 32);
             }
         }
+        if (session.Field.Name == "mds5_4" && session.Host.Process.PlayerLocked)
+        {
+            return new(Held: 0x8000);
+        }
         if (session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return default;
@@ -89,6 +97,26 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         int z = player.Z4096 >> 12;
         switch (session.Field.Name)
         {
+            case "mds5_2":
+                return driver.Gateway(172);
+            case "mds5_3":
+                return driver.Gateway(session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) < 170 ? 177 : 191);
+            case "mds5_4":
+                var rooftopLanding = session.Field.Walkmesh[0];
+                return driver.Approach((rooftopLanding.A + rooftopLanding.B + rooftopLanding.C) / 3, 0);
+            case "chrin_3b":
+                Ff7Line rooftopExit = session.Host.Process.Lines.Single(line => line.Entity == 1);
+                return driver.Approach(new((rooftopExit.X1 + rooftopExit.X2) / 2f, (rooftopExit.Y1 + rooftopExit.Y2) / 2f, rooftopExit.Z1));
+            case "chrin_2":
+                var churchLanding = session.Field.Walkmesh[10];
+                return driver.Approach((churchLanding.A + churchLanding.B + churchLanding.C) / 3, 10);
+            case "chrin_1b":
+                if ((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x11) & 3) == 1)
+                {
+                    Ff7Line churchExit = session.Host.Process.Lines.Single(line => line.Entity == 4);
+                    return driver.Approach(new((churchExit.X1 + churchExit.X2) / 2f, (churchExit.Y1 + churchExit.Y2) / 2f, churchExit.Z1));
+                }
+                return driver.TalkTo(6);
             case "md1stin":
                 return driver.Gateway(117);
             case "md1_1":

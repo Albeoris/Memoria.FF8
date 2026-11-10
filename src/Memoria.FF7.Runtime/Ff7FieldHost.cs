@@ -630,8 +630,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             FieldControlKind.BattleTable => Process with { BattleTable = command.Value },
             FieldControlKind.BattleResult => Process,
             FieldControlKind.MovieCameraDisabled => Process with { MovieCameraDisabled = command.Value == 1 },
-            FieldControlKind.CursorDisabled when command.Value == 0 => throw new NotSupportedException("FFVII player-pointer enabling requires its native help-toggle presentation contract."),
-            FieldControlKind.CursorDisabled => Process with { CursorDisabled = true },
+            FieldControlKind.CursorDisabled => Process with { CursorDisabled = command.Value != 0 },
             FieldControlKind.CurrentMapName => Process with { MapName = command.Value },
             FieldControlKind.MapDisplay => Process with { MapDisplay = command.Value },
             _ => throw new NotSupportedException($"Unsupported FFVII host control {command.Property}.")

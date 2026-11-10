@@ -19,6 +19,7 @@ public sealed record Ff7Actor
     public int OffsetZ { get; init; }
     public Ff7OffsetProcess? Offset { get; init; }
     public Ff7NativeModelEffectState? ModelEffect { get; init; }
+    public Ff7NativePartVisibilityState? PartVisibility { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
@@ -146,6 +147,8 @@ public sealed record Ff7FieldProcess
     public long[] SoundChannelPanVersions { get; init; } = new long[5];
     public Ff7SoundVolumeFade?[] SoundChannelPanFades { get; init; } = new Ff7SoundVolumeFade?[5];
     public bool SoundPanStateInitialized { get; init; }
+    public bool SoundBufferPanStateInitialized { get; init; }
+    public Ff7SoundBufferPanState?[] SoundChannelBufferPans { get; init; } = new Ff7SoundBufferPanState?[5];
     public int[] SoundChannelPitches { get; init; } = new int[5];
     public int[] SoundChannelFrequencyPublications { get; init; } = new int[5];
     public long[] SoundChannelFrequencyVersions { get; init; } = new long[5];
@@ -202,6 +205,10 @@ public sealed record Ff7FieldProcess
         {
             throw new InvalidDataException("FFVII native sound channel volumes are corrupt.");
         }
+        if (SoundChannelBufferPans is not { Length: 5 } || SoundChannelBufferPans.Any(buffer => buffer is not null && (buffer.Sample is < 1 or > 750 || buffer.Pan is < 0 or > 127)))
+        {
+            throw new InvalidDataException("FFVII resident sound buffer pan state is invalid.");
+        }
         if (SoundChannelPans is not { Length: 5 } || SoundChannelPans.Any(pan => pan is < 0 or > 127) || SoundChannelPanVersions is not { Length: 5 } || SoundChannelPanVersions.Any(version => version < 0) || SoundChannelPanFades is not { Length: 5 } || SoundChannelPanFades.Any(fade => fade is not null && (fade.Target is < 0 or > 127 || fade.RatePerSecond is < -7620 or > 7620)))
         {
             throw new InvalidDataException("FFVII native sound pan state is corrupt.");
@@ -245,6 +252,7 @@ public sealed record Ff7FieldProcess
         foreach (Ff7Actor actor in Actors)
         {
             actor.ModelEffect?.Validate();
+            actor.PartVisibility?.Validate();
             if (actor.NativeEyeLeft > 2 || actor.NativeEyeRight > 2)
             {
                 throw new InvalidDataException("FFVII native eye state has an unsupported applied mode.");

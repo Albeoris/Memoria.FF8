@@ -358,26 +358,10 @@ public sealed partial class WorldTerrainRenderer
 
     private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null)
     {
-        ReadOnlySpan<Vertex> input = [Transform(a), Transform(b), Transform(c)];
-        Span<Vertex> clipped = stackalloc Vertex[4];
-        int clippedCount = 0;
-        Vertex previous = input[^1];
-        foreach (Vertex current in input)
-        {
-            bool currentInside = current.Position.Z >= 1;
-            bool previousInside = previous.Position.Z >= 1;
-            if (currentInside != previousInside)
-            {
-                float fraction = (1 - previous.Position.Z) / (current.Position.Z - previous.Position.Z);
-                Vector4? color = previous.Color is { } first && current.Color is { } second ? Vector4.Lerp(first, second, fraction) : null;
-                clipped[clippedCount++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, fraction), Vector2.Lerp(previous.Uv, current.Uv, fraction), color);
-            }
-            if (currentInside)
-            {
-                clipped[clippedCount++] = current;
-            }
-            previous = current;
-        }
+        static CameraSpaceVertex CameraVertex(Vertex vertex) => new(vertex.Position, vertex.Uv, vertex.Color);
+        ReadOnlySpan<CameraSpaceVertex> input = [CameraVertex(Transform(a)), CameraVertex(Transform(b)), CameraVertex(Transform(c))];
+        Span<CameraSpaceVertex> clipped = stackalloc CameraSpaceVertex[4];
+        int clippedCount = CameraSpaceTriangleSubmission.ClipNear(input, clipped);
         for (int i = 1; i + 1 < clippedCount; i++)
         {
             ScreenVertex first = Project(clipped[0]);
@@ -405,10 +389,10 @@ public sealed partial class WorldTerrainRenderer
         return vertex with { Position = new Vector3(camera.X, camera.Y, -camera.Z) };
     }
 
-    private ScreenVertex Project(Vertex vertex)
+    private ScreenVertex Project(CameraSpaceVertex vertex)
     {
-        float reciprocal = 1 / vertex.Position.Z;
-        return new ScreenVertex(Width / 2f + vertex.Position.X * reciprocal * focal, Height / 2f - vertex.Position.Y * reciprocal * focal, reciprocal, vertex.Uv * reciprocal, vertex.Color * reciprocal);
+        CameraSpaceScreenVertex projected = CameraSpaceTriangleSubmission.Project(vertex, Width, Height, focal);
+        return new ScreenVertex(projected.Position.X, projected.Position.Y, projected.ReciprocalZ, projected.UvOverZ, projected.ColorOverZ);
     }
 
     private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom, TriangleBlend? blend = null, bool? nativeParticlePass = null)

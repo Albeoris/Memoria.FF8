@@ -81,6 +81,7 @@ internal sealed partial class Ff7Game : Game
     {
         batch = new SpriteBatch(GraphicsDevice);
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
+        scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>
         {
             if (IsActive && launchOptions?.AcceptsPhysicalInput != false)
@@ -118,7 +119,7 @@ internal sealed partial class Ff7Game : Game
         };
         scene.WorldSwitchRequested += saved =>
         {
-            RequestCrossover(saved with { ActiveGame = SessionGame.Ff8 });
+            OpenWorldSwitchMapping(saved);
         };
         if (launchOptions?.Ff7StartNewGame == true)
         {
@@ -147,13 +148,20 @@ internal sealed partial class Ff7Game : Game
         updateControls?.Poll();
         controls?.Poll();
         UpdateWindowModeHotkey(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState(), IsActive);
-        scene.SetFocusPaused(updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
+        scene.SetFocusPaused(mappingMenu is not null || updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
         if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {
             GamePadState pad = launchOptions?.AcceptsPhysicalInput == false ? default : controller!.Read();
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            scene.Update(gameTime, ReadControlKeys(), pad);
+            if (mappingMenu is not null)
+            {
+                mappingMenu.Update(keyboard.Read(ReadControlKeys(), pad, IsActive), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+            }
+            else
+            {
+                scene.Update(gameTime, ReadControlKeys(), pad);
+            }
         }
         UiPreferences preferences = scene.PresentationPreferences;
         windowMode?.Apply(preferences.BorderlessWindow);
@@ -183,6 +191,7 @@ internal sealed partial class Ff7Game : Game
         int width = GraphicsDevice.PresentationParameters.BackBufferWidth;
         int height = GraphicsDevice.PresentationParameters.BackBufferHeight;
         scene.Draw(batch, new Rectangle(0, 0, width, height));
+        mappingMenu?.Draw(batch, new Rectangle(0, 0, width, height), scene.PresentationPreferences.UiFontFamily);
         string? capturePath = pendingCapture ?? (!frameCaptured && launchOptions?.CaptureFramePath is string requested && gameTime.TotalGameTime.TotalSeconds >= launchOptions.CaptureAfterSeconds ? requested : null);
         if (capturePath is string path)
         {
@@ -207,6 +216,7 @@ internal sealed partial class Ff7Game : Game
         nativeBackBuffer?.Dispose();
 #endif
         controller?.Dispose();
+        mappingMenu?.Dispose();
         scene?.Dispose();
         controlAppearanceAssets?.Dispose();
         batch?.Dispose();

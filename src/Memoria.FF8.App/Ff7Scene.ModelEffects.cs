@@ -8,20 +8,26 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
-    private Ff7ModelRenderOverrides? ModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera)
+    private Ff7ModelRenderOverrides? ModelEffects(Ff7Actor actor, PcFieldCamera camera)
     {
+        Ff7NativeModelEffectState? state = actor.ModelEffect;
         if (state is { Applied: true, Restored: false })
         {
             audioNative ??= Ff7PcExecutableData.Load(installation);
         }
-        return CreateModelEffects(state, camera, audioNative?.NativeSinCos);
+        return CreateModelEffects(state, camera, audioNative?.NativeSinCos, actor.PartVisibility);
     }
 
-    internal static Ff7ModelRenderOverrides? CreateModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera, IReadOnlyList<short>? nativeSinCos)
+    internal static Ff7ModelRenderOverrides? CreateModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera, IReadOnlyList<short>? nativeSinCos, Ff7NativePartVisibilityState? visibility = null)
     {
+        if (visibility is not null && state is { Restored: false })
+        {
+            throw new NotSupportedException("Combined native part visibility and procedural colors require their shared material-owner contract.");
+        }
         if (state is null || state.Restored)
         {
-            return null;
+            visibility?.Validate();
+            return visibility is null ? null : new(part => Ff7NativePartVisibility.PartVisible(visibility, part), null, false);
         }
         state.Validate();
         Func<System.Numerics.Vector3, System.Numerics.Vector3, uint, uint>? color = null;

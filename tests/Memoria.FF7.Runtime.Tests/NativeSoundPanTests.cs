@@ -8,6 +8,44 @@ internal static class NativeSoundPanTests
     public static void Run()
     {
         Ff7FieldResources field = new("pan-fixture", null!, null!, null!, [], [], null!, null!, null!);
+        Ff7FieldHost invalidAuthored = new(field, (_, _) => 1);
+        invalidAuthored.ConfigureNativeSoundResources(_ => new(44100, false));
+        invalidAuthored.Execute(Request(101, 0xA8, 104, 0));
+        invalidAuthored.Execute(Request(102, 0xAC, 60, 20));
+        FieldAudioCommand outOfRangeStart = new(0x20, 128, 62);
+        int? presentedPan = null;
+        invalidAuthored.AudioRequested = command => presentedPan = invalidAuthored.ResolveNativeSoundPlaybackPan(command, false);
+        invalidAuthored.Execute(new(103, 0, 1, 0, outOfRangeStart));
+        Equal(64, presentedPan);
+        Equal(104, invalidAuthored.Process.SoundChannelPans[0]);
+        Equal(20, invalidAuthored.Process.SoundChannelPanFades[0]!.Target);
+        Ff7FieldHost invalidCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(invalidAuthored.Capture()))!);
+        Equal(64, invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart, false));
+        Equal(64, invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart with { Operation = 0x29 }, false));
+        Equal(42, invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart with { Parameter0 = 42 }, true));
+        try
+        {
+            _ = invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart, true);
+            throw new Exception("An unproved streamed pan table index was accepted.");
+        }
+        catch (NotSupportedException)
+        {
+        }
+        invalidAuthored.AudioRequested = null;
+        invalidAuthored.Execute(Request(104, 0xA8, 93, 0));
+        invalidAuthored.Execute(Request(105, 0x20, 64, 0));
+        Equal(new Ff7SoundBufferPanState(62, 93), invalidAuthored.Process.SoundChannelBufferPans[0]);
+        invalidCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(invalidAuthored.Capture()))!);
+        invalidCold.ConfigureNativeSoundResources(_ => new(44100, false));
+        long panVersion = invalidCold.Process.SoundChannelPanVersions[0];
+        invalidCold.Execute(new(106, 0, 1, 0, outOfRangeStart));
+        Equal(93, invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart, false));
+        Equal(panVersion, invalidCold.Process.SoundChannelPanVersions[0]);
+        invalidCold.Execute(new(107, 0, 1, 0, outOfRangeStart with { Parameter1 = 63 }));
+        Equal(64, invalidCold.ResolveNativeSoundPlaybackPan(outOfRangeStart, false));
+        Equal(93, invalidCold.Process.SoundChannelPans[0]);
+        Equal(panVersion, invalidCold.Process.SoundChannelPanVersions[0]);
+        Equal(invalidCold.Process.SoundChannelBufferPans[0], invalidCold.CreateNextFieldProcess().SoundChannelBufferPans[0]);
         Ff7FieldHost host = new(field, (_, _) => 1, new() { Tick = 1520 });
         host.ConfigureNativeSoundResources(id => new(44100, id == 59, id == 60));
         host.NativeSoundLoopAlreadyPlaying = (_, _) => false;

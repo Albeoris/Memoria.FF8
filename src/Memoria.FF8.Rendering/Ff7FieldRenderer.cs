@@ -15,11 +15,13 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
+public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, bool FlipHorizontal, bool FlipVertical);
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
     public uint? FieldColorArgb { get; init; }
     public uint? QuadColorArgb { get; init; }
     public TriangleBlend QuadBlend { get; init; } = TriangleBlend.Alpha;
+    public Ff7FieldPointerVisual? PlayerPointer { get; init; }
 }
 
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
@@ -29,6 +31,7 @@ public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vecto
 public sealed record Ff7AppearanceTriangle(Ff7WorldVertex A, Ff7WorldVertex B, Ff7WorldVertex C, TriangleMaterial Material);
 public interface IFf7ActorAppearance
 {
+    bool SupportsPartVisibility => false;
     bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles);
 }
 
@@ -94,7 +97,7 @@ public sealed class Ff7FieldRenderer
             {
                 DrawBackground(renderer, width, height, frame, false);
             }
-            ModelMaterialState modelState = new();
+            Ff7ModelMaterialState modelState = new();
             foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
             {
                 DrawActor(renderer, width, height, frame, actor, modelState);
@@ -113,6 +116,13 @@ public sealed class Ff7FieldRenderer
                 }
                 TriangleMaterial material = new(null, frame.QuadBlend, TriangleDepthComparison.Always, false) { ClipRectangle = clip, PreserveTargetAlpha = frame.QuadBlend == TriangleBlend.Add };
                 TrianglePrimitives.Quad(renderer, new Vector2(clip.X, clip.Y), new Vector2(clip.Z - clip.X, clip.W - clip.Y), BitConverter.Int32BitsToSingle(0x358637BD), color, material, Vector2.One);
+            }
+            if (frame.PlayerPointer is { } pointer)
+            {
+                Vector2 uvStart = new(pointer.FlipHorizontal ? 0.125f : 0, pointer.FlipVertical ? BitConverter.Int32BitsToSingle(0x3F6F1AA0) : 0);
+                Vector2 uvEnd = new(pointer.FlipHorizontal ? 0 : 0.125f, pointer.FlipVertical ? 0 : BitConverter.Int32BitsToSingle(0x3F6F1AA0));
+                TriangleMaterial material = new(pointer.Image, TriangleBlend.Alpha, TriangleDepthComparison.Always, false) { ClipRectangle = new Vector4(0, 0, width, height), PreserveTargetAlpha = false };
+                TrianglePrimitives.Quad(renderer, FieldPoint(pointer.Position, width, height), new Vector2(15 * height / 240f), BitConverter.Int32BitsToSingle(0x3727C5AC), Vector4.One, material, uvEnd, uvStart);
             }
         }
         finally
@@ -193,11 +203,11 @@ public sealed class Ff7FieldRenderer
             } : TriangleBlend.Replace;
             TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
-            TrianglePrimitives.Quad(renderer, origin * new Vector2(width / 320f, height / 240f), new Vector2(image.Width * width / 320f, image.Height * height / 240f), z, FieldColor(frame), material, Vector2.One);
+            TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), new Vector2(image.Width, image.Height) * (height / 240f), z, FieldColor(frame), material, Vector2.One);
         }
     }
 
-    private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, ModelMaterialState currentState)
+    private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, Ff7ModelMaterialState currentState)
     {
         PcFieldCamera selectedCamera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
         if (selectedCamera.AxisZ == Vector3.Zero && selectedCamera.Translation.Z <= 0)
@@ -217,7 +227,7 @@ public sealed class Ff7FieldRenderer
         string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
         if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
         {
-            if (actor.ModelEffects is not null)
+            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SuppressNativeLighting))
             {
                 throw new NotSupportedException("FFVII topology-owned model effects require an explicit replacement-appearance binding.");
             }
@@ -227,7 +237,7 @@ public sealed class Ff7FieldRenderer
                 {
                     Vector3 point = Project(vertex.Position, frame.CameraOverride ?? field.Cameras[frame.CameraIndex], frame.CameraOffsetPixels);
                     Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, Argb(vertex.Color), frame.FieldColorArgb) : Tint(vertex.Color, frame.FieldColorArgb);
-                    return new(new Vector2(point.X * width / 320f, point.Y * height / 240f), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
+                    return new(FieldPoint(new Vector2(point.X, point.Y), width, height), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
                 TriangleVertex a = Vertex(triangle.A);
                 TriangleVertex b = Vertex(triangle.B);
@@ -282,58 +292,7 @@ public sealed class Ff7FieldRenderer
                         modelImages.Add(tex, texture);
                     }
                 }
-                const uint supportedStateMask = 0x2 | 0x4 | 0x8 | 0x100 | 0x200 | 0x400 | 0x800 | 0x2000 | 0x4000 | 0x8000 | 0x10000 | 0x20000;
-                if ((state.Features & ~supportedStateMask) != 0)
-                {
-                    throw new NotSupportedException($"FF7 P state update mask {state.Features:X8} contains unsupported required features {state.Features & ~supportedStateMask:X8}.");
-                }
-                bool Updated(uint flag) => (state.Features & flag) != 0;
-                bool Enabled(uint flag) => (state.Options & flag) != 0;
-                if (Updated(0x400))
-                {
-                    currentState.Blend = !Enabled(0x400) ? TriangleBlend.Replace : state.BlendMode switch
-                    {
-                        0 => TriangleBlend.HalfAdd,
-                        1 => TriangleBlend.Add,
-                        2 => TriangleBlend.Subtract,
-                        3 => TriangleBlend.QuarterAdd,
-                        4 => TriangleBlend.Replace,
-                        _ => throw new NotSupportedException($"FF7 P blend mode {state.BlendMode} is unsupported.")
-                    };
-                }
-                if (Updated(0x8000))
-                {
-                    currentState.DepthTest = Enabled(0x8000);
-                }
-                if (Updated(0x10000))
-                {
-                    currentState.DepthWrite = Enabled(0x10000);
-                }
-                if (Updated(0x800))
-                {
-                    currentState.AlphaReference = Enabled(0x800) ? state.AlphaReference / 255f : 1f / 255;
-                }
-                if (Updated(0x4))
-                {
-                    currentState.Sampler = Enabled(0x4) ? TriangleSampler.LinearWrap : TriangleSampler.PointWrap;
-                }
-                if (Updated(0x2000))
-                {
-                    currentState.Cull = Enabled(0x2000);
-                }
-                if (Updated(0x4000) && Enabled(0x4000))
-                {
-                    currentState.Cull = false;
-                }
-                if (Updated(0x20000))
-                {
-                    currentState.Gouraud = Enabled(0x20000) && state.ShadeMode switch
-                    {
-                        1 => false,
-                        2 => true,
-                        _ => throw new NotSupportedException($"FFVII P shade mode {state.ShadeMode} requires its native interpolation contract.")
-                    };
-                }
+                currentState.Apply(state);
                 if (!modelNormalBindings.TryGetValue((model, groupIndex), out int[]? normalBindings))
                 {
                     normalBindings = Ff7FieldLighting.BindNormals(model, group);
@@ -356,7 +315,7 @@ public sealed class Ff7FieldRenderer
                         }
                         Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor, frame.FieldColorArgb) : Tint(Color(originalColor), frame.FieldColorArgb);
                         color.W *= state.VertexAlpha / 255f;
-                        return new(new Vector2(position.X * width / 320f, position.Y * height / 240f), projection.Project(position.Z), 1 / position.Z, uv, color);
+                        return new(FieldPoint(new Vector2(position.X, position.Y), width, height), projection.Project(position.Z), 1 / position.Z, uv, color);
                     }
                     TriangleVertex a = Vertex(polygon.A);
                     TriangleVertex b = Vertex(polygon.B);
@@ -439,20 +398,15 @@ public sealed class Ff7FieldRenderer
 
     private static Vector4 Color(uint argb) => new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f);
     private static uint Argb(Vector4 color) => (uint)Math.Clamp((int)MathF.Round(color.W * 255), 0, 255) << 24 | (uint)Math.Clamp((int)MathF.Round(color.X * 255), 0, 255) << 16 | (uint)Math.Clamp((int)MathF.Round(color.Y * 255), 0, 255) << 8 | (uint)Math.Clamp((int)MathF.Round(color.Z * 255), 0, 255);
+    internal static Vector2 FieldPoint(Vector2 point, int width, int height)
+    {
+        float scale = height / 240f;
+        return new Vector2((width - 320 * scale) / 2 + point.X * scale, point.Y * scale);
+    }
+
     private static Vector4 FieldClip(int width, int height) => new(0, height * 8f / 240, width, height * 232f / 240);
     private static float Cross(Vector2 first, Vector2 second) => first.X * second.Y - first.Y * second.X;
     private static byte Expand(int channel) => (byte)((channel << 3) | (channel >> 2));
-
-    private sealed class ModelMaterialState
-    {
-        public TriangleBlend Blend = TriangleBlend.Replace;
-        public bool DepthTest = true;
-        public bool DepthWrite = true;
-        public bool Cull;
-        public bool Gouraud = true;
-        public float AlphaReference = 1f / 255;
-        public TriangleSampler Sampler = TriangleSampler.PointWrap;
-    }
 
     private static Vector4 FieldColor(Ff7FieldRenderFrame frame) => frame.FieldColorArgb is uint argb ? Tint(Vector4.One, argb) : Vector4.One;
 

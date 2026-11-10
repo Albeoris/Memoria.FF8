@@ -9,6 +9,88 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class Ff7FieldRendererTests
 {
     [Fact]
+    public void ReplacementRequiresExplicitNativePartOwnershipAndRetainsColorEffectRejection()
+    {
+        PcFieldCamera camera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, new Vector3(0, 0, 1000), 0, 100);
+        PcFieldModelDescriptor descriptor = new("actor", 0, "actor.hrc", "512", Enumerable.Repeat(new PcFieldLight(0, Vector3.Zero), 3).ToArray(), 0, ["pose"]);
+        Ff7FieldResources field = new("part-mask-fixture", null!, null!, new PcFieldModels(0, 512, [descriptor]), [camera], [], null!, null!, null!);
+        Ff7FieldModelResources model = new("actor.hrc", null!, [], new Dictionary<string, PcFieldAnimation>());
+        Dictionary<int, Ff7FieldModelResources> models = new() { [0] = model };
+        Ff7ActorVisual actor = new(0, 0, 0, 0, 0, 0, 0, 0) { ModelEffects = new(_ => false, null, false) };
+        Ff7FieldRenderFrame Frame(Ff7ActorVisual selected) => new(0, Vector2.Zero, [selected], new ushort[256], MovieActive: true);
+        Ff7FieldRenderer unsafeAppearance = new(field, models, new(50, 32000), new VisibilityAppearance(false));
+        Assert.Throws<NotSupportedException>(() => unsafeAppearance.Render(new Capture(), 320, 240, Frame(actor)));
+        Ff7FieldRenderer declaredAppearance = new(field, models, new(50, 32000), new VisibilityAppearance(true));
+        declaredAppearance.Render(new Capture(), 320, 240, Frame(actor));
+        Assert.Throws<NotSupportedException>(() => declaredAppearance.Render(new Capture(), 320, 240, Frame(actor with { ModelEffects = new(_ => true, (_, _, color) => color, false) })));
+        Assert.Throws<NotSupportedException>(() => declaredAppearance.Render(new Capture(), 320, 240, Frame(actor with { ModelEffects = new(_ => true, null, true) })));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void PlayerPointerRetainsNativeUvAndUsesTheSharedUnmaskedHud(bool flipX, bool flipY)
+    {
+        PcFieldCamera camera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, Vector3.Zero, 0, 0);
+        Ff7FieldResources field = new("pointer-fixture", null!, null!, null!, [camera], [], null!, null!, null!);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
+        Albeoris.Games.FF8.Imaging.PixelImage image = new(128, 16);
+        Ff7FieldRenderFrame frame = new(0, Vector2.Zero, [], new ushort[256], MovieActive: true) { PlayerPointer = new(image, new Vector2(160, 1), flipX, flipY) };
+        Capture capture = new();
+        renderer.Render(capture, 1280, 720, frame);
+        Assert.Equal(2, capture.Count);
+        Assert.Equal(new Vector2(640, 3), capture.Positions[0]);
+        Assert.Equal(new Vector2(685, 3), capture.Positions[1]);
+        Assert.All(capture.Materials, material =>
+        {
+            Assert.Same(image, material.Texture);
+            Assert.Equal(TriangleDepthComparison.Always, material.DepthComparison);
+            Assert.False(material.DepthWrite);
+            Assert.Equal(new Vector4(0, 0, 1280, 720), material.ClipRectangle);
+        });
+        float v = BitConverter.Int32BitsToSingle(0x3F6F1AA0);
+        Assert.Equal(new Vector2(flipX ? 0.125f : 0, flipY ? v : 0), capture.Uvs[0]);
+        Assert.Equal(new Vector2(flipX ? 0 : 0.125f, flipY ? v : 0), capture.Uvs[1]);
+        Assert.Equal(new Vector2(flipX ? 0.125f : 0, flipY ? 0 : v), capture.Uvs[2]);
+    }
+
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(2560, 1080)]
+    [InlineData(601, 451)]
+    [InlineData(480, 800)]
+    public void ArbitraryViewportKeepsNativeActorAndTileScaleAndCameraCenter(int width, int height)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original resources for field viewport submissions.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "md1stin");
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        var resources = new Dictionary<int, Ff7FieldModelResources> { [0] = Ff7FieldModelResources.Load(characters, field.Models.Models[0]) };
+        Ff7FieldRenderer renderer = new(field, resources, new(50, 32000));
+        Ff7FieldRenderFrame frame = new(0, new Vector2(12, -7), [new(0, 0, 3800 * 4096, 28500 * 4096, 310 * 4096, 0, 0, 0)], new ushort[256]);
+        Capture native = new();
+        Capture resized = new();
+        renderer.Render(native, 320, 240, frame);
+        renderer.Render(resized, width, height, frame);
+        Assert.Equal(native.Count, resized.Count);
+        Assert.True(native.ModelTriangles > 0 && native.Count > native.ModelTriangles);
+        float scale = height / 240f;
+        float offset = (width - 320 * scale) / 2;
+        for (int index = 0; index < native.Positions.Count; index++)
+        {
+            Assert.InRange(Math.Abs(resized.Positions[index].X - (offset + native.Positions[index].X * scale)), 0, 0.001f);
+            Assert.InRange(Math.Abs(resized.Positions[index].Y - native.Positions[index].Y * scale), 0, 0.001f);
+        }
+        Assert.All(resized.Clips, clip => Assert.Equal(new Vector4(0, height * 8f / 240, width, height * 232f / 240), clip));
+        Capture restored = new();
+        renderer.Render(restored, 320, 240, frame);
+        Assert.Equal(native.Positions, restored.Positions);
+        Assert.Equal(native.Depths, restored.Depths);
+    }
+
+    [Fact]
     public void BiggsEyeDisableRetainsOriginalTexturedHeadSubmissions()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -419,6 +501,17 @@ public sealed class Ff7FieldRendererTests
         }
     }
 
+    private sealed class VisibilityAppearance(bool supportsPartVisibility) : IFf7ActorAppearance
+    {
+        public bool SupportsPartVisibility => supportsPartVisibility;
+
+        public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
+        {
+            triangles = [];
+            return true;
+        }
+    }
+
     private sealed class Capture : ITriangleRenderer
     {
         public int Count { get; private set; }
@@ -432,6 +525,7 @@ public sealed class Ff7FieldRendererTests
         public List<Vector4?> Clips { get; } = [];
         public List<TriangleMaterial> Materials { get; } = [];
         public List<Vector2> Positions { get; } = [];
+        public List<Vector2> Uvs { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -444,6 +538,7 @@ public sealed class Ff7FieldRendererTests
             Colors.AddRange([a.Color, b.Color, c.Color]);
             Materials.Add(material);
             Positions.AddRange([a.Position, b.Position, c.Position]);
+            Uvs.AddRange([a.Uv, b.Uv, c.Uv]);
             Clips.Add(material.ClipRectangle);
             Count++;
             PreservesAlpha.Add(material.PreserveTargetAlpha);

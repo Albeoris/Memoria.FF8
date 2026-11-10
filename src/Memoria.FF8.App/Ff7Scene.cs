@@ -65,6 +65,9 @@ internal sealed partial class Ff7Scene : IDisposable
     public Ff7Session? Session { get; private set; }
     public bool CanSave => error is null && Session?.CanSave == true;
     public bool IsTitle => Session is null;
+    public bool UseHostDebugMenu { get; set; }
+    public int RenderLimit { get; set; } = 2048;
+    public bool IsDebugMenuOpen => debugMenu;
     internal void InvalidateGraphicsPresentation()
     {
         triangles.InvalidatePresentation();
@@ -74,6 +77,7 @@ internal sealed partial class Ff7Scene : IDisposable
     public event Action<CombinedSessionSave>? SaveRequested;
     public event Action<CombinedSessionSave>? WorldSwitchRequested;
     public event Action? ContinueRequested;
+    public event Action? DebugMenuRequested;
 
     public void SuppressInitialPresses(KeyboardState keys)
     {
@@ -138,7 +142,16 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (sharedInput.DebugRoomRequested)
             {
+                pendingPressedKeys = 0;
+                sharedInput.SuppressHeldUiInput();
+                if (UseHostDebugMenu)
+                {
+                    DebugMenuRequested?.Invoke();
+                    return;
+                }
                 debugMenu = !debugMenu;
+                debugView = null;
+                debugPointerPressed = true;
                 SetAudioPaused(debugMenu);
                 notice = null;
                 if (debugMenu)
@@ -149,20 +162,21 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     movie?.Resume();
                 }
+                return;
             }
             if (error is not null)
             {
                 UpdateErrorPresentation();
                 return;
             }
-            if (Session is null)
-            {
-                UpdateTitle();
-                return;
-            }
             if (debugMenu)
             {
                 UpdateDebugMenu();
+                return;
+            }
+            if (Session is null)
+            {
+                UpdateTitle();
                 return;
             }
             if (Session.HasPendingTick)
@@ -217,12 +231,17 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void Draw(SpriteBatch batch, Rectangle bounds)
     {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
         Rectangle windowBounds = bounds;
         Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
         if (Session is not null && error is null)
         {
-            RunGuarded(() => RenderField(bounds));
+            PixelBounds target = ViewportLayout.FieldRenderTarget(windowBounds.Width, windowBounds.Height, RenderLimit);
+            RunGuarded(() => RenderField(new Rectangle(0, 0, target.Width, target.Height)));
         }
         batch.Begin(samplerState: SamplerState.PointClamp, blendState: BlendState.AlphaBlend);
         try
@@ -236,7 +255,8 @@ internal sealed partial class Ff7Scene : IDisposable
                 DrawMovie(batch, bounds);
                 if (renderer is not null && error is null)
                 {
-                    batch.Draw(triangles.Target, bounds, Color.White);
+                    PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
+                    batch.Draw(triangles.Target, new Rectangle(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height), Color.White);
                 }
                 if (error is null)
                 {
@@ -247,9 +267,9 @@ internal sealed partial class Ff7Scene : IDisposable
             DrawMovieSkipHint(windowBounds);
             if (debugMenu)
             {
-                DrawDebugMenu(batch, bounds);
+                DrawDebugMenu(batch, windowBounds);
             }
-            if (notice is not null)
+            if (notice is not null && !debugMenu)
             {
                 DrawPlain(batch, notice, 8, 220, bounds, 6);
             }
@@ -305,8 +325,8 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor.ModelEffect, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState) };
+        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor, effectCamera) }).ToArray();
+        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 
@@ -365,35 +385,49 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         if (semanticInput.Confirm)
         {
-            if (debugSelection == 3)
+            ActivateDebugSelection();
+        }
+        if (debugMenu)
+        {
+            UpdateDebugPointer();
+        }
+    }
+
+    private void ActivateDebugSelection()
+    {
+        if (debugSelection == 3)
+        {
+            if (IsTitle)
             {
-                ApplyAutoPlayCommand(autoPlay?.Running == true && !autoPlay.Paused ? "pause" : "start");
-                debugMenu = false;
-                SetAudioPaused(false);
-                movie?.Resume();
+                notice = "Start or continue a game before starting auto-play.";
                 return;
             }
-            if (debugSelection == 2)
-            {
-                ToggleDialoguePresentation();
-                return;
-            }
-            if (!CanSave)
-            {
-                notice = "Available only where saving is allowed.";
-            }
-            else if (debugSelection == 0)
-            {
-                SaveRequested?.Invoke(Capture());
-            }
-            else if (envelope.Ff8Payload is { Length: > 0 })
-            {
-                WorldSwitchRequested?.Invoke(Capture());
-            }
-            else
-            {
-                notice = "No suspended FFVIII session is available.";
-            }
+            ApplyAutoPlayCommand(autoPlay?.Running == true && !autoPlay.Paused ? "pause" : "start");
+            debugMenu = false;
+            SetAudioPaused(false);
+            movie?.Resume();
+            return;
+        }
+        if (debugSelection == 2)
+        {
+            ToggleDialoguePresentation();
+            return;
+        }
+        if (!CanSave)
+        {
+            notice = "Available only where saving is allowed.";
+        }
+        else if (debugSelection == 0)
+        {
+            SaveRequested?.Invoke(Capture());
+        }
+        else if (envelope.Ff8Payload is { Length: > 0 })
+        {
+            WorldSwitchRequested?.Invoke(Capture());
+        }
+        else
+        {
+            notice = "No suspended FFVIII session is available.";
         }
     }
 
@@ -411,13 +445,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void DrawDebugMenu(SpriteBatch batch, Rectangle bounds)
     {
-        DrawWindow(batch, new Rectangle(56, 44, 208, 160), bounds);
-        DrawPlain(batch, "Debug menu", 80, 76, bounds, 6);
-        DrawPlain(batch, "Save", 96, 100, bounds, CanSave ? 7 : 0);
-        DrawPlain(batch, "Switch world: FFVIII", 96, 122, bounds, CanSave && envelope.Ff8Payload is { Length: > 0 } ? 7 : 0);
-        DrawPlain(batch, ">", 80, 100 + debugSelection * 22, bounds);
-        DrawPlain(batch, "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), 96, 144, bounds, 7);
-        DrawPlain(batch, "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), 96, 166, bounds, 7);
+        DrawSharedDebugMenu(bounds);
     }
 
     private void DrawPlain(SpriteBatch batch, string value, int x, int y, Rectangle bounds, int color = 7)

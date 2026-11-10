@@ -78,6 +78,47 @@ internal sealed class Ff7SemanticRetargeter
         }
     }
 
+    internal bool[] TargetPartVisibility(Ff7FieldModelResources original, Func<int, bool> sourcePartVisible)
+    {
+        ValidateSource(original);
+        bool[] nativeVisibility = original.Geometry.Select((_, index) => sourcePartVisible(index)).ToArray();
+        if (nativeVisibility.Length > 0 && nativeVisibility.Distinct().Count() == 1)
+        {
+            return Enumerable.Repeat(nativeVisibility[0], target.Bones.Count).ToArray();
+        }
+        bool[] visible = Enumerable.Repeat(true, target.Bones.Count).ToArray();
+        Dictionary<int, bool> sourceVisibility = [];
+        foreach (int targetBone in target.Vertices.Select(vertex => vertex.Bone).Distinct())
+        {
+            int owner = targetBone;
+            while (owner >= 0 && !joints.ContainsKey(owner))
+            {
+                owner = target.Bones[owner].Parent;
+            }
+            if (owner < 0)
+            {
+                throw new NotSupportedException("Mapped part visibility requires an admitted anatomical target attachment owner.");
+            }
+            int source = joints[owner];
+            while (!original.Geometry.Any(part => part.BoneIndex == source))
+            {
+                string parent = original.Hierarchy.Bones[source].ParentName;
+                source = original.Hierarchy.Bones.SingleOrDefault(bone => bone.Name.Equals(parent, StringComparison.OrdinalIgnoreCase))?.Index ?? throw new NotSupportedException("Mapped part visibility has no mesh-bearing source attachment owner.");
+            }
+            if (!sourceVisibility.TryGetValue(source, out bool value))
+            {
+                bool[] values = original.Geometry.Select((part, index) => (part, index)).Where(item => item.part.BoneIndex == source).Select(item => nativeVisibility[item.index]).Distinct().ToArray();
+                if (values.Length != 1)
+                {
+                    throw new NotSupportedException("Mapped part visibility cannot distinguish multiple native rigid parts attached to the same semantic joint.");
+                }
+                sourceVisibility.Add(source, value = values[0]);
+            }
+            visible[targetBone] = value;
+        }
+        return visible;
+    }
+
     public void ValidateSource(Ff7FieldModelResources original)
     {
         if (HierarchyIdentity(original.Hierarchy) != sourceIdentity)

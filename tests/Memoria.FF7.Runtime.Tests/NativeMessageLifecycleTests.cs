@@ -15,6 +15,36 @@ internal static class NativeMessageLifecycleTests
         WaitPausePageAndLegacy();
         HostPollAndWindowClose();
         SavedPresentationValidation();
+        ChoiceClampsOnlyDuringEnabledChoiceInput();
+    }
+
+    private static void ChoiceClampsOnlyDuringEnabledChoiceInput()
+    {
+        IReadOnlyList<FieldTextToken> tokens = FieldText.Read([0x21, 255]);
+        Ff7FieldResources field = NativeDialogueTests.Field([0x21, 255]);
+        Ff7FieldHost host = Host(field);
+        FieldHostRequest request = new(1, 0, 1, 104, new FieldDialogueCommand(0, 0, 1, 2, 0));
+        Equal(false, host.Execute(request).Completed);
+        Equal(0, host.Process.Dialogues.Single().Selected);
+        host = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(false, host.Execute(request).Completed);
+        Equal(0, host.Process.Dialogues.Single().Selected);
+        Ff7Dialogue state = New() with { FirstChoice = 1, LastChoice = 2, Selected = 0 };
+        for (int callback = 0; callback < 20 && state.Presentation?.NativeState != 6; callback++)
+        {
+            state = Tick(state, tokens);
+            Equal(0, state.Selected);
+        }
+        Equal(6, state.Presentation!.NativeState);
+        Ff7Dialogue blocked = Tick(state, tokens, window: Window with { Flags = 1 });
+        Equal(0, blocked.Selected);
+        state = Tick(state, tokens);
+        Equal(1, state.Selected);
+        state = Tick(state with { Selected = 255 }, tokens);
+        Equal(2, state.Selected);
+        state = Tick(Ff7DialogueCursor.Confirm(state with { Selected = 0 }, tokens), tokens);
+        Equal(1, state.Selected);
+        Equal(7, state.Presentation!.NativeState);
     }
 
     private static void OpeningAndClosing()

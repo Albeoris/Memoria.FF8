@@ -238,11 +238,7 @@ internal sealed partial class Ff7Scene
                 }
                 var decoded = DecodeSound(command.Parameter1);
                 audioOutput ??= new PcmAudioOutput();
-                if (command.Parameter0 is < 0 or > 127)
-                {
-                    throw new NotSupportedException("FFVII sound panning exceeds the admitted native table.");
-                }
-                int pan = command.Parameter0;
+                int pan = Session!.Host.ResolveNativeSoundPlaybackPan(command, decoded.Streamed);
                 audioNative ??= Ff7PcExecutableData.Load(installation);
                 int channel = command.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
                 int soundIntensity = Session!.Host.Process.SoundChannelVolumes[decoded.Streamed ? 0 : channel - 1];

@@ -29,6 +29,16 @@ public sealed partial class Ff7Session
             return;
         }
         Machine.SetInput(held, pressed);
+        UpdatePlayerHelp(pressed);
+    }
+
+    private void UpdatePlayerHelp(ushort pressed)
+    {
+        if ((pressed & 0x100) != 0)
+        {
+            byte mode = Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 30);
+            Machine.Variables.WriteByte(FieldBank.Persistent3Byte, 30, (byte)(mode ^ 1));
+        }
     }
 
     public void MovePlayer(int horizontal, int vertical, bool run)

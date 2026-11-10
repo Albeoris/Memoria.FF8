@@ -82,9 +82,11 @@ internal sealed partial class Ff7ModelAppearance
         new("r_hip", 7), new("r_femur", 12), new("r_tibia", 16), new("r_foot", 20)
     ]);
     /// <summary>An explicit geometry policy: align the average ankle-to-foot-mesh direction, then match neutral height/foot anchor.</summary>
-    public static Ff7AppearanceCalibration CalibrateNeutralGeometry(FieldModel target, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, IReadOnlyList<int> targetFeet, int firstHand, int secondHand)
+    public static Ff7AppearanceCalibration CalibrateNeutralGeometry(FieldModel target, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, IReadOnlyList<int> targetFeet, int firstHand, int secondHand, IReadOnlyList<string>? sourceFeet = null, IReadOnlyList<string>? sourceHands = null, bool alignHandSides = false)
     {
-        if (targetFeet.Count != 2 || targetFeet.Any(bone => (uint)bone >= target.Bones.Count) || (uint)firstHand >= target.Bones.Count || (uint)secondHand >= target.Bones.Count)
+        sourceFeet ??= ["l_foot", "r_foot"];
+        sourceHands ??= ["l_hand", "r_hand"];
+        if (sourceFeet.Count != 2 || sourceHands.Count != 2 || targetFeet.Count != 2 || targetFeet.Any(bone => (uint)bone >= target.Bones.Count) || (uint)firstHand >= target.Bones.Count || (uint)secondHand >= target.Bones.Count)
         {
             throw new InvalidDataException("Geometry calibration requires explicit valid target foot/hand attachment owners.");
         }
@@ -95,7 +97,7 @@ internal sealed partial class Ff7ModelAppearance
         {
             int bone = original.Hierarchy.Bones.Single(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Index;
             Vector3[] vertices = original.Geometry.Where(part => part.BoneIndex == bone).SelectMany(part => part.Polygon.Vertices.Select(vertex => Vector3.Transform(vertex, sourcePose[bone] * sourceBasis))).ToArray();
-            return Centre(vertices);
+            return vertices.Length == 0 && sourceHands.Contains(name, StringComparer.OrdinalIgnoreCase) ? SourcePivot(name) : Centre(vertices);
         }
         Vector3 SourcePivot(string name)
         {
@@ -105,12 +107,14 @@ internal sealed partial class Ff7ModelAppearance
         Vector3[] targetPose = target.Pose(0, 0);
         IReadOnlyList<Matrix4x4> targetBones = target.ReadBoneTransforms(0, 0);
         Vector3 TargetCentre(int bone) => Centre(target.Vertices.Select((vertex, index) => (vertex.Bone, Position: targetPose[index])).Where(item => item.Bone == bone).Select(item => item.Position).ToArray());
-        Vector3 sourceForward = Horizontal((SourceCentre("l_foot") - SourcePivot("l_foot") + SourceCentre("r_foot") - SourcePivot("r_foot")) / 2);
-        Vector3 targetForward = Horizontal(targetFeet.Select(bone => TargetCentre(bone) - targetBones[bone].Translation).Aggregate(Vector3.Zero, (sum, vector) => sum + vector) / 2);
+        Vector3 sourceHandSide = Horizontal(SourceCentre(sourceHands[0]) - SourceCentre(sourceHands[1]));
+        Vector3 targetHandSide = Horizontal(TargetCentre(firstHand) - TargetCentre(secondHand));
+        Vector3 sourceForward = alignHandSides ? Vector3.Cross(sourceHandSide, Vector3.UnitZ) : Horizontal((SourceCentre(sourceFeet[0]) - SourcePivot(sourceFeet[0]) + SourceCentre(sourceFeet[1]) - SourcePivot(sourceFeet[1])) / 2);
+        Vector3 targetForward = alignHandSides ? Vector3.Cross(targetHandSide, Vector3.UnitZ) : Horizontal(targetFeet.Select(bone => TargetCentre(bone) - targetBones[bone].Translation).Aggregate(Vector3.Zero, (sum, vector) => sum + vector) / 2);
         float yaw = MathF.Atan2(sourceForward.Y, sourceForward.X) - MathF.Atan2(targetForward.Y, targetForward.X);
         Matrix4x4 basis = Matrix4x4.CreateRotationZ(yaw);
         Matrix4x4 calibration = MatchOriginalNeutralBounds(target, descriptor, original, basis);
-        Vector3 sourceSide = Horizontal(SourceCentre("l_hand") - SourceCentre("r_hand"));
+        Vector3 sourceSide = Horizontal(SourceCentre(sourceHands[0]) - SourceCentre(sourceHands[1]));
         Vector3 targetSide = Horizontal(Vector3.TransformNormal(TargetCentre(firstHand) - TargetCentre(secondHand), basis));
         float alignment = Vector3.Dot(sourceSide, targetSide);
         return new(calibration, yaw, sourceForward, targetForward, alignment > 0, alignment);

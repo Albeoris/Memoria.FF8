@@ -10,7 +10,7 @@ public sealed partial class Ff7FieldHost
         Ff7Actor actor = GetActor(entity);
         if (command.Wait)
         {
-            bool completed = actor.ModelEffect?.Completed ?? true;
+            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true);
             if (completed)
             {
                 SetActor(entity, current => current with { ModelEffect = null });
@@ -42,9 +42,30 @@ public sealed partial class Ff7FieldHost
             }
             return new(true);
         }
+        if (command.Operation == 10)
+        {
+            if (actor.ModelEffect is { Restored: false })
+            {
+                throw new NotSupportedException("Part visibility concurrent with native procedural colors requires its shared material-owner contract.");
+            }
+            byte[] payload = command.Payload ?? throw new InvalidDataException("Native part visibility requires the complete original payload.");
+            if (payload.Length == 0 || command.Mode != payload[0])
+            {
+                throw new InvalidDataException("The native part-visibility count differs from its original payload.");
+            }
+            int count = ModelPartVertexCounts?.Invoke(actor.Model).Count ?? throw new NotSupportedException("Native part visibility requires the original model topology.");
+            _ = fieldId ?? throw new NotSupportedException("Native part visibility requires the selected original field identity.");
+            Ff7NativePartVisibilityState visibility = Ff7NativePartVisibility.Request(actor.PartVisibility, payload, count);
+            SetActor(entity, current => current with { PartVisibility = visibility });
+            return new(true);
+        }
         if (command.Operation != 13)
         {
             throw new NotSupportedException($"FFVII KAWAI selector {command.Operation} is not supported.");
+        }
+        if (actor.PartVisibility is not null)
+        {
+            throw new NotSupportedException("Procedural colors following explicit native part visibility require their shared material-owner contract.");
         }
         IReadOnlyList<int> parts = ModelPartVertexCounts?.Invoke(actor.Model) ?? throw new NotSupportedException("FFVII KAWAI13 requires native model topology.");
         if (!short.TryParse(field.Models.Models[actor.Model].Scale, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out short nativeScale) || nativeScale > 4096)
@@ -58,7 +79,7 @@ public sealed partial class Ff7FieldHost
 
     private void AdvanceModelEffects()
     {
-        if (!Process.Actors.Any(actor => actor.ModelEffect is not null))
+        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false }))
         {
             return;
         }
@@ -69,7 +90,11 @@ public sealed partial class Ff7FieldHost
         PcFieldCamera camera = field.Cameras[0];
         Process = Process with
         {
-            Actors = Process.Actors.Select(actor => actor.ModelEffect is null ? actor : actor with { ModelEffect = Ff7NativeModelEffect.Advance(actor.ModelEffect, ModelEffectDepth(actor, camera) < 3840) }).ToArray()
+            Actors = Process.Actors.Select(actor => actor with
+            {
+                ModelEffect = actor.ModelEffect is null ? null : Ff7NativeModelEffect.Advance(actor.ModelEffect, ModelEffectDepth(actor, camera) < 3840),
+                PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, ModelEffectDepth(actor, camera) < 3840, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity."))
+            }).ToArray()
         };
     }
 
