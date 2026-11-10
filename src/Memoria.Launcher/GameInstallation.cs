@@ -85,7 +85,7 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, bool redirectOutput = true)
     {
         Memoria.FF8.Platform.HostPlatform platform = hostPlatform ?? Memoria.FF8.Platform.HostPlatforms.Current;
         string dataDirectory = Path.Combine(packageDirectory, "Data");
@@ -94,10 +94,10 @@ internal static class GameInstallationSelection
             WorkingDirectory = dataDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = System.Text.Encoding.UTF8,
-            StandardErrorEncoding = System.Text.Encoding.UTF8
+            RedirectStandardOutput = redirectOutput,
+            RedirectStandardError = redirectOutput,
+            StandardOutputEncoding = redirectOutput ? System.Text.Encoding.UTF8 : null,
+            StandardErrorEncoding = redirectOutput ? System.Text.Encoding.UTF8 : null
         };
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));

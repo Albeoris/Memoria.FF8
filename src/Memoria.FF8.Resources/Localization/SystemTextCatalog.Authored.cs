@@ -2383,6 +2383,8 @@ public static partial class SystemTextCatalog
         defaults["ui.register.entry.label.selected"] = " \u00B7 Selected";
         defaults["ui.register.entry.label.selected.template"] = "{0}{1}";
         defaults["ui.register.entry.label.session"] = "Session";
+        defaults["ui.register.entry.label.quit"] = "Quit";
+        defaults["ui.register.entry.help.quit.game"] = "Exit the game.";
         defaults["ui.register.entry.label.start.fixture.test"] = "Start fixture test";
         defaults["ui.register.entry.label.x"] = "{0} x{1}";
         defaults["ui.register.entry.label.x.gil"] = "{0} x{1}   {2} gil";

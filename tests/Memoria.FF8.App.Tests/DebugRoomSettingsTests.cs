@@ -156,7 +156,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, _ => writes++);
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Quit" }, menus.Entries.Select(entry => entry.Label));
         menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-gallery", menus.ScreenId);
@@ -166,6 +166,23 @@ public sealed class DebugRoomSettingsTests
         menus.Execute(new("config", "Text scale", Value: "150%"));
         Assert.Equal(0, writes);
         Assert.Equal(100, preferences.TextScale);
+    }
+
+    [Fact]
+    public void QuitIsLastAndConfirmRequestsExitFromTheHost()
+    {
+        int requests = 0;
+        MenuController menus = new();
+        menus.QuitRequested += () => requests++;
+        menus.Open("debug-room", true);
+
+        Assert.Equal("quit", menus.Entries[^1].Id);
+        Assert.True(menus.Entries[^1].Enabled);
+        menus.SelectEntry("debug-room", "quit");
+        Assert.Equal(0, requests);
+        menus.Navigate(MenuInput.Confirm);
+
+        Assert.Equal(1, requests);
     }
 
     [Fact]

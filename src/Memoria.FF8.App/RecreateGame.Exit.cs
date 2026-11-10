@@ -22,6 +22,12 @@ internal sealed partial class RecreateGame
         {
             return true;
         }
+        ShowWindowCloseConfirmation();
+        return false;
+    }
+
+    private void ShowWindowCloseConfirmation()
+    {
         if (windowCloseDecision is null)
         {
             keyboard.SuppressHeldUiInput();
@@ -31,7 +37,6 @@ internal sealed partial class RecreateGame
                 : LocalizeAuthored("game.exit.message", "Do you wish to exit the game? Unsaved game progress will be lost.");
             windowCloseDecision = windowCloseConfirmation.ShowAsync(new GameConfirmationRequest(message, LocalizeAuthored("game.exit.title", "Exit game"), LocalizeAuthored("game.exit.cancel", "Cancel"), LocalizeAuthored("game.exit.accept", "Exit"), ""));
         }
-        return false;
     }
 
     private bool UpdateWindowCloseConfirmation()

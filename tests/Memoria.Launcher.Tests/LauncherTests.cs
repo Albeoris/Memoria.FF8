@@ -101,6 +101,22 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void CloseAfterLaunchIsOptInAndDoesNotPipeOutputToTheLauncher()
+    {
+        string settingsPath = Path.Combine(directory, "launcher.json");
+        File.WriteAllText(settingsPath, "{}");
+        Assert.False(LauncherSettings.Load(settingsPath).CloseAfterLaunch);
+
+        new LauncherSettings(CloseAfterLaunch: true).Save(settingsPath);
+        Assert.True(LauncherSettings.Load(settingsPath).CloseAfterLaunch);
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, redirectOutput: false);
+        Assert.False(start.RedirectStandardOutput);
+        Assert.False(start.RedirectStandardError);
+        Assert.Null(start.StandardOutputEncoding);
+        Assert.Null(start.StandardErrorEncoding);
+    }
+
+    [Fact]
     public void LocalOnlySelectionSurvivesSettingsAndLaunch()
     {
         string settingsPath = Path.Combine(directory, "launcher.json");

@@ -49,6 +49,7 @@ public sealed partial class MenuController
 
     public bool IsOpen { get; private set; }
     public event Action? BattleDebugRequested;
+    public event Action? QuitRequested;
     public event Action<string>? ScreenOpened;
     public event Action<MenuSound>? SoundRequested;
     public void SetActionSound(MenuSound sound)
@@ -57,6 +58,7 @@ public sealed partial class MenuController
     }
 
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
+    public bool QuitAvailable => QuitRequested is not null;
     public bool IsDemo { get; private set; }
     public bool IsFixtureContext { get; private set; }
     public string ScreenId { get; private set; } = "main";
@@ -898,6 +900,9 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "quit-game":
+                QuitRequested?.Invoke();
+                return;
             case "open-battle-debug":
                 if (BattleDebugRequested is null)
                 {

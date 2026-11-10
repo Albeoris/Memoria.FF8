@@ -111,6 +111,7 @@ internal sealed partial class RecreateGame
             keyboard.Profile = profile;
         }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
+        gameMenus.QuitRequested += ShowWindowCloseConfirmation;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
     }

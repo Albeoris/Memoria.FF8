@@ -33,6 +33,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
     private readonly Button play = new() { Content = "Play", MinWidth = 130, MinHeight = 38, IsDefault = true };
+    private readonly CheckBox closeAfterLaunch = new() { Content = "Close launcher after starting the game", VerticalAlignment = VerticalAlignment.Center };
     private readonly CheckBox achievementsLocalOnly = new() { Content = "Keep achievements local (disable platform connection)", Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock mediaStatus = new() { Text = "Checking FFmpeg…", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
     private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
@@ -108,9 +109,11 @@ internal sealed partial class LauncherWindow : Window
         Add(layout, mediaSection, 3);
         Add(layout, CreateUpdatePanel(), 4);
         Add(layout, status, 5);
-        play.HorizontalAlignment = HorizontalAlignment.Right;
-        play.Margin = new Thickness(0, 16, 0, 0);
-        Add(layout, play, 6);
+        DockPanel launch = new() { Margin = new Thickness(0, 16, 0, 0) };
+        DockPanel.SetDock(play, Dock.Right);
+        launch.Children.Add(play);
+        launch.Children.Add(closeAfterLaunch);
+        Add(layout, launch, 6);
         Content = layout;
         browse.Click += async (_, _) => await BrowseAsync();
         cancel.Click += (_, _) => discoveryLifetime.Cancel();
@@ -137,7 +140,10 @@ internal sealed partial class LauncherWindow : Window
         Opened += async (_, _) =>
         {
             await InitializeAsync();
-            await DiscoverErrorReportAsync();
+            if (IsVisible)
+            {
+                await DiscoverErrorReportAsync();
+            }
         };
         Closing += OnClosing;
     }
@@ -156,6 +162,8 @@ internal sealed partial class LauncherWindow : Window
             cancel.IsVisible = true;
             List<string> warnings = [];
             LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
+            closeAfterLaunch.IsChecked = settings.CloseAfterLaunch;
+            closeAfterLaunch.IsCheckedChanged += (_, _) => SaveSelection(includeWithoutInstallation: true);
             await LoadGraphicsBackendAsync();
             string? previous = settings.LastGameDirectory;
             SetModelSourceDirectory(settings.ModelSourceDirectory);
@@ -312,15 +320,19 @@ internal sealed partial class LauncherWindow : Window
         SaveSelection();
     }
 
-    private void SaveSelection()
+    private void SaveSelection(bool includeWithoutInstallation = false)
     {
-        if (installations.SelectedItem is not GameInstallation selected)
+        GameInstallation? selected = installations.SelectedItem as GameInstallation;
+        if (selected is null && !includeWithoutInstallation)
         {
             return;
         }
         try
         {
-            new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory).Save(LauncherSettings.DefaultPath);
+            LauncherSettings settings = selected is null
+                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true }
+                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true);
+            settings.Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -506,6 +518,10 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null)
     {
+        if (busy || !IsVisible)
+        {
+            return;
+        }
         if (graphicsRecovery is null)
         {
             pendingGraphicsRecovery = null;
@@ -522,25 +538,26 @@ internal sealed partial class LauncherWindow : Window
             status.Text = "Select an installation, or use Browse to choose your game folder.";
             return;
         }
-        if (await Task.Run(() => GameInstallationSelection.ValidateForEngine(selected.Directory)) is string validationError)
-        {
-            status.Text = validationError;
-            return;
-        }
-        await LoadGraphicsBackendAsync();
-        if (graphicsPreferenceReadFailed)
-        {
-            return;
-        }
-        if (GraphicsBackendSelection.UnavailableReason(requestedGraphicsBackend, HostPlatforms.Current) is string unavailable)
-        {
-            graphicsStatus.Text = unavailable;
-            tryAuto.IsVisible = true;
-            return;
-        }
         SetBusy(true);
+        bool closeLauncher = false;
         try
         {
+            if (await Task.Run(() => GameInstallationSelection.ValidateForEngine(selected.Directory)) is string validationError)
+            {
+                status.Text = validationError;
+                return;
+            }
+            await LoadGraphicsBackendAsync();
+            if (graphicsPreferenceReadFailed)
+            {
+                return;
+            }
+            if (GraphicsBackendSelection.UnavailableReason(requestedGraphicsBackend, HostPlatforms.Current) is string unavailable)
+            {
+                graphicsStatus.Text = unavailable;
+                tryAuto.IsVisible = true;
+                return;
+            }
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
@@ -553,7 +570,15 @@ internal sealed partial class LauncherWindow : Window
             {
                 return;
             }
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory);
+            bool detached = closeAfterLaunch.IsChecked == true && resume is null && graphicsRecovery is null;
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached);
+            if (detached)
+            {
+                using Process game = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
+                SaveSelection();
+                closeLauncher = true;
+                return;
+            }
             status.Text = "Starting the game…";
             GameUpdateSession control = new();
             start.ArgumentList.Add("--update-control-dir");
@@ -661,6 +686,10 @@ internal sealed partial class LauncherWindow : Window
             runningGameDirectory = null;
             gameUpdateSession = null;
             SetBusy(false);
+            if (closeLauncher)
+            {
+                Close();
+            }
         }
     }
 
@@ -668,7 +697,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }
@@ -703,7 +732,7 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             ErrorIncident? incident = await Task.Run(() => ErrorIncident.DiscoverLatest(pendingOnly: true));
-            if (incident is not null)
+            if (incident is not null && IsVisible)
             {
                 await new ErrorReportDialog("An error report from a previous game session is available. You can prepare it for GitHub or close this window.", incident).ShowDialog(this);
             }
@@ -720,6 +749,7 @@ internal sealed partial class LauncherWindow : Window
         installations.IsEnabled = !busy;
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
+        closeAfterLaunch.IsEnabled = !busy;
         resourceLanguage.IsEnabled = !busy;
         browseModelSource.IsEnabled = !busy;
         resetModelSource.IsEnabled = !busy;
