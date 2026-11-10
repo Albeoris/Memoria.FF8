@@ -1,7 +1,11 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
+using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Memoria.FF8.Platform;
+using Memoria.Launcher.Controller;
 
 namespace Memoria.Launcher;
 
@@ -86,16 +90,27 @@ internal static class Program
 
 internal sealed class LauncherApplication : Application
 {
+    internal ControllerNavigation? Navigation { get; private set; }
+
     public override void Initialize()
     {
-        RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Light;
+        RequestedThemeVariant = ThemeVariant.Light;
         Styles.Add(new FluentTheme());
+        Styles.Add(new Style(selector => selector.OfType<ListBox>())
+        {
+            Setters =
+            {
+                new Setter(InputElement.FocusableProperty, true),
+                new Setter(InputElement.IsTabStopProperty, false)
+            }
+        });
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            Navigation = new ControllerNavigation(desktop);
             desktop.MainWindow = Program.StartupError is string error ? Program.StartupIncident is { } incident ? new ErrorReportDialog(error, incident) : LauncherDialogs.Create("Memoria", error, false) : new LauncherWindow(Program.Resume);
         }
         base.OnFrameworkInitializationCompleted();

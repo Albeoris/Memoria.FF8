@@ -17,6 +17,10 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="SDL3-CS" />
+    <PackageReference Include="SDL3-CS.Windows" Condition="'$(MemoriaTargetRuntime)' == 'win-x64'" />
+    <PackageReference Include="SDL3-CS.Linux" Condition="'$(MemoriaTargetRuntime)' == 'linux-x64'" />
+    <PackageReference Include="SDL3-CS.macOS" Condition="'$(MemoriaTargetMac)' == 'true'" />
     <Using Include="System.IO" />
     <Compile Include="../Memoria.FF8.App/MediaToolsInstallation.cs" Link="MediaToolsInstallation.cs" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
@@ -26,11 +30,13 @@
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
   <Import Project="../../tools/packaging/MacBundleLauncher.targets" />
-  <!-- Released Linux updaters reject extensionless root companions. The optional
-       .NET crash-dump helper is not part of the launcher's runtime closure. -->
-  <Target Name="ExcludeLinuxLauncherDumpHelper" AfterTargets="ComputeFilesToPublish" Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+  <!-- Released Linux updaters accept root companion libraries ending in .so.
+       The SDL binding loads libSDL3.so. The native package also includes byte-identical
+       versioned copies. The optional .NET crash-dump helper is unused by the launcher. -->
+  <Target Name="ExcludeRedundantLinuxLauncherFiles" AfterTargets="ComputeFilesToPublish" Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'createdump'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('libSDL3.so.'))" />
     </ItemGroup>
   </Target>
 </Project>

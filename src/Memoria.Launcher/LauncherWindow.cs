@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using Memoria.FF8;
 using Memoria.FF8.Platform;
+using Memoria.Launcher.Controller;
 
 namespace Memoria.Launcher;
 
@@ -281,13 +282,11 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select the installed FINAL FANTASY VIII folder", AllowMultiple = false });
-            if (folders.Count == 0)
+            string? folder = await PickFolderAsync("Select the installed FINAL FANTASY VIII folder", (installations.SelectedItem as GameInstallation)?.Directory, "Select a local game folder.");
+            if (folder is null)
             {
                 return;
             }
-            using IStorageFolder chosen = folders[0];
-            string folder = chosen.TryGetLocalPath() ?? throw new IOException("Select a local game folder.");
             List<GameInstallation> items = installations.Items.Cast<GameInstallation>().ToList();
             GameInstallation? existing = items.FirstOrDefault(item => LauncherCapabilities.PathComparer.Equals(item.Directory, folder));
             if (existing is null)
@@ -303,6 +302,23 @@ internal sealed partial class LauncherWindow : Window
         {
             await ShowErrorAsync("Could not select the game folder.", exception);
         }
+    }
+
+    private async Task<string?> PickFolderAsync(string title, string? suggestedDirectory, string localPathError)
+    {
+        if (ControllerNavigation.IsControllerMode(this))
+        {
+            return await ControllerFilePicker.PickFolderAsync(this, title, suggestedDirectory);
+        }
+
+        IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = title, AllowMultiple = false });
+        if (folders.Count == 0)
+        {
+            return null;
+        }
+
+        using IStorageFolder chosen = folders[0];
+        return chosen.TryGetLocalPath() ?? throw new IOException(localPathError);
     }
 
     private async Task ValidateSelectionAsync()

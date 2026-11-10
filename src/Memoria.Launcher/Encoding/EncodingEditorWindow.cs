@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Memoria.FF8.Mods.EncodingProfiles;
 using Memoria.FF8.Resources.Text;
+using Memoria.Launcher.Controller;
 
 namespace Memoria.Launcher.EncodingProfiles;
 
@@ -361,17 +362,33 @@ internal sealed class EncodingEditorWindow : Window
 
     private async Task OpenAsync()
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Open / import profile.json", AllowMultiple = true });
+        const string title = "Open / import profile.json";
+        if (ControllerNavigation.IsControllerMode(this))
+        {
+            string? path = await ControllerFilePicker.OpenFileAsync(this, title, Path.GetDirectoryName(Current?.Path));
+            if (path is not null)
+            {
+                Guard(() => OpenProfile(path));
+            }
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = title, AllowMultiple = true });
         Guard(() =>
         {
             foreach (IStorageFile file in files)
             {
                 string path = file.TryGetLocalPath() ?? throw new IOException("Choose a local profile file.");
-                Document document = new(NativeFontProfileIO.Load(path), path);
-                documents.Add(document);
-                RefreshProfiles(document);
+                OpenProfile(path);
             }
         });
+    }
+
+    private void OpenProfile(string path)
+    {
+        Document document = new(NativeFontProfileIO.Load(path), path);
+        documents.Add(document);
+        RefreshProfiles(document);
     }
 
     private async Task SaveAsync()
@@ -380,40 +397,64 @@ internal sealed class EncodingEditorWindow : Window
         {
             return;
         }
-        IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "Save profile; keep relative dependencies beside it", SuggestedFileName = "profile.json", DefaultExtension = "json" });
-        if (file is null)
+        const string title = "Save profile; keep relative dependencies beside it";
+        const string suggestedFileName = "profile.json";
+        if (ControllerNavigation.IsControllerMode(this))
         {
+            string? path = await ControllerFilePicker.SaveFileAsync(this, title, Path.GetDirectoryName(current.Path), Path.GetFileName(current.Path) ?? suggestedFileName);
+            if (path is not null)
+            {
+                Guard(() => SaveProfile(current, path));
+            }
             return;
         }
-        Guard(() =>
+
+        using IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = title, SuggestedFileName = suggestedFileName, DefaultExtension = "json" });
+        if (file is not null)
         {
-            string path = file.TryGetLocalPath() ?? throw new IOException("Choose a local profile file.");
-            NativeFontProfileIO.Save(path, current.Profile);
-            current.Path = path;
-            current.Dirty = false;
-            RefreshProfiles(current);
-            status.Text = "Profile saved. " + string.Join(Environment.NewLine, NativeFontProfileIO.ValidateDependencies(path, current.Profile).Select(issue => issue.Message));
-        });
+            Guard(() => SaveProfile(current, file.TryGetLocalPath() ?? throw new IOException("Choose a local profile file.")));
+        }
+    }
+
+    private void SaveProfile(Document current, string path)
+    {
+        NativeFontProfileIO.Save(path, current.Profile);
+        current.Path = path;
+        current.Dirty = false;
+        RefreshProfiles(current);
+        status.Text = "Profile saved. " + string.Join(Environment.NewLine, NativeFontProfileIO.ValidateDependencies(path, current.Profile).Select(issue => issue.Message));
     }
 
     private async Task ExportAsync()
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Choose mod root (new Encoding/Name directories will be created)", AllowMultiple = false });
-        if (folders.Count == 0)
+        const string title = "Choose mod root (new Encoding/Name directories will be created)";
+        if (ControllerNavigation.IsControllerMode(this))
         {
+            string? path = await ControllerFilePicker.PickFolderAsync(this, title, Path.GetDirectoryName(Current?.Path));
+            if (path is not null)
+            {
+                Guard(() => ExportEnabledProfiles(path));
+            }
             return;
         }
-        Guard(() =>
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = title, AllowMultiple = false });
+        if (folders.Count > 0)
         {
-            Document[] selected = documents.Where(document => document.Enabled).ToArray();
-            if (selected.Any(document => document.Path is null || document.Dirty))
-            {
-                throw new InvalidOperationException("Save all enabled profiles before exporting their dependency closure.");
-            }
-            string root = folders[0].TryGetLocalPath() ?? throw new IOException("Choose a local mod directory.");
-            EncodingProfilePackage.Export(selected.Select(document => new EncodingProfileExport(document.Path!, document.Profile.DisplayName)), root);
-            status.Text = $"Exported {selected.Length} enabled profiles with dependencies. Native-resource table validation does not establish original-game deployment.";
-        });
+            using IStorageFolder folder = folders[0];
+            Guard(() => ExportEnabledProfiles(folder.TryGetLocalPath() ?? throw new IOException("Choose a local mod directory.")));
+        }
+    }
+
+    private void ExportEnabledProfiles(string root)
+    {
+        Document[] selected = documents.Where(document => document.Enabled).ToArray();
+        if (selected.Any(document => document.Path is null || document.Dirty))
+        {
+            throw new InvalidOperationException("Save all enabled profiles before exporting their dependency closure.");
+        }
+        EncodingProfilePackage.Export(selected.Select(document => new EncodingProfileExport(document.Path!, document.Profile.DisplayName)), root);
+        status.Text = $"Exported {selected.Length} enabled profiles with dependencies. Native-resource table validation does not establish original-game deployment.";
     }
 
     private void Preview()

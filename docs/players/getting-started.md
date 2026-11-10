@@ -26,6 +26,14 @@ The release includes the .NET runtimes it needs. Players do not need to install 
 
 The launcher remembers the selected folder after a successful start and offers it as the last-used installation on later launches. Its selection is stored in `%LOCALAPPDATA%/Memoria/FF8/launcher.json`. Choosing a game directory does not copy its assets into the Memoria distribution.
 
+## Launcher controller controls
+
+Use the D-pad or left stick to move focus to a nearby control in that direction. The south face button (**A** on Xbox and Steam Deck, **Cross** on PlayStation) activates it. The east face button (**B** or **Circle**) backs out of an open list or dialog. Hold a direction to repeat it.
+
+Use the right stick to scroll and the shoulder buttons to change tabs in the Encoding Editor. To use a list, press the south button to enter it, move up or down, then press the south button again to accept. In the Encoding Editor, activating an editable text field opens an on-screen keyboard.
+
+The launcher switches to controller navigation when you use the controller, and returns to keyboard or mouse navigation as soon as you use either.
+
 ## macOS first launch
 
 On macOS 26 or later, download the matching `osx-arm64` (Apple Silicon) or `osx-x64` (Intel) archive, extract it and move `Memoria.FF8.app` to a writable location. The app has an ad hoc integrity signature, but no Apple Developer ID or notarization. macOS may therefore require your explicit approval: after attempting to open it, use **System Settings → Privacy & Security → Open Anyway**, if offered. See [Apple's instructions](https://support.apple.com/en-us/102445).

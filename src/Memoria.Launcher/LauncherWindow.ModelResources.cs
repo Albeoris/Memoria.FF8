@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 
 namespace Memoria.Launcher;
 
@@ -45,13 +44,11 @@ internal sealed partial class LauncherWindow
     {
         try
         {
-            IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select an installed FINAL FANTASY VIII model resource source", AllowMultiple = false });
-            if (folders.Count == 0)
+            string? directory = await PickFolderAsync("Select an installed FINAL FANTASY VIII model resource source", selectedModelSourceDirectory ?? (installations.SelectedItem as GameInstallation)?.Directory, "Select a local installed game folder.");
+            if (directory is null)
             {
                 return;
             }
-            using IStorageFolder chosen = folders[0];
-            string directory = chosen.TryGetLocalPath() ?? throw new IOException("Select a local installed game folder.");
             if (GameInstallationSelection.ValidateForEngine(directory) is string error)
             {
                 throw new InvalidDataException(error);
