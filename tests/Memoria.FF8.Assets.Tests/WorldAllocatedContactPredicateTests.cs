@@ -43,6 +43,19 @@ public sealed class WorldAllocatedContactPredicateTests
         Assert.Throws<InvalidDataException>(() => Evaluate(0xFF1D, 88, 0, -1, 1, objects));
     }
 
+    [Theory]
+    [InlineData(0xFF1A)]
+    [InlineData(0xFF1B)]
+    [InlineData(0xFF1C)]
+    [InlineData(0xFF1D)]
+    public void RailTailRejectsAnAbsentShapeWithoutDereferencingIt(ushort opcode)
+    {
+        WorldFieldSelectionInput input = new(0, 0, 362, 0);
+        Assert.False(WorldAllocatedContactPredicate.Evaluate(input, opcode, 92, 0, 1, 1, 1, _ => 85, _ => throw new InvalidOperationException(), [], hasRailTail: true));
+        Assert.Throws<NotSupportedException>(() => WorldAllocatedContactPredicate.Evaluate(input, opcode, 85, 0, 1, 1, 1, _ => 85, _ => throw new InvalidOperationException(), [], hasRailTail: true));
+        Assert.Throws<InvalidDataException>(() => WorldAllocatedContactPredicate.Evaluate(input, opcode, 92, 0, 2, 2, 1, _ => 85, _ => throw new InvalidOperationException(), [], hasRailTail: true));
+    }
+
     [Fact]
     public void FacingUsesNativeGraphicsZAndNormalizesTheYawSeam()
     {

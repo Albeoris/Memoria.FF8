@@ -147,7 +147,8 @@ internal sealed partial class WorldMapScene
                     IReadOnlyList<NativeTrainWorldObject> objects = WorldEventCarAllocationObjects(state, carRuntime);
                     int? primary = state.NativeFootRuntime is { } foot ? foot.PrimaryContact : carRuntime.PrimaryContact;
                     int? broad = state.NativeFootRuntime is { } broadFoot ? broadFoot.BroadContact : carRuntime.BroadContact;
-                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, primary, broad, objects.Count, index => objects[index].ShapeId, index => objects[index].Position, [carAllocation.ControlledObjectIndex, CarSelectedAllocationIndex(carRuntime)]);
+                    bool hasRailTail = carRuntime.ObjectProcess is { Primary: not null } or { Alternate: not null };
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, primary, broad, objects.Count, index => objects[index].ShapeId, index => objects[index].Position, [carAllocation.ControlledObjectIndex, CarSelectedAllocationIndex(carRuntime)], hasRailTail);
                 }
                 if (WorldEventGardenObjects(state) is { } garden)
                 {
