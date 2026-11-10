@@ -80,24 +80,36 @@ public sealed class ErrorBreadcrumbs
 public sealed class ReportSave
 {
     private readonly byte[] bytes;
+    private readonly string? fileExtension;
     public string Kind { get; }
     public DateTimeOffset CapturedUtc { get; }
     public string Validation { get; }
     public int Length => bytes.Length;
-    internal string ArchiveFileName => bytes.AsSpan().StartsWith("MFF8SAVE"u8) ? "state.ff8save" : "state.json";
+    internal string FileExtension => fileExtension ?? (bytes.AsSpan().StartsWith("MFF8SAVE"u8) ? ".ff8save" : ".json");
+    internal string ArchiveFileName => fileExtension is not null ? "state" + fileExtension : bytes.AsSpan().StartsWith("MFF8SAVE"u8) ? "state.ff8save" : "state.json";
 
     // Trusted callers must normalize existing saves through the current save writer before supplying bytes; storage validation alone does not establish privacy.
-    public ReportSave(byte[] bytes, string kind, DateTimeOffset capturedUtc, string validation)
+    public ReportSave(byte[] bytes, string kind, DateTimeOffset capturedUtc, string validation, string? fileExtension = null)
     {
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(validation);
+        ValidateFileExtension(fileExtension);
         this.bytes = (byte[])bytes.Clone();
+        this.fileExtension = fileExtension;
         Kind = kind;
         CapturedUtc = capturedUtc;
         Validation = validation;
     }
 
     public byte[] CopyBytes() => (byte[])bytes.Clone();
+
+    internal static void ValidateFileExtension(string? fileExtension)
+    {
+        if (fileExtension is not null && (fileExtension.Length is < 2 or > 16 || fileExtension[0] != '.' || !fileExtension.Skip(1).All(char.IsAsciiLetterOrDigit)))
+        {
+            throw new ArgumentException("A report snapshot extension must contain a dot followed by ASCII letters or digits.", nameof(fileExtension));
+        }
+    }
 }
 
 public sealed class ErrorIncident
@@ -258,7 +270,7 @@ public sealed class ErrorIncident
 
     internal byte[] EvidenceBytes(bool includeSave, bool published = false)
     {
-        object evidence = new { schemaVersion = 1, Id, LaunchId, Timestamp, Subsystem = published ? ReportPrivacy.Text(Subsystem) : Subsystem, Exception = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Exception)) : JsonSerializer.SerializeToElement(Exception), Runtime = published ? ReportPrivacy.Json(Runtime) : Runtime, Environment = published ? ReportPrivacy.Json(Environment) : Environment, SaveUnavailableReason = published ? ReportPrivacy.Text(SaveUnavailableReason) : SaveUnavailableReason, Events = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Events)) : JsonSerializer.SerializeToElement(Events), CollectionErrors = published ? CollectionErrors.Select(ReportPrivacy.Text).ToArray() : CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Kind = published ? ReportPrivacy.Text(Save.Kind) : Save.Kind, Save.CapturedUtc, Validation = published ? ReportPrivacy.Text(Save.Validation) : Save.Validation } };
+        object evidence = new { schemaVersion = 1, Id, LaunchId, Timestamp, Subsystem = published ? ReportPrivacy.Text(Subsystem) : Subsystem, Exception = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Exception)) : JsonSerializer.SerializeToElement(Exception), Runtime = published ? ReportPrivacy.Json(Runtime) : Runtime, Environment = published ? ReportPrivacy.Json(Environment) : Environment, SaveUnavailableReason = published ? ReportPrivacy.Text(SaveUnavailableReason) : SaveUnavailableReason, Events = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Events)) : JsonSerializer.SerializeToElement(Events), CollectionErrors = published ? CollectionErrors.Select(ReportPrivacy.Text).ToArray() : CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Kind = published ? ReportPrivacy.Text(Save.Kind) : Save.Kind, Save.CapturedUtc, Save.FileExtension, Validation = published ? ReportPrivacy.Text(Save.Validation) : Save.Validation } };
         return JsonSerializer.SerializeToUtf8Bytes(evidence, JsonOptions);
     }
 
@@ -312,15 +324,17 @@ public sealed class ErrorIncident
                     continue;
                 }
                 JsonElement saveData = data.GetProperty("Save");
-                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.ff8save");
-                if (!File.Exists(saveFile))
+                string? extension = saveData.ValueKind == JsonValueKind.Object && saveData.TryGetProperty("FileExtension", out JsonElement savedExtension) ? savedExtension.GetString() : null;
+                ReportSave.ValidateFileExtension(extension);
+                string saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state" + (extension ?? ".ff8save"));
+                if (extension is null && !File.Exists(saveFile))
                 {
                     saveFile = Path.Combine(Path.GetDirectoryName(file)!, "state.json");
                 }
                 byte[]? saveBytes = null;
                 if (saveData.ValueKind != JsonValueKind.Null)
                 {
-                    if ((archive?.GetEntry("repro/state.ff8save") ?? archive?.GetEntry("repro/state.json")) is { } entry)
+                    if ((extension is null ? archive?.GetEntry("repro/state.ff8save") ?? archive?.GetEntry("repro/state.json") : archive?.GetEntry("repro/state" + extension)) is { } entry)
                     {
                         using Stream source = entry.Open();
                         using MemoryStream target = new();
@@ -332,7 +346,7 @@ public sealed class ErrorIncident
                         saveBytes = File.ReadAllBytes(saveFile);
                     }
                 }
-                ReportSave? save = saveBytes is null ? null : new(saveBytes, saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!);
+                ReportSave? save = saveBytes is null ? null : new(saveBytes, saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!, extension);
                 return new(id, capturedLaunch, data.GetProperty("Timestamp").GetDateTimeOffset(), data.GetProperty("Subsystem").GetString()!, data.GetProperty("Exception").Deserialize<ErrorException>()!, data.GetProperty("Runtime").Clone(), data.GetProperty("Environment").Clone(), save, data.GetProperty("SaveUnavailableReason").GetString()!, data.GetProperty("Events").Deserialize<ErrorBreadcrumb[]>()!, data.GetProperty("CollectionErrors").Deserialize<string[]>()!, data.GetProperty("LogPaths").Deserialize<string[]>()!);
             }
             catch (Exception failure) when (failure is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)

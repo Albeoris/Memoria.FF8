@@ -8,18 +8,29 @@ public static class RuntimeErrorReport
     public static async Task<PreparedErrorReport> PrepareAsync(ErrorIncident incident, string? reportsDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(incident);
-        ErrorIncident portable = incident.Save is { } save ? await Task.Run(() => Normalize(incident, save)).ConfigureAwait(false) : incident;
+        ErrorIncident portable = incident.Save is { } save ? incident.WithSave(await Task.Run(() => NormalizeSave(save)).ConfigureAwait(false)) : incident;
         return await ErrorReport.PrepareAsync(portable, reportsDirectory).ConfigureAwait(false);
     }
 
-    private static ErrorIncident Normalize(ErrorIncident incident, ReportSave save)
+    public static ReportSave NormalizeSave(ReportSave save)
     {
+        ArgumentNullException.ThrowIfNull(save);
+        byte[] bytes = save.CopyBytes();
+        using (MemoryStream source = new(bytes, writable: false))
+        {
+            if (GameplaySaveCodec.HasSignature(source))
+            {
+                GameplaySaveComponentDocument document = GameplaySaveCodec.Read(source);
+                using MemoryStream destination = new();
+                GameplaySaveCodec.Write(destination, document);
+                return new(destination.ToArray(), save.Kind, save.CapturedUtc, save.Validation, ".ff8save");
+            }
+        }
         string cache = Path.GetFullPath(Path.Combine(ApplicationPaths.Current.Cache, "report-snapshots"));
         string directory = Path.Combine(cache, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
-            byte[] bytes = save.CopyBytes();
             bool compact = bytes.AsSpan().StartsWith("MFF8SAVE"u8);
             string source = Path.Combine(directory, "source.save");
             string destination = Path.Combine(directory, "portable.save");
@@ -28,7 +39,7 @@ public static class RuntimeErrorReport
             GameSession session = new(GameSession.Load(source));
             session.SaveReportSnapshot(destination, compact, savedLocalAt);
             ReportSave portable = new(File.ReadAllBytes(destination), save.Kind, save.CapturedUtc, save.Validation);
-            return incident.WithSave(portable);
+            return portable;
         }
         finally
         {

@@ -134,19 +134,31 @@ internal sealed partial class RecreateGame
         Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled);
         try
         {
+            scene.ConfigureCharacterIdentity(options.GameDirectory);
             scene.ConfigureDialoguePresentation(() => uiPreferences, text, uiCanvas!, () => CreateUiTheme(), preferences =>
             {
                 preferences.Save(UiPreferencesPath);
                 uiPreferences = preferences;
                 gameMenus?.InvalidateLiveData();
             });
-            scene.ConfigureSharedControls(keyboard, gameplayClock);
+            scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).ControlsPreferencesPath));
+            scene.ContinueRequested += () => OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
             scene.RenderLimit = options.WorldRenderLimit;
             scene.InterpolatePresentation = !options.ControlStep;
             scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay", "ff7", "current.ffsave"));
             scene.Continue(state);
             scene.SuppressInitialPresses(physicalInput.ReadKeyboard());
-            scene.SaveRequested += SaveCrossoverFromFf7;
+            scene.SaveRequested += saved =>
+            {
+                if (options.ControlExclusive)
+                {
+                    SaveCrossoverFromFf7(saved);
+                }
+                else
+                {
+                    OpenPlayerSaveMenu(PlayerSaveMenuMode.Save);
+                }
+            };
             scene.WorldSwitchRequested += OpenCrossoverSetup;
             return scene;
         }
@@ -229,7 +241,7 @@ internal sealed partial class RecreateGame
         {
             RestorePlayerState(prepared);
         }
-        crossover = transaction.State with { Mappings = outgoing.Mappings };
+        crossover = transaction.State with { Mappings = outgoing.Mappings, CharacterNameOverrides = outgoing.CharacterNameOverrides };
         ff7Scene?.Dispose();
         ff7Scene = null;
         suspendedFf8Session = null;
@@ -285,6 +297,20 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        if (saveMenu.IsOpen)
+        {
+            ff7Scene!.SetFocusPaused(true);
+            keyboard.NativeButtonsOwnInput = false;
+            keyboard.TextEntryEnabled = false;
+            keyboard.NamingNavigationEnabled = false;
+            keyboard.ControllerPresentation = controller!.Presentation;
+            keyboard.ControllerGeneration = controller.Generation;
+            InputFrame input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), !focusPaused && IsActive);
+            UpdatePlayerSavePointer();
+            UpdatePlayerSaveMenuAsync(input);
+            presentationPacer.WaitForNextFrame(ff7Scene.PresentationFrameLimit);
+            return true;
+        }
         ff7Scene!.SetFocusPaused(focusPaused || updateSave.Paused);
         if (updateSave.Paused)
         {
@@ -324,6 +350,10 @@ internal sealed partial class RecreateGame
         }
         GraphicsDevice.Clear(Color.Black);
         ff7Scene!.Draw(batch, GraphicsDevice.Viewport.Bounds);
+        if (Window.Title != ff7Scene.LocationWindowTitle)
+        {
+            Window.Title = ff7Scene.LocationWindowTitle;
+        }
         DrawCrossoverOverlays();
         CapturePresentedFrame(time);
         base.Draw(time);
@@ -334,6 +364,10 @@ internal sealed partial class RecreateGame
     {
         text.BeginFrame();
         batch.Begin();
+        if (saveMenu.IsOpen)
+        {
+            DrawPlayerSaveMenu(GraphicsDevice.Viewport.Bounds, 1);
+        }
         DrawGameConfirmation(GraphicsDevice.Viewport.Bounds);
         DrawWindowCloseConfirmation(GraphicsDevice.Viewport.Bounds);
         batch.End();

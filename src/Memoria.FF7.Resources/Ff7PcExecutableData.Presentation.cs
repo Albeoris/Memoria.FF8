@@ -7,7 +7,7 @@ namespace Memoria.FF7.Resources;
 public readonly record struct Ff7NativeModelPresentation(int ExtraY, int ExtraZ, int Mask);
 public sealed record Ff7NativeEyeProfile(bool Enabled, string? ClosedLeft, string? ClosedRight);
 
-public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fields, IReadOnlyDictionary<string, int> roles, IReadOnlyList<Ff7NativeEyeProfile> eyes)
+public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fields, IReadOnlyDictionary<string, int> roles, IReadOnlyList<Ff7NativeEyeProfile> eyes, IReadOnlyList<float> nearPlanes)
 {
     public Ff7NativeModelPresentation Model(int field, int slot)
     {
@@ -16,6 +16,20 @@ public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fi
             throw new NotSupportedException("Native field presentation requires an original configured field/model slot.");
         }
         return fields[field][slot];
+    }
+
+    public float NearPlane(int field)
+    {
+        if ((uint)field >= fields.Length || nearPlanes.Count != fields.Length)
+        {
+            throw new NotSupportedException("Native field projection requires its original configured field identity.");
+        }
+        float near = nearPlanes[field];
+        if (!float.IsFinite(near) || near <= 0)
+        {
+            throw new InvalidDataException("Native field projection has an invalid configured near plane.");
+        }
+        return near;
     }
 
     public int Role(string hrc) => roles.TryGetValue(Path.GetFileNameWithoutExtension(hrc), out int role) ? role : 9;
@@ -38,6 +52,51 @@ public sealed partial class Ff7PcExecutableData
         }
         int count = I32(0x60EED7);
         int slots = U8(0x60F018);
+        float NearLiteral(uint instruction)
+        {
+            byte[] code = ReadVirtual(stream, pe, instruction, 10);
+            if (code[0] != 0xC7 || ((code[1] & 0xF8) != 0x80 || (code[1] & 7) > 2) || BinaryPrimitives.ReadUInt32LittleEndian(code.AsSpan(2)) != 0xCC2284)
+            {
+                throw new InvalidDataException("The native field near-plane initializer store is unsupported.");
+            }
+            float value = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(6)));
+            if (!float.IsFinite(value) || value <= 0)
+            {
+                throw new InvalidDataException("The native field near-plane initializer is not finite and positive.");
+            }
+            return value;
+        }
+        float[] nearPlanes = Enumerable.Repeat(NearLiteral(0x60EEEA), count).ToArray();
+        void NearOverride(uint fieldOperand, uint instruction)
+        {
+            int field = I32(fieldOperand);
+            if ((uint)field >= count)
+            {
+                throw new InvalidDataException("The native near-plane override leaves its original field table.");
+            }
+            nearPlanes[field] = NearLiteral(instruction);
+        }
+        NearOverride(0x60F062, 0x60F071);
+        NearOverride(0x60F469, 0x60F478);
+        NearOverride(0x60F485, 0x60F494);
+        NearOverride(0x60F4A1, 0x60F4C3);
+        int configuredNearCount = U8(0x60F51F);
+        uint configuredNearTable = unchecked((uint)I32(0x60F528));
+        if (configuredNearCount != 55 || configuredNearTable != 0x905B80)
+        {
+            throw new InvalidDataException("The native near-plane field-list contract is unsupported.");
+        }
+        float configuredNear = NearLiteral(0x60F532);
+        HashSet<int> configuredFields = [];
+        for (int index = 0; index < configuredNearCount; index++)
+        {
+            int field = I32(configuredNearTable + checked((uint)index * 4));
+            if ((uint)field >= count || !configuredFields.Add(field))
+            {
+                throw new InvalidDataException("The native near-plane field list contains an invalid or duplicate identity.");
+            }
+            nearPlanes[field] = configuredNear;
+        }
         Ff7NativeModelPresentation[][] fields = Enumerable.Range(0, count).Select(_ => Enumerable.Repeat(new Ff7NativeModelPresentation(I32(0x60F02E), I32(0x60F045), unchecked((sbyte)U8(0x60F05C))), slots).ToArray()).ToArray();
         void Store(uint fieldOperand, uint instruction, int axis, bool all = false)
         {
@@ -125,6 +184,6 @@ public sealed partial class Ff7PcExecutableData
             uint right = unchecked((uint)I32(address + 16));
             eyes[role] = new(I32(address) != 0, left == 0 ? null : Text(left), right == 0 ? null : Text(right));
         }
-        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes));
+        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes), Array.AsReadOnly(nearPlanes));
     }
 }

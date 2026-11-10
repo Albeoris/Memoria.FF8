@@ -21,15 +21,17 @@ public sealed partial class FieldMachine
     }
 
     public FieldVariables Variables { get; }
+    public string ProgramIdentity => program.Identity;
     public long Tick { get; private set; }
     public bool Initialized { get; private set; }
     public FieldInputState Input { get; private set; } = new();
     public FieldCycleCursor? CycleCursor { get; private set; }
+    public Action<FieldScriptReturn>? ScriptReturned { get; set; }
 
     public void SetInput(ushort held, ushort pressed, ushort? rawHeld = null, ushort? rawPressed = null)
     {
         ushort raw = rawHeld ?? held;
-        Input = new FieldInputState(held, pressed, (ushort)(Input.Held & ~held), raw, rawPressed ?? pressed, (ushort)(Input.RawHeld & ~raw));
+        Input = new FieldInputState(held, pressed, (ushort)(Input.Held & ~held), raw, rawPressed ?? pressed, (ushort)(Input.RawHeld & ~raw), PreviousHeld: Input.Held, PreviousRawHeld: Input.RawHeld);
     }
 
     public void SetMovementInput(int horizontal, int vertical, bool run)
@@ -38,8 +40,8 @@ public sealed partial class FieldMachine
         {
             const ushort runButton = 0x40;
             static ushort Project(ushort value, bool enabled) => enabled ? (ushort)(value | runButton) : (ushort)(value & ~runButton);
-            bool previous = (Input.Released & runButton) != 0 || (Input.Held & runButton) != 0 && (Input.Pressed & runButton) == 0;
-            bool previousRaw = (Input.RawReleased & runButton) != 0 || (Input.RawHeld & runButton) != 0 && (Input.RawPressed & runButton) == 0;
+            bool previous = Input.PreviousHeld is ushort previousHeld ? (previousHeld & runButton) != 0 : (Input.Released & runButton) != 0 || (Input.Held & runButton) != 0 && (Input.Pressed & runButton) == 0;
+            bool previousRaw = Input.PreviousRawHeld is ushort previousRawHeld ? (previousRawHeld & runButton) != 0 : (Input.RawReleased & runButton) != 0 || (Input.RawHeld & runButton) != 0 && (Input.RawPressed & runButton) == 0;
             Input = Input with { Held = Project(Input.Held, run), Pressed = Project(Input.Pressed, run && !previous), Released = Project(Input.Released, !run && previous), RawHeld = Project(Input.RawHeld, run), RawPressed = Project(Input.RawPressed, run && !previousRaw), RawReleased = Project(Input.RawReleased, !run && previousRaw) };
         }
         Input = Input with { Horizontal = Math.Sign(horizontal), Vertical = Math.Sign(vertical), Run = run };
@@ -231,6 +233,10 @@ public sealed partial class FieldMachine
             switch (opcode)
             {
                 case 0x00:
+                    if (entity.Priority < 7)
+                    {
+                        ScriptReturned?.Invoke(new(id, entity.Priority, pc, Tick));
+                    }
                     return Return(entity);
                 case 0x01:
                 case 0x02:

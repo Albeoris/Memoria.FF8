@@ -15,10 +15,10 @@ internal sealed partial class Ff7Scene
         {
             audioNative ??= Ff7PcExecutableData.Load(installation);
         }
-        return CreateModelEffects(state, camera, audioNative?.NativeSinCos, actor.PartVisibility);
+        return CreateModelEffects(state, camera, audioNative?.NativeSinCos, actor.PartVisibility, actor.NativeColorOffset);
     }
 
-    internal static Ff7ModelRenderOverrides? CreateModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera, IReadOnlyList<short>? nativeSinCos, Ff7NativePartVisibilityState? visibility = null)
+    internal static Ff7ModelRenderOverrides? CreateModelEffects(Ff7NativeModelEffectState? state, PcFieldCamera camera, IReadOnlyList<short>? nativeSinCos, Ff7NativePartVisibilityState? visibility = null, Ff7NativeColorOffsetState? offset = null)
     {
         if (visibility is not null && state is { Restored: false })
         {
@@ -27,6 +27,11 @@ internal sealed partial class Ff7Scene
         if (state is null || state.Restored)
         {
             visibility?.Validate();
+            offset?.Validate();
+            if (offset is not null)
+            {
+                return new(part => visibility is null || Ff7NativePartVisibility.PartVisible(visibility, part), (_, _, original) => Ff7NativeColorOffset.Shade(offset, original), false, false);
+            }
             return visibility is null ? null : new(part => Ff7NativePartVisibility.PartVisible(visibility, part), null, false);
         }
         state.Validate();

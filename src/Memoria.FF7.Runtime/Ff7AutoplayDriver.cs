@@ -102,7 +102,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         return new(direction.X, direction.Y, Run: run);
     }
 
-    public Ff7AutoplayInput TalkTo(int entity)
+    public Ff7AutoplayInput TalkTo(int entity, bool run = true)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor target = session.Host.GetActor(entity);
@@ -115,12 +115,12 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         int dy = (target.Y4096 >> 12) - (player.Y4096 >> 12);
         if (session.GetTalkTarget()?.Entity == entity)
         {
-            return new(Talk: true);
+            return new(Talk: true, Run: run);
         }
         int range = target.TalkRadius + player.CollisionRadius;
         if (dx * dx + dy * dy >= range * range)
         {
-            return Approach(position, target.Triangle);
+            return Approach(position, target.Triangle, run);
         }
         if (dx == 0 && dy == 0)
         {
@@ -128,7 +128,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         int desired = session.Host.Movement!.Direction(dx, dy);
         var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128));
-        return new(direction.X, direction.Y, Run: true);
+        return new(direction.X, direction.Y, Run: run);
     }
 
     public Ff7AutoplayInput Approach(Vector3 target, int? targetTriangle = null, bool run = true)
@@ -202,6 +202,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             byte nativeDirection = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
             Ff7NativeMoveResult probe = movement.StepDirection(controlled, nativeDirection, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+            if (!AllowsPlannedMove(controlled, probe.ProbeActor ?? probe.Actor))
+            {
+                continue;
+            }
             if (!probe.Moved && probe.Actor.Triangle == controlled.Triangle)
             {
                 continue;

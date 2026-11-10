@@ -28,7 +28,7 @@ public sealed partial class Ff7FieldHost
         }
         else if (command.Operation == 0xF1)
         {
-            Process = Process with { SoundChannelLoopIds = new int[4], SoundChannelStoppedByFade = [true, true, true, true] };
+            Process = Process with { SoundChannelLoopIds = new int[5], SoundChannelStoppedByFade = [true, true, true, true, true] };
         }
     }
 

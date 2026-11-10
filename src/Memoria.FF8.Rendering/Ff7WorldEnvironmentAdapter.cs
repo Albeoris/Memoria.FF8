@@ -64,7 +64,7 @@ public sealed class Ff7WorldEnvironmentAdapter
             }
             float u0 = first - seam - tile * 256;
             float u1 = last - seam - tile * 256 - 1;
-            Quad(renderer, clouds, Point(first, cloudBottom - 64, 40), Point(last, cloudBottom - 64, 40), Point(first, cloudBottom, 40), Point(last, cloudBottom, 40), new(u0 / resources.Clouds.Width, 0), new(u1 / resources.Clouds.Width, 63f / resources.Clouds.Height), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), TriangleBlend.Add);
+            Quad(renderer, clouds, Point(first, cloudBottom - 64, 40), Point(last, cloudBottom - 64, 40), Point(first, cloudBottom, 40), Point(last, cloudBottom, 40), new(u0 / resources.Clouds.Width, 0), new(u1 / resources.Clouds.Width, 63f / resources.Clouds.Height), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), new(127 / 255f, 127 / 255f, 127 / 255f, 128 / 255f), TriangleBlend.AlphaAdd);
         }
     }
 
@@ -91,7 +91,7 @@ public sealed class Ff7WorldEnvironmentAdapter
             Matrix4x4 rotation = math.Rotation(0, 0, heading);
             Vector3 first = Vector3.Transform(new(extent >> 1, extent, 0), rotation);
             Vector3 second = Vector3.Transform(new(-(extent >> 1), extent, 0), rotation);
-            TriangleMaterial material = new(null, TriangleBlend.Add, TriangleDepthComparison.Always, false);
+            TriangleMaterial material = new(null, TriangleBlend.AlphaAdd, TriangleDepthComparison.Always, false);
             TriangleVertex a = new(center, 0, 1, Vector2.Zero, new(96 / 255f, 96 / 255f, 0, 128 / 255f));
             TriangleVertex b = new(center + new Vector2((int)first.X, (int)first.Y) * scale, 0, 1, Vector2.Zero, new(16 / 255f, 16 / 255f, 0, 128 / 255f));
             TriangleVertex c = new(center + new Vector2((int)second.X, (int)second.Y) * scale, 0, 1, Vector2.Zero, new(16 / 255f, 16 / 255f, 0, 128 / 255f));
@@ -99,11 +99,11 @@ public sealed class Ff7WorldEnvironmentAdapter
         }
         if (radarMode == 0)
         {
-            Rectangle(renderer, radar, x, y, 72 * scale, 56 * scale, new(1f / 128, 1f / 64), new(71f / 128, 55f / 64), Vector4.One, TriangleBlend.Replace);
+            Rectangle(renderer, radar, x, y, 72 * scale, 56 * scale, new(1f / 128, 1f / 64), new(71f / 128, 55f / 64), new(1, 1, 1, 128 / 255f), TriangleBlend.Alpha);
         }
         else
         {
-            Rectangle(renderer, largeMap, x, y, 216 * scale, 168 * scale, new(1f / 256, 1f / 256), new(215f / 256, 167f / 256), Vector4.One, TriangleBlend.Replace);
+            Rectangle(renderer, largeMap, x, y, 216 * scale, 168 * scale, new(1f / 256, 1f / 256), new(215f / 256, 167f / 256), new(1, 1, 1, 128 / 255f), TriangleBlend.Alpha);
         }
         int[] modelIds = [-1, 6, 5, 3, 19, 25];
         uint[] colors = [0x80800000, 0x80006000, 0x80006060, 0x80606060, 0x80600060, 0x80606000];
@@ -116,7 +116,7 @@ public sealed class Ff7WorldEnvironmentAdapter
             }
             int v = (int)((((counter + (uint)(index * 4)) >> (index == 0 ? 0 : 1)) & 16) << (radarMode == 1 ? 1 : 0)) + 4;
             Vector4 color = new((colors[index] >> 16 & 255) / 255f, (colors[index] >> 8 & 255) / 255f, (colors[index] & 255) / 255f, 128 / 255f);
-            Rectangle(renderer, map, x + (((size * marker.X) >> 15) - 4) * scale, y + (((size * marker.Z) >> 15) - 4) * scale, 8 * scale, 8 * scale, new(4f / 128, v / 64f), new(12f / 128, (v + 8) / 64f), color, TriangleBlend.Replace);
+            Rectangle(renderer, map, x + (((size * marker.X) >> 15) - 4) * scale, y + (((size * marker.Z) >> 15) - 4) * scale, 8 * scale, 8 * scale, new(4f / 128, v / 64f), new(12f / 128, (v + 8) / 64f), color, TriangleBlend.Alpha);
         }
     }
 

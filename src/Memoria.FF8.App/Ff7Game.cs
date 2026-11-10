@@ -81,6 +81,7 @@ internal sealed partial class Ff7Game : Game
     {
         batch = new SpriteBatch(GraphicsDevice);
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
+        scene.ConfigureCharacterIdentity(launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII character presentation requires its primary game installation."));
         scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>
         {
@@ -92,7 +93,7 @@ internal sealed partial class Ff7Game : Game
         scene.ConfigureSharedDialogueDefaults(batch, launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII shared presentation requires its primary game installation."), launchOptions?.SettingsDirectory);
         keyboard.Profile = ControlsProfile.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).ControlsPreferencesPath);
         controller = new ControllerDevice();
-        scene.ConfigureSharedControls(keyboard, gameplayClock);
+        scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).ControlsPreferencesPath));
         scene.InterpolatePresentation = launchOptions?.ControlStep != true;
         scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(savePath))!, "autoplay", "ff7", "current.ffsave"));
         InitializeUpdateHandoff();
@@ -187,6 +188,10 @@ internal sealed partial class Ff7Game : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        if (Window.Title != scene.LocationWindowTitle)
+        {
+            Window.Title = scene.LocationWindowTitle;
+        }
         GraphicsDevice.Clear(Color.Black);
         int width = GraphicsDevice.PresentationParameters.BackBufferWidth;
         int height = GraphicsDevice.PresentationParameters.BackBufferHeight;

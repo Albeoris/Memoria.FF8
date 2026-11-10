@@ -380,7 +380,7 @@ public sealed partial class MenuController
 
     private static UiImage Portrait(MenuCharacter? character)
     {
-        UiImage image = Artwork(UiImageKind.CharacterPortrait, character?.NativeId);
+        UiImage image = character?.Portrait is { } portrait ? new UiImage { Source = portrait } : Artwork(UiImageKind.CharacterPortrait, character?.NativeId);
         image.Id = "portrait-" + character?.Id;
         return image;
     }

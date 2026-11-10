@@ -42,7 +42,7 @@ internal sealed partial class Ff7Scene
         RefreshNativeGains();
         RefreshNativePans();
         RefreshNativeFrequencies();
-        soundChannels.SetTempo(sharedClock.EffectiveSpeed(state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, false));
+        soundChannels.SetTempo(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, false));
         int track = state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
         track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
         if (track == 0)

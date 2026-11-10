@@ -4,6 +4,12 @@ namespace Memoria.FF7.Resources;
 
 public sealed class Ff7WorldMath(Ff7WorldPresentationData data)
 {
+    public Vector3 TransformRotation(Vector3 value, int x, int y, int z)
+    {
+        Matrix4x4 matrix = Rotation(x, y, z);
+        return new((float)((double)value.X * matrix.M11 + (double)value.Y * matrix.M21 + (double)value.Z * matrix.M31), (float)((double)value.X * matrix.M12 + (double)value.Y * matrix.M22 + (double)value.Z * matrix.M32), (float)((double)value.X * matrix.M13 + (double)value.Y * matrix.M23 + (double)value.Z * matrix.M33));
+    }
+
     public Matrix4x4 Rotation(int x, int y, int z)
     {
         float Radians(int angle) => (float)((float)(angle * data.DegreesPerAngleUnit) * data.RadiansPerDegree);

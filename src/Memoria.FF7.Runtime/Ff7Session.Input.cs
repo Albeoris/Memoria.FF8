@@ -7,6 +7,15 @@ namespace Memoria.FF7.Runtime;
 public sealed partial class Ff7Session
 {
     private int movementSpeedPercent = 100;
+    private int worldMovementSpeedPercent = 100;
+
+    public void ConfigureWorldMovementSpeed(int percent)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(percent, 50);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 300);
+        worldMovementSpeedPercent = percent;
+        World?.ConfigureMovementSpeed(percent);
+    }
 
     public void ConfigureMovementSpeed(int percent)
     {
@@ -78,7 +87,8 @@ public sealed partial class Ff7Session
         }
         bool lineTalk = Host.RequestLineTalk(player);
         Ff7Actor? selected = GetTalkTarget();
-        return selected is not null && Machine.TryRequestScript(selected.Entity, 1) || lineTalk;
+        bool actorTalk = selected is not null && RequestInteractionScript(selected.Entity, 1);
+        return actorTalk || lineTalk;
     }
 
     public Ff7Actor? GetTalkTarget()

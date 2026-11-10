@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF7.Events;
+using Memoria.AutoPlay;
 
 namespace Memoria.FF7.Runtime;
 
@@ -61,7 +62,7 @@ public sealed record Ff7AudioPresentationState
     }
 }
 
-public sealed record Ff7TickContinuation(FieldInputState Input);
+public sealed record Ff7TickContinuation(FieldInputState Input, FieldScriptReturn[]? ScriptReturns = null);
 
 public sealed record Ff7SessionSave
 {
@@ -77,6 +78,7 @@ public sealed record Ff7SessionSave
     public Ff7AudioPresentationState? AudioPresentation { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
+    public AutoPlayEventCoverageState? EventCoverage { get; init; }
 
     public void Validate()
     {
@@ -87,6 +89,10 @@ public sealed record Ff7SessionSave
         Progress.Validate();
         Process.Validate();
         AudioPresentation?.Validate();
+        if (EventCoverage is not null)
+        {
+            AutoPlayEventCoverageLedger.Validate(EventCoverage);
+        }
         if (World is not null && (TickContinuation is not null || World.WorldId is not (0 or 2 or 3) || World.EntrySelector is < 0 or > 65535 || World.Vm is null))
         {
             throw new InvalidDataException("FFVII world continuation conflicts with its field scheduler or resource identity.");
@@ -94,6 +100,10 @@ public sealed record Ff7SessionSave
         if ((TickContinuation is null) != (Vm.CycleCursor is null) || TickContinuation is not null && (TickContinuation.Input is null || TickContinuation.Input != Vm.Input))
         {
             throw new InvalidDataException("A partial FFVII field tick requires matching scheduler and latched-input ownership.");
+        }
+        if (TickContinuation?.ScriptReturns is { } returns && (returns.Length > 4096 || returns.Any(value => value is null || value.Entity < 0 || value.Entity >= Vm.Entities.Length || value.Priority is < 0 or >= 7 || value.ProgramCounter is < 0 or > 65535 || value.Tick != Vm.Tick)))
+        {
+            throw new InvalidDataException("A partial FFVII field tick has corrupt native script-return observations.");
         }
     }
 }
@@ -109,6 +119,16 @@ public sealed record CombinedSessionSave
     public string? Ff8PayloadFormat { get; init; }
     public Ff7SessionSave? Ff7 { get; init; }
     public CharacterAppearanceMapping[] Mappings { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<int, string>? CharacterNameOverrides { get; init; }
+
+    public void ValidateCharacterNameOverrides()
+    {
+        if (CharacterNameOverrides?.Any(pair => pair.Key is < 0 or > 8 || string.IsNullOrWhiteSpace(pair.Value) || pair.Value != pair.Value.Trim() || pair.Value.Any(char.IsControl) || System.Globalization.StringInfo.ParseCombiningCharacters(pair.Value).Length > 20) == true)
+        {
+            throw new InvalidDataException("Crossover character presentation names require supported story identities and one through twenty text elements.");
+        }
+    }
 
     public void Validate()
     {
@@ -124,6 +144,7 @@ public sealed record CombinedSessionSave
         {
             throw new NotSupportedException("The appearance mapping requires a supported character identity and explicit rig profile.");
         }
+        ValidateCharacterNameOverrides();
         Ff7?.Validate();
     }
 }

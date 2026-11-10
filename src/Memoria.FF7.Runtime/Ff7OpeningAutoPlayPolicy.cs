@@ -13,6 +13,7 @@ public enum Ff7AutoPlayGoal
 public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal goal = Ff7AutoPlayGoal.ChurchArrival)
 {
     private readonly Ff7MidgarAutoPlayPolicy midgar = new(session);
+    private readonly Ff7AutoPlayEventCoverage? coverage = goal == Ff7AutoPlayGoal.MidgarWorldMap ? new(session) : null;
     private long generation = -1;
     private int stage;
 
@@ -28,7 +29,7 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal
     {
         if (goal == Ff7AutoPlayGoal.MidgarWorldMap)
         {
-            return session.World is { } world && world.Process is { Initialized: true, EntrySelector: 1, WorldId: 0 } && world.CanSave;
+            return session.World is { } world && world.Process is { Initialized: true, EntrySelector: 1, WorldId: 0 } && world.CanSave && coverage?.CanLeaveField == true;
         }
         Ff7FieldProcess process = session.Host.Process;
         if (session.HasPendingTick || session.Field.Name != "chrin_1b" || session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 140 || (process.PreviousMap is ushort previousMap && previousMap != 127) || process.Movie is { Playing: true })
@@ -48,6 +49,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
+        if (session.World is not null)
+        {
+            return null;
+        }
         if (goal == Ff7AutoPlayGoal.MidgarWorldMap && midgar.ChooseDialogueSelection(dialogue) is int selection)
         {
             return selection;
@@ -72,6 +77,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal
         if (session.World is not null)
         {
             return default;
+        }
+        if (coverage?.TryChooseInput(driver, out Ff7AutoplayInput coverageInput) == true)
+        {
+            return coverageInput;
         }
         if (goal == Ff7AutoPlayGoal.MidgarWorldMap && midgar.TryChooseInput(driver, out Ff7AutoplayInput midgarInput))
         {

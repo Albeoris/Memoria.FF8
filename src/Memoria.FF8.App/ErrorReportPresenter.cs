@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework.Input;
 namespace Memoria.FF8;
 
 /// <summary>Shared report preparation, recovery actions and UI; game adapters supply validated evidence.</summary>
-internal sealed class ErrorReportPresenter(Action<string> copy) : IDisposable
+internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncident, Task<PreparedErrorReport>>? prepare = null) : IDisposable
 {
     internal ErrorIncident? Incident { get; set; }
     internal Task<ErrorIncident>? Evidence { get; set; }
@@ -143,9 +143,10 @@ internal sealed class ErrorReportPresenter(Action<string> copy) : IDisposable
         reportPreparation = PrepareErrorReport(evidence);
     }
 
-    private static async Task<PreparedErrorReport> PrepareErrorReport(Task<ErrorIncident> evidence)
+    private async Task<PreparedErrorReport> PrepareErrorReport(Task<ErrorIncident> evidence)
     {
-        return await RuntimeErrorReport.PrepareAsync(await evidence.ConfigureAwait(false)).ConfigureAwait(false);
+        ErrorIncident incident = await evidence.ConfigureAwait(false);
+        return await (prepare?.Invoke(incident) ?? GameErrorReport.PrepareAsync(incident)).ConfigureAwait(false);
     }
 
     private void CopyReportText(string value)

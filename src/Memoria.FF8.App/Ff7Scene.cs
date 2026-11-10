@@ -94,8 +94,8 @@ internal sealed partial class Ff7Scene : IDisposable
     public void SetFocusPaused(bool paused)
     {
         focusPaused = paused;
-        SetAudioPaused(paused || userPaused || debugMenu || error is not null);
-        if (paused || userPaused || debugMenu || error is not null)
+        SetAudioPaused(paused || userPaused || debugMenu || IsPlayerMenuOpen || error is not null);
+        if (paused || userPaused || debugMenu || IsPlayerMenuOpen || error is not null)
         {
             movie?.Suspend();
         }
@@ -140,8 +140,12 @@ internal sealed partial class Ff7Scene : IDisposable
                 movieSkipGesture.Reset();
                 return;
             }
-            if (sharedInput.DebugRoomRequested)
+            if (sharedInput.DebugRoomRequested && playerMenu?.IsCapturingControls != true)
             {
+                if (IsPlayerMenuOpen)
+                {
+                    ClosePlayerMenu();
+                }
                 pendingPressedKeys = 0;
                 sharedInput.SuppressHeldUiInput();
                 if (UseHostDebugMenu)
@@ -177,6 +181,10 @@ internal sealed partial class Ff7Scene : IDisposable
             if (Session is null)
             {
                 UpdateTitle();
+                return;
+            }
+            if (UpdatePlayerMenu(keys, pad))
+            {
                 return;
             }
             if (Session.HasPendingTick)
@@ -274,7 +282,11 @@ internal sealed partial class Ff7Scene : IDisposable
                     }
                 }
             }
-            DrawNamingMenu(windowBounds);
+            if (error is null)
+            {
+                DrawPlayerMenu(windowBounds);
+                DrawNamingMenu(windowBounds);
+            }
             DrawMovieSkipHint(windowBounds);
             if (debugMenu)
             {
@@ -303,12 +315,14 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         autoPlay = null;
         DisposeNamingPresentation();
+        DisposePlayerMenu();
         StopAudio();
         Session?.Dispose();
         StopMovie();
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
+        AttachCharacterIdentity(session);
         Session.Host.NativeBlinkCamera = BlinkCamera;
         Session.DialogueMessageSpeed = native => Ff7DialoguePresentationPolicy.MessageSpeed(native, dialoguePreferences?.Invoke().FieldMessageSpeed ?? 3);
         RestoreAudioPresentation(savedAudio, restoring);
@@ -316,6 +330,7 @@ internal sealed partial class Ff7Scene : IDisposable
         renderedGeneration = -1;
         renderer = null;
         ResetWorldPresentation();
+        ResetInterpolationPresentation();
         dialogueTokens.Clear();
         commonDialoguePages.Clear();
         reportCheckpoint = null;
@@ -336,14 +351,14 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         if (renderer is null || renderedGeneration != session.FieldGeneration)
         {
-            renderer = new Ff7FieldRenderer(session.Field, session.Models.Select((model, index) => (model, index)).ToDictionary(pair => pair.index, pair => pair.model), projection, appearance);
+            renderer = new Ff7FieldRenderer(session.Field, session.Models.Select((model, index) => (model, index)).ToDictionary(pair => pair.index, pair => pair.model), new(session.FieldNearPlane, projection.FarPlane), appearance);
             renderedGeneration = session.FieldGeneration;
         }
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, FieldCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
+        Ff7FieldRenderFrame frame = new(0, PresentationCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 
@@ -579,6 +594,7 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         StopMovie();
         DisposeNamingPresentation();
+        DisposePlayerMenu();
         StopAudio();
         Session?.Dispose();
         DisposeDialoguePresentation();

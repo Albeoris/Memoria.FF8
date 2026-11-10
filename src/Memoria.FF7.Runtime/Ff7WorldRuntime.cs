@@ -267,6 +267,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         {
             case WorldOperation.SetPlayer:
                 controlledModel = entity.Model;
+                SynchronizeFreeDirection(entity);
                 break;
             case WorldOperation.EnableControl:
                 if (values[0] == 0)
@@ -287,6 +288,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 break;
             case WorldOperation.Direction:
                 entity = entity with { Direction = values[0] << 4 & 4095, TargetDirection = values[0] << 4 & 4095 };
+                if (entity.Model == controlledModel)
+                {
+                    SynchronizeFreeDirection(entity);
+                }
                 break;
             case WorldOperation.TargetDirection:
                 entity = entity with { TargetDirection = values[0] << 4 & 4095 };
@@ -323,7 +328,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 entity = entity with { Flags = entity.Flags & ~8 };
                 break;
             case WorldOperation.ViewMode:
-                viewMode = values[0] & 3;
+                SetWorldViewMode(values[0] & 3);
                 radarMode = values[0] >> 2 & 3;
                 break;
             case WorldOperation.EncounterRate:

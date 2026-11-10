@@ -53,11 +53,20 @@ public sealed class Ff7WorldEnvironmentTests
         adapter.DrawSky(second, view, new(185636, 0, 123325), 0, 10000, 0, 0, true, 0, colors.Upper, colors.Lower);
         Assert.Equal(first.Triangles, second.Triangles);
         Assert.Equal(new Vector4(colors.Upper / 255, 1), first.Triangles[0].A.Color);
+        Assert.All(first.Triangles.Skip(2), triangle => Assert.Equal(TriangleBlend.AlphaAdd, triangle.Material.Blend));
         Capture radar = new();
         adapter.DrawRadar(radar, 320, 240, 0, 0, 0, 0, [new(0, 185636, 123325, true), new(25, 92960, 179731)]);
         Assert.Equal(6, radar.Triangles.Count);
         Assert.Equal(new Vector2(228, 156), radar.Triangles[0].A.Position);
         Assert.Equal(new Vector2(300, 212), radar.Triangles[1].C.Position);
+        Assert.All(radar.Triangles, triangle =>
+        {
+            Assert.Equal(TriangleBlend.Alpha, triangle.Material.Blend);
+            Assert.Equal(128 / 255f, triangle.A.Color.W);
+        });
+        Capture cone = new();
+        adapter.DrawRadar(cone, 320, 240, 0, 2, 0, 0, [new(0, 185636, 123325, true)]);
+        Assert.Equal(TriangleBlend.AlphaAdd, cone.Triangles[0].Material.Blend);
         Capture hidden = new();
         adapter.DrawRadar(hidden, 320, 240, 2, 0, 0, 0, []);
         Assert.Empty(hidden.Triangles);

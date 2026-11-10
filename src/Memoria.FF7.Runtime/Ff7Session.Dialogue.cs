@@ -6,17 +6,19 @@ namespace Memoria.FF7.Runtime;
 public sealed partial class Ff7Session
 {
     public Func<byte, byte>? DialogueMessageSpeed { get; set; }
+    public Func<int, string, string>? PresentationNameResolver { get; set; }
 
     public string ExpandDialogueToken(FieldTextToken token)
     {
         int[] scriptParty = Enumerable.Range(9, 3).Select(address => (int)(World?.ReadPersistentByte(256 + address) ?? Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address))).ToArray();
-        return Ff7DialogueCursor.ExpandToken(token, Progress, scriptParty);
+        return Ff7DialogueCursor.ExpandToken(token, Progress, scriptParty, PresentationNameResolver);
     }
 
     private void ConfigureWorldPresentation()
     {
         if (World is not null)
         {
+            World.ConfigureMovementSpeed(worldMovementSpeedPercent);
             World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
             World.ExpandDialogueToken = ExpandDialogueToken;
             World.AudioRequested = Host.SubmitNativeAudio;

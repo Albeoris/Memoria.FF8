@@ -1,3 +1,5 @@
+using System.Numerics;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 
 namespace Memoria.FF8;
@@ -6,12 +8,31 @@ internal sealed partial class Ff7Scene
 {
     private long previousActorGeneration = -1;
     private IReadOnlyDictionary<int, Ff7Actor> previousActors = new Dictionary<int, Ff7Actor>();
+    private Ff7FieldProcess? previousFieldPresentation;
     public bool InterpolatePresentation { get; set; } = true;
 
     private void CapturePreviousActors()
     {
         previousActorGeneration = Session!.FieldGeneration;
-        previousActors = Session.Host.Process.Actors.ToDictionary(actor => actor.Slot);
+        previousFieldPresentation = Session.Host.Process;
+        previousActors = previousFieldPresentation.Actors.ToDictionary(actor => actor.Slot);
+    }
+
+    private void ResetInterpolationPresentation()
+    {
+        previousActorGeneration = -1;
+        previousActors = new Dictionary<int, Ff7Actor>();
+        previousFieldPresentation = null;
+    }
+
+    private bool CanInterpolateFieldPresentation => InterpolatePresentation && PresentationPreferences.FieldFps == 60 && !focusPaused && !userPaused && !debugMenu && error is null && Session is not null && previousActorGeneration == Session.FieldGeneration;
+    private float FieldPresentationFraction => (float)Math.Clamp(tickRemainder * 30, 0, 1);
+
+    private Vector2 PresentationCameraOffset(Ff7FieldProcess current, PcFieldCamera? movieCamera = null)
+    {
+        return CanInterpolateFieldPresentation && previousFieldPresentation is { } previous
+            ? Ff7FieldPresentation.InterpolateCameraOffset(previous, current, FieldPresentationFraction, movieCamera)
+            : FieldCameraOffset(current, movieCamera);
     }
 
     private Ff7Actor PresentationActor(Ff7Actor actor)
@@ -21,13 +42,35 @@ internal sealed partial class Ff7Scene
             return actor;
         }
         Ff7Actor current = Session!.PrepareActorPresentation(actor);
-        if (!InterpolatePresentation || PresentationPreferences.FieldFps != 60 || focusPaused || userPaused || debugMenu || error is not null || previousActorGeneration != Session.FieldGeneration || !previousActors.TryGetValue(actor.Slot, out Ff7Actor? previous))
+        if (!CanInterpolateFieldPresentation || !previousActors.TryGetValue(actor.Slot, out Ff7Actor? previous))
         {
             return current;
         }
         int frames = Session.Models[actor.Model].Animations[Path.ChangeExtension(Session.Field.Models.Models[actor.Model].Animations[actor.Animation], ".a")].Frames.Count;
         Ff7Actor before = previous.Visible && previous.Model == actor.Model ? Session.PrepareActorPresentation(previous) : previous;
-        return Ff7ActorPresentation.Interpolate(before, current, (float)Math.Clamp(tickRemainder * 30, 0, 1), frames);
+        return Ff7ActorPresentation.Interpolate(before, current, FieldPresentationFraction, frames);
+    }
+}
+
+internal static class Ff7FieldPresentation
+{
+    public static Vector2 InterpolateCameraOffset(Ff7FieldProcess previous, Ff7FieldProcess current, float fraction, PcFieldCamera? movieCamera = null)
+    {
+        Vector2 endpoint = Ff7NativeCamera.PresentationOffset(current, movieCamera);
+        if (previous.Movie is { Playing: true } || current.Movie is { Playing: true })
+        {
+            return endpoint;
+        }
+        bool movingCamera = current.CameraFollowPlayer != false || current.CameraTracking is { Completed: false } || previous.CameraTracking is { Completed: false } || current.CameraScroll is { Completed: false } || previous.CameraScroll is { Completed: false };
+        if (!movingCamera && (previous.CameraX != current.CameraX || previous.CameraY != current.CameraY))
+        {
+            return endpoint;
+        }
+        if (!float.IsFinite(fraction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(fraction));
+        }
+        return Vector2.Lerp(Ff7NativeCamera.PresentationOffset(previous), endpoint, Math.Clamp(fraction, 0, 1));
     }
 }
 

@@ -93,27 +93,27 @@ public sealed partial class Ff7Session
         {
             if (line.Talk && !Host.Process.PlayerLocked)
             {
-                Machine.TryRequestScript(line.Entity, 1);
+                RequestInteractionScript(line.Entity, 1);
             }
             if (line.Push)
             {
-                Machine.TryRequestScript(line.Entity, 2);
+                RequestInteractionScript(line.Entity, 2);
             }
             if (line.Across)
             {
-                Machine.TryRequestScript(line.Entity, 3);
+                RequestInteractionScript(line.Entity, 3);
             }
             if (line.Enter)
             {
-                Machine.TryRequestScript(line.Entity, 5);
+                RequestInteractionScript(line.Entity, 5);
             }
             if (line.Leave)
             {
-                Machine.TryRequestScript(line.Entity, 6);
+                RequestInteractionScript(line.Entity, 6);
             }
             if (line.Touch)
             {
-                Machine.TryRequestScript(line.Entity, 4);
+                RequestInteractionScript(line.Entity, 4);
             }
         }
         Host.ClearLineRequests();

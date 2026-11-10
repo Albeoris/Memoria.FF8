@@ -144,7 +144,7 @@ internal sealed class ErrorReportDialog : Window
         try
         {
             await presentation;
-            report = await RuntimeErrorReport.PrepareAsync(incident);
+            report = await Memoria.FF8.GameErrorReport.PrepareAsync(incident);
             RefreshSummary();
             location.Text = $"{report.ArchivePath}{Environment.NewLine}{new FileInfo(report.ArchivePath).Length:N0} bytes";
             url.Text = report.IssueUrl;

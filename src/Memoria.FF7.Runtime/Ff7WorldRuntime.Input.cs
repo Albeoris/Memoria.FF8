@@ -5,11 +5,12 @@ using Memoria.FF7.Resources;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7WorldTerrainReference(int ChunkX, int ChunkZ, int Triangle);
-public sealed record Ff7WorldInputState(ushort Held = 0, ushort Pressed = 0, int Horizontal = 0, int Vertical = 0, bool Run = true, int PreviousX = 0, int PreviousY = 0, int PreviousZ = 0, int CollisionSide = 0, int CollisionAge = 0, int BridgeCooldown = 0, int TerrainScript = 0, Ff7WorldTerrainReference[]? TerrainCache = null);
+public sealed record Ff7WorldInputState(ushort Held = 0, ushort Pressed = 0, int Horizontal = 0, int Vertical = 0, bool Run = true, int PreviousX = 0, int PreviousY = 0, int PreviousZ = 0, int CollisionSide = 0, int CollisionAge = 0, int BridgeCooldown = 0, int TerrainScript = 0, Ff7WorldTerrainReference[]? TerrainCache = null, int? CameraHeadingTarget = null, int? FreeDirectionOffset = null, ushort PreviousControlHeld = 0);
 
 public sealed partial class Ff7WorldRuntime
 {
     private Ff7WorldInputState input = new();
+    private int movementSpeedPercent = 100;
     private Ff7WorldMath inputMath = null!;
     private IReadOnlyList<byte> collisionMasks = null!;
     private readonly Dictionary<(int Block, int Mesh), PcWorldMesh> collisionMeshes = [];
@@ -24,6 +25,16 @@ public sealed partial class Ff7WorldRuntime
         visibility = new(presentation);
         inputInstallation = installation;
         collisionMasks = Ff7PcExecutableData.LoadWorldCollisionMasks(installation);
+        int savedHeading = persistent[0x3F8] | (persistent[0x3F9] & 15) << 8;
+        camera = camera with { Heading = viewMode == 2 ? savedHeading : 0 };
+        input = input with { CameraHeadingTarget = camera.Heading };
+    }
+
+    public void ConfigureMovementSpeed(int percent)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(percent, 50);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 300);
+        movementSpeedPercent = percent;
     }
 
     public void SetButtons(ushort held, ushort pressed)
@@ -43,6 +54,12 @@ public sealed partial class Ff7WorldRuntime
 
     private void AdvancePlayerInput()
     {
+        AdvancePlayerInputCore();
+        AdvanceWorldCameraHeading();
+    }
+
+    private void AdvancePlayerInputCore()
+    {
         foreach (Ff7WorldEntity entity in entities.Values.ToArray())
         {
             UpdateEntity(entity with { Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousZ = entity.Z });
@@ -60,16 +77,13 @@ public sealed partial class Ff7WorldRuntime
         {
             return;
         }
-        if (input.Horizontal == 0 && input.Vertical == 0)
-        {
-            return;
-        }
-        if (player.Model is not (0 or 1 or 2) || viewMode is not (0 or 1))
+        if (player.Model is not (0 or 1 or 2))
         {
             throw new NotSupportedException("FFVII world physical movement requires the original foot model and fixed camera control contract.");
         }
-        int dx = input.Horizontal * 60;
-        int dz = input.Vertical * 60;
+        int delta = 60 * movementSpeedPercent / 100;
+        int dx = input.Horizontal * delta;
+        int dz = input.Vertical * delta;
         int heading = input.Horizontal < 0 ? -1024 : input.Horizontal > 0 ? 1024 : -1;
         if (input.Vertical < 0)
         {
@@ -80,7 +94,7 @@ public sealed partial class Ff7WorldRuntime
             else
             {
                 dx = dx * 3 >> 2;
-                dz = -180 >> 2;
+                dz = delta * -3 >> 2;
                 heading += heading >> 1;
             }
         }
@@ -93,21 +107,12 @@ public sealed partial class Ff7WorldRuntime
             else
             {
                 dx = dx * 3 >> 2;
-                dz = 180 >> 2;
+                dz = delta * 3 >> 2;
                 heading -= heading >> 1;
             }
         }
-        heading &= 4095;
-        int desired = heading;
-        if (Math.Abs(player.Direction - desired) > Math.Abs(player.Direction - desired + 4096))
-        {
-            desired -= 4096;
-        }
-        else if (Math.Abs(player.Direction - desired) > Math.Abs(player.Direction - desired - 4096))
-        {
-            desired += 4096;
-        }
-        Ff7WorldEntity moved = player with { X = Wrap(player.X + dx, 0x48000), Z = Wrap(player.Z + dz, 0x38000), Direction = ((player.Direction * 3 + desired) >> 2) & 4095, TargetDirection = heading, Flags = player.Flags | 1 };
+        ApplyWorldControlOptions(ref player, ref dx, ref dz, heading);
+        Ff7WorldEntity moved = player with { X = Wrap(player.X + dx, 0x48000), Z = Wrap(player.Z + dz, 0x38000), Flags = dx != 0 || dz != 0 ? player.Flags | 1 : player.Flags & ~1 };
         if (entities.Values.Any(other => WorldModelsCollide(moved, other)))
         {
             moved = moved with { X = player.X, Y = player.Y, Z = player.Z, Flags = moved.Flags & ~1 };
@@ -143,50 +148,26 @@ public sealed partial class Ff7WorldRuntime
         {
             throw new NotSupportedException("FFVII world terrain resolution requires the original foot model contract.");
         }
-        int dx = WrappedDifference(player.X - input.PreviousX, 0x48000);
-        int dz = WrappedDifference(player.Z - input.PreviousZ, 0x38000);
-        int angleStep = input.BridgeCooldown == 0 ? 160 : 320;
-        (int X, int Z, int Height, int Terrain, int Angle)? accepted = null;
-        int selectedSide = input.CollisionSide;
-        for (int pass = 0; pass < (input.CollisionAge >= 8 ? 2 : 1) && accepted is null; pass++)
+        FootCollisionResult? selected = ResolveFootCollision(player);
+        if (selected is { } result)
         {
-            int side = pass == 0 ? input.CollisionSide : 1 - input.CollisionSide;
-            for (int candidate = 0; candidate < 8 && accepted is null; candidate++)
-            {
-                int angle = candidate * angleStep * (side == 0 ? 1 : -1);
-                Vector3 rotated = Vector3.Transform(new(dx, 0, dz), inputMath.Rotation(0, angle, 0));
-                int x = Wrap(input.PreviousX + (int)rotated.X, 0x48000);
-                int z = Wrap(input.PreviousZ + (int)rotated.Z, 0x38000);
-                (int Height, int Terrain)? center = null;
-                bool valid = true;
-                foreach ((int offsetX, int offsetZ) in new (int, int)[] { (0, 0), (-200, 0), (200, 0), (0, -200), (0, 200) })
-                {
-                    (int Height, int Terrain)? terrain = QueryTerrain(Wrap(x + offsetX, 0x48000), Wrap(z + offsetZ, 0x38000), player.Y, player.Terrain);
-                    if (offsetX == 0 && offsetZ == 0)
-                    {
-                        center = terrain;
-                    }
-                    valid &= terrain is not null;
-                }
-                if (valid && center is { } found)
-                {
-                    accepted = (x, z, found.Height, found.Terrain, angle);
-                    selectedSide = side;
-                }
-            }
-        }
-        if (accepted is { } result)
-        {
-            int terrain = result.Terrain & 31;
-            if (terrain is 1 or 25)
+            int terrainType = result.Terrain & 31;
+            if (terrainType is 1 or 25)
             {
                 throw new NotSupportedException("FFVII foot terrain height transition smoothing is not yet supported for this native terrain.");
             }
-            int offset = terrain is 4 or 7 ? -64 : 0;
+            if (terrainType is 13 or 14)
+            {
+                throw new NotSupportedException("FFVII foot bridge movement requires its native bridge owner.");
+            }
+            int offset = terrainType is 4 or 7 ? -64 : 0;
             int turn = (player.Flags & 1) != 0 ? (player.TurnOffset * 7 + result.Angle) >> 3 : (player.TurnOffset + result.Angle) >> 1;
             bool moved = result.X != input.PreviousX || result.Z != input.PreviousZ;
             player = player with { X = result.X, Y = result.Height + offset, Z = result.Z, GroundHeight = result.Height, Terrain = result.Terrain, TerrainResolved = true, TurnOffset = turn, Flags = (player.Flags | 2) & ~1 | (moved ? 1 : 0) };
-            input = input with { CollisionAge = selectedSide != input.CollisionSide ? 0 : input.CollisionAge, CollisionSide = selectedSide };
+            if (result.Side != input.CollisionSide)
+            {
+                input = input with { CollisionSide = result.Side, CollisionAge = 0 };
+            }
         }
         else
         {
@@ -286,13 +267,23 @@ public sealed partial class Ff7WorldRuntime
         int localZ = z & 8191;
         int selected = -1;
         int height = 0;
+        bool cachedContains = false;
+        uint mask = (previousTerrain & 31) is 13 or 14 ? 0x20006000u : 0x721B6F83u;
         foreach (Ff7WorldTerrainReference cached in input.TerrainCache ?? [])
         {
             if (cached.ChunkX == chunkX && cached.ChunkZ == chunkZ && TryTriangleHeight(mesh, cached.Triangle, localX, localZ, out height))
             {
-                selected = cached.Triangle;
-                break;
+                cachedContains = true;
+                if ((mask & (1u << mesh.Triangles[cached.Triangle].Terrain)) != 0)
+                {
+                    selected = cached.Triangle;
+                    break;
+                }
             }
+        }
+        if (selected < 0 && cachedContains)
+        {
+            return null;
         }
         if (selected < 0)
         {
@@ -320,7 +311,6 @@ public sealed partial class Ff7WorldRuntime
             return null;
         }
         PcWorldTriangle face = mesh.Triangles[selected];
-        uint mask = (previousTerrain & 31) is 13 or 14 ? 0x20006000u : 0x721B6F83u;
         return (mask & (1u << face.Terrain)) != 0 ? (height, face.TerrainAndScript | (face.PackedIds & 0xFF00)) : null;
     }
 
@@ -369,7 +359,7 @@ public sealed partial class Ff7WorldRuntime
         {
             return;
         }
-        if (state.Horizontal is < -1 or > 1 || state.Vertical is < -1 or > 1 || state.CollisionSide is < 0 or > 1 || state.BridgeCooldown is < 0 or > 5 || state.TerrainScript is < 0 or > 7 || state.TerrainCache is { Length: > 6 })
+        if (state.Horizontal is < -1 or > 1 || state.Vertical is < -1 or > 1 || state.CollisionSide is < 0 or > 1 || state.BridgeCooldown is < 0 or > 5 || state.TerrainScript is < 0 or > 7 || state.TerrainCache is { Length: > 6 } || state.CameraHeadingTarget is < 0 or > 4095)
         {
             throw new InvalidDataException("FFVII world input or terrain cache state is corrupt.");
         }

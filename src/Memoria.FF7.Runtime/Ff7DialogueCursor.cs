@@ -5,7 +5,7 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7DialogueCursor
 {
-    public static string ExpandToken(FieldTextToken token, Ff7Progress progress, IReadOnlyList<int> scriptParty)
+    public static string ExpandToken(FieldTextToken token, Ff7Progress progress, IReadOnlyList<int> scriptParty, Func<int, string, string>? presentationNameResolver = null)
     {
         if (token.Kind == FieldTextTokenKind.Glyph)
         {
@@ -18,7 +18,7 @@ public static class Ff7DialogueCursor
             _ => throw new NotSupportedException($"FFVII token {token.Kind} has no admitted native text expansion.")
         };
         string name = progress.Characters.SingleOrDefault(item => item.Id == character)?.Name ?? throw new InvalidDataException("FFVII text references an absent native character name.");
-        return string.Concat(name.EnumerateRunes().Take(9));
+        return presentationNameResolver is null ? string.Concat(name.EnumerateRunes().Take(9)) : presentationNameResolver(character, name);
     }
 
     public static Ff7DialogueBounds WindowBounds(Ff7Dialogue dialogue, Ff7Window window)
@@ -150,10 +150,12 @@ public static class Ff7DialogueCursor
                 case FieldTextTokenKind.PartyName:
                     string text = expandToken?.Invoke(token) ?? throw new NotSupportedException("FFVII name reveal requires its native character and script-party bindings.");
                     int length = text.EnumerateRunes().Count();
+                    presentation = presentation with { PresentationNameLength = length > 9 ? length : null };
                     if (expansion >= length)
                     {
                         expansion = 0;
                         position++;
+                        presentation = presentation with { PresentationNameLength = null };
                     }
                     else
                     {

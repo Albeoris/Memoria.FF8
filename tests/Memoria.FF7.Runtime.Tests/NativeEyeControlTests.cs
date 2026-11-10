@@ -18,7 +18,7 @@ internal static class NativeEyeControlTests
         Ff7FieldHost host = new(field, (_, _) => 1, new() { Actors = [actor] });
         FieldHostRequest request = new(1, 33, 7, 0x21D1, new FieldModelEffectCommand(0) { Payload = [0, 0, 0, 255] });
         Check(host.Execute(request).Completed, "Native eye-disable request did not complete immediately.");
-        Check(host.GetActor(33) == actor with { AutomaticBlinkDisabled = true }, "Eye-disable changed another native actor fact.");
+        Check(host.GetActor(33) == actor with { AutomaticBlinkDisabled = true, NativeEyeControlPending = true }, "Eye-disable changed another native actor fact.");
         Check(host.Process.Tick == 0, "Eye-disable advanced the process clock.");
         Ff7FieldProcess snapshot = JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!;
         Ff7FieldHost cold = new(field, (_, _) => 1, snapshot);

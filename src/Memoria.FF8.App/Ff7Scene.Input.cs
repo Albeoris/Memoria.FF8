@@ -62,7 +62,7 @@ internal sealed partial class Ff7Scene
                 UpdateDialogue(dialogue with { Selected = selected });
                 dialogue = ActiveDialogues.Single(item => item.RequestId == dialogue.RequestId);
             }
-            if (semanticInput.Confirm)
+            if (semanticInput.Confirm || semanticInput.Cancel && dialogue.FirstChoice is null)
             {
                 if (AdvanceCommonDialogue(dialogue))
                 {

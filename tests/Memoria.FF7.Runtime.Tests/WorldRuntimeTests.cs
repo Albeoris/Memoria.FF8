@@ -75,6 +75,7 @@ internal static class WorldRuntimeTests
         Check(afterDiagonal.X == afterCardinal.X + 45 && afterDiagonal.Z == afterCardinal.Z + 45, "Native diagonal input must preserve its authored45/45 displacement.");
         Check(JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "Physical diagonal movement must preserve cold native terrain/collision continuation.");
         Ff7WorldProcess ready = restored.Process;
+        CheckControlOptions(original, restored, ready);
         restored.Restore(ready with { Entities = ready.Entities.Select(value => value with { Terrain = 14 }).ToArray() });
         Check(!restored.CanSave, "The native world menu cannot open on bridge terrain.");
         restored.Restore(saved with { Camera = null });
@@ -114,6 +115,64 @@ internal static class WorldRuntimeTests
         Console.WriteLine("PASS installed original world system/onload/on_tick, source placement, tutorial, cold continuation and corruption");
     }
 
+    private static void CheckControlOptions(Ff7WorldRuntime original, Ff7WorldRuntime restored, Ff7WorldProcess ready)
+    {
+        foreach (int percent in new[] { 50, 150 })
+        {
+            original.Restore(ready);
+            restored.Restore(ready);
+            string before = JsonSerializer.Serialize(original.Process);
+            original.ConfigureMovementSpeed(percent);
+            restored.ConfigureMovementSpeed(percent);
+            Check(JsonSerializer.Serialize(original.Process) == before, "A world movement preference must not mutate recorded native progress or timing.");
+            Ff7WorldEntity player = original.Process.Entities.Single(entity => entity.Model == original.ControlledModel);
+            original.SetMovement(1, 0, true);
+            restored.SetMovement(1, 0, true);
+            original.Advance();
+            restored.Advance();
+            Ff7WorldEntity moved = original.Process.Entities.Single(entity => entity.Model == original.ControlledModel);
+            Check(moved.X == player.X + 60 * percent / 100 && original.Process.Tick == ready.Tick + 1 && original.Process.Vm.Tick == ready.Vm.Tick + 1, "World movement preferences must scale input magnitude without scaling native callback or VM timing.");
+            Check(JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "Configured world movement must preserve cold continuation.");
+        }
+        original.ConfigureMovementSpeed(100);
+        restored.ConfigureMovementSpeed(100);
+        original.Restore(ready);
+        restored.Restore(ready);
+        original.SetMovement(0, 0, false);
+        original.SetButtons(0x100, 0x100);
+        original.Advance();
+        Check(original.Process.RadarMode == (ready.RadarMode + 1) % 3, "Native Select must cycle the world radar mode.");
+        restored.Restore(JsonSerializer.Deserialize<Ff7WorldProcess>(JsonSerializer.Serialize(original.Process))!);
+        original.Advance();
+        restored.Advance();
+        Check(original.Process.RadarMode == (ready.RadarMode + 1) % 3 && JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "Held Select must not repeat its native radar edge after a cold restore.");
+        foreach (Ff7WorldRuntime runtime in new[] { original, restored })
+        {
+            runtime.SetButtons(1, 1);
+            runtime.SetMovement(0, -1, true);
+            runtime.Advance();
+        }
+        Check(original.Process.ViewMode == 2 && JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "The native shoulder edge must select free camera with cold input ownership intact.");
+        Ff7WorldEntity beforeRotation = original.Process.Entities.Single(entity => entity.Model == original.ControlledModel);
+        foreach (Ff7WorldRuntime runtime in new[] { original, restored })
+        {
+            runtime.SetButtons(8, 8);
+            runtime.Advance();
+        }
+        Ff7WorldEntity afterRotation = original.Process.Entities.Single(entity => entity.Model == original.ControlledModel);
+        Check(original.Process.Input?.CameraHeadingTarget == 16 && original.Process.Camera?.Heading == 1 && afterRotation.X == beforeRotation.X + 1 && afterRotation.Z == beforeRotation.Z - 59, "Free camera must rotate native input by its target angle while the visible camera follows its separate smoothing owner.");
+        Check(JsonSerializer.Serialize(original.Process) == JsonSerializer.Serialize(restored.Process), "Rotated native world input and pose must cold-continue exactly.");
+        foreach (Ff7WorldRuntime runtime in new[] { original, restored })
+        {
+            runtime.SetButtons(1, 1);
+            runtime.SetMovement(0, 0, false);
+            runtime.Advance();
+        }
+        Check(original.Process.ViewMode == 0 && original.Process.Input?.CameraHeadingTarget == 0, "The next native shoulder edge must return to fixed camera and reset its target heading.");
+        original.Restore(ready);
+        restored.Restore(ready);
+    }
+
     private static void NativeModuleAudio()
     {
         Ff7FieldResources field = new("module-audio-fixture", null!, null!, null!, [], [], null!, null!, null!);
@@ -141,6 +200,9 @@ internal static class WorldRuntimeTests
         }
         Check(JsonSerializer.Serialize(cold.Capture()) == before, "An unsupported long music transition must fail before changing global audio.");
         cold.SubmitNativeAudio(new(0xF1));
+        cold.Capture().Validate();
+        Ff7FieldHost stoppedCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold.Capture()))!);
+        stoppedCold.Capture().Validate();
         Check(cold.Process.SoundChannelStoppedByFade.All(value => value) && cold.Process.SoundChannelLoopIds.All(value => value == 0), "Native module sound stop must retire all existing resident playback owners.");
         Check(publications.Count == 2, "Each native module audio command must publish once through the existing FFVII audio owner.");
     }

@@ -16,6 +16,14 @@ if (args.Contains("--world-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--eyes-only", StringComparer.Ordinal))
+{
+    NativeEyeControlTests.Run();
+    NativeFixedEyeControlTests.Run();
+    NativeBlinkTests.Run();
+    return 0;
+}
+
 var tests = new (string Name, Action Run)[]
 {
     ("envelope preserves both game namespaces and exact FFVIII payload", EnvelopeRoundTrip),
@@ -53,6 +61,9 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay observed church target", NativeAutoPlayTests.RunGoal),
     ("native autoplay crowd escape and pure previews", NativeAutoPlayCrowdTests.Run),
     ("native autoplay occupied waypoint and pure previews", NativeAutoPlayCrowdTests.RunOccupiedWaypoint),
+    ("native run button projection and pending input ownership", NativeRunInputTests.Run),
+    ("native world input displacement and terrain arithmetic", WorldInputTests.Run),
+    ("native autoplay event observations and coverage ledger", NativeEventCoverageTests.Run),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
@@ -78,6 +89,8 @@ var tests = new (string Name, Action Run)[]
     ("native resident sound frequency and cold continuation", NativeSoundFrequencyTests.Run),
     ("standalone FFVII cold checkpoint continuation", NativeCheckpointTests.Run),
     ("native procedural model color and visibility contracts", NativeModelEffectTests.Run),
+    ("native model color offset and cold continuation", NativeColorOffsetTests.Run),
+    ("native field catalog and physical event continuation", NativeFieldEventCatalogTests.Run),
     ("native part visibility and cold continuation", NativePartVisibilityTests.Run),
     ("native interactive ladder continuation contracts", NativeLadderTests.Run),
     ("native jump and actor position query contracts", NativeJumpTests.Run),

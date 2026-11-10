@@ -10,14 +10,15 @@ internal sealed partial class Ff7Scene
     private InputFrame semanticInput;
     private bool userPaused;
 
-    public bool IsMenuPresentation => IsTitle || debugMenu || namingMenus?.IsOpen == true;
+    public bool IsMenuPresentation => IsTitle || debugMenu || IsPlayerMenuOpen || namingMenus?.IsOpen == true;
     public GameUi.UiPreferences PresentationPreferences => dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
     public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, false);
 
-    public void ConfigureSharedControls(KeyboardInput input, GameplayClock clock)
+    public void ConfigureSharedControls(KeyboardInput input, GameplayClock clock, Action<ControlsProfile>? writeControls = null)
     {
         sharedInput = input ?? throw new ArgumentNullException(nameof(input));
         sharedClock = clock ?? throw new ArgumentNullException(nameof(clock));
+        writeSharedControls = writeControls;
         ConfigureButtonPrompts(buttons => sharedInput.NativeButtonBindingPrompt(Ff7ControlButtons.ToShared(buttons)));
     }
 
@@ -27,7 +28,7 @@ internal sealed partial class Ff7Scene
         sharedInput.TextEntryEnabled = error is null && namingMenus?.IsTypingName == true;
         sharedInput.NamingNavigationEnabled = error is null && namingMenus?.IsOpen == true;
         semanticInput = sharedInput.Read(keys, pad, !focusPaused);
-        if (sharedInput.PauseRequested)
+        if (sharedInput.PauseRequested && playerMenu?.IsCapturingControls != true)
         {
             userPaused = !userPaused;
             SetAudioPaused(userPaused);
@@ -40,7 +41,7 @@ internal sealed partial class Ff7Scene
                 movie?.Resume();
             }
         }
-        if (sharedInput.SpeedToggleRequested && namingMenus?.IsOpen != true)
+        if (sharedInput.SpeedToggleRequested && namingMenus?.IsOpen != true && playerMenu?.IsCapturingControls != true)
         {
             sharedClock.ToggleSpeed();
         }
@@ -48,6 +49,7 @@ internal sealed partial class Ff7Scene
         {
             sharedClock.Configure(preferences.FastForwardMultiplier, preferences.BattleSpeedPercent);
             Session?.ConfigureMovementSpeed(preferences.FieldMovementSpeedPercent);
+            Session?.ConfigureWorldMovementSpeed(preferences.WorldMovementSpeedPercent);
         }
     }
 }

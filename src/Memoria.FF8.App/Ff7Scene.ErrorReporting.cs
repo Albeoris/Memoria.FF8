@@ -36,7 +36,7 @@ internal sealed partial class Ff7Scene
     {
         try
         {
-            errorReporter ??= new ErrorReportPresenter(reportClipboard.Copy);
+            errorReporter ??= new ErrorReportPresenter(reportClipboard.Copy, incident => Ff7ErrorReport.PrepareAsync(incident));
             errorReporter.Reset(ReportPrivacy.Text(exception.ToString()));
             ReportSave? save = null;
             string unavailable = "No validated pre-fault FFVII continuation is available.";
@@ -47,7 +47,7 @@ internal sealed partial class Ff7Scene
                     using Ff7Session validated = Ff7Session.Restore(installation, checkpoint);
                     using MemoryStream stream = new();
                     CombinedSessionCodec.Write(stream, reportCheckpoint);
-                    save = new ReportSave(stream.ToArray(), "pre-fault combined continuation", reportCheckpointUtc, "Independent codec and original-resource cold restore validated without advancing scripts. This checkpoint precedes the reported fault.");
+                    save = new ReportSave(stream.ToArray(), "pre-fault combined continuation", reportCheckpointUtc, "Independent codec and original-resource cold restore validated without advancing scripts. This checkpoint precedes the reported fault.", ".ffsave");
                     unavailable = "";
                 }
                 catch (Exception failure)

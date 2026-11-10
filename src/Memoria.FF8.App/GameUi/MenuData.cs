@@ -47,6 +47,7 @@ public sealed class MenuData
 
 public sealed class MenuCharacter
 {
+    public UiImageSource? Portrait { get; set; }
     public bool NativeFieldItemTargetAllowed { get; set; }
     public string AttackMode { get; set; } = "PhysicalOnly";
     public string Id { get; set; } = "";

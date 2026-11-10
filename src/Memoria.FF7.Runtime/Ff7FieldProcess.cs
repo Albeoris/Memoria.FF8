@@ -20,9 +20,11 @@ public sealed record Ff7Actor
     public Ff7OffsetProcess? Offset { get; init; }
     public Ff7NativeModelEffectState? ModelEffect { get; init; }
     public Ff7NativePartVisibilityState? PartVisibility { get; init; }
+    public Ff7NativeColorOffsetState? NativeColorOffset { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
+    public bool NativeEyeControlPending { get; init; }
     public ushort BlinkCountdown { get; init; }
     public Ff7LadderProcess? Ladder { get; init; }
     public Ff7JumpProcess? Jump { get; init; }
@@ -67,9 +69,12 @@ public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? Firs
 }
 public sealed record Ff7DialoguePresentation(int NativeState, int AnimatedWidth, int AnimatedHeight, short RevealBudget = 0, short FastCounter = 1, int ExpansionOffset = 0, bool ConfirmPending = false, int Row = 0)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? PresentationNameLength { get; init; }
+
     public void Validate()
     {
-        if (NativeState is < 0 or > 14 || AnimatedWidth is < short.MinValue or > short.MaxValue || AnimatedHeight is < short.MinValue or > short.MaxValue || FastCounter is < 1 or > 128 || ExpansionOffset is < 0 or > 9 || Row < 0)
+        if (NativeState is < 0 or > 14 || AnimatedWidth is < short.MinValue or > short.MaxValue || AnimatedHeight is < short.MinValue or > short.MaxValue || FastCounter is < 1 or > 128 || ExpansionOffset < 0 || ExpansionOffset > (PresentationNameLength ?? 9) || PresentationNameLength is <= 9 || Row < 0)
         {
             throw new InvalidDataException("FFVII saved native message animation or reveal state is invalid.");
         }
@@ -252,6 +257,7 @@ public sealed record Ff7FieldProcess
         foreach (Ff7Actor actor in Actors)
         {
             actor.ModelEffect?.Validate();
+            actor.NativeColorOffset?.Validate();
             actor.PartVisibility?.Validate();
             if (actor.NativeEyeLeft > 2 || actor.NativeEyeRight > 2)
             {

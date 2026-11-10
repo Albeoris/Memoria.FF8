@@ -10,8 +10,10 @@ internal sealed partial class Ff7Scene
         CombinedSessionSave prepared = Capture() with { Mappings = mappings };
         prepared.Validate();
         envelope = prepared;
+        RefreshCharacterIdentity();
         appearance = selected;
         renderer = null;
         renderedGeneration = -1;
+        ResetWorldPresentation();
     }
 }

@@ -4,7 +4,7 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Midgar story goals expressed through the shared native field controls.</summary>
-public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
+public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
 {
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
@@ -15,6 +15,7 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             ("mktpb", 29 or 31, 2, 3) => 3,
             ("mkt_mens", 24, 1, 2) => 2,
             ("mkt_mens", 29, 2, 3) => 3,
+            ("colne_6", 39, 0, 2) => 1,
             _ => null
         };
     }
@@ -23,7 +24,7 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
     {
         input = default;
         string field = session.Field.Name;
-        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_4"))
+        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_3" or "colne_4" or "colne_5" or "colne_6" or "blin70_1" or "blin70_2" or "colne_b1" or "colne_b3"))
         {
             return false;
         }
@@ -34,7 +35,7 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         }
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (player is null || process.Tick == 0 || process.PlayerLocked || process.Join is not null || process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+        if (player is null || process.Tick == 0 || process.Join is not null || process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return true;
         }
@@ -43,7 +44,7 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             input = ladder.Completed ? default : driver.Steer(new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12));
             return true;
         }
-        if (player.Jump is not null || session.Host.HasScriptedMotion(player))
+        if (process.PlayerLocked || player.Jump is not null || session.Host.HasScriptedMotion(player))
         {
             return true;
         }
@@ -52,7 +53,7 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "ealin_1" when story == 164 => driver.Gateway(190),
             "ealin_1" when story == 170 => driver.Gateway(187),
             "ealin_2" when story is 164 or 167 => default,
-            "ealin_2" when story == 170 => driver.Gateway(188, run: false),
+            "ealin_2" when story == 170 => ChooseSneakInput(driver),
             "niv_cl" when story is 167 or 170 => default,
             "eals_1" when story == 164 => ApproachLine(driver, 9),
             "eals_1" when story == 173 => driver.Gateway(177),
@@ -80,10 +81,21 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "colne_4" when story == 192 => driver.TalkTo(12),
             "colne_4" when story == 197 => driver.Gateway(207),
             "colne_2" when story == 197 => driver.Gateway(210),
+            "colne_5" when story == 197 => driver.Gateway(211),
+            "colne_3" when story == 197 => (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0 ? driver.Gateway(207) : driver.TalkTo(11),
+            "colne_6" when story == 197 => ApproachLineWithConfirm(driver, 16),
+            "colne_6" when story == 203 => default,
+            "blin70_1" when story == 203 => default,
+            "blin70_2" when story is 203 or 206 => default,
+            "colne_b1" when story == 206 => session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0A) == 0 ? driver.TalkTo(2) : session.Machine.Variables.ReadByte(FieldBank.MapByte, 9) == 0 ? driver.TalkTo(3) : default,
+            "colne_b1" when story == 209 => default,
+            "colne_b3" when story == 209 => ApproachLineWithConfirm(driver, 2),
             _ => throw new NotSupportedException($"FFVII Midgar autoplay has reached an unproved story goal in {field} at story {story}.")
         };
         return true;
     }
+
+
 
     private byte ReadFlags(byte address) => session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, address);
 
@@ -106,9 +118,14 @@ public sealed class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         {
             return driver.Gateway(195);
         }
-        Ff7Line counter = session.Host.Process.Lines.Single(line => line.Entity == 2);
+        return ApproachLineWithConfirm(driver, 2);
+    }
+
+    private Ff7AutoplayInput ApproachLineWithConfirm(Ff7AutoplayDriver driver, int entity)
+    {
+        Ff7Line counter = session.Host.Process.Lines.Single(line => line.Entity == entity);
         ushort confirm = session.Host.Process.Tick % 16 == 0 ? (ushort)32 : (ushort)0;
-        return ApproachLine(driver, 2) with { Held = counter.Push || counter.Touch || counter.OnLine ? confirm : (ushort)0 };
+        return ApproachLine(driver, entity) with { Held = counter.Push || counter.Touch || counter.OnLine ? confirm : (ushort)0 };
     }
 
     private Ff7AutoplayInput ApproachLine(Ff7AutoplayDriver driver, int entity)

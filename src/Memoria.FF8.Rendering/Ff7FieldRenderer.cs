@@ -15,7 +15,7 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public byte NativeEyeRight { get; init; }
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
-public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting);
+public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting, bool RequiresOriginalTopology = true);
 public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, bool FlipHorizontal, bool FlipVertical);
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
@@ -228,7 +228,7 @@ public sealed class Ff7FieldRenderer
         string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
         if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
         {
-            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SuppressNativeLighting))
+            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.RequiresOriginalTopology && (actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SuppressNativeLighting)))
             {
                 throw new NotSupportedException("FFVII topology-owned model effects require an explicit replacement-appearance binding.");
             }
@@ -237,7 +237,12 @@ public sealed class Ff7FieldRenderer
                 TriangleVertex Vertex(Ff7WorldVertex vertex)
                 {
                     Vector3 point = Project(vertex.Position, frame.CameraOverride ?? field.Cameras[frame.CameraIndex], frame.CameraOffsetPixels);
-                    Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, Argb(vertex.Color), frame.FieldColorArgb) : Tint(vertex.Color, frame.FieldColorArgb);
+                    uint original = Argb(vertex.Color);
+                    if (actor.ModelEffects?.VertexColor is { } effectColor)
+                    {
+                        original = effectColor(vertex.Position, vertex.Normal ?? Vector3.Zero, original);
+                    }
+                    Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, original, frame.FieldColorArgb) : Tint(Color(original), frame.FieldColorArgb);
                     return new(FieldPoint(new Vector2(point.X, point.Y), width, height), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
                 TriangleVertex a = Vertex(triangle.A);
@@ -310,9 +315,9 @@ public sealed class Ff7FieldRenderer
                         Vector2 uv = texture is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
                         uint originalColor = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
                         int normalIndex = normalBindings[local];
-                        if (normalIndex >= 0 && actor.ModelEffects?.VertexColor is { } effectColor)
+                        if ((normalIndex >= 0 || actor.ModelEffects?.RequiresOriginalTopology == false) && actor.ModelEffects?.VertexColor is { } effectColor)
                         {
-                            originalColor = effectColor(model.Vertices[vertex], model.Normals[normalIndex], originalColor);
+                            originalColor = effectColor(model.Vertices[vertex], normalIndex >= 0 ? model.Normals[normalIndex] : Vector3.Zero, originalColor);
                         }
                         Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor, frame.FieldColorArgb) : Tint(Color(originalColor), frame.FieldColorArgb);
                         color.W *= state.VertexAlpha / 255f;

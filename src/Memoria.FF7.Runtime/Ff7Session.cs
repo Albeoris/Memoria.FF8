@@ -44,6 +44,7 @@ public sealed partial class Ff7Session : IDisposable
     public Ff7FieldHost Host { get; private set; } = null!;
     public long FieldGeneration { get; private set; }
     public ushort MapId { get; private set; }
+    public float FieldNearPlane => executable.NativePresentation.NearPlane(MapId);
     public Action<FieldCommand>? PresentationCommand { get; set; }
     public Ff7WorldRuntime? World { get; private set; }
 
@@ -104,7 +105,9 @@ public sealed partial class Ff7Session : IDisposable
             session.Host.RestorePlayerSelection();
             session.Host.RestoreDialoguePresentation();
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
-            session.tickContinuation = save.TickContinuation;
+            session.Machine.ScriptReturned = session.ObserveNativeScriptReturn;
+            session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
+            session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.Progress = session.Progress with { Clock = session.Clock };
             if (save.World is Ff7WorldProcess world)
             {
@@ -162,6 +165,7 @@ public sealed partial class Ff7Session : IDisposable
             tickContinuation = new(Machine.Input);
         }
         Machine.AdvanceTick();
+        Ff7TickContinuation completedContinuation = tickContinuation;
         tickTailInProgress = true;
         tickContinuation = null;
         Host.PublishCurrentNativeMovieCameraFrame();
@@ -171,7 +175,12 @@ public sealed partial class Ff7Session : IDisposable
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;
+        Ff7NativeTickObservation? observation = CompleteNativeObservation(completedContinuation);
         CompleteFieldTransition();
+        if (observation is not null)
+        {
+            NativeTickCompleted?.Invoke(observation);
+        }
         ApplyDeferredInput();
     }
 
@@ -209,7 +218,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation, World = World?.Process };
+        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture() };
     }
 
     private bool fieldLoadIncomplete;
@@ -266,6 +275,7 @@ public sealed partial class Ff7Session : IDisposable
         encounterTables = loadedEncounterTables;
         Host = loadedHost;
         Machine = loadedMachine;
+        Machine.ScriptReturned = ObserveNativeScriptReturn;
         dialogueTokens.Clear();
         if (enteringField)
         {
@@ -390,6 +400,7 @@ public sealed partial class Ff7Session : IDisposable
 
     public void Dispose()
     {
+        CoverageOwner?.Dispose();
         World?.Dispose();
         characters.Dispose();
         fields.Dispose();
