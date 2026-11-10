@@ -73,7 +73,14 @@ internal sealed partial class GameWorld
             EventObject obj = program.Objects[objectId];
             if (actor.TalkEnabled && obj.Scripts.Count > 2 && AutoPlayHasBody(program, obj.Scripts[2]))
             {
+                int before = targets.Count;
                 AddActorTarget(actor, obj.Scripts[2], AutoPlayTargetKind.Talk, "talk", Math.Max(1, ((ushort)player.PushRadius + (ushort)actor.TalkRadius) * 0.75f));
+                if (targets.Count == before)
+                {
+                    // The actor can stand beyond a locked edge while remaining
+                    // within ordinary talk range of the reachable walkmesh.
+                    AddActorTarget(actor, obj.Scripts[2], AutoPlayTargetKind.Talk, "talk", Math.Max(1, (ushort)player.PushRadius + (ushort)actor.TalkRadius - 1), ":outer");
+                }
             }
             if (actor.PushEnabled && obj.Scripts.Count > 3 && AutoPlayHasBody(program, obj.Scripts[3]))
             {
@@ -88,7 +95,7 @@ internal sealed partial class GameWorld
                 EventScript[] contacts = obj.Scripts.Skip(3).Take(5).Where(script => AutoPlayHasBody(program, script)).ToArray();
                 if (contacts.Length > 0)
                 {
-                    AddSegment($"line:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, contacts, null, allowSameSideFacing: obj.Scripts.Count > 3 && AutoPlayHasBody(program, obj.Scripts[3]));
+                    AddSegment($"line:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, contacts, null, allowSameSideFacing: obj.Scripts.Count > 3 && AutoPlayHasBody(program, obj.Scripts[3]) || obj.Scripts.Count > 5 && AutoPlayHasBody(program, obj.Scripts[5]));
                 }
                 if (obj.Scripts.Count > 2 && AutoPlayHasBody(program, obj.Scripts[2]))
                 {
@@ -118,7 +125,7 @@ internal sealed partial class GameWorld
         }
         return targets.OrderBy(target => target.Order).ThenBy(target => target.Id, StringComparer.Ordinal).ToArray();
 
-        void AddActorTarget(ActorState actor, EventScript script, AutoPlayTargetKind kind, string label, float radius)
+        void AddActorTarget(ActorState actor, EventScript script, AutoPlayTargetKind kind, string label, float radius, string suffix = "")
         {
             // Multiple approaches allow the ordinary action query to resolve occlusion and competing actors.
             for (int side = 0; side < 8; side++)
@@ -142,7 +149,7 @@ internal sealed partial class GameWorld
                     approach = resolved;
                     approachTriangle = resolvedTriangle;
                 }
-                targets.Add(new AutoPlayTarget($"{field.Id}:{label}:{actor.ObjectId}:{side}", kind, position.X, position.Y, position.Z, triangle, actor.ObjectId, AutoPlayScriptDestination(program, script), AutoPlayScriptChangesStory(program, script), side, approach?.X, approach?.Y, approach?.Z, approachTriangle, AutoPlayDirection(position, new Vector3(actor.X, actor.Y, actor.Z))));
+                targets.Add(new AutoPlayTarget($"{field.Id}:{label}:{actor.ObjectId}:{side}{suffix}", kind, position.X, position.Y, position.Z, triangle, actor.ObjectId, AutoPlayScriptDestination(program, script), AutoPlayScriptChangesStory(program, script), side, approach?.X, approach?.Y, approach?.Z, approachTriangle, AutoPlayDirection(position, new Vector3(actor.X, actor.Y, actor.Z))));
             }
         }
 

@@ -9,6 +9,26 @@ public sealed partial class EventEngine
     public bool AutoPlayFastMovement { get; set; }
     private float autoPlayMovementDistance;
 
+    public bool HasAutoPlayHeldContact(int objectId)
+    {
+        return AutoPlayHeldContactScript(objectId) is not null && actors[objectId].LineContact;
+    }
+
+    public bool IsAutoPlayHeldContactReturn(ScriptCommand command)
+    {
+        return command.Name == "RET" && AutoPlayHeldContactScript(command.ObjectId)?.Id == command.ScriptId;
+    }
+
+    private EventScript? AutoPlayHeldContactScript(int objectId)
+    {
+        if (program is null || (uint)objectId >= actors.Count)
+        {
+            return null;
+        }
+        EventObject obj = program.Objects[objectId];
+        return obj.IsDoor && obj.Scripts.Count > 5 && !EmptyNativeLineScript(actors[objectId], 5) ? obj.Scripts[5] : null;
+    }
+
     /// <summary>Reports queued contact events and active contact scripts, independently of held line contact.</summary>
     public bool HasPendingAutoPlayInteraction(int objectId)
     {

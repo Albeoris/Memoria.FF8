@@ -707,14 +707,15 @@ internal sealed partial class AutoPlayController
             return;
         }
         bool fadeBlocksMovement = world.Events.FieldFade?.Physical.Mode == 4;
-        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || fadeBlocksMovement || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
+        bool awaitingHeldContact = run.ObserveContactInput && !run.ObservedControlLoss && run.ActiveEvent is not null && run.ActiveField == session.State.FieldId && world.Events.HasAutoPlayHeldContact(run.ActiveObjectId);
+        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || fadeBlocksMovement || awaitingHeldContact || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
         {
             run.SettleFrames = 0;
             if (run.SceneFrames > 180000)
             {
                 throw new TimeoutException("No control-return boundary within 180000 simulation frames. Inspect the saved wait/input contract.");
             }
-            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: fadeBlocksMovement ? 1 : 300, WaitWhilePlayable: true)).FramesAdvanced;
+            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: fadeBlocksMovement || awaitingHeldContact ? 1 : 300, WaitWhilePlayable: true)).FramesAdvanced;
             return;
         }
         if (run.SettleFrames < 4)
@@ -827,8 +828,12 @@ internal sealed partial class AutoPlayController
             }
             bool Interact(AutoPlayTarget variant, string checkpoint, AutoPlayContactSource source)
             {
+                if (!world.Apply(new(PlayerActionKind.Interact, variant.ObjectId)).Accepted)
+                {
+                    return false;
+                }
                 ActivateTarget(variant, checkpoint, source);
-                return world.Apply(new(PlayerActionKind.Interact, variant.ObjectId)).Accepted;
+                return true;
             }
             foreach (AutoPlayTarget variant in variants)
             {
@@ -1022,6 +1027,12 @@ internal sealed partial class AutoPlayController
         int field = session.State.FieldId;
         void ObserveQuery(ScriptCommand command)
         {
+            if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && world.Events.IsAutoPlayHeldContactReturn(command))
+            {
+                // A held callback with no input query still proves that the native
+                // handler ran; idle settle frames alone do not prove that.
+                run.ObserveContactInput = false;
+            }
             if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2")
             {
                 // Continuous contact callbacks can query and return in one frame, leaving no active fiber at the next controller tick.
@@ -1092,6 +1103,12 @@ internal sealed partial class AutoPlayController
         if (ProbeScriptedInput(input, allowControlled, objectId, out GameState? preparedCheckpoint) is { } current)
         {
             DriveScriptedInput(current, allowControlled, prepared: true, preparedCheckpoint);
+        }
+        else if (run.ActiveEvent is not null && run.ActiveField == session.State.FieldId && objectId == run.ActiveObjectId && getWorld().Events.HasAutoPlayHeldContact(run.ActiveObjectId))
+        {
+            // Neutral preparation can finish the current held callback before
+            // its next query. Keep the event owner until a later callback is sampled.
+            run.ObserveContactInput = true;
         }
     }
 
