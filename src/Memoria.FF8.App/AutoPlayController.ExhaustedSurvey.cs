@@ -150,7 +150,7 @@ internal sealed partial class AutoPlayController
 
     private static string SoftWalkingSurveySignature(string navigation, AutoPlayVisitGuard guard, string fingerprint, IReadOnlyList<AutoPlayEventCoverage> blocks)
     {
-        byte[] identity = JsonSerializer.SerializeToUtf8Bytes(new { WalkingSearchRetry = true, Guard = ExhaustedSurveySignature(navigation, guard, fingerprint), Blocks = blocks.Select(item => new { item.Event.Id, item.Event.ConditionSignature }).ToArray() }, BeforeSnapshotJsonOptions);
+        byte[] identity = JsonSerializer.SerializeToUtf8Bytes(new { WalkingSearchRetry = true, WalkingSearchRevision = AutoPlayPlanner.CurrentWalkingSearchRevision, Guard = ExhaustedSurveySignature(navigation, guard, fingerprint), Blocks = blocks.Select(item => new { item.Event.Id, item.Event.ConditionSignature }).ToArray() }, BeforeSnapshotJsonOptions);
         return Convert.ToHexString(SHA256.HashData(identity));
     }
 }

@@ -49,7 +49,6 @@ internal sealed partial class GameWorld
 
         List<WalkmeshPosition> nodes = [];
         Dictionary<int, List<int>> triangleNodes = [];
-        Dictionary<(int First, int Second), List<int>> portals = [];
         foreach (int index in reachable.Order())
         {
             WalkmeshTriangle triangle = mesh.Triangles[index];
@@ -65,30 +64,16 @@ internal sealed partial class GameWorld
                 {
                     return;
                 }
-                var key = (Math.Min(index, neighbor), Math.Max(index, neighbor));
-                if (!portals.TryGetValue(key, out List<int>? entries))
-                {
-                    entries = [];
-                    portals.Add(key, entries);
-                }
                 for (int sample = 1; sample <= 3; sample++)
                 {
                     // Interior samples avoid assigning an ambiguous shared-edge plane.
                     Vector3 point = Vector3.Lerp(Vector3.Lerp(a, b, sample / 4f), center, 0.02f);
-                    entries.Add(AddNode(point, index));
+                    AddNode(point, index);
                 }
             }
         }
         int sourceNode = AddNode(source, startTriangle);
         int goalNode = AddNode(destination.Position, destination.Triangle);
-        Dictionary<int, List<int>> crossing = [];
-        foreach (List<int> entries in portals.Values)
-        {
-            foreach (int from in entries)
-            {
-                crossing[from] = entries.Where(to => nodes[to].Triangle != nodes[from].Triangle).ToList();
-            }
-        }
         float[] costs = Enumerable.Repeat(float.PositiveInfinity, nodes.Count).ToArray();
         int[] parents = Enumerable.Repeat(-1, nodes.Count).ToArray();
         FieldFixedPosition[] positions = new FieldFixedPosition[nodes.Count];
@@ -117,11 +102,12 @@ internal sealed partial class GameWorld
                 route = new AutoPlayWalkingRoute(path.AsReadOnly());
                 return true;
             }
-            IEnumerable<int> neighbors = triangleNodes[nodes[current].Triangle];
-            if (crossing.TryGetValue(current, out List<int>? across))
-            {
-                neighbors = neighbors.Concat(across);
-            }
+            int currentTriangle = nodes[current].Triangle;
+            WalkmeshTriangle surface = mesh.Triangles[currentTriangle];
+            // Native steps can cross a narrow portal without stopping at its
+            // inset samples. Test adjacent centers and samples directly while
+            // retaining the exact native endpoint triangle and plane checks.
+            IEnumerable<int> neighbors = new[] { currentTriangle, surface.NeighborA, surface.NeighborB, surface.NeighborC }.Where(reachable.Contains).Distinct().SelectMany(index => triangleNodes[index]);
             foreach (int next in neighbors)
             {
                 if (next == current || closed[next] || !TrySegment(positions[current], triangles[current], nodes[next], out FieldFixedPosition end, out int endTriangle))

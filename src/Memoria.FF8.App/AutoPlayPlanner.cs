@@ -106,7 +106,7 @@ internal sealed class AutoPlayPlannerState
 /// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>
 internal sealed partial class AutoPlayPlanner
 {
-    internal const int CurrentWalkingSearchRevision = 4;
+    internal const int CurrentWalkingSearchRevision = 5;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
     private sealed record PlanCandidate(AutoPlayVisitCoverage Visit, AutoPlayEventCoverage Coverage);
