@@ -234,11 +234,15 @@ public sealed partial class MenuController
     private UiElement BuildSecondaryAbility()
     {
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.35f, 1], 5);
-        Place(page, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.an.ability", "Select an ability") : RefinementAbility, ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.a.menu.ability", "Select a menu ability.") : SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.an.item.to.refine", "Select an item to refine.")), 0, 0, 1, 2);
+        Place(page, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.an.ability", "Select an ability") : RefinementAbility, ScreenId == "ability" ? SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.a.menu.ability", "Select a menu ability.") : SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.an.item.to.refine", "Select an item to refine.")), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         if (ScreenId == "ability")
         {
-            commands.Images = Entries.Select(_ => NativeAbilityMenuMetadata.Icon(92)).ToList();
+            MenuAbilityChoice?[] passives = Entries.Select(GuardianForcePassiveChoice).ToArray();
+            commands.Images = passives.Select(choice => choice?.Icon ?? NativeAbilityMenuMetadata.Icon(92)).ToList();
+            commands.SecondaryItems = passives.Select(choice => choice is null ? "" : GuardianForcePassiveState(choice)).ToList();
+            commands.AutoSecondaryWidth = true;
+            commands.ItemTextColor = index => passives[index] is { } choice ? GuardianForcePassiveColor(choice) : null;
         }
         if (ScreenId == "ability-recipes")
         {
@@ -250,7 +254,11 @@ public sealed partial class MenuController
         }
         Place(page, Panel(ScreenId == "ability" ? null : SystemText("ui.buildsecondaryability.panel.item", "ITEM"), commands), 1);
         string[] details;
-        if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
+        if (ScreenId == "ability" && SelectedEntry is { } entry && GuardianForcePassiveChoice(entry) is { } passive)
+        {
+            details = [Data.GuardianForces.Single(gf => gf.Id == entry.Action!.TargetId).Name, passive.Name, GuardianForcePassiveState(passive)];
+        }
+        else if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {
             details = [Card?.Name ?? "--", SystemText("refinement.summary.owned", "Owned   ") + (Card?.Quantity.ToString() ?? "--"), "Result", Card?.RefinementItemName ?? Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", SystemText("refinement.summary.quantity", "Quantity   ") + Number(Card?.RefinementQuantity)];
         }

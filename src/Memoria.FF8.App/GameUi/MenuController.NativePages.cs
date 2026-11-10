@@ -45,11 +45,11 @@ public sealed partial class MenuController
         abilities.PageSize = 10;
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;
-        abilities.SecondaryItems = choices.Select(choice => choice.IsPassive && choice.Learned ? FormatSystemText("guardian.passive.state", "{0} / {1}", choice.PassiveEnabled ? SystemText("guardian.passive.on", "On") : SystemText("guardian.passive.off", "Off"), choice.PassiveAvailable ? SystemText("guardian.passive.available", "Available") : SystemText("guardian.passive.ko", "GF KO")) : choice.Learned ? SystemText("guardian.learning.complete", "Complete!") : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
+        abilities.SecondaryItems = choices.Select(choice => choice.IsPassive && choice.Learned ? GuardianForcePassiveState(choice) : choice.Learned ? SystemText("guardian.learning.complete", "Complete!") : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         string guardianForceId = GuardianForce?.Id ?? "";
         abilities.ItemTextColor = index => index < choices.Length
             ? choices[index] is { IsPassive: true, Learned: true } passive
-                ? passive.PassiveEnabled ? new UiColor(112, 232, 144) : new UiColor(232, 184, 96)
+                ? GuardianForcePassiveColor(passive)
                 : BattleLearnedAbilityColor(guardianForceId, choices[index].Id)
             : null;
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
