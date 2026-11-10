@@ -74,7 +74,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         _ = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         garden = garden with { AnimationVariant = foot.AnimationVariant, Forest = foot.Forest!, CameraPitch = foot.Forest!.CameraPitch, ProjectionCamera = camera, GroundCache = foot.GroundCache!, GroundYaw = checked((short)foot.GroundYaw!.Value) };
-        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(callback.Buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory);
+        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(callback.Buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory, cameraState.EventUi?.ScriptMode ?? 0);
         NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
         garden = garden with { Buttons = garden.Buttons.Observe(callback.Buttons) };

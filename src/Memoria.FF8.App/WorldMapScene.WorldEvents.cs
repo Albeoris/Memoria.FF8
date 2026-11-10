@@ -8,7 +8,9 @@ internal sealed partial class WorldMapScene
     private WorldFieldSelection? SelectWorldCallback(WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, bool? activity = null)
     {
         salary = PrepareSavedTerrainFlag(accepted, salary);
-        if (NativeWorldEntryControl.DelayAfterCallback(accepted.Frame, 0) > 0)
+        // An already-open controls tutorial resumes even during a fresh allocation's entry hold.
+        bool entryHeld = NativeWorldEntryControl.DelayAfterCallback(accepted.Frame, 0) > 0;
+        if (entryHeld && salary.EventUi?.ScriptMode != 14)
         {
             return null;
         }
@@ -32,7 +34,7 @@ internal sealed partial class WorldMapScene
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, story, entityType);
         WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? PrepareWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
         byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;
-        if (selected is null && modeAfterCommands == 0)
+        if (selected is null && modeAfterCommands == 0 && !entryHeld)
         {
             NativeWorldGroundCacheState cache = accepted.NativeFootRuntime?.GroundCache ?? accepted.NativeCarRuntime?.GroundCache ?? accepted.NativeGardenRuntime?.GroundCache ?? accepted.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException("World terrain entry requires its accepted ground owner.");
             bool? entrance = null;

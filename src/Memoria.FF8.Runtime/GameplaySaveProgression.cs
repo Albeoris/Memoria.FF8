@@ -138,6 +138,10 @@ public sealed record GameplaySaveProgression
         {
             throw new InvalidDataException("Gameplay world UI requires its ordinary world scene facts.");
         }
+        if (WorldUi is { ScriptMode: 14 } && (World?.EventFlags is not { } flags || !(flags.IsKnown(0x013D) && flags.Matches(0x013D) || flags.IsKnown(0x013F) && flags.Matches(0x013F))))
+        {
+            throw new InvalidDataException("Gameplay world tutorial requires its active saved-world flag.");
+        }
         if (FieldContinuation is { } continuation)
         {
             if (SceneFacts is not { Origin: GameplaySaveSceneFactsOrigin.Field } facts || facts.FieldId != continuation.Scripts.FieldId)

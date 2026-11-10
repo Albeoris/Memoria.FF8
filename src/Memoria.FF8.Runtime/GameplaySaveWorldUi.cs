@@ -30,9 +30,12 @@ public sealed record GameplaySaveWorldMessage([property: JsonRequired] int Windo
     }
 }
 
-/// <summary>Ordinary world windows and their close owner, independently of loader and movement state.</summary>
+/// <summary>World windows and their close owner, independently of loader and movement state.</summary>
 public sealed record GameplaySaveWorldUi([property: JsonRequired] bool CloseSuppressed, [property: JsonRequired] GameplaySaveWorldMessage[] Windows, [property: JsonRequired] GameplaySaveWorldMessage[] AliasedWindows, [property: JsonRequired] NativeWorldClosingChannel[] ClosingChannels, [property: JsonRequired] NativeWorldChannelReadiness[] RetainedChannelReadiness, [property: JsonRequired] byte? PageInputChannel, [property: JsonRequired] int FuelMovementCallbacks)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public byte ScriptMode { get; init; }
+
     internal static GameplaySaveWorldUi? Capture(GameState source)
     {
         if (source.Scene != SceneKind.WorldMap || source.World?.EventUi is not { } ui)
@@ -40,12 +43,12 @@ public sealed record GameplaySaveWorldUi([property: JsonRequired] bool CloseSupp
             return null;
         }
         ui.Validate();
-        if (ui.ScriptMode != 0)
+        if (ui.ScriptMode is not (0 or 14))
         {
-            throw new NotSupportedException("Gameplay world UI requires ordinary script mode.");
+            throw new NotSupportedException("Gameplay world UI requires ordinary exploration or an active controls tutorial.");
         }
         int fuel = source.WorldProcess?.FuelMessageMovementCallbacks2045C78 ?? 0;
-        if (ui.Windows.IsEmpty && ui.AliasedWindows.IsEmpty && ui.ClosingChannels.IsEmpty && ui.RetainedChannelReadiness.IsEmpty && !ui.CloseSuppressedThisCallback && fuel == 0)
+        if (ui.ScriptMode == 0 && ui.Windows.IsEmpty && ui.AliasedWindows.IsEmpty && ui.ClosingChannels.IsEmpty && ui.RetainedChannelReadiness.IsEmpty && !ui.CloseSuppressedThisCallback && fuel == 0)
         {
             return null;
         }
@@ -53,7 +56,7 @@ public sealed record GameplaySaveWorldUi([property: JsonRequired] bool CloseSupp
         {
             throw new NotSupportedException("Gameplay world UI requires its fuel message close owner.");
         }
-        GameplaySaveWorldUi result = new(ui.CloseSuppressedThisCallback, ui.Windows.Select(GameplaySaveWorldMessage.Capture).ToArray(), ui.AliasedWindows.Select(GameplaySaveWorldMessage.Capture).ToArray(), ui.ClosingChannels.ToArray(), ui.RetainedChannelReadiness.ToArray(), ui.PageInputChannel, fuel);
+        GameplaySaveWorldUi result = new(ui.CloseSuppressedThisCallback, ui.Windows.Select(GameplaySaveWorldMessage.Capture).ToArray(), ui.AliasedWindows.Select(GameplaySaveWorldMessage.Capture).ToArray(), ui.ClosingChannels.ToArray(), ui.RetainedChannelReadiness.ToArray(), ui.PageInputChannel, fuel) { ScriptMode = ui.ScriptMode };
         result.Validate();
         return result;
     }
@@ -67,6 +70,10 @@ public sealed record GameplaySaveWorldUi([property: JsonRequired] bool CloseSupp
         foreach (GameplaySaveWorldMessage message in Windows.Concat(AliasedWindows))
         {
             message.Validate();
+        }
+        if (ScriptMode is not (0 or 14) || ScriptMode == 14 && !Windows.Any(window => window.WindowId is 9 or 11))
+        {
+            throw new InvalidDataException("Gameplay world UI has no supported script mode and controls window combination.");
         }
     }
 }

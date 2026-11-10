@@ -28,7 +28,7 @@ internal sealed partial class WorldMapScene
             }
             return binding with { Text = text, TextComplete = message.TextComplete };
         }
-        NativeWorldEventUi ui = new(0, saved.CloseSuppressed, saved.Windows.Select(RestoreMessage).ToImmutableArray())
+        NativeWorldEventUi ui = new(saved.ScriptMode, saved.CloseSuppressed, saved.Windows.Select(RestoreMessage).ToImmutableArray())
         {
             AliasedWindows = saved.AliasedWindows.Select(RestoreMessage).ToImmutableArray(),
             ClosingChannels = saved.ClosingChannels.ToImmutableArray(),

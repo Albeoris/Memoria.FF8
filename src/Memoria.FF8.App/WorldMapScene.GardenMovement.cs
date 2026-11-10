@@ -9,7 +9,8 @@ internal sealed partial class WorldMapScene
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
-        bool cameraEnabled = !mapOnly && before.EventUi?.ScriptMode is null or 0 or 13;
+        byte scriptMode = before.EventUi?.ScriptMode ?? 0;
+        bool cameraEnabled = !mapOnly && scriptMode is 0 or 13;
         bool lowering = garden.Transfer is { Counter: < 31 };
         if (lowering || NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0)
         {
@@ -78,7 +79,12 @@ internal sealed partial class WorldMapScene
             }
             return cameraState with { Frame = before.Frame + 1, NativeGardenRuntime = garden };
         }
-        NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory));
+        NativeGardenButtonHistory buttonHistory = garden.Buttons;
+        if (buttonHistory.LastObservedButtons is null && salary.InputHistory?.PreviousButtons is ushort previousButtons)
+        {
+            buttonHistory = buttonHistory.Observe(previousButtons);
+        }
+        NativeGardenTransferAdmission admission = buttonHistory.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory, scriptMode));
         consumeGardenRequest = admission.ConsumeScriptRequest;
         garden = garden with { Buttons = garden.Buttons.Observe(buttons) };
         cameraState = cameraState with { NativeGardenRuntime = garden };
@@ -91,8 +97,8 @@ internal sealed partial class WorldMapScene
             garden = PrepareGardenDismount(cameraState);
             cameraState = cameraState with { NativeGardenRuntime = garden };
         }
-        byte scriptMode = garden.Transfer is { Counter: < 31 } ? (byte)8 : (byte)0;
-        int? selectedGroup = (buttons & 0x8000) != 0 ? 0 : (buttons & 0x2000) != 0 ? 1 : null;
+        scriptMode = garden.Transfer is { Counter: < 31 } ? (byte)8 : scriptMode;
+        int? selectedGroup = scriptMode == 14 ? null : (buttons & 0x8000) != 0 ? 0 : (buttons & 0x2000) != 0 ? 1 : null;
         WorldNativeGardenGroundResult ground = assets.ResolveNativeGardenGround(before.X, before.Z, checked((short)moveX), checked((short)graphicsZ), unchecked((short)before.NativeHeight), selectedGroup, garden.GroundCache, replacements, (probes, padding) => GardenContact(cameraState, probes, 48, padding), scriptMode);
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(garden.ProjectionCamera!, garden.CurrentGroundHeight!.Value, replacements);
         bool currentOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason);

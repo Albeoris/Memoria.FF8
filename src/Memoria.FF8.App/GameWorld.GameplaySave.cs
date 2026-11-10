@@ -47,7 +47,7 @@ internal sealed partial class GameWorld
         }
         GameState state = session.PrepareSnapshot();
         WorldState current = state.World ?? throw new InvalidOperationException("Gameplay world capture requires a current world position.");
-        if (current.NativeScriptedRuntime is not null || current.NativeTrainRuntime is not null || current.EventUi is { ScriptMode: not 0 } || state.MoviePlayback is { IsPlaying: true } || state.PendingEntityNames is { Length: > 0 })
+        if (current.NativeScriptedRuntime is not null || current.NativeTrainRuntime is not null || current.NativeGardenRuntime?.Transfer is { Counter: < 31 } || current.NativeRagnarokRuntime?.Transfer is not null || current.EventUi is { ScriptMode: not (0 or 14) } || state.MoviePlayback is { IsPlaying: true } || state.PendingEntityNames is { Length: > 0 })
         {
             throw new NotSupportedException("Gameplay world capture requires a completed ordinary exploration boundary.");
         }

@@ -26,12 +26,12 @@ public sealed record NativeGardenTransferControlState([property: JsonRequired] i
         }
     }
 
-    public NativeGardenTransferInput PrepareInput(uint buttons, int entity, long completedWorldCallbacks, NativeGardenTransferState? transfer, NativeWorldEntryMemory memory)
+    public NativeGardenTransferInput PrepareInput(uint buttons, int entity, long completedWorldCallbacks, NativeGardenTransferState? transfer, NativeWorldEntryMemory memory, byte scriptMode = 0)
     {
         Validate();
         memory.Validate();
         transfer?.Validate();
-        byte mode = transfer is { Counter: < 31 } ? (byte)8 : (byte)0;
+        byte mode = transfer is { Counter: < 31 } ? (byte)8 : scriptMode;
         // 559240 clears activity every callback.53FAC0 decrements its
         // entry hold before54A7F0.544860 copied event264 into2036BD6.
         return new NativeGardenTransferInput(buttons, 0, entity, mode, TransitionPhase, false, ActiveWorldScript, NativeWorldEntryControl.DelayAfterCallback(completedWorldCallbacks, 0), memory.ReplacementFlags264, ViewToggleBlocked);

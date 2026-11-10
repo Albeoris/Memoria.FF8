@@ -9,6 +9,54 @@ public sealed class HeadlessWorldEntryTests
 {
     private static string GameDirectory => TestResources.GameDirectory;
 
+    [Theory]
+    [InlineData(61, 32, 455, 8, 5)]
+    [InlineData(3, 35, 300, 8, 0)]
+    [InlineData(12, 48, 750, 9, 2)]
+    [InlineData(32, 50, 3500, 0, 4)]
+    public void FirstVehicleControlsPromptClosesWithoutStartingATransfer(short entry, byte entity, ushort story, byte replacements, ushort flag)
+    {
+        GameSession source = GameSession.CreateColdProcess();
+        source.StartNewGame();
+        using GameWorld initialization = new(source, GameDirectory);
+        GameState departure = source.State with { WorldEntryMemory = source.State.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, replacements).WriteBytes(265, 1, 1) };
+        WorldTransition packet = new(entry, entity, -1);
+        using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(departure, GameDirectory, packet, validatePresentation: false);
+        GameSession committed = new(departure);
+        committed.CommitPreparedWorldEntry(packet, prepared.InitialState, departure.WorldControls!, prepared.ValidateAdoption, prepared.InitialSavedWorld, prepared.InitialEventMemory);
+        using WorldMapScene scene = prepared.Adopt(committed);
+
+        scene.Apply(new(PlayerActionKind.Wait, Frames: 60));
+        Assert.Equal(14, scene.State.EventUi!.ScriptMode);
+        Assert.Contains(scene.State.EventUi.Windows, window => window.WindowId is 9 or 11);
+        Assert.True(committed.State.SavedWorld!.WorldEventFlags116!.Matches((ushort)(0x0100 | flag)));
+        if (flag == 5)
+        {
+            // The Missile Base briefing and the car controls are separate native events.
+            Assert.Equal(11, scene.CurrentDialogue?.MessageId);
+            for (int callback = 0; callback < 180 && scene.State.EventUi!.MatchesTextComplete(11, 1) != true; callback++)
+            {
+                scene.Apply(new(PlayerActionKind.Wait));
+            }
+            Assert.True(scene.State.EventUi!.MatchesTextComplete(11, 1));
+            Assert.Equal(PlayerTriggerKind.WorldMap, scene.Apply(new(PlayerActionKind.Confirm)).Trigger.Kind);
+            Assert.True(committed.State.SavedWorld!.WorldEventFlags116!.Matches(0x003D));
+            Assert.Equal(49, scene.Apply(new(PlayerActionKind.Wait)).Trigger.MessageId);
+        }
+        Assert.Equal(1, scene.Apply(new(PlayerActionKind.Confirm)).FramesAdvanced);
+        Assert.Equal(0, scene.State.EventUi!.ScriptMode);
+        Assert.Null(scene.State.NativeGardenRuntime?.Transfer);
+        Assert.Null(scene.State.NativeRagnarokRuntime?.Transfer);
+        Assert.Null(scene.State.NativeFootRuntime);
+        Assert.True(committed.State.SavedWorld!.WorldEventFlags116!.Matches(0x003F));
+        Assert.True(committed.State.SavedWorld.WorldEventFlags116.Matches((ushort)(0x0100 | flag)));
+        for (int callback = 0; callback < 4; callback++)
+        {
+            Assert.DoesNotContain(scene.State.EventUi.Windows, window => window.WindowId is 9 or 11);
+            Assert.Equal(1, scene.Apply(new(PlayerActionKind.Wait)).FramesAdvanced);
+        }
+    }
+
     [Fact]
     public void ColdFieldToGardenEntryContinuesWithoutADepartingWorld()
     {
