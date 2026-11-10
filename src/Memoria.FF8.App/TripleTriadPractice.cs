@@ -122,7 +122,10 @@ internal static class TripleTriadPractice
         int[] opponentHand = saved?.Opponent ?? (opponent is null ? Enumerable.Range(0, options.HandSize).ToArray() : ParseDeck(opponent, options.HandSize));
         TripleTriadController controller = new(catalog.Cards, collection, opponentHand, catalog.Name, saved?.Match.Rules ?? rules, options: options);
         controller.RestoreRedrawsUsed(saved?.RedrawsUsed ?? 0);
-        new TripleTriadDeckHistory(new GlobalSettingsPaths().TripleTriadDeckHistoryPath).Connect(controller);
+        if (player is not null || (!autoPlay && preview is null))
+        {
+            new TripleTriadDeckHistory(new GlobalSettingsPaths().TripleTriadDeckHistoryPath).Connect(controller);
+        }
         uint randomState = saved?.RandomState ?? inventory?.TripleTriadRandomState ?? 0;
         controller.ChooseOpponentMove = match =>
         {

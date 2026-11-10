@@ -101,7 +101,6 @@ public sealed partial class TripleTriadController
         ResetTurnSelection();
         openingControl = RedrawsRemaining > 0 ? OpeningControl.Redraw : OpeningControl.None;
         SetSystemMessage(() => "");
-        DeckConfirmed?.Invoke(deck.ToArray());
         RequestSound(TripleTriadSound.Confirm);
         Changed?.Invoke();
         return true;
@@ -204,11 +203,11 @@ public sealed partial class TripleTriadController
         RecentDeckSelection = -1;
         completingRecentDeck = deck.Count < Options.HandSize;
         RequestSound(TripleTriadSound.Confirm);
-        CompleteDeckSelection();
+        CompleteDeckSelection(recordHistory: true);
         Changed?.Invoke();
     }
 
-    private void CompleteDeckSelection()
+    private void CompleteDeckSelection(bool recordHistory)
     {
         if (deck.Count == Options.HandSize)
         {
@@ -217,7 +216,10 @@ public sealed partial class TripleTriadController
             ResetTurnSelection();
             openingControl = OpeningControl.Start;
             SetSystemMessage(() => "");
-            DeckConfirmed?.Invoke(deck.ToArray());
+            if (recordHistory)
+            {
+                DeckConfirmed?.Invoke(deck.ToArray());
+            }
         }
         else if (completingRecentDeck)
         {
@@ -234,7 +236,7 @@ public sealed partial class TripleTriadController
         RecentDeckSelection = -1;
         deck.Add(id);
         RequestSound(TripleTriadSound.Confirm);
-        CompleteDeckSelection();
+        CompleteDeckSelection(recordHistory: true);
         Changed?.Invoke();
     }
 
@@ -264,7 +266,7 @@ public sealed partial class TripleTriadController
             throw new ArgumentException("A dealt hand must contain the configured number of cards.", nameof(hand));
         }
         RestoreDeck(hand);
-        CompleteDeckSelection();
+        CompleteDeckSelection(recordHistory: false);
         Changed?.Invoke();
     }
 
@@ -416,7 +418,7 @@ public sealed partial class TripleTriadController
             else if (key == UiKey.Cancel && deck.Count > 0)
             {
                 deck.RemoveAt(deck.Count - 1);
-                CompleteDeckSelection();
+                CompleteDeckSelection(recordHistory: true);
                 Changed?.Invoke();
             }
             return;

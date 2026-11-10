@@ -101,6 +101,27 @@ public sealed class TripleTriadDeckHistoryTests
     }
 
     [Fact]
+    public void RandomDealAndRedrawDoNotChangeRecentDecks()
+    {
+        string path = TestResources.ArtifactFile("random-deal-history.json");
+        TripleTriadDeckHistory history = new(path);
+        history.Record([0, 1, 2, 3, 4]);
+        TripleTriadCard[] definitions = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
+        Dictionary<int, int> collection = Enumerable.Range(0, 15).ToDictionary(id => id, _ => 1);
+        TripleTriadController controller = new(definitions, collection, [0, 1, 2, 3, 4], id => id.ToString(), TripleTriadRules.Random, options: new() { RandomRedraws = 1 });
+        controller.RedrawHand = () => [10, 11, 12, 13, 14];
+        history.Connect(controller);
+
+        controller.DealHand([5, 6, 7, 8, 9]);
+        Assert.Equal([5, 6, 7, 8, 9], controller.Match!.InitialHands[0]);
+        Assert.Equal([0, 1, 2, 3, 4], Assert.Single(history.Load()));
+
+        Assert.True(controller.Redraw());
+        Assert.Equal([10, 11, 12, 13, 14], controller.Match.InitialHands[0]);
+        Assert.Equal([0, 1, 2, 3, 4], Assert.Single(history.Load()));
+    }
+
+    [Fact]
     public void HistoryRetainsHandsForDifferentBoardSizes()
     {
         string path = TestResources.ArtifactFile(Guid.NewGuid().ToString("N") + ".json");
