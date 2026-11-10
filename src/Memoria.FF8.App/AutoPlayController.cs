@@ -940,7 +940,10 @@ internal sealed partial class AutoPlayController
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
                 AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline, avoidedLines);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
-                if (!walk.Interrupted && !walk.Arrived)
+                // A native proposal can activate held contact before the mesh
+                // rejects its final displacement. Let the ordinary contact
+                // executor test a nearby line even if its approach sample is unreachable.
+                if (!walk.Interrupted && !walk.Arrived && !(variant.Kind == AutoPlayTargetKind.Contact && world.Events.IsAutoPlayHeldContactNearby(variant.ObjectId)))
                 {
                     continue;
                 }
