@@ -1,8 +1,6 @@
 {
   "schemaVersion": 1,
-  "package": "MonoGame.Runtime.Linux.Vulkan",
   "version": "3.8.5.1",
-  "runtimeIdentifier": "linux-x64",
   "upstream": {
     "repository": "https://github.com/MonoGame/MonoGame.git",
     "commit": "5e9fe9b100ffa67026dff97cc8adffae1414534e"
@@ -50,5 +48,18 @@
     "version": "3.8.5.1"
   },
   "patchSha256": "b2a652019c2f88f182435eae626e9db544f19313b1c35d15bbadab0a82fc195e",
-  "referencePackageSha512": "aHqIoWOuugfo1bH3pMh4bYsXHLImpQHYGUOgMuic3hWZazyELU7xmq5kJeudWd5jjLF2vFR9/FuHRrEf13slEw=="
+  "referencePackages": {
+    "win-x64": {
+      "name": "monogame.runtime.windows.vulkan",
+      "sha512": "IlyA0zZYn/CTLVPGtuyd0qsGkNFFYuhwiOIm1nF+/fC7rEuvkh/D1gsLH5H2OJhFWRrWJBx7PO/4xi2uSD04fQ=="
+    },
+    "linux-x64": {
+      "name": "monogame.runtime.linux.vulkan",
+      "sha512": "aHqIoWOuugfo1bH3pMh4bYsXHLImpQHYGUOgMuic3hWZazyELU7xmq5kJeudWd5jjLF2vFR9/FuHRrEf13slEw=="
+    },
+    "osx": {
+      "name": "monogame.runtime.mac.vulkan",
+      "sha512": "v2NBj7ax3c+fkYYTrwtMgWzOM/+CRf6JLWPamVxoDOMVKqfXGoHrGv78yF7LCyenekyja/WAdj7beaXzsH27FA=="
+    }
+  }
 }

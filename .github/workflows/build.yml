@@ -26,14 +26,18 @@ jobs:
         include:
           - os: windows-2025
             rid: win-x64
-            native-path: artifacts/native-dx12
+            native-path: |
+              artifacts/native-dx12
+              artifacts/native-vulkan/win-x64
           - os: ubuntu-24.04
             rid: linux-x64
             native-path: artifacts/native-vulkan/linux-x64
           - os: macos-26-intel
             rid: osx-x64
+            native-path: artifacts/native-vulkan/osx-x64
           - os: macos-26
             rid: osx-arm64
+            native-path: artifacts/native-vulkan/osx-arm64
     concurrency:
       group: desktop-distribution-${{ github.event_name == 'pull_request' && 'pr' || 'trusted' }}-${{ github.sha }}-${{ matrix.rid }}
       cancel-in-progress: false
@@ -79,7 +83,7 @@ jobs:
         id: native
         shell: pwsh
         env:
-          RECIPE: ${{ hashFiles('vendor/MonoGame.Native.DX12/**', 'vendor/MonoGame.Native.Vulkan/**', 'vendor/MonoGame.Native.TextInput/**', 'tools/Build-NativeDirect3D12.ps1', 'tools/Test-NativeDirect3D12.ps1', 'tools/Build-NativeVulkan.ps1', '.config/dotnet-tools.json', 'global.json') }}
+          RECIPE: ${{ hashFiles('vendor/MonoGame.Native.DX12/**', 'vendor/MonoGame.Native.Vulkan/**', 'vendor/MonoGame.Native.TextInput/**', 'tools/Build-NativeDirect3D12.ps1', 'tools/Test-NativeDirect3D12.ps1', 'tools/Build-NativeVulkan.ps1', 'tools/Get-MoltenVK.ps1', '.config/dotnet-tools.json', 'global.json') }}
         run: |
           if (!$env:ImageVersion -or !$env:RECIPE) { throw 'The runner image and native recipe are required for caching.' }
           "key=${{ matrix.os }}-native-v1-$env:ImageVersion-$env:RECIPE" | Add-Content -LiteralPath $env:GITHUB_OUTPUT

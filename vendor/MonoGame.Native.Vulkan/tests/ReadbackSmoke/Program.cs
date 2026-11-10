@@ -2,9 +2,13 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Runtime.InteropServices;
 
-if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
+if (!(OperatingSystem.IsMacOS() || RuntimeInformation.ProcessArchitecture == Architecture.X64 && (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())))
 {
-    throw new PlatformNotSupportedException("The Vulkan readback smoke requires Linux x64 and an existing graphical session.");
+    throw new PlatformNotSupportedException("The Vulkan readback smoke requires a supported desktop runtime and an existing graphical session.");
+}
+if (OperatingSystem.IsMacOS())
+{
+    Environment.SetEnvironmentVariable("SDL_VULKAN_LIBRARY", Path.Combine(AppContext.BaseDirectory, "libMoltenVK.dylib"));
 }
 
 using var game = new ReadbackGame(!args.Contains("--no-vsync"));

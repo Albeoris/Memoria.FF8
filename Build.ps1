@@ -117,12 +117,9 @@ foreach ($file in $bundledModFiles) {
 Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
-    $nativeVulkan = Join-Path $artifacts 'native-vulkan/linux-x64'
-    $nativeVulkanArguments = @()
-    if ($RuntimeIdentifier -eq 'linux-x64') {
-        & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
-        $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
-    }
+    $nativeVulkan = Join-Path $artifacts "native-vulkan/$RuntimeIdentifier"
+    & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
+    $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
     Invoke-DotNet (@('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, '-m:1') + $graphArguments + $nativeVulkanArguments)
     $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
     if ($RuntimeIdentifier -eq 'win-x64') {
@@ -134,7 +131,7 @@ try {
         $hostBuild = if ($backend.Name -eq 'Vulkan') { $graphBuild } else { Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory) }
         $hostAssets += Join-Path $hostBuild 'obj/Memoria.FF8.App/project.assets.json'
         $nativePublishArguments = @()
-        if ($RuntimeIdentifier -eq 'linux-x64' -and $backend.Name -eq 'Vulkan') {
+        if ($backend.Name -eq 'Vulkan') {
             $nativePublishArguments += $nativeVulkanArguments
         }
         if ($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY) {
@@ -149,9 +146,7 @@ try {
         else {
             Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
         }
-        if ($RuntimeIdentifier -eq 'linux-x64' -and $backend.Name -eq 'Vulkan') {
-            & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -VerifyOnly
-            Copy-Item -LiteralPath (Join-Path $nativeVulkan 'libmgruntime.so'), (Join-Path $nativeVulkan 'native-runtime.json') -Destination $hostOutput -Force
+        if ($backend.Name -eq 'Vulkan') {
             $nativeNotices = Join-Path $data 'licenses/MonoGame.Native.Vulkan'
             New-Item -ItemType Directory -Force -Path $nativeNotices | Out-Null
             Get-ChildItem -LiteralPath (Join-Path $nativeVulkan 'licenses') -Force | Copy-Item -Destination $nativeNotices -Recurse -Force
