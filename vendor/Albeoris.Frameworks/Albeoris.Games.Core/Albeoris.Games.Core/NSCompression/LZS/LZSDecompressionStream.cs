@@ -1,217 +1,128 @@
-﻿namespace Albeoris.Games.Core.NSCompression.LZS;
+namespace Albeoris.Games.Core.NSCompression.LZS;
 
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-
-/// <summary>
-/// Provides a stream for decompressing data compressed with the LZS (LZSS) algorithm.
-/// It uses a 4096-byte ring buffer and a control flag mechanism.
-/// </summary>
+/// <summary>Reads LZS data up to the caller's known decompressed size.</summary>
 public class LZSDecompressionStream : Stream
 {
-    private readonly Stream _input;
-    private readonly Boolean _leaveOpen;
-    private Int64 _remaining; // remaining decompressed bytes
-    private readonly Byte[] _circularBuffer = new Byte[4096];
-    private Int32 _circularBufferPos = 0;
-    private Byte _flagBits = 0;
-    private Int32 _flagCount = 0;
-    private readonly Queue<Byte> _pending = new Queue<Byte>();
-    private Boolean _disposed;
+    private readonly Stream input;
+    private readonly bool leaveOpen;
+    private readonly LzsDecoderKernel kernel = new();
+    private readonly byte[] token = new byte[2];
+    private long remaining;
+    private bool disposed;
 
-    public LZSDecompressionStream(Stream compressedStream, Int64 compressedSize, Int64 decompressedSize, Boolean leaveOpen)
+    public LZSDecompressionStream(Stream compressedStream, long compressedSize, long decompressedSize, bool leaveOpen)
     {
         if (compressedStream == null)
+        {
             throw new ArgumentNullException(nameof(compressedStream));
+        }
         if (!compressedStream.CanRead)
+        {
             throw new ArgumentException("The compressed stream does not support reading.", nameof(compressedStream));
-
-        _input = compressedStream;
-        _remaining = decompressedSize;
-        _leaveOpen = leaveOpen;
+        }
+        input = compressedStream;
+        remaining = decompressedSize;
+        this.leaveOpen = leaveOpen;
     }
 
-    public override Boolean CanRead => !_disposed;
-    public override Boolean CanSeek => false;
-    public override Boolean CanWrite => false;
-    public override Int64 Length => throw new NotSupportedException();
-    public override Int64 Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-    public override void Flush() { }
-
-    public override Int32 Read(Byte[] buffer, Int32 offset, Int32 count)
+    public override bool CanRead => !disposed;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(LZSDecompressionStream));
-        if (buffer == null) throw new ArgumentNullException(nameof(buffer));
-        if (offset < 0 || count < 0 || offset + count > buffer.Length)
-            throw new ArgumentOutOfRangeException();
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
 
-        Int32 bytesRead = 0;
-        while (bytesRead < count && _remaining > 0)
+    public override void Flush()
+    {
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        ValidateRead(buffer, offset, count);
+        int bytesRead = 0;
+        while (bytesRead < count && remaining > 0)
         {
-            // Return pending bytes first if available
-            if (_pending.Count > 0)
+            if (kernel.TryReadOutput(out byte value))
             {
-                buffer[offset + bytesRead] = _pending.Dequeue();
-                bytesRead++;
-                _remaining--;
+                buffer[offset + bytesRead++] = value;
+                remaining--;
                 continue;
             }
-
-            EnsureFlag();
-            if ((_flagBits & 1) != 0)
+            int required = kernel.RequiredInputBytes;
+            for (int index = 0; index < required; index++)
             {
-                // Literal byte
-                Int32 b = _input.ReadByte();
-                if (b == -1)
-                    throw new Exception("Unexpected end of stream.");
-                Byte literal = (Byte)b;
-                WriteToCircularBuffer(literal);
-                buffer[offset + bytesRead] = literal;
-                bytesRead++;
-                _remaining--;
-            }
-            else
-            {
-                // Back-reference
-                Int32 offByte = _input.ReadByte();
-                if (offByte == -1)
-                    throw new Exception("Unexpected end of stream.");
-                Int32 second = _input.ReadByte();
-                if (second == -1)
-                    throw new Exception("Unexpected end of stream.");
-
-                Int16 off = (Int16)offByte;
-                off += (Int16)(((second & 0xF0) << 4)); // offset adjustment: add extra bits
-                Int32 len = (second & 0xF) + 3;
-                Int32 refIndex = (off + 18) & 0xFFF;
-                for (Int32 i = 0; i < len; i++)
+                int next = input.ReadByte();
+                if (next == -1)
                 {
-                    Byte b = _circularBuffer[refIndex];
-                    WriteToCircularBuffer(b);
-                    _pending.Enqueue(b);
-                    refIndex = (refIndex + 1) & 0xFFF;
+                    throw new Exception("Unexpected end of stream.");
                 }
+                token[index] = (byte)next;
             }
-            _flagBits >>= 1;
-            _flagCount--;
+            kernel.AcceptInput(token.AsSpan(0, required));
         }
         return bytesRead;
     }
 
-    public override async Task<Int32> ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(LZSDecompressionStream));
-        if (buffer == null) throw new ArgumentNullException(nameof(buffer));
-        if (offset < 0 || count < 0 || offset + count > buffer.Length)
-            throw new ArgumentOutOfRangeException();
-
-        Int32 bytesRead = 0;
-        while (bytesRead < count && _remaining > 0)
+        ValidateRead(buffer, offset, count);
+        int bytesRead = 0;
+        while (bytesRead < count && remaining > 0)
         {
-            if (_pending.Count > 0)
+            if (kernel.TryReadOutput(out byte value))
             {
-                buffer[offset + bytesRead] = _pending.Dequeue();
-                bytesRead++;
-                _remaining--;
+                buffer[offset + bytesRead++] = value;
+                remaining--;
                 continue;
             }
-
-            await EnsureFlagAsync(cancellationToken).ConfigureAwait(false);
-            if ((_flagBits & 1) != 0)
+            int required = kernel.RequiredInputBytes;
+            int total = 0;
+            while (total < required)
             {
-                Byte[] one = new Byte[1];
-                Int32 r = await _input.ReadAsync(one, 0, 1, cancellationToken).ConfigureAwait(false);
-                if (r == 0)
-                    throw new Exception("Unexpected end of stream.");
-                Byte literal = one[0];
-                WriteToCircularBuffer(literal);
-                buffer[offset + bytesRead] = literal;
-                bytesRead++;
-                _remaining--;
-            }
-            else
-            {
-                Byte[] two = new Byte[2];
-                Int32 r = await ReadFullyAsync(_input, two, 0, 2, cancellationToken).ConfigureAwait(false);
-                if (r != 2)
-                    throw new Exception("Unexpected end of stream.");
-
-                Int16 off = (Int16)two[0];
-                off += (Int16)(((two[1] & 0xF0) << 4));
-                Int32 len = (two[1] & 0xF) + 3;
-                Int32 refIndex = (off + 18) & 0xFFF;
-                for (Int32 i = 0; i < len; i++)
+                int read = await input.ReadAsync(token, total, required - total, cancellationToken).ConfigureAwait(false);
+                if (read == 0)
                 {
-                    Byte b = _circularBuffer[refIndex];
-                    WriteToCircularBuffer(b);
-                    _pending.Enqueue(b);
-                    refIndex = (refIndex + 1) & 0xFFF;
+                    throw new Exception("Unexpected end of stream.");
                 }
+                total += read;
             }
-            _flagBits >>= 1;
-            _flagCount--;
+            kernel.AcceptInput(token.AsSpan(0, required));
         }
         return bytesRead;
     }
 
-    private void EnsureFlag()
+    private void ValidateRead(byte[] buffer, int offset, int count)
     {
-        if (_flagCount == 0)
+        if (disposed)
         {
-            Int32 flag = _input.ReadByte();
-            if (flag == -1)
-                throw new Exception("Unexpected end of stream.");
-            _flagBits = (Byte)flag;
-            _flagCount = 8;
+            throw new ObjectDisposedException(nameof(LZSDecompressionStream));
+        }
+        if (buffer == null)
+        {
+            throw new ArgumentNullException(nameof(buffer));
+        }
+        if (offset < 0 || count < 0 || offset + count > buffer.Length)
+        {
+            throw new ArgumentOutOfRangeException();
         }
     }
 
-    private async Task EnsureFlagAsync(CancellationToken cancellationToken)
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
     {
-        if (_flagCount == 0)
+        if (!disposed)
         {
-            Byte[] flag = new Byte[1];
-            Int32 r = await _input.ReadAsync(flag, 0, 1, cancellationToken).ConfigureAwait(false);
-            if (r == 0)
-                throw new Exception("Unexpected end of stream.");
-            _flagBits = flag[0];
-            _flagCount = 8;
-        }
-    }
-
-    private static async Task<Int32> ReadFullyAsync(Stream stream, Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
-    {
-        Int32 total = 0;
-        while (total < count)
-        {
-            Int32 r = await stream.ReadAsync(buffer, offset + total, count - total, cancellationToken).ConfigureAwait(false);
-            if (r == 0) break;
-            total += r;
-        }
-        return total;
-    }
-
-    private void WriteToCircularBuffer(Byte b)
-    {
-        _circularBuffer[_circularBufferPos] = b;
-        _circularBufferPos = (_circularBufferPos + 1) & 0xFFF;
-    }
-
-    public override Int64 Seek(Int64 offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(Int64 value) => throw new NotSupportedException();
-    public override void Write(Byte[] buffer, Int32 offset, Int32 count) => throw new NotSupportedException();
-
-    protected override void Dispose(Boolean disposing)
-    {
-        if (!_disposed)
-        {
-            if (disposing && !_leaveOpen)
-                _input.Dispose();
-            _disposed = true;
+            if (disposing && !leaveOpen)
+            {
+                input.Dispose();
+            }
+            disposed = true;
         }
         base.Dispose(disposing);
     }

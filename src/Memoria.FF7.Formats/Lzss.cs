@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Albeoris.Games.Core.NSCompression.LZS;
 
 namespace Memoria.FF7.Formats;
 
@@ -19,49 +20,30 @@ public static class Lzss
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumOutputBytes);
         using MemoryStream output = new();
-        byte[] window = new byte[4096];
-        int cursor = 0xFEE;
+        LzsDecoderKernel kernel = new();
         int input = 0;
         while (input < source.Length)
         {
-            byte flags = source[input++];
-            if (input == source.Length)
+            int required = kernel.RequiredInputBytes;
+            if (source.Length - input < required)
             {
-                throw new InvalidDataException("FF7 LZSS flag byte has no token.");
+                throw new InvalidDataException("FF7 LZSS reference is truncated.");
             }
-            for (int bit = 0; bit < 8 && input < source.Length; bit++)
+            kernel.AcceptInput(source.Slice(input, required));
+            input += required;
+            while (kernel.TryReadOutput(out byte value))
             {
-                if ((flags & (1 << bit)) != 0)
+                if (output.Length >= maximumOutputBytes)
                 {
-                    Append(source[input++]);
+                    throw new InvalidDataException($"FF7 LZSS output exceeds limit {maximumOutputBytes}.");
                 }
-                else
-                {
-                    if (source.Length - input < 2)
-                    {
-                        throw new InvalidDataException("FF7 LZSS reference is truncated.");
-                    }
-                    int offset = source[input] | ((source[input + 1] & 0xF0) << 4);
-                    int length = (source[input + 1] & 0x0F) + 3;
-                    input += 2;
-                    for (int i = 0; i < length; i++)
-                    {
-                        Append(window[(offset + i) & 0xFFF]);
-                    }
-                }
+                output.WriteByte(value);
             }
+        }
+        if (kernel.FlagHasNoToken)
+        {
+            throw new InvalidDataException("FF7 LZSS flag byte has no token.");
         }
         return output.ToArray();
-
-        void Append(byte value)
-        {
-            if (output.Length >= maximumOutputBytes)
-            {
-                throw new InvalidDataException($"FF7 LZSS output exceeds limit {maximumOutputBytes}.");
-            }
-            output.WriteByte(value);
-            window[cursor] = value;
-            cursor = (cursor + 1) & 0xFFF;
-        }
     }
 }

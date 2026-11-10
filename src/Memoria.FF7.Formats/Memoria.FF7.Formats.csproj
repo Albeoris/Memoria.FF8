@@ -2,4 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.Core/Albeoris.Games.Core/Albeoris.Games.Core.csproj" />
+  </ItemGroup>
 </Project>
