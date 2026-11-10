@@ -97,6 +97,70 @@ public sealed class NativeBattleStatusTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(BattleSession.Restore(snapshot).Capture()));
     }
 
+    [Theory]
+    [InlineData(2u, 4u, 25)]
+    [InlineData(2u, 8u, 0)]
+    [InlineData(4u, 2u, 75)]
+    [InlineData(4u, 8u, 0)]
+    [InlineData(8u, 2u, 75)]
+    [InlineData(8u, 4u, 25)]
+    public void AppliedTimeStatusReplacesPreviousStatusAndControlsRawAtbAfterJsonRestore(uint previous, uint applied, int gain)
+    {
+        BattleSession battle = CreateBattle(Action(0, applied, 255), initialBattle: previous, nativeClock: true, enemySpeed: 20);
+        Hit(battle);
+        for (int tick = 0; battle.ActiveAction is not null && tick < 100; tick++)
+        {
+            battle.Tick();
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatantSnapshot enemy = snapshot.Combatants.Single(actor => actor.Id == "enemy");
+        Assert.Equal(applied, enemy.NativeStatus!.Battle & 0xE);
+        AssertTimeStatusGain(snapshot, gain);
+    }
+
+    [Theory]
+    [InlineData(2u, 1, 75, 3)]
+    [InlineData(4u, 2, 25, 1)]
+    [InlineData(8u, 3, 0, 2)]
+    public void TimeStatusExpiryResumesNormalRawAtbWithoutResettingAccumulatedGauge(uint status, int bit, int gain, short decrement)
+    {
+        BattleSnapshot snapshot = CreateBattle(Action(0, 0, 255), initialBattle: status, nativeClock: true, enemySpeed: 20).Capture();
+        AssertTimeStatusGain(snapshot, gain);
+        BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
+        int enemyIndex = Array.FindIndex(actors, actor => actor.Id == "enemy");
+        NativeBattleAtbState gauge = new(4000, 137);
+        actors[enemyIndex] = actors[enemyIndex] with { NativeAtb = gauge, Atb = gauge.Display };
+        snapshot = snapshot with { Combatants = actors };
+        actors[enemyIndex].NativeStatus!.Timers[bit] = decrement;
+        BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        int before = battle.Combatants.Single(actor => actor.Id == "enemy").NativeAtb!.Current;
+        battle.Tick();
+        Assert.Equal(before + gain, battle.Combatants.Single(actor => actor.Id == "enemy").NativeAtb!.Current);
+        Assert.Equal(0, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[bit]);
+        Assert.Equal(status, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Battle & 0xE);
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        Assert.Equal(before + 2 * gain, battle.Combatants.Single(actor => actor.Id == "enemy").NativeAtb!.Current);
+        Assert.Equal(0u, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Battle & 0xE);
+        AssertTimeStatusGain(battle.Capture(), 50);
+    }
+
+    private static void AssertTimeStatusGain(BattleSnapshot snapshot, int gain)
+    {
+        BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        int before = battle.Combatants.Single(actor => actor.Id == "enemy").NativeAtb!.Current;
+        Assert.InRange(before, 0, 3999 - gain);
+        int otherBefore = battle.Combatants.Single(actor => actor.Id == "party").NativeAtb!.Current;
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(Math.Min(4000, before + gain), battle.Combatants.Single(actor => actor.Id == "enemy").NativeAtb!.Current);
+        Assert.Equal(Math.Min(4000, otherBefore + 130), battle.Combatants.Single(actor => actor.Id == "party").NativeAtb!.Current);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Fact]
     public void ZombieCannotReceiveDoomEvenWhenTheActionBypassesResistances()
     {
@@ -182,7 +246,7 @@ public sealed class NativeBattleStatusTests
         Assert.Equal(BattleActionPhase.Recovery, battle.ActiveAction!.Phase);
     }
 
-    private static BattleSession CreateBattle(BattleNativeAction native, byte resistance = 0, ushort initialSaved = 0, uint initialBattle = 0, bool nativeClock = false)
+    private static BattleSession CreateBattle(BattleNativeAction native, byte resistance = 0, ushort initialSaved = 0, uint initialBattle = 0, bool nativeClock = false, int enemySpeed = 100)
     {
         BattleDefinition definition = new()
         {
@@ -194,7 +258,7 @@ public sealed class NativeBattleStatusTests
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Magic = 20, MagicStocks = [new(1, 100)], Abilities = [BattleAbility.Attack, BattleAbility.Magic] },
-                new() { Id = "enemy", Name = "Enemy", NativeStatus0 = initialSaved, NativeStatus1 = initialBattle, NativeStatusResistances = Enumerable.Repeat(resistance, 40).ToArray() }
+                new() { Id = "enemy", Name = "Enemy", Speed = enemySpeed, NativeStatus0 = initialSaved, NativeStatus1 = initialBattle, NativeStatusResistances = Enumerable.Repeat(resistance, 40).ToArray() }
             ],
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Native status", BattleActionEffect.Status, 0, false) { NativeAction = native }]
         };

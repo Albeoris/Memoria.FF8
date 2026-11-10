@@ -1,9 +1,44 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAtbTests
 {
+    [Theory]
+    [InlineData(true, 0u, 50)]
+    [InlineData(true, 2u, 75)]
+    [InlineData(true, 4u, 25)]
+    [InlineData(true, 8u, 0)]
+    [InlineData(false, 0u, 50)]
+    [InlineData(false, 2u, 75)]
+    [InlineData(false, 4u, 25)]
+    [InlineData(false, 8u, 0)]
+    public void TimeStatusesControlPlayerAndEnemyGaugeOnEveryTickAndAfterJsonRestore(bool player, uint status, int gain)
+    {
+        BattleDefinition definition = new()
+        {
+            NativeClockRules = new(10),
+            NativeBattleSpeed = 2,
+            NativeStatusRules = new(2, Enumerable.Repeat((byte)30, 14).ToImmutableArray()),
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, Speed = 20, NativeStatus1 = player ? status : 0 },
+                new() { Id = "enemy", Name = "Enemy", Speed = 20, NativeStatus1 = player ? 0 : status }
+            ]
+        };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int tick = 1; tick <= 12; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(tick * gain, battle.Combatants.Single(actor => actor.IsPlayer == player).NativeAtb!.Current);
+            Assert.Equal(tick * 50, battle.Combatants.Single(actor => actor.IsPlayer != player).NativeAtb!.Current);
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+    }
+
     [Theory]
     [InlineData(0u, 50)]
     [InlineData(2u, 75)]
