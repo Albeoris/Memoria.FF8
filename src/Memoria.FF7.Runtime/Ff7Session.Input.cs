@@ -193,7 +193,7 @@ public sealed partial class Ff7Session
         Host.ApplyPlayerMovement(result);
         foreach (int entity in result.PushEntities)
         {
-            Machine.TryRequestScript(entity, 2);
+            RequestInteractionScript(entity, 2);
         }
         if (!process.MapJumpDisabled)
         {

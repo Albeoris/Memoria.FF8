@@ -53,7 +53,8 @@ finally
 {
     File.Delete(path);
 }
-Console.WriteLine("PASS shared autoplay scheduling and capture-before-save contracts");
+AutoPlayTourTests.Run();
+Console.WriteLine("PASS shared autoplay scheduling, atomic saves and optional-area tour contracts");
 
 static void Check(bool condition, string message)
 {

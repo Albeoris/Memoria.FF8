@@ -47,12 +47,24 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.PlayerLocked, B(id, 1)), 2);
             case 0x35:
                 return Actor(id, new FieldActorFaceParty(B(id, 1), B(id, 2), B(id, 3)), 4);
+            case 0x34:
+                byte partySlot = B(id, 1);
+                if (!entities[id].ModelBound)
+                {
+                    Advance(id, 2);
+                    return false;
+                }
+                bool facedParty = false;
+                bool facingPending = Host(id, new FieldActorFaceParty(partySlot, 0, 0, Immediate: true), 2, replyResult: reply => facedParty = reply.Value != 0);
+                return facingPending || facedParty;
             case 0x36:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Special, B(id, 1), B(id, 3), B(id, 4), Style: B(id, 2)), 5);
             case 0x38:
                 return Host(id, new FieldTimerCommand((uint)(R8(id, 1, 3) * 3600 + R8(id, 2, 4) * 60 + R8(id, 4, 5))), 6);
             case 0x40:
                 return Host(id, new FieldDialogueCommand(B(id, 1), B(id, 2)), 3);
+            case 0x42:
+                return Host(id, new FieldWindowCommand(FieldWindowOperation.Parameter, B(id, 2), Parameter: R8(id, 1, 3), ParameterBank: (FieldBank)(B(id, 1) & 15), ParameterAddress: W(id, 4)), 6);
             case 0x43:
                 return Host(id, new FieldControlCommand(FieldControlKind.CurrentMapName, B(id, 1)), 2);
             case 0x48:
@@ -382,7 +394,8 @@ public sealed partial class FieldMachine
             case 0xEA:
                 return Host(id, new FieldPaletteCommand(opcode == 0xE9 ? FieldPaletteOperation.Add : FieldPaletteOperation.Multiply, R8(id, 1, 4), R8(id, 2, 5), B(id, 9) + 1, R8(id, 5, 8), R8(id, 4, 7), R8(id, 3, 6)), 10);
             case 0xDF:
-                return Host(id, new FieldPaletteCommand(FieldPaletteOperation.Multiply, B(id, 4), B(id, 5), R8(id, 6, 10) + 1, R8(id, 4, 9), R8(id, 3, 8), R8(id, 2, 7), First: R8(id, 1, 6)), 11);
+            case 0xEF:
+                return Host(id, new FieldPaletteCommand(opcode == 0xDF ? FieldPaletteOperation.Multiply : FieldPaletteOperation.Add, B(id, 4), B(id, 5), R8(id, 6, 10) + 1, R8(id, 4, 9), R8(id, 3, 8), R8(id, 2, 7), First: R8(id, 1, 6)), 11);
             case 0xDD:
                 return ActorProperty(id, FieldActorPropertyKind.StopAnimation, 0, 1);
             case 0xDA:

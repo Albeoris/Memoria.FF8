@@ -2,7 +2,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7CharacterState(int Id, string Name, int Level, uint Experience, int HitPoints, int MagicPoints, byte[] NativeRecord);
 public sealed record Ff7InventorySlot(int ItemId, int Quantity);
-public sealed record Ff7MateriaState(int MateriaId, uint AbilityPoints);
+public sealed record Ff7MateriaState(int MateriaId, uint AbilityPoints, int? NativeSlot = null);
 public sealed record Ff7RewardItem(int ItemId, int Quantity);
 public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoints, Ff7RewardItem[] Items);
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
@@ -60,5 +60,6 @@ public sealed record Ff7Progress
         {
             throw new InvalidDataException("FFVII battle receipts are invalid.");
         }
+        _ = Ff7NativeMateriaInventory.Normalize(Materia);
     }
 }

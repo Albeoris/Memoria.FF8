@@ -8,6 +8,9 @@ public sealed partial class Ff7AutoPlayEventCoverage
     partial void ObserveConditionalCoverage(Ff7NativeTickObservation observation)
     {
         ObserveRoomReset(observation);
+        ObserveParkScene(observation);
+        ObserveWallMarketScene(observation);
+        ObserveWallMarketInn(observation);
         if (!Ff7FieldEventCoverageCatalog.RecognizesReunion(session) || observation.Field != session.Field.Name || observation.Generation != session.FieldGeneration)
         {
             return;

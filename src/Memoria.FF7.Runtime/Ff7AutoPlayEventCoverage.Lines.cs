@@ -46,6 +46,18 @@ public sealed partial class Ff7AutoPlayEventCoverage
         {
             return;
         }
+        ChooseWallMarketInnInput(driver, entry, ref input, ref handled);
+        if (handled)
+        {
+            return;
+        }
+        if (target.Kind == Ff7FieldEventCoverageKind.Conditional && (Ff7FieldEventCoverageCatalog.RecognizesPark(session) || Ff7FieldEventCoverageCatalog.RecognizesWallMarket(session)))
+        {
+            ledger.Arm(entry.Id, $"{session.FieldGeneration}/{session.Machine.Tick}/{session.CaptureEventProgressWitness()}");
+            Publish();
+            handled = true;
+            return;
+        }
         if (target.Kind == Ff7FieldEventCoverageKind.Conditional && Ff7FieldEventCoverageCatalog.RecognizesReunion(session))
         {
             ledger.Arm(entry.Id, $"{session.FieldGeneration}/{session.Machine.Tick}/{session.CaptureEventProgressWitness()}");
@@ -62,17 +74,7 @@ public sealed partial class Ff7AutoPlayEventCoverage
         Ff7Line line = session.Host.Process.Lines.Single(value => value.Entity == target.Entity);
         if (target.Script == 6)
         {
-            Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-            Vector2 segment = new(line.X2 - line.X1, line.Y2 - line.Y1);
-            Vector2 normal = Vector2.Normalize(new(-segment.Y, segment.X));
-            Vector2 center = new((line.X1 + line.X2) / 2f, (line.Y1 + line.Y2) / 2f);
-            Vector2 position = new(player.X4096 / 4096f, player.Y4096 / 4096f);
-            if (Vector2.Dot(position - center, normal) < 0)
-            {
-                normal = -normal;
-            }
-            Vector2 outside = center + normal * (player.CollisionRadius * 2 + 1);
-            input = driver.Steer(new Vector3(outside, line.Z1), run: !plan.WalkOnly);
+            input = driver.LeaveLine(target.Entity, run: !plan.WalkOnly);
             handled = true;
             return;
         }

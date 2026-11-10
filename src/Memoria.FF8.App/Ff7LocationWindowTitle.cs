@@ -25,7 +25,7 @@ internal static class Ff7LocationWindowTitle
         else if (field is not null)
         {
             Ff7Actor? actor = field.Actors.SingleOrDefault(item => item.PlayerControlled);
-            location = FormattableString.Invariant($"Field {fieldName} C0{(actor is null ? "" : $" XYZ({actor.X4096 >> 12},{actor.Y4096 >> 12},{actor.Z4096 >> 12}) T{actor.Triangle}")} F{field.Tick}");
+            location = FormattableString.Invariant($"Field {fieldName}{(actor is null ? "" : $" XYZ({actor.X4096 >> 12},{actor.Y4096 >> 12},{actor.Z4096 >> 12}) T{actor.Triangle}")} F{field.Tick}");
         }
         return $"Memoria FFVII | {location}{(speedMultiplier == 1 ? "" : $" | x{speedMultiplier}")}";
     }

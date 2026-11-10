@@ -5,6 +5,25 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class Ff7SharedControlsTests
 {
+    [Fact]
+    public void ActiveSceneUsesItsOwnSharedFrameLimitAndMenusKeepTheMenuLimit()
+    {
+        Ff7Scene scene = (Ff7Scene)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Ff7Scene));
+        GameUi.UiPreferences preferences = new() { FieldFps = 30, WorldFps = 60, MenuFps = 120 };
+        typeof(Ff7Scene).GetField("dialoguePreferences", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(scene, (Func<GameUi.UiPreferences>)(() => preferences));
+        Assert.Equal(120, scene.PresentationFrameLimit);
+        Memoria.FF7.Runtime.Ff7Session session = (Memoria.FF7.Runtime.Ff7Session)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Memoria.FF7.Runtime.Ff7Session));
+        typeof(Ff7Scene).GetProperty(nameof(Ff7Scene.Session))!.SetValue(scene, session);
+        Assert.Equal(30, scene.PresentationFrameLimit);
+        Memoria.FF7.Runtime.Ff7WorldRuntime world = (Memoria.FF7.Runtime.Ff7WorldRuntime)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Memoria.FF7.Runtime.Ff7WorldRuntime));
+        typeof(Memoria.FF7.Runtime.Ff7Session).GetProperty(nameof(Memoria.FF7.Runtime.Ff7Session.World))!.SetValue(session, world);
+        Assert.Equal(60, scene.PresentationFrameLimit);
+        preferences = preferences with { WorldFps = 30, FieldFps = 60 };
+        Assert.Equal(30, scene.PresentationFrameLimit);
+        typeof(Ff7Scene).GetField("debugMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(scene, true);
+        Assert.Equal(120, scene.PresentationFrameLimit);
+    }
+
     [Theory]
     [InlineData(0x40, 0x20)]
     [InlineData(0x10, 0x40)]

@@ -10,7 +10,7 @@ public enum AutoPlayEventCoverageStatus
 
 public sealed record AutoPlayEventCoverageEntry(string Id, string Availability, AutoPlayEventCoverageStatus Status = AutoPlayEventCoverageStatus.Available, string? BeforeWitness = null, string? AfterWitness = null, string? Outcome = null, string? Reason = null);
 public sealed record AutoPlayEventCoverageScope(string Id, AutoPlayEventCoverageEntry[] Events, bool CatalogComplete = false, string? CatalogReason = null);
-public sealed record AutoPlayEventCoverageState(AutoPlayEventCoverageScope? Current = null, AutoPlayEventCoverageScope[]? History = null);
+public sealed record AutoPlayEventCoverageState(AutoPlayEventCoverageScope? Current = null, AutoPlayEventCoverageScope[]? History = null, AutoPlayTourState? Tour = null);
 
 /// <summary>Tracks observed native events independently from a game's progression and interaction policy.</summary>
 public sealed class AutoPlayEventCoverageLedger
@@ -39,7 +39,7 @@ public sealed class AutoPlayEventCoverageLedger
         {
             history = [.. history, previous];
         }
-        AutoPlayEventCoverageState next = new(new(scope, []), history);
+        AutoPlayEventCoverageState next = state with { Current = new(scope, []), History = history };
         Validate(next);
         state = next;
     }
@@ -92,6 +92,12 @@ public sealed class AutoPlayEventCoverageLedger
 
     public AutoPlayEventCoverageState Capture() => Clone(state);
 
+    public void UpdateTour(AutoPlayTourState tour)
+    {
+        AutoPlayTourLedger.Validate(tour);
+        state = state with { Tour = AutoPlayTourLedger.Clone(tour) };
+    }
+
     private void Change(string id, Func<AutoPlayEventCoverageEntry, AutoPlayEventCoverageEntry> update)
     {
         AutoPlayEventCoverageScope current = state.Current ?? throw new InvalidOperationException("Coverage requires an active native scene.");
@@ -112,6 +118,10 @@ public sealed class AutoPlayEventCoverageLedger
     public static void Validate(AutoPlayEventCoverageState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.Tour is not null)
+        {
+            AutoPlayTourLedger.Validate(state.Tour);
+        }
         if (state.History is { Length: > 4096 })
         {
             throw new InvalidDataException("Autoplay event coverage exceeds its bounded scene allocation.");
@@ -127,5 +137,5 @@ public sealed class AutoPlayEventCoverageLedger
     }
 
     private static AutoPlayEventCoverageScope Clone(AutoPlayEventCoverageScope scope) => scope with { Events = scope.Events.ToArray() };
-    private static AutoPlayEventCoverageState Clone(AutoPlayEventCoverageState state) => state with { Current = state.Current is null ? null : Clone(state.Current), History = state.History?.Select(Clone).ToArray() };
+    private static AutoPlayEventCoverageState Clone(AutoPlayEventCoverageState state) => state with { Current = state.Current is null ? null : Clone(state.Current), History = state.History?.Select(Clone).ToArray(), Tour = state.Tour is null ? null : AutoPlayTourLedger.Clone(state.Tour) };
 }

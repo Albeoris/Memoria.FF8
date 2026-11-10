@@ -505,6 +505,14 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         switch (window.Operation)
         {
+            case FieldWindowOperation.Parameter:
+                if (window.Parameter is < 0 or > 7 || (byte)window.ParameterBank > 15)
+                {
+                    throw new InvalidDataException("FFVII numeric window binding references an invalid native slot or selector.");
+                }
+                Ff7Window bound = current with { Parameters = (current.Parameters ?? new()).Set(window.Parameter, new(window.ParameterBank, window.ParameterAddress)) };
+                Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), bound] };
+                break;
             case FieldWindowOperation.Size:
             case FieldWindowOperation.SizeWhenFree:
                 Ff7Window configured = current with { X = window.X, Y = window.Y, Width = window.Width, Height = window.Height };

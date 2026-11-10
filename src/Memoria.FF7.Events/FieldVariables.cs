@@ -79,7 +79,25 @@ public sealed class FieldVariables
         }
     }
 
-    private (byte[] Storage, int Index, bool Word) Locate(FieldBank bank, byte address)
+    public ushort ReadWindowParameter(FieldBank bank, ushort address)
+    {
+        if (bank == FieldBank.Immediate)
+        {
+            return address;
+        }
+        if ((byte)bank is 8 or 9 or 10)
+        {
+            return 0;
+        }
+        var (storage, index, word) = Locate(bank, address);
+        if ((uint)index >= storage.Length || word && index + 1 >= storage.Length)
+        {
+            throw new NotSupportedException("FFVII numeric message parameter extends beyond its admitted native variable storage.");
+        }
+        return (ushort)(storage[index] | (word ? storage[index + 1] << 8 : 0));
+    }
+
+    private (byte[] Storage, int Index, bool Word) Locate(FieldBank bank, int address)
     {
         return bank switch
         {

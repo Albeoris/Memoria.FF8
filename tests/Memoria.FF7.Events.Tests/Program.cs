@@ -1,6 +1,20 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--window-parameter-only", StringComparer.Ordinal))
+{
+    NativeWindowParameterTests.Run();
+    Console.WriteLine("PASS native window parameter binding operands, timing and cold ownership");
+    return 0;
+}
+
+if (args.Contains("--multiply-only", StringComparer.Ordinal))
+{
+    ExtendedTests.ByteMultiplyOperandsAndContinuation();
+    Console.WriteLine("PASS native byte multiply operands, wrap, same-pass completion and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--party-turn-only", StringComparer.Ordinal))
 {
     NativePartyTurnOpcodeTests.Run();
@@ -101,6 +115,7 @@ var tests = new (string Name, Action Run)[]
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
     ("native palette range multiply operands and continuation", ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation),
+    ("native byte multiply operands and continuation", ExtendedTests.ByteMultiplyOperandsAndContinuation),
     ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
     ("native fixed animation movement operands and continuation", ExtendedTests.FixedAnimationMoveOperandsAndContinuation),
     ("native fixed facing movement operands and continuation", ExtendedTests.FixedFacingMoveOperandsAndContinuation),

@@ -105,9 +105,10 @@ public enum FieldWindowOperation
     Rows,
     Reset,
     Special,
-    SizeWhenFree
+    SizeWhenFree,
+    Parameter
 }
-public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0) : FieldCommand;
+public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0, int Parameter = 0, FieldBank ParameterBank = FieldBank.Immediate, ushort ParameterAddress = 0) : FieldCommand;
 public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;
 public sealed record FieldTransitionCommand(ushort Map, short X, short Y, ushort Triangle, byte Direction) : FieldCommand;
 public sealed record FieldBattleCommand(ushort Formation) : FieldCommand;
@@ -243,7 +244,7 @@ public sealed record FieldPartySplit(byte Duration, int Leader, int Follower1, i
 public sealed record FieldByteOperand(FieldBank Bank, byte Value);
 
 public sealed record FieldActorFace(int TargetEntity, byte Steps, byte DirectionPolicy, bool Immediate = false) : FieldCommand;
-public sealed record FieldActorFaceParty(byte PartySlot, byte Steps, byte DirectionPolicy) : FieldCommand;
+public sealed record FieldActorFaceParty(byte PartySlot, byte Steps, byte DirectionPolicy, bool Immediate = false) : FieldCommand;
 
 public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle, byte Mode, byte Animation, byte Direction, byte AnimationDivisor) : FieldCommand;
 

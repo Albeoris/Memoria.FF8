@@ -29,6 +29,7 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException("Native party facing with duplicate character bindings requires the current character-to-entity mapping owner.");
         }
-        return FaceActor(entity, new(targets[0].Entity, command.Steps, command.DirectionPolicy));
+        FieldHostReply reply = FaceActor(entity, new(targets[0].Entity, command.Steps, command.DirectionPolicy, command.Immediate));
+        return command.Immediate ? reply with { Value = 1 } : reply;
     }
 }

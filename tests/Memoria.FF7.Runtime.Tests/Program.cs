@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--shop-only", StringComparer.Ordinal))
+{
+    NativeShopTests.Run();
+    return 0;
+}
+
 if (args.Contains("--palette-only", StringComparer.Ordinal))
 {
     NativeProcessTests.RunPalette();
@@ -65,6 +71,8 @@ var tests = new (string Name, Action Run)[]
     ("native run button projection and pending input ownership", NativeRunInputTests.Run),
     ("native world input displacement and terrain arithmetic", WorldInputTests.Run),
     ("native autoplay event observations and coverage ledger", NativeEventCoverageTests.Run),
+    ("native optional-area frontier and initialized field ownership", NativeTourFrontierTests.Run),
+    ("native window parameter binding and numeric cursor", NativeWindowParameterTests.Run),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
@@ -93,6 +101,9 @@ var tests = new (string Name, Action Run)[]
     ("native model color offset and cold continuation", NativeColorOffsetTests.Run),
     ("native field catalog and physical event continuation", NativeFieldEventCatalogTests.Run),
     ("native road catalog and physical handoff continuation", NativeRoadCoverageTests.Run),
+    ("native park catalog and physical scene continuation", NativeParkCoverageTests.Run),
+    ("native market catalog and unvisited room frontier", NativeWallMarketCoverageTests.Run),
+    ("native inn catalog and physical visit", NativeWallMarketInnCoverageTests.Run),
     ("native room reset ownership and cold coverage", NativeRoomResetCoverageTests.Run),
     ("native part visibility and cold continuation", NativePartVisibilityTests.Run),
     ("native interactive ladder continuation contracts", NativeLadderTests.Run),

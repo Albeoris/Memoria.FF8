@@ -7,6 +7,22 @@ namespace Memoria.FF8.Tests;
 
 public sealed class Ff7DialogueRevealPresentationTests
 {
+    [Theory]
+    [InlineData(FieldTextTokenKind.DecimalVariable, "10")]
+    [InlineData(FieldTextTokenKind.HexVariable, "FFFF")]
+    [InlineData(FieldTextTokenKind.RightAlignedVariable, "   10")]
+    public void NumericExpansionUsesTheSharedDocumentAndPartialRevealWithoutChangingLayout(FieldTextTokenKind kind, string value)
+    {
+        FieldTextToken[] tokens = [new(FieldTextTokenKind.Glyph, 0, 0, 0, 0, "Cost "), new(kind, 5, 0, 0, 0, ""), new(FieldTextTokenKind.Glyph, 7, 0, 0, 0, " gil")];
+        Ff7Dialogue partial = Dialogue(1, expansionOffset: 1);
+        Ff7CommonDialogueText before = Ff7CommonDialogueText.Create(partial, tokens, token => token.Kind == kind ? value : token.Text, _ => "");
+        Ff7CommonDialogueText after = Ff7CommonDialogueText.Create(partial with { TokenPosition = 3 }, tokens, token => token.Kind == kind ? value : token.Text, _ => "");
+        Assert.Equal("Cost " + value + " gil", before.Document.Text);
+        Assert.Equal(6, before.VisibleCharacters);
+        Assert.Equal(9 + value.Length, after.VisibleCharacters);
+        Assert.Equal(Widths(before), Widths(after));
+    }
+
     [Fact]
     public void PartialNameRevealKeepsTheFullNativeDocumentAndLineWidths()
     {

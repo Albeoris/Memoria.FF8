@@ -18,7 +18,7 @@ public sealed record Ff7FieldEventCoverageTarget(string Id, int Entity, int Scri
 public sealed record Ff7FieldEventCoveragePlan(bool Complete, string Reason, bool WalkOnly, IReadOnlyList<Ff7FieldEventCoverageTarget> Events);
 
 /// <summary>Source-reviewed native interaction classifications; unknown scenes retain an incomplete catalog.</summary>
-public static class Ff7FieldEventCoverageCatalog
+public static partial class Ff7FieldEventCoverageCatalog
 {
     private const string UpstairsProgram = "64B4BFE6C3BBAFC9AED64CA64879ED9FD217215DE28466E0DC921ACF1D08A611";
     private const string DownstairsProgram = "40A6A33601F78A04E6B6D6C1F6435844DFE0B9FD55512473305CF78A07028FE0";
@@ -26,7 +26,10 @@ public static class Ff7FieldEventCoverageCatalog
     private const string SlumsProgram = "46398AA80E1F1E9D91B77E05E4C7504AD89F7303611E66D1BEC2BD35C4FF72E5";
     private const string ReunionProgram = "4181F8A3DDB2BE363CD6543D9E5F5B06E96B9A34E4B1D4F5ED4EA9877AA556D9";
     private const string RoadProgram = "2467803CD4D309398A0447509109D501A3E1D48B1ACAA2F5F40F32229EA865C7";
+    private const string ParkProgram = "E5277315F645177347D095610B466C19383502CA803F26772A7EACAA6E0984F9";
+    private const string ParkExitProgram = "3779008A52FABD2CC35BE9A98D65E1507943E22A1BF1AC0FC3177921DEEC5527";
 
+    internal static bool RecognizesPark(Ff7Session session) => session.Field.Name == "mds6_2" && session.Machine.ProgramIdentity == ParkProgram;
     internal static bool RecognizesReunion(Ff7Session session) => session.Field.Name == "mds5_3" && session.Machine.ProgramIdentity == ReunionProgram;
     internal static bool RecognizesUpstairsScope(string scope) => scope == $"ealin_2:{UpstairsProgram}:170";
 
@@ -54,6 +57,21 @@ public static class Ff7FieldEventCoverageCatalog
     {
         ArgumentNullException.ThrowIfNull(session);
         int story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+        Ff7FieldEventCoveragePlan? extension = null;
+        InspectWallMarket(session, story, ref extension);
+        InspectWallMarketRoom(session, story, ref extension);
+        if (extension is not null)
+        {
+            return extension;
+        }
+        if (session.Field.Name == "mds6_3" && session.Machine.ProgramIdentity == ParkExitProgram && story == 185)
+        {
+            return InspectParkExit(session);
+        }
+        if (RecognizesPark(session) && story is 176 or 179 or 183 or 185)
+        {
+            return InspectPark(session, story);
+        }
         if (session.Field.Name == "mds6_1" && session.Machine.ProgramIdentity == RoadProgram && story == 176)
         {
             return InspectRoad(session);
@@ -303,6 +321,60 @@ public static class Ff7FieldEventCoverageCatalog
         }
         events.Add(new("automatic:0:script:0", 0, 0, "native-background", Ff7FieldEventCoverageKind.Automatic, "The native television background owner runs automatically without a player interaction."));
         return new(true, "The native dog interaction, inactive story-conditioned residents, background owner and seven alternative exits are classified.", false, events.AsReadOnly());
+    }
+
+    static partial void InspectWallMarket(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
+    static partial void InspectWallMarketRoom(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
+
+    private static Ff7FieldEventCoveragePlan InspectParkExit(Ff7Session session)
+    {
+        List<Ff7FieldEventCoverageTarget> events = new();
+        if (session.Host.Process.Lines is not [{ Entity: 4, Enabled: 1 }] || session.Host.Process.Actors.Any(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && session.Field.Scripts.Data.Span[session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1]] != 0))
+        {
+            return new(false, "The native park departure contacts differ from the reviewed state.", false, events.AsReadOnly());
+        }
+        for (int script = 1; script <= 6; script++)
+        {
+            int entry = session.Field.Scripts.Entities[4].ScriptOffsets[script];
+            bool empty = session.Field.Scripts.Data.Span[entry] == 0;
+            if (!empty && script != 5)
+            {
+                return new(false, "An additional park departure contact requires classification.", false, events.AsReadOnly());
+            }
+            events.Add(new($"line:4:script:{script}", 4, script, $"{entry:X4}:1", empty ? Ff7FieldEventCoverageKind.Empty : Ff7FieldEventCoverageKind.Exit, empty ? "This native corridor contact callback immediately returns." : "The native Enter callback returns to park map192 at this story state, an alternative to the forward gateway."));
+        }
+        var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
+        if (exits.Length != 1 || exits[0].gateway.DestinationField != 195)
+        {
+            return new(false, "The park departure gateway directory differs from the reviewed state.", false, events.AsReadOnly());
+        }
+        events.Add(new($"exit:{exits[0].index}:map:195", -1, -1, "native-gateway:195", Ff7FieldEventCoverageKind.Exit, "Continue through the original forward gateway after the empty corridor contact catalog is checked."));
+        events.Add(new("automatic:0:script:0", 0, 0, "native-background", Ff7FieldEventCoverageKind.Automatic, "The native director configures map music and global audio channel values without a player interaction."));
+        return new(true, "All corridor contact slots, empty party conversations, native audio setup and both alternative handoffs are classified.", false, events.AsReadOnly());
+    }
+
+    internal static Ff7FieldEventCoveragePlan InspectPark(Ff7Session session, int story)
+    {
+        List<Ff7FieldEventCoverageTarget> events = new();
+        if (session.Host.Process.Lines.Length != 0 || session.Host.Process.Actors.Any(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && actor.Entity != 2 && session.Field.Scripts.Data.Span[session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1]] != 0))
+        {
+            return new(false, "An additional native park contact requires classification.", false, events.AsReadOnly());
+        }
+        int talkPhase = session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0D);
+        events.Add(new("conditional:0:phase:entry", 0, 3, "033B:entry176", story == 176 ? Ff7FieldEventCoverageKind.Conditional : Ff7FieldEventCoverageKind.Inactive, "The native arrival scene must reach its unlocked talk intermission; later progress does not replay it."));
+        events.Add(new("actor:2:script:1", 2, 1, $"0818:intermission:{talkPhase >= 1}", story == 179 && talkPhase == 1 ? Ff7FieldEventCoverageKind.Interaction : Ff7FieldEventCoverageKind.Inactive, "Aerith's original talk callback advances the native intermission predicate only when it is available."));
+        events.Add(new("conditional:0:phase:departure", 0, 3, $"0401:talk-complete:{talkPhase >= 2}", story is 179 or 183 && talkPhase >= 2 ? Ff7FieldEventCoverageKind.Conditional : Ff7FieldEventCoverageKind.Inactive, "The native post-talk scene must reach its final return and release controls before departure."));
+        int[] expectedExits = [191, 194];
+        var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
+        if (!exits.Select(value => (int)value.gateway.DestinationField).Order().SequenceEqual(expectedExits))
+        {
+            return new(false, "The native park gateway directory differs from its reviewed state.", false, events.AsReadOnly());
+        }
+        foreach (var (gateway, index) in exits)
+        {
+            events.Add(new($"exit:{index}:map:{gateway.DestinationField}", -1, -1, $"native-gateway:{gateway.DestinationField}", Ff7FieldEventCoverageKind.Exit, gateway.DestinationField == 194 ? "Continue through the native departure gateway after the park scene finishes." : "This native gateway is an alternative return toward the road."));
+        }
+        return new(true, "The park entry scene, available intermission conversation, post-talk scene and alternative exits are classified.", false, events.AsReadOnly());
     }
 
     private static Ff7FieldEventCoveragePlan InspectRoad(Ff7Session session)

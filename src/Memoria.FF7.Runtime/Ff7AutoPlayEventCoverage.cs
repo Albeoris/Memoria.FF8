@@ -30,7 +30,7 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
         {
             return false;
         }
-        if (session.HasPendingTick || session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed))
+        if (session.HasPendingTick || session.Host.Process.Tick == 0 || session.Host.Process.PlayerLocked || session.Host.Process.Join is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed))
         {
             return true;
         }
@@ -63,9 +63,20 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
         {
             bool run = true;
             ConfigureCoverageNavigation(driver, ref run);
-            if (next.Id.StartsWith("actor:", StringComparison.Ordinal) && TryReadTarget(next.Id, out int entity, out _))
+            if (next.Id.StartsWith("actor:", StringComparison.Ordinal) && TryReadTarget(next.Id, out int entity, out int script))
             {
-                input = driver.TalkTo(entity, run);
+                if (script == 1)
+                {
+                    input = driver.TalkTo(entity, run);
+                }
+                else if (script == 2)
+                {
+                    input = driver.Contact(entity, run);
+                }
+                else
+                {
+                    throw new NotSupportedException($"FFVII actor event {next.Id} requires its native physical activation contract.");
+                }
             }
             else
             {
@@ -101,7 +112,18 @@ public sealed partial class Ff7AutoPlayEventCoverage : IDisposable
 
     private void ObserveCompletedTick(Ff7NativeTickObservation observation)
     {
+        string? coveredScope = ledger.CanLeave && ledger.Current?.Id.StartsWith(observation.Field + ":", StringComparison.Ordinal) == true ? ledger.Current.Id : null;
         ObserveConditionalCoverage(observation);
+        ObserveCompletedActorTick(observation);
+        if (ledger.CanLeave && ledger.Current?.Id.StartsWith(observation.Field + ":", StringComparison.Ordinal) == true)
+        {
+            coveredScope = ledger.Current.Id;
+        }
+        ObserveTourCoverage(observation, coveredScope);
+    }
+
+    private void ObserveCompletedActorTick(Ff7NativeTickObservation observation)
+    {
         AutoPlayEventCoverageEntry? active = ledger.Current?.Events.SingleOrDefault(entry => entry.Status == AutoPlayEventCoverageStatus.Active);
         int separator = active?.BeforeWitness?.IndexOf('/') ?? -1;
         if (active is null || active.BeforeWitness is null || separator < 0 || !long.TryParse(active.BeforeWitness.AsSpan(0, separator), out long generation) || observation.Generation != generation || !TryReadTarget(active.Id, out int entity, out _))

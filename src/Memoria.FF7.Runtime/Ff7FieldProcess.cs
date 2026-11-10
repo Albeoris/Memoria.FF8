@@ -58,12 +58,14 @@ public sealed record Ff7Actor
 
 public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0)
 {
+    public Ff7WindowParameters? Parameters { get; init; }
     public byte SpecialType { get; init; }
     public byte SpecialX { get; init; }
     public byte SpecialY { get; init; }
 }
 public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false, Ff7DialoguePresentation? Presentation = null)
 {
+    public Ff7DialogueNumbers? Numbers { get; init; }
     public bool TextVisible => !Completed && (Presentation?.NativeState ?? 2) >= 2;
     public bool ChoiceReady => !Completed && AwaitingInput && FirstChoice is not null && (Presentation is null || Presentation.NativeState == 6);
 }
@@ -85,7 +87,7 @@ public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1,
 public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7LadderProcess(long RequestId, int TargetX, int TargetY, int TargetZ, int TargetTriangle, byte Mode, int StartX = 0, int StartY = 0, int StartZ = 0, int Steps = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7OffsetProcess(int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, int Mode, int Steps, int Step = 0, bool Completed = false);
-public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false);
+public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false, Ff7ShopState? Shop = null);
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false, Ff7MovieCameraConsumption? CameraConsumption = null);
 public sealed record Ff7MovieCameraConsumption(int Frame, long WordsBeforeRead, long WordsAfterRead);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
@@ -199,6 +201,11 @@ public sealed record Ff7FieldProcess
     public void Validate()
     {
         CameraShakeX?.Validate();
+        Menu?.Shop?.Validate();
+        if (Menu is { Shop: { } shop } menu && (menu.Mode != 8 || shop.RequestId != menu.RequestId || shop.ShopId != menu.Parameter || menu.Completed != (shop.Phase == Ff7ShopPhase.Completed)))
+        {
+            throw new InvalidDataException("The native shop and global menu owners disagree.");
+        }
         CameraShakeY?.Validate();
         FadeState?.Validate();
         NewFadeOrigin?.Validate();
@@ -287,6 +294,11 @@ public sealed record Ff7FieldProcess
         foreach (Ff7Dialogue dialogue in Dialogues)
         {
             dialogue.Presentation?.Validate();
+            dialogue.Numbers?.Validate();
+        }
+        foreach (Ff7Window window in Windows)
+        {
+            window.Parameters?.Validate();
         }
         if (Movie?.CameraConsumption is Ff7MovieCameraConsumption consumption && (consumption.Frame < -1 || consumption.WordsBeforeRead < 0 || consumption.WordsAfterRead < consumption.WordsBeforeRead || consumption.WordsAfterRead - consumption.WordsBeforeRead is not (0 or 10)))
         {

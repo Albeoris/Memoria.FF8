@@ -78,7 +78,7 @@ internal sealed partial class Ff7Scene
         {
             return true;
         }
-        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, Tokens(dialogue), Session!.ExpandDialogueToken, ButtonLabel);
+        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, Tokens(dialogue), token => Session!.ExpandDialogueToken(dialogue, token), ButtonLabel);
         int pageEnd = presentation.Pages.Take(presentation.Pager.PageIndex + 1).Sum(DialoguePager.CharacterCount);
         return content.VisibleCharacters >= pageEnd && presentation.Pager.Advance(presentation.Pages.Count);
     }
@@ -103,7 +103,7 @@ internal sealed partial class Ff7Scene
     {
         UiPreferences preferences = dialoguePreferences?.Invoke() ?? throw new InvalidOperationException("FFVII dialogue requires the shared host presentation context.");
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
-        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, tokens, Session!.ExpandDialogueToken, ButtonLabel);
+        Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, tokens, token => Session!.ExpandDialogueToken(dialogue, token), ButtonLabel);
         DialogueDocument document = content.Document;
         DialogueState state = new(dialogue.Window, dialogue.Text, document.Text, window.X, window.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected);
         DialogueWindow nativeWindow = new(dialogue.Window, window.X, window.Y, window.Width, window.Height);

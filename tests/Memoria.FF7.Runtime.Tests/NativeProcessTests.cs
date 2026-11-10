@@ -420,6 +420,7 @@ internal static class NativeProcessTests
     {
         PaletteBufferStrideAndColors();
         InstalledCachedPaletteInitializationAndCompatibility();
+        NativePaletteAddContinuationTests.Run();
     }
 
     public static void RunSpecialWindow()
@@ -750,6 +751,24 @@ internal static class NativeProcessTests
         Equal((ushort)0x1234, ranged.Process.PaletteBuffer[276]);
         Ff7FieldHost coldRange = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(ranged.Capture()))!);
         Equal(JsonSerializer.Serialize(ranged.Capture()), JsonSerializer.Serialize(coldRange.Capture()));
+        range[17] = 1;
+        range[18] = 0;
+        range[19] = 0x8000;
+        range[20] = 0x7FFF;
+        Ff7FieldHost added = Host(new Ff7FieldProcess { PaletteBuffer = range });
+        FieldHostRequest add = Request(7, new FieldPaletteCommand(FieldPaletteOperation.Add, 0, 16, 4, Red: 255, Green: 255, Blue: 255, First: 17));
+        Equal(true, added.Execute(add).Completed);
+        Equal((ushort)0x1234, added.Process.PaletteBuffer[272]);
+        Equal((ushort)0x8000, added.Process.PaletteBuffer[273]);
+        Equal((ushort)0, added.Process.PaletteBuffer[274]);
+        Equal((ushort)0x8000, added.Process.PaletteBuffer[275]);
+        Equal((ushort)0x7BDE, added.Process.PaletteBuffer[276]);
+        Equal((ushort)0x1234, added.Process.PaletteBuffer[277]);
+        Ff7FieldHost coldAdded = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(added.Capture()))!);
+        Equal(true, coldAdded.Execute(add).Completed);
+        Equal(JsonSerializer.Serialize(added.Capture()), JsonSerializer.Serialize(coldAdded.Capture()));
+        added.Execute(Request(8, new FieldPaletteCommand(FieldPaletteOperation.Add, 0, 16, 1, Red: 127, Green: 128, Blue: 255, First: 18)));
+        Equal((ushort)31, added.Process.PaletteBuffer[274]);
     }
 
     private static void NamingMenuOwnership()

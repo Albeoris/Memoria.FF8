@@ -61,6 +61,9 @@ internal sealed record Ff7CommonDialogueText(DialogueDocument Document, int Visi
                 case FieldTextTokenKind.Glyph:
                 case FieldTextTokenKind.CharacterName:
                 case FieldTextTokenKind.PartyName:
+                case FieldTextTokenKind.DecimalVariable:
+                case FieldTextTokenKind.HexVariable:
+                case FieldTextTokenKind.RightAlignedVariable:
                     Add(expand(token), index);
                     break;
                 case FieldTextTokenKind.NewLine:

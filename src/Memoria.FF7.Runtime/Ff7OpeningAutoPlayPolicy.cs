@@ -29,7 +29,7 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal
     {
         if (goal == Ff7AutoPlayGoal.MidgarWorldMap)
         {
-            return session.World is { } world && world.Process is { Initialized: true, EntrySelector: 1, WorldId: 0 } && world.CanSave && coverage?.CanLeaveField == true;
+            return session.World is { } world && world.Process is { Initialized: true, EntrySelector: 1, WorldId: 0 } && world.CanSave && coverage?.CanLeaveField == true && !coverage.HasUnfinishedTour;
         }
         Ff7FieldProcess process = session.Host.Process;
         if (session.HasPendingTick || session.Field.Name != "chrin_1b" || session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 140 || (process.PreviousMap is ushort previousMap && previousMap != 127) || process.Movie is { Playing: true })
@@ -78,9 +78,14 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal
         {
             return default;
         }
+        coverage?.RefreshTourCatalog();
         if (coverage?.TryChooseInput(driver, out Ff7AutoplayInput coverageInput) == true)
         {
             return coverageInput;
+        }
+        if (coverage?.TryChooseTourInput(driver, out Ff7AutoplayInput tourInput) == true)
+        {
+            return tourInput;
         }
         if (goal == Ff7AutoPlayGoal.MidgarWorldMap && midgar.TryChooseInput(driver, out Ff7AutoplayInput midgarInput))
         {

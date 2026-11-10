@@ -8,6 +8,10 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
 {
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
+        if (Ff7FieldEventCoverageCatalog.RecognizesWallMarketInn(session) && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 188 && dialogue.Text == 1 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 3)
+        {
+            return 3;
+        }
         return (session.Field.Name, dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice) switch
         {
             ("mds6_2", 2, 5, 6) => 5,

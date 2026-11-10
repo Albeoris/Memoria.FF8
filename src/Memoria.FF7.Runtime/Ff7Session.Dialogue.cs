@@ -14,6 +14,28 @@ public sealed partial class Ff7Session
         return Ff7DialogueCursor.ExpandToken(token, Progress, scriptParty, PresentationNameResolver);
     }
 
+    public string ExpandDialogueToken(Ff7Dialogue dialogue, FieldTextToken token)
+    {
+        if (!Ff7DialogueCursor.IsNumeric(token))
+        {
+            return ExpandDialogueToken(token);
+        }
+        if (World is not null)
+        {
+            throw new NotSupportedException("FFVII world numeric messages require their native parameter publication contract.");
+        }
+        IReadOnlyList<FieldTextToken> tokens = FieldText.Read(Field.Scripts.Texts[dialogue.Text].Span);
+        int slot = Ff7DialogueCursor.NumericParameterIndex(tokens, token);
+        if (dialogue.Numbers?.Get(slot) is string cached)
+        {
+            return cached;
+        }
+        Ff7Window window = Host.Process.Windows.Single(item => item.Id == dialogue.Window);
+        Ff7WindowParameter parameter = (window.Parameters ?? new()).Get(slot);
+        ushort value = Machine.Variables.ReadWindowParameter(parameter.Bank, parameter.Address);
+        return Ff7DialogueCursor.FormatNumber(token.Kind, value);
+    }
+
     private void ConfigureWorldPresentation()
     {
         if (World is not null)
@@ -40,6 +62,6 @@ public sealed partial class Ff7Session
             dialogueTokens.Add(identity, tokens);
         }
         byte speed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
-        return Ff7DialogueCursor.AdvanceTick(dialogue, tokens, window, speed, (Machine.Input.Held & 0x20) != 0, expandToken: ExpandDialogueToken);
+        return Ff7DialogueCursor.AdvanceTick(dialogue, tokens, window, speed, (Machine.Input.Held & 0x20) != 0, expandToken: token => ExpandDialogueToken(dialogue, token));
     }
 }

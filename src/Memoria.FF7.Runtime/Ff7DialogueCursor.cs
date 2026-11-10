@@ -5,6 +5,26 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7DialogueCursor
 {
+    public static bool IsNumeric(FieldTextToken token) => token.Kind is FieldTextTokenKind.DecimalVariable or FieldTextTokenKind.HexVariable or FieldTextTokenKind.RightAlignedVariable;
+
+    public static int NumericParameterIndex(IReadOnlyList<FieldTextToken> tokens, FieldTextToken token)
+    {
+        int slot = tokens.Count(item => item.Offset < token.Offset && IsNumeric(item));
+        if (slot >= 8)
+        {
+            throw new NotSupportedException("FFVII numeric message exceeds its eight admitted native parameter slots.");
+        }
+        return slot;
+    }
+
+    public static string FormatNumber(FieldTextTokenKind kind, ushort value) => kind switch
+    {
+        FieldTextTokenKind.DecimalVariable => value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        FieldTextTokenKind.HexVariable => value.ToString("X", System.Globalization.CultureInfo.InvariantCulture),
+        FieldTextTokenKind.RightAlignedVariable => value.ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(5),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+
     public static string ExpandToken(FieldTextToken token, Ff7Progress progress, IReadOnlyList<int> scriptParty, Func<int, string, string>? presentationNameResolver = null)
     {
         if (token.Kind == FieldTextTokenKind.Glyph)
@@ -148,7 +168,20 @@ public static class Ff7DialogueCursor
                     break;
                 case FieldTextTokenKind.CharacterName:
                 case FieldTextTokenKind.PartyName:
-                    string text = expandToken?.Invoke(token) ?? throw new NotSupportedException("FFVII name reveal requires its native character and script-party bindings.");
+                case FieldTextTokenKind.DecimalVariable:
+                case FieldTextTokenKind.HexVariable:
+                case FieldTextTokenKind.RightAlignedVariable:
+                    string text;
+                    if (IsNumeric(token))
+                    {
+                        int numericSlot = NumericParameterIndex(tokens, token);
+                        text = dialogue.Numbers?.Get(numericSlot) ?? expandToken?.Invoke(token) ?? throw new NotSupportedException("FFVII number reveal requires its native window parameter binding.");
+                        dialogue = dialogue with { Numbers = (dialogue.Numbers ?? new()).Set(numericSlot, text) };
+                    }
+                    else
+                    {
+                        text = expandToken?.Invoke(token) ?? throw new NotSupportedException("FFVII name reveal requires its native character and script-party bindings.");
+                    }
                     int length = text.EnumerateRunes().Count();
                     presentation = presentation with { PresentationNameLength = length > 9 ? length : null };
                     if (expansion >= length)
@@ -237,5 +270,6 @@ public static class Ff7DialogueCursor
             throw new InvalidDataException("FFVII saved dialogue cursor, page or wait state exceeds its original text.");
         }
         dialogue.Presentation?.Validate();
+        dialogue.Numbers?.Validate();
     }
 }

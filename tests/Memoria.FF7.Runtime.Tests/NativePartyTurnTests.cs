@@ -70,8 +70,20 @@ internal static class NativePartyTurnTests
             Check(cold.Execute(request).Completed && callbacks == 9 && original.GetActor(15).Direction == (end & 255) && original.GetActor(15).TurnMode == 0, "PTURA changed shared sample0-through8 timing or completion clearing.");
             Check(original.GetActor(15).X4096 == source.X4096 && original.GetActor(7).X4096 == target.X4096, "Party facing moved a source or target actor.");
         }
+        Ff7FieldProcess turning = state with { Actors = [source with { TurnMode = 2, TurnStep = 3, TurnSteps = 8 }, target] };
+        Ff7FieldHost immediate = Build(turning, [4, 255, 255], native);
+        FieldHostRequest immediateRequest = new(2, 15, 1, 0x09E8, new FieldActorFaceParty(0, 0, 0, Immediate: true));
+        FieldHostReply immediateReply = immediate.Execute(immediateRequest);
+        int direction = immediate.Movement!.Direction(50, 0);
+        Check(immediateReply is { Completed: true, Value: 1 } && immediate.GetActor(15) is { TurnMode: 0, TurnStep: 0, TurnSteps: 8 } && immediate.GetActor(15).Direction == direction, "PDIRA must apply the shared native direction immediately, clear only mode/step and report its valid-target yield.");
+        Ff7FieldHost immediateCold = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(immediate.Capture()))!, [4, 255, 255], native);
+        Check(immediateCold.Execute(immediateRequest) == immediateReply && JsonSerializer.Serialize(immediate.Capture()) == JsonSerializer.Serialize(immediateCold.Capture()), "Cold immediate party facing changed its completed receipt or actor state.");
+        Ff7FieldHost absentImmediate = Build(turning, [255, 255, 255], native);
+        Check(absentImmediate.Execute(immediateRequest) is { Completed: true, Value: 0 } && absentImmediate.GetActor(15) == turning.Actors[0], "An absent PDIRA target must retain the actor and report same-pass completion.");
         Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root), "mds5_1");
         Check(field.Scripts.Data.Span.Slice(0xA77, 4).SequenceEqual(new byte[] { 0x35, 0, 8, 2 }), "The original dog interaction no longer contains the admitted native PTURA operands.");
+        Ff7FieldResources market = Ff7FieldResources.Load(Ff7Installation.Discover(root), "mrkt2");
+        Check(market.Scripts.Data.Span.Slice(0x09E8, 2).SequenceEqual(new byte[] { 0x34, 0 }), "The original market arrival scene no longer contains the admitted native PDIRA operand.");
         Console.WriteLine("PASS PTURA party-slot/character/entity resolution, missing targets, shared turn timing and cold continuation");
     }
 

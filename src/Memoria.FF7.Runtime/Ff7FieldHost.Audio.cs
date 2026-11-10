@@ -164,48 +164,7 @@ public sealed partial class Ff7FieldHost
         {
             case 0x20 or 0x28 or 0x29 or 0x2A or 0x2B:
                 int soundChannel = audio.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
-                int[] loopIds = (int[])Process.SoundChannelLoopIds.Clone();
-                if (audio.Parameter1 == 0)
-                {
-                    loopIds[soundChannel - 1] = 0;
-                    SetSoundVolume(soundChannel, 0, 127, publish: false);
-                }
-                else if (nativeSoundDescription is not null)
-                {
-                    Ff7NativeSoundDescription description = nativeSoundDescription(audio.Parameter1);
-                    int[] frequencies = (int[])Process.SoundChannelBaseFrequencies.Clone();
-                    bool? reusedLoop = description.Loop && !Process.SoundChannelStoppedByFade[soundChannel - 1] ? NativeSoundLoopAlreadyPlaying?.Invoke(soundChannel, audio.Parameter1) : false;
-                    if (reusedLoop is null && loopIds[soundChannel - 1] == audio.Parameter1 && (frequencies[soundChannel - 1] != description.SampleRate || Process.SoundChannelPans[soundChannel - 1] != unchecked((byte)audio.Parameter0) || Process.SoundChannelPanFades[soundChannel - 1] is not null))
-                    {
-                        throw new NotSupportedException("FFVII reused looping sound requires its current native playback-status provider.");
-                    }
-                    if (description.Streamed)
-                    {
-                        frequencies[0] = description.SampleRate;
-                        loopIds[1] = 0;
-                        if (audio.Operation != 0x20)
-                        {
-                            loopIds[soundChannel - 1] = 0;
-                        }
-                    }
-                    else
-                    {
-                        if (reusedLoop != true)
-                        {
-                            Ff7SoundBufferPanState?[] buffers = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone();
-                            if (buffers[soundChannel - 1]?.Sample != audio.Parameter1)
-                            {
-                                buffers[soundChannel - 1] = new(audio.Parameter1, 64);
-                                Process = Process with { SoundChannelBufferPans = buffers };
-                            }
-                            frequencies[soundChannel - 1] = description.SampleRate;
-                            SetSoundPan(soundChannel, 0, unchecked((byte)audio.Parameter0));
-                        }
-                        loopIds[soundChannel - 1] = description.Loop ? audio.Parameter1 : 0;
-                    }
-                    Process = Process with { SoundChannelBaseFrequencies = frequencies };
-                }
-                Process = Process with { SoundChannelLoopIds = loopIds };
+                ApplyNativeSoundStartState(soundChannel, audio.Parameter1, unchecked((byte)audio.Parameter0), audio.Operation == 0x20);
                 restartedChannel = soundChannel;
                 break;
             case 0xA0:
@@ -268,6 +227,52 @@ public sealed partial class Ff7FieldHost
             stopped[restarted - 1] = false;
             Process = Process with { SoundChannelStoppedByFade = stopped };
         }
+    }
+
+    private void ApplyNativeSoundStartState(int soundChannel, int sound, byte pan, bool stopStream)
+    {
+        int[] loopIds = (int[])Process.SoundChannelLoopIds.Clone();
+        if (sound == 0)
+        {
+            loopIds[soundChannel - 1] = 0;
+            SetSoundVolume(soundChannel, 0, 127, publish: false);
+        }
+        else if (nativeSoundDescription is not null)
+        {
+            Ff7NativeSoundDescription description = nativeSoundDescription(sound);
+            int[] frequencies = (int[])Process.SoundChannelBaseFrequencies.Clone();
+            bool? reusedLoop = description.Loop && !Process.SoundChannelStoppedByFade[soundChannel - 1] ? NativeSoundLoopAlreadyPlaying?.Invoke(soundChannel, sound) : false;
+            if (reusedLoop is null && loopIds[soundChannel - 1] == sound && (frequencies[soundChannel - 1] != description.SampleRate || Process.SoundChannelPans[soundChannel - 1] != pan || Process.SoundChannelPanFades[soundChannel - 1] is not null))
+            {
+                throw new NotSupportedException("FFVII reused looping sound requires its current native playback-status provider.");
+            }
+            if (description.Streamed)
+            {
+                frequencies[0] = description.SampleRate;
+                loopIds[1] = 0;
+                if (!stopStream)
+                {
+                    loopIds[soundChannel - 1] = 0;
+                }
+            }
+            else
+            {
+                if (reusedLoop != true)
+                {
+                    Ff7SoundBufferPanState?[] buffers = (Ff7SoundBufferPanState?[])Process.SoundChannelBufferPans.Clone();
+                    if (buffers[soundChannel - 1]?.Sample != sound)
+                    {
+                        buffers[soundChannel - 1] = new(sound, 64);
+                        Process = Process with { SoundChannelBufferPans = buffers };
+                    }
+                    frequencies[soundChannel - 1] = description.SampleRate;
+                    SetSoundPan(soundChannel, 0, pan);
+                }
+                loopIds[soundChannel - 1] = description.Loop ? sound : 0;
+            }
+            Process = Process with { SoundChannelBaseFrequencies = frequencies };
+        }
+        Process = Process with { SoundChannelLoopIds = loopIds };
     }
 
     private void SetMusicVolumeFade(byte duration, byte initial, byte target)

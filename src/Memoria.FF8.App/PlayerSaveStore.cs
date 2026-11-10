@@ -303,7 +303,7 @@ internal sealed partial class PlayerSaveStore
                     {
                         _ = CrossoverSaveAdapter.ReadFf8(combined);
                     }
-                    string details = "FINAL FANTASY VII · " + combined.Ff7!.FieldName;
+                    string details = "FINAL FANTASY VII · " + (combined.Ff7!.World is null ? combined.Ff7.FieldName : "World map");
                     if (!canLoad && !requiresFf8)
                     {
                         details += " · This save contains an unsupported FFVIII continuation.";

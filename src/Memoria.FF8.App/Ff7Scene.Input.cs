@@ -211,6 +211,9 @@ internal sealed partial class Ff7Scene
                     color = token.Argument;
                     break;
                 case FieldTextTokenKind.CharacterName:
+                case FieldTextTokenKind.DecimalVariable:
+                case FieldTextTokenKind.HexVariable:
+                case FieldTextTokenKind.RightAlignedVariable:
                     DrawTokenExpansion(token, i);
                     break;
                 case FieldTextTokenKind.ControllerButton:
@@ -253,7 +256,7 @@ internal sealed partial class Ff7Scene
 
         void DrawTokenExpansion(FieldTextToken token, int index)
         {
-            string text = Session!.ExpandDialogueToken(token);
+            string text = Session!.ExpandDialogueToken(dialogue, token);
             if (index == dialogue.TokenPosition)
             {
                 int remaining = dialogue.Presentation?.ExpansionOffset ?? 0;

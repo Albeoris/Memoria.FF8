@@ -19,11 +19,15 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 17))
+        if (command.Mode is not (6 or 8 or 17))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
-        Process = Process with { Menu = new(requestId, command.Mode, command.Parameter), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
+        if (command.Mode == 8 && command.Parameter is < 0 or >= 80)
+        {
+            throw new NotSupportedException("The native shop index is outside the recognized executable directory.");
+        }
+        Process = Process with { Menu = new(requestId, command.Mode, command.Parameter, Shop: command.Mode == 8 ? new(requestId, command.Parameter) : null), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
         return new(false);
     }
 
@@ -47,6 +51,10 @@ public sealed partial class Ff7FieldHost
         if (menu.RequestId != requestId || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != requestId)
         {
             throw new InvalidOperationException("Only the current FFVII menu owner can complete it.");
+        }
+        if (menu.Mode == 8 && menu.Shop?.Phase != Ff7ShopPhase.Completed)
+        {
+            throw new InvalidOperationException("The native shop must finish its closing process before the field menu can complete.");
         }
         Process = Process with { Menu = menu with { Completed = true } };
     }

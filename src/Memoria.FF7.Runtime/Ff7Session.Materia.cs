@@ -15,7 +15,7 @@ public sealed partial class Ff7Session
         {
             throw new NotSupportedException("FFVII acquired materia references an absent original kernel record.");
         }
-        Progress = Progress with { Materia = [.. Progress.Materia, new(id, command.Encoded >> 8)] };
+        Progress = Progress with { Materia = Ff7NativeMateriaInventory.Acquire(Progress.Materia, id, command.Encoded >> 8) };
         int flags = executable.NativeMateriaClasses[materiaTypes[id] & 15] == 10 ? 1 : 0;
         if (id == 44)
         {

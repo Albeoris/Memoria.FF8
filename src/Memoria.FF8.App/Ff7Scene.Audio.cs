@@ -27,9 +27,11 @@ internal sealed partial class Ff7Scene
             if (audioHost is not null)
             {
                 audioHost.AudioRequested = null;
+                audioHost.NativeSoundRequested = null;
             }
             audioHost = session.Host;
             audioHost.AudioRequested = PlayAudio;
+            audioHost.NativeSoundRequested = PlayNativeSound;
             audioHost.NativeSoundLoopAlreadyPlaying = soundChannels.IsLoopPlaying;
         }
         if (!audioEnabled)
@@ -244,18 +246,39 @@ internal sealed partial class Ff7Scene
                     soundChannels.StopNativeChannel(1);
                     return;
                 }
-                var decoded = DecodeSound(command.Parameter1);
-                audioOutput ??= new PcmAudioOutput();
-                int pan = Session!.Host.ResolveNativeSoundPlaybackPan(command, decoded.Streamed);
-                audioNative ??= Ff7PcExecutableData.Load(installation);
                 int channel = command.Operation switch { 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => 1 };
-                int soundIntensity = Session!.Host.Process.SoundChannelVolumes[decoded.Streamed ? 0 : channel - 1];
-                soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), command.Parameter1, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: channel, stopStream: command.Operation == 0x20, nativeVolume: soundIntensity, nativeSampleRate: decoded.NativeRate, nativePitch: Session.Host.Process.SoundChannelPitches[decoded.Streamed ? 0 : channel - 1], nativeLoopDelaySeconds: decoded.LoopDelay, nativePanVersion: Session.Host.Process.SoundChannelPanVersions[decoded.Streamed ? 0 : channel - 1], nativeFrequencyVersion: Session.Host.Process.SoundChannelFrequencyVersions[decoded.Streamed ? 0 : channel - 1], nativeGainVersion: Session.Host.Process.SoundChannelGainVersions[decoded.Streamed ? 0 : channel - 1]);
-                soundChannels.Pause(audioPaused);
+                PlayNativeSound(new(channel, command.Parameter1, unchecked((byte)command.Parameter0), command.Operation == 0x20));
                 return;
             default:
                 throw new NotSupportedException($"FFVII audio operation {command.Operation:X2} requires its native output contract.");
         }
+    }
+
+    private void PlayNativeSound(Ff7NativeSoundRequest request)
+    {
+        if (!audioEnabled)
+        {
+            return;
+        }
+        ApplyNativeResidentStops();
+        RefreshNativeGains();
+        RefreshNativePans();
+        RefreshNativeFrequencies();
+        if (request.Sound == 0)
+        {
+            soundChannels.StopNativeChannel(request.Channel);
+            return;
+        }
+        var decoded = DecodeSound(request.Sound);
+        audioOutput ??= new PcmAudioOutput();
+        Ff7FieldHost host = Session!.Host;
+        int pan = host.ResolveNativeSoundPlaybackPan(request, decoded.Streamed);
+        audioNative ??= Ff7PcExecutableData.Load(installation);
+        int control = decoded.Streamed ? 0 : request.Channel - 1;
+        Ff7FieldProcess state = host.Process;
+        int soundIntensity = state.SoundChannelVolumes[control];
+        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, stopStream: request.StopStream, nativeVolume: soundIntensity, nativeSampleRate: decoded.NativeRate, nativePitch: state.SoundChannelPitches[control], nativeLoopDelaySeconds: decoded.LoopDelay, nativePanVersion: state.SoundChannelPanVersions[control], nativeFrequencyVersion: state.SoundChannelFrequencyVersions[control], nativeGainVersion: state.SoundChannelGainVersions[control]);
+        soundChannels.Pause(audioPaused);
     }
 
     private int NativeGain(int volume, int globalPercent)
@@ -291,6 +314,7 @@ internal sealed partial class Ff7Scene
         if (audioHost is not null)
         {
             audioHost.AudioRequested = null;
+            audioHost.NativeSoundRequested = null;
             audioHost = null;
         }
         StopMusicAudio();
