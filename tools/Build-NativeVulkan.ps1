@@ -24,7 +24,7 @@ $libraryName = switch ($RuntimeIdentifier) {
     default { 'libmgruntime.dylib' }
 }
 $libraryPath = Join-Path $OutputDirectory $libraryName
-$recipeFiles = @('native-runtime-lock.json', 'BackBufferReadback.patch', 'CMakeLists.txt', 'build.sh', 'NativeVulkan.targets')
+$recipeFiles = @('native-runtime-lock.json', 'BackBufferReadback.patch', 'FAudioCurveAlignment.patch', 'CMakeLists.txt', 'build.sh', 'NativeVulkan.targets')
 function Get-Hash([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
@@ -43,6 +43,9 @@ if ($isMacRuntime) {
 }
 if ($recipeHashes['BackBufferReadback.patch'] -cne $lock.patchSha256) {
     throw 'The Vulkan source patch does not match its locked SHA-256.'
+}
+if ($recipeHashes['FAudioCurveAlignment.patch'] -cne $lock.faudioPatchSha256) {
+    throw 'The FAudio source patch does not match its locked SHA-256.'
 }
 $tools = Get-Content (Join-Path $productRoot '.config/dotnet-tools.json') -Raw | ConvertFrom-Json
 if ($tools.tools.'dotnet-mgfxc'.version -cne $lock.shaderCompiler.version) {

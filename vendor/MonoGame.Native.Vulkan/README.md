@@ -6,6 +6,8 @@ Upstream backbuffer readback waits on the binary swapchain-acquisition semaphore
 
 Upstream also skips swapchain recreation when the backbuffer dimensions change with the same VSync and MSAA settings. The patch recreates on size changes and retains the requested dimensions separately from the extent that the surface currently allows. Presentation-driven recreation can then retry with the latest requested size if the compositor applies the resize asynchronously.
 
+On macOS, the build also backports [FAudio's static curve alignment fix](https://github.com/FNA-XNA/FAudio/commit/41bfee955aa98c03ddb6f26e62a99afdf3c04237) to the pinned dependency. It aligns the static points and pointer-bearing curves for the Apple linker while preserving the packed public structure layout. This patch is covered by the included FAudio zlib license.
+
 ## Build
 
 Run from the product root with PowerShell 7, Git, CMake 3.24+ and the product's .NET SDK. Windows uses Git for Windows Bash and Visual Studio 2022 or 2026 C++ desktop tools with a Windows SDK. macOS uses native Xcode tools on macOS 26 and the same pinned MoltenVK release used by packaging. For Linux x64, a native build or WSL2 distro needs a C/C++17 toolchain, make, curl, unzip, OpenSSL, binutils and SDL2 development packages.

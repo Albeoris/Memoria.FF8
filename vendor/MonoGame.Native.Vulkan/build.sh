@@ -57,8 +57,18 @@ while IFS=$'\t' read -r path dependency_repository dependency_revision; do
         git -C "$directory" checkout --detach "$dependency_revision"
     fi
     [[ $(git -C "$directory" rev-parse HEAD) == "$dependency_revision" ]] || { echo "Unexpected dependency revision: $path" >&2; exit 1; }
-    git -C "$directory" diff --exit-code
     git -C "$directory" diff --cached --exit-code
+    if [[ "$rid" == osx-* && "$path" == native/monogame/external/faudio ]]; then
+        faudio_patch="$build/faudio-alignment.patch"
+        tr -d '\r' < "$recipe/FAudioCurveAlignment.patch" > "$faudio_patch"
+        if git -C "$directory" diff --quiet; then
+            git -C "$directory" apply "$faudio_patch"
+        fi
+        git -C "$directory" diff --binary --full-index > "$build/faudio-current.patch"
+        cmp "$faudio_patch" "$build/faudio-current.patch"
+    else
+        git -C "$directory" diff --exit-code
+    fi
 done < "$dependencies"
 patch="$build/readback.patch"
 tr -d '\r' < "$recipe/BackBufferReadback.patch" > "$patch"

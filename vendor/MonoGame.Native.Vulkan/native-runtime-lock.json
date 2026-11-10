@@ -48,6 +48,7 @@
     "version": "3.8.5.1"
   },
   "patchSha256": "b2a652019c2f88f182435eae626e9db544f19313b1c35d15bbadab0a82fc195e",
+  "faudioPatchSha256": "a2c61a80596c355e65972c2a68abf33553c9831710468655b019dce9f977cc76",
   "referencePackages": {
     "win-x64": {
       "name": "monogame.runtime.windows.vulkan",
