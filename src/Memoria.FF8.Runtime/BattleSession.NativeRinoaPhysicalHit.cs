@@ -111,17 +111,17 @@ public sealed partial class BattleSession
                 NativeBattleModuleAxisAngle alignment = NativeBattleModuleAlignment.Between571480(0, 0, -4096, direction.X, direction.Y, direction.Z);
                 NativeBattleActionMatrix local = new(NativeBattleModuleAlignment.Rotation5714F0(alignment.Angle, alignment.Axis), start.X, 0, start.Z, 4096);
                 NativeBattleActionMatrix body = NativeBattleGfMatrices.Compose56C2F0(cameraCurve, local);
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, hit.Actor).PoseSource ?? throw new NotSupportedException("Native5717D0 requires its actual caster rig.");
+                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, hit.Actor).LinkedPoseSource ?? throw new NotSupportedException("Native5717D0 requires its actual linked projectile rig.");
                 short scale = BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(2));
                 WriteMatrix(184, body);
                 body = NativeBattlePoseMatrices.Scale56BEF0(body, scale, scale, scale);
-                NativeBattleBodyBoneMatrices bones = actor.CurrentBodyBoneMatrices ?? NativeBattleBodyBoneMatrices.ReadLoadedSkeleton(source);
-                actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x200), CurrentBodyBoneMatrices = bones with { Matrices = Enumerable.Repeat(body, source.BoneCount).ToImmutableArray() } };
+                NativeBattleBodyBoneMatrices bones = actor.CurrentLinkedBoneMatrices ?? NativeBattleBodyBoneMatrices.ReadLoadedSkeleton(source);
+                actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x200), CurrentLinkedBoneMatrices = bones with { Matrices = Enumerable.Repeat(body, source.BoneCount).ToImmutableArray() } };
                 graphics = graphics with { Models = graphics.Models.SetItem(hit.Actor, actor) };
                 NativeBattleTemporaryAllocation context = NativeBattleTemporaryMemory.Allocate5082B0(Staging(), 44);
                 uint scratch = checked(0x196B018u - (uint)(NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native56FE10 requires its projected CPU workspace.")) * 8);
                 NativeFileStaging = context.Staging.Write(context.Address + 4, BitConverter.GetBytes(scratch)).Write(context.Address + 20, new byte[4]).Write(context.Address + 24, BitConverter.GetBytes((short)320)).Write(context.Address + 26, BitConverter.GetBytes((short)216)).Write(context.Address + 28, BitConverter.GetBytes(actor.Color40 ?? throw new NotSupportedException("Native56FE10 requires its caster color."))).Write(context.Address + 32, BitConverter.GetBytes(uint.MaxValue)).Write(context.Address + 36, new byte[2]);
-                graphics = DrawNativeEffectModel5099D0(graphics, hit.Actor, body, Camera().Projection!, 17, 4, depthCue: 0, prepareModel: false, drawShadow: false, drawLinked: false, maskOverride: uint.MaxValue);
+                graphics = DrawNativeEffectModel5099D0(graphics, hit.Actor, body, Camera().Projection!, 17, 4, depthCue: 0, prepareModel: false, drawShadow: false, drawLinked: false, maskOverride: uint.MaxValue, linkedOnly: true);
                 NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(Staging(), 44);
             }
             else
