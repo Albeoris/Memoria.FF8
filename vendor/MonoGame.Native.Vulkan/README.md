@@ -1,8 +1,10 @@
-# MonoGame Linux Vulkan backbuffer readback
+# MonoGame Linux Vulkan backbuffer fixes
 
-This narrow patch applies to MonoGame 3.8.5.1 at its exact NuGet repository commit, pinned together with all native dependency revisions in [native-runtime-lock.json](native-runtime-lock.json). It changes internal synchronization only; the managed framework, exported MonoGame C API and shared-library dependencies remain unchanged.
+This patch applies to MonoGame 3.8.5.1 at its exact NuGet repository commit, pinned together with all native dependency revisions in [native-runtime-lock.json](native-runtime-lock.json). It changes native swapchain handling and preserves the managed framework, exported MonoGame C API and shared-library dependencies.
 
 Upstream backbuffer readback waits on the binary swapchain-acquisition semaphore and signals rendering completion. The subsequent Present submits another wait on that already-consumed acquisition semaphore and another signal of completion. A screenshot can therefore succeed while the next presentation blocks indefinitely. The patch tracks whether acquisition still needs consumption, waits once across readback and presentation submissions, and signals rendering completion only in Present. Repeated reads of the same frame work with the same protocol.
+
+Upstream also skips swapchain recreation when the backbuffer dimensions change with the same VSync and MSAA settings. The patch recreates on size changes and retains the requested dimensions separately from the extent that the surface currently allows. If the compositor applies the resize asynchronously, presentation-driven recreation can use the latest requested dimensions.
 
 Build on Linux x64 with PowerShell 7, the product's .NET SDK and tool manifest, Git, CMake 3.24+, a C/C++17 compiler, make, curl, unzip, OpenSSL and binutils. Ubuntu 24.04 setup:
 
@@ -36,6 +38,7 @@ The portable regression harness requires a working display and Vulkan device, or
 
 ```powershell
 dotnet run --project ./vendor/MonoGame.Native.Vulkan/tests/ReadbackSmoke -p:MemoriaNativeVulkanPrepared=true
+dotnet run --project ./vendor/MonoGame.Native.Vulkan/tests/ReadbackSmoke -p:MemoriaNativeVulkanPrepared=true -- --no-vsync
 ```
 
-Run from the product root. For a custom output location, pass an absolute path with `-p:MemoriaNativeVulkanDirectory=...`. The harness checks both pixel reads and a completed Present for each frame, then exits normally; use an external timeout when comparing an unfixed runtime, since the defect blocks inside native presentation/readback.
+Run from the product root. For a custom output location, pass an absolute path with `-p:MemoriaNativeVulkanDirectory=...`. The harness grows and shrinks the window at a fixed VSync setting, checks the last pixel of two reads for each frame and checks that Present returns. Use an external timeout when comparing a runtime without the readback fix, since it can block inside native presentation.

@@ -31,16 +31,24 @@ while IFS=$'\t' read -r path dependency_repository dependency_revision; do
 done < "$dependencies"
 patch="$build/readback.patch"
 tr -d '\r' < "$recipe/BackBufferReadback.patch" > "$patch"
+runtime_source='native/monogame/vulkan/MGG_Vulkan.cpp'
+git -C "$source" diff --cached --exit-code
+git -C "$source" diff --binary --full-index --ignore-submodules > "$build/current.patch"
+if [[ -s "$build/current.patch" ]] && ! cmp -s "$patch" "$build/current.patch"; then
+    # Undo only the previously verified patch in this build cache.
+    [[ $(git -C "$source" diff --name-only --ignore-submodules) == "$runtime_source" ]]
+    cmp "$build/applied.patch" "$build/current.patch"
+    git -C "$source" apply --reverse "$build/current.patch"
+fi
 if git -C "$source" apply --check "$patch" 2>/dev/null; then
     git -C "$source" apply "$patch"
 else
     git -C "$source" apply --reverse --check "$patch"
 fi
-[[ $(git -C "$source" diff --name-only --ignore-submodules) == 'native/monogame/vulkan/MGG_Vulkan.cpp' ]] || { echo 'Unexpected modified upstream sources.' >&2; exit 1; }
-git -C "$source" diff --cached --exit-code
 # Require precisely the checked patch, including when a previous build populated the cache.
-git -C "$source" diff --binary --full-index -- native/monogame/vulkan/MGG_Vulkan.cpp > "$build/applied.patch"
-cmp "$patch" "$build/applied.patch"
+git -C "$source" diff --binary --full-index --ignore-submodules > "$build/current.patch"
+cmp "$patch" "$build/current.patch"
+mv "$build/current.patch" "$build/applied.patch"
 cp "$recipe/CMakeLists.txt" "$source/CMakeLists.txt"
 mkdir -p "$source/.config"
 cp "$recipe/../../.config/dotnet-tools.json" "$source/.config/dotnet-tools.json"

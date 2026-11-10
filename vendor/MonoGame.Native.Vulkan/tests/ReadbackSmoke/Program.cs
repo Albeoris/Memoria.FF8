@@ -7,7 +7,7 @@ if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Arch
     throw new PlatformNotSupportedException("The Vulkan readback smoke requires Linux x64 and an existing graphical session.");
 }
 
-using var game = new ReadbackGame();
+using var game = new ReadbackGame(!args.Contains("--no-vsync"));
 game.Run();
 
 sealed class ReadbackGame : Game
@@ -15,28 +15,58 @@ sealed class ReadbackGame : Game
     private readonly GraphicsDeviceManager graphics;
     private int draws;
 
-    public ReadbackGame()
+    public ReadbackGame(bool verticalSync)
     {
         graphics = new GraphicsDeviceManager(this);
         graphics.PreferredBackBufferWidth = 64;
         graphics.PreferredBackBufferHeight = 64;
+        graphics.SynchronizeWithVerticalRetrace = verticalSync;
         graphics.GraphicsProfile = GraphicsProfile.HiDef;
         IsFixedTimeStep = false;
+    }
+
+    protected override void Initialize()
+    {
+        base.Initialize();
+        Resize(80, 64);
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        // Keep VSync and MSAA fixed while growing and shrinking the client.
+        if (draws == 4)
+        {
+            Resize(112, 80);
+        }
+        else if (draws == 8)
+        {
+            Resize(80, 56);
+        }
+        base.Update(gameTime);
+    }
+
+    private void Resize(int width, int height)
+    {
+        graphics.PreferredBackBufferWidth = width;
+        graphics.PreferredBackBufferHeight = height;
+        graphics.ApplyChanges();
     }
 
     protected override void Draw(GameTime gameTime)
     {
         Color expected = draws % 2 == 0 ? Color.Red : Color.CornflowerBlue;
         GraphicsDevice.Clear(expected);
-        var first = new Color[64 * 64];
-        var second = new Color[64 * 64];
+        int width = graphics.PreferredBackBufferWidth;
+        int height = graphics.PreferredBackBufferHeight;
+        var first = new Color[width * height];
+        var second = new Color[width * height];
         GraphicsDevice.GetBackBufferData(first);
         GraphicsDevice.GetBackBufferData(second);
-        if (first[2048] != expected || second[2048] != expected)
+        if (first[^1] != expected || second[^1] != expected)
         {
-            throw new InvalidOperationException($"Readback mismatch at frame {draws}: {first[2048]}, {second[2048]}, expected {expected}.");
+            throw new InvalidOperationException($"Readback mismatch at frame {draws} ({width}x{height}): {first[^1]}, {second[^1]}, expected {expected}.");
         }
-        Console.WriteLine($"readbacks frame={draws} count=2 pixels=matched");
+        Console.WriteLine($"readbacks frame={draws} size={width}x{height} vsync={graphics.SynchronizeWithVerticalRetrace} count=2 pixels=matched");
         draws++;
         if (draws == 12)
         {

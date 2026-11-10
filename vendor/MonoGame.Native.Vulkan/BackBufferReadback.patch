@@ -1,5 +1,5 @@
 diff --git a/native/monogame/vulkan/MGG_Vulkan.cpp b/native/monogame/vulkan/MGG_Vulkan.cpp
-index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593e2f2634b 100644
+index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..443d044813593516f68fdd5a7b7544a5ec02800b 100644
 --- a/native/monogame/vulkan/MGG_Vulkan.cpp
 +++ b/native/monogame/vulkan/MGG_Vulkan.cpp
 @@ -183,6 +183,7 @@ struct MGVK_Frame
@@ -10,7 +10,65 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593
  	VkFence completedFence = VK_NULL_HANDLE;
  };
  
-@@ -2213,6 +2214,7 @@ void MGVK_TryAcquireSwap(MGG_GraphicsDevice* device, MGVK_Frame& frame)
+@@ -267,6 +268,8 @@ struct MGG_GraphicsDevice
+ 	std::vector<MGVK_Frame> frames;
+ 	std::vector<MGVK_Swapchain> swapchains;
+ 
++	mgint requestedSwapchainWidth = 0;
++	mgint requestedSwapchainHeight = 0;
+ 	uint32_t swapchainWidth = 0;
+ 	uint32_t swapchainHeight = 0;
+ 	VkFormat colorFormat = VK_FORMAT_UNDEFINED;
+@@ -1759,15 +1762,6 @@ void MGVK_RecreateSwapChain(
+ #error Not Implemented
+ #endif
+ 
+-	if (width == device->swapchainWidth &&
+-		height == device->swapchainHeight &&
+-		vkColor == device->colorFormat &&
+-		vkDepth == device->depthFormat &&
+-		syncInterval == device->syncInterval &&
+-		multiSampleCount == device->multiSampleCount &&
+-		device->swapchain != VK_NULL_HANDLE)
+-		return;
+-
+ 	MGVK_CleanupSwapChain(device);
+ 
+ 	VkSurfaceCapabilitiesKHR surface_capabilities;
+@@ -2102,8 +2096,8 @@ void MGVK_RecreateSwapChain(MGG_GraphicsDevice* device)
+ 	MGVK_RecreateSwapChain(
+ 		device,
+ 		device->window,
+-		device->swapchainWidth,
+-		device->swapchainHeight,
++		device->requestedSwapchainWidth,
++		device->requestedSwapchainHeight,
+ 		device->colorFormat,
+ 		device->depthFormat,
+ 		device->multiSampleCount,
+@@ -2128,14 +2122,18 @@ void MGG_GraphicsDevice_ResizeSwapchain(
+ 	if (multiSampleCount == 0)
+ 		multiSampleCount = 1;
+ 
+-	// Swapchain resize should not happen manually in Vulkan, we should leave this work to
+-	// vkQueuePresentKHR() and vkAcquireNextImageKHR() which will react to surface changes.
+-	// We should only let this through if the swapchain needs to be created or if syncInterval has changed.
+ 	if (device->swapchain != VK_NULL_HANDLE &&
++		device->requestedSwapchainWidth == width &&
++		device->requestedSwapchainHeight == height &&
+ 		device->syncInterval == syncInterval &&
+ 		device->multiSampleCount == multiSampleCount)
+ 		return;
+ 
++	// A surface can still report the old extent during a window resize. Remember
++	// the requested size for recreation after the compositor applies the resize.
++	device->requestedSwapchainWidth = width;
++	device->requestedSwapchainHeight = height;
++
+ 	auto vkColor = ToVkFormat(color);
+ 	auto vkDepth = ToVkFormat(depth);
+ 	
+@@ -2213,6 +2211,7 @@ void MGVK_TryAcquireSwap(MGG_GraphicsDevice* device, MGVK_Frame& frame)
  		res = vkAcquireNextImageKHR(device->device, device->swapchain, UINT64_MAX,
  			frame.imageAcquiredSemaphore, VK_NULL_HANDLE, &frame.image_index);
  		VK_CHECK_RESULT(res);
@@ -18,7 +76,7 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593
  	}
  
  	// This should be cleared by now.
-@@ -2585,7 +2587,7 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
+@@ -2585,7 +2584,7 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
  
  		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
  		submitInfo.pNext = nullptr;
@@ -27,7 +85,7 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593
  		submitInfo.pWaitSemaphores = waits;
  		submitInfo.pWaitDstStageMask = waitFlags;
  		submitInfo.commandBufferCount = 1;
-@@ -2593,6 +2595,8 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
+@@ -2593,6 +2592,8 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
  		submitInfo.signalSemaphoreCount = 1;
  		submitInfo.pSignalSemaphores = &swap.renderCompleteSemaphore;
  		res = vkQueueSubmit(device->queue, 1, &submitInfo, frame.completedFence);
@@ -36,7 +94,7 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593
  
  		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
  		presentInfo.waitSemaphoreCount = 1;
-@@ -4232,13 +4236,13 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+@@ -4232,13 +4233,13 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
  	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
  
  	VkSubmitInfo flushSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -53,7 +111,7 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593
  
  	VkFence flushFence;
  	VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-@@ -4247,7 +4251,8 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+@@ -4247,7 +4248,8 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
  
  	{
  		std::lock_guard lock(device->queueMutex);
