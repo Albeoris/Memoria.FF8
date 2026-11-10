@@ -80,13 +80,18 @@ internal sealed partial class AutoPlayPlanner
         item.Routes.Remove(recorded);
     }
 
-    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false)
+    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null)
     {
         FindNavigationVisit(currentNavigationKey);
         AutoPlayPlanner shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null);
-        if (!shadow.State.Visits.Any(visit => visit.Visit.Key == currentNavigationKey))
+        AutoPlayVisitCoverage? current = shadow.State.Visits.SingleOrDefault(visit => visit.Visit.Key == currentNavigationKey);
+        if (current is null)
         {
             return null;
+        }
+        if (avoidFirstEvents is { Count: > 0 })
+        {
+            current.Events.RemoveAll(item => avoidFirstEvents.Contains(item.Event.Id));
         }
         // Genuine unconsumed events precede reobserving the topology of already completed travel.
         AutoPlayPlanStep? planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsExecution(FindEvent(FindNavigationVisit(visit.Key).VisitKey, item.Id)) ? 0 : 1);

@@ -5,6 +5,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNavigationPlannerTests
 {
     [Fact]
+    public void AvoidingARepeatedFirstStepLeavesItsObservedRouteAvailableForLaterPlans()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit");
+        AutoPlayEvent alternate = new("alternate", AutoPlayEventKind.Interaction, ChangesStory: true);
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("source", "region"), [exit, alternate]);
+        planner.ObserveNavigation("source", "source-nav", [exit, alternate]);
+        planner.Observe(new("destination", "region"), [frontier]);
+        planner.ObserveNavigation("destination", "destination-nav", [frontier]);
+        Connect(planner, "source", "exit", "destination", "source-nav", "destination-nav");
+
+        Assert.Equal("exit", planner.PlanNavigation("source-nav")!.Event.Id);
+        Assert.Equal("alternate", planner.PlanNavigation("source-nav", avoidFirstEvents: new HashSet<string> { "exit" })!.Event.Id);
+        Assert.Equal("exit", planner.PlanNavigation("source-nav")!.Event.Id);
+    }
+
+    [Fact]
     public void ARemoteLocalTransitionCanGuideTravelButRequiresFreshObservationAtItsSource()
     {
         AutoPlayPlanner planner = new();

@@ -91,6 +91,7 @@ internal sealed partial class AutoPlayController
     private AutoPlayPlanner planner = new();
     private string? runDirectory;
     private readonly HashSet<GameWorld> watchedWorlds = [];
+    private readonly Dictionary<(string Navigation, FieldFixedPosition Position, string Event, string? Conditions), int> repeatedTravel = [];
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
 
@@ -188,6 +189,7 @@ internal sealed partial class AutoPlayController
     {
         bool? policy = requestedBattlePolicy ?? run.FullBattlePlaythroughOverride;
         run = new() { FullBattlePlaythroughOverride = policy };
+        repeatedTravel.Clear();
         if (policy is bool fullCombat)
         {
             session.SetFullBattlePlaythrough(fullCombat);
@@ -347,6 +349,7 @@ internal sealed partial class AutoPlayController
         run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
         restore(ReadCheckpoint(Path.Combine(directory, saved.Snapshot)));
         run = saved;
+        repeatedTravel.Clear();
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
             run.SurveyInvalidationUnknown = true;
@@ -392,6 +395,7 @@ internal sealed partial class AutoPlayController
                 int score = ProgressScore(run);
                 if (score != run.LastProgressScore)
                 {
+                    repeatedTravel.Clear();
                     run.LastProgressScore = score;
                     run.LastProgressStep = run.Steps;
                     ResetIdleDeadline();
@@ -765,11 +769,31 @@ internal sealed partial class AutoPlayController
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }
         var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
-        AutoPlayPlanStep? next = resumedWalk?.Plan ?? PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null);
+        FieldFixedPosition? planPosition = world.Events.Scene.NativePlayerPosition;
+        IReadOnlySet<string>? avoid = null;
+        if (resumedWalk is null && planPosition is not null && repeatedTravel.Count != 0)
+        {
+            AutoPlayNavigationVisit current = run.Coverage.NavigationVisits.Single(item => item.Key == navigation);
+            avoid = current.Events.Where(item => repeatedTravel.GetValueOrDefault((navigation, planPosition, item.Id, item.ConditionSignature)) >= 3).Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        }
+        AutoPlayPlanStep? Plan(IReadOnlySet<string>? avoidFirstEvents) => PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, avoidFirstEvents);
+        AutoPlayPlanStep? next = resumedWalk?.Plan ?? Plan(avoid);
+        if (next is null && avoid is { Count: > 0 })
+        {
+            next = Plan(null);
+        }
         if (next is null)
         {
             WaitForNativeFrontier();
             return;
+        }
+        if (resumedWalk is null && next.IsTravel && next.Route is not null && planPosition is not null)
+        {
+            var key = (navigation, planPosition, next.Event.Id, next.Event.ConditionSignature);
+            if (repeatedTravel.TryGetValue(key, out int attempts) || repeatedTravel.Count < 256)
+            {
+                repeatedTravel[key] = Math.Min(3, attempts + 1);
+            }
         }
         RecordRecentAction($"Plan {next.Event.Id}: destination={next.Route?.DestinationVisitKey}; refresh={next.RefreshVisitKey}");
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
