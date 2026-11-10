@@ -53,7 +53,6 @@ internal static class NativeOptionalInnTourTests
         Ff7Installation installation = Ff7Installation.Discover(root);
         using Ff7Session original = Ff7Session.Restore(installation, saved);
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
-        if (coupon)
         {
             using Ff7AutoPlayEventCoverage originalCatalog = new(original);
             using Ff7AutoPlayEventCoverage coldCatalog = new(cold);

@@ -88,7 +88,7 @@ internal static class NativeWallMarketMateriaCoverageTests
         Check(callbacks < 3000 && resumedMessage && checkedPreview && !sawShop, "The current native conversation did not complete without forcing later shop/quest content.");
         AutoPlayEventCoverageEntry[] completed = coverage.Capture().Current!.Events.Where(entry => entry.Status == AutoPlayEventCoverageStatus.Completed).ToArray();
         Check(completed is [{ Id: "actor:5:script:1" }] && completed[0].Outcome!.Contains("0682", StringComparison.Ordinal), "The actual keeper interaction must retain its exact native return.");
-        int expectedText = (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x40) & 0xC0) != 0 || (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x41) & 1) != 0 ? 5 : 1;
+        int expectedText = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x40) & 0xC0) != 0 || (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 1) != 0 ? 5 : 1;
         Check(messages.SetEquals([expectedText]), "The informational message must follow the original current-epoch native predicate.");
         Check(session.Progress.Gil == saved.Progress.Gil && JsonSerializer.Serialize(session.Progress.Inventory) == JsonSerializer.Serialize(saved.Progress.Inventory) && JsonSerializer.Serialize(session.Progress.Materia) == JsonSerializer.Serialize(saved.Progress.Materia), "The current informational visit must not invent a purchase or reward.");
         int roomCallbacks = callbacks - entryCallbacks;

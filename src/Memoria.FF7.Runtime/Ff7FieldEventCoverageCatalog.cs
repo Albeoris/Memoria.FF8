@@ -149,7 +149,7 @@ public static partial class Ff7FieldEventCoverageCatalog
                 {
                     kind = Ff7FieldEventCoverageKind.Interaction;
                     reason = "Approach the bed to complete its native repeatable dialogue before leaving.";
-                    availability += $":{session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x41) & 4}";
+                    availability += $":{session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x41) & 2}";
                 }
                 else
                 {

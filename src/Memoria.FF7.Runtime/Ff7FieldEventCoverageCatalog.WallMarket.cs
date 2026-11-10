@@ -16,8 +16,8 @@ public static class Ff7WallMarketTourCatalog
         {
             return new("mrkt2", false, "This native field epoch requires its own reviewed tour frontier.", []);
         }
-        int materiaReward40 = session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x40) & 0xC0;
-        int materiaReward41 = session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x41) & 1;
+        int materiaReward40 = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x40) & 0xC0;
+        int materiaReward41 = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x41) & 1;
         string? materiaAvailability = materiaReward40 == 0 && materiaReward41 == 0 ? null : $"reward:{materiaReward40}:{materiaReward41}";
         bool pharmacyCoupon = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 0x40) != 0;
         Ff7WallMarketTourEdge[] edges =

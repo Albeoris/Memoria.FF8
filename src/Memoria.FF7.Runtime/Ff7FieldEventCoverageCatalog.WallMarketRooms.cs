@@ -44,7 +44,7 @@ public static partial class Ff7FieldEventCoverageCatalog
         }
         events.Add(new("alternative:11:stay", 11, 3, "native-stay-answer", Ff7FieldEventCoverageKind.Inactive, "Paying and resting is an exclusive alternative to declining the same question. This visit does not claim that purchase, healing or its dependent scene."));
         events.Add(new("alternative:12:rest", 12, 1, "paid-rest-child", Ff7FieldEventCoverageKind.Inactive, "The native rest child is requested only after the paid answer, which this visit does not select."));
-        events.Add(new("alternative:13:script:4", 13, 4, $"quest:{session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA2) & 8}", Ff7FieldEventCoverageKind.Inactive, "This native vending scene is nested in the paid-rest branch and its separate quest predicate; no purchase or later quest completion is claimed."));
+        events.Add(new("alternative:13:script:4", 13, 4, $"quest:{session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA2) & 8}", Ff7FieldEventCoverageKind.Inactive, "This native vending scene is nested in the paid-rest branch and its separate quest predicate; no purchase or later quest completion is claimed."));
         foreach (int script in new[] { 3, 4 })
         {
             events.Add(new($"background:17:script:{script}", 17, script, $"{session.Field.Scripts.Entities[17].ScriptOffsets[script]:X4}", Ff7FieldEventCoverageKind.Automatic, "This native innkeeper visibility callback is requested by the unselected paid-rest scene."));

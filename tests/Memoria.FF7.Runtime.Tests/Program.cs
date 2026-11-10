@@ -137,6 +137,7 @@ var tests = new (string Name, Action Run)[]
     ("standalone FFVII cold checkpoint continuation", NativeCheckpointTests.Run),
     ("native procedural model color and visibility contracts", NativeModelEffectTests.Run),
     ("native model color offset and cold continuation", NativeColorOffsetTests.Run),
+    ("native line talk physical facing and preview purity", NativeLineTalkInputTests.Run),
     ("native field catalog and physical event continuation", NativeFieldEventCatalogTests.Run),
     ("native road catalog and physical handoff continuation", NativeRoadCoverageTests.Run),
     ("native park catalog and physical scene continuation", NativeParkCoverageTests.Run),
