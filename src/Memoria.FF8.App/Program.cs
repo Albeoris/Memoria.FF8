@@ -60,6 +60,7 @@ internal static partial class Program
             {
                 throw new DirectoryNotFoundException($"Installed game directory not found: {options.GameDirectory}. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
             }
+            options = Ff7LaunchResources.Resolve(options);
             Directory.SetCurrentDirectory(options.GameDirectory);
             if (options.Ff7Debug)
             {

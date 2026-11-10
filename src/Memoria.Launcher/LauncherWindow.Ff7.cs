@@ -2,8 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Memoria.FF7.Resources;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 
@@ -98,13 +98,11 @@ internal sealed partial class LauncherWindow
     {
         try
         {
-            IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select installed FINAL FANTASY VII resources", AllowMultiple = false });
-            if (folders.Count == 0)
+            string? directory = await PickFolderAsync("Select installed FINAL FANTASY VII resources", selectedFf7GameDirectory, "Select a local installed game folder.");
+            if (directory is null)
             {
                 return;
             }
-            using IStorageFolder chosen = folders[0];
-            string directory = chosen.TryGetLocalPath() ?? throw new IOException("Select a local installed game folder.");
             Ff7Installation.Discover(directory);
             SetFf7GameDirectory(directory);
             SaveFf7Selection();

@@ -2,7 +2,7 @@
 
 The launcher's FINAL FANTASY VII tab configures a separate installed resource directory. Keep FINAL FANTASY VIII selected in its own tab, select the FINAL FANTASY VII installation, then choose **Start FFVII debug**. The shared engine opens the original FFVII title with New Game and Continue, bypassing the FFVIII startup presentation. The validated experimental route continues through the church and selected Wall Market fields. Exhaustive autoplay deliberately stops at unreviewed interactions or area frontiers; installation detection does not certify full-game, complete world-map progression or original-save compatibility.
 
-Direct invocation uses `--game-dir` for FINAL FANTASY VIII and `--ff7-game-dir` for FINAL FANTASY VII. Add `--ff7-debug` to open the FFVII title. `--ff7-new-game` explicitly starts the original New Game route instead. `MEMORIA_FF7_GAME_DIR` supplies the secondary resource directory for direct invocation; the launcher's saved selection, including Clear, takes precedence over inherited environment configuration.
+Direct invocation uses `--game-dir` for FINAL FANTASY VIII. For FFVII resources the app checks `--ff7-game-dir`, `MEMORIA_FF7_GAME_DIR`, the saved launcher selection, then the supported Steam edition. Automatic discovery verifies the installed resource layout and native execution-data profile. The launcher passes its selected folder explicitly and clears inherited FFVII environment settings. Add `--ff7-debug` to open the FFVII title, or use `--ff7-new-game` to start the original New Game route.
 
 For a source checkout, set both installation variables to your selected directories and run from the product directory:
 

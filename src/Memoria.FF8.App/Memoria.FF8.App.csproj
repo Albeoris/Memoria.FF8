@@ -41,6 +41,7 @@
     <PackageReference Include="SDL3-CS.macOS" Condition="'$(MemoriaTargetMac)' == 'true'" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
     <ProjectReference Include="../Memoria.FF7.Runtime/Memoria.FF7.Runtime.csproj" />
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.KernelBin/Albeoris.Games.FF8.KernelBin.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.NamedicBin/Albeoris.Games.FF8.NamedicBin.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.MngrpBin/Albeoris.Games.FF8.MngrpBin.csproj" />
