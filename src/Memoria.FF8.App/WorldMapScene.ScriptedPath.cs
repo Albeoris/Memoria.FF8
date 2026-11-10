@@ -7,7 +7,11 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private static bool IsSupportedScriptedPacket(WorldTransition packet) => unchecked((byte)packet.Mode) is >= 16 and <= 22 or 65 or 66 && unchecked((byte)packet.EntryIndex) < 14 && unchecked((sbyte)packet.Extra) >= 0;
+    private NativeWorldScriptedPathDefinition ReadScriptedPath(WorldTransition packet)
+    {
+        int entry = unchecked((byte)packet.EntryIndex);
+        return assets.ReadScriptedPath(entry % 14, entry);
+    }
 
     private WorldState CreateScriptedState(WorldTransition arrival, WorldEntryVariables inputs)
     {
@@ -16,7 +20,7 @@ internal sealed partial class WorldMapScene
         RequireUnaliasedFootAuxiliary(session.State);
         NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265);
         NativeScriptedWorldLoadReceipt load = NativeScriptedWorldLoadReceipt.Create(saved, previous, foot);
-        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)arrival.EntryIndex));
+        NativeWorldScriptedPathDefinition definition = ReadScriptedPath(arrival);
         if (unchecked((byte)arrival.Extra) >= assets.FieldEntries.Entries.Count)
         {
             throw new InvalidDataException("Original scripted entry references an absent wm2field endpoint row.");
@@ -35,7 +39,7 @@ internal sealed partial class WorldMapScene
     {
         NativeScriptedWorldRuntimeState scripted = state.NativeScriptedRuntime ?? throw new NotSupportedException("Scripted state has no executed native runtime authority.");
         scripted.Validate();
-        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
+        NativeWorldScriptedPathDefinition definition = ReadScriptedPath(scripted.Path.Packet);
         scripted.Path.Validate(definition);
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeScriptedWorldFootRecord actualFoot = assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265);
@@ -78,7 +82,7 @@ internal sealed partial class WorldMapScene
         {
             throw new NativeWorldPresentationDeferredException("Original scripted allocation has no model draw until its first actual world callback.");
         }
-        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)path.Packet.EntryIndex));
+        NativeWorldScriptedPathDefinition definition = ReadScriptedPath(path.Packet);
         List<NativeWorldStaticModelDraw> models = [];
         for (int index = 0; index < path.NodeCount; index++)
         {
@@ -104,7 +108,7 @@ internal sealed partial class WorldMapScene
     {
         ValidateScriptedState(before);
         NativeScriptedWorldRuntimeState scripted = before.NativeScriptedRuntime!;
-        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
+        NativeWorldScriptedPathDefinition definition = ReadScriptedPath(scripted.Path.Packet);
         NativeWorldScriptedPathState path = scripted.Path.Step(definition, projectNode);
         NativeWorldForestState? forest = scripted.Forest;
         if (path.EntityType is 65 or 66 && !scripted.Path.EndpointRequested)

@@ -54,7 +54,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool ragnarok = !battleMode2 && !car && !parkedCarFoot && (session.State.World?.NativeRagnarokRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 50);
         bool stationFoot = !battleMode2 && session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = !car && !garden && !ragnarok && !parkedCarFoot && !stationFoot && (session.State.World?.NativeTrainRuntime is not null || session.State.World is null && IsRidingTrainPacket(arrival));
-        bool scripted = !battleMode2 && !car && !garden && !ragnarok && !parkedCarFoot && (session.State.World?.NativeScriptedRuntime is not null || session.State.World is null && IsSupportedScriptedPacket(arrival) || ridingTrain);
+        bool scripted = !battleMode2 && !car && !garden && !ragnarok && !parkedCarFoot && (session.State.World?.NativeScriptedRuntime is not null || session.State.World is null && NativeWorldScriptedPathState.SupportsPacket(arrival) || ridingTrain);
         byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : session.State.World?.NativeFootRuntime?.EntityType ?? unchecked((byte)arrival.Mode);
         if (!car && !garden && !ragnarok && !scripted && session.State.World is { } restoredFoot)
         {

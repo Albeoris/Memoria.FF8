@@ -155,26 +155,34 @@ public sealed record NativeWorldScriptedPathState
     public bool FieldTransitionReady => EndpointRequested && Fade == 256;
     public byte? CompletedFieldRow => FieldTransitionReady ? unchecked((byte)Packet.Extra) : null;
 
+    public static bool SupportsPacket(WorldTransition packet)
+    {
+        byte entity = unchecked((byte)packet.Mode);
+        byte entry = unchecked((byte)packet.EntryIndex);
+        return unchecked((sbyte)packet.Extra) >= 0 && (entity is >= 16 and <= 22 && entry < 28 || entity is 65 or 66 && entry < 14);
+    }
+
     public static NativeWorldScriptedPathState Create(NativeWorldScriptedPathDefinition definition, WorldTransition packet, bool? stopAtEndpoint)
     {
         definition.Validate();
         byte entity = unchecked((byte)packet.Mode);
         byte entry = unchecked((byte)packet.EntryIndex);
-        if (entity is not (65 or 66) && entity is not (>= 16 and <= 22) || entry >= 14 || entry != definition.TrackIndex || unchecked((sbyte)packet.Extra) < 0)
+        if (!SupportsPacket(packet) || entry % 14 != definition.TrackIndex || entry != definition.CameraListIndex)
         {
-            throw new NotSupportedException("Native scripted path requires an actual forward mode1/2 packet and its matching original track.");
+            throw new NotSupportedException("Native scripted path requires a supported mode1/2 packet and its matching original track and camera list.");
         }
-        if (!definition.ForwardStops.IsEmpty || definition.CameraListIndex != definition.TrackIndex)
+        sbyte direction = entry < 14 ? (sbyte)1 : (sbyte)-1;
+        if (!(direction == 1 ? definition.ForwardStops : definition.ReverseStops).IsEmpty)
         {
-            throw new NotSupportedException("Native positive mode1/2 entry requires its original nonstop rail/camera selection.");
+            throw new NotSupportedException("Native mode1/2 entry requires its original nonstop rail selection.");
         }
         int nodeCount = entity is >= 16 and <= 22 ? 5 : 3;
-        ImmutableArray<NativeWorldScriptedPathNode> nodes = InitialDistances(definition, nodeCount, 1).Select(distance => ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), 1, out _)).ToImmutableArray();
+        ImmutableArray<NativeWorldScriptedPathNode> nodes = InitialDistances(definition, nodeCount, direction).Select(distance => ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), direction, out _)).ToImmutableArray();
         var state = new NativeWorldScriptedPathState
         {
             Version = 1, Rule = LoadRule, Packet = packet, ChunkHash = definition.ChunkHash, CameraHash = definition.CameraHash, EntityType = entity,
-            Callback = 0, Direction = 1, Pause = 30, StopAtEndpoint = stopAtEndpoint, Speed = 0, CameraCounter = 1, Nodes = nodes, EntityPosition = nodes[nodeCount / 2].Position,
-            Camera = EvaluateCamera(definition, nodes, 1, 0), CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, 1, nodes), Presentation = Enumerable.Range(0, nodeCount).Select(_ => new NativeWorldPathNodePresentation(null, null, null)).ToImmutableArray(), EndpointRequested = false, EndpointCallback = null, EndpointPriorEntityPosition = null, Fade = 0
+            Callback = 0, Direction = direction, Pause = 30, StopAtEndpoint = stopAtEndpoint, Speed = 0, CameraCounter = 1, Nodes = nodes, EntityPosition = nodes[nodeCount / 2].Position,
+            Camera = EvaluateCamera(definition, nodes, direction, 0), CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, nodes), Presentation = Enumerable.Range(0, nodeCount).Select(_ => new NativeWorldPathNodePresentation(null, null, null)).ToImmutableArray(), EndpointRequested = false, EndpointCallback = null, EndpointPriorEntityPosition = null, Fade = 0
         };
         state.Validate(definition);
         return state;
@@ -183,7 +191,9 @@ public sealed record NativeWorldScriptedPathState
     public void Validate(NativeWorldScriptedPathDefinition definition)
     {
         definition.Validate();
-        if (Version != 1 || Rule != LoadRule || Packet is null || ChunkHash != definition.ChunkHash || CameraHash != definition.CameraHash || unchecked((byte)Packet.EntryIndex) != definition.TrackIndex || unchecked((byte)Packet.Mode) != EntityType || EntityType is not (65 or 66) && EntityType is not (>= 16 and <= 22) || Callback < 0 || Direction != (EndpointRequested ? -1 : 1) || Presentation.IsDefault || Presentation.Length != NodeCount || Presentation.Any(pose => pose is null) || Nodes.IsDefault || Nodes.Length != NodeCount || Nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0) || Speed < 0 || Speed > MaximumSpeed || Speed > 16 + 4 * Callback || Fade is < 0 or > 256 || Fade % 16 != 0 || !EndpointRequested && (Pause is null or < 0 or > 30 || Fade != 0) || EndpointRequested && Pause != (StopAtEndpoint is null ? null : StopAtEndpoint.Value ? -1 : 30))
+        int entry = unchecked((byte)(Packet?.EntryIndex ?? -1));
+        int initialDirection = entry < 14 ? 1 : -1;
+        if (Version != 1 || Rule != LoadRule || Packet is null || !SupportsPacket(Packet) || ChunkHash != definition.ChunkHash || CameraHash != definition.CameraHash || entry % 14 != definition.TrackIndex || entry != definition.CameraListIndex || unchecked((byte)Packet.Mode) != EntityType || EntityType is not (65 or 66) && EntityType is not (>= 16 and <= 22) || Callback < 0 || Direction != (EndpointRequested ? -initialDirection : initialDirection) || Presentation.IsDefault || Presentation.Length != NodeCount || Presentation.Any(pose => pose is null) || Nodes.IsDefault || Nodes.Length != NodeCount || Nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0) || Speed < 0 || Speed > MaximumSpeed || Speed > 16 + 4 * Callback || Fade is < 0 or > 256 || Fade % 16 != 0 || !EndpointRequested && (Pause is null or < 0 or > 30 || Fade != 0) || EndpointRequested && Pause != (StopAtEndpoint is null ? null : StopAtEndpoint.Value ? -1 : 30))
         {
             throw new InvalidDataException("Native scripted path snapshot has inconsistent packet, resource or driver phase.");
         }
@@ -205,15 +215,11 @@ public sealed record NativeWorldScriptedPathState
         }
         if (!EndpointRequested)
         {
-            int[] initial = InitialDistances(definition, NodeCount, 1);
+            int[] initial = InitialDistances(definition, NodeCount, initialDirection);
             long? advanced = null;
             for (int index = 0; index < Nodes.Length; index++)
             {
-                long distance = Nodes[index].Distance;
-                for (int segment = 0; segment < Nodes[index].Segment; segment++)
-                {
-                    distance += NativeWorldScriptedPathMath.SegmentLength(definition.Points[segment], definition.Points[segment + 1]);
-                }
+                long distance = TravelDistance(definition, Nodes[index], initialDirection);
                 long delta = distance - initial[index];
                 if (delta < 0 || advanced is not null && delta != advanced)
                 {
@@ -226,13 +232,13 @@ public sealed record NativeWorldScriptedPathState
                 throw new InvalidDataException("Native scripted path pause differs from its initial thirty-callback countdown.");
             }
             int movement = Callback < 30 ? 0 : NativeMovementMultiplier * Math.Min(Speed, MaximumSpeed) >> 1;
-            var oldMiddle = ResolveNode(definition, new NativeWorldScriptedPathNode(0, checked((int)advanced!.Value + initial[CentralNode] - movement), default), 1, out bool oldComplete);
+            var oldMiddle = ResolveNode(definition, new NativeWorldScriptedPathNode(0, checked((int)advanced!.Value + initial[CentralNode] - movement), default), initialDirection, out bool oldComplete);
             if (oldComplete || EntityPosition != oldMiddle.Position)
             {
                 throw new InvalidDataException("Native scripted path entity differs from its original pre-update middle node.");
             }
         }
-        if (CameraCounter != (EndpointRequested ? 0 : Callback + 1) || CameraCounter > short.MaxValue || EndpointRequested && (EndpointCallback is null or < 30 || Callback != EndpointCallback + Fade / 16) || !EndpointRequested && EndpointCallback is not null || Camera is null || CameraReceipt is null || CameraReceipt.Version != 1 || CameraReceipt.Callback != (EndpointCallback ?? Callback) || CameraReceipt.Counter != (EndpointCallback ?? CameraCounter - 1) || CameraReceipt.Direction != 1 || CameraReceipt.Nodes.IsDefault || CameraReceipt.Nodes.Length != NodeCount || CameraReceipt.Nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0) || Camera != EvaluateCamera(definition, CameraReceipt.Nodes, CameraReceipt.Direction, CameraReceipt.Counter) || Callback == 0 && (Pause != 30 || Speed != 0 || Presentation.Any(pose => pose.Angles is not null || pose.Orientation is not null || pose.Projection is not null) || EndpointRequested))
+        if (CameraCounter != (EndpointRequested ? 0 : Callback + 1) || CameraCounter > short.MaxValue || EndpointRequested && (EndpointCallback is null or < 30 || Callback != EndpointCallback + Fade / 16) || !EndpointRequested && EndpointCallback is not null || Camera is null || CameraReceipt is null || CameraReceipt.Version != 1 || CameraReceipt.Callback != (EndpointCallback ?? Callback) || CameraReceipt.Counter != (EndpointCallback ?? CameraCounter - 1) || CameraReceipt.Direction != initialDirection || CameraReceipt.Nodes.IsDefault || CameraReceipt.Nodes.Length != NodeCount || CameraReceipt.Nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0) || Camera != EvaluateCamera(definition, CameraReceipt.Nodes, CameraReceipt.Direction, CameraReceipt.Counter) || Callback == 0 && (Pause != 30 || Speed != 0 || Presentation.Any(pose => pose.Angles is not null || pose.Orientation is not null || pose.Projection is not null) || EndpointRequested))
         {
             throw new InvalidDataException("Native scripted path camera or initial allocation phase is inconsistent.");
         }
@@ -243,16 +249,12 @@ public sealed record NativeWorldScriptedPathState
                 throw new InvalidDataException("Native scripted camera receipt lost its original pre-movement node phase.");
             }
         }
-        int[] initialDistances = InitialDistances(definition, NodeCount, 1);
-        int[] reverseDistances = InitialDistances(definition, NodeCount, -1);
+        int[] initialDistances = InitialDistances(definition, NodeCount, initialDirection);
+        int[] reverseDistances = InitialDistances(definition, NodeCount, -initialDirection);
         long? cameraAdvance = null;
         for (int index = 0; index < CameraReceipt.Nodes.Length; index++)
         {
-            long distance = CameraReceipt.Nodes[index].Distance;
-            for (int segment = 0; segment < CameraReceipt.Nodes[index].Segment; segment++)
-            {
-                distance += NativeWorldScriptedPathMath.SegmentLength(definition.Points[segment], definition.Points[segment + 1]);
-            }
+            long distance = TravelDistance(definition, CameraReceipt.Nodes[index], initialDirection);
             long advance = distance - initialDistances[index];
             if (advance < 0 || cameraAdvance is not null && advance != cameraAdvance)
             {
@@ -262,7 +264,7 @@ public sealed record NativeWorldScriptedPathState
             if (!EndpointRequested)
             {
                 int movement = Callback < 30 ? 0 : NativeMovementMultiplier * Math.Min(Speed, MaximumSpeed) >> 1;
-                var expected = ResolveNode(definition, new NativeWorldScriptedPathNode(0, checked((int)distance + movement), default), 1, out bool complete);
+                var expected = ResolveNode(definition, new NativeWorldScriptedPathNode(0, checked((int)distance + movement), default), initialDirection, out bool complete);
                 if (complete || expected != Nodes[index])
                 {
                     throw new InvalidDataException("Native scripted camera source differs from this callback's actual pre-movement nodes.");
@@ -271,7 +273,7 @@ public sealed record NativeWorldScriptedPathState
             else
             {
                 int reverseDistance = reverseDistances[index];
-                var reset = ResolveNode(definition, new NativeWorldScriptedPathNode(0, reverseDistance, default), -1, out bool complete);
+                var reset = ResolveNode(definition, new NativeWorldScriptedPathNode(0, reverseDistance, default), -initialDirection, out bool complete);
                 if (complete || reset != Nodes[index])
                 {
                     throw new InvalidDataException("Native scripted camera departure lost the original endpoint node reset.");
@@ -313,6 +315,17 @@ public sealed record NativeWorldScriptedPathState
         }
     }
 
+    private static long TravelDistance(NativeWorldScriptedPathDefinition definition, NativeWorldScriptedPathNode node, int direction)
+    {
+        long distance = node.Distance;
+        for (int segment = 0; segment < node.Segment; segment++)
+        {
+            int point = direction == 1 ? segment : definition.Points.Length - segment - 1;
+            distance += NativeWorldScriptedPathMath.SegmentLength(definition.Points[point], definition.Points[point + direction]);
+        }
+        return distance;
+    }
+
     private void ValidateEndpointBodyWitness(NativeWorldScriptedPathDefinition definition)
     {
         NativeWorldScriptedPathState initial = Create(definition, Packet, StopAtEndpoint);
@@ -323,12 +336,12 @@ public sealed record NativeWorldScriptedPathState
         for (long callback = 1; callback <= EndpointCallback!.Value; callback++)
         {
             NativeWorldPathPosition currentBody = nodes[CentralNode].Position;
-            NativeWorldRailAdvance advance = AdvanceRail(definition, nodes, 1, pause, speed, MaximumSpeed, NativeMovementMultiplier);
+            NativeWorldRailAdvance advance = AdvanceRail(definition, nodes, initial.Direction, pause, speed, MaximumSpeed, NativeMovementMultiplier);
             if (advance.Endpoint)
             {
                 if (callback != EndpointCallback || committedBody != EndpointPriorEntityPosition || currentBody != EntityPosition || !nodes.SequenceEqual(CameraReceipt.Nodes))
                 {
-                    throw new InvalidDataException("Native scripted saved body witness differs from the actual forward rail callbacks before549E80.");
+                    throw new InvalidDataException("Native scripted saved body witness differs from the actual rail callbacks before549E80.");
                 }
                 return;
             }
@@ -337,7 +350,7 @@ public sealed record NativeWorldScriptedPathState
             pause = advance.Pause;
             speed = advance.Speed;
         }
-        throw new InvalidDataException("Native scripted endpoint callback precedes the actual forward rail completion.");
+        throw new InvalidDataException("Native scripted endpoint callback precedes the actual rail completion.");
     }
 
     /// <param name="projectNode">Actual native5470E0 transformed WORDs and visibility. Null never establishes raw-position angle authority.</param>
@@ -389,14 +402,14 @@ public sealed record NativeWorldScriptedPathState
             }
             presentation[index] = new NativeWorldPathNodePresentation(angles, orientation, current);
         }
-        sbyte direction = 1;
+        sbyte direction = Direction;
         short? retainedPause = pause;
         if (endpoint)
         {
-            direction = -1;
+            direction = (sbyte)-Direction;
             retainedPause = StopAtEndpoint is null ? null : StopAtEndpoint.Value ? (short)-1 : (short)30;
             speed = 0;
-            nodes = InitialDistances(definition, NodeCount, -1).Select(distance => ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), -1, out _)).ToArray();
+            nodes = InitialDistances(definition, NodeCount, direction).Select(distance => ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), direction, out _)).ToArray();
         }
         var next = this with
         {
@@ -424,7 +437,9 @@ public sealed record NativeWorldScriptedPathState
         {
             speed = selectedSpeed ?? unchecked((speed == 0 ? 16 : speed) + 4);
             int leading = direction == 1 ? source[0].Segment : definition.Points.Length - source[^1].Segment - 1;
-            int remaining = direction == 1 ? definition.Points.Length - leading : leading;
+            // The original reverse terminal difference is leading - pointCount,
+            // which is negative and therefore does not impose a speed cap.
+            int remaining = direction == 1 ? definition.Points.Length - leading : int.MaxValue;
             ImmutableArray<byte> stops = direction == 1 ? definition.ForwardStops : definition.ReverseStops;
             foreach (byte stop in stops)
             {

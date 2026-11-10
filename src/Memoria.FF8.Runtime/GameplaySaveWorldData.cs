@@ -27,7 +27,7 @@ public sealed record GameplaySaveWorldReturn([property: JsonRequired] GameplaySa
         {
             throw new InvalidDataException("Gameplay world return has inconsistent logical transport values.");
         }
-        if (scripted && (EntityType is not (>= 16 and <= 22 or 65 or 66) || unchecked((byte)ScriptedPacket!.Mode) != EntityType || unchecked((byte)ScriptedPacket.EntryIndex) >= 14 || unchecked((sbyte)ScriptedPacket.Extra) < 0 || ScriptedFieldId is < 0 or > ushort.MaxValue || !float.IsFinite(ScriptedFieldPosition!.X) || !float.IsFinite(ScriptedFieldPosition.Y) || ScriptedFieldPosition.Triangle is < 0 or > ushort.MaxValue || AnimationVariant is null || MapDisplayMode is null or > 2 || MapLocation is < sbyte.MinValue or > sbyte.MaxValue))
+        if (scripted && (!NativeWorldScriptedPathState.SupportsPacket(ScriptedPacket!) || unchecked((byte)ScriptedPacket!.Mode) != EntityType || ScriptedFieldId is < 0 or > ushort.MaxValue || !float.IsFinite(ScriptedFieldPosition!.X) || !float.IsFinite(ScriptedFieldPosition.Y) || ScriptedFieldPosition.Triangle is < 0 or > ushort.MaxValue || AnimationVariant is null || MapDisplayMode is null or > 2 || MapLocation is < sbyte.MinValue or > sbyte.MaxValue))
         {
             throw new InvalidDataException("Dormant scripted return lost its packet, field entry or saved native widths.");
         }

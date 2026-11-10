@@ -9,6 +9,42 @@ public sealed class NativeTrainScriptedPathTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void ReverseDelingTrainUsesItsOwnCameraAndCompletesAtTheOriginalEndpoint()
+    {
+        using WorldAssets assets = new(GameDirectory);
+        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(4, 18);
+        WorldTransition packet = new(18, 20, 7);
+        NativeWorldScriptedPathState state = NativeWorldScriptedPathState.Create(definition, packet, false);
+        Assert.Throws<NotSupportedException>(() => NativeWorldScriptedPathState.Create(assets.ReadScriptedPath(4), packet, false));
+        Assert.Equal(-1, state.Direction);
+        Assert.Equal(definition.Points[^1].X, state.Nodes[0].Position.X);
+        Assert.Equal(new short[] { 30, 60, 90, 120, 306, -1 }, definition.CameraRecords.Select(record => record.Deadline));
+
+        int lastTravelSpeed = 0;
+        for (int callback = 0; callback < 2000 && !state.FieldTransitionReady; callback++)
+        {
+            if (!state.EndpointRequested)
+            {
+                lastTravelSpeed = state.Speed;
+            }
+            state = state.Step(definition, (_, _, _) => null);
+            if (callback == 90 || state.EndpointRequested && state.Fade == 0)
+            {
+                state = JsonSerializer.Deserialize<NativeWorldScriptedPathState>(JsonSerializer.Serialize(state))!;
+                state.Validate(definition);
+            }
+        }
+
+        Assert.True(state.FieldTransitionReady);
+        Assert.Equal(100, lastTravelSpeed);
+        Assert.Equal(299L, state.EndpointCallback);
+        Assert.Equal(315L, state.Callback);
+        Assert.Equal(1, state.Direction);
+        Assert.Equal(-1, state.CameraReceipt.Direction);
+        Assert.Equal((byte)7, state.CompletedFieldRow);
+    }
+
+    [Fact]
     public void ActualTrackNineUsesFiveNodesFourCarriagesAndAbsoluteHeightCameraSelectors()
     {
         using WorldAssets assets = new(GameDirectory);
