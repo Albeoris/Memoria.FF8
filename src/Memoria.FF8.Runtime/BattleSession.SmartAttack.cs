@@ -137,6 +137,12 @@ public sealed partial class BattleSession
                 return result with { Ability = BattleAbility.Magic, ActionId = chosen.Action.Id, Name = chosen.Action.DisplayName ?? chosen.Action.Name, CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability };
             }
         }
+        var meltdown = candidates.Where(candidate => IsSmartMeltdown(candidate.Action) && CanSmartApplyMeltdown(actor, target, candidate.Action.NativeAction!)).OrderByDescending(candidate => candidate.Source is not null).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
+        if (meltdown.Length > 0)
+        {
+            var chosen = meltdown[0];
+            return result with { Ability = chosen.Source is null ? BattleAbility.Magic : BattleAbility.Draw, ActionId = chosen.Action.Id, Name = (chosen.Source is null ? "" : "Draw: ") + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source?.Id, DrawSourceIndex = chosen.Source?.NativeIndex };
+        }
         var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.Source is not null).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
         if (strongest.Length > 0 && strongest[0].Forecast.ExpectedDamage > 0 && strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage)
         {
@@ -148,7 +154,27 @@ public sealed partial class BattleSession
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {
-        return action.Ability == BattleAbility.Magic && action.Id is >= 1 and <= 56 && action.Available && !action.Allies && !action.AllTargets && action.Statuses is null or { Length: 0 } && action.NativeAction is { Command: 2, AttackType: 2 or 22, Power: > 0, HitCount: 1, Statuses0: 0, Statuses1: 0, TargetFlags: byte flags } && (flags & 0x30) == 0x10 && (flags & 2) == 0;
+        return action.Ability == BattleAbility.Magic && action.Id is >= 1 and <= 56 && action.Available && !action.Allies && !action.AllTargets && action.Statuses is null or { Length: 0 } && action.NativeAction is { Command: 2, AttackType: 2 or 22, Power: > 0, HitCount: 1, Statuses0: 0, TargetFlags: byte flags } native && (native.Statuses1 == 0 || IsSmartMeltdown(action)) && (flags & 0x30) == 0x10 && (flags & 2) == 0;
+    }
+
+    private static bool IsSmartMeltdown(BattleActionDefinition action)
+    {
+        return action.Id == 49 && action.NativeAction is { AttackType: 2, Statuses0: 0, Statuses1: 0x1000000 };
+    }
+
+    private bool CanSmartApplyMeltdown(BattleCombatant actor, BattleCombatant target, BattleNativeAction action)
+    {
+        uint statuses = NativeBattleStatusBits(target);
+        if ((statuses & 0x1000000) != 0 || (NativeSavedStatusBits(target) & 5) != 0 || (statuses & 0x200800) != 0)
+        {
+            return false;
+        }
+        if (action.StatusAttack == 255)
+        {
+            return true;
+        }
+        int resistance = GetNativeStatusResistance(target, 32);
+        return resistance < 200 && action.StatusAttack + actor.Magic / 4 - target.Spirit / 4 - resistance > 0;
     }
 
     private int AffordableSmartCasts(BattleCombatant actor, int spell, int available)
@@ -168,7 +194,7 @@ public sealed partial class BattleSession
 
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
-        string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
+        string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.NativeStatusResistances), string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
         state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.NativeIndex}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
@@ -205,14 +231,32 @@ public sealed partial class BattleSession
                 }
             }
             int total = 0;
+            bool vitZero = (statuses & 0x1000000) != 0;
             for (int cast = 0; cast < casts && total < target.CurrentHp; cast++)
             {
-                int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], spirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
+                int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], vitZero ? 0 : spirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
                 damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, statuses);
                 damage = ForecastElement(target, native, damage, false);
                 if (drawSource is not null)
                 {
                     damage = damage * (draw() + 10) / 150;
+                }
+                if (!immune && !vitZero && native.ActionId == 49 && native.Statuses1 == 0x1000000)
+                {
+                    if (native.StatusAttack == 255)
+                    {
+                        vitZero = true;
+                    }
+                    else
+                    {
+                        int resistance = GetNativeStatusResistance(target, 32);
+                        int effective = native.StatusAttack + powers[cast] / 4 - target.Spirit / 4 - resistance;
+                        if (resistance < 200 && effective > 0)
+                        {
+                            int threshold = 255 * (255 * effective / 100) / 255;
+                            vitZero = native.StatusAttack >= 250 || threshold != 0 && threshold >= draw();
+                        }
+                    }
                 }
                 total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, NativePrimaryDamageLimit(native.AttackFlags));
             }

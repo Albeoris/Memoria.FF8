@@ -216,6 +216,77 @@ public sealed class SmartAttackTests
         Assert.Equal(battle.PreviewSmartAttack("party", "enemy"), preview);
     }
 
+    [Theory]
+    [InlineData(0u, 0, 60_000, 49)]
+    [InlineData(0x1000000u, 0, 60_000, 1)]
+    [InlineData(0u, 200, 60_000, 1)]
+    [InlineData(0u, 0, 100, 1)]
+    [InlineData(0x80u, 0, 60_000, 0)]
+    public void MeltdownPriorityRespectsExistingStatusImmunityReflectionAndReliableKills(uint status, int resistance, int hp, int expectedSpell)
+    {
+        BattleNativeAction meltdown = Spell(49, 1) with { AttackType = 2, Statuses1 = 0x1000000, StatusAttack = 100 };
+        BattleDefinition definition = Create([Spell(1, 80), meltdown], [new(1, 100), new(49, 100)], enemyHp: hp).Capture().Definition;
+        byte[] resistances = new byte[40];
+        resistances[32] = (byte)resistance;
+        BattleCombatantDefinition enemy = definition.Combatants[1] with { NativeStatus1 = status, NativeStatusResistances = resistances };
+        BattleSession battle = new(definition with { Combatants = [definition.Combatants[0], enemy], ActionDefinitions = definition.ActionDefinitions.Select(action => action with { NativeAction = action.NativeAction! with { AttackFlags = 0x11 } }).ToArray() }, BattleAtbMode.TurnBased);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(expectedSpell, preview.ActionId);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);
+        Assert.Equal(preview, restored.PreviewSmartAttack("party", "enemy"));
+        battle.QueueSmartAttack(preview);
+        Assert.Equal(expectedSpell, Assert.Single(battle.QueuedActions).ActionId);
+    }
+
+    [Theory]
+    [InlineData(0x20000u, 2)]
+    [InlineData(0x40000u, 3)]
+    public void MeltdownUsesOrdinaryDoubleOrTripleCast(uint status, int casts)
+    {
+        BattleNativeAction meltdown = Spell(49, 1) with { AttackType = 2, Statuses1 = 0x1000000, StatusAttack = 255 };
+        BattleSession battle = Create([meltdown], [new(49, 100)], enemyHp: 60_000, actorStatus: status);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(49, preview.ActionId);
+        Assert.Equal(casts, preview.CastCount);
+    }
+
+    [Fact]
+    public void ExistingVitZeroLetsMeltdownWinByDamageAndUseOrdinaryMultiCast()
+    {
+        BattleNativeAction meltdown = Spell(49, 80) with { AttackType = 2, Statuses1 = 0x1000000, StatusAttack = 255 };
+        BattleDefinition definition = Create([Spell(1, 1), meltdown], [new(1, 100), new(49, 100)], enemyHp: 60_000, actorStatus: 0x20000).Capture().Definition;
+        BattleSession battle = new(definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { NativeStatus1 = 0x1000000 }] }, BattleAtbMode.TurnBased);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(49, preview.ActionId);
+        Assert.Equal(2, preview.CastCount);
+        Assert.True(preview.ExpectedDamage > battle.PreviewSmartAttack("party", "enemy", true).ExpectedDamage);
+    }
+
+    [Fact]
+    public void MeltdownForecastAppliesVitZeroBetweenCastsWithoutChangingBattle()
+    {
+        BattleNativeAction meltdown = Spell(49, 32) with { Statuses1 = 0x1000000, StatusAttack = 200 };
+        BattleDefinition definition = Create([meltdown], [new(49, 100)], enemyHp: 60_000, actorStatus: 0x20000).Capture().Definition;
+        BattleSession battle = new(definition with { Combatants = [definition.Combatants[0] with { NativePlayerStatRules = null }, definition.Combatants[1] with { Spirit = 200, NativeStatusResistances = new byte[40] }] }, BattleAtbMode.TurnBased);
+        int magic = battle.Combatants[0].Magic;
+        BattleDamageForecast expected = BattleActionForecaster.FromNativePhases(draw =>
+        {
+            int first = NativeBattleDamage.Magic(magic, 200, 32, draw(), false);
+            int threshold = 255 * (255 * (200 + magic / 4 - 200 / 4) / 100) / 255;
+            bool applied = threshold >= draw();
+            int second = NativeBattleDamage.Magic(magic, applied ? 0 : 200, 32, draw(), false);
+            return first + second;
+        }, 60_000);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(49, preview.ActionId);
+        Assert.Equal(2, preview.CastCount);
+        Assert.Equal(expected.ExpectedDamage, preview.ExpectedDamage, 12);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+    }
+
     private static BattleSession Create(BattleNativeAction[] spells, BattleStock[] stocks, int enemyHp = 100, bool infinite = false, uint actorStatus = 0, int[]? defenses = null, bool mug = false, uint enemyFlags = 0, bool nativeLimit = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Create();

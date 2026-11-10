@@ -24,7 +24,7 @@ public sealed class SmartAttackCatalogTests
     [InlineData("Apocalypse", false)]
     [InlineData("Meteor", false)]
     [InlineData("Bio", false)]
-    [InlineData("Meltdown", false)]
+    [InlineData("Meltdown", true)]
     [InlineData("Demi", false)]
     [InlineData("Drain", false)]
     [InlineData("Cure", false)]

@@ -25,6 +25,20 @@ public sealed class SmartAttackDrawTests
     }
 
     [Fact]
+    public void RevealedDrawMeltdownTakesPriorityOverStrongerStockWhenNeitherKills()
+    {
+        BattleNativeAction meltdown = Spell(49, 1) with { AttackType = 2, Statuses1 = 0x1000000, StatusAttack = 255 };
+        BattleSession battle = Create([meltdown, Spell(2, 80)], [new(2, 100)], known: [49], sourceSlots: [new(49, 0), new(0, 0), new(0, 0), new(0, 0)]);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(BattleAbility.Draw, preview.Ability);
+        Assert.Equal(49, preview.ActionId);
+        Assert.Equal("source", preview.DrawSourceId);
+        Assert.Equal(1, preview.CastCount);
+        battle.QueueSmartAttack(preview);
+        Assert.Equal(49, Assert.Single(battle.QueuedActions).ActionId);
+    }
+
+    [Fact]
     public void UnrevealedSpellAndUnknownKnowledgeBankCannotBecomeDrawCandidates()
     {
         BattleSession hidden = Create([Spell(1, 40)], [], known: []);
