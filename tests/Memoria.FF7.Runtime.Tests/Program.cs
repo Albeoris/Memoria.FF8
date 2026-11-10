@@ -134,6 +134,8 @@ var tests = new (string Name, Action Run)[]
     ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
+    ("native battle sound dispatch and cold continuation", NativeBattleSoundTests.Run),
+    ("native battle camera archive and action selection", NativeBattleCameraTests.Run),
     ("native field encounter-step contracts", NativeEncounterTests.Run),
     ("native field audio commands and continuation", NativeAudioTests.Run),
     ("native field initializer audio binding", NativeAudioTransitionTests.Run),

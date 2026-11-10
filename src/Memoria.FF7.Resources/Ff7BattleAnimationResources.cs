@@ -3,14 +3,26 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Resources;
 
-public sealed class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive)
+public sealed class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive, IReadOnlyList<short[]> jumpDeltas, IReadOnlyList<Ff7BattleHitmarkDefinition> hitmarks)
 {
     private readonly Dictionary<string, (BattleActionBank Bank, BattleModelData Model)> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Prefix, int Action, ushort? Limit), BattleActionSequence> actions = [];
     private readonly Dictionary<(string Prefix, int Clip), IReadOnlyList<BattleClipFrame>> clips = [];
     private readonly Dictionary<ushort, BattleLimitAnimation> limits = [];
+    private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitWeaponClips = [];
+    private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitBodyClips = [];
 
     public Ff7BattlePlacementTables Placement { get; } = placement;
+    public IReadOnlyList<Ff7BattleHitmarkDefinition> Hitmarks { get; } = hitmarks;
+
+    public short[] JumpDeltas(int selector)
+    {
+        if ((uint)selector >= jumpDeltas.Count)
+        {
+            throw new InvalidDataException($"FFVII jump selector {selector} requires its original vertical movement table.");
+        }
+        return (short[])jumpDeltas[selector].Clone();
+    }
 
     public BattleActionSequence Get(string prefix, int action, ushort? limit = null)
     {
@@ -48,6 +60,29 @@ public sealed class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePla
             limits.Add(attack, animation);
         }
         return animation;
+    }
+
+    public Vector3 LimitWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, Vector3 localPoint)
+    {
+        if (!limitWeaponClips.TryGetValue((prefix, clip, limit), out IReadOnlyList<BattleClipFrame>? frames))
+        {
+            BattlePackedClip packed = clip >= BattleLimitAnimation.FirstClip ? GetLimit(limit).Weapon[clip - BattleLimitAnimation.FirstClip] : GetModel(prefix).Model.WeaponClips[clip];
+            frames = BattleClipDecoder.Decode(packed);
+            limitWeaponClips.Add((prefix, clip, limit), frames);
+        }
+        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint);
+    }
+
+    public Vector3 LimitBonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, int bone, Vector3 localPoint)
+    {
+        BattleModelData model = GetModel(prefix).Model;
+        if (!limitBodyClips.TryGetValue((prefix, clip, limit), out IReadOnlyList<BattleClipFrame>? frames))
+        {
+            BattlePackedClip packed = clip >= BattleLimitAnimation.FirstClip ? GetLimit(limit).Body[clip - BattleLimitAnimation.FirstClip] : model.BodyClips[clip];
+            frames = BattleClipDecoder.Decode(packed);
+            limitBodyClips.Add((prefix, clip, limit), frames);
+        }
+        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint);
     }
 
     private (BattleActionBank Bank, BattleModelData Model) GetModel(string prefix)

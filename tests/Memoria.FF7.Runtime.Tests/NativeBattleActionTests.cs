@@ -8,6 +8,8 @@ internal static class NativeBattleActionTests
     public static void Run()
     {
         StatusClock();
+        BattleMessageClock();
+        ItemParticleClock();
         InstalledActions();
     }
 
@@ -32,6 +34,77 @@ internal static class NativeBattleActionTests
         Check(Ff7NativeBattleLimits.IsReady(full) && Ff7NativeBattleLimits.Consume(full) == 0, "Original Limit gauge must saturate and reset on use.");
     }
 
+    private static void BattleMessageClock()
+    {
+        Ff7BattleMessageState message = Ff7NativeBattleMessage.Enqueue(Ff7BattleMessageState.Empty, "First");
+        Check(message.Pending.Single() == new Ff7BattleMessageEntry("First", 1, 36), "Original message must wait one callback before its 36 visible callbacks.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: false, paused: false);
+        Check(message.Pending[0].Delay == 1 && message.Visible is null && !message.BlocksQueue, "A non-live frame must preserve the delay.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: false);
+        Check(message.Pending[0].Delay == 0 && message.Visible is null && !message.BlocksQueue, "The first live callback must stay hidden.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: false);
+        message = JsonSerializer.Deserialize<Ff7BattleMessageState>(JsonSerializer.Serialize(message))!;
+        Check(message.Pending[0].Remaining == 35 && message.Visible == "First" && message.BlocksQueue, "A restored visible native message must retain its queue barrier.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: true);
+        Check(message.Pending[0].Remaining == 35 && message.Visible == "First" && message.BlocksQueue, "Battle pause must freeze message duration.");
+        for (int frame = 3; frame <= 37; frame++)
+        {
+            message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: false);
+        }
+
+        Check(message.Pending[0].Remaining == 0 && message.Visible == "First" && message.BlocksQueue, "The last duration callback must retain the visible message.");
+        message = Ff7NativeBattleMessage.Enqueue(message, "Second", speed: 0);
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: false, paused: true);
+        Check(message.Pending.Single() == new Ff7BattleMessageEntry("Second", 1, 4) && message.Visible == "First" && message.BlocksQueue, "An expired row must be removed without changing the visible message or barrier on that callback.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: false);
+        Check(message.Pending[0].Delay == 0 && message.Visible is null && !message.BlocksQueue, "The next row's delay must clear the original pause barrier.");
+        message = Ff7NativeBattleMessage.AdvancePresentation(message, liveFrame: true, paused: false, drawEnabled: false);
+        Check(message.Pending[0].Remaining == 3 && message.Visible is null && message.BlocksQueue, "Disabling message drawing must preserve the original time and barrier.");
+    }
+
+    private static void ItemParticleClock()
+    {
+        const ushort target = 1 << 2;
+        foreach (Ff7BattleCureKind kind in new[] { Ff7BattleCureKind.Cure, Ff7BattleCureKind.PhoenixDown })
+        {
+            byte atlasY = kind == Ff7BattleCureKind.Cure ? (byte)0 : (byte)0x20;
+            uint seed = 1;
+            int draws = 0;
+            int NextRandom()
+            {
+                seed = unchecked(seed * 214013 + 2531011);
+                draws++;
+                return (int)(seed >> 16) & 0x7FFF;
+            }
+
+            Ff7BattleCureState state = Ff7BattleCureEffect.Start(target, kind);
+            int packets = 0;
+            for (int frame = 0; frame <= 37; frame++)
+            {
+                Ff7BattleCureUpdate update = Ff7BattleCureEffect.Advance(state, _ => 16, (_, bone) => new(10 + bone, -20, 30), NextRandom);
+                state = update.State;
+                packets += state.Particles.Count;
+                Check(state.Frame == frame && update.ImpactTargets == (frame == 29 ? target : 0), $"Native {kind} changed its impact boundary.");
+                Check(state.Particles.All(particle => particle.AtlasY == atlasY), $"Native {kind} changed its atlas row.");
+                if (frame == 0)
+                {
+                    Ff7BattleCureParticle[] first = [new(229, 64, -220, 6881, AtlasY: atlasY), new(241, 88, 242, 8080, AtlasY: atlasY)];
+                    Check(state.Particles.SequenceEqual(first) && draws == 10, $"Native {kind} changed initial CRT order or particle operands.");
+                }
+                if (frame == 29)
+                {
+                    state = JsonSerializer.Deserialize<Ff7BattleCureState>(JsonSerializer.Serialize(state))!;
+                    Check(state.Kind == kind, $"Native {kind} lost the original presentation variant after restore.");
+                }
+            }
+
+            Ff7BattleCureParticle[] last = [new(190, -153, 37, 5736, 8, atlasY), new(-66, -116, 1, 4901, 8, atlasY)];
+            Check(state.Particles.SequenceEqual(last) && packets == 540 && draws == 300, $"Native {kind} changed its ninth callback or total particles.");
+            Ff7BattleCureUpdate complete = Ff7BattleCureEffect.Advance(state, _ => 16, (_, bone) => new(10 + bone, -20, 30), NextRandom);
+            Check(complete.State.Completed && complete.ImpactTargets == 0 && draws == 300, $"Native {kind} repeated impact or RNG after its final particle.");
+        }
+    }
+
     private static void InstalledActions()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -46,6 +119,7 @@ internal static class NativeBattleActionTests
         InstalledEscape(kernel[2], formations);
         InstalledTargeting(kernel, formations[300]);
         InstalledFieldBattleSetup(installation);
+        InstalledJumpPatterns(installation);
         Ff7BattleDamageActor cloud = new(6, 36, 23, 6, 14, 0, 0, 24, 17);
         Ff7BattleDamageActor enemy = new(5, 21, 18, 52, 4, 0, 0, 48, 36, IsEnemy: true);
         Ff7BattleActionVitals cloudVitals = new(200, 302, 11, 56, 0);
@@ -139,6 +213,46 @@ internal static class NativeBattleActionTests
         Ff7BattleAttack machineGun = SceneBattleData.Read(opening).Attacks.Single(attack => attack.Id == 272).Data;
         random = NewRandom();
         Check(Ff7NativeBattleTargets.Resolve(4, 2, machineGun.TargetFlags, machineGun.SpecialFlags, false, allyKo, random) == 1 && random.Capture().Indices[0] == 42, "The common target selector must reassign enemy Machine Gun to the remaining player and consume one byte.");
+        Ff7BattleAttack beatRush = Ff7NativeBattleLimits.ReadBeatRush(kernel, Ff7BeatRushSlot.Hit)!;
+        random = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle());
+        ushort beatGroup = Ff7NativeBattleTargets.ResolvePlayer(2, 0x10, beatRush.TargetFlags, beatRush.SpecialFlags, false, masks, random);
+        Check(beatGroup == enemies && random.Capture().Indices[0] == 41, "Beat Rush must first expand the original random enemy group without drawing a selector.");
+        Ff7BattleRng restored = new(kernel[2].Data.Span, JsonSerializer.Deserialize<Ff7BattleRngState>(JsonSerializer.Serialize(random.Capture()))!);
+        ushort selected = Ff7NativeBattleTargets.ResolveNumericalPass(beatGroup, beatRush.TargetFlags, (byte)Ff7BattleCommand.Limit, random);
+        Check(selected == 0x10 && random.Capture().Indices[0] == 42 && Ff7NativeBattleTargets.ResolveNumericalPass(beatGroup, beatRush.TargetFlags, (byte)Ff7BattleCommand.Limit, restored) == selected, "Beat Rush must draw one final target byte after group validation, including after restore.");
+        Check(Ff7NativeBattleTargets.ResolveNumericalPass(enemies, beatRush.TargetFlags, 3, random) == enemies && random.Capture().Indices[0] == 42, "Native command3 must bypass the random target-flag pass.");
+    }
+
+    private static void InstalledJumpPatterns(Ff7Installation installation)
+    {
+        IReadOnlyList<short[]> patterns = Ff7PcExecutableData.LoadBattleJumpDeltas(installation);
+        short[][] expected =
+        [
+            [-50, -100, 0, 100, 50],
+            [-100, -200, 0, 200, 100],
+            [-200, -300, 0, 300, 200],
+            [-300, -500, 0, 500, 300],
+            [-50, -50, -50, -25, 25, 50, 50, 50],
+            [-100, -100, -100, -50, 50, 100, 100, 100],
+            [-150, -150, -150, -75, 75, 150, 150, 150],
+            [-200, -200, -200, -100, 100, 200, 200, 200]
+        ];
+        Check(patterns.Count == expected.Length, "Original jump pattern count changed.");
+        for (int pattern = 0; pattern < expected.Length; pattern++)
+        {
+            Check(patterns[pattern].SequenceEqual(expected[pattern]), $"Original jump pattern {pattern} changed its signed word deltas or callback count.");
+            Check(patterns[pattern].Sum(value => (int)value) == 0, $"Original jump pattern {pattern} must return to its inherited vertical position.");
+        }
+
+        using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        foreach ((string name, byte[] operands) in new[] { ("atab", new byte[] { 0x4C, 0x04, 0x01 }), ("beab", new byte[] { 0x20, 0x03, 0x03 }) })
+        {
+            BattleActionBank bank = BattleActionBank.Read(models.ReadEntry(models.Find(name).Single()));
+            IReadOnlyList<BattleActionInstruction> instructions = BattleActionInstructions.ReadUntilIdle(bank.Scripts[3], 6);
+            BattleActionInstruction jump = instructions.Single(instruction => instruction.Opcode == 0xD0);
+            Check(jump.Operands.Span.SequenceEqual(operands), $"Original {name} jump action changed its D0 standoff or pattern selector.");
+            Check(instructions[0].Opcode == 0xFC, $"Original {name} jump must take its approach direction from the selected target.");
+        }
     }
 
     private static void InstalledFieldBattleSetup(Ff7Installation installation)

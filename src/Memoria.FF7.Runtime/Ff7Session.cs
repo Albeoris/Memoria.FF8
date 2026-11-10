@@ -316,7 +316,12 @@ public sealed partial class Ff7Session : IDisposable
             Ff7PartyRecoveryResult recovered = recovery.AllCharacters
                 ? Ff7NativePartyRecovery.ApplyAll(Progress, materiaRecords, executable.NativeMateriaStatModifiers)
                 : Ff7NativePartyRecovery.Apply(Progress, materiaRecords, executable.NativeMateriaStatModifiers);
-            Progress = recovered.Progress;
+            Ff7Progress recoveredProgress = PreserveGuestFieldCharacter(Progress, recovered.Progress);
+            if (GuestFieldVitals is { } guest && (recovery.AllCharacters || Progress.Party.Contains(guest.Read().StoryCharacter)))
+            {
+                guest.Recover(recovery.AllCharacters);
+            }
+            Progress = recoveredProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (recovered.Underwater ? 128 : 0)));
             return new(true);
@@ -337,7 +342,12 @@ public sealed partial class Ff7Session : IDisposable
         if (command is FieldHitPointCommand health)
         {
             Ff7PartyRecoveryResult adjusted = Ff7NativePartyRecovery.AddHitPoints(Progress, health.Character, health.Amount, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
-            Progress = adjusted.Progress;
+            Ff7Progress adjustedProgress = PreserveGuestFieldCharacter(Progress, adjusted.Progress);
+            if (GuestFieldVitals is { } guest && guest.Read().StoryCharacter == health.Character && Progress.Party.Contains(health.Character))
+            {
+                guest.AddHitPoints(health.Amount);
+            }
+            Progress = adjustedProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (adjusted.Underwater ? 128 : 0)));
             return new(true);

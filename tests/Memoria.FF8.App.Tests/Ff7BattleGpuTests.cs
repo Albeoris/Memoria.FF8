@@ -92,6 +92,7 @@ public sealed class Ff7BattleGpuTests
         Press(Keys.F2);
         Assert.True(scene.IsDebugMenuOpen);
         Press(Keys.Up);
+        Press(Keys.Up);
         Press(Keys.Enter);
         Assert.False(session.Progress.RandomEncountersEnabled);
         Press(Keys.Up);
@@ -262,7 +263,7 @@ public sealed class Ff7BattleGpuTests
         Ff7BattleBoltState bolt = Ff7BattleBoltEffect.Start(0x10);
         Ff7BattleCureState cure = Ff7BattleCureEffect.Start(0x10);
         int random = 5;
-        for (int frame = 0; frame < 38; frame++)
+        for (int frame = 0; frame < 39; frame++)
         {
             Ff7BattleBoltUpdate boltUpdate = Ff7BattleBoltEffect.Advance(bolt, _ => anchor, _ => 350, NextRandom);
             Ff7BattleCureUpdate cureUpdate = Ff7BattleCureEffect.Advance(cure, _ => 24, (_, _) => anchor, NextRandom);
@@ -296,6 +297,421 @@ public sealed class Ff7BattleGpuTests
         {
             return baseline.Zip(pixels).Count(pair => pair.First.PackedValue != pair.Second.PackedValue);
         }
+    }
+
+    [Fact]
+    public void OriginalEarlyConsumablesRenderTheirNativePalettesAndHitmark()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic, Ff7BattleCureResources.Load(installation), Ff7BattleGrenadeResources.Load(installation));
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -450, 0);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        List<Color[]> variants = [];
+
+        foreach (Ff7BattleCureKind kind in Enum.GetValues<Ff7BattleCureKind>())
+        {
+            Ff7BattleCureState effect = Ff7BattleCureEffect.Start(0x10, kind);
+            int random = 5;
+            for (int frame = 0; frame <= 38; frame++)
+            {
+                Ff7BattleCureUpdate update = Ff7BattleCureEffect.Advance(effect, _ => 24, (_, _) => anchor, NextRandom);
+                effect = update.State;
+                Assert.Equal(frame == (kind == Ff7BattleCureKind.Antidote ? 15 : 29) ? 0x10 : 0, update.ImpactTargets);
+                if (frame == 4)
+                {
+                    renderer.Render(gpu, 320, 240, new(camera, [], Cure: effect));
+                    Color[] image = GpuTestDevice.Read(gpu.Target);
+                    Assert.True(Changed(baseline, image) > 16, $"No original {kind} pixels.");
+                    Assert.All(variants, previous => Assert.True(Changed(previous, image) > 16));
+                    variants.Add(image);
+                    effect = System.Text.Json.JsonSerializer.Deserialize<Ff7BattleCureState>(System.Text.Json.JsonSerializer.Serialize(effect))!;
+                    Assert.Equal(kind, effect.Kind);
+                }
+            }
+            Assert.True(effect.Completed);
+
+            int NextRandom()
+            {
+                random = unchecked(random * 214013 + 2531011);
+                return (random >> 16) & 0x7FFF;
+            }
+        }
+
+        Ff7BattleGrenadeState grenade = Ff7BattleGrenadeEffect.Start(0x90);
+        for (int frame = 0; frame <= Ff7BattleGrenadeEffect.SpriteFrameCount; frame++)
+        {
+            Ff7BattleGrenadeUpdate update = Ff7BattleGrenadeEffect.Advance(grenade, _ => anchor, _ => 350);
+            grenade = update.State;
+            Assert.Equal(frame switch { 1 => 0x10, 2 => 0x80, _ => 0 }, update.ImpactTargets);
+            if (frame is 0 or 4)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, []) { Grenade = grenade });
+                Assert.True(Changed(baseline, GpuTestDevice.Read(gpu.Target)) > 16, $"No original Grenade pixels at callback {frame}.");
+                grenade = System.Text.Json.JsonSerializer.Deserialize<Ff7BattleGrenadeState>(System.Text.Json.JsonSerializer.Serialize(grenade))!;
+                Assert.Equal((short)anchor.X, grenade.X);
+            }
+        }
+        Assert.True(grenade.Completed);
+
+        static int Changed(Color[] a, Color[] b)
+        {
+            return a.Zip(b).Count(pair => pair.First.PackedValue != pair.Second.PackedValue);
+        }
+    }
+
+    [Fact]
+    public void OriginalSmogShowsItsProjectileAndExpandingCloudFamilies()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var target = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -500, 0);
+        var source = target + new System.Numerics.Vector3(-800, -300, -500);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        Ff7BattleSmogState state = Ff7BattleSmogEffect.Start(0x10);
+        int random = 5;
+        int randomCalls = 0;
+        for (int frame = 0; frame <= 49; frame++)
+        {
+            Ff7BattleSmogUpdate update = Ff7BattleSmogEffect.Advance(state, () => source, _ => target, NextRandom);
+            state = update.State;
+            Assert.Equal(frame == 12 ? 0x10 : 0, update.ImpactTargets);
+            if (frame is 6 or 20)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, []) { Smog = state });
+                Color[] image = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 16, $"No original Smog pixels at callback {frame}.");
+            }
+            if (frame == 20)
+            {
+                state = JsonSerializer.Deserialize<Ff7BattleSmogState>(JsonSerializer.Serialize(state))!;
+                Assert.NotNull(state.Targets[0].Cloud);
+                Assert.Contains(state.Sprites, sprite => sprite.Velocity is null);
+            }
+        }
+        Assert.Equal(90, randomCalls);
+        Assert.True(state.Completed);
+        Assert.Empty(state.Sprites);
+
+        int NextRandom()
+        {
+            randomCalls++;
+            random = unchecked(random * 214013 + 2531011);
+            return random >> 16 & 0x7FFF;
+        }
+    }
+
+    [Fact]
+    public void LinkedAllIceAndBoltRetainNativeChildStaggersAfterColdRestore()
+    {
+        Ff7Installation installation = Installation();
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleRenderer renderer = new(archive, formation.LocationId, magic);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        renderer.Render(gpu, 320, 240, new(scene.Cameras[0], []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        foreach ((ushort spell, byte materia, int stagger) in new (ushort, byte, int)[] { (0x1E, 0x32, 4), (0x21, 0x34, 2) })
+        {
+            Ff7CharacterState[] characters = (Ff7CharacterState[])original.Progress.Characters.Clone();
+            int cloud = Array.FindIndex(characters, character => character.Id == 0);
+            byte[] record = (byte[])characters[cloud].NativeRecord.Clone();
+            Array.Clear(record, 64, 8);
+            record[64] = materia;
+            record[68] = 0x17;
+            characters[cloud] = characters[cloud] with { NativeRecord = record };
+            Ff7Progress progress = original.Progress with { Party = [0, 255, 255], Characters = characters };
+            Ff7BattleSession initial = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations);
+            Ff7BattleSnapshot snapshot = initial.Capture();
+            snapshot.Actors[0] = snapshot.Actors[0] with { AwaitingTurn = true, Gauge = ushort.MaxValue };
+            Ff7BattleSession battle = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
+            Assert.True(battle.Submit(0, Ff7BattleCommand.Magic, spell, 0x30, true));
+            bool active = false;
+            bool restored = false;
+            bool rendered = false;
+            for (int tick = 0; tick < 500; tick++)
+            {
+                battle.Advance(waitForCommand: true);
+                Ff7BattleActionState? action = battle.Action;
+                active |= action is not null;
+                int frame = spell == 0x1E ? action?.Ice?.Frame ?? -1 : action?.Bolt?.Frame ?? -1;
+                if (frame == 3 && !restored)
+                {
+                    Ff7BattleSession cold = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture())), animations: animations);
+                    battle.Advance(waitForCommand: true);
+                    cold.Advance(waitForCommand: true);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
+                    battle = cold;
+                    restored = true;
+                }
+                if (frame == 6 && action is not null)
+                {
+                    int[] starts = spell == 0x1E ? action.Ice!.Crystals!.Select(crystal => crystal.StartedAt).ToArray() : action.Bolt!.Strikes!.Select(strike => strike.StartedAt).ToArray();
+                    Assert.Equal(new[] { 0, stagger }, starts);
+                    renderer.Render(gpu, 320, 240, new(scene.Cameras[0], [], Ice: action.Ice, Bolt: action.Bolt));
+                    Color[] image = GpuTestDevice.Read(gpu.Target);
+                    Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 4, $"No original linked All pixels for spell {spell:X2}.");
+                    rendered = true;
+                }
+                if (active && battle.Action is null)
+                {
+                    break;
+                }
+            }
+            Assert.Null(battle.Action);
+            Assert.True(restored);
+            Assert.True(rendered);
+            Assert.Equal(0, battle.Actors[0].AllUses!.GetValueOrDefault((byte)spell));
+        }
+    }
+
+    [Fact]
+    public void OriginalSweeperSmokeShotMovesItsEmitterAndRetainsSmokeFrames()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var target = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -500, 0);
+        var source = target + new System.Numerics.Vector3(-800, -300, -500);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        Ff7BattleSmokeShotState state = Ff7BattleSmokeShotEffect.Start(0x10);
+        for (int frame = 0; frame <= 25; frame++)
+        {
+            Ff7BattleSmokeShotUpdate update = Ff7BattleSmokeShotEffect.Advance(state, () => source, _ => target);
+            state = update.State;
+            Assert.Equal(frame == 15 ? 0x10 : 0, update.ImpactTargets);
+            if (frame is 3 or 18)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, []) { SmokeShot = state });
+                Color[] image = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 16, $"No original Smoke Shot pixels at callback {frame}.");
+            }
+            if (frame == 8)
+            {
+                state = JsonSerializer.Deserialize<Ff7BattleSmokeShotState>(JsonSerializer.Serialize(state))!;
+                Assert.Equal(9, state.Sprites.Count);
+                Assert.NotEqual(state.Sprites[0].Position, state.Sprites[8].Position);
+            }
+        }
+        Assert.True(state.Completed);
+        Assert.Empty(state.Sprites);
+    }
+
+    [Fact]
+    public void OriginalOpeningPhysicalHitmarksUseTheInstalledCueScripts()
+    {
+        Ff7Installation installation = Installation();
+        IReadOnlyList<Ff7BattleHitmarkDefinition> definitions = Ff7PcExecutableData.LoadBattleHitmarks(installation);
+        Assert.Equal(72, definitions.Count);
+        Ff7BattleHitmarkCue grenade = Assert.Single(definitions[0x2C].Cues);
+        Assert.Equal(new Ff7BattleHitmarkCue(0, 1, 0, 0, 0x6000, 23, 8), grenade);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic, grenadeTexture: Ff7BattleGrenadeResources.Load(installation));
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -500, 0);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        foreach (int style in new[] { 0x09, 0x12, 0x24, 0x25, 0x26, 0x2D, 0x2E, 0x30, 0x3C, 0x3D })
+        {
+            Ff7BattleHitmarkState state = Ff7BattleHitmarkEffect.Start(4, definitions[style]);
+            for (int frame = 0; frame <= state.Definition.FrameCount; frame++)
+            {
+                state = Ff7BattleHitmarkEffect.Advance(state, _ => anchor, _ => 350);
+                if (frame == 3)
+                {
+                    renderer.Render(gpu, 320, 240, new(camera, []) { Hitmarks = [state] });
+                    Color[] image = GpuTestDevice.Read(gpu.Target);
+                    Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 4, $"No original physical hitmark pixels for style {style:X2}.");
+                    state = JsonSerializer.Deserialize<Ff7BattleHitmarkState>(JsonSerializer.Serialize(state))!;
+                    Assert.Equal((short)anchor.X, state.Anchor!.X);
+                }
+            }
+            Assert.True(state.Completed);
+        }
+    }
+
+    [Fact]
+    public void OriginalBigShotShowsChargeAndBothNativeFragmentFamilies()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -700, 0);
+        IReadOnlyList<BattleClipFrame> frames = BattleClipDecoder.Decode(Ff7BattleLimitAnimationResources.Load(magic, 0x87).Weapon[0]);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        Ff7BattleBigShotState state = Ff7BattleBigShotEffect.Start(0x10);
+        int random = 5;
+        int randomCalls = 0;
+        for (int frame = 0; frame <= 44; frame++)
+        {
+            Ff7BattleBigShotUpdate update = Ff7BattleBigShotEffect.Advance(state, point => BattleRigidPose.WeaponPosition(frames[frame % frames.Count], anchor, 0, point), _ => anchor, 0, NextRandom);
+            state = update.State;
+            Assert.Equal(frame == 22 ? 0x10 : 0, update.ImpactTargets);
+            if (frame is 12 or 23 or 38)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, []) { BigShot = state });
+                Color[] image = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 16, $"No original Big Shot pixels at callback {frame}.");
+            }
+            if (frame == 22)
+            {
+                state = JsonSerializer.Deserialize<Ff7BattleBigShotState>(JsonSerializer.Serialize(state))!;
+                Assert.Null(state.Charge);
+                Assert.Equal(50, state.Particles!.Count(particle => particle.Kind == Ff7BattleBigShotParticleKind.Fragment));
+                Assert.Equal(30, state.Particles!.Count(particle => particle.Kind == Ff7BattleBigShotParticleKind.Burst));
+            }
+        }
+        Assert.Equal(812, randomCalls);
+        Assert.True(state.Completed);
+        Assert.Equal(14080, state.ChargeRotation);
+        Assert.Equal(-9856, state.CounterRotation);
+        Ff7BattleBigShotState secondCast = Ff7BattleBigShotEffect.Start(0x10, state.ChargeRotation, state.CounterRotation);
+        for (int frame = 0; frame <= 12; frame++)
+        {
+            secondCast = Ff7BattleBigShotEffect.Advance(secondCast, point => BattleRigidPose.WeaponPosition(frames[frame % frames.Count], anchor, 0, point), _ => anchor, 0, () => 5).State;
+        }
+        secondCast = JsonSerializer.Deserialize<Ff7BattleBigShotState>(JsonSerializer.Serialize(secondCast))!;
+        Assert.Equal(22400, secondCast.ChargeRotation);
+        Assert.Equal(-15680, secondCast.CounterRotation);
+        Ff7BattleBigShotState continued = Ff7BattleBigShotEffect.Advance(secondCast, point => BattleRigidPose.WeaponPosition(frames[13 % frames.Count], anchor, 0, point), _ => anchor, 0, () => 5).State;
+        Assert.Equal(23040, continued.ChargeRotation);
+        Assert.Equal(-16128, continued.CounterRotation);
+
+        int NextRandom()
+        {
+            randomCalls++;
+            random = unchecked(random * 214013 + 2531011);
+            return random >> 16 & 0x7FFF;
+        }
+    }
+
+    [Fact]
+    public void OriginalBeatRushShowsMovingJointTrailsAndThreeNativeHitSprites()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -400, 0);
+        BattleModelData model = BattleModelData.Read(battle.ReadEntry(battle.Find("ruaa")[0]), battle.ReadEntry(battle.Find("ruda")[0]));
+        IReadOnlyList<BattleClipFrame> frames = BattleClipDecoder.Decode(Ff7BattleLimitAnimationResources.Load(magic, 0x95).Body[0]);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        Ff7BattleBeatRushState state = Ff7BattleBeatRushEffect.Start(0x10);
+        int random = 5;
+        int randomCalls = 0;
+        for (int frame = 0; frame <= 20; frame++)
+        {
+            Ff7BattleBeatRushUpdate update = Ff7BattleBeatRushEffect.Advance(state, point => BattleRigidPose.BonePoint(model, frames[frame % frames.Count], anchor, 0, 32, point), NextRandom);
+            state = update.State;
+            Assert.Equal(frame == 12 ? 0x10 : 0, update.ImpactTargets);
+            if (frame is 3 or 6 or 13)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, []) { BeatRush = state });
+                Color[] image = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Zip(image).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 16, $"No original Beat Rush pixels at callback {frame}.");
+            }
+            if (frame == 7)
+            {
+                state = JsonSerializer.Deserialize<Ff7BattleBeatRushState>(JsonSerializer.Serialize(state))!;
+                Assert.Equal(2, state.Trails!.Count);
+                Assert.Single(state.Sprites!);
+            }
+        }
+        Assert.Equal(12, randomCalls);
+        Assert.True(state.Completed);
+
+        int NextRandom()
+        {
+            randomCalls++;
+            random = unchecked(random * 214013 + 2531011);
+            return random >> 16 & 0x7FFF;
+        }
+    }
+
+    [Fact]
+    public void OriginalBraverShowsWeaponShineAndTargetImpactFromNativeResources()
+    {
+        Ff7Installation installation = Installation();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
+        SceneBattleData scene = SceneBattleData.Read(formations[300]);
+        Ff7BattleRenderer renderer = new(battle, formations[300].LocationId, magic);
+        SceneCameraPlacement camera = scene.Cameras[0];
+        var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -320, 0);
+        IReadOnlyList<BattleClipFrame> frames = BattleClipDecoder.Decode(Ff7BattleLimitAnimationResources.Load(magic, 0x80).Weapon[2]);
+        renderer.Render(gpu, 320, 240, new(camera, []));
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+
+        Ff7BattleBraverState state = Ff7BattleBraverEffect.Start(0x10);
+        for (int frame = 0; frame <= 37; frame++)
+        {
+            Ff7BattleBraverUpdate update = Ff7BattleBraverEffect.Advance(state, point => BattleRigidPose.WeaponPosition(frames[frame % frames.Count], anchor, 0, point), _ => anchor, _ => 350);
+            Assert.Equal(frame == 26 ? 0x10 : 0, update.ImpactTargets);
+            state = update.State;
+            if (frame is 12 or 27)
+            {
+                renderer.Render(gpu, 320, 240, new(camera, [], Braver: state));
+                Color[] effect = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Zip(effect).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 16, $"No original Braver pixels at callback {frame}.");
+            }
+            if (frame == 18)
+            {
+                Assert.NotNull(state.Trail);
+                Assert.NotNull(state.PreviousTrail);
+                Assert.NotEqual(state.Trail, state.PreviousTrail);
+            }
+        }
+        Assert.True(state.Completed);
     }
 
     private static Ff7Installation Installation()

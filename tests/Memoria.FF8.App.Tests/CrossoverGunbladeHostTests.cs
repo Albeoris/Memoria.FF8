@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -20,7 +20,7 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
         using Ff7Session origin = Ff7Session.NewGame(installation);
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
         Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
         IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(item => item.FormationId == 300);
@@ -65,12 +65,28 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
         (Ff7BattleHit coldTriggered, Saved restored) = Play(atWindow, true, true);
         Assert.Equal(triggered, coldTriggered);
         Assert.Equal(JsonSerializer.Serialize(complete), JsonSerializer.Serialize(restored));
-        Assert.True(triggered.Damage.Damage > normal.Damage.Damage && !triggered.Damage.Critical);
+        Assert.Equal(new(false, false, 38), normal.Damage);
+        Assert.Equal(new(false, false, 58), triggered.Damage);
         Assert.Equal((0, 4), (triggered.Source, triggered.Target));
         Assert.Equal((short)20, restored.Guest.Presentation!.ContactTiming!.Timing);
         Assert.Equal((short)0, restored.Guest.Presentation.Model.SequenceState!.Header40);
         Assert.Equal(Math.Max(0, (long)target.HitPoints - triggered.Damage.Damage), restored.Host.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints);
+        Assert.Null(restored.Guest.Auxiliary.Head);
+        Assert.Throws<InvalidDataException>(() => Guest(restored.Guest with { EncounterId = Guid.NewGuid() }));
         output.WriteLine($"Normal damage {normal.Damage.Damage}; triggered damage {triggered.Damage.Damage}; hit tick {triggered.Tick}; returned tick {restored.Host.Tick}; original host HP {target.HitPoints}");
+
+        (Ff7BattleSession secondHost, CrossoverGunbladeHostAttack secondGuest) = Restore(restored);
+        for (int tick = 0; tick < 2000 && secondHost.ReadyPlayer != 0; tick++)
+        {
+            secondHost.Advance();
+        }
+        Assert.True(secondHost.SubmitGuestAttack(0, 5));
+        for (int tick = 0; tick < 2000 && secondGuest.Invocation is null; tick++)
+        {
+            secondHost.Advance();
+        }
+        Assert.Equal(5, secondGuest.Invocation?.TargetSlot);
+        Assert.Equal(restored.Guest.GlobalRandom, secondGuest.Capture().GlobalRandom);
 
         (Ff7BattleHit Hit, Saved Result) Play(Saved start, bool trigger, bool coldAfterContact)
         {
@@ -101,7 +117,7 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
         }
 
         Ff7BattleSession Host(Ff7BattleSnapshot? snapshot) => new(formation, origin.Progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: snapshot, animations: animations);
-        CrossoverGunbladeHostAttack Guest(CrossoverGunbladeHostSnapshot? snapshot) => new(roster, kit, assets, game, guestRandom, _ => 128, snapshot);
+        CrossoverGunbladeHostAttack Guest(CrossoverGunbladeHostSnapshot? snapshot) => new(roster, kit, assets, game, guestRandom, () => host.Data.Cameras[0], _ => 128, snapshot);
         (Ff7BattleSession Host, CrossoverGunbladeHostAttack Guest) Restore(Saved source)
         {
             Saved saved = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(source))!;

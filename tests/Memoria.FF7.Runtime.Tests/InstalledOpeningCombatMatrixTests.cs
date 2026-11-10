@@ -20,7 +20,7 @@ internal static class InstalledOpeningCombatMatrixTests
         IReadOnlyList<SceneFormation> scenes = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
         IReadOnlyList<Ff7BattleAttack> limits = Ff7PcExecutableData.LoadBattleLimits(installation);
         IReadOnlyList<byte> reel = Ff7PcExecutableData.LoadBeatRushReel(installation);
         int[] opening = [.. Enumerable.Range(300, 25), 328, 329, 330, .. Enumerable.Range(332, 28), 364, 367, .. Enumerable.Range(392, 4)];
@@ -53,6 +53,7 @@ internal static class InstalledOpeningCombatMatrixTests
         Console.WriteLine($"Original FFVII opening combat matrix: {opening.Length} completed formations with cold continuation.");
         CheckPlayerCommands(scenes.Single(scene => scene.FormationId == 300), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations, limits, reel);
         CheckEnemyActions(scenes.Where(scene => opening.Contains(scene.FormationId)), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations);
+        CheckEnemyMagicAi(scenes.Where(scene => opening.Contains(scene.FormationId)), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations);
     }
 
     private static void CheckPlayerCommands(SceneFormation formation, Ff7Progress start, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations, IReadOnlyList<Ff7BattleAttack> limits, IReadOnlyList<byte> reel)
@@ -62,6 +63,9 @@ internal static class InstalledOpeningCombatMatrixTests
         Check(0, Ff7BattleCommand.Magic, 0x21);
         Check(0, Ff7BattleCommand.Magic, 0, 0x35, group: true);
         Check(0, Ff7BattleCommand.Magic, 0x1B, 0x31);
+        Check(0, Ff7BattleCommand.Magic, 0x1B, 0x31, group: true);
+        Check(0, Ff7BattleCommand.Magic, 0x1E, 0x32, group: true);
+        Check(0, Ff7BattleCommand.Magic, 0x21, 0x34, group: true);
         Check(0, Ff7BattleCommand.Item, 0);
         Check(0, Ff7BattleCommand.Item, 3);
         Check(0, Ff7BattleCommand.Item, 7);
@@ -92,7 +96,8 @@ internal static class InstalledOpeningCombatMatrixTests
             }
             characters[characterIndex] = character with { NativeRecord = record };
             bool revive = command == Ff7BattleCommand.Item && argument == 7;
-            Ff7Progress progress = start with { Party = [characterId, revive ? 1 : 255, 255], Characters = characters, Inventory = [new(0, 3), new(3, 1), new(7, 1), new(8, 1), new(20, 1)] };
+            int[] party = group && argument == 0 ? [0, 1, 2] : [characterId, revive ? 1 : 255, 255];
+            Ff7Progress progress = start with { Party = party, Characters = characters, Inventory = [new(0, 3), new(3, 1), new(7, 1), new(8, 1), new(20, 1)] };
             Ff7BattleSession initial = new(formation, progress, kernel, materiaModifiers, 1, animations: animations, limits: limits, beatRushSymbols: reel);
             Ff7BattleSnapshot snapshot = initial.Capture();
             Ff7BattleActorState player = snapshot.Actors[0];
@@ -105,14 +110,30 @@ internal static class InstalledOpeningCombatMatrixTests
             }
             Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, snapshot: snapshot, animations: animations, limits: limits, beatRushSymbols: reel);
             Ff7BattleCommandOption option = battle.Commands(0).Single(candidate => candidate.Command == command && candidate.Argument == argument);
-            ushort targets = revive ? (ushort)2 : option.DefaultsToEnemies ? (ushort)(group ? 0x30 : 0x10) : (ushort)1;
+            ushort targets = revive ? (ushort)2 : option.DefaultsToEnemies ? (ushort)(group ? 0x30 : 0x10) : (ushort)(group ? 7 : 1);
             if (!battle.Submit(0, command, argument, targets, group))
             {
                 throw new InvalidOperationException($"Opening player command {command}/{argument:X2} was rejected.");
             }
+            bool visualEffect = false;
+            bool restoredEffect = false;
             for (int tick = 0; tick < 1500; tick++)
             {
                 battle.Advance(confirmLimit: tick == 55);
+                visualEffect |= battle.Action?.EffectRunning == true;
+                if (!restoredEffect && battle.Action?.EffectRunning == true)
+                {
+                    string encoded = JsonSerializer.Serialize(battle.Capture());
+                    Ff7BattleSession cold = new(formation, progress, kernel, materiaModifiers, 1, snapshot: JsonSerializer.Deserialize<Ff7BattleSnapshot>(encoded), animations: animations, limits: limits, beatRushSymbols: reel);
+                    battle.Advance();
+                    cold.Advance();
+                    if (JsonSerializer.Serialize(battle.Capture()) != JsonSerializer.Serialize(cold.Capture()))
+                    {
+                        throw new InvalidOperationException($"Opening player command {command}/{argument:X2} changed after effect continuation.");
+                    }
+                    battle = cold;
+                    restoredEffect = true;
+                }
                 Ff7BattleActorState current = battle.Actors[0];
                 if (battle.Action is null && (battle.LastHit?.Source == 0 || current.Defending || (current.Actor.Conditions & 0x40) != (player.Actor.Conditions & 0x40)))
                 {
@@ -123,6 +144,11 @@ internal static class InstalledOpeningCombatMatrixTests
                     if (revive && (battle.Actors[1].Actor.HitPoints == 0 || (battle.Actors[1].Actor.Statuses & 1) != 0))
                     {
                         throw new InvalidOperationException("Phoenix Down did not restore its knocked-out party recipient.");
+                    }
+                    bool requiresEffect = command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item or Ff7BattleCommand.Limit;
+                    if (requiresEffect && !visualEffect)
+                    {
+                        throw new InvalidOperationException($"Opening player command {command}/{argument:X2} did not dispatch its native effect.");
                     }
                     return;
                 }
@@ -154,12 +180,29 @@ internal static class InstalledOpeningCombatMatrixTests
                     snapshot = snapshot with { Queue = Ff7BattleCommandQueue.Enqueue(snapshot.Queue, command) };
                     Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, snapshot: snapshot, animations: animations);
                     bool active = false;
+                    bool restored = false;
                     try
                     {
                         for (int tick = 0; tick < 3500; tick++)
                         {
                             battle.Advance(waitForCommand: true);
-                            active |= battle.Action?.Command.AttackId == selector.AttackId;
+                            active |= battle.Action is { Command: { } current } && current.ActorSlot == slot && (current.AttackId ?? current.Argument) == selector.AttackId;
+                            if (active && !restored && battle.Action is { Applied: true })
+                            {
+                                Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+                                Ff7BattleSession cold = new(formation, progress, kernel, materiaModifiers, 1, snapshot: saved, animations: animations);
+                                for (int callback = 0; callback < 4; callback++)
+                                {
+                                    battle.Advance(waitForCommand: true);
+                                    cold.Advance(waitForCommand: true);
+                                }
+                                if (JsonSerializer.Serialize(battle.Capture()) != JsonSerializer.Serialize(cold.Capture()))
+                                {
+                                    throw new InvalidOperationException("The original enemy action changed across its next presentation callback after JSON restore.");
+                                }
+                                battle = cold;
+                                restored = true;
+                            }
                             if (active && battle.Action is null)
                             {
                                 break;
@@ -170,7 +213,7 @@ internal static class InstalledOpeningCombatMatrixTests
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId}, original action {selector.AttackId:X4}/{selector.ActionAnimation} in formation {formation.FormationId}.", exception);
                     }
-                    if (!active || battle.Action is not null)
+                    if (!active || !restored || battle.Action is not null)
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId} original action {selector.AttackId:X4}/{selector.ActionAnimation} did not complete.");
                     }
@@ -178,6 +221,70 @@ internal static class InstalledOpeningCombatMatrixTests
             }
         }
         Console.WriteLine($"Original FFVII opening enemy action matrix: {checkedActions.Count} distinct prototype, attack and animation combinations.");
+    }
+
+    private static void CheckEnemyMagicAi(IEnumerable<SceneFormation> formations, Ff7Progress start, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations)
+    {
+        SceneFormation formation = formations.First(formation => SceneBattleData.Read(formation).Enemies.Any(enemy => enemy.Attacks.Any(attack => attack.AttackId == 0x1B)));
+        Ff7Progress progress = start with { Party = [0, 255, 255] };
+        Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, animations: animations);
+        Ff7BattleSnapshot snapshot = battle.Capture();
+        bool changedRow = false;
+        int? caster = null;
+        bool visual = false;
+        bool restored = false;
+        ushort originalMp = 0;
+        HashSet<string> observed = [];
+        for (int tick = 0; tick < 12000; tick++)
+        {
+            if (battle.ReadyPlayer is int ready)
+            {
+                Ff7BattleCommand selectedCommand = changedRow ? Ff7BattleCommand.Defend : Ff7BattleCommand.Change;
+                changedRow |= battle.Submit(ready, selectedCommand, 0, (ushort)(1 << ready));
+            }
+            battle.Advance();
+            if (battle.Action is { } dispatched)
+            {
+                observed.Add($"{dispatched.Command.ActorSlot}/{dispatched.Command.CommandId:X2}/{dispatched.Command.Argument:X2}/{dispatched.Command.AttackId:X2}");
+            }
+            if (battle.Action is { Command: { ActorSlot: >= 4, CommandId: (byte)Ff7BattleCommand.Magic, Argument: 0x1B } command } action)
+            {
+                if (action.Animation != 4)
+                {
+                    throw new InvalidOperationException("Original enemy Fire must select the enemy's animation 04.");
+                }
+                caster ??= command.ActorSlot;
+                originalMp = snapshot.Actors.Single(actor => actor.Actor.Slot == caster).Actor.MagicPoints;
+                visual |= action.Fire is not null;
+                if (action.Fire is not null && !restored)
+                {
+                    Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+                    Ff7BattleSession cold = new(formation, progress, kernel, materiaModifiers, 1, snapshot: saved, animations: animations);
+                    for (int callback = 0; callback < 4; callback++)
+                    {
+                        battle.Advance();
+                        cold.Advance();
+                    }
+                    if (JsonSerializer.Serialize(battle.Capture()) != JsonSerializer.Serialize(cold.Capture()))
+                    {
+                        throw new InvalidOperationException("Original enemy Fire changed across its live effect continuation.");
+                    }
+                    battle = cold;
+                    restored = true;
+                }
+            }
+            if (caster is int slot && battle.Action is null && battle.LastHit is { Source: >= 4, AttackId: 0x1B })
+            {
+                Ff7BattleAiActor source = battle.Actors.Single(actor => actor.Actor.Slot == slot).Actor;
+                if (!visual || !restored || source.MagicPoints != originalMp - 4)
+                {
+                    throw new InvalidOperationException("Original enemy AI Fire did not complete its native effect and one MP charge.");
+                }
+                Console.WriteLine("Original enemy AI selected kernel Fire, used animation 04 and completed after cold restore.");
+                return;
+            }
+        }
+        throw new InvalidOperationException($"Original enemy AI did not reach its magic branch after the player's Change command. Outcome {battle.Outcome}, observed {string.Join(",", observed)}, actors {string.Join(",", battle.Actors.Select(actor => $"{actor.Actor.Slot}:{actor.Actor.HitPoints}/{actor.Actor.MagicPoints}/{actor.Actor.Conditions:X}/{Convert.ToHexString(actor.AiMemory.AsSpan(0, Math.Min(actor.AiMemory.Length, 20)))}"))}.");
     }
 
     private static void Fight(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations, IReadOnlyList<Ff7BattleAttack> limits)

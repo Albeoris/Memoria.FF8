@@ -16,7 +16,7 @@ public static class Ff7DebugVictory
         return ApplyResolved(progress, formation, kernel, fieldGeneration, requestId, random);
     }
 
-    internal static Ff7Progress ApplyResolved(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null)
+    internal static Ff7Progress ApplyResolved(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(formation);
@@ -41,6 +41,10 @@ public static class Ff7DebugVictory
         IEnumerable<int> ordered = progress.Party.Where(id => id != 255).Concat(progress.Characters.Where(character => !progress.Party.Contains(character.Id) && (progress.AvailableCharacters & 1 << character.Id) != 0).Select(character => character.Id));
         foreach (int id in ordered)
         {
+            if (id == dormantGuestStoryCharacter)
+            {
+                continue;
+            }
             Ff7CharacterState character = progress.Characters.Single(character => character.Id == id);
             bool active = progress.Party.Contains(id);
             if (active && character.HitPoints == 0)

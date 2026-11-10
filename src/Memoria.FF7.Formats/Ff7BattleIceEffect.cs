@@ -2,10 +2,10 @@ using System.Numerics;
 
 namespace Memoria.FF7.Formats;
 
-public sealed record Ff7BattleIceCrystal(short X, short Y, short Z, int CollisionRadius);
+public sealed record Ff7BattleIceCrystal(short X, short Y, short Z, int CollisionRadius, int StartedAt = 0);
 public sealed record Ff7BattleIceState(ushort TargetMask, int Frame = -1, IReadOnlyList<Ff7BattleIceCrystal>? Crystals = null)
 {
-    public bool Completed => Frame >= Ff7BattleIceEffect.FrameCount;
+    public bool Completed => Frame >= Ff7BattleIceEffect.FrameCount + (BitOperations.PopCount(TargetMask) - 1) * 4;
 }
 
 public sealed record Ff7BattleIceUpdate(Ff7BattleIceState State, ushort ImpactTargets);
@@ -32,21 +32,24 @@ public static class Ff7BattleIceEffect
         {
             return new(state, 0);
         }
-        if (state.Frame >= 0)
-        {
-            return new(state with { Frame = state.Frame + 1 }, 0);
-        }
-
-        List<Ff7BattleIceCrystal> crystals = [];
+        int frame = state.Frame + 1;
+        List<Ff7BattleIceCrystal> crystals = (state.Crystals ?? []).ToList();
+        int ordinal = 0;
+        ushort impacts = 0;
         for (int slot = 0; slot < 10; slot++)
         {
             if ((state.TargetMask & (1 << slot)) != 0)
             {
-                Vector3 point = targetAnchor(slot);
-                crystals.Add(new((short)point.X, (short)point.Y, (short)point.Z, collisionRadius(slot)));
+                if (frame == ordinal * 4)
+                {
+                    Vector3 point = targetAnchor(slot);
+                    crystals.Add(new((short)point.X, (short)point.Y, (short)point.Z, collisionRadius(slot), frame));
+                    impacts |= (ushort)(1 << slot);
+                }
+                ordinal++;
             }
         }
-        return new(state with { Frame = 0, Crystals = crystals.AsReadOnly() }, state.TargetMask);
+        return new(state with { Frame = frame, Crystals = crystals.AsReadOnly() }, impacts);
     }
 
     public static float Scale(int frame, int collisionRadius)

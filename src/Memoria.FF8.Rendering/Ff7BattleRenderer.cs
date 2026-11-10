@@ -10,22 +10,30 @@ public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, 
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
+    public Ff7BattleGrenadeState? Grenade { get; init; }
+    public Ff7BattleBeatRushState? BeatRush { get; init; }
+    public Ff7BattleBigShotState? BigShot { get; init; }
+    public IReadOnlyList<Ff7BattleHitmarkState>? Hitmarks { get; init; }
+    public Ff7BattleSmokeShotState? SmokeShot { get; init; }
+    public Ff7BattleSmogState? Smog { get; init; }
 }
 
 /// <summary>Submits original FFVII stage and rigid actor geometry without advancing the battle.</summary>
-public sealed class Ff7BattleRenderer
+public sealed partial class Ff7BattleRenderer
 {
     private readonly LgpArchive archive;
     private readonly Ff7BattleArenaResources arena;
     private readonly LgpArchive? magicArchive;
     private readonly PcTexture? cureTexture;
-    private Ff7BattleBillboardRenderer? cure;
+    private readonly PcTexture? grenadeTexture;
+    private readonly Dictionary<(Ff7BattleCureKind Kind, byte AtlasY), Ff7BattleBillboardRenderer> cure = [];
     private Ff7BattleBillboardRenderer? braverShine;
     private Ff7BattleBillboardRenderer? braverImpact;
     private PixelImage? braverTrail;
     private Ff7BattleBillboardRenderer? fire;
     private Ff7BattleBillboardRenderer? lightning;
     private Ff7BattleBillboardRenderer? sparks;
+    private Ff7BattleBillboardRenderer? grenadeHitmark;
     private PcPolygonModel? shockwave;
     private PcTexture[]? shockwaveTextures;
     private PcPolygonModel? ice;
@@ -33,11 +41,12 @@ public sealed class Ff7BattleRenderer
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
     private readonly PcTexture[] arenaTextures;
 
-    public Ff7BattleRenderer(LgpArchive archive, int locationId, LgpArchive? magicArchive = null, PcTexture? cureTexture = null)
+    public Ff7BattleRenderer(LgpArchive archive, int locationId, LgpArchive? magicArchive = null, PcTexture? cureTexture = null, PcTexture? grenadeTexture = null)
     {
         this.archive = archive ?? throw new ArgumentNullException(nameof(archive));
         this.magicArchive = magicArchive;
         this.cureTexture = cureTexture;
+        this.grenadeTexture = grenadeTexture;
         arena = Ff7BattleArenaResources.Load(archive, locationId);
         arenaTextures = arena.Textures.Select(entry => entry.Texture).ToArray();
     }
@@ -92,8 +101,8 @@ public sealed class Ff7BattleRenderer
             {
                 fire ??= LoadBillboard("fi_a01.s", ["fire00.tex", "fire01.tex"], Ff7BattleFireEffect.SpriteFrameCount, page => page switch
                 {
-                    0x100 => 0,
-                    0x104 or 0x144 => 1,
+                    0x2C => 0,
+                    0x2D => 1,
                     _ => throw new NotSupportedException($"FFVII Fire billboard uses unsupported texture page 0x{page:X4}.")
                 });
                 foreach (Ff7BattleFireSprite sprite in effect.Sprites)
@@ -106,8 +115,12 @@ public sealed class Ff7BattleRenderer
                 ice ??= LoadIce();
                 foreach (Ff7BattleIceCrystal crystal in crystals)
                 {
-                    Matrix4x4 transform = Matrix4x4.CreateScale(Ff7BattleIceEffect.Scale(iceEffect.Frame, crystal.CollisionRadius)) * Matrix4x4.CreateTranslation(crystal.X, crystal.Y, crystal.Z);
-                    DrawModel(renderer, ice, [], transform, view, new() { Cull = true }, Ff7BattleIceEffect.Opacity(iceEffect.Frame));
+                    int localFrame = iceEffect.Frame - crystal.StartedAt;
+                    if (localFrame >= 0 && localFrame < Ff7BattleIceEffect.FrameCount)
+                    {
+                        Matrix4x4 transform = Matrix4x4.CreateScale(Ff7BattleIceEffect.Scale(localFrame, crystal.CollisionRadius)) * Matrix4x4.CreateTranslation(crystal.X, crystal.Y, crystal.Z);
+                        DrawModel(renderer, ice, [], transform, view, new() { Cull = true }, Ff7BattleIceEffect.Opacity(localFrame));
+                    }
                 }
             }
             if (frame.Bolt is { Completed: false, Frame: >= 0 } bolt)
@@ -116,15 +129,43 @@ public sealed class Ff7BattleRenderer
             }
             if (frame.Cure is { Particles.Count: > 0 } cureEffect)
             {
-                cure ??= LoadCure();
                 foreach (Ff7BattleCureParticle particle in cureEffect.Particles)
                 {
-                    cure.Draw(renderer, particle.Frame, SpriteAnchor(particle.X, particle.Y, particle.Z, 500, view), width, height, view.Focal, particle.Scale / 4096f);
+                    if (!cure.TryGetValue((cureEffect.Kind, particle.AtlasY), out Ff7BattleBillboardRenderer? particles))
+                    {
+                        particles = LoadCure(cureEffect.Kind, particle.AtlasY);
+                        cure.Add((cureEffect.Kind, particle.AtlasY), particles);
+                    }
+                    particles.Draw(renderer, particle.Frame, SpriteAnchor(particle.X, particle.Y, particle.Z, 500, view), width, height, view.Focal, particle.Scale / 4096f);
                 }
             }
             if (frame.Braver is { Completed: false } braver)
             {
                 DrawBraver(renderer, braver, view);
+            }
+            if (frame.Grenade is { Frame: >= 0 and < Ff7BattleGrenadeEffect.SpriteFrameCount } grenade)
+            {
+                DrawGrenade(renderer, grenade, view);
+            }
+            if (frame.BeatRush is { Completed: false } beatRush)
+            {
+                DrawBeatRush(renderer, beatRush, view);
+            }
+            if (frame.BigShot is { Completed: false } bigShot)
+            {
+                DrawBigShot(renderer, bigShot, view);
+            }
+            foreach (Ff7BattleHitmarkState hitmark in frame.Hitmarks ?? [])
+            {
+                DrawHitmark(renderer, hitmark, view);
+            }
+            if (frame.SmokeShot is { Sprites.Count: > 0 } smokeShot)
+            {
+                DrawSmokeShot(renderer, smokeShot, view);
+            }
+            if (frame.Smog is { Completed: false } smog)
+            {
+                DrawSmog(renderer, smog, view);
             }
         }
         finally
@@ -249,19 +290,24 @@ public sealed class Ff7BattleRenderer
     private void DrawBolt(ITriangleRenderer renderer, Ff7BattleBoltState bolt, CameraView view)
     {
         const string archivePath = "ff7/data/battle/magic/thunder/";
-        if (bolt.Frame < 16 && bolt.Strikes is { } strikes)
+        if (bolt.Strikes is { } strikes)
         {
             shockwave ??= PcPolygonModel.Read(Read(MagicArchive(), archivePath + "thund_3.p"));
             shockwaveTextures ??= [PcTexture.Read(Read(MagicArchive(), archivePath + "sonic_1.tex"))];
             foreach (Ff7BattleBoltStrike strike in strikes)
             {
-                if (bolt.Frame < 9)
+                int frame = bolt.Frame - strike.StartedAt;
+                if (frame is < 0 or >= 16)
+                {
+                    continue;
+                }
+                if (frame < 9)
                 {
                     lightning ??= LoadBillboard("kami_1.s", [archivePath + "thunde00.tex"], 5, _ => 0);
-                    lightning.Draw(renderer, bolt.Frame / 2, SpriteAnchor(strike.X, strike.Y, strike.Z, strike.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2);
+                    lightning.Draw(renderer, frame / 2, SpriteAnchor(strike.X, strike.Y, strike.Z, strike.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2);
                 }
-                float scale = 1 + bolt.Frame / 8f;
-                float opacity = bolt.Frame < 8 ? 1 : (16 - bolt.Frame) / 8f;
+                float scale = 1 + frame / 8f;
+                float opacity = frame < 8 ? 1 : (16 - frame) / 8f;
                 Matrix4x4 transform = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateRotationX(MathF.PI / 2) * Matrix4x4.CreateTranslation(strike.X, strike.Y, strike.Z);
                 DrawModel(renderer, shockwave, shockwaveTextures, transform, view, new() { Cull = true }, opacity);
             }
@@ -290,7 +336,28 @@ public sealed class Ff7BattleRenderer
 
     private static Vector3 SpriteAnchor(short x, short y, short z, int radius, CameraView view)
     {
-        return view.Transform(new(x, y, z)) - Vector3.UnitZ * radius;
+        return OffsetTowardCamera(view.Transform(new(x, y, z)), radius);
+    }
+
+    private static Vector3 OffsetTowardCamera(Vector3 point, int radius)
+    {
+        return point.LengthSquared() == 0 ? point : point - Vector3.Normalize(point) * radius;
+    }
+
+    private void DrawGrenade(ITriangleRenderer renderer, Ff7BattleGrenadeState effect, CameraView view)
+    {
+        if (grenadeHitmark is null)
+        {
+            PcTexture texture = grenadeTexture ?? throw new InvalidOperationException("FFVII Grenade presentation requires its original battle effect texture.");
+            IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> frames = BattleBillboard.Read(Read(MagicArchive(), "ff7/data/battle/effect/hitmark/jo_c02.s"));
+            if (frames.Count != Ff7BattleGrenadeEffect.SpriteFrameCount)
+            {
+                throw new InvalidDataException("FFVII Grenade hitmark has an unexpected native frame count.");
+            }
+            grenadeHitmark = new(frames, [texture], _ => 0, paletteOverride: 23);
+        }
+        Vector3 anchor = SpriteAnchor(effect.X, effect.Y, effect.Z, effect.CollisionRadius, view);
+        grenadeHitmark.Draw(renderer, effect.Frame, anchor, view.Width, view.Height, view.Focal, scale: 6);
     }
 
     private LgpArchive MagicArchive()
@@ -298,15 +365,22 @@ public sealed class Ff7BattleRenderer
         return magicArchive ?? throw new InvalidOperationException("FFVII battle effect presentation requires its original magic archive.");
     }
 
-    private Ff7BattleBillboardRenderer LoadCure()
+    private Ff7BattleBillboardRenderer LoadCure(Ff7BattleCureKind kind, byte atlasY)
     {
         PcTexture texture = cureTexture ?? throw new InvalidOperationException("FFVII Cure presentation requires its original battle effect texture.");
-        IReadOnlyList<BattleBillboardQuad>[] frames = new IReadOnlyList<BattleBillboardQuad>[8];
+        ushort clut = kind switch
+        {
+            Ff7BattleCureKind.Ether => 0x7A47,
+            Ff7BattleCureKind.Antidote => 0x7887,
+            Ff7BattleCureKind.PhoenixDown => 0x78C7,
+            _ => 0x7807
+        };
+        IReadOnlyList<BattleBillboardQuad>[] frames = new IReadOnlyList<BattleBillboardQuad>[atlasY == 0x80 ? 8 : 9];
         for (int frame = 0; frame < frames.Length; frame++)
         {
-            frames[frame] = [new(0x3A, 0, -16, -16, (short)(frame * 32), 0, 0x2E, 0x7807, 31, 31)];
+            frames[frame] = [new(0, 0, -16, -16, (short)(frame % 8 * 32), atlasY, 0x3A, clut, 31, 31)];
         }
-        return new(frames, [texture], _ => 0);
+        return new(frames, [texture], _ => 0, TriangleBlend.Add);
     }
 
     private PcPolygonModel LoadIce()
@@ -420,16 +494,8 @@ public sealed class Ff7BattleRenderer
     {
         public static CameraView Create(SceneCameraPlacement camera, int width, int height)
         {
-            Vector3 direction = camera.Focus - camera.Position;
-            Vector3 right = Vector3.Cross(direction, -Vector3.UnitY);
-            if (right.LengthSquared() == 0)
-            {
-                throw new InvalidDataException("FFVII battle camera requires a nonvertical view direction.");
-            }
-            direction = Vector3.Normalize(direction);
-            right = Vector3.Normalize(right);
-            Vector3 up = Vector3.Cross(right, direction);
-            return new(camera.Position, right, up, direction, width, height, 512 * height / 240f);
+            BattleCameraBasis basis = BattleCameraBasis.Create(camera);
+            return new(basis.Position, basis.Right, basis.Up, basis.Forward, width, height, 512 * height / 240f);
         }
 
         public Vector3 Transform(Vector3 world)

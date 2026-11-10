@@ -22,7 +22,10 @@ public enum Ff7ResourceRole
     Movies,
     Music,
     MovieCameraArchive,
-    Window
+    Window,
+    BattleCamera0,
+    BattleCamera1,
+    BattleCamera2
 }
 
 public sealed record Ff7ResourceLocation(Ff7ResourceRole Role, string Path);
@@ -83,6 +86,9 @@ public sealed class Ff7Installation
         AddLocalized(Ff7ResourceRole.Kernel2, "kernel", "kernel2.bin");
         AddLocalized(Ff7ResourceRole.Window, "kernel", "window.bin");
         AddLocalized(Ff7ResourceRole.BattleScenes, "battle", "scene.bin");
+        AddLocalized(Ff7ResourceRole.BattleCamera0, "battle", "camdat0.bin");
+        AddLocalized(Ff7ResourceRole.BattleCamera1, "battle", "camdat1.bin");
+        AddLocalized(Ff7ResourceRole.BattleCamera2, "battle", "camdat2.bin");
         AddFile(Ff7ResourceRole.SoundData, "sound", "audio.dat");
         AddFile(Ff7ResourceRole.SoundIndex, "sound", "audio.fmt");
         AddDirectory(Ff7ResourceRole.Movies, Path.Combine(data, "movies"));

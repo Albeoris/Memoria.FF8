@@ -82,7 +82,7 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("FFVII party menus require an active continuation.");
         menuText ??= Ff7KernelTextResources.Load(installation);
-        MenuData data = Ff7PlayerMenuProjection.Create(session.Progress, session.Progress.Party, characterIdentity, menuText.ItemNames, menuText.ItemDescriptions, session.World is null ? session.Field.Name : "World map", TimeSpan.FromSeconds(session.Clock.ElapsedSeconds), CanSave, PlayerMenuPortrait);
+        MenuData data = Ff7PlayerMenuProjection.Create(session.Progress, session.Progress.Party, characterIdentity, menuText.ItemNames, menuText.ItemDescriptions, session.World is null ? session.Field.Name : "World map", TimeSpan.FromSeconds(session.Clock.ElapsedSeconds), CanSave, PlayerMenuPortrait, session.GuestFieldVitals?.Read());
         playerMenu!.PopulateHostSettingValues(data, PlayerPreferenceKeys);
         data.Settings["Difficulty"] = PresentationPreferences.Difficulty.ToString();
         return data;

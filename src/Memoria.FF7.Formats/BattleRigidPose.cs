@@ -6,15 +6,20 @@ public static class BattleRigidPose
 {
     public static Vector3 BonePosition(BattleModelData model, BattleClipFrame frame, Vector3 actorPosition, float facingRadians, int bone)
     {
+        return BonePoint(model, frame, actorPosition, facingRadians, bone, Vector3.Zero);
+    }
+
+    public static Vector3 BonePoint(BattleModelData model, BattleClipFrame frame, Vector3 actorPosition, float facingRadians, int bone, Vector3 localPoint)
+    {
         ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bone, (uint)model.Bones.Count);
         Span<Matrix4x4> transforms = stackalloc Matrix4x4[model.Bones.Count];
         Matrix4x4 world = Matrix4x4.CreateRotationY(facingRadians) * Matrix4x4.CreateTranslation(actorPosition);
         if (bone == 0)
         {
-            return (FrameTransform(frame) * world).Translation;
+            return Vector3.Transform(localPoint, FrameTransform(frame) * world);
         }
         WriteTransforms(model, frame, world, transforms);
-        return transforms[bone - 1].Translation;
+        return Vector3.Transform(localPoint, transforms[bone - 1]);
     }
 
     public static void WriteTransforms(BattleModelData model, BattleClipFrame frame, Matrix4x4 world, Span<Matrix4x4> transforms)
@@ -45,7 +50,7 @@ public static class BattleRigidPose
         return Rotation(frame.Rotations[0]) * Matrix4x4.CreateTranslation(frame.X, frame.Y, frame.Z);
     }
 
-    private static Matrix4x4 Rotation(BattleRotationWords words)
+    public static Matrix4x4 Rotation(BattleRotationWords words)
     {
         const float radiansPerWord = MathF.Tau / 4096;
         return Matrix4x4.CreateRotationZ(words.Z * radiansPerWord) * Matrix4x4.CreateRotationX(words.X * radiansPerWord) * Matrix4x4.CreateRotationY(words.Y * radiansPerWord);

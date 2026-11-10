@@ -19,6 +19,8 @@ internal sealed partial class RecreateGame
     private CharacterAppearanceMapping[]? pendingCrossoverMappings;
     private GameSession? suspendedFf8Session;
     private GameWorld? suspendedFf8World;
+    private bool suspendedFf8PayloadChanged;
+    private CombinedSessionSave? pendingMixedOriginResume;
     private bool InFf7 => crossover?.ActiveGame == SessionGame.Ff7;
 
     private void InitializeCrossover()
@@ -178,6 +180,12 @@ internal sealed partial class RecreateGame
                 }
             };
             scene.WorldSwitchRequested += OpenCrossoverSetup;
+            scene.MixedCombatSettled += saved =>
+            {
+                crossover = saved;
+                suspendedFf8PayloadChanged = true;
+            };
+            scene.MixedOriginResumeRequested += saved => pendingMixedOriginResume = saved;
             return scene;
         }
         catch
@@ -222,6 +230,7 @@ internal sealed partial class RecreateGame
         crossover = state;
         suspendedFf8Session = session;
         suspendedFf8World = world;
+        suspendedFf8PayloadChanged = false;
         gameMenus?.Close();
         fieldAudio?.SetFocusPaused(true);
         Window.Title = "Memoria - Final Fantasy VII";
@@ -242,7 +251,7 @@ internal sealed partial class RecreateGame
         {
             CombinedSessionSave target = outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec };
             CrossoverSaveAdapter.ReadFf8(target);
-            if (suspendedFf8Session is not null || suspendedFf8World is not null)
+            if (!suspendedFf8PayloadChanged && (suspendedFf8Session is not null || suspendedFf8World is not null))
             {
                 if (!ReferenceEquals(suspendedFf8Session, session) || !ReferenceEquals(suspendedFf8World, world))
                 {
@@ -264,6 +273,7 @@ internal sealed partial class RecreateGame
         ff7Scene = null;
         suspendedFf8Session = null;
         suspendedFf8World = null;
+        suspendedFf8PayloadChanged = false;
         fieldAudio?.SetFocusPaused(false);
         Window.Title = "Memoria - Final Fantasy VIII";
         keyboard.SuppressHeldUiInput();
@@ -279,6 +289,7 @@ internal sealed partial class RecreateGame
         crossover = saved;
         suspendedFf8Session = null;
         suspendedFf8World = null;
+        suspendedFf8PayloadChanged = false;
         fieldAudio?.SetFocusPaused(InFf7);
         Window.Title = InFf7 ? "Memoria - Final Fantasy VII" : "Memoria - Final Fantasy VIII";
     }
@@ -346,9 +357,33 @@ internal sealed partial class RecreateGame
             keyboard.ControllerGeneration = controller.Generation;
             ff7Scene!.Update(time, windowModeHotkey.Filter(physicalInput.ReadKeyboard()), pad);
         }
+        if (pendingMixedOriginResume is { } mixedOrigin)
+        {
+            pendingMixedOriginResume = null;
+            ResumeFf8AfterMixedDefeat(mixedOrigin);
+            return true;
+        }
         UpdateDiagnosticExit(time);
         presentationPacer.WaitForNextFrame(ff7Scene!.PresentationFrameLimit);
         return true;
+    }
+
+    private void ResumeFf8AfterMixedDefeat(CombinedSessionSave saved)
+    {
+        GameState restored = RestoreFf8Payload(saved);
+        ValidatePlayerState(restored);
+        RestorePlayerState(restored);
+        crossover = saved with { ActiveGame = SessionGame.Ff8 };
+        ff7Scene?.Dispose();
+        ff7Scene = null;
+        suspendedFf8Session = null;
+        suspendedFf8World = null;
+        suspendedFf8PayloadChanged = false;
+        fieldAudio?.SetFocusPaused(false);
+        Window.Title = "Memoria - Final Fantasy VIII";
+        keyboard.SuppressHeldUiInput();
+        drainUiButtons = true;
+        ResetElapsedTime();
     }
 
     private bool DrawCrossover(GameTime time)

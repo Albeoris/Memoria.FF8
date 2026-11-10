@@ -10,7 +10,8 @@ internal sealed partial class Ff7Scene
 {
     private const int BattlePolicyDebugCommand = 4;
     private const int RandomEncountersDebugCommand = 5;
-    private const int DebugCommandCount = 6;
+    private const int MixedCombatDebugCommand = 6;
+    private const int DebugCommandCount = 7;
     private UiView? debugView;
     private bool debugPointerPressed;
 
@@ -35,11 +36,13 @@ internal sealed partial class Ff7Scene
         float scale = preferences.TextScale / 100f * preferences.UiFontSize / 24f;
         UiAnchorPanel root = new();
         UiPanel panel = new() { Caption = "Debug menu", Anchors = new UiAnchors(0.06f, 0.12f, 0.94f, 0.88f), Padding = 18, CaptionHeight = 40 };
-        UiStack content = new() { Gap = 12 };
+        UiAnchorPanel content = new();
+        UiPanel choices = new() { Anchors = new UiAnchors(0, 0, 0.64f, 1), Padding = 8 };
+        UiPanel preview = new() { Caption = "Selection", Anchors = new UiAnchors(0.66f, 0, 1, 1), Padding = 14, CaptionHeight = 32 };
         UiList commands = new()
         {
-            Items = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), "Battle policy: " + (Session?.Progress.FullCombatEnabled == true ? "Full combat" : "Instant victory"), "Random encounters: " + (Session?.Progress.RandomEncountersEnabled == false ? "Off" : "On")],
-            EnabledItems = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle, !IsTitle, !IsTitle],
+            Items = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), "Battle policy: " + (Session?.Progress.FullCombatEnabled == true ? "Full combat" : "Instant victory"), "Random encounters: " + (Session?.Progress.RandomEncountersEnabled == false ? "Off" : "On"), "Squall combat: " + (MixedCombatEnabled ? "On" : "Off")],
+            EnabledItems = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle, !IsTitle, !IsTitle, MixedCombatUnavailableReason() is null],
             SelectedIndex = debugSelection,
             SelectionChanged = index => debugSelection = index,
             Confirmed = index =>
@@ -50,8 +53,13 @@ internal sealed partial class Ff7Scene
             FontSize = 24 * scale,
             RowHeight = 52 * scale
         };
-        content.Children.Add(commands);
-        content.Children.Add(new UiLabel { Text = notice ?? "World switching is available where the original game permits saving.", FontSize = 18 * scale, Height = 90 });
+        choices.Children.Add(commands);
+        content.Children.Add(choices);
+        string details = debugSelection == MixedCombatDebugCommand
+            ? MixedCombatUnavailableReason() ?? "Explicitly bind Squall's FFVIII character, equipment and HP to Cloud's combat slot. Gunblade trigger uses the configured Rotate Right action. Appearance mappings remain a separate selection."
+            : notice ?? "World switching and saving use the original game's available boundaries.";
+        preview.Children.Add(new UiLabel { Text = details, FontSize = 18 * scale });
+        content.Children.Add(preview);
         panel.Children.Add(content);
         root.Children.Add(panel);
         UiView view = new(root) { DesignWidth = 960, DesignHeight = 720, ViewportMode = preferences.MenuPresentation == MenuPresentation.Vector ? UiViewportMode.Expand : UiViewportMode.Fit };

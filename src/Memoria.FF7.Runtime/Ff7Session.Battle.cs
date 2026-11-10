@@ -60,14 +60,25 @@ public sealed partial class Ff7Session
     {
         battleArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         battleMagicArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        battleAnimations ??= new(battleArchive, Ff7PcExecutableData.LoadBattlePlacement(installation), battleMagicArchive);
+        battleAnimations ??= new(battleArchive, Ff7PcExecutableData.LoadBattlePlacement(installation), battleMagicArchive, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
         battleLimits ??= Ff7PcExecutableData.LoadBattleLimits(installation);
         beatRushSymbols ??= Ff7PcExecutableData.LoadBeatRushReel(installation);
     }
 
     public bool ConfirmBattleVictory()
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Victory } battle)
+        return ConfirmBattleVictory(null);
+    }
+
+    public bool ConfirmGuestBattleVictory(Ff7BattleGuestVitalsBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        return ConfirmBattleVictory(binding);
+    }
+
+    private bool ConfirmBattleVictory(Ff7BattleGuestVitalsBinding? guest)
+    {
+        if (Battle is not { Outcome: Ff7BattleOutcome.Victory, ResultReady: true } battle || battle.GuestVitals != guest)
         {
             return false;
         }
@@ -80,7 +91,14 @@ public sealed partial class Ff7Session
 
     public bool ConfirmBattleEscape()
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Escaped } battle)
+        return ConfirmBattleEscape(null);
+    }
+
+    public bool ConfirmGuestBattleEscape(Ff7BattleGuestVitalsBinding binding) => ConfirmBattleEscape(binding);
+
+    private bool ConfirmBattleEscape(Ff7BattleGuestVitalsBinding? guest)
+    {
+        if (Battle is not { Outcome: Ff7BattleOutcome.Escaped, ResultReady: true } battle || battle.GuestVitals != guest)
         {
             return false;
         }
@@ -93,7 +111,14 @@ public sealed partial class Ff7Session
 
     public bool ConfirmBattleDefeat()
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Defeat, ReturnsAfterDefeat: true } battle)
+        return ConfirmBattleDefeat(null);
+    }
+
+    public bool ConfirmGuestBattleDefeat(Ff7BattleGuestVitalsBinding binding) => ConfirmBattleDefeat(binding);
+
+    private bool ConfirmBattleDefeat(Ff7BattleGuestVitalsBinding? guest)
+    {
+        if (Battle is not { Outcome: Ff7BattleOutcome.Defeat, ReturnsAfterDefeat: true, ResultReady: true } battle || battle.GuestVitals != guest)
         {
             return false;
         }

@@ -13,14 +13,34 @@ public enum Ff7BattleOutcome
 }
 
 public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, ushort Gauge, byte[] AiMemory, bool AwaitingTurn = false, bool Defending = false, Ff7BattleStatusTimers Timers = default, byte LimitGauge = 0, Dictionary<byte, int>? AllUses = null);
-public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null)
+public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
-    public bool EffectRunning => Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false };
+    public int? FacingYaw { get; init; }
+    public Ff7BattleReactionState? TargetReactions { get; init; }
+    public Ff7BattleHit? PendingDisplayHit { get; init; }
+    public Ff7BattleGrenadeState? Grenade { get; init; }
+    public Ff7BattleBeatRushState? BeatRushEffect { get; init; }
+    public Ff7BattleBigShotState? BigShot { get; init; }
+    public Ff7BattleSmokeShotState? SmokeShot { get; init; }
+    public Ff7BattleSmogState? Smog { get; init; }
+    public bool EffectRunning => Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || Grenade is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false };
 }
 public sealed record Ff7BattleHit(int Source, int Target, ushort AttackId, Ff7BattleDamageResult Damage, long Tick);
 public sealed record Ff7BattleReaction(int Slot, long Tick);
 public sealed record Ff7BattleLimitSelection(int Slot, ushort Targets, Ff7BeatRushReel Reel);
-public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Layout, long Tick, Ff7BattleActorState[] Actors, Ff7BattleRngState Random, Ff7BattleCommandQueueState Queue, Ff7InventorySlot[] Inventory, Ff7BattleActionState? Action = null, Ff7BattleHit? LastHit = null, Ff7BattleOutcome Outcome = Ff7BattleOutcome.Fighting, string? Message = null, Ff7BattleReaction? Reaction = null, Ff7BattleLimitSelection? BeatRush = null, short BeatRushPosition = 0, Ff7BattleEscapeState Escape = default, bool EscapeBlocked = false, ushort RequestFlags = 0, byte RequestMode = 0, int? EntryMusicTrack = null);
+public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Layout, long Tick, Ff7BattleActorState[] Actors, Ff7BattleRngState Random, Ff7BattleCommandQueueState Queue, Ff7InventorySlot[] Inventory, Ff7BattleActionState? Action = null, Ff7BattleHit? LastHit = null, Ff7BattleOutcome Outcome = Ff7BattleOutcome.Fighting, Ff7BattleReaction? Reaction = null, Ff7BattleLimitSelection? BeatRush = null, short BeatRushPosition = 0, Ff7BattleEscapeState Escape = default, bool EscapeBlocked = false, ushort RequestFlags = 0, byte RequestMode = 0, int? EntryMusicTrack = null, Ff7BattleMessageState? Messages = null, int TerminalFrames = 0, long? EscapePoseStarted = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Ff7BattleGuestVitalsBinding? GuestVitals = null)
+{
+    public Ff7BattleHit? DisplayedHit { get; init; }
+    public bool GuestAttackUsed { get; init; }
+    public bool GuestPresentationAttached { get; init; }
+    public Ff7BattleSoundState? Sounds { get; init; }
+    public Ff7BattleSoundReceipt[] SoundRequests { get; init; } = [];
+    public short[]? SoundProjectedX { get; init; }
+    public int SoundAttacker { get; init; }
+    public short BigShotChargeRotation { get; init; }
+    public short BigShotCounterRotation { get; init; }
+    public Ff7BattleHitmarkState[] Hitmarks { get; init; } = [];
+}
 
 /// <summary>One FFVII encounter, bound to a single field request and its native physical actor slots.</summary>
 public sealed partial class Ff7BattleSession
@@ -76,7 +96,7 @@ public sealed partial class Ff7BattleSession
         if (snapshot is not null)
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
-            state = snapshot with { Actors = (Ff7BattleActorState[])snapshot.Actors.Clone(), Inventory = (Ff7InventorySlot[])snapshot.Inventory.Clone() };
+            state = CopySnapshot(snapshot);
             return;
         }
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
@@ -107,8 +127,9 @@ public sealed partial class Ff7BattleSession
     public IReadOnlyList<Ff7BattleActorState> Actors => Array.AsReadOnly(state.Actors);
     public Ff7BattleActionState? Action => state.Action;
     public Ff7BattleHit? LastHit => state.LastHit;
+    public Ff7BattleHit? DisplayedHit => state.DisplayedHit;
     public Ff7BattleReaction? Reaction => state.Reaction;
-    public string? Message => state.Message;
+    public string? Message => state.Messages?.Visible;
     public bool EscapeBlocked => state.EscapeBlocked;
     public bool ReturnsAfterDefeat => state.RequestMode != 0;
     public int? MusicTrack => Outcome switch
@@ -117,18 +138,32 @@ public sealed partial class Ff7BattleSession
         Ff7BattleOutcome.Defeat when !ReturnsAfterDefeat => 58,
         _ => state.EntryMusicTrack
     };
-    public int? ReadyPlayer => BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor))?.Actor.Slot;
-    public bool BeatRushSelecting => state.BeatRush is { Reel.Stopped: false };
+    public bool ResultReady => Outcome != Ff7BattleOutcome.Fighting && state.TerminalFrames >= TerminalDuration;
+    public int? ReadyPlayer => Outcome != Ff7BattleOutcome.Fighting || BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor))?.Actor.Slot;
+    public bool BeatRushSelecting => Outcome == Ff7BattleOutcome.Fighting && state.BeatRush is { Reel.Stopped: false };
     public Ff7BeatRushSlot? BeatRushVisible => state.BeatRush?.Reel.ReadVisibleSymbol(beatRushSymbols);
     public long RequestId => state.RequestId;
 
+    private bool CelebrateVictory => (Formation.BattleFlags & 8) != 0 && (state.RequestFlags & 0x100) == 0;
+    private int TerminalDuration => Outcome switch
+    {
+        Ff7BattleOutcome.Victory when CelebrateVictory => 49,
+        Ff7BattleOutcome.Escaped => 8,
+        Ff7BattleOutcome.Defeat => 30,
+        _ => 1
+    };
+
     public Ff7BattleSnapshot Capture()
     {
-        return state with { Actors = state.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(), Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), Random = random.Capture() };
+        return CopySnapshot(state with { Random = random.Capture() });
     }
 
     public string Name(int slot)
     {
+        if (state.GuestVitals is { } guest && guest.HostSlot == slot)
+        {
+            return guest.OriginName;
+        }
         return slot < 3 ? characters[slot]!.Name : ReadBattleText(Enemy(slot).Rewards.Name.Span);
     }
 
@@ -144,6 +179,20 @@ public sealed partial class Ff7BattleSession
     {
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
+            if (!ResultReady)
+            {
+                state = state with { Tick = checked(state.Tick + 1) };
+                if ((Tick - 1) % LogicUpdatesPerPresentation == 0)
+                {
+                    state = state with { TerminalFrames = state.TerminalFrames + 1 };
+                    if (Outcome == Ff7BattleOutcome.Escaped)
+                    {
+                        AppendSounds(Ff7NativeBattleSound.Escape(state.Sounds ?? Ff7BattleSoundState.Empty));
+                    }
+                    AdvanceBattleSounds();
+                    AdvanceHitmarks();
+                }
+            }
             return;
         }
         state = state with { Tick = checked(state.Tick + 1) };
@@ -151,6 +200,8 @@ public sealed partial class Ff7BattleSession
         if ((Tick - 1) % LogicUpdatesPerPresentation == 0)
         {
             AdvancePresentation(escapeHeld);
+            AdvanceBattleSounds();
+            AdvanceHitmarks();
         }
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
@@ -169,12 +220,17 @@ public sealed partial class Ff7BattleSession
 
     private void AdvancePresentation(bool escapeHeld)
     {
+        if (state.Messages is { } messages)
+        {
+            state = state with { Messages = Ff7NativeBattleMessage.AdvancePresentation(messages, liveFrame: true, paused: false) };
+        }
         bool won = !state.Actors.Any(actor => actor.Actor.Slot >= 4 && IsAlive(actor) && (actor.Actor.Conditions & 0x18) != 0);
         bool lost = !state.Actors.Any(actor => actor.Actor.Slot < 3 && IsAlive(actor));
         bool pincer = Ff7NativeAtb.BattleTypeForLayout(Layout) == 4 && state.Actors.Where(actor => actor.Actor.Slot >= 4 && IsAlive(actor)).Select(actor => FacingGroup(actor.Actor)).Distinct().Count() > 1;
         bool partyCanMove = state.Actors.Any(actor => actor.Actor.Slot < 3 && CanAct(actor) && (actor.Actor.Statuses & 0x400) == 0);
         Ff7BattleEscapeInput escape = Ff7NativeBattleEscape.UpdatePresentation(state.Escape, escapeHeld, Ff7NativeBattleEscape.IsAllowed(Formation, (state.RequestFlags & 8) != 0), partyCanMove, pincer, won || lost, random);
-        state = state with { Escape = escape.State, EscapeBlocked = escape.ShowBlockedMessage };
+        long? escapePose = escapeHeld && !escape.ShowBlockedMessage && !won && !lost ? state.EscapePoseStarted ?? PresentationTick : null;
+        state = state with { Escape = escape.State, EscapeBlocked = escape.ShowBlockedMessage, EscapePoseStarted = escapePose };
         if (escape.Escaped)
         {
             state = state with { Outcome = Ff7BattleOutcome.Escaped, Action = null };
@@ -248,7 +304,12 @@ public sealed partial class Ff7BattleSession
         }
         if (command.CommandId == 0x21)
         {
-            state = state with { Message = ReadBattleText(command.Message ?? throw new InvalidDataException("A FFVII battle message requires its original text.")) };
+            string message = ReadBattleText(command.Message ?? throw new InvalidDataException("A FFVII battle message requires its original text."));
+            state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, message) };
+            if (command.Priority is 1 or 2)
+            {
+                FinishTurn(command.ActorSlot);
+            }
             return;
         }
         if (command.CommandId == 0x24)
@@ -265,8 +326,13 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
+        command = ResolveEnemyCommand(command);
         command = command with { TargetMask = ResolveQueuedTargets(command) };
-        state = state with { Action = new(command, Tick, Animation(command)) };
+        int animation = Animation(command);
+        Ff7BattleMotion? motion = command.CommandId == (byte)Ff7BattleCommand.Change && animation >= 0 && animations is not null
+            ? new(Ff7BattlePosition.FromVector(HomePlacement(command.ActorSlot).Position), default, 0)
+            : null;
+        state = state with { Action = new(command, Tick, animation, Motion: motion), SoundAttacker = command.ActorSlot };
     }
 
     private void InvokeAi(int slot, byte callback)
@@ -309,7 +375,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleAiActor native = actor.Actor;
         Ff7BattleDamageActor stats = native.Slot < 3 ? party[native.Slot]!.Value.Actor : Ff7NativeBattleDamage.FromEnemy(Enemy(native.Slot));
-        return stats with { Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints };
+        return ProjectGuestDefense(actor, stats with { Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
     }
 
     private void ResetGauge(int slot)
@@ -341,10 +407,47 @@ public sealed partial class Ff7BattleSession
 
     private void ValidateSnapshot(Ff7BattleSnapshot snapshot, long requestId, List<Ff7BattleActorState> expected)
     {
-        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Inventory is null || snapshot.Queue is null || !snapshot.Actors.Select(actor => (actor.Actor.Slot, actor.Identity)).SequenceEqual(expected.Select(actor => (actor.Actor.Slot, actor.Identity))) || snapshot.Actors.Any(actor => actor.AiMemory is not { Length: 0 or 128 }) || snapshot.EntryMusicTrack is < 1 or > 98)
+        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98)
         {
             throw new InvalidDataException("FFVII battle snapshot conflicts with its native encounter or physical actors.");
         }
+        if (snapshot.Actors.Any(actor => actor?.Actor is null || actor.AiMemory is not { Length: 0 or Ff7BattleAi.LocalMemorySize }) || !snapshot.Actors.Select(actor => (actor.Actor.Slot, actor.Identity)).SequenceEqual(expected.Select(actor => (actor.Actor.Slot, actor.Identity))))
+        {
+            throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
+        }
+        if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
+        {
+            throw new InvalidDataException("FFVII battle snapshot has an invalid presentation or action cursor.");
+        }
         snapshot.Queue.Validate();
+        ValidateGuestVitalsSnapshot(snapshot);
+        ValidateSoundSnapshot(snapshot);
+        if (snapshot.Hitmarks is null || snapshot.Hitmarks.Any(hitmark => hitmark is null || hitmark.Target is < 0 or > 9 or 3 || hitmark.Definition?.Cues is null || hitmark.Frame < -1 || hitmark.Frame > hitmark.Definition.FrameCount || snapshot.Actors.All(actor => actor.Actor.Slot != hitmark.Target)))
+        {
+            throw new InvalidDataException("FFVII battle snapshot has an invalid target hitmark.");
+        }
+    }
+
+    private static Ff7BattleSnapshot CopySnapshot(Ff7BattleSnapshot source)
+    {
+        Ff7BattleCommandQueueState queue = source.Queue;
+        return source with
+        {
+            Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(),
+            Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
+            Action = CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action),
+            Queue = queue with
+            {
+                Slots = queue.Slots.Select(entry => entry is null ? null : entry with { Command = entry.Command with { Message = entry.Command.Message?.ToArray() } }).ToArray(),
+                Ready = queue.Ready.Select(command => command is null ? null : command with { Message = command.Message?.ToArray() }).ToArray(),
+                ReadSequences = (byte[])queue.ReadSequences.Clone(),
+                WriteSequences = (byte[])queue.WriteSequences.Clone()
+            },
+            Messages = source.Messages is null ? null : source.Messages with { Pending = (Ff7BattleMessageEntry[])source.Messages.Pending.Clone() },
+            Hitmarks = source.Hitmarks.ToArray(),
+            Sounds = source.Sounds is null ? null : CopySoundState(source.Sounds),
+            SoundRequests = (Ff7BattleSoundReceipt[])source.SoundRequests.Clone(),
+            SoundProjectedX = source.SoundProjectedX?.ToArray()
+        };
     }
 }

@@ -13,6 +13,7 @@ internal sealed partial class Ff7Scene
     private LgpArchive? battleArchive;
     private LgpArchive? battleMagicArchive;
     private PcTexture? battleCureTexture;
+    private PcTexture? battleGrenadeTexture;
     private Ff7BattleRenderer? battleRenderer;
     private Ff7BattleSession? presentedBattle;
     private IReadOnlyList<string>? battleSpellNames;
@@ -26,30 +27,39 @@ internal sealed partial class Ff7Scene
     private void UpdateBattle(GameTime gameTime, Ff7BattleSession battle)
     {
         Ff7Session session = Session!;
+        EnsureMixedBattle(battle);
         if (battle.Outcome != Ff7BattleOutcome.Fighting)
         {
+            if (!battle.ResultReady)
+            {
+                AdvanceBattleTime(gameTime, battle, escapeHeld: false);
+                return;
+            }
             UpdateAudio();
             if (semanticInput.Confirm)
             {
-                if (battle.Outcome == Ff7BattleOutcome.Victory)
+                if (!TrySettleMixedBattle(battle))
                 {
-                    session.ConfirmBattleVictory();
-                }
-                else if (battle.Outcome == Ff7BattleOutcome.Escaped)
-                {
-                    session.ConfirmBattleEscape();
-                }
-                else if (battle.ReturnsAfterDefeat)
-                {
-                    session.ConfirmBattleDefeat();
-                }
-                else
-                {
-                    StopAudio();
-                    autoPlay = null;
-                    Session = null;
-                    session.Dispose();
-                    titleSelection = 1;
+                    if (battle.Outcome == Ff7BattleOutcome.Victory)
+                    {
+                        session.ConfirmBattleVictory();
+                    }
+                    else if (battle.Outcome == Ff7BattleOutcome.Escaped)
+                    {
+                        session.ConfirmBattleEscape();
+                    }
+                    else if (battle.ReturnsAfterDefeat)
+                    {
+                        session.ConfirmBattleDefeat();
+                    }
+                    else
+                    {
+                        StopAudio();
+                        autoPlay = null;
+                        Session = null;
+                        session.Dispose();
+                        titleSelection = 1;
+                    }
                 }
                 tickRemainder = 0;
                 ResetBattlePresentation();
@@ -79,11 +89,18 @@ internal sealed partial class Ff7Scene
                 pendingLimitConfirm |= semanticInput.Confirm;
             }
         }
+        bool escapeHeld = (Ff7ControlButtons.FromShared(sharedInput.HeldFieldButtons) & 0x0C) == 0x0C;
+        ReadMixedTrigger();
+        AdvanceBattleTime(gameTime, battle, escapeHeld);
+    }
+
+    private void AdvanceBattleTime(GameTime gameTime, Ff7BattleSession battle, bool escapeHeld)
+    {
+        Ff7Session session = Session!;
         session.AdvanceClock(gameTime.ElapsedGameTime);
         tickRemainder += sharedClock.Advance(TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), SceneKind.Field, battle: true).TotalSeconds;
-        bool escapeHeld = (Ff7ControlButtons.FromShared(sharedInput.HeldFieldButtons) & 0x0C) == 0x0C;
         const double tickDuration = 1d / Ff7BattleSession.LogicUpdatesPerSecond;
-        while (tickRemainder >= tickDuration && battle.Outcome == Ff7BattleOutcome.Fighting)
+        while (tickRemainder >= tickDuration && !battle.ResultReady)
         {
             tickRemainder -= tickDuration;
             session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld);
@@ -139,7 +156,7 @@ internal sealed partial class Ff7Scene
 
     private void DrawBattle(SpriteBatch batch, Rectangle bounds, Ff7BattleSession battle)
     {
-        if (battle.Outcome != Ff7BattleOutcome.Fighting)
+        if (battle.ResultReady)
         {
             DrawWindow(batch, new Rectangle(50, 91, 220, 67), bounds);
             string result = battle.Outcome switch { Ff7BattleOutcome.Victory => "Victory!", Ff7BattleOutcome.Escaped => "Escaped", _ => "Game Over" };
@@ -205,7 +222,7 @@ internal sealed partial class Ff7Scene
             DrawWindow(batch, new Rectangle(10, 9, 300, 23), bounds);
             DrawPlain(batch, message, 16, 15, bounds);
         }
-        if (battle.LastHit is { } hit && battle.Tick - hit.Tick < Ff7BattleSession.LogicUpdatesPerSecond)
+        if (battle.DisplayedHit is { } hit && battle.Tick - hit.Tick < Ff7BattleSession.LogicUpdatesPerSecond)
         {
             string value = hit.Damage.Missed ? "Miss" : Math.Abs(hit.Damage.Damage).ToString();
             DrawPlain(batch, $"{battle.Name(hit.Target)}  {value}", 16, 40, bounds, hit.Damage.Damage < 0 ? 6 : 7);
@@ -247,18 +264,24 @@ internal sealed partial class Ff7Scene
 
     private void RenderBattle(Ff7BattleSession battle, Rectangle bounds)
     {
+        EnsureMixedBattle(battle);
         if (!ReferenceEquals(presentedBattle, battle))
         {
             battleArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
             battleMagicArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
             battleCureTexture ??= Ff7BattleCureResources.Load(installation);
-            battleRenderer = new(battleArchive, battle.Formation.LocationId, battleMagicArchive, cureTexture: battleCureTexture);
+            battleGrenadeTexture ??= Ff7BattleGrenadeResources.Load(installation);
+            battleRenderer = new(battleArchive, battle.Formation.LocationId, battleMagicArchive, cureTexture: battleCureTexture, grenadeTexture: battleGrenadeTexture);
             presentedBattle = battle;
         }
         List<Ff7BattleActorVisual> visuals = [];
         foreach (Ff7BattleActorState actor in battle.Actors)
         {
             int slot = actor.Actor.Slot;
+            if (IsMixedBattleSlot(slot))
+            {
+                continue;
+            }
             Ff7BattlePlacement placement = battle.VisualPlacement(slot);
             string model;
             int? weapon;
@@ -280,7 +303,7 @@ internal sealed partial class Ff7Scene
             (int clip, int frame) = battle.VisualPose(slot);
             visuals.Add(new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.VisualLimit(slot)));
         }
-        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.Data.Cameras[0], visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure));
+        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.Data.Cameras[0], visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Guest = MixedBattleVisual(battle) });
     }
 
     private void ResetBattlePresentation()

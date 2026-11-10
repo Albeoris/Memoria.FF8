@@ -11,7 +11,7 @@ internal sealed class Ff7BattleBillboardRenderer
     private readonly PcTexture[] pages;
     private readonly Dictionary<(int Page, int Palette), PixelImage> images = [];
 
-    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace)
+    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, int? paletteOverride = null)
     {
         this.pages = pages;
         frames = new IReadOnlyList<Quad>[billboard.Count];
@@ -23,12 +23,12 @@ internal sealed class Ff7BattleBillboardRenderer
                 BattleBillboardQuad source = billboard[frame][index];
                 int page = selectPage(source.TexturePage);
                 PcTexture texture = pages[page];
-                int palette = (source.Clut >> 6) - BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xE0..]);
-                if ((uint)palette >= texture.Palettes.Count || (uint)source.U >= texture.Width || (uint)source.V >= texture.Height || source.Width == 0 || source.Height == 0 || source.U + source.Width > texture.Width || source.V + source.Height > texture.Height || (source.Flip & ~3) != 0 || source.Command is not (0x2C or 0x2D or 0x2E))
+                int palette = paletteOverride ?? ((source.Clut >> 6) - BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xE0..]));
+                if ((uint)palette >= texture.Palettes.Count || (uint)source.U >= texture.Width || (uint)source.V >= texture.Height || source.Width == 0 || source.Height == 0 || source.U + source.Width > texture.Width || source.V + source.Height > texture.Height || (source.Flip & ~3) != 0)
                 {
                     throw new InvalidDataException("FFVII battle billboard quad references data outside its original page.");
                 }
-                quads[index] = new(source.X, source.Y, source.U, source.V, source.Width, source.Height, page, palette, source.Flip, source.Command == 0x2E ? TriangleBlend.Add : blend);
+                quads[index] = new(source.X, source.Y, source.U, source.V, source.Width, source.Height, page, palette, source.Flip, blend);
             }
             frames[frame] = quads;
         }
@@ -36,7 +36,7 @@ internal sealed class Ff7BattleBillboardRenderer
 
     public int FrameCount => frames.Length;
 
-    public void Draw(ITriangleRenderer renderer, int frame, Vector3 anchor, int width, int height, float focal, float scale = 1, int flip = 0)
+    public void Draw(ITriangleRenderer renderer, int frame, Vector3 anchor, int width, int height, float focal, float scale = 1, int flip = 0, float brightness = 1, Func<Vector3, Vector3>? transform = null)
     {
         if ((uint)frame >= frames.Length)
         {
@@ -62,7 +62,8 @@ internal sealed class Ff7BattleBillboardRenderer
 
             CameraSpaceVertex Vertex(int x, int y, float u, float v)
             {
-                return new(anchor + new Vector3(x * 8 * scaleX, -y * 8 * scaleY, 0), new(u, v));
+                Vector3 position = transform is null ? anchor + new Vector3(x * 8 * scaleX, -y * 8 * scaleY, 0) : transform(new(x * 8 * scaleX, y * 8 * scaleY, 0));
+                return new(position, new(u, v), new(brightness, brightness, brightness, 1));
             }
 
             CameraSpaceVertex a = Vertex(quad.X, quad.Y, u0, v0);

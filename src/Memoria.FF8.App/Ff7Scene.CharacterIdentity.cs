@@ -29,5 +29,6 @@ internal sealed partial class Ff7Scene
     {
         characterIdentity = Ff7CharacterPresentationIdentity.FromSave(envelope);
         session.PresentationNameResolver = (character, nativeName) => characterIdentity.Resolve(character, nativeName).Name;
+        AttachMixedFieldVitals();
     }
 }

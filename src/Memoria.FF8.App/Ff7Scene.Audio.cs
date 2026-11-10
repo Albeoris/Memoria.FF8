@@ -34,16 +34,24 @@ internal sealed partial class Ff7Scene
             audioHost.NativeSoundRequested = PlayNativeSound;
             audioHost.NativeSoundLoopAlreadyPlaying = soundChannels.IsLoopPlaying;
         }
+        Ff7BattleSoundReceipt[] battleSounds = session.Battle?.DrainSoundRequests() ?? [];
         if (!audioEnabled)
         {
             return;
         }
-        ApplyNativeResidentStops();
+        if (session.Battle is null)
+        {
+            ApplyNativeResidentStops();
+            RefreshNativeGains();
+            RefreshNativePans();
+            RefreshNativeFrequencies();
+        }
         RestorePendingSounds();
         Ff7FieldProcess state = session.Host.Process;
-        RefreshNativeGains();
-        RefreshNativePans();
-        RefreshNativeFrequencies();
+        foreach (Ff7BattleSoundReceipt sound in battleSounds)
+        {
+            PlayBattleSound(sound);
+        }
         soundChannels.SetTempo(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, session.Battle is not null));
         int track = session.Battle?.MusicTrack ?? state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
         track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
@@ -278,6 +286,20 @@ internal sealed partial class Ff7Scene
         Ff7FieldProcess state = host.Process;
         int soundIntensity = state.SoundChannelVolumes[control];
         soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(soundIntensity, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, stopStream: request.StopStream, nativeVolume: soundIntensity, nativeSampleRate: decoded.NativeRate, nativePitch: state.SoundChannelPitches[control], nativeLoopDelaySeconds: decoded.LoopDelay, nativePanVersion: state.SoundChannelPanVersions[control], nativeFrequencyVersion: state.SoundChannelFrequencyVersions[control], nativeGainVersion: state.SoundChannelGainVersions[control]);
+        soundChannels.Pause(audioPaused);
+    }
+
+    private void PlayBattleSound(Ff7BattleSoundReceipt request)
+    {
+        if (request.Sound == 0)
+        {
+            soundChannels.StopNativeChannel(1);
+            return;
+        }
+        var decoded = DecodeSound(request.Sound);
+        audioOutput ??= new PcmAudioOutput();
+        audioNative ??= Ff7PcExecutableData.Load(installation);
+        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[request.Pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
         soundChannels.Pause(audioPaused);
     }
 

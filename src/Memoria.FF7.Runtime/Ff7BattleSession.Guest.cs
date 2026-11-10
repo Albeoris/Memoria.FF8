@@ -13,11 +13,14 @@ public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, 
 public interface IFf7BattleGuestAttack
 {
     int ActorSlot { get; }
+    Guid EncounterId { get; }
     Ff7BattleGuestInvocation? Invocation { get; }
+    long HostTick { get; }
     bool ContactPublished { get; }
     bool Supports(Ff7BattleGuestAttackTarget target);
     void Begin(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target);
     Ff7BattleGuestAttackUpdate Advance(long hostTick);
+    void AdvanceIdle(long hostTick, uint statuses, long? reactionTick);
 }
 
 public sealed partial class Ff7BattleSession
@@ -27,13 +30,14 @@ public sealed partial class Ff7BattleSession
     public void BindGuestAttack(IFf7BattleGuestAttack guest)
     {
         ArgumentNullException.ThrowIfNull(guest);
-        if (guestAttack is not null || animations is null || guest.ActorSlot is < 0 or >= 3 || !state.Actors.Any(actor => actor.Actor.Slot == guest.ActorSlot))
+        if (guestAttack is not null || animations is null || guest.ActorSlot is < 0 or >= 3 || !state.Actors.Any(actor => actor.Actor.Slot == guest.ActorSlot) || state.GuestVitals is { } binding && (binding.EncounterId != guest.EncounterId || binding.HostSlot != guest.ActorSlot))
         {
             throw new InvalidOperationException("A guest attack requires one occupied host slot and original battle geometry.");
         }
         if (state.Action is { Command.GuestAttack: true } active)
         {
-            if (guest.Invocation != GuestInvocation(active.Command, active.StartedAt) || guest.ContactPublished != active.Applied || guest.ActorSlot != active.Command.ActorSlot)
+            Ff7BattleCommandQueue.ValidateCommand(active.Command);
+            if (guest.Invocation != GuestInvocation(active.Command, active.StartedAt) || guest.HostTick != Tick || guest.ContactPublished != active.Applied || guest.ActorSlot != active.Command.ActorSlot)
             {
                 throw new InvalidDataException("The guest presentation does not match the saved host action occurrence.");
             }
@@ -47,11 +51,12 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("The saved guest queue belongs to a different host slot.");
         }
         guestAttack = guest;
+        state = state with { GuestPresentationAttached = true };
     }
 
     public bool SubmitGuestAttack(int slot, int targetSlot)
     {
-        if (Outcome != Ff7BattleOutcome.Fighting || guestAttack is not { } guest || slot != guest.ActorSlot || ReadyPlayer != slot || Actor(slot).Actor.Statuses != 0 || targetSlot is < 4 or > 9 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && IsAlive(actor) && (actor.Actor.Conditions & 8) != 0))
+        if (Outcome != Ff7BattleOutcome.Fighting || guestAttack is not { } guest || slot != guest.ActorSlot || ReadyPlayer != slot || !CanAct(Actor(slot)) || targetSlot is < 4 or > 9 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && IsAlive(actor) && (actor.Actor.Conditions & 8) != 0))
         {
             return false;
         }
@@ -74,19 +79,33 @@ public sealed partial class Ff7BattleSession
         IFf7BattleGuestAttack guest = RequireGuestAttack(command);
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
         Ff7BattleActorState target = Actor(invocation.TargetSlot);
-        if (!IsAlive(target) || (target.Actor.Conditions & 8) == 0 || !guest.Supports(DescribeGuestTarget(invocation.TargetSlot)))
+        if (!CanAct(Actor(command.ActorSlot)) || !IsAlive(target) || (target.Actor.Conditions & 8) == 0)
         {
             FinishTurn(command.ActorSlot);
             return true;
         }
-        guest.Begin(invocation, VisualPlacement(command.ActorSlot), DescribeGuestTarget(invocation.TargetSlot));
-        state = state with { Action = new(command, Tick, -1) };
+        Ff7BattleGuestAttackTarget targetDescription = DescribeGuestTarget(invocation.TargetSlot);
+        if (!guest.Supports(targetDescription))
+        {
+            FinishTurn(command.ActorSlot);
+            return true;
+        }
+        guest.Begin(invocation, VisualPlacement(command.ActorSlot), targetDescription);
+        state = state with { Action = new(command, Tick, -1), GuestAttackUsed = true };
         return true;
     }
 
     private void AdvanceGuestAttack()
     {
-        if (state.Action is not { Command.GuestAttack: true } active || active.StartedAt == Tick)
+        if (state.Action is not { Command.GuestAttack: true } active)
+        {
+            if (guestAttack is { } idle)
+            {
+                idle.AdvanceIdle(Tick, Actor(idle.ActorSlot).Actor.Statuses, state.Reaction?.Slot == idle.ActorSlot ? state.Reaction.Tick : null);
+            }
+            return;
+        }
+        if (active.StartedAt == Tick)
         {
             return;
         }
@@ -113,7 +132,7 @@ public sealed partial class Ff7BattleSession
                 throw new InvalidDataException("The guest presentation completed without settling its original physical contact.");
             }
             FinishTurn(active.Command.ActorSlot);
-            state = state with { Action = null, Message = null };
+            state = state with { Action = null };
         }
         else
         {

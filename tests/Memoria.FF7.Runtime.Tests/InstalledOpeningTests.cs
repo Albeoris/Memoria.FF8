@@ -171,6 +171,12 @@ internal static class InstalledOpeningTests
         }
         Equal(Ff7BattleOutcome.Victory, battle.Outcome);
         Equal(true, approached);
+        Equal(false, original.ConfirmBattleVictory());
+        while (!battle.ResultReady)
+        {
+            original.AdvanceTick();
+            cold.AdvanceTick();
+        }
         Equal(0, original.Progress.CompletedBattles.Length);
         Equal(true, original.ConfirmBattleVictory());
         Equal(true, cold.ConfirmBattleVictory());
@@ -183,6 +189,7 @@ internal static class InstalledOpeningTests
         Equal((ushort)300, original.Progress.CompletedBattles[0].Formation);
         Console.WriteLine($"Original BATTLE 300 took native attack {firstHit.AttackId} for {firstHit.Damage.Damage} HP, restored cold and published one victory.");
         CheckEncounterEscape(original);
+        CheckMateriaEquipment(installation, original);
 
         static void SubmitAttack(Ff7BattleSession battle)
         {
@@ -201,11 +208,13 @@ internal static class InstalledOpeningTests
         int entity = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
         session.Host.StartEncounter(new(request, entity, 7, 0, new FieldBattleCommand(301)), 0);
         Ff7BattleSession encounter = session.Battle ?? throw new InvalidOperationException("The field encounter did not start a native battle.");
-        for (int tick = 0; tick < 6000 && encounter.Outcome == Ff7BattleOutcome.Fighting; tick++)
+        float startingZ = encounter.VisualPlacement(0).Position.Z;
+        for (int tick = 0; tick < 6000 && !encounter.ResultReady; tick++)
         {
             session.AdvanceTick(advanceClock: false, escapeBattleHeld: true);
         }
         Equal(Ff7BattleOutcome.Escaped, encounter.Outcome);
+        Equal(3200f, encounter.VisualPlacement(0).Position.Z - startingZ);
         Equal(true, session.ConfirmBattleEscape());
         Equal(false, session.ConfirmBattleEscape());
         Equal(8, session.Host.Process.BattleResult);
@@ -214,6 +223,24 @@ internal static class InstalledOpeningTests
         session.AdvanceTick();
         Equal<FieldHostRequest?>(null, session.Host.Process.EncounterRequest);
         Console.WriteLine("The original formation 301 field owner consumed one flee result without awarding victory rewards.");
+    }
+
+    private static void CheckMateriaEquipment(Ff7Installation installation, Ff7Session session)
+    {
+        int entity = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
+        long request = session.Progress.NextEncounterRequestId + 100;
+        session.Host.Execute(new(request, entity, 7, 0, new FieldMateriaCommand(0x35)));
+        session.Host.Execute(new(request + 1, entity, 7, 0, new FieldMateriaCommand(0x17)));
+        Ff7MateriaState[] stock = Ff7NativeMateriaInventory.Normalize(session.Progress.Materia);
+        Equal(true, session.EquipMateria(0, 0, stock.First(materia => materia.MateriaId == 0x35).NativeSlot));
+        Equal(true, session.EquipMateria(0, 1, stock.First(materia => materia.MateriaId == 0x17).NativeSlot));
+        IReadOnlyList<Ff7EquippedMateriaSlot> slots = session.EquippedMateria(0);
+        Equal(true, slots.Any(slot => slot is { Slot: 0, Linked: true, MateriaId: 0x35 }));
+        Equal(true, slots.Any(slot => slot is { Slot: 1, Linked: true, MateriaId: 0x17 }));
+        Ff7SessionSave save = JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(session.Capture()))!;
+        using Ff7Session cold = Ff7Session.Restore(installation, save);
+        Equal(true, slots.SequenceEqual(cold.EquippedMateria(0)));
+        Equal(true, session.Progress.Materia.SequenceEqual(cold.Progress.Materia));
     }
 
     private static void RunFirstEnemyAction(Ff7Installation installation, Ff7Progress progress, FieldBattleCommand request)

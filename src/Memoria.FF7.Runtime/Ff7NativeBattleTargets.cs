@@ -82,6 +82,12 @@ public static class Ff7NativeBattleTargets
         return (ushort)targets;
     }
 
+    public static ushort ResolveNumericalPass(ushort targets, byte targetFlags, byte command, Ff7BattleRng random)
+    {
+        ArgumentNullException.ThrowIfNull(random);
+        return (targetFlags & 0x80) != 0 && command != 3 ? (ushort)Pick(targets, random) : targets;
+    }
+
     private static int Pick(int mask, Ff7BattleRng random)
     {
         if (mask == 0)

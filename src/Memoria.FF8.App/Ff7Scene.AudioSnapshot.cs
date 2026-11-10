@@ -26,10 +26,13 @@ internal sealed partial class Ff7Scene
 
     private Ff7AudioPresentationState CaptureAudioPresentation()
     {
-        ApplyNativeResidentStops();
-        RefreshNativeGains();
-        RefreshNativePans();
-        RefreshNativeFrequencies();
+        if (Session?.Battle is null)
+        {
+            ApplyNativeResidentStops();
+            RefreshNativeGains();
+            RefreshNativePans();
+            RefreshNativeFrequencies();
+        }
         Ff7AudioPresentationState Capture(int queued)
         {
             Ff7MusicVoicePosition? music = pendingMusic;

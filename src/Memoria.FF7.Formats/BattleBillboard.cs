@@ -1,6 +1,6 @@
 namespace Memoria.FF7.Formats;
 
-public readonly record struct BattleBillboardQuad(ushort TexturePage, ushort Flip, short X, short Y, short U, short V, ushort Command, ushort Clut, int Width, int Height);
+public readonly record struct BattleBillboardQuad(ushort Flags, ushort Flip, short X, short Y, short U, short V, ushort TexturePage, ushort Clut, int Width, int Height);
 
 public static class BattleBillboard
 {

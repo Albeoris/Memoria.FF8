@@ -124,6 +124,7 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("The FFVII title has no gameplay continuation to save.");
         CombinedSessionSave saved = envelope with { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture() with { AudioPresentation = CaptureAudioPresentation() } };
+        saved = CaptureMixedCombat(saved);
         saved.Validate();
         return saved;
     }
@@ -347,6 +348,7 @@ internal sealed partial class Ff7Scene : IDisposable
         DisposePlayerMenu();
         DisposeShopMenu();
         StopAudio();
+        ResetMixedCombat();
         Session?.Dispose();
         StopMovie();
         preparedMovieSource = null;
@@ -415,9 +417,11 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void UpdateTitle()
     {
+        int count = CanResumeMixedOrigin ? 3 : 2;
+        titleSelection = Math.Min(titleSelection, count - 1);
         if (semanticInput.MenuVertical != 0)
         {
-            titleSelection = 1 - titleSelection;
+            titleSelection = (titleSelection + Math.Sign(semanticInput.MenuVertical) + count) % count;
         }
         if (semanticInput.Confirm)
         {
@@ -425,9 +429,13 @@ internal sealed partial class Ff7Scene : IDisposable
             {
                 StartNewGame();
             }
-            else
+            else if (titleSelection == 1)
             {
                 ContinueRequested?.Invoke();
+            }
+            else
+            {
+                ResumeMixedOrigin();
             }
         }
     }
@@ -458,6 +466,11 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void ActivateDebugSelection()
     {
+        if (debugSelection == MixedCombatDebugCommand)
+        {
+            ToggleMixedCombat();
+            return;
+        }
         if (debugSelection == BattlePolicyDebugCommand)
         {
             if (Session is { } session)
@@ -521,6 +534,10 @@ internal sealed partial class Ff7Scene : IDisposable
         batch.Draw(titleArtwork, image, Color.White);
         DrawPlain(batch, "New Game", 122, 174, bounds);
         DrawPlain(batch, "Continue", 122, 194, bounds);
+        if (CanResumeMixedOrigin)
+        {
+            DrawPlain(batch, "Return to FFVIII", 122, 214, bounds);
+        }
         DrawPlain(batch, ">", 108, 174 + titleSelection * 20, bounds);
     }
 
@@ -641,6 +658,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void Dispose()
     {
+        ResetMixedCombat();
         StopMovie();
         DisposeNamingPresentation();
         DisposePlayerMenu();
