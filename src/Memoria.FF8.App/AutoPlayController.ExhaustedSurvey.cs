@@ -95,6 +95,22 @@ internal sealed partial class AutoPlayController
             }
             return false;
         }
+        if (state.VisitGuards.TryGetValue(navigation, out AutoPlayVisitGuard? localGuard) && localGuard.Version == AutoPlayVisitGuard.CurrentVersion && readFingerprint(localGuard) is string localFingerprint)
+        {
+            AutoPlayEventCoverage[] localBlocks = SoftWalkingBlocks(state, navigation);
+            if (localBlocks.Length != 0 && state.ExhaustedSurveyInspections.Add(SoftWalkingSurveySignature(navigation, localGuard, localFingerprint, localBlocks)))
+            {
+                foreach (AutoPlayEventCoverage item in localBlocks)
+                {
+                    ReleaseWalkingSearchBlock(item);
+                }
+                next = planner.PlanNavigation(navigation, isCurrent: isCurrent, canTravel: canTravel, preferredGoal: preferredGoal);
+                if (next is not null)
+                {
+                    return next;
+                }
+            }
+        }
         next = planner.PlanNavigation(navigation, NeedsExactInspection, isCurrent: isCurrent, canTravel: canTravel, preferredGoal: preferredGoal);
         if (next?.RefreshVisitKey is string target && candidates.TryGetValue(target, out AutoPlayExhaustedSurveyRequest? requested))
         {

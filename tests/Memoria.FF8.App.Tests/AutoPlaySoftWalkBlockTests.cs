@@ -66,6 +66,21 @@ public sealed class AutoPlaySoftWalkBlockTests
         Assert.Equal("to-frontier", test.Planner.PlanNavigation("hub-nav", _ => false)!.Event.Id);
     }
 
+    [Fact]
+    public void ExhaustionRetriesTheCurrentWalkingBlockOnceWithoutLeavingTheLocation()
+    {
+        var test = Create();
+        AutoPlayPlanStep? PlanLocal() => AutoPlayController.PlanWithExhaustedSurvey(test.State, test.Planner, "hub-nav", _ => false, _ => true, _ => "A");
+
+        Assert.Equal("to-frontier", PlanLocal()!.Event.Id);
+        Assert.Null(test.State.RefreshTargetVisit);
+        Assert.Null(test.Blocked.BlockedReason);
+
+        test.Planner.Block("hub", "to-frontier", "search failed again", AutoPlayBlockKind.Walking);
+        Assert.Null(PlanLocal());
+        Assert.NotNull(test.Blocked.BlockedReason);
+    }
+
     [Theory]
     [InlineData("No discovered approach selects this actor with the ordinary talk query.")]
     [InlineData("None of the discovered coordinate approaches activated a native contact callback.")]
