@@ -78,6 +78,8 @@ Updates verify the archive's GitHub SHA-256 digest and its complete file invento
 
 The distribution inventory is `Data/distribution.json`. Older archives without this inventory must first be extracted into a new folder. Do not unpack an archive over an existing installation: obsolete files would remain. Failed installation restores the previous files; after interruption, startup attempts recovery from `.memoria-update`. Keep that folder if recovery reports an error, close processes using the installation, and start the launcher again. The next update removes the previous completed transaction's temporary files and backups.
 
+If the Linux launcher closes after you confirm an update and the version stays the same, manually extract a build with the updater fix into a new folder. This issue affects releases 0.7.17 and 0.7.20. Move your mods, saves and settings as needed. You can install later updates from the new launcher.
+
 Follow [Installation and first launch](docs/players/getting-started.md) for requirements and troubleshooting. The release includes the required .NET runtimes.
 
 Use **Report error** after a failure to prepare a public diagnostics ZIP and open a filled GitHub draft. Attach the ZIP in your browser before submitting. See [error reporting](docs/error-reporting.md) for contents, recovery actions and reproduction saves.

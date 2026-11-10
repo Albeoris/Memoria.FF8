@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Memoria.Launcher.Tests;
 
 public sealed class DistributionArchiveTests
@@ -16,7 +18,7 @@ public sealed class DistributionArchiveTests
         };
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.Distribution.Tests", Guid.NewGuid().ToString("N"));
         bool mac = rid.StartsWith("osx-", StringComparison.Ordinal);
-        string destination = mac ? Path.Combine(temporary, "Memoria.FF8.app") : temporary;
+        string destination = Path.Combine(temporary, mac ? "Memoria.FF8.app" : "distribution");
         string prefix = mac ? "Contents/Resources/" : "";
         try
         {
@@ -46,12 +48,78 @@ public sealed class DistributionArchiveTests
             }
             Assert.False(File.Exists(Path.Combine(destination, prefix + "Data/BundledMods/Memoria/Depixelation/mod.ini")));
             Assert.False(Directory.Exists(Path.Combine(destination, prefix + "Mods/Memoria")));
+            if (rid == "linux-x64" && OperatingSystem.IsLinux())
+            {
+                VerifyLinuxHelperWaitsForLauncher(temporary, destination);
+            }
         }
         finally
         {
             if (Directory.Exists(temporary))
             {
                 Directory.Delete(temporary, true);
+            }
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private static void VerifyLinuxHelperWaitsForLauncher(string temporary, string distribution)
+    {
+        string root = Path.Combine(temporary, "installation");
+        string work = Path.Combine(root, UpdateInstaller.WorkDirectory);
+        string runtime = Path.Combine(work, "recovery-runtime");
+        Directory.CreateDirectory(work);
+        Directory.Move(distribution, runtime);
+        string manifest = Path.Combine(root, PackageManifest.ManifestPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
+        File.Copy(Path.Combine(runtime, PackageManifest.ManifestPath), manifest);
+        string launcher = Path.Combine(root, "Memoria.Launcher");
+        File.WriteAllText(launcher, "#!/bin/sh\ntouch restarted\n");
+        File.SetUnixFileMode(launcher, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+
+        using Mutex mutex = new(false, UpdateInstaller.MutexName(root));
+        bool locked = mutex.WaitOne(0);
+        Assert.True(locked);
+        try
+        {
+            ProcessStartInfo start = new(Path.Combine(runtime, "Memoria.Launcher")) { WorkingDirectory = work, UseShellExecute = false };
+            start.ArgumentList.Add("--recover-update");
+            start.ArgumentList.Add(root);
+            start.ArgumentList.Add("0");
+            start.ArgumentList.Add("0");
+            start.Environment.Remove("DISPLAY");
+            start.Environment.Remove("WAYLAND_DISPLAY");
+            start.Environment["XDG_DATA_HOME"] = Path.Combine(temporary, "local-data");
+            using Process helper = Process.Start(start) ?? throw new IOException("Could not start the packaged update helper.");
+            try
+            {
+                string ready = Path.Combine(work, "ready");
+                Assert.True(SpinWait.SpinUntil(() => File.Exists(ready) || helper.HasExited, TimeSpan.FromSeconds(15)));
+                Assert.True(File.Exists(ready));
+                Assert.False(helper.WaitForExit(300));
+                File.WriteAllText(Path.Combine(work, "accepted"), "accepted");
+                Assert.False(helper.WaitForExit(300));
+                mutex.ReleaseMutex();
+                locked = false;
+
+                Assert.True(helper.WaitForExit(15000));
+                Assert.Equal(0, helper.ExitCode);
+                Assert.True(SpinWait.SpinUntil(() => File.Exists(Path.Combine(root, "restarted")), TimeSpan.FromSeconds(5)));
+            }
+            finally
+            {
+                if (!helper.HasExited)
+                {
+                    helper.Kill(entireProcessTree: true);
+                    helper.WaitForExit();
+                }
+            }
+        }
+        finally
+        {
+            if (locked)
+            {
+                mutex.ReleaseMutex();
             }
         }
     }

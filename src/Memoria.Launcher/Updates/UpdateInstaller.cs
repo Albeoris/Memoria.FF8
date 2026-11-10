@@ -332,9 +332,9 @@ internal static class UpdateInstaller
         {
             File.Copy(executable, helper, true);
         }
-        using Process parent = Process.GetCurrentProcess();
+        using Process? parent = OperatingSystem.IsLinux() ? null : Process.GetCurrentProcess();
         ProcessStartInfo start = new(helper) { UseShellExecute = false, WorkingDirectory = work };
-        foreach (string argument in new[] { recovery ? "--recover-update" : "--apply-update", root, parent.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), parent.StartTime.ToUniversalTime().Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) })
+        foreach (string argument in new[] { recovery ? "--recover-update" : "--apply-update", root, (parent?.Id ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture), (parent?.StartTime.ToUniversalTime().Ticks ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) })
         {
             start.ArgumentList.Add(argument);
         }
@@ -375,21 +375,20 @@ internal static class UpdateInstaller
             throw new InvalidOperationException("The update helper must run from its prepared installation directory.");
         }
         RejectLinks(work);
-        using Process? parent = FindParent(parentId, parentStarted);
+        bool linux = OperatingSystem.IsLinux();
+        using Process? parent = linux ? null : FindParent(parentId, parentStarted);
         File.WriteAllText(Path.Combine(work, "ready"), "ready");
         if (parent is not null && !parent.WaitForExit(60000))
         {
             throw new TimeoutException("The launcher has not closed. No files have been changed.");
         }
-        if (!File.Exists(Path.Combine(work, "accepted")))
-        {
-            return;
-        }
         using Mutex mutex = new(false, MutexName(root));
         bool acquired;
         try
         {
-            acquired = mutex.WaitOne(0);
+            // Linux Process.StartTime can differ across processes for the same PID.
+            // The launcher holds this mutex through shutdown, including when it writes "accepted".
+            acquired = mutex.WaitOne(linux ? 60000 : 0);
         }
         catch (AbandonedMutexException)
         {
@@ -401,6 +400,10 @@ internal static class UpdateInstaller
         }
         try
         {
+            if (!File.Exists(Path.Combine(work, "accepted")))
+            {
+                return;
+            }
             if (recovery)
             {
                 Recover(root);
