@@ -44,7 +44,10 @@ internal static class NativeBattleTests
         }
         Ff7Installation installation = Ff7Installation.Discover(root);
         IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
-        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == 300);
+        IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
+        SceneFormation formation = formations.Single(formation => formation.FormationId == 300);
+        RunInstalledSceneData(formations, formation, kernel);
+        RunInstalledModelData(installation);
         using Ff7Session session = Ff7Session.NewGame(installation);
         Ff7Progress initial = session.Progress;
         string untouched = JsonSerializer.Serialize(initial);
@@ -73,6 +76,74 @@ internal static class NativeBattleTests
         Check(restoredSession.Host.Execute(fieldRandom).Value == 202 && restoredSession.Progress.FieldRandomIndex == 1, "Cold field RNG receipt changed its value.");
         Check(restoredSession.Host.Execute(fieldRandom with { Id = long.MaxValue - 1 }).Value == 238 && restoredSession.Progress.FieldRandomIndex == 2, "Cold field RNG next value changed.");
         Check(result.Characters.Skip(1).All(character => character.NativeRecord.SequenceEqual(initial.Characters.Single(original => original.Id == character.Id).NativeRecord)), "Unrecruited characters received automatic rewards.");
+    }
+
+    private static void RunInstalledSceneData(IReadOnlyList<SceneFormation> formations, SceneFormation opening, IReadOnlyList<KernelSection> kernel)
+    {
+        SceneBattleData[] decoded = formations.Select(SceneBattleData.Read).ToArray();
+        Check(decoded.Length == 1024 && decoded.Select(formation => formation.FormationId).SequenceEqual(Enumerable.Range(0, 1024)), "The original scene archive must retain all physical formation IDs.");
+        SceneBattleData battle = decoded[300];
+        Check(battle.Enemies.Count == 2 && battle.Enemies.Select(enemy => enemy.FormationSlot).SequenceEqual(new[] { 0, 1 }) && battle.Enemies.All(enemy => enemy.Placement.EnemyId == 16), "Duplicate native enemies must retain separate formation slots.");
+        SceneBattleEnemy first = battle.Enemies[0];
+        Check(first.Placement.Position == new Vector3(-500, 0, -1500) && battle.Enemies[1].Placement.Position == new Vector3(500, 0, -1800) && first.InitialConditionFlags == uint.MaxValue, "Opening formation positions and full initial condition flags changed.");
+        Check(first.Level == 2 && first.Speed == 50 && first.Strength == 6 && first.Defense == 2 && first.MaxHitPoints == 30 && first.MaxMagicPoints == 0, "Opening enemy native combat parameters changed.");
+        Check(first.Attacks.Select(attack => (attack.AttackId, attack.ActionAnimation)).SequenceEqual(new (ushort, byte)[] { (272, 3), (273, 4) }), "Native action animation selectors no longer bind the enemy's attack IDs.");
+        Check(battle.Cameras[0] == new SceneCameraPlacement(new Vector3(6173, -1776, 4517), new Vector3(0, -304, 392)), "Signed formation camera placement changed.");
+        Check(battle.FormationScripts is null && first.Scripts is { Count: 16 } && first.Scripts[0].IsEmpty && first.Scripts[1].Span[..6].SequenceEqual(new byte[] { 0x11, 0x20, 0, 0x60, 0, 0x90 }), "Opening AI bank must preserve missing initialization and native main script bytes.");
+        Check(first.Scripts![1].Span.SequenceEqual(battle.Enemies[1].Scripts![1].Span), "Duplicate placements must load the same prototype AI bytes.");
+        IReadOnlyList<Ff7NativeEnemyState> initialized = Ff7NativeEnemyInitialization.Create(battle);
+        Check(initialized[0] == new Ff7NativeEnemyState(4, 16, 30, 30, 0, 0, 4, 0, 31, 0, 0, 0, 1) && initialized[1] == initialized[0] with { ActorSlot = 5 }, "PC actor allocation, initial conditions, vitals or defense changed.");
+        Ff7NativeEnemyState reactor = Ff7NativeEnemyInitialization.Create(decoded[308]).Single(enemy => enemy.EnemyId == 20);
+        Check(reactor.ActorSlot == 6 && reactor.HitPoints == 18 && reactor.Statuses == 0 && reactor.StatusImmunities == 0x0620183C, "Reactor enemy native status complement or allocation changed.");
+        Ff7BattleAttack machineGun = battle.Attacks.Single(attack => attack.Id == 272).Data;
+        Check(machineGun.Accuracy == 100 && machineGun.ImpactSound == 15 && machineGun.DamageCalculation == 0x11 && machineGun.Power == 16 && machineGun.Elements == 0x2000 && machineGun.StatusMask == uint.MaxValue, "Scene attack effect, arithmetic or native mask fields changed.");
+        Ff7BattleAttack fire = Ff7BattleAttack.Read(kernel.Single(section => section.Type == 1).Data.Span.Slice(27 * Ff7BattleAttack.RecordSize, Ff7BattleAttack.RecordSize));
+        Check(fire.CastingCost == 4 && fire.Elements == 1, "The original Fire MP cost or element changed.");
+
+        byte[] invalidScene = opening.RawScene.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(invalidScene.AsSpan(0xE80), 5);
+        ExpectInvalid(() => SceneBattleData.Read(opening with { RawScene = invalidScene }));
+        BinaryPrimitives.WriteUInt16LittleEndian(invalidScene.AsSpan(0xE80), 6);
+        BinaryPrimitives.WriteUInt16LittleEndian(invalidScene.AsSpan(0xE88), 31);
+        ExpectInvalid(() => SceneBattleData.Read(opening with { RawScene = invalidScene }));
+        ExpectInvalid(() => SceneBattleData.Read(opening with { RawScene = opening.RawScene[..^1] }));
+    }
+
+    private static void RunInstalledModelData(Ff7Installation installation)
+    {
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        byte[] ReadMember(string name) => archive.ReadEntry(archive.Find(name).Single());
+        BattleModelData cloud = BattleModelData.Read(ReadMember("rtaa"), ReadMember("rtda"));
+        Check(cloud.Type == 2 && cloud.Bones.Count == 23 && cloud.BodyClips.Count == 52 && cloud.WeaponClips.Count == 42, "Original Cloud body/weapon animation division changed.");
+        Check(cloud.BodyClips[0] is { RotationCount: 24, FrameCount: 20, PackedData.Length: 860 } && cloud.WeaponClips[0] is { RotationCount: 1, FrameCount: 20, PackedData.Length: 112 }, "Cloud body and weapon clip bounds changed.");
+        BattleActionBank cloudActions = BattleActionBank.Read(ReadMember("rtab"));
+        Check(cloudActions.Scripts.Count == 74 && cloudActions.Scripts[0].Span.SequenceEqual(cloudActions.Scripts[^1].Span), "Cloud's action table lost its later bank or aliased idle sequence.");
+
+        BattleModelData mp = BattleModelData.Read(ReadMember("aqaa"), ReadMember("aqda"));
+        Check(mp.Type == 0 && mp.Bones.Count == 27 && mp.BodyClips.Count == 16 && mp.WeaponClips.Count == 16, "Opening MP model body/weapon animation ownership changed.");
+        BattleActionBank mpActions = BattleActionBank.Read(ReadMember("aqab"));
+        Check(mpActions.CollisionRadius == 350 && mpActions.Scripts.Count == 32 && mpActions.Scripts[3].Span.SequenceEqual(new byte[] { 0xFC, 0xEA, 0x02, 0xAD, 0x07, 0xB8, 0x01, 0x01, 0x0A, 0xD8, 0x01, 0x10, 0x00, 0xF7, 0x08, 0x03, 0x04, 0x05, 0xE5, 0xEE }), "Opening MP action 3 no longer points to the original bounded sequence.");
+        Check(BattleActionBank.Read(ReadMember("obab")).Scripts.Count == 24, "The shorter original enemy action directory was lost.");
+
+        byte[] malformedBank = ReadMember("aqab");
+        BinaryPrimitives.WriteUInt32LittleEndian(malformedBank.AsSpan(108), 220);
+        ExpectInvalid(() => BattleActionBank.Read(malformedBank));
+        byte[] malformedPack = ReadMember("aqda");
+        BinaryPrimitives.WriteInt32LittleEndian(malformedPack.AsSpan(12), int.MaxValue);
+        ExpectInvalid(() => BattleModelData.Read(ReadMember("aqaa"), malformedPack));
+    }
+
+    private static void ExpectInvalid(Action read)
+    {
+        try
+        {
+            read();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new Exception("Invalid FFVII battle resource bounds were accepted.");
     }
 
     private static void Check(bool condition, string message)
