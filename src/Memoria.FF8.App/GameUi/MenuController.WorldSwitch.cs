@@ -6,7 +6,9 @@ public sealed partial class MenuController
     private Action? switchWorld;
 
     public bool WorldSwitchAvailable => worldSwitchUnavailable is not null && worldSwitchUnavailable() is null;
-    public string WorldSwitchHelp => worldSwitchUnavailable?.Invoke() ?? "Continue the FFVII story; each world retains its own progress.";
+    public string WorldSwitchHelp => worldSwitchUnavailable is null
+        ? "World switching is unavailable in this menu."
+        : worldSwitchUnavailable() ?? "Continue the FFVII story. Each world retains its own progress.";
 
     public void ConnectWorldSwitch(Func<string?> unavailable, Action open)
     {
@@ -24,7 +26,7 @@ public sealed partial class MenuController
         string? reason = worldSwitchUnavailable?.Invoke();
         if (worldSwitchUnavailable is null || reason is not null)
         {
-            SetSystemMessage(() => reason ?? "Configure the FFVII installation before switching worlds.");
+            SetSystemMessage(() => reason ?? "World switching is unavailable in this menu.");
         }
         else
         {

@@ -76,6 +76,7 @@ internal sealed partial class RecreateGame : Game
     {
         this.options = options;
         this.initialCrossover = initialCrossover;
+        ff7InstallationIssue = new(() => GetFf7InstallationIssue(options.Ff7GameDirectory));
         physicalInput = new(options.AcceptsPhysicalInput, HasPhysicalInputFocus, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;

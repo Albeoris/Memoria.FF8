@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
+    private readonly Lazy<string?> ff7InstallationIssue;
     private CombinedSessionSave? crossover;
     private readonly CombinedSessionSave? initialCrossover;
     private Ff7Scene? ff7Scene;
@@ -36,9 +37,9 @@ internal sealed partial class RecreateGame
 
     private string? Ff8WorldSwitchUnavailable()
     {
-        if (string.IsNullOrWhiteSpace(options.Ff7GameDirectory))
+        if (ff7InstallationIssue.Value is string issue)
         {
-            return "Select a FINAL FANTASY VII installation in the launcher.";
+            return issue;
         }
         SaveBoundaryState boundary = ReadSaveBoundaryState(ignoreInterface: true);
         if (boundary.Assess() != SaveBoundaryStatus.Ready)
@@ -50,6 +51,23 @@ internal sealed partial class RecreateGame
             return "World switching is available only where saving is allowed.";
         }
         return null;
+    }
+
+    internal static string? GetFf7InstallationIssue(string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return "No FINAL FANTASY VII folder was selected. Select the installation in the launcher's FINAL FANTASY VII tab, then start the game again.";
+        }
+        try
+        {
+            Ff7PcExecutableData.Load(Ff7Installation.Discover(directory));
+            return null;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            return $"{exception.Message} Select a supported installation in the launcher's FINAL FANTASY VII tab, then start the game again.";
+        }
     }
 
     private byte[] CaptureFf8Payload()

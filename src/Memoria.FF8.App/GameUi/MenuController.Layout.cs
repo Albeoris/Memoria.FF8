@@ -297,6 +297,12 @@ public sealed partial class MenuController
 
     private UiElement Details()
     {
+        if (ScreenId == "debug-room" && SelectedEntry is { Id: "world-switch" } worldSwitch)
+        {
+            UiLabel explanation = Label(worldSwitch.Help, 17, UiTextFlow.Wrap);
+            explanation.Id = "world-switch-explanation";
+            return explanation;
+        }
         return new UiList { TextFlow = UiTextFlow.Wrap, Id = "details", Paginated = true, Items = CurrentScreen.Details(this).ToList(), FontSize = 17 * TextScale, RowHeight = 29 * TextScale, ShowSelection = false };
     }
 
