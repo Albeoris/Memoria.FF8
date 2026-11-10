@@ -7,6 +7,23 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeMagicGroupTests
 {
     [Theory]
+    [InlineData(0x40000u, 2, 3, 0u)]
+    [InlineData(0x40000u, 1, 3, 0u)]
+    [InlineData(0x40000u, 2, 3, 0x20u)]
+    [InlineData(0x20000u, 1, 2, 0u)]
+    public void SelectingRepeatedMagicWithPartialStockExecutesUntilExhaustion(uint status, int stock, int targets, uint passive)
+    {
+        BattleSession battle = Create(status, passive, stock);
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat("enemy", targets).ToArray());
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        Assert.Equal(stock, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Empty(battle.Combatants[0].MagicStocks);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
     [InlineData(0x20000, 2, 0, 2)]
     [InlineData(0x40000, 3, 0, 3)]
     [InlineData(0x20000, 2, 0x20, 1)]

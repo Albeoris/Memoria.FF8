@@ -5,6 +5,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class MagicBattleReservationTests
 {
+    [Theory]
+    [InlineData(false, 2, 2)]
+    [InlineData(false, 1, 1)]
+    [InlineData(true, 34, 2)]
+    [InlineData(true, 1, 1)]
+    public void Triple_reserves_only_available_casts_and_stops_after_their_last_use(bool infinite, int stock, int available)
+    {
+        BattleSession battle = Create(infinite: infinite, stock: stock, transient: 0x40000, enemyHp: 60000);
+        Assert.Contains(3, battle.GetNativeMagicCastCounts("caster", 1));
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
+        BattleSnapshot saved = battle.Capture();
+        Assert.Equal(available, Assert.Single(saved.MagicVitals!.MagicSystem.Reservations).Count);
+        BattleSession restored = BattleSession.Restore(System.Text.Json.JsonSerializer.Deserialize<BattleSnapshot>(System.Text.Json.JsonSerializer.Serialize(saved))!);
+        Advance(battle);
+        Advance(restored);
+        Assert.Equal(available, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Equal(infinite ? stock : 0, battle.MagicVitals!.GetMagicCount(4, 1));
+        Assert.Equal(infinite ? (1 << available) - 1 : 0, battle.MagicVitals.MagicSystem.SharedBattleMasks[1]);
+        Assert.Empty(battle.MagicVitals.MagicSystem.Reservations);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(battle.Capture()), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Fact]
     public void Removing_all_reservation_links_from_an_unperformed_spell_rejects_checkpoint()
     {
@@ -67,10 +89,12 @@ public sealed class MagicBattleReservationTests
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { MagicVitals = owner }));
     }
 
-    [Fact]
-    public void Triple_command_cannot_restore_with_only_one_reserved_ticket()
+    [Theory]
+    [InlineData(100)]
+    [InlineData(34)]
+    public void Triple_command_cannot_restore_with_only_one_reserved_ticket(int stock)
     {
-        BattleSession battle = Create(transient: 0x40000);
+        BattleSession battle = Create(stock: stock, transient: 0x40000);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
         BattleSnapshot saved = battle.Capture();
         NativeCharacterVitals owner = saved.MagicVitals!.DeepCopy();

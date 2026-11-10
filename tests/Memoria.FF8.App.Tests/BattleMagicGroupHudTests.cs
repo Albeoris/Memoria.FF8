@@ -7,12 +7,38 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleMagicGroupHudTests
 {
+    [Fact]
+    public void RinoaWithTwoTripleUsesCanSelectTheSecondAllyBeforeSubmitting()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int spell = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction is { Statuses1: 0x40000 }).Id;
+        BattleSession session = CreateSession(0x40000, 2, spell, 4);
+        BattleHudController hud = CreateHud(session);
+        hud.BuildView();
+        hud.Choose(0);
+        hud.Choose(0);
+        hud.SelectTarget("caster", true);
+        Assert.True(hud.SelectingTarget);
+        Assert.Empty(session.QueuedActions);
+        hud.SelectTarget("ally", true);
+        Assert.True(hud.SelectingTarget);
+        Assert.Empty(session.QueuedActions);
+        hud.SelectTarget("ally", true);
+        BattleAttackCommand queued = Assert.Single(session.QueuedActions);
+        Assert.Equal(spell, queued.ActionId);
+        Assert.Equal(new ushort[] { 1, 2, 2 }, queued.NativeMagicTargets.ToArray());
+        Assert.Equal(2, Assert.Single(session.Combatants[0].MagicStocks).Count);
+    }
+
     [Theory]
     [InlineData(0x20000u, 2)]
     [InlineData(0x40000u, 3)]
-    public void RepeatedMagicDefaultsToAvailableStatusAndAllowsEachTarget(uint status, int count)
+    [InlineData(0x40000u, 3, 2)]
+    [InlineData(0x40000u, 3, 1)]
+    [InlineData(0x20000u, 2, 1)]
+    public void RepeatedMagicDefaultsToAvailableStatusAndAllowsEachTarget(uint status, int count, int stock = 3)
     {
-        BattleSession session = CreateSession(status);
+        BattleSession session = CreateSession(status, stock);
         BattleHudController hud = CreateHud(session);
         hud.BuildView();
         hud.Choose(0);
@@ -76,19 +102,20 @@ public sealed class BattleMagicGroupHudTests
         return new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast, input.MagicTargets.IsEmpty ? null : input.MagicTargets));
     }
 
-    private static BattleSession CreateSession(uint status)
+    private static BattleSession CreateSession(uint status, int stock = 3, int spell = 1, int characterId = 0)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
-        NativeCharacterVital character = vitals.Records[0];
+        NativeCharacterVital character = vitals.Records[characterId];
         return new(new BattleDefinition
         {
             NativeActions = assets.NativeActions.ToArray(),
             ActionDefinitions = assets.ActionDefinitions.ToArray(),
             Combatants =
             [
-                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = status, Abilities = [BattleAbility.Magic], MagicStocks = [new(1, 3)], NativePlayerStatRules = assets.ReadPlayerNativeStatRules(vitals, 0), NativeGrowth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray()), NativeStatusResistances = new byte[40] },
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = status, Abilities = [BattleAbility.Magic], MagicStocks = [new(spell, stock)], NativePlayerStatRules = assets.ReadPlayerNativeStatRules(vitals, characterId), NativeGrowth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray()), NativeStatusResistances = new byte[40] },
+                new() { Id = "ally", Name = "Ally", IsPlayer = true },
                 new() { Id = "enemy-a", Name = "First", Speed = 1 },
                 new() { Id = "enemy-b", Name = "Second", Speed = 1 }
             ]

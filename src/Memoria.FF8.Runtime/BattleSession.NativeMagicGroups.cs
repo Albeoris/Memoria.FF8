@@ -50,12 +50,12 @@ public sealed partial class BattleSession
         {
             return counts;
         }
-        uint flags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Double/Triple magic requires the original equipped character-ability flags, including Double/Triple Single.");
-        if ((statuses & 0x20000) != 0 && (stock >= 2 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (flags & 0x20) != 0))
+        //4FDD90 collects the status-selected targets;485610 stops casting when486A10 exhausts stock.
+        if ((statuses & 0x20000) != 0)
         {
             counts.Add(2);
         }
-        if ((statuses & 0x40000) != 0 && (stock >= 3 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (flags & 0x40) != 0))
+        if ((statuses & 0x40000) != 0)
         {
             counts.Add(3);
         }
