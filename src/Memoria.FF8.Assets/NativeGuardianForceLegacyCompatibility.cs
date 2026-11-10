@@ -62,6 +62,14 @@ public static class NativeGuardianForceLegacyCompatibility
             {
                 Loss(79, "Passive", "the disabled Move-Find preference cannot be retained in an original FFVIII save.", "passive");
             }
+            if (gf.EncHalfDisabled)
+            {
+                Loss(80, "Passive", "the disabled Enc-Half preference cannot be retained in an original FFVIII save.", "passive-enc-half");
+            }
+            if (gf.EncNoneDisabled)
+            {
+                Loss(81, "Passive", "the disabled Enc-None preference cannot be retained in an original FFVIII save.", "passive-enc-none");
+            }
             if (!sourceRules.SequenceEqual(targetRules) || !current.MenuDefinitions.Templates.IsDefault && !current.ResolveGuardianForceTemplates()[id].SequenceEqual(targetSource.ResolveGuardianForceTemplates()[id]))
             {
                 Loss(null, "Configuration", "authored learning order, entries or conditions revert to the target game's definitions.", "configuration");
@@ -79,7 +87,9 @@ public static class NativeGuardianForceLegacyCompatibility
                     ForgottenAbilities = initial.ForgottenAbilities,
                     Progression = null,
                     LastProjection = null,
-                    MoveFindDisabled = false
+                    MoveFindDisabled = false,
+                    EncHalfDisabled = false,
+                    EncNoneDisabled = false
                 };
                 continue;
             }
@@ -171,7 +181,9 @@ public static class NativeGuardianForceLegacyCompatibility
                 LearnedBank = new(low, high),
                 Progression = null,
                 LastProjection = null,
-                MoveFindDisabled = false
+                MoveFindDisabled = false,
+                EncHalfDisabled = false,
+                EncNoneDisabled = false
             };
             projected.GuardianForces[id] = next;
             Dictionary<int, bool> available = learned.Take(22).ToDictionary(ability => ability, _ => true);

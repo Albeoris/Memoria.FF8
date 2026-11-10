@@ -304,18 +304,31 @@ public sealed partial class NativePcSaveConverterTests
         Assert.Equal((byte)29, imported.CharacterVitals!.GuardianForces[0].AbilityProgress[0]);
     }
 
-    [Fact]
-    public void DisabledMoveFindRequiresReviewedExportAndPreservesTheLivePreference()
+    [Theory]
+    [InlineData(79)]
+    [InlineData(80)]
+    [InlineData(81)]
+    public void DisabledPassiveRequiresReviewedExportAndPreservesTheLivePreference(int ability)
     {
         GameState state = Defaults();
         NativeCharacterVitals vitals = state.CharacterVitals!.DeepCopy();
-        vitals.GuardianForces[3] = vitals.GuardianForces[3] with { MoveFindDisabled = true };
+        vitals.GuardianForces[3] = ability switch
+        {
+            79 => vitals.GuardianForces[3] with { MoveFindDisabled = true },
+            80 => vitals.GuardianForces[3] with { EncHalfDisabled = true },
+            81 => vitals.GuardianForces[3] with { EncNoneDisabled = true },
+            _ => throw new ArgumentOutOfRangeException(nameof(ability))
+        };
         GameState active = state with { CharacterVitals = vitals };
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, state.CharacterVitals);
-        Assert.Contains(plan.Losses, loss => loss.GuardianForce == 3 && loss.Ability == 79 && loss.Kind == "Passive");
+        Assert.Contains(plan.Losses, loss => loss.GuardianForce == 3 && loss.Ability == ability && loss.Kind == "Passive");
         Assert.False(plan.ProjectedState.CharacterVitals!.GuardianForces[3].MoveFindDisabled);
+        Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].EncHalfDisabled);
+        Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].EncNoneDisabled);
         Assert.True(active.CharacterVitals!.GuardianForceRequiresMemoriaFormat);
-        Assert.True(active.CharacterVitals.GuardianForces[3].MoveFindDisabled);
+        Assert.Equal(ability == 79, active.CharacterVitals.GuardianForces[3].MoveFindDisabled);
+        Assert.Equal(ability == 80, active.CharacterVitals.GuardianForces[3].EncHalfDisabled);
+        Assert.Equal(ability == 81, active.CharacterVitals.GuardianForces[3].EncNoneDisabled);
         Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active));
         Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, state.CharacterVitals));
         Assert.NotEmpty(NativePcSaveConverter.Export(active, state.CharacterVitals, allowGuardianForceLoss: true));

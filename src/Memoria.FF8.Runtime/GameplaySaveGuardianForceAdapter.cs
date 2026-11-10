@@ -81,7 +81,7 @@ internal static class GameplaySaveGuardianForceAdapter
         NativeCharacterVitals result = prepared with { GuardianForces = mapped.GuardianForces };
         for (int id = 0; id < result.GuardianForces.Length; id++)
         {
-            NativeGuardianForceVital gf = result.GuardianForces[id] with { MoveFindDisabled = restored.GuardianForces[id].MoveFindDisabled, HitPoints = restored.GuardianForces[id].HitPoints };
+            NativeGuardianForceVital gf = result.GuardianForces[id] with { MoveFindDisabled = restored.GuardianForces[id].MoveFindDisabled, EncHalfDisabled = restored.GuardianForces[id].EncHalfDisabled, EncNoneDisabled = restored.GuardianForces[id].EncNoneDisabled, HitPoints = restored.GuardianForces[id].HitPoints };
             gf = PreserveUnmappedFlags(gf, prepared.GuardianForces[id], installed.MenuDefinitions.ResolveLearning(id));
             result.GuardianForces[id] = gf with { MaximumHitPoints = installed.Definitions.GuardianForceMaximum(id, gf) };
         }

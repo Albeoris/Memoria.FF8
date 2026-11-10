@@ -73,7 +73,9 @@ Config / Gameplay / Speed also has independent world movement, field movement an
 
 Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 
-On a GF's ability screen, select learned **Move-Find** and press **Card / detail** to toggle it. Move-Find is a party passive: learning it enables it automatically, and it works whenever an acquired GF that knows it is alive. It does not require a junction or an equipped character ability slot. The row shows **On** in green or **Off** in amber; a KO GF retains its preference but cannot supply the effect. Another living GF with the passive enabled can still supply it.
+On a GF's ability screen, select learned **Move-Find**, **Enc-Half** or **Enc-None** and press **Card / detail** to toggle it. These abilities are party passives: learning one enables it automatically, and it works whenever an acquired GF that knows it is alive. It does not require a junction or an equipped character ability slot. The row shows **On** in green or **Off** in amber; a KO GF retains its preference but cannot supply the effect. Another living GF with the passive enabled can still supply it.
+
+Enc-Half reduces random encounters; Enc-None prevents them. Their switches are independent, and Enc-None takes precedence while both are active.
 
 Active Move-Find reveals hidden field draw points and save points and permits using them. Revealed hidden draw-point glows appear over foreground scenery so furniture cannot conceal them. Hidden field points cannot be used while the passive is inactive. Ordinary visible draw points remain available. World-map draw points retain their usual invisible presentation.
 

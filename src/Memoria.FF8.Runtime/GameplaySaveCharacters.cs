@@ -104,6 +104,10 @@ public sealed record GameplaySaveCharacters
 public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities)
 {
     public bool MoveFindDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EncHalfDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EncNoneDisabled { get; init; }
     public NativeGuardianForceOpaqueBytes? OpaqueSavedValues { get; init; }
     public GuardianForceProgression? Progression { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -113,12 +117,12 @@ public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Exp
 
     internal static GameplaySaveGuardianForce Capture(NativeGuardianForceVital source)
     {
-        return new(source.Experience, source.Flags, source.HitPoints, source.LearnedBank, source.AbilityProgress, source.Learning, source.ForgottenAbilities) { MoveFindDisabled = source.MoveFindDisabled, OpaqueSavedValues = source.NativeOpaqueBytes, Progression = source.Progression, KillCount = source.KillCount, DeathCount = source.DeathCount };
+        return new(source.Experience, source.Flags, source.HitPoints, source.LearnedBank, source.AbilityProgress, source.Learning, source.ForgottenAbilities) { MoveFindDisabled = source.MoveFindDisabled, EncHalfDisabled = source.EncHalfDisabled, EncNoneDisabled = source.EncNoneDisabled, OpaqueSavedValues = source.NativeOpaqueBytes, Progression = source.Progression, KillCount = source.KillCount, DeathCount = source.DeathCount };
     }
 
     internal NativeGuardianForceVital Restore()
     {
-        return new(Experience, Flags, HitPoints, LearnedBank, null, AbilityProgress, Learning, ForgottenAbilities) { MoveFindDisabled = MoveFindDisabled, NativeOpaqueBytes = OpaqueSavedValues, Progression = Progression, KillCount = KillCount, DeathCount = DeathCount };
+        return new(Experience, Flags, HitPoints, LearnedBank, null, AbilityProgress, Learning, ForgottenAbilities) { MoveFindDisabled = MoveFindDisabled, EncHalfDisabled = EncHalfDisabled, EncNoneDisabled = EncNoneDisabled, NativeOpaqueBytes = OpaqueSavedValues, Progression = Progression, KillCount = KillCount, DeathCount = DeathCount };
     }
 
     public void Validate()

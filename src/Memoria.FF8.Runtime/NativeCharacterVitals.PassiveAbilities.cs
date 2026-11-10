@@ -4,7 +4,18 @@ public sealed partial record NativeCharacterVitals
 {
     public static bool IsGuardianForcePassiveAbility(int ability)
     {
-        return ability == 79;
+        return ability is >= 79 and <= 81;
+    }
+
+    private static bool GuardianForcePassiveAbilityDisabled(NativeGuardianForceVital gf, int ability)
+    {
+        return ability switch
+        {
+            79 => gf.MoveFindDisabled,
+            80 => gf.EncHalfDisabled,
+            81 => gf.EncNoneDisabled,
+            _ => throw new ArgumentOutOfRangeException(nameof(ability))
+        };
     }
 
     public bool GuardianForcePassiveAbilityEnabled(int id, int ability)
@@ -16,7 +27,7 @@ public sealed partial record NativeCharacterVitals
             throw new ArgumentOutOfRangeException(nameof(ability), "The ability is not a supported GF passive.");
         }
         NativeGuardianForceVital gf = GuardianForces[id];
-        return (gf.Flags & 1) != 0 && gf.HasLearnedAbility(ability) && !gf.MoveFindDisabled;
+        return (gf.Flags & 1) != 0 && gf.HasLearnedAbility(ability) && !GuardianForcePassiveAbilityDisabled(gf, ability);
     }
 
     public bool HasActivePassiveAbility(int ability)
@@ -26,7 +37,7 @@ public sealed partial record NativeCharacterVitals
             throw new ArgumentOutOfRangeException(nameof(ability), "The ability is not a supported GF passive.");
         }
         Validate();
-        return GuardianForces.Any(gf => (gf.Flags & 1) != 0 && gf.HitPoints > 0 && gf.HasLearnedAbility(ability) && !gf.MoveFindDisabled);
+        return GuardianForces.Any(gf => (gf.Flags & 1) != 0 && gf.HitPoints > 0 && gf.HasLearnedAbility(ability) && !GuardianForcePassiveAbilityDisabled(gf, ability));
     }
 
     public NativeCharacterVitals SetGuardianForcePassiveAbilityEnabled(int id, int ability, bool enabled)
@@ -38,7 +49,13 @@ public sealed partial record NativeCharacterVitals
             throw new InvalidOperationException("Only an acquired GF's learned passive can be toggled.");
         }
         NativeGuardianForceVital[] next = GuardianForces.ToArray();
-        next[id] = gf with { MoveFindDisabled = !enabled };
+        next[id] = ability switch
+        {
+            79 => gf with { MoveFindDisabled = !enabled },
+            80 => gf with { EncHalfDisabled = !enabled },
+            81 => gf with { EncNoneDisabled = !enabled },
+            _ => throw new ArgumentOutOfRangeException(nameof(ability))
+        };
         return this with { GuardianForces = next };
     }
 }

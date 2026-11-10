@@ -26,9 +26,12 @@ public sealed partial record NativeCharacterVitals
                 }
             }
         }
-        if (HasActivePassiveAbility(79))
+        for (int ability = 79; ability <= 81; ability++)
         {
-            flags |= MenuDefinitions.PartyAbilityFlags[1];
+            if (HasActivePassiveAbility(ability))
+            {
+                flags |= MenuDefinitions.PartyAbilityFlags[ability - 78];
+            }
         }
         return flags;
     }
@@ -150,6 +153,8 @@ public sealed partial record NativeCharacterVitals
         result.GuardianForces[id] = gf with
         {
             MoveFindDisabled = gf.MoveFindDisabled && (target.Ability != 79 || !ledger[index].Learned),
+            EncHalfDisabled = gf.EncHalfDisabled && (target.Ability != 80 || !ledger[index].Learned),
+            EncNoneDisabled = gf.EncNoneDisabled && (target.Ability != 81 || !ledger[index].Learned),
             Progression = gf.Progression with { Abilities = ledger.ToImmutableArray() }
         };
         result.GuardianForces[id] = result.SynchronizeGuardianForce(id);

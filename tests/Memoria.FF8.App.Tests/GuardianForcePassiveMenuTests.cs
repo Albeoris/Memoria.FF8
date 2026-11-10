@@ -10,15 +10,21 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GuardianForcePassiveMenuTests
 {
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public void CardBindingAndSemanticRowShareTheExplicitToggle(bool enabled, bool available)
+    [InlineData(79, true, true)]
+    [InlineData(79, false, true)]
+    [InlineData(79, true, false)]
+    [InlineData(80, true, true)]
+    [InlineData(80, false, true)]
+    [InlineData(80, true, false)]
+    [InlineData(81, true, true)]
+    [InlineData(81, false, true)]
+    [InlineData(81, true, false)]
+    public void CardBindingAndSemanticRowShareTheExplicitToggle(int ability, bool enabled, bool available)
     {
         MenuData data = new();
         data.SupportedActions.Add("gf-passive-toggle");
         MenuGuardianForce gf = new() { Id = "gf-5", Name = "GF" };
-        gf.LearningChoices.Add(new MenuAbilityChoice("79", "Move-Find", true) { IsPassive = true, PassiveEnabled = enabled, PassiveAvailable = available });
+        gf.LearningChoices.Add(new MenuAbilityChoice(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), "Passive", true) { IsPassive = true, PassiveEnabled = enabled, PassiveAvailable = available });
         data.GuardianForces.Add(gf);
         List<MenuAction> actions = [];
         MenuController menu = new(() => data, actions.Add);
@@ -31,13 +37,13 @@ public sealed class GuardianForcePassiveMenuTests
         Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.Contains("(Card): Toggle passive On/Off."));
         menu.Navigate(MenuInput.Alternate);
         MenuAction action = Assert.Single(actions);
-        Assert.Equal(new MenuAction("gf-passive-toggle", "79", "gf-5"), action);
+        Assert.Equal(new MenuAction("gf-passive-toggle", ability.ToString(System.Globalization.CultureInfo.InvariantCulture), "gf-5"), action);
         PlayerAction input = NativeJunctionMenuProjection.PlayerAction(action);
         Assert.Equal(PlayerActionKind.ToggleGuardianForcePassiveAbility, input.Kind);
         Assert.Equal(5, input.Value);
-        Assert.Equal("79", input.Text);
+        Assert.Equal(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), input.Text);
         actions.Clear();
-        menu.SelectEntry("gf-learn", "79");
+        menu.SelectEntry("gf-learn", ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal(action, Assert.Single(actions));
     }
@@ -62,7 +68,7 @@ public sealed class GuardianForcePassiveMenuTests
     }
 
     [Theory]
-    [InlineData("80", "gf-0")]
+    [InlineData("78", "gf-0")]
     [InlineData("79", "gf-16")]
     [InlineData("79", "character-0")]
     public void PassiveProjectionRejectsUnsupportedOrLostIdentities(string ability, string owner)
@@ -70,27 +76,30 @@ public sealed class GuardianForcePassiveMenuTests
         Assert.Throws<ArgumentException>(() => NativeJunctionMenuProjection.PlayerAction(new MenuAction("gf-passive-toggle", ability, owner)));
     }
 
-    [Fact]
-    public void LiveToggleSurvivesSnapshotReloadAndIsAbsentFromJunctionChoices()
+    [Theory]
+    [InlineData(79)]
+    [InlineData(80)]
+    [InlineData(81)]
+    public void LiveToggleSurvivesSnapshotReloadAndIsAbsentFromJunctionChoices(int ability)
     {
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed native menu resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(5).TeachGuardianForceAbility(5, 79).ToggleGuardianForceJunction(0, 5);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(5).TeachGuardianForceAbility(5, ability).ToggleGuardianForceJunction(0, 5);
         MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }), action => vitals = NativeJunctionMenuInput.Apply(vitals, NativeJunctionMenuProjection.PlayerAction(action)));
         menu.Open("gf-learn");
-        menu.SelectEntry("gf-learn", "79");
+        menu.SelectEntry("gf-learn", ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         menu.Navigate(MenuInput.Alternate);
-        Assert.False(vitals.GuardianForcePassiveAbilityEnabled(5, 79));
+        Assert.False(vitals.GuardianForcePassiveAbilityEnabled(5, ability));
         vitals = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(vitals))!;
         vitals.Validate();
         menu.Open("gf-learn");
-        MenuAbilityChoice passive = Assert.Single(menu.Data.GuardianForces).LearningChoices.Single(choice => choice.Id == "79");
+        MenuAbilityChoice passive = Assert.Single(menu.Data.GuardianForces).LearningChoices.Single(choice => choice.Id == ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         Assert.True(passive.Learned);
         Assert.False(passive.PassiveEnabled);
-        Assert.DoesNotContain(menu.Data.Characters.Single(character => character.Id == "character-0").AvailableAbilities, choice => choice.Id == "79");
-        menu.SelectEntry("gf-learn", "79");
+        Assert.DoesNotContain(menu.Data.Characters.Single(character => character.Id == "character-0").AvailableAbilities, choice => choice.Id == ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        menu.SelectEntry("gf-learn", ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         menu.Navigate(MenuInput.Alternate);
-        Assert.True(vitals.GuardianForcePassiveAbilityEnabled(5, 79));
+        Assert.True(vitals.GuardianForcePassiveAbilityEnabled(5, ability));
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

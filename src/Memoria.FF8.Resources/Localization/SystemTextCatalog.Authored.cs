@@ -644,6 +644,8 @@ public static partial class SystemTextCatalog
         defaults["save.gf-export.loss.equipped-junction"] = "Character {0}: unavailable magic junction slot {1} is cleared.";
         defaults["save.gf-export.loss.equipped-passive"] = "Character {0}: unavailable passive {1} is cleared.";
         defaults["save.gf-export.loss.learning"] = "GF {0}: learning selection {1} is invalid in the target and is cleared.";
+        defaults["save.gf-export.loss.passive-enc-half"] = "GF {0}: the disabled Enc-Half preference cannot be retained in an original FFVIII save.";
+        defaults["save.gf-export.loss.passive-enc-none"] = "GF {0}: the disabled Enc-None preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.passive"] = "GF {0}: the disabled Move-Find preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.progress-clamped"] = "GF {0}: ability {1} AP {2} is clamped to the target byte range.";
         defaults["save.gf-export.loss.progress-missing"] = "GF {0}: ability {1} has no target learning slot; AP {2} and forgotten state cannot be preserved.";

@@ -78,7 +78,7 @@ public sealed class NativeGfMenuTests
     }
 
     [Fact]
-    public void EncounterPassivesUnionOnlyTheCombatPartyAndIncludeKnockedOutMembers()
+    public void EncounterPassivesIgnoreCharacterSlotsAndApplyFromUnjunctionedGuardianForces()
     {
         using GameAssets assets = InstalledAssets();
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
@@ -90,8 +90,12 @@ public sealed class NativeGfMenuTests
         rows[1] = rows[1] with { HitPoints = new NativeHpWord(0, 0), Status = 1, Junction = rows[1].Junction with { Abilities = 81 } };
         rows[2] = rows[2] with { Junction = rows[2].Junction with { Abilities = 82 } };
         vitals = vitals with { Records = rows, CombatParty = [0, 1, 255] };
+        Assert.Equal(0, vitals.GetEncounterAbilityFlags());
+        vitals = vitals.AcquireGuardianForce(5).TeachGuardianForceAbility(5, 80).TeachGuardianForceAbility(5, 81);
         Assert.Equal(12, vitals.GetEncounterAbilityFlags());
-        Assert.Equal(4, (vitals with { CombatParty = [0, 255, 255] }).GetEncounterAbilityFlags());
+        Assert.Equal(12, (vitals with { CombatParty = [0, 255, 255] }).GetEncounterAbilityFlags());
+        vitals = vitals.SetGuardianForcePassiveAbilityEnabled(5, 81, false);
+        Assert.Equal(4, vitals.GetEncounterAbilityFlags());
     }
 
     [Fact]

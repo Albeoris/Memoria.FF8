@@ -47,6 +47,8 @@ internal static class GuardianForceLegacyExportReview
         return loss.DescriptionId switch
         {
             "attribution" => SystemText("save.gf-export.loss.attribution", "GF mod-layer identities, save-local contributions and their attribution cannot be retained in an original FFVIII save."),
+            "passive-enc-half" => FormatSystemText("save.gf-export.loss.passive-enc-half", "GF {0}: the disabled Enc-Half preference cannot be retained in an original FFVIII save.", arguments),
+            "passive-enc-none" => FormatSystemText("save.gf-export.loss.passive-enc-none", "GF {0}: the disabled Enc-None preference cannot be retained in an original FFVIII save.", arguments),
             "passive" => FormatSystemText("save.gf-export.loss.passive", "GF {0}: the disabled Move-Find preference cannot be retained in an original FFVIII save.", arguments),
             "configuration" => FormatSystemText("save.gf-export.loss.configuration", "GF {0}: authored learning order, entries or conditions revert to the target game's definitions.", arguments),
             "unknown" => FormatSystemText("save.gf-export.loss.unknown", "GF {0}: unmapped high forgotten bits cannot be retained after learning structure changes.", arguments),
