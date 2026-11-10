@@ -12,6 +12,58 @@ public sealed class NativeBattleMoogle96PresentationTests
     private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
+    public void EquippedMiniMogRunsMoogleDanceToCompletionAndRestoresDuringTheEffect()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 96);
+        byte[] pocket = game.ReadNewGamePocketStation().Raw.ToArray();
+        pocket[0] = 0x0D;
+        pocket[1] = 20;
+        BattleCombatantDefinition actor = original.Combatants[0] with { EquipmentIds = [0], NativeCommands = [assets.ReadNativeCommand(38)] };
+        uint price = checked((uint)(100 * actor.Level));
+        BattleDefinition definition = original with
+        {
+            Combatants = [actor, original.Combatants[1]],
+            GuardianForces = [new(0, 500, 1000)],
+            NativeCommandNames = assets.ReadNativeCommandNames(),
+            NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
+            NativePocketStation = game.ReadNewGamePocketStation() with { Raw = pocket.ToImmutableArray() },
+            NativeGil = new(price, 123)
+        };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.CanChoosePlayerCommand("party"));
+        BattleActionDefinition choice = Assert.Single(battle.GetNativePlayerActionChoices("party", false));
+        battle.QueueAction("party", "party", choice.Ability, choice.Id);
+
+        BattleSession? restored = null;
+        bool completed = false;
+        for (int callback = 0; callback < 1024; callback++)
+        {
+            battle.Tick();
+            restored?.Tick();
+            if (restored is null && battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 96, ReturnedDescriptor: > 0 })
+            {
+                restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            }
+            if (restored is not null && battle.ActiveAction is null && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 })
+            {
+                completed = true;
+                break;
+            }
+        }
+        Assert.True(completed);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored!.Capture()));
+        Assert.Equal(new NativeBattleGil(0, 123), battle.Capture().NativeGil);
+        Assert.Equal((ushort)700, Assert.Single(battle.GuardianForces).HitPoints);
+        Assert.Single(battle.Events, entry => entry.Kind == "GuardianForceHealing");
+    }
+
+    [Fact]
     public void External_Moogle_healing_completes_original_resources_and_independent_live_restores()
     {
         string? sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOOGLE96_SNAPSHOT");

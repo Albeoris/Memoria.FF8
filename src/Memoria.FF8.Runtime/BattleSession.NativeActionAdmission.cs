@@ -18,8 +18,13 @@ public sealed partial class BattleSession
         return native.AttackType is 17 or 19 && command.NativeSpecial is { Failed: true };
     }
 
-    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
+    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed)
     {
+        if (miniMogFailed)
+        {
+            NativeBattleActionDataReference title = new(0x47EBD0, 38) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(38) };
+            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+        }
         if (NativeMagicInvocationSilenced(actor, command, native))
         {
             NativeBattleActionDataReference title = new(0x47E970, native.ActionId) { FormattedText = native.Name };
@@ -106,8 +111,11 @@ public sealed partial class BattleSession
             case 32:
             case 33:
             case 34:
-            case 38:
                 data = new(0x47EBD0, original);
+                break;
+            case 38:
+                action = checked((ushort)native.KernelIndex);
+                data = new(0x495050, action);
                 break;
             case 239:
             case 241:

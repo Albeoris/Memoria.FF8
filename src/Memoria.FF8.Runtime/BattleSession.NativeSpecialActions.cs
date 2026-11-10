@@ -166,10 +166,10 @@ public sealed partial class BattleSession
         return (uint)id < names.Length && names[id] is string name ? name : throw new NotSupportedException($"Native battle {family} {id} requires its installed localized name.");
     }
 
-    private void QueueNativeSpecialText(BattleCombatant actor, BattleCombatant recipient, string text)
+    private void QueueNativeSpecialText(BattleCombatant actor, BattleCombatant recipient, string text, BattleTextIdentity? textIdentity = null)
     {
         int frames = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native special-action text requires the saved message speed BYTE.")) + 8;
-        QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, frames, text) { NativeMessageMode = 3 });
+        QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, frames, text) { NativeMessageMode = 3, NativeTextIdentity = textIdentity });
     }
 
     private void CommitNativeSpecialContact(BattleCombatant actor, BattleCombatant recipient, string source, int amount, bool eject)

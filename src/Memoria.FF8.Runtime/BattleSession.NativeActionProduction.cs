@@ -7,14 +7,14 @@ public sealed partial class BattleSession
     private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
-    private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context)
+    private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed)
     {
-        if (header.Actor != actor.NativeIndex || header.Command != NativeHeaderCommand(actor, command, action.NativeAction!) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Actor != actor.NativeIndex || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
         bool silencedMagic = NativeMagicInvocationSilenced(actor, command, action.NativeAction!);
-        bool failedSpecial = NativeSpecialInvocationFailed(command, action.NativeAction!);
+        bool failedSpecial = miniMogFailed || NativeSpecialInvocationFailed(command, action.NativeAction!);
         BattleActionPresentation formulaCommand = command;
         BattleActionDefinition formulaAction = action;
         if (failedSpecial || silencedMagic)
@@ -22,6 +22,12 @@ public sealed partial class BattleSession
             BattleNativeAction control = action.NativeAction! with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
             formulaCommand = command with { NativeQueuedCommand = 0, NativeAction = control };
             formulaAction = action with { NativeAction = control };
+        }
+        else if (header.Command == 38)
+        {
+            BattleNativeAction dance = action.NativeAction! with { ActionId = header.Action };
+            formulaCommand = command with { NativeAction = dance };
+            formulaAction = action with { NativeAction = dance };
         }
         if (silencedMagic && definition.NativeGlobalMessages.Length != 0)
         {

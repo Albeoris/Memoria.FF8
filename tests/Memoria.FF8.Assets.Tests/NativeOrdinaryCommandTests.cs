@@ -145,6 +145,104 @@ public sealed class NativeOrdinaryCommandTests
     }
 
     [Theory]
+    [InlineData(0x0D, 2400, false, null)]
+    [InlineData(0x0D, 2400, true, null)]
+    [InlineData(0x0D, 2399, false, 53)]
+    [InlineData(0x01, 2400, false, 72)]
+    [InlineData(0x0F, 2400, false, 72)]
+    public void InstalledMiniMogSelectionRunsItsNativeCommandAndRestoresAcrossAdmission(byte flags, uint selectedGil, bool dream, int? failureMessage)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleNativeCommandBinding binding = assets.ReadNativeCommand(38);
+        BattleNativeAction dance = assets.NativeActions.Single(action => action.Command == 240 && action.ActionId == 6);
+        Assert.Equal((byte)255, binding.ActionId);
+        Assert.Equal(9, dance.KernelSection);
+        Assert.Equal(6, dance.KernelIndex);
+        Assert.Equal((ushort)96, dance.MagicId);
+        NativeBattleGil gil = dream ? new(7777, selectedGil) : new(selectedGil, 7777);
+        byte[] pocket = new byte[64];
+        pocket[0] = flags;
+        pocket[1] = 10;
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
+            NativeFieldBattleRules = 0,
+            NativeActions = assets.NativeActions.ToArray(),
+            NativeCommandNames = assets.ReadNativeCommandNames(),
+            NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
+            NativeMessageSpeed = 1,
+            NativeSavedBattleFlags = dream ? (byte)1 : (byte)0,
+            NativeSavedBattleFlagsKnownMask = 255,
+            NativePocketStation = new(NativeInputConfiguration.OriginalInitHash, pocket.ToImmutableArray()),
+            NativeGil = gil,
+            GuardianForces = [new(0, 500, 1000), new(1, 960, 1000), new(2, 500, 1000)],
+            Combatants =
+            [
+                new() { Id = "actor", Name = "Squall", ModelId = 0, IsPlayer = true, Level = 11, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [0, 1], NativeCommands = [binding], NativeStatusResistances = new byte[40] },
+                new() { Id = "ally", Name = "Ally", ModelId = 1, IsPlayer = true, Level = 24, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] },
+                new() { Id = "ko", Name = "KO", ModelId = 2, IsPlayer = true, Level = 38, MaximumHp = 1000, CurrentHp = 0, NativeStatus0 = 1, Speed = 1, EquipmentIds = [2], NativeStatusResistances = new byte[40] },
+                new() { Id = "enemy", Name = "Enemy", ModelId = 0, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] }
+            ]
+        }, BattleAtbMode.Normal);
+
+        Assert.Empty(battle.GetNativePlayerActionChoices("ally", false));
+        BattleActionDefinition choice = Assert.Single(battle.GetNativePlayerActionChoices("actor", false));
+        Assert.Equal(binding.Name, choice.DisplayName ?? choice.Name);
+        Assert.Equal((38 << 16) | 255, choice.Id);
+        Assert.True(choice.Allies);
+        Assert.True(choice.Available);
+        Assert.Equal(dance.MagicId, choice.NativeAction!.MagicId);
+        Assert.Equal(dance.AttackType, choice.NativeAction.AttackType);
+        battle.QueueAction("actor", "actor", choice.Ability, choice.Id);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal((byte)38, queued.NativeQueuedCommand);
+        Assert.Equal(255, queued.ActionId);
+        Assert.Equal(gil, battle.Capture().NativeGil);
+
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
+        Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.ReadByte(1));
+        Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.ReadByte(2));
+        Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal(failureMessage is null ? (ushort)96 : (ushort)0, NativeBattleActionGraphics.Word(header, 6));
+        Assert.Equal(failureMessage is null ? 0x495050u : 0x47EBD0u, header.Data!.ProducerAddress);
+        Assert.Equal(failureMessage is null ? dance.Name : binding.Name, header.Data.FormattedText);
+        if (failureMessage is not null)
+        {
+            Assert.Equal((byte)0, header.ReadByte(16));
+        }
+
+        restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        if (failureMessage is int message)
+        {
+            Assert.Equal(gil, battle.Capture().NativeGil);
+            Assert.Equal(assets.ReadNativeGlobalBattleMessages()[message], Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+            Assert.DoesNotContain(battle.Events, entry => entry.Kind == "GuardianForceHealing");
+            Assert.Equal(new ushort[] { 500, 960, 500 }, battle.GuardianForces.Select(gf => gf.HitPoints));
+        }
+        else
+        {
+            Assert.Equal(dream ? new NativeBattleGil(7777, 0) : new NativeBattleGil(0, 7777), battle.Capture().NativeGil);
+            Assert.Equal(assets.ReadNativeGlobalBattleMessages()[54], Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+            Assert.Equal(new[] { 100, 40 }, battle.Events.Where(entry => entry.Kind == "GuardianForceHealing").Select(entry => entry.Amount));
+            Assert.Equal(new ushort[] { 600, 1000, 500 }, battle.GuardianForces.Select(gf => gf.HitPoints));
+        }
+    }
+
+    [Theory]
     [InlineData(25, 500, 0x7E, 500)]
     [InlineData(26, 100, 0, 1000)]
     [InlineData(27, 0, 1, 1000)]

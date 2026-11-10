@@ -42,6 +42,7 @@ public sealed partial class BattleSession
             handlers[handler.Kind] = handler;
         }
         this.definition = NativeBattleStorageSnapshots.Capture(CloneDefinition(definition));
+        nativeGil = this.definition.NativeGil;
         NativeCamera = this.definition.NativeStageCameraBank is null ? null : NativeBattleCameraState.Initialize();
         chocoboRewards = this.definition.ChocoboRewards.ObserveInventory(this.definition.NativeItemInventory ?? []);
         nativeCards = this.definition.NativeCards?.DeepCopy();
@@ -393,6 +394,7 @@ public sealed partial class BattleSession
             ActiveAction = ActiveAction,
             Events = events.ToArray(),
             NativeItemInventory = nativeItems.ToArray(),
+            NativeGil = nativeGil,
             NativeScannedModels = nativeScannedModels,
             ScanKnowledge = scanKnowledge,
             NativeKnownMagic = nativeKnownMagic,
@@ -1401,6 +1403,7 @@ public sealed partial class BattleSession
         RestoreOriginalStockDrawOperations(snapshot.OriginalStockDrawOperations);
         ValidateStocks(snapshot.Items, 198);
         RestoreNativeItems(snapshot.NativeItemInventory ?? throw new InvalidDataException("Battle snapshot requires its explicitly migrated198-slot native item inventory."));
+        RestoreNativeGil(snapshot.NativeGil);
         if (snapshot.EnemyDefeats is null || snapshot.EnemyDefeats.Select(defeat => defeat.AllocationKey).Distinct(StringComparer.Ordinal).Count() != snapshot.EnemyDefeats.Length)
         {
             throw new InvalidDataException("Battle snapshot lacks its unique observed enemy defeat facts.");
@@ -1562,6 +1565,7 @@ public sealed partial class BattleSession
         DebugOutcome = candidate.DebugOutcome;
         ActiveAction = candidate.ActiveAction;
         RestoreNativeItems(candidate.nativeItems);
+        nativeGil = candidate.nativeGil;
         chocoboRewards = candidate.chocoboRewards;
         nativeScannedModels = candidate.nativeScannedModels;
         scanKnowledge = candidate.scanKnowledge;

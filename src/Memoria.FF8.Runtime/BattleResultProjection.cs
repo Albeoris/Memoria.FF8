@@ -30,6 +30,14 @@ public static partial class BattleResultProjection
         }
         NativeCharacterVitals vitals = ApplyMagicSystemReceipt(result, sourceVitals.DeepCopy());
         NativeEconomy economy = sourceEconomy.DeepCopy();
+        if (result.NativeGilChange is { } gil)
+        {
+            if (gil.Before.Gil != economy.Gil || gil.Before.PastGil != economy.PastGil)
+            {
+                throw new InvalidDataException("Battle Gil consumption disagrees with its canonical wallet balances.");
+            }
+            economy = economy with { Gil = gil.After.Gil, PastGil = gil.After.PastGil };
+        }
         NativeCharacterVital[] records = vitals.Records.ToArray();
         foreach (BattlePartyResult member in result.Party)
         {

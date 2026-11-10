@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -220,6 +221,8 @@ public sealed record BattleDefinition
     public byte? NativeFieldBattleRules { get; init; }
     public BattleStock[] Items { get; init; } = [];
     public NativeItemStock[]? NativeItemInventory { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGil? NativeGil { get; init; }
     public byte NativeSeed { get; init; }
     public ushort NativeFlags { get; init; }
     public ushort? NativeFieldBattleMode { get; init; }
@@ -417,6 +420,8 @@ public sealed record BattleSnapshot
     public BattleEvent[] Events { get; init; } = [];
     public BattleStock[] Items { get; init; } = [];
     public NativeItemStock[]? NativeItemInventory { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGil? NativeGil { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public BattleEnemyDefeat[] EnemyDefeats { get; init; } = [];
 

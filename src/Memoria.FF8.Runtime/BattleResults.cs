@@ -33,6 +33,7 @@ public sealed record BattleEncounterOccurrence([property: JsonRequired] string O
 
 public sealed record BattleMagicChange([property: JsonRequired] byte SpellId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] int Change);
 public sealed record BattleItemConsumption([property: JsonRequired] byte ItemId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] byte Consumed);
+public sealed record NativeBattleGilChange([property: JsonRequired] NativeBattleGil Before, [property: JsonRequired] NativeBattleGil After);
 public sealed record BattleEncounterTerminalResult(string Encounter, string GenerationIdentity, string OriginalActorId)
 {
     public void Validate(BattleResult result)
@@ -61,6 +62,8 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     public NativeCrtRandomState? NativeCrtRandomBefore { get; init; }
     public NativeCrtRandomState? NativeCrtRandomAfter { get; init; }
     public NativeItemStock[]? NativeItemInventoryAfter { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGilChange? NativeGilChange { get; init; }
     public NativeKnownMagic? NativeKnownMagicBefore { get; init; }
     public NativeKnownMagic? NativeKnownMagicAfter { get; init; }
     public NativeScannedModels? NativeScannedModelsBefore { get; init; }
@@ -99,6 +102,10 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         if (NativeItemInventoryAfter is { } finalItems)
         {
             BattleSession.ValidateNativeItemInventory(finalItems);
+        }
+        if (NativeGilChange is { } gil && (gil.Before is null || gil.After is null || gil.Before == gil.After || !gil.After.IsAtMost(gil.Before) || RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly))
+        {
+            throw new InvalidDataException("Battle Gil change requires observed consumption from the live wallets.");
         }
         if (NativeRewardItems is { } rewardItems)
         {

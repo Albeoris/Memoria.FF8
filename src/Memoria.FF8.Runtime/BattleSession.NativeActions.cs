@@ -27,6 +27,11 @@ public sealed partial class BattleSession
         {
             return NativePostActionEffect(id);
         }
+        if (command == 38 && id == byte.MaxValue && crisis is null)
+        {
+            BattleNativeAction dance = FindInstalledNativeAction(240, 6);
+            return dance with { Command = command, DispatchCommand = command, ActionId = id, TargetFlags = null };
+        }
         if (command is 1 or 12 or 28 && id == 0)
         {
             if (GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
@@ -115,7 +120,8 @@ public sealed partial class BattleSession
     private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, bool queueGraphics = true)
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
-        NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction!);
+        int? miniMogFailure = action.NativeAction!.Command == 38 ? PrepareNativeMiniMog() : null;
+        NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction, miniMogFailure is not null);
         if (NativeGraphics is { } entryGraphics && header.Command == 241 && command.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
         {
             //48D200 publishes the input callback before the corresponding effect header.
@@ -132,7 +138,7 @@ public sealed partial class BattleSession
         diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
         try
         {
-            produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
+            produced = ProduceNativeActionFacts(actor, target, command, action, header, context, miniMogFailure is not null);
         }
         finally
         {
@@ -160,6 +166,11 @@ public sealed partial class BattleSession
             }
             NativeGraphics = graphics;
         }
+        int? miniMogMessage = miniMogFailure ?? (header.Command == 38 && produced.Contacts.Length != 0 ? 54 : null);
+        if (miniMogMessage is int message)
+        {
+            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
+        }
         nativeProductionContext = context;
         //48E830's abort decrements the repeat counter before485610 increments it.
         //The physical header and its pre-admission target population still remain published.
@@ -172,6 +183,20 @@ public sealed partial class BattleSession
             ResolveNativeReflection(actor, combatants.Single(candidate => candidate.NativeIndex == reflector), command, action.NativeAction!, headerIndex);
         }
         return !produced.RepeatAborted && produced.PublishedTargetCount != 0;
+    }
+
+    private int? PrepareNativeMiniMog()
+    {
+        NativePocketStationState pocket = definition.NativePocketStation ?? throw new NotSupportedException("MiniMog requires the saved PocketStation block.");
+        pocket.Validate();
+        if ((pocket.Flags & 0x0F) != 0x0D)
+        {
+            return 72;
+        }
+        // 48B2E0 averages the levels in the occupied physical party slots, including KO members.
+        BattleCombatant[] party = combatants.Where(member => member.IsPlayer && member.NativeIndex is >= 0 and < 3).ToArray();
+        uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
+        return TrySpendNativeMoogleGil(cost) ? null : 53;
     }
 
     private BattleCombatant[] ResolveNativeActionMask(ushort targetMask)
@@ -279,6 +304,7 @@ public sealed partial class BattleSession
         }
         if (native.AttackType == 24)
         {
+            MarkNativeContactFlags(1, 0);
             ResolveMoogleDance(actor, recipient, command);
             return;
         }

@@ -122,6 +122,57 @@ public sealed class BattleResultFactTests
         Assert.Equal(after, session.State.CharacterVitals!.Records[row].DeathCount);
     }
 
+    [Theory]
+    [InlineData(BattleOutcome.Victory, false)]
+    [InlineData(BattleOutcome.Escaped, true)]
+    [InlineData(BattleOutcome.Defeat, false)]
+    public void MiniMogGilDebitSurvivesResultProjectionAndCommitsOnce(BattleOutcome outcome, bool dream)
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        economy = economy with { Gil = 5000, PastGil = 3000, EventBankGil72 = 4900, EventBankPastGil76 = 2900 };
+        NativeBattleGil before = new(economy.Gil, economy.PastGil);
+        NativeBattleGil after = dream ? before with { PastGil = 2200 } : before with { Gil = 4200 };
+        fact = fact with { Outcome = outcome, NativeGilChange = new(before, after) };
+        if (outcome == BattleOutcome.Defeat)
+        {
+            fact = fact with { Party = fact.Party.Select(member => member with { HitPointsAfter = 0, StatusAfter = (ushort)(member.StatusAfter | 1) }).ToArray(), RewardEligibleGuardianForceIds = [] };
+        }
+        fact = JsonSerializer.Deserialize<BattleResult>(JsonSerializer.Serialize(fact))!;
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        string initial = JsonSerializer.Serialize(session.State);
+
+        BattleResultOwners projected = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 7));
+
+        Assert.Equal(after.Gil, projected.Economy.Gil);
+        Assert.Equal(after.PastGil, projected.Economy.PastGil);
+        Assert.Equal(economy.EventBankGil72, projected.Economy.EventBankGil72);
+        Assert.Equal(economy.EventBankPastGil76, projected.Economy.EventBankPastGil76);
+        if (outcome == BattleOutcome.Defeat)
+        {
+            Assert.Empty(projected.Rewards.GuardianForceAbilityPoints);
+        }
+        else
+        {
+            Assert.NotEmpty(projected.Rewards.GuardianForceAbilityPoints);
+        }
+        Assert.Equal(initial, JsonSerializer.Serialize(session.State));
+
+        NativeBattleGilChange stale = dream
+            ? new(before with { Gil = before.Gil + 1 }, after with { Gil = after.Gil + 1 })
+            : new(before with { PastGil = before.PastGil + 1 }, after with { PastGil = after.PastGil + 1 });
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeGilChange = stale }));
+        Assert.Equal(initial, JsonSerializer.Serialize(session.State));
+        world.ApplyBattleResult(fact.Encounter, fact);
+
+        Assert.Equal(after.Gil, session.State.Economy!.Gil);
+        Assert.Equal(after.PastGil, session.State.Economy.PastGil);
+        string committed = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+    }
+
     [Fact]
     public void RepeatedSceneAllocationsAwardTheirOwnApWithoutDuplicatingOneAllocationReceipt()
     {

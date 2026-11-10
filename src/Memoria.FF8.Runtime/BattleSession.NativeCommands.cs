@@ -88,7 +88,8 @@ public sealed partial class BattleSession
         {
             byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == action.Command).TargetFlags;
             int id = (action.Command << 16) | action.ActionId;
-            return new BattleActionDefinition(ability, id, action.Name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0) { NativeAction = action, NativeAttackFlags = action.AttackFlags, Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0), DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null };
+            string? name = action.Command == 38 ? actor.NativeCommands.Single(binding => binding.Command == 38).Name : action.Name;
+            return new BattleActionDefinition(ability, id, name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0) { NativeAction = action, NativeAttackFlags = action.AttackFlags, Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0), DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null };
         }).ToArray();
     }
 
