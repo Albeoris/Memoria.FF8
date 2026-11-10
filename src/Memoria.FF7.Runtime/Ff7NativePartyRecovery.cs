@@ -6,6 +6,30 @@ public sealed record Ff7PartyRecoveryResult(Ff7Progress Progress, bool Underwate
 
 public static class Ff7NativePartyRecovery
 {
+    public static Ff7PartyRecoveryResult Publish(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
+    {
+        return ApplyCore(progress, materiaRecords, statModifiers, clearStatus: false, recovery: 0);
+    }
+
+    public static Ff7PartyRecoveryResult AddHitPoints(Ff7Progress progress, int characterId, short amount, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
+    {
+        Ff7PartyRecoveryResult prepared = Publish(progress, materiaRecords, statModifiers);
+        Ff7CharacterState[] characters = prepared.Progress.Characters.Select(character =>
+        {
+            if (character.Id != characterId || !progress.Party.Contains(characterId))
+            {
+                return character;
+            }
+            byte[] record = character.NativeRecord.ToArray();
+            short current = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(44));
+            short maximum = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(56));
+            ushort adjusted = unchecked((ushort)Math.Min(unchecked((short)(current + amount)), maximum));
+            BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), adjusted);
+            return character with { HitPoints = adjusted, NativeRecord = record };
+        }).ToArray();
+        return prepared with { Progress = prepared.Progress with { Characters = characters } };
+    }
+
     public static Ff7PartyRecoveryResult Apply(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
     {
         return ApplyCore(progress, materiaRecords, statModifiers, clearStatus: false);
@@ -22,7 +46,7 @@ public static class Ff7NativePartyRecovery
         return ApplyCore(recovered with { Party = progress.Party }, materiaRecords, statModifiers, clearStatus: true);
     }
 
-    private static Ff7PartyRecoveryResult ApplyCore(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, bool clearStatus)
+    private static Ff7PartyRecoveryResult ApplyCore(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, bool clearStatus, short recovery = 10000)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(materiaRecords);
@@ -111,8 +135,8 @@ public static class Ff7NativePartyRecovery
             }
             hp = Math.Max(10, hp);
             mp = Math.Max(10, mp);
-            ushort currentHp = Recover(BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)), hp);
-            ushort currentMp = Recover(BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(48)), mp);
+            ushort currentHp = Recover(BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)), hp, recovery);
+            ushort currentMp = Recover(BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(48)), mp, recovery);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), currentHp);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), currentMp);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(56), checked((ushort)hp));
@@ -133,10 +157,10 @@ public static class Ff7NativePartyRecovery
         return Math.Clamp(adjusted, 0, limit);
     }
 
-    private static ushort Recover(ushort current, int maximum)
+    private static ushort Recover(ushort current, int maximum, short amount)
     {
         short clamped = (short)Math.Min(unchecked((short)current), maximum);
-        short added = unchecked((short)(clamped + 10000));
+        short added = unchecked((short)(clamped + amount));
         return unchecked((ushort)Math.Min(added, maximum));
     }
 }

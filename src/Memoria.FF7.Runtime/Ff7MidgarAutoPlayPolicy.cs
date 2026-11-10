@@ -12,6 +12,20 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         {
             return 3;
         }
+        if (Ff7FieldEventCoverageCatalog.RecognizesWallMarketRestaurant(session) && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 188)
+        {
+            return (dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice) switch
+            {
+                (14, 1, 2) => 1,
+                (3, 2, 4) => 2,
+                (16, 1, 3) => 2,
+                _ => null
+            };
+        }
+        if (Ff7FieldEventCoverageCatalog.RecognizesWallMarketItemShop(session) && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 188 && dialogue.Text == 3 && dialogue.FirstChoice == 0 && dialogue.LastChoice == 2)
+        {
+            return 2;
+        }
         return (session.Field.Name, dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice) switch
         {
             ("mds6_2", 2, 5, 6) => 5,

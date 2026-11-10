@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--meal-only", StringComparer.Ordinal))
+{
+    NativeMealOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--window-parameter-only", StringComparer.Ordinal))
 {
     NativeWindowParameterTests.Run();

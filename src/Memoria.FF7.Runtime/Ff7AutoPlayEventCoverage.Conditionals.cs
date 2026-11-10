@@ -12,6 +12,7 @@ public sealed partial class Ff7AutoPlayEventCoverage
         ObserveItemShopCoverage(observation);
         ObserveWallMarketScene(observation);
         ObserveWallMarketInn(observation);
+        ObserveAbandonedItemStore(observation);
         if (!Ff7FieldEventCoverageCatalog.RecognizesReunion(session) || observation.Field != session.Field.Name || observation.Generation != session.FieldGeneration)
         {
             return;

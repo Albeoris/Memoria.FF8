@@ -51,6 +51,11 @@ public sealed partial class Ff7AutoPlayEventCoverage
         {
             return;
         }
+        ChooseAbandonedItemStoreInput(driver, entry, ref input, ref handled);
+        if (handled)
+        {
+            return;
+        }
         ChooseWallMarketInnInput(driver, entry, ref input, ref handled);
         if (handled)
         {

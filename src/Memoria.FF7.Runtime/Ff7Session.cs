@@ -311,7 +311,19 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (command is FieldGilCommand gil)
         {
-            Progress = Progress.AddGil(gil.Amount);
+            Progress = gil.Subtract ? Progress with { Gil = Progress.Gil - Math.Min(Progress.Gil, gil.Amount) } : Progress.AddGil(gil.Amount);
+            return new(true);
+        }
+        if (command is FieldGilQuery)
+        {
+            return new(true, unchecked((int)Progress.Gil));
+        }
+        if (command is FieldHitPointCommand health)
+        {
+            Ff7PartyRecoveryResult adjusted = Ff7NativePartyRecovery.AddHitPoints(Progress, health.Character, health.Amount, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
+            Progress = adjusted.Progress;
+            byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
+            Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (adjusted.Underwater ? 128 : 0)));
             return new(true);
         }
         if (command is FieldTimerCommand timer)

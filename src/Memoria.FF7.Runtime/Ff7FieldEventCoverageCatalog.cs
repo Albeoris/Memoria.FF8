@@ -62,6 +62,10 @@ public static partial class Ff7FieldEventCoverageCatalog
         InspectWallMarketRoom(session, story, ref extension);
         InspectWallMarketMateria(session, story, ref extension);
         InspectWallMarketItemShop(session, story, ref extension);
+        InspectWallMarketBoutique(session, story, ref extension);
+        InspectWallMarketRestaurant(session, story, ref extension);
+        InspectWallMarketAbandonedItemStore(session, story, ref extension);
+        InspectWallMarketMainStreet(session, story, ref extension);
         if (extension is not null)
         {
             return extension;
@@ -329,6 +333,9 @@ public static partial class Ff7FieldEventCoverageCatalog
     static partial void InspectWallMarketRoom(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
     static partial void InspectWallMarketMateria(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
     static partial void InspectWallMarketItemShop(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
+    static partial void InspectWallMarketBoutique(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
+    static partial void InspectWallMarketRestaurant(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
+    static partial void InspectWallMarketAbandonedItemStore(Ff7Session session, int story, ref Ff7FieldEventCoveragePlan? plan);
 
     private static Ff7FieldEventCoveragePlan InspectParkExit(Ff7Session session)
     {

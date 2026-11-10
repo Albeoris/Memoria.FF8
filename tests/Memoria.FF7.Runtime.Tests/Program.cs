@@ -3,6 +3,36 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--abandoned-item-store-only", StringComparer.Ordinal))
+{
+    NativeWallMarketAbandonedItemStoreCoverageTests.Run();
+    return 0;
+}
+
+if (args.Contains("--meal-only", StringComparer.Ordinal))
+{
+    NativeMealTests.Run();
+    return 0;
+}
+
+if (args.Contains("--restaurant-only", StringComparer.Ordinal))
+{
+    NativeWallMarketRestaurantCoverageTests.Run();
+    return 0;
+}
+
+if (args.Contains("--restaurant-return-only", StringComparer.Ordinal))
+{
+    NativeWallMarketRestaurantCoverageTests.RunReturn();
+    return 0;
+}
+
+if (args.Contains("--coupon-only", StringComparer.Ordinal))
+{
+    NativeWallMarketItemShopCoverageTests.RunCoupon();
+    return 0;
+}
+
 if (args.Contains("--shop-only", StringComparer.Ordinal))
 {
     NativeShopTests.Run();
@@ -76,6 +106,11 @@ var tests = new (string Name, Action Run)[]
     ("native shop autoplay cadence and clock ownership", NativeShopAutoPlayTests.Run),
     ("native optional inn production tour and return receipts", NativeOptionalInnTourTests.Run),
     ("native optional item shop production tour and return receipts", NativeOptionalInnTourTests.RunItemShop),
+    ("native optional materia production tour and return receipts", NativeOptionalInnTourTests.RunMateria),
+    ("native optional restaurant production tour and coupon availability", NativeOptionalInnTourTests.RunRestaurant),
+    ("native optional coupon production tour and changed information", NativeOptionalInnTourTests.RunCoupon),
+    ("native optional abandoned item store production tour", NativeOptionalInnTourTests.RunAbandonedItemStore),
+    ("native main-street local subset and frontiers", NativeWallMarketMainStreetCoverageTests.Run),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
@@ -109,6 +144,7 @@ var tests = new (string Name, Action Run)[]
     ("native inn catalog and physical visit", NativeWallMarketInnCoverageTests.Run),
     ("native item-shop catalog and physical visit", NativeWallMarketItemShopCoverageTests.Run),
     ("native materia-room catalog and physical visit", NativeWallMarketMateriaCoverageTests.Run),
+    ("native boutique researched subset and frontier", NativeWallMarketBoutiqueCoverageTests.Run),
     ("native room reset ownership and cold coverage", NativeRoomResetCoverageTests.Run),
     ("native part visibility and cold continuation", NativePartVisibilityTests.Run),
     ("native interactive ladder continuation contracts", NativeLadderTests.Run),

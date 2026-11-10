@@ -37,6 +37,12 @@ internal static class AutoPlayTourTests
         Check(new AutoPlayTourLedger(coverage.Capture().Tour!).Complete, "Returned snapshot arrays must not mutate the live tour.");
         cold.PublishCatalog([room with { Availability = "predicate-b" }, story], true, "Native availability changed.");
         Check(!cold.Complete, "A changed native availability predicate must reopen its required room visit.");
+        cold.Begin("room", "native-b-request");
+        cold.Arrive("room", "native-b-entry");
+        cold.CompleteVisit("room", "native-b-covered-return");
+        AutoPlayTourLedger repeated = new(JsonSerializer.Deserialize<AutoPlayTourState>(JsonSerializer.Serialize(cold.Capture()))!);
+        repeated.PublishCatalog([room, story], true, "The already observed native baseline returned.");
+        Check(repeated.Complete && repeated.Capture().Frontiers.Single(edge => edge.Id == "room").ReturnWitness == "native-local-covered-return", "Returning to a previously observed predicate must preserve its actual receipt instead of generating a repeat-visit loop.");
         Check(new AutoPlayEventCoverageLedger(new()).Capture().Tour is null, "Older coverage snapshots must not manufacture optional visits.");
         coverage.PublishCatalog([new("talk", "native-a")], true);
         coverage.Begin("talk", "native-request");

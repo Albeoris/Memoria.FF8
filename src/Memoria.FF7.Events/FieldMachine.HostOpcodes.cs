@@ -38,6 +38,22 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldPartyRecovery(AllCharacters: true), 1);
             case 0x39:
                 return Host(id, new FieldGilCommand((uint)(ushort)R16(id, 1, 2) | (uint)(ushort)R16(id, 2, 4) << 16), 6);
+            case 0x3A:
+                return Host(id, new FieldGilCommand((uint)(ushort)R16(id, 1, 2) | (uint)(ushort)R16(id, 2, 4) << 16, Subtract: true), 6);
+            case 0x3B:
+                return Host(id, new FieldGilQuery(), 4, result: value =>
+                {
+                    Variables.WriteWord(Bank(id, 1), B(id, 2), unchecked((short)value));
+                    Variables.WriteWord(Bank(id, 2), B(id, 3), unchecked((short)((uint)value >> 16)));
+                });
+            case 0x4D:
+                int healthSlot = B(id, 2);
+                if (healthSlot >= 3)
+                {
+                    throw new NotSupportedException("FFVII HP adjustment requires a native script-party slot.");
+                }
+                int healthCharacter = ReadParty()[healthSlot];
+                return Host(id, new FieldHitPointCommand(healthCharacter, healthCharacter == 255 ? (short)0 : R16(id, 2, 3)), 5);
             case 0x5E:
                 byte shakeAxes = B(id, 3);
                 return Host(id, new FieldCameraShake(shakeAxes, (shakeAxes & 1) != 0 ? R8(id, 1, 4) : (byte)0, (shakeAxes & 1) != 0 ? R8(id, 2, 5) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 3, 6) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 4, 7) : (byte)0), 8);

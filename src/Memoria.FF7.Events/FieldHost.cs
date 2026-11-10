@@ -40,6 +40,8 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
 [JsonDerivedType(typeof(FieldItemCommand), "item")]
 [JsonDerivedType(typeof(FieldGilCommand), "gil")]
+[JsonDerivedType(typeof(FieldGilQuery), "gil-query")]
+[JsonDerivedType(typeof(FieldHitPointCommand), "hit-point")]
 [JsonDerivedType(typeof(FieldTriangleCommand), "triangle")]
 [JsonDerivedType(typeof(FieldLineCommand), "line")]
 [JsonDerivedType(typeof(FieldAudioCommand), "audio")]
@@ -74,7 +76,9 @@ public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Tria
 public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true, int? TargetEntity = null) : FieldCommand;
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
 public sealed record FieldPartyRecovery(bool AllCharacters = false) : FieldCommand;
-public sealed record FieldGilCommand(uint Amount) : FieldCommand;
+public sealed record FieldGilCommand(uint Amount, bool Subtract = false) : FieldCommand;
+public sealed record FieldGilQuery : FieldCommand;
+public sealed record FieldHitPointCommand(int Character, short Amount) : FieldCommand;
 public sealed record FieldCameraShake(byte Axes, byte XAmplitude, byte XDuration, byte YAmplitude, byte YDuration) : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind

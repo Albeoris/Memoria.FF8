@@ -15,9 +15,13 @@ public static partial class Ff7FieldEventCoverageCatalog
             return;
         }
         List<Ff7FieldEventCoverageTarget> events = new();
-        if (session.Host.Process.Lines is not [{ Entity: 2, Enabled: 1 }] || (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0) & 64) != 0)
+        byte couponFlags = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA0);
+        byte medicineFlags = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xA2);
+        bool hasCoupon = (couponFlags & 64) != 0;
+        bool couponVisit = (couponFlags & 0x47) != 0 || (medicineFlags & 7) != 0;
+        if (session.Host.Process.Lines is not [{ Entity: 2, Enabled: 1 }])
         {
-            plan = new(false, "The native item-shop contact or coupon predicate differs from the reviewed visit.", false, events.AsReadOnly());
+            plan = new(false, "The native item-shop contact differs from the reviewed visit.", false, events.AsReadOnly());
             return;
         }
         if (session.Host.Process.Actors.Any(actor => actor.EntityBound && !actor.PlayerControlled && actor.TalkEnabled && session.Field.Scripts.Data.Span[session.Field.Scripts.Entities[actor.Entity].ScriptOffsets[1]] != 0))
@@ -34,7 +38,12 @@ public static partial class Ff7FieldEventCoverageCatalog
                 plan = new(false, "An additional native item-shop contact requires classification.", false, events.AsReadOnly());
                 return;
             }
-            events.Add(new($"line:2:script:{script}", 2, script, $"{entry:X4}:story188:coupon0", empty ? Ff7FieldEventCoverageKind.Empty : Ff7FieldEventCoverageKind.Interaction, empty ? "This original item-shop contact immediately returns." : "Talk at the original counter, enter its native shop module and observe the complete counter return after leaving the shop."));
+            events.Add(new($"line:2:script:{script}", 2, script, $"{entry:X4}:story188:coupon{(couponVisit ? 1 : 0)}", empty ? Ff7FieldEventCoverageKind.Empty : Ff7FieldEventCoverageKind.Interaction, empty ? "This original item-shop contact immediately returns." : hasCoupon ? "Use the native counter's coupon question, select Digestive and wait for the complete owned counter return; the acquired medicine/cologne flags retain this visit's availability after coupon consumption." : "Talk at the original counter, enter its native shop module and observe the complete counter return after leaving the shop."));
+        }
+        if (hasCoupon)
+        {
+            events.Add(new("alternative:7:disinfectant", 7, 3, "coupon-choice0", Ff7FieldEventCoverageKind.Inactive, "Disinfectant is an exclusive alternative to Digestive for this single native coupon; it is not claimed as completed."));
+            events.Add(new("alternative:7:deodorant", 7, 3, "coupon-choice1", Ff7FieldEventCoverageKind.Inactive, "Deodorant is an exclusive alternative to Digestive for this single native coupon; it is not claimed as completed."));
         }
         var exits = session.Field.Triggers.Gateways.Select((gateway, index) => (gateway, index)).Where(value => value.gateway.DestinationField != 32767).ToArray();
         if (exits.Length != 1 || exits[0].gateway.DestinationField != 195)

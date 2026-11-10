@@ -15,6 +15,7 @@ internal sealed partial class Ff7Scene
     private readonly Dictionary<int, int> menuPortraits = [];
     private Action<ControlsProfile>? writeSharedControls;
     private bool menuPointerPressed;
+    private bool playerMenuClockChanged;
     private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
 
     internal bool IsPlayerMenuOpen => playerMenu?.IsOpen == true;
@@ -145,9 +146,9 @@ internal sealed partial class Ff7Scene
         {
             if (IsPlayerMenuOpen)
             {
-                Session!.AdvanceClock(time.ElapsedGameTime);
+                AdvancePlayerMenuClock(time.ElapsedGameTime);
                 ClosePlayerMenu();
-                UpdateAudio();
+                RefreshPlayerMenuPresentation();
                 return true;
             }
             if (!CanOpenPlayerMenu)
@@ -155,29 +156,50 @@ internal sealed partial class Ff7Scene
                 return false;
             }
             EnsurePlayerMenu();
-            Session!.Host.InitializeNativeMenuAudio();
+            Session!.PublishNativeMenuPartyStatistics();
+            Session.Host.InitializeNativeMenuAudio();
             playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
             playerMenu.Open();
             pendingPressedKeys = 0;
             sharedInput.SuppressHeldUiInput();
             menuPointerPressed = Mouse.GetState().LeftButton == ButtonState.Pressed;
             SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
-            Session.AdvanceClock(time.ElapsedGameTime);
-            UpdateAudio();
+            AdvancePlayerMenuClock(time.ElapsedGameTime);
+            RefreshPlayerMenuPresentation();
             return true;
         }
         if (!IsPlayerMenuOpen)
         {
             return false;
         }
-        Session!.AdvanceClock(time.ElapsedGameTime);
+        AdvancePlayerMenuClock(time.ElapsedGameTime);
         UpdateSharedMenuInput(playerMenu!, keys, pad, ref menuPointerPressed);
         if (!playerMenu!.IsOpen)
         {
             ClosePlayerMenu();
         }
-        UpdateAudio();
+        RefreshPlayerMenuPresentation();
         return true;
+    }
+
+    private void AdvancePlayerMenuClock(TimeSpan elapsed)
+    {
+        uint previous = Session!.Clock.ElapsedSeconds;
+        Session.AdvanceClock(elapsed);
+        if (Session.Clock.ElapsedSeconds != previous)
+        {
+            playerMenuClockChanged = true;
+        }
+    }
+
+    private void RefreshPlayerMenuPresentation()
+    {
+        if (playerMenuClockChanged)
+        {
+            playerMenu?.InvalidateLiveData();
+            playerMenuClockChanged = false;
+        }
+        UpdateAudio();
     }
 
     private void UpdateSharedMenuInput(MenuController menu, KeyboardState keys, GamePadState pad, ref bool pointerPressed)
@@ -242,6 +264,7 @@ internal sealed partial class Ff7Scene
     {
         playerMenu?.Close();
         playerMenu = null;
+        playerMenuClockChanged = false;
         foreach (int id in menuPortraits.Values)
         {
             dialogueCanvas?.UnregisterHostImage(id);
