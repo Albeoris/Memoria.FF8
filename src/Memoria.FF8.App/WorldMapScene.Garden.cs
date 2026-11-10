@@ -30,7 +30,7 @@ internal sealed partial class WorldMapScene
             WorldGroundSelection ground = assets.LookupNativeGround(pose.X, pose.RawZ, replacements, []) ?? throw new NotSupportedException("Garden entry has no original initial ground polygon.");
             NativeWorldGroundCacheState cache = CreateFreshGroundCache(ground.Identity);
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Garden entry requires its retained native process owner.");
-            NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, cache, process, assets.ReadGardenCameraDefaults(), currentGroundHeight: unchecked((short)-(int)ground.Ground.Height), priorTerrainOcclusion: ReadInitialGardenTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
+            NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, cache, process, assets.ReadGardenCameraDefaults(), currentGroundHeight: unchecked((short)-(int)ground.Ground.Height), priorTerrainOcclusion: ReadInitialTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
             garden = garden with { BackgroundRails = CreateBackgroundRails(allocation.Flags265, garden.ProjectionCamera!) };
             WorldState initial = new()
             {

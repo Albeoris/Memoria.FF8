@@ -16,7 +16,7 @@ internal sealed partial class WorldMapScene
         NativeFootWorldRuntimeState foot = world.NativeFootRuntime ?? throw new InvalidDataException("Parked Garden loader requires its controlled normal-foot owner.");
         foot.RequireNativeGroundState();
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Parked Garden entry requires its retained native process owner.");
-        NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, foot.GroundCache!, process, assets.ReadGardenCameraDefaults(), NativeWorldFootCameraState.Create(world), selectedGroundHeight, ReadInitialGardenTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
+        NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, foot.GroundCache!, process, assets.ReadGardenCameraDefaults(), NativeWorldFootCameraState.Create(world), selectedGroundHeight, ReadInitialTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
         garden = garden with { BackgroundRails = CreateBackgroundRails(allocation.Flags265, garden.ProjectionCamera!) };
         WorldState result = world with { NativeGardenRuntime = garden };
         if (auxiliaryEntry is not null)
@@ -52,35 +52,5 @@ internal sealed partial class WorldMapScene
         {
             throw new InvalidDataException("Parked Garden allocation differs from its controlled entity or executed story owner.");
         }
-    }
-
-    private bool? ReadInitialGardenTerrainOcclusion()
-    {
-        WorldState prior = session.State.DepartingWorldState ?? throw new NotSupportedException("Garden loader requires the last executed terrain-render owner for its retained camera-occlusion latch.");
-        if (prior.NativeGardenRuntime is NativeGardenWorldRuntimeState garden)
-        {
-            garden.Validate();
-            return garden.PriorTerrainOcclusion;
-        }
-        NativeCarWorldRuntimeState car = prior.NativeCarRuntime ?? throw new NotSupportedException("Garden loader has no represented preceding terrain-render owner.");
-        car.Validate();
-        NativeWorldFootCameraState camera = car.ProjectionCamera ?? throw new NotSupportedException("Garden loader's preceding car has no retained pre-query projection camera.");
-        IReadOnlyDictionary<int, int> priorReplacements = WorldTerrainSelection.Replacements(prior.ReplacementMask);
-        short? height = null;
-        foreach (NativeWorldGroundAlternative alternative in car.GroundCache!.Alternatives)
-        {
-            WorldGroundSelection selected = assets.LookupNativeGround(camera.X, camera.RawZ, priorReplacements, [alternative.PreviousGround]) ?? throw new NotSupportedException("Garden loader's preceding camera has no proved pre-query terrain height.");
-            if (selected.Identity != alternative.PreviousGround)
-            {
-                throw new NotSupportedException("Garden loader's preceding terrain identity does not contain its actual pre-query camera origin.");
-            }
-            short candidate = unchecked((short)-(int)selected.Ground.Height);
-            if (height is short observed && observed != candidate)
-            {
-                throw new NotSupportedException("Garden loader's preceding ground alternatives disagree on the retained camera height.");
-            }
-            height = candidate;
-        }
-        return assets.CertifyNativeTerrainCameraOcclusion(camera, height!.Value, priorReplacements, car.EntityType).Occluded;
     }
 }

@@ -609,6 +609,12 @@ internal sealed partial class WorldMapScene : IDisposable
                         ragnarokFootBoardingTarget = null;
                     }
                 }
+                if (ragnarokFootAtCallback && fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeRagnarokRuntime is { Transfer: null, TransferCamera: { } camera } parkedShip && candidate.NativeFootRuntime is not null)
+                {
+                    // Late 554860 refreshes the live projection tables after the ordinary foot callback.
+                    NativeRagnarokTransferCamera tables = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Landing, parkedShip.CurrentGroundHeight!.Value);
+                    candidate = candidate with { NativeRagnarokRuntime = parkedShip with { TransferCamera = camera with { ProjectionWords = tables.ProjectionWords, PerspectiveWords = tables.PerspectiveWords } } };
+                }
                 candidate = candidate with { EventUi = salary.EventUi };
                 if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice || candidate.EventUi?.Windows.Length > 0)
                 {

@@ -1,9 +1,46 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
+    private bool ReadInitialTerrainOcclusion()
+    {
+        WorldState? prior = session.State.DepartingWorldState;
+        bool? retained = prior?.NativeGardenRuntime?.PriorTerrainOcclusion
+            ?? prior?.NativeRagnarokRuntime?.PriorTerrainOcclusion
+            ?? prior?.NativeFootRuntime?.PriorTerrainOcclusion
+            ?? prior?.NativeCarRuntime?.PriorTerrainOcclusion;
+        if (retained is bool occluded)
+        {
+            return occluded;
+        }
+        // 203FDC4 starts at zero. Gameplay loads start a fresh process, while
+        // older snapshots can lack the last terrain-render result.
+        if (prior?.NativeCarRuntime is not { ProjectionCamera: { } camera, GroundCache: { } cache } car)
+        {
+            return false;
+        }
+        IReadOnlyDictionary<int, int> priorReplacements = WorldTerrainSelection.Replacements(prior.ReplacementMask);
+        short? height = null;
+        foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
+        {
+            WorldGroundSelection? selected = assets.LookupNativeGround(camera.X, camera.RawZ, priorReplacements, [alternative.PreviousGround]);
+            if (selected is null || selected.Identity != alternative.PreviousGround)
+            {
+                return false;
+            }
+            short candidate = unchecked((short)-(int)selected.Ground.Height);
+            if (height is short observed && observed != candidate)
+            {
+                return false;
+            }
+            height = candidate;
+        }
+        return height is short groundHeight && assets.CertifyNativeTerrainCameraOcclusion(camera, groundHeight, priorReplacements, car.EntityType).Occluded == true;
+    }
+
     private bool ReadFootTerrainOcclusion(WorldState before, WorldState after)
     {
         NativeFootWorldRuntimeState foot = after.NativeFootRuntime!;

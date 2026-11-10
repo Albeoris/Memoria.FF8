@@ -15,19 +15,21 @@ internal sealed partial class WorldMapScene
         if (session.State.World is null)
         {
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Parked Ragnarok reload lost its native process owner.");
-            NativeRagnarokWorldRuntimeState previous = session.State.DepartingWorldState?.NativeRagnarokRuntime ?? throw new NotSupportedException("Parked Ragnarok reload requires its retained prior world camera/projection owner.");
-            previous.RequireSceneState();
-            NativeRagnarokTransferCamera globals = previous.TransferCamera ?? throw new NotSupportedException("Parked Ragnarok reload lost its native live projection words.");
             NativeSavedWorldPose pose = allocation.LoadPose;
             WorldGroundSelection ground = assets.LookupNativeGround(pose.X, pose.RawZ, replacements, []) ?? throw new NotSupportedException("Parked Ragnarok foot reload has no actual original current ground polygon.");
-            NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, previous.GroundCache);
+            NativeWorldGroundCacheState cache = CreateFreshGroundCache(ground.Identity);
             NativeWorldForestState forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown);
             NativeFootWorldRuntimeState foot = (battleReload is not null ? NativeFootWorldRuntimeState.CreateBattleReload(battleReload) : unchecked((sbyte)arrival.EntryIndex) == 62 ? NativeFootWorldRuntimeState.CreateSavedReload(saved.FootReturn!) : NativeFootWorldRuntimeState.CreateFirstNormalLoad(saved)) with { GroundCache = cache, Forest = forest };
             forest = forest with { CameraPitch = foot.AnimationVariant == 0 ? (short)-112 : (short)-512 };
             foot = foot with { Forest = forest };
             NativeRagnarokWorldRuntimeState runtime = NativeRagnarokWorldRuntimeState.CreateAfterLoader(allocation, checked((short)process.CarCameraFollowSpeed), process.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord);
             NativeWorldFootCameraState camera = new(pose.X, pose.RawZ, pose.Height, pose.X, pose.RawZ, pose.Height - 256, allocation.CameraYaw, forest.CameraPitch, -341, -7168) { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? 1024 };
-            runtime = runtime with { ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundCache = cache, GroundYaw = 0, Forest = forest, Cactuar = allocation.Objects.Any(item => item.ShapeId == 94) ? NativeCactuarWorldState.CreateAfterLoad() : null, ProjectionCamera = camera, ProjectionCurveThreshold = 5216, CurrentGroundHeight = unchecked((short)-(int)ground.Ground.Height), PrimaryContact = -1, BroadContact = -1, PreviousButtons = null, PriorTerrainOcclusion = previous.PriorTerrainOcclusion, TransferCamera = globals with { ProjectionDistance = camera.ProjectionDistance, CurveThreshold = 5216, Pitch = forest.CameraPitch, Yaw = checked((short)allocation.CameraYaw), OffsetZ = -7168 }, Motor = runtime.Motor with { CameraPitch = forest.CameraPitch } };
+            short groundHeight = unchecked((short)-(int)ground.Ground.Height);
+            WorldState? previous = session.State.DepartingWorldState;
+            // The ordinary branch of late 554860 selects the ground tables for non-Ragnarok entities.
+            NativeRagnarokTransferCamera globals = previous?.NativeRagnarokRuntime?.TransferCamera
+                ?? (previous is null ? assets.ReadColdWorldProjection(camera) : assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Landing, groundHeight));
+            runtime = runtime with { ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundCache = cache, GroundYaw = 0, Forest = forest, Cactuar = allocation.Objects.Any(item => item.ShapeId == 94) ? NativeCactuarWorldState.CreateAfterLoad() : null, ProjectionCamera = camera, ProjectionCurveThreshold = 5216, CurrentGroundHeight = groundHeight, PrimaryContact = -1, BroadContact = -1, PreviousButtons = null, PriorTerrainOcclusion = ReadInitialTerrainOcclusion(), TransferCamera = globals with { ProjectionDistance = camera.ProjectionDistance, CurveThreshold = 5216, Pitch = camera.Pitch, Yaw = checked((short)camera.Yaw), OffsetZ = camera.OffsetZ }, Motor = runtime.Motor with { CameraPitch = forest.CameraPitch } };
             runtime = runtime with { BackgroundRails = CreateBackgroundRails(inputs.EventFlags265, runtime.ProjectionCamera!) };
             foot.RequireNativeGroundState();
             runtime.RequireSceneState();

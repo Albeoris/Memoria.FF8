@@ -22,20 +22,9 @@ public sealed partial class WorldAssets
         {
             return retained with { Pitch = takeoff ? unchecked((short)(-256 - targetHeight / 24)) : retained.Pitch, Yaw = bodyYaw };
         }
-        IGameNativeMemorySource memory = NativeWorldMemory;
-        short[] ReadWords(uint address, int count)
-        {
-            byte[] bytes = memory.Read(address, count * 2);
-            short[] result = new short[count];
-            for (int index = 0; index < count; index++)
-            {
-                result[index] = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(index * 2));
-            }
-            return result;
-        }
-        short pitch = takeoff ? unchecked((short)(-256 - targetHeight / 24)) : ReadWords(0xC76D28, 1)[0];
-        short offsetZ = ReadWords(takeoff ? 0xC76D3Cu : 0xC76D34u, 1)[0];
-        var camera = new NativeRagnarokTransferCamera(1024, takeoff ? 6144 : 5216, pitch, bodyYaw, offsetZ, ReadWords(takeoff ? 0xC767D0u : 0xC767DCu, 5).ToImmutableArray(), ReadWords(takeoff ? 0xC767E8u : 0xC767F0u, 4).ToImmutableArray());
+        short pitch = takeoff ? unchecked((short)(-256 - targetHeight / 24)) : ReadNativeCameraWords(0xC76D28, 1)[0];
+        short offsetZ = ReadNativeCameraWords(takeoff ? 0xC76D3Cu : 0xC76D34u, 1)[0];
+        var camera = new NativeRagnarokTransferCamera(1024, takeoff ? 6144 : 5216, pitch, bodyYaw, offsetZ, ReadNativeCameraWords(takeoff ? 0xC767D0u : 0xC767DCu, 5).ToImmutableArray(), ReadNativeCameraWords(takeoff ? 0xC767E8u : 0xC767F0u, 4).ToImmutableArray());
         camera.Validate();
         if (takeoff)
         {
@@ -46,5 +35,22 @@ public sealed partial class WorldAssets
             ragnarokLandingCameraTargets = camera;
         }
         return camera;
+    }
+
+    public NativeRagnarokTransferCamera ReadColdWorldProjection(NativeWorldFootCameraState camera)
+    {
+        // The live tables retain the executable's initialized data until the first 554860 callback.
+        return new(camera.ProjectionDistance, 5216, camera.Pitch, checked((short)camera.Yaw), camera.OffsetZ, ReadNativeCameraWords(0xC767C4, 5).ToImmutableArray(), ReadNativeCameraWords(0xC767F8, 4).ToImmutableArray());
+    }
+
+    private short[] ReadNativeCameraWords(uint address, int count)
+    {
+        byte[] bytes = NativeWorldMemory.Read(address, count * 2);
+        short[] result = new short[count];
+        for (int index = 0; index < count; index++)
+        {
+            result[index] = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(index * 2));
+        }
+        return result;
     }
 }
