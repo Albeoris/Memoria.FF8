@@ -28,6 +28,10 @@ public sealed class GameplaySaveDormantScriptedReturnTests
         Assert.Equal(source.FuelDistance112, restored.FuelDistance112);
         Assert.Equal((byte)0, restored.ReadMapDisplayModeForFreshFootLoader());
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(GameplaySaveWorldData.Capture(restored)));
+        string hash = new('0', 64);
+        var foot = new NativeScriptedWorldFootRecord(1, NativeScriptedWorldFootRecord.AllocationRule, hash, hash, 4, 34, 205, new(0, 0, 0, 0));
+        NativeScriptedWorldLoadReceipt load = NativeScriptedWorldLoadReceipt.Create(restored, null, foot);
+        Assert.Equal(new NativeScriptedWorldLoadReceipt(1, NativeScriptedWorldLoadReceipt.LoadRule, 0, endpoint.Pose.Yaw, foot, source.Slot4, source.Slot5, 0, endpoint.MapDisplayMode!.Value, 0), load);
     }
 
     [Fact]
@@ -35,7 +39,7 @@ public sealed class GameplaySaveDormantScriptedReturnTests
     {
         GameplaySaveWorldReturn endpoint = Endpoint();
         Assert.Throws<InvalidDataException>(() => (endpoint with { EntityType = 21 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (endpoint with { ScriptedPacket = endpoint.ScriptedPacket! with { EntryIndex = 14 } }).Validate());
+        Assert.Throws<InvalidDataException>(() => (endpoint with { ScriptedPacket = endpoint.ScriptedPacket! with { EntryIndex = 28 } }).Validate());
         Assert.Throws<InvalidDataException>(() => (endpoint with { Kind = GameplaySaveWorldReturnKind.Foot, FootMode = 0 }).Validate());
         NativeSavedWorldState native = NativeSavedWorldState.CreateNewGame() with { DormantScriptedReturn = endpoint };
         Assert.Throws<InvalidDataException>(() => native.Validate());

@@ -271,7 +271,8 @@ public sealed partial record NativeSavedWorldState
         bool retainedCar = CarReturn is NativeSavedWorldCarReturn car && car.SourceWorldFrame == receipt.Load.SourceWorldFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw && car.MapDisplayMode110 == receipt.Load.MapDisplayMode;
         bool retainedFoot = FootReturn is NativeSavedWorldFootReturn foot && foot.SourceWorldFrame == receipt.Load.SourceWorldFrame && foot.Pose0.Yaw == receipt.Load.RetainedBodyYaw && foot.MapDisplayMode110 == receipt.Load.MapDisplayMode;
         bool retainedScripted = ScriptedReturn is NativeSavedWorldScriptedReturn prior && prior.SourceWorldFrame + 16 == receipt.Load.SourceWorldFrame && prior.Load.RetainedBodyYaw == receipt.Load.RetainedBodyYaw && prior.MapDisplayMode110 == receipt.Load.MapDisplayMode;
-        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedFoot && !retainedScripted)
+        bool restoredScripted = DormantScriptedReturn is not null && receipt.Load == NativeScriptedWorldLoadReceipt.Create(this, null, receipt.Load.FootRecord0);
+        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedFoot && !retainedScripted && !restoredScripted)
         {
             throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }

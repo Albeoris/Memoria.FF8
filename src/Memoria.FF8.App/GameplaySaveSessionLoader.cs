@@ -62,6 +62,11 @@ internal static class GameplaySaveSessionLoader
             initialized = initialized with { CharacterVitals = prepareCharacterDefinitions(initialized.CharacterVitals ?? throw new InvalidOperationException("Gameplay restoration requires initialized character definitions.")) };
         }
         GameState restored = GameplaySaveStateRestoration.Restore(document, initialized);
+        if (restored.SavedWorld?.DormantScriptedReturn is { } scriptedEndpoint)
+        {
+            string reset = scriptedEndpoint.EntityType is 65 or 66 ? "body heading and camera velocity" : "camera velocity";
+            (reportWarning ?? (message => Console.Error.WriteLine("Warning: " + message)))($"Saved scripted world endpoint restored. A subsequent scripted departure will use cold-process {reset} for the missing presentation values.");
+        }
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {
             restored = restored with { FieldLoadContext = document.Progression.FieldContinuation is null ? NativeFieldLoadContext.FromGameplaySave(restored.FieldId) : NativeFieldLoadContext.FromGameplayContinuation(restored.FieldId) };

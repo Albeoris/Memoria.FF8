@@ -16,10 +16,9 @@ internal sealed partial class WorldMapScene
     private WorldState CreateScriptedState(WorldTransition arrival, WorldEntryVariables inputs)
     {
         NativeSavedWorldState saved = session.State.SavedWorld ?? throw new NotSupportedException("Scripted entry has no authentic saved-world state.");
-        WorldState previous = session.State.DepartingWorldState ?? throw new NotSupportedException("Scripted entry has no preceding native world globals.");
         RequireUnaliasedFootAuxiliary(session.State);
         NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265);
-        NativeScriptedWorldLoadReceipt load = NativeScriptedWorldLoadReceipt.Create(saved, previous, foot);
+        NativeScriptedWorldLoadReceipt load = NativeScriptedWorldLoadReceipt.Create(saved, session.State.DepartingWorldState, foot);
         NativeWorldScriptedPathDefinition definition = ReadScriptedPath(arrival);
         if (unchecked((byte)arrival.Extra) >= assets.FieldEntries.Entries.Count)
         {

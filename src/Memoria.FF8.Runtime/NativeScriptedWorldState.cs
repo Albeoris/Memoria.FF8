@@ -21,9 +21,20 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
 {
     public const string LoadRule = "ff8-en-scripted-mode1-2-load-542b90-548080-static-foot-record0-v1";
 
-    public static NativeScriptedWorldLoadReceipt Create(NativeSavedWorldState saved, WorldState previousWorld, NativeScriptedWorldFootRecord footRecord)
+    public static NativeScriptedWorldLoadReceipt Create(NativeSavedWorldState saved, WorldState? previousWorld, NativeScriptedWorldFootRecord footRecord)
     {
         footRecord.Validate();
+        if (previousWorld is null)
+        {
+            saved.Validate();
+            GameplaySaveWorldReturn endpoint = saved.DormantScriptedReturn ?? throw new NotSupportedException("Scripted entry requires preceding native world globals or a saved scripted endpoint.");
+            // Mode 2 saves the controlled foot yaw. Mode 1 saves the static foot record, so
+            // the missing live yaw and camera velocity use their cold-process values.
+            ushort yaw = endpoint.EntityType is >= 16 and <= 22 ? endpoint.Pose.Yaw : (ushort)0;
+            var restored = new NativeScriptedWorldLoadReceipt(1, LoadRule, 0, yaw, footRecord, saved.Slot4, saved.Slot5, 0, endpoint.MapDisplayMode!.Value, 0);
+            restored.Validate();
+            return restored;
+        }
         (long sourceFrame, ushort bodyYaw, byte mapDisplay) = ResolveRetained(saved, previousWorld);
         // 548080 mode1/2 replaces position from the selected rail and retains body yaw;
         // it reads current saved BYTE110. Executed 542B90 resets animation variant0.

@@ -7,8 +7,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBoatWorldTests
 {
-    [Fact]
-    public void PreparedBoatDefersAllocationDrawThenReplaysActualCallbacksAndRejectsAlteredProjectionWords()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreparedBoatCompletesBothLegsWithLiveOrReloadedWorldHistory(bool reloadBeforeReturn)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world corpus is required.");
@@ -105,10 +107,16 @@ public sealed class NativeBoatWorldTests
         var returnPacket = new WorldTransition(12, 66, 60);
         Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = returnDeparture.DepartingWorldState! with { Frame = 245 } }, directory, returnPacket));
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = previous }, directory, returnPacket));
-        using PreparedWorldEntry returnTicket = WorldEntryPreflight.Prepare(returnDeparture, directory, returnPacket);
         NativeScriptedWorldLoadReceipt expectedReturnLoad = outboundReturn.Load with { SourceWorldFrame = returnDeparture.DepartingWorldState!.Frame };
+        if (reloadBeforeReturn)
+        {
+            GameplaySaveWorldData savedWorld = GameplaySaveCodec.Detach(GameplaySaveWorldData.Capture(returnDeparture.SavedWorld));
+            returnDeparture = returnDeparture with { SavedWorld = GameplaySaveWorldResume.RestoreSavedWorld(savedWorld, initial, 135), DepartingWorldState = null };
+            expectedReturnLoad = expectedReturnLoad with { SourceWorldFrame = 0, RetainedBodyYaw = 0, RetainedCameraVelocity = 0 };
+        }
+        using PreparedWorldEntry returnTicket = WorldEntryPreflight.Prepare(returnDeparture, directory, returnPacket);
         Assert.Equal(expectedReturnLoad, returnTicket.InitialState.NativeScriptedRuntime!.Load);
-        Assert.Equal(outboundReturn, returnTicket.InitialSavedWorld!.ScriptedReturn);
+        Assert.Equal(returnDeparture.SavedWorld, returnTicket.InitialSavedWorld);
         AssertGroundSelection(returnTicket.InitialState.NativeScriptedRuntime.GroundCache!, session.WorldProcess!, 1);
         session.Restore(returnDeparture);
         session.CommitPreparedWorldEntry(returnPacket, returnTicket.InitialState, session.WorldControls!, returnTicket.ValidateAdoption, returnTicket.InitialSavedWorld);
@@ -123,7 +131,7 @@ public sealed class NativeBoatWorldTests
             return () => session.CommitPreparedScriptedFieldEntry(current, final, final.NativeScriptedRuntime.Return.FieldEntry, salary, _ => { });
         };
         Assert.Equal(1, returning.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced);
-        Assert.Equal(outboundReturn, session.State.SavedWorld!.ScriptedReturn);
+        Assert.Equal(returnDeparture.SavedWorld, session.State.SavedWorld);
         byte[] returnPixels = returning.Render(320, 224);
         GameState returningRestored = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         using (WorldMapScene restoredReturn = new(new GameSession(returningRestored), directory))
