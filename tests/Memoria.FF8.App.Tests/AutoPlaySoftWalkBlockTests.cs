@@ -213,7 +213,7 @@ public sealed class AutoPlaySoftWalkBlockTests
     public void SearchRevisionReleasesOnlyTheUncompletedFailedEntry()
     {
         var test = Create();
-        test.Blocked.WalkingSearchRevision = 0;
+        test.Blocked.WalkingSearchRevision = 1;
         test.Blocked.Completed = false;
         test.Blocked.Routes.Clear();
         test.Blocked.Conditions!.ConsumedEntries.Add("previous-entry");

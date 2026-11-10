@@ -188,7 +188,7 @@ internal sealed partial class GameWorld
         moved = accepted == true;
         bool contacted = contact is { ObjectId: >= 0 } && Events.HasPendingAutoPlayInteraction(contact.ObjectId);
         int[] owners = Events.Actors.Where(actor => actor.ObjectId != approachObjectId && !pending.Contains(actor.ObjectId) && Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToArray();
-        bool interrupted = contacted || gateway is not null || Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput || owners.Length != 0;
+        bool interrupted = contacted || gateway is not null || Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput || Events.FieldFade?.Physical.Mode == 4 || owners.Length != 0;
         return new(false, interrupted, gateway, contacted, owners.Length == 1 ? owners[0] : null);
     }
 

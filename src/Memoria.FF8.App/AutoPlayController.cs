@@ -706,14 +706,15 @@ internal sealed partial class AutoPlayController
             DriveWhenQueried(input, false, null);
             return;
         }
-        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
+        bool fadeBlocksMovement = world.Events.FieldFade?.Physical.Mode == 4;
+        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || fadeBlocksMovement || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
         {
             run.SettleFrames = 0;
             if (run.SceneFrames > 180000)
             {
                 throw new TimeoutException("No control-return boundary within 180000 simulation frames. Inspect the saved wait/input contract.");
             }
-            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: 300, WaitWhilePlayable: true)).FramesAdvanced;
+            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: fadeBlocksMovement ? 1 : 300, WaitWhilePlayable: true)).FramesAdvanced;
             return;
         }
         if (run.SettleFrames < 4)
