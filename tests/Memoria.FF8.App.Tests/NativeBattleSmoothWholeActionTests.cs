@@ -82,7 +82,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         AssertWholeAction(effect, guardian, true);
     }
 
-    private static void AssertWholeAction(ushort effect, int action, bool guardian, bool partyTarget = false)
+    internal static void AssertWholeAction(ushort effect, int action, bool guardian, bool partyTarget = false, Action<BattleSession, BattleScenePresentation>? observePresentation = null)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
@@ -143,6 +143,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         NativeBattlePrimitiveCapabilities capabilities = seed.Definition.NativeGraphics!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture requires its native primitive device profile.");
         Func<int, int, bool, Albeoris.Games.FF8.Imaging.PixelImage> icons = assets.ReadNativePcUiIcons().Resolve;
         NativeBattlePreparedPresentation? previous = null;
+        BattleScenePresentation? scene = observePresentation is null ? null : new(assets, seed.Definition, true) { SmoothCompatibleMotion = true, PilotDiagnosticsEnabled = true };
         bool previousActive = false;
         Dictionary<string, Uncovered> uncovered = [];
         int effectFrames = 0;
@@ -170,6 +171,10 @@ public sealed class NativeBattleSmoothWholeActionTests
                 Assert.Equal(control.Frame, battle.Frame);
                 Assert.Equal(control.NativeHostCallbacks, battle.NativeHostCallbacks);
                 NativeBattlePreparedPresentation? current = battle.PreparedPresentation;
+                if (scene is not null)
+                {
+                    observePresentation!(battle, scene);
+                }
                 if (current?.PilotEffect == effect)
                 {
                     effectFrames++;
@@ -456,7 +461,7 @@ public sealed class NativeBattleSmoothWholeActionTests
     private sealed record Uncovered(string Bank, byte Opcode, int Count, long FirstCallback);
 
     // This submission/state fixture uses a synthetic capture surface; GPU pixel fidelity is validated separately.
-    private sealed class Capture : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer
+    internal sealed class Capture : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer
     {
         private uint[] syntheticSurface = [];
 
