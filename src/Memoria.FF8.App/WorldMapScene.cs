@@ -25,6 +25,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
     public Func<uint, uint, uint, uint, NativeGlobalSoundProcess, PreparedGlobalSoundEmission>? PrepareGlobalSound { get; set; }
     public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
+    public Action<WorldVehicleSoundFrame>? PublishVehicleSound { get; set; }
     public Func<WorldState, int, RandomEncounterSessionState?, (WorldState World, RandomEncounterSessionState? Encounters)>? ProcessRandomEncounters { get; set; }
     private int encounterMovementMagnitude;
     public Func<bool>? HasPendingBattle { get; set; }
@@ -384,7 +385,8 @@ internal sealed partial class WorldMapScene : IDisposable
         bool carButtons = (State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar) && action.Kind == PlayerActionKind.WorldButtons;
         bool gardenButtons = State.NativeGardenRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         bool vehicleButtons = ragnarokButtons || carButtons || gardenButtons;
-        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar ? 0x142 : 0x102)) != 0))
+        bool parkedVehicle = State.NativeFootRuntime is not null && (State.NativeFootRuntime.ParkedCar is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || stationCar);
+        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(parkedVehicle ? 0x142 : 0x102)) != 0))
         {
             throw new ArgumentException("Ordinary world button levels support camera and map display controls on Move or Wait actions.", nameof(action));
         }
@@ -406,6 +408,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldState previousCallback = candidate;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
         List<GlobalSoundRequest> salaryRequests = [];
+        List<WorldVehicleSoundFrame> vehicleSounds = [];
         WorldFieldSelection? fieldEntry = null;
         if (accepted)
         {
@@ -615,7 +618,15 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeRagnarokTransferCamera tables = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Landing, parkedShip.CurrentGroundHeight!.Value);
                     candidate = candidate with { NativeRagnarokRuntime = parkedShip with { TransferCamera = camera with { ProjectionWords = tables.ProjectionWords, PerspectiveWords = tables.PerspectiveWords } } };
                 }
+                if (fieldEntry is null && salary.RandomEncounters?.Pending is null)
+                {
+                    fieldEntry = SelectVehicleCockpit(candidate, ref salary);
+                }
                 candidate = candidate with { EventUi = salary.EventUi };
+                if (fieldEntry is null)
+                {
+                    vehicleSounds.Add(WorldVehicleSoundFrame.FromWorld(candidate, graphicsSpeed));
+                }
                 if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice || candidate.EventUi?.Windows.Length > 0)
                 {
                     break;
@@ -642,6 +653,10 @@ internal sealed partial class WorldMapScene : IDisposable
         if (accepted)
         {
             session.CommitWorldAction(candidate, salary);
+            foreach (WorldVehicleSoundFrame sound in vehicleSounds)
+            {
+                PublishVehicleSound?.Invoke(sound);
+            }
             if (advanced > 0)
             {
                 presentation.Commit(previousCallback, State, PrepareRenderFrame);

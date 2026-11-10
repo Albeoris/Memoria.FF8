@@ -6,6 +6,8 @@ namespace Memoria.FF8;
 
 internal static class ControllerGameplayInput
 {
+    public static bool WorldOwnsMenu(GameState state) => state.Scene == SceneKind.WorldMap && (state.World is { NativeFootRuntime: null } world && (world.NativeGardenRuntime is not null || world.NativeRagnarokRuntime is not null) || state.World is null && state.WorldArrival?.Mode is 48 or 50);
+
     public static PlayerAction CreateWorldAction(InputFrame input, GameState state, ushort buttons)
     {
         // The dialogue UI handles Confirm separately. Keep advancing text while the tutorial owns world input.
@@ -13,7 +15,7 @@ internal static class ControllerGameplayInput
         {
             return new PlayerAction(PlayerActionKind.Wait);
         }
-        if (state.Scene == SceneKind.WorldMap && state.World is { NativeFootRuntime: null } world && (world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null))
+        if (state.Scene == SceneKind.WorldMap && state.World is { NativeFootRuntime: null } world && (world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeRagnarokRuntime is not null))
         {
             // Pause is consumed by the host before world simulation.
             int vehicleButtons = buttons & ~0x800;
@@ -30,7 +32,8 @@ internal static class ControllerGameplayInput
             float throttle = world.NativeGardenRuntime is not null && input.SecondaryVertical == 0 ? input.Vertical : input.SecondaryVertical;
             return new PlayerAction(PlayerActionKind.WorldButtons, vehicleButtons, Horizontal: input.Horizontal, Vertical: throttle, CameraHorizontal: input.CameraHorizontal);
         }
-        ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? state.World?.NativeFootRuntime?.ParkedCar is not null ? 0x142 : 0x102 : 0x02));
+        bool parkedVehicle = state.World?.NativeFootRuntime is not null && (state.World.NativeFootRuntime.ParkedCar is not null || state.World.NativeGardenRuntime is not null || state.World.NativeRagnarokRuntime is not null);
+        ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? parkedVehicle ? 0x142 : 0x102 : 0x02));
         return input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
     }
 

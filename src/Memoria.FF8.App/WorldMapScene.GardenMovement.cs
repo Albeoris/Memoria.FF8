@@ -177,7 +177,7 @@ internal sealed partial class WorldMapScene
         return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, 48, selectedEntity, probes, GardenProjection(cameraState), padding, forceCircle, rails: garden.BackgroundRails);
     }
 
-    private NativeGardenWorldRuntimeState PrepareGardenDismount(WorldState state)
+    private WorldGardenPlacementResult? ResolveGardenFootPlacement(WorldState state)
     {
         NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
         NativeWorldPathPosition body = new(state.X, state.NativeHeight, -state.Z);
@@ -186,10 +186,20 @@ internal sealed partial class WorldMapScene
         WorldGardenPlacementResult source = assets.ResolveNativeGardenPlacement(body, unchecked((short)state.BodyYaw), 48, 48, 0, garden.CurrentGroundHeight!.Value, flags, garden.GroundCache, replacements, contact);
         if (!source.Accepted)
         {
-            return garden;
+            return null;
         }
         int destination = garden.Objects[garden.Allocation.FootObjectIndex].EntityType;
-        WorldGardenPlacementResult target = assets.ResolveNativeGardenPlacement(body, unchecked((short)state.BodyYaw), 48, destination, 700, garden.CurrentGroundHeight.Value, flags, garden.GroundCache, replacements, contact);
+        return assets.ResolveNativeGardenPlacement(body, unchecked((short)state.BodyYaw), 48, destination, 700, garden.CurrentGroundHeight.Value, flags, garden.GroundCache, replacements, contact);
+    }
+
+    private NativeGardenWorldRuntimeState PrepareGardenDismount(WorldState state)
+    {
+        NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
+        WorldGardenPlacementResult? target = ResolveGardenFootPlacement(state);
+        if (target is null)
+        {
+            return garden;
+        }
         if (!target.Accepted)
         {
             int hit = target.LastContactObjectIndex;
@@ -199,6 +209,7 @@ internal sealed partial class WorldMapScene
             }
             return garden;
         }
+        int destination = garden.Objects[garden.Allocation.FootObjectIndex].EntityType;
         NativeGardenTransferState transfer = NativeGardenTransferState.Create(state.Frame + 1, garden.Allocation.Garden64Index, destination, target.Position!.Value);
         return garden with { Transfer = transfer, TransferControls = garden.TransferControls.BeginLowering() };
     }

@@ -59,6 +59,7 @@ internal sealed partial class GameWorld
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
         scene.PrepareGlobalSound = Events.PrepareGlobalSound;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;
+        scene.PublishVehicleSound = frame => WorldVehicleSound?.Invoke(frame);
         ConfigureWorldRandomEncounters(scene);
     }
 

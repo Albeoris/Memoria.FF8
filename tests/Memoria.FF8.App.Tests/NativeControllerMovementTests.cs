@@ -100,7 +100,7 @@ public sealed class NativeControllerMovementTests
         using WorldMapScene scene = new(session, GameDirectory());
         InputFrame input = new(horizontal, 1, false, false, false, false, MenuVertical: 1, MenuHorizontal: -1, CameraHorizontal: -horizontal, SecondaryVertical: vertical, SecondaryHorizontal: -horizontal);
         PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, 0);
-        Assert.Equal((PlayerActionKind.WorldButtons, horizontal, vertical, 0f), (action.Kind, action.Horizontal, action.Vertical, action.CameraHorizontal));
+        Assert.Equal((PlayerActionKind.WorldButtons, horizontal, vertical, input.CameraHorizontal), (action.Kind, action.Horizontal, action.Vertical, action.CameraHorizontal));
         Assert.True(scene.Apply(action).Accepted);
         Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
         Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);

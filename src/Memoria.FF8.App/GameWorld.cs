@@ -241,6 +241,8 @@ internal sealed partial class GameWorld : IDisposable
 
     public EventEngine Events { get; }
 
+    internal event Action<WorldVehicleSoundFrame?>? WorldVehicleSound;
+
     internal GameAssets ValidationAssets => assets;
 
     internal event Action<GameWorld>? BeforeFieldAllocation;
@@ -317,6 +319,7 @@ internal sealed partial class GameWorld : IDisposable
         bool returningFromWorld = worldScene is not null;
         if (returningFromWorld)
         {
+            WorldVehicleSound?.Invoke(null);
             worldScene!.Dispose();
             worldScene = null;
         }

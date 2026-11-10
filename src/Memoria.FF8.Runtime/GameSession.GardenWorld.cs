@@ -8,7 +8,7 @@ public sealed partial class GameSession
         return saved.WithOrdinaryWorldFieldEntry();
     }
 
-    private static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
+    public static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
     {
         if (finalWorld.NativeFootRuntime?.ParkedCar?.Car.GardenObjects is { } carGarden)
         {

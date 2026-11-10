@@ -26,7 +26,7 @@ internal sealed partial class RecreateGame : Game
     private GameplayClock gameplayClock = new();
     private MovieClock movieClock;
     private FieldAudioPresentation? fieldAudio;
-    private bool resumeFieldMusic;
+    private bool resumeGameplayAudio;
     private readonly PlayerSaveStore playerSaves;
     private readonly PlayerSaveMenu saveMenu;
     private SpriteBatch batch = null!;
@@ -474,17 +474,26 @@ internal sealed partial class RecreateGame : Game
             movie = null;
             movieIndex = -1;
         }
-        if (resumeFieldMusic && world?.Field is not null)
-        {
-            fieldAudio?.SetPlaybackResumePositions(session.State.AudioPresentation);
-            fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
-            world.Events.ResumeGameplayLoopSounds();
-            session.SetAudioPresentation(null);
-            resumeFieldMusic = false;
-        }
+        ResumeGameplayAudio();
         fieldAudio?.Update();
         base.Update(gameTime);
         metrics.Update(updateStarted);
+    }
+
+    internal void ResumeGameplayAudio()
+    {
+        if (!resumeGameplayAudio || world is null || world.Field is null && world.WorldScene is null)
+        {
+            return;
+        }
+        fieldAudio?.SetPlaybackResumePositions(session.State.AudioPresentation);
+        fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
+        if (session.State.Scene != SceneKind.WorldMap)
+        {
+            world.Events.ResumeGameplayLoopSounds();
+        }
+        session.SetAudioPresentation(null);
+        resumeGameplayAudio = false;
     }
 
     private GameWorld CreateWorld()
@@ -492,7 +501,8 @@ internal sealed partial class RecreateGame : Game
         var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
         next.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         fieldAudio?.Attach(next.Events);
-        resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
+        next.WorldVehicleSound += frame => fieldAudio?.PresentWorldVehicleSounds(frame);
+        resumeGameplayAudio = session.State.EventState is not null || session.State.DepartingFieldState is not null || session.State.WorldEventState is not null;
         return next;
     }
 
@@ -1005,7 +1015,7 @@ internal sealed partial class RecreateGame : Game
         userPaused = false;
         capturingControls = false;
         uiMovieSuspended = false;
-        resumeFieldMusic = false;
+        resumeGameplayAudio = false;
         fieldGpuPresented = false;
         worldPresentationDeferred = false;
         presentedDialogue = null;

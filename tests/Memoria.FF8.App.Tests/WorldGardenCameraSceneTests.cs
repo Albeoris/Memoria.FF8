@@ -51,7 +51,7 @@ public sealed partial class WorldGardenCameraSceneTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
     }
 
-    private static GameSession Fixture()
+    internal static GameSession Fixture()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();

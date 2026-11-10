@@ -602,7 +602,7 @@ internal sealed partial class RecreateGame
                 keyboard.SuppressHeldUiInput();
             }
         }
-        bool openMenu = keyboard.GameMenuRequested;
+        bool openMenu = keyboard.GameMenuRequested && (gameMenus.IsOpen || !ControllerGameplayInput.WorldOwnsMenu(session.State));
         if (openMenu && !saveMenu.IsOpen && (gameMenus.IsModSearchEditing || gameMenus.ScreenId is "mods-actions" or "mods-diagnostics" or "gf-mod-review"))
         {
             DispatchMenuInput(MenuInput.Cancel);

@@ -52,6 +52,10 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Gameplay world capture requires a completed ordinary exploration boundary.");
         }
         (byte Entity, byte Animation, byte MapDisplay) selection = CaptureWorldSelection(current);
+        if (current.NativeFootRuntime is not null)
+        {
+            state = state with { SavedWorld = GameSession.PrepareGardenParkingForFootReturn(state.SavedWorld!, current) };
+        }
         GameplaySaveWorldPosition position = new(current.X, current.Z, checked((short)current.NativeHeight), checked((ushort)current.BodyYaw), selection.Entity)
         {
             AnimationVariant = selection.Animation,
@@ -103,7 +107,8 @@ internal sealed partial class GameWorld
 
     private static (byte Entity, byte Animation, byte MapDisplay) CaptureWorldSelection(WorldState state)
     {
-        int owners = (state.NativeFootRuntime is null ? 0 : 1) + (state.NativeCarRuntime is null ? 0 : 1) + (state.NativeGardenRuntime is null ? 0 : 1) + (state.NativeRagnarokRuntime is null ? 0 : 1);
+        // Garden and Ragnarok retain their parked allocation while the foot owner controls the player.
+        int owners = (state.NativeFootRuntime is null ? 0 : 1) + (state.NativeCarRuntime is null ? 0 : 1) + (state.NativeFootRuntime is null && state.NativeGardenRuntime is not null ? 1 : 0) + (state.NativeFootRuntime is null && state.NativeRagnarokRuntime is not null ? 1 : 0);
         if (owners != 1)
         {
             throw new NotSupportedException("Gameplay world capture requires exactly one supported current controlled transport.");
