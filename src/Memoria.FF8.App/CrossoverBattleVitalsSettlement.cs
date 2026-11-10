@@ -8,6 +8,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 internal sealed record CrossoverBattleVitalsSettlementResult(CombinedSessionSave Save, Ff7GuestBattleSettlementReceipt Receipt);
+internal sealed record CrossoverGuestMagicSettlement(CrossoverBattleRoster Roster, CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom);
 
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
 internal static class CrossoverBattleVitalsSettlement
@@ -40,7 +41,7 @@ internal static class CrossoverBattleVitalsSettlement
         return PrepareResult(source, installation, installed, completed, presentation);
     }
 
-    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null)
+    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null)
     {
         source.Validate();
         if (source is not { ActiveGame: SessionGame.Ff7, Ff7: { } host, Ff8Payload: { Length: > 0 } payload })
@@ -82,9 +83,27 @@ internal static class CrossoverBattleVitalsSettlement
             throw new InvalidDataException("Guest settlement supports exact HP and semantic KO only.");
         }
         NativeHpWord exactHp = original.WithSavedHitPoints(row, hp).Records[row].HitPoints;
-        NativeCharacterVital[] rows = (NativeCharacterVital[])document.Characters.Records.Clone();
+        GameplaySaveCharacters characters = document.Characters;
+        if (magic is not null)
+        {
+            if (magic.Roster.EncounterId != binding.EncounterId || magic.Roster.Guest.HostSlot != binding.HostSlot || document.Progression?.Clocks.CrtRandom != magic.OriginCrtRandom)
+            {
+                throw new InvalidDataException("Guest magic settlement has a different encounter or original visual RNG owner.");
+            }
+            NativeCharacterVitals stock = magic.Stock.Restore(magic.Roster, original);
+            if (stock.MagicSystem.Reservations.Length != 0 || stock.Records.Where((record, index) => record with { MagicInventory = original.Records[index].MagicInventory } != original.Records[index]).Any())
+            {
+                throw new InvalidDataException("Guest spell settlement contains an unfinished stock reservation or unrelated character change.");
+            }
+            characters = document.Characters with { Records = stock.Records, Magic = GameplaySaveCharacters.Capture(stock).Magic };
+        }
+        NativeCharacterVital[] rows = (NativeCharacterVital[])characters.Records.Clone();
         rows[row] = rows[row] with { HitPoints = exactHp, Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses) };
-        GameplaySaveComponentDocument updated = document with { Characters = document.Characters with { Records = rows } };
+        GameplaySaveComponentDocument updated = document with { Characters = characters with { Records = rows } };
+        if (magic is not null)
+        {
+            updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = magic.CrtRandom } } };
+        }
         if (presentation is not null)
         {
             if (presentation.EncounterId != binding.EncounterId || presentation.Invocation is not null || presentation.Presentation is not { Complete: true } && !presentation.Cancelled || presentation.HostTick > battle.Tick || document.Progression?.Clocks.GlobalRandom is not { } originRandom || presentation.OriginGlobalRandom != originRandom)

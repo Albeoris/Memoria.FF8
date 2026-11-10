@@ -77,6 +77,9 @@ public sealed record Ff7SessionSave
     public required FieldVmSnapshot Vm { get; init; }
     public required Ff7FieldProcess Process { get; init; }
     public Ff7AudioPresentationState? AudioPresentation { get; init; }
+    public short BattleBigShotChargeRotation { get; init; }
+    public short BattleBigShotCounterRotation { get; init; }
+    public short BattleSearchScopeScaleCounter { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
     public AutoPlayEventCoverageState? EventCoverage { get; init; }

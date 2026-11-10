@@ -24,11 +24,11 @@ internal sealed class Ff7BattleBillboardRenderer
                 int page = selectPage(source.TexturePage);
                 PcTexture texture = pages[page];
                 int palette = paletteOverride ?? ((source.Clut >> 6) - BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xE0..]));
-                if ((uint)palette >= texture.Palettes.Count || (uint)source.U >= texture.Width || (uint)source.V >= texture.Height || source.Width == 0 || source.Height == 0 || source.U + source.Width > texture.Width || source.V + source.Height > texture.Height || (source.Flip & ~3) != 0)
+                if ((uint)palette >= texture.Palettes.Count || (uint)source.U >= texture.Width || (uint)source.V >= texture.Height || source.Width == 0 || source.Height == 0 || source.U + source.Width > texture.Width || source.V + source.Height > texture.Height)
                 {
                     throw new InvalidDataException("FFVII battle billboard quad references data outside its original page.");
                 }
-                quads[index] = new(source.X, source.Y, source.U, source.V, source.Width, source.Height, page, palette, source.Flip, blend);
+                quads[index] = new(source.X, source.Y, source.U, source.V, source.Width, source.Height, page, palette, (ushort)(source.Flags & 3), blend);
             }
             frames[frame] = quads;
         }

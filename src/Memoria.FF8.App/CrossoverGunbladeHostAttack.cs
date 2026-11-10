@@ -75,6 +75,14 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     public bool TriggerWindowOpen => Invocation is not null && state.Presentation?.TriggerWindowOpen == true;
     public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) : null;
     public CrossoverGunbladeHostSnapshot Capture() => state;
+    public void ResumeStandingFromCast(NativeBattleGraphicsModel model, long hostTick, long subticks, bool halfSubtick, bool completed = true)
+    {
+        if (state.Invocation is not null || state.Presentation is null || model.Index != ActorSlot || hostTick < state.HostTick)
+        {
+            throw new InvalidDataException("The native casting source cannot replace an active Gunblade owner.");
+        }
+        state = state with { HostTick = hostTick, Subticks = subticks, HalfSubtick = halfSubtick, Cancelled = !completed, Presentation = state.Presentation with { Model = model, ReturnedToStanding = completed } };
+    }
     public bool LastTriggerSound { get; private set; }
     public ImmutableArray<NativeBattleAuxiliaryEmission> LastAuxiliaryEmissions { get; private set; } = [];
     public NativeBattleSequenceParticle? LastContactEffect { get; private set; }

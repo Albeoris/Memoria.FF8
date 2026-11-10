@@ -106,7 +106,7 @@ internal sealed partial class Ff7Scene
     private CrossoverFf8BattleActorVisual? MixedBattleVisual(Ff7BattleSession battle)
     {
         EnsureMixedBattle(battle);
-        return mixedCombat?.Attack.Visual;
+        return mixedCombat?.Actions.Visual;
     }
 
     private bool TrySettleMixedBattle(Ff7BattleSession battle)

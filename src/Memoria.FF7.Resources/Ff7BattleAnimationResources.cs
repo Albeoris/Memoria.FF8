@@ -3,11 +3,12 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Resources;
 
-public sealed class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive, IReadOnlyList<short[]> jumpDeltas, IReadOnlyList<Ff7BattleHitmarkDefinition> hitmarks)
+public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive, IReadOnlyList<short[]> jumpDeltas, IReadOnlyList<Ff7BattleHitmarkDefinition> hitmarks)
 {
     private readonly Dictionary<string, (BattleActionBank Bank, BattleModelData Model)> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Prefix, int Action, ushort? Limit), BattleActionSequence> actions = [];
     private readonly Dictionary<(string Prefix, int Clip), IReadOnlyList<BattleClipFrame>> clips = [];
+    private readonly Dictionary<(string Prefix, int Clip), IReadOnlyList<BattleClipFrame>> weaponClips = [];
     private readonly Dictionary<ushort, BattleLimitAnimation> limits = [];
     private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitWeaponClips = [];
     private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitBodyClips = [];
@@ -43,13 +44,28 @@ public sealed class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePla
 
     public Vector3 BonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone)
     {
+        return BaseBonePoint(prefix, clip, frame, placement, bone, Vector3.Zero);
+    }
+
+    public Vector3 BaseBonePoint(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone, Vector3 localPoint)
+    {
         BattleModelData model = GetModel(prefix).Model;
         if (!clips.TryGetValue((prefix, clip), out IReadOnlyList<BattleClipFrame>? frames))
         {
             frames = BattleClipDecoder.Decode(model.BodyClips[clip]);
             clips.Add((prefix, clip), frames);
         }
-        return BattleRigidPose.BonePosition(model, frames[frame], placement.Position, placement.Yaw * MathF.Tau / 4096, bone);
+        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint);
+    }
+
+    public Vector3 BaseWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, Vector3 localPoint)
+    {
+        if (!weaponClips.TryGetValue((prefix, clip), out IReadOnlyList<BattleClipFrame>? frames))
+        {
+            frames = BattleClipDecoder.Decode(GetModel(prefix).Model.WeaponClips[clip]);
+            weaponClips.Add((prefix, clip), frames);
+        }
+        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint);
     }
 
     public BattleLimitAnimation GetLimit(ushort attack)

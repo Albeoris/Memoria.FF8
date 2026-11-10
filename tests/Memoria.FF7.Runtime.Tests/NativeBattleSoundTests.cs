@@ -15,26 +15,25 @@ internal static class NativeBattleSoundTests
 
     private static void DelayedScriptSound()
     {
-        Ff7BattleSoundState state = Ff7NativeBattleSound.Schedule(Ff7BattleSoundState.Empty, new byte[] { 2, 0xD6, 2 });
-        Ff7BattleSoundUpdate frozen = Ff7NativeBattleSound.AdvancePresentation(state, false, 0, _ => throw new InvalidOperationException("A non-live callback sampled panning."));
-        Check(frozen.State == state && frozen.Sounds.Count == 0, "A non-live presentation callback advanced D8.");
+        Ff7BattleSecondaryState state = Ff7BattleSecondaryEffects.ScheduleSound(new(), 0x2D6, 2);
         for (int callback = 0; callback < 2; callback++)
         {
-            Ff7BattleSoundUpdate update = Ff7NativeBattleSound.AdvancePresentation(state, true, 0, _ => throw new InvalidOperationException("D8 sampled panning before its delay expired."));
-            Check(update.Sounds.Count == 0, "D8 fired before its authored delay.");
-            state = update.State;
+            state = Step(state);
+            Check(state.SoundIds.Count == 0, "D8 fired before its authored delay.");
         }
 
-        state = JsonSerializer.Deserialize<Ff7BattleSoundState>(JsonSerializer.Serialize(state))!;
-        Ff7BattleSoundUpdate due = Ff7NativeBattleSound.AdvancePresentation(state, true, 2, slot => slot == 2 ? (short)162 : throw new InvalidOperationException("D8 retained a stale scheduling actor."));
-        Check(due.Sounds.SequenceEqual(new[] { new Ff7BattleSoundReceipt(1, 0x2D6, 64) }) && due.State.Pending.Length == 0, "D8 changed its sound word, callback boundary, current attacker or receipt.");
-        Check(Ff7NativeBattleSound.AdvancePresentation(due.State, true, 0, _ => 0).Sounds.Count == 0, "D8 repeated after consumption.");
+        state = Step(JsonSerializer.Deserialize<Ff7BattleSecondaryState>(JsonSerializer.Serialize(state))!);
+        Ff7BattleSoundUpdate due = Ff7NativeBattleSound.Emit(Ff7BattleSoundState.Empty, state.SoundIds.Single(), Ff7NativeBattleSound.ActorPan(162));
+        Check(due.Sounds.SequenceEqual(new[] { new Ff7BattleSoundReceipt(1, 0x2D6, 64) }) && !state.HasCallbacks, "D8 changed its sound word, callback boundary, current attacker or receipt.");
+        Check(Step(state).SoundIds.Count == 0, "D8 repeated after consumption.");
 
-        Ff7BattleSoundState immediate = Ff7NativeBattleSound.Schedule(due.State, new byte[] { 0, 0x1A, 0 });
-        Ff7BattleSoundUpdate sameCallback = Ff7NativeBattleSound.AdvancePresentation(immediate, true, 0, _ => 160);
+        state = Step(Ff7BattleSecondaryEffects.ScheduleSound(state, 0x1A, 0));
+        Ff7BattleSoundUpdate sameCallback = Ff7NativeBattleSound.Emit(due.State, state.SoundIds.Single(), Ff7NativeBattleSound.ActorPan(160));
         Check(sameCallback.Sounds.Single() == new Ff7BattleSoundReceipt(2, 0x1A, 64), "A zero-delay D8 must run in the same native presentation callback.");
         Check(Ff7NativeBattleSound.PointPan(-7) == 0 && Ff7NativeBattleSound.PointPan(160) == 64 && Ff7NativeBattleSound.PointPan(319) == 127 && Ff7NativeBattleSound.PointPan(320) == 127, "Native effect point panning must clamp projected coordinates before scaling.");
         Check(Ff7NativeBattleSound.ActorPan(-7) == 126 && Ff7NativeBattleSound.ActorPan(-4) == 0 && Ff7NativeBattleSound.ActorPan(319) == 126 && Ff7NativeBattleSound.ActorPan(320) == 0, "Native actor pan must use signed division and seven-bit wrapping.");
+
+        static Ff7BattleSecondaryState Step(Ff7BattleSecondaryState current) => Ff7BattleSecondaryEffects.Advance(current, (_, _, _) => throw new InvalidOperationException("D8 sampled an actor pose."), _ => throw new InvalidOperationException("D8 sampled actor rotation."), () => throw new InvalidOperationException("D8 consumed CRT random state."));
     }
 
     private static void ImpactAndEscape()

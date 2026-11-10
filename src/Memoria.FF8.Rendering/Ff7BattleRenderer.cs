@@ -10,12 +10,18 @@ public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, 
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
+    public CrossoverNativeEffectVisual? GuestEffects { get; init; }
     public Ff7BattleGrenadeState? Grenade { get; init; }
     public Ff7BattleBeatRushState? BeatRush { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public IReadOnlyList<Ff7BattleHitmarkState>? Hitmarks { get; init; }
     public Ff7BattleSmokeShotState? SmokeShot { get; init; }
+    public Ff7BattleDestroyedState? Destroyed { get; init; }
     public Ff7BattleSmogState? Smog { get; init; }
+    public Ff7BattleSecondaryState? SecondaryEffects { get; init; }
+    public Ff7BattleSearchScopeState? SearchScope { get; init; }
+    public Ff7BattleStageFadeState? StageFade { get; init; }
+    public Ff7BattleRocketState? Rockets { get; init; }
 }
 
 /// <summary>Submits original FFVII stage and rigid actor geometry without advancing the battle.</summary>
@@ -80,6 +86,10 @@ public sealed partial class Ff7BattleRenderer
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (frame.StageFade is { } stageFade && (stageFade.Red | stageFade.Green | stageFade.Blue) != 0)
+        {
+            throw new NotSupportedException("FFVII arena tint requires its native nonzero-color material consumer.");
+        }
         CameraView view = CameraView.Create(frame.Camera, width, height);
         renderer.Begin(width, height, new Vector4(0, 0, 0, 1), 0);
         try
@@ -87,7 +97,7 @@ public sealed partial class Ff7BattleRenderer
             Ff7ModelMaterialState material = new() { Cull = true };
             foreach (Ff7BattleArenaPart part in arena.Geometry)
             {
-                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material);
+                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, (frame.StageFade?.Alpha ?? 255) / 255f);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
@@ -163,9 +173,26 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawSmokeShot(renderer, smokeShot, view);
             }
+            if (frame.Destroyed is { Completed: false } destroyedEffect)
+            {
+                DrawDestroyed(renderer, destroyedEffect, view);
+            }
             if (frame.Smog is { Completed: false } smog)
             {
                 DrawSmog(renderer, smog, view);
+            }
+            if (frame.SearchScope is { Completed: false } searchScope)
+            {
+                DrawSearchScope(renderer, searchScope, view);
+            }
+            if (frame.Rockets is { Completed: false } rockets)
+            {
+                DrawRockets(renderer, rockets, view);
+            }
+            frame.GuestEffects?.Draw(renderer, frame.Camera, width, height);
+            if (frame.SecondaryEffects is { } secondary)
+            {
+                DrawSecondaryEffects(renderer, secondary, view);
             }
         }
         finally
@@ -224,7 +251,7 @@ public sealed partial class Ff7BattleRenderer
                     images.Add(texture, image);
                 }
             }
-            TriangleMaterial triangleMaterial = new(image, opacity < 1 ? TriangleBlend.Alpha : material.Blend, material.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, material.DepthWrite && opacity == 1, material.AlphaReference, material.Sampler) { PreserveTargetAlpha = false };
+            TriangleMaterial triangleMaterial = new(image, opacity < 1 ? TriangleBlend.Alpha : material.Blend, material.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, material.DepthWrite && opacity == 1, material.AlphaReference, material.Sampler) { PreserveTargetAlpha = false, TextureSelectsAlpha = false };
             CameraSpaceVertex Vertex(int local)
             {
                 int vertex = group.VertexStart + local;

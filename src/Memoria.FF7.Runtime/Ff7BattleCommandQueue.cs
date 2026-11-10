@@ -4,6 +4,8 @@ public sealed record Ff7BattleQueuedCommand(byte Priority, int ActorSlot, byte C
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool GuestAttack { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public ushort GuestAbility { get; init; }
 
     public static Ff7BattleQueuedCommand FromAi(Ff7BattleAiCommand command)
     {
@@ -89,11 +91,11 @@ public static class Ff7BattleCommandQueue
         return Insert(state, command);
     }
 
-    public static Ff7BattleCommandQueueState StageReady(Ff7BattleCommandQueueState state, int actorSlot, byte commandId, ushort argument = 0, ushort targetMask = 0, bool groupTarget = false, bool guestAttack = false)
+    public static Ff7BattleCommandQueueState StageReady(Ff7BattleCommandQueueState state, int actorSlot, byte commandId, ushort argument = 0, ushort targetMask = 0, bool groupTarget = false, bool guestAttack = false, ushort guestAbility = 0)
     {
         ArgumentNullException.ThrowIfNull(state);
         state.Validate();
-        Ff7BattleQueuedCommand command = new(ReadyPriority(commandId), actorSlot, commandId, argument, targetMask, GroupTarget: groupTarget) { GuestAttack = guestAttack };
+        Ff7BattleQueuedCommand command = new(ReadyPriority(commandId), actorSlot, commandId, argument, targetMask, GroupTarget: groupTarget) { GuestAttack = guestAttack, GuestAbility = guestAbility };
         ValidateCommand(command);
         int nextWrite = (state.ReadyWrite + 1) % ReadyRingLength;
         if (nextWrite == state.ReadyRead)
@@ -167,9 +169,9 @@ public static class Ff7BattleCommandQueue
         {
             throw new InvalidDataException("FFVII battle command has invalid native fields.");
         }
-        if (command.GuestAttack && (command is not { Priority: 6, ActorSlot: >= 0 and < 3, CommandId: 1, Argument: 0, AttackId: null, Message: null, Callback: null, GroupTarget: false } || (command.TargetMask & 0x3F0) != command.TargetMask || !System.Numerics.BitOperations.IsPow2(command.TargetMask)))
+        if (command.GuestAbility != 0 && !command.GuestAttack || command.GuestAttack && (command is not { Priority: 6, ActorSlot: >= 0 and < 3, AttackId: null, Message: null, Callback: null, GroupTarget: false } || command is not ({ GuestAbility: 0, CommandId: 1, Argument: 0 } or { GuestAbility: 1, CommandId: 2, Argument: 1 }) || (command.TargetMask & 0x3F0) != command.TargetMask || !System.Numerics.BitOperations.IsPow2(command.TargetMask)))
         {
-            throw new InvalidDataException("A guest Attack command requires one selected enemy occurrence and the ordinary player queue class.");
+            throw new InvalidDataException("A guest command requires one selected enemy occurrence and the ordinary player queue class.");
         }
     }
 

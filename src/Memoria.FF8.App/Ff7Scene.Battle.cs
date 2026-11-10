@@ -247,6 +247,10 @@ internal sealed partial class Ff7Scene
         }
         if (option.Command == Ff7BattleCommand.Magic)
         {
+            if (mixedCombat is { } mixed && Session?.Battle is { } battle && battle.ReadyPlayer == battle.GuestVitals?.HostSlot)
+            {
+                return mixed.Actions.MagicName(option.Argument) + " " + option.Cost;
+            }
             battleSpellNames ??= KernelTextArchive.ReadPlainStrings(KernelTextArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel2).Path))[9].Span, 128);
             return battleSpellNames[option.Argument] + " " + option.Cost + " MP";
         }
@@ -303,7 +307,7 @@ internal sealed partial class Ff7Scene
             (int clip, int frame) = battle.VisualPose(slot);
             visuals.Add(new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.VisualLimit(slot)));
         }
-        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.Data.Cameras[0], visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Guest = MixedBattleVisual(battle) });
+        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.Data.Cameras[0], visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.StageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
     }
 
     private void ResetBattlePresentation()

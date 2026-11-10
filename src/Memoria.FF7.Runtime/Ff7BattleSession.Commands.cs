@@ -64,6 +64,14 @@ public sealed partial class Ff7BattleSession
             {
                 ushort targets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && guestAttack.Supports(DescribeGuestTarget(target.Actor.Slot))));
                 guest.Insert(0, new(Ff7BattleCommand.Attack, 0, targets, true, true));
+                if (guestAttack is IFf7BattleGuestMagic magic && actor.Actor.Statuses == 0 && magic.MagicStock(1) > 0)
+                {
+                    ushort magicTargets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && SupportsGuestAbility(guestAttack, 1, DescribeGuestTarget(target.Actor.Slot))));
+                    if (magicTargets != 0)
+                    {
+                        guest.Insert(1, new(Ff7BattleCommand.Magic, 1, magicTargets, true, true, magic.MagicStock(1)));
+                    }
+                }
             }
             return guest;
         }
@@ -83,6 +91,10 @@ public sealed partial class Ff7BattleSession
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
         {
             return SubmitGuestAttack(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets));
+        }
+        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
+        {
+            return argument == 1 && !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
         Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(candidate => candidate.Command == command && candidate.Argument == argument);
         if (option is null || targets == 0 || (targets & ~option.ValidTargets) != 0)
@@ -253,6 +265,7 @@ public sealed partial class Ff7BattleSession
                 }
                 else if (instruction.Opcode == 0xEC && command.TargetMask != 0)
                 {
+                    state = state with { Action = active };
                     Ff7BattleActionState beforeEffect = active;
                     active = StartEffect(active);
                     EffectEntrySound(beforeEffect, active);
@@ -265,7 +278,16 @@ public sealed partial class Ff7BattleSession
                 }
                 else if (instruction.Opcode == 0xD8)
                 {
-                    state = state with { Sounds = Ff7NativeBattleSound.Schedule(state.Sounds ?? Ff7BattleSoundState.Empty, instruction.Operands.Span) };
+                    ReadOnlySpan<byte> operands = instruction.Operands.Span;
+                    Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
+                    state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleSound(secondary, BinaryPrimitives.ReadUInt16LittleEndian(operands[1..]), operands[0]) };
+                }
+                else if (instruction.Opcode == 0xAD)
+                {
+                    ReadOnlySpan<byte> operands = instruction.Operands.Span;
+                    int bone = operands[0] == byte.MaxValue ? -1 : presentation.JointSelector(model, operands[0]);
+                    Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
+                    state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleGun(secondary, command.ActorSlot, bone, BinaryPrimitives.ReadInt16LittleEndian(operands[1..]), operands[3], operands[4]) };
                 }
                 else if (instruction.Opcode == 0x9D && command is { CommandId: (byte)Ff7BattleCommand.Limit, Argument: 0x95, TargetMask: not 0 } && instruction.Operands.Span[0] == 0 && active.BeatRushEffect is null)
                 {

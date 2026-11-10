@@ -190,6 +190,7 @@ internal static class InstalledOpeningTests
         Console.WriteLine($"Original BATTLE 300 took native attack {firstHit.AttackId} for {firstHit.Damage.Damage} HP, restored cold and published one victory.");
         CheckEncounterEscape(original);
         CheckMateriaEquipment(installation, original);
+        CheckBattlePresentationGlobals(installation, original);
 
         static void SubmitAttack(Ff7BattleSession battle)
         {
@@ -200,6 +201,50 @@ internal static class InstalledOpeningTests
                 Equal(true, battle.Submit(slot, attack.Command, attack.Argument, (ushort)(1 << target)));
             }
         }
+    }
+
+    private static void CheckBattlePresentationGlobals(Ff7Installation installation, Ff7Session source)
+    {
+        Ff7SessionSave initial = source.Capture();
+        Ff7CharacterState[] characters = initial.Progress.Characters.Select(character => character with { NativeRecord = character.NativeRecord.ToArray() }).ToArray();
+        characters.Single(character => character.Id == 1).NativeRecord[15] = byte.MaxValue;
+        Ff7SessionSave prepared = initial with { Progress = initial.Progress with { Party = [1, 0, 255], Characters = characters }, BattleBigShotChargeRotation = 14080, BattleBigShotCounterRotation = -9856 };
+        using Ff7Session session = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(prepared))!);
+        int entity = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
+        session.Host.StartEncounter(new(session.Progress.NextEncounterRequestId, entity, 7, 0, new FieldBattleCommand(301)), 0);
+        Ff7BattleSession battle = session.Battle ?? throw new InvalidOperationException("The presentation carry fixture did not start its original encounter.");
+        Equal((short)14080, battle.BigShotChargeRotation);
+        Equal((short)-9856, battle.BigShotCounterRotation);
+        bool cast = false;
+        for (int tick = 0; tick < 6000 && !battle.ResultReady; tick++)
+        {
+            if (battle.ReadyPlayer is int slot)
+            {
+                Ff7BattleCommandOption? command = battle.Commands(slot).FirstOrDefault(option => (option.ValidTargets & 0x3F0) != 0 && option.Command is Ff7BattleCommand.Limit or Ff7BattleCommand.Attack);
+                if (command is not null)
+                {
+                    int target = battle.Actors.First(actor => actor.Actor.Slot >= 4 && (command.ValidTargets & (1 << actor.Actor.Slot)) != 0).Actor.Slot;
+                    cast |= command is { Command: Ff7BattleCommand.Limit, Argument: 0x87 };
+                    Equal(true, battle.Submit(slot, command.Command, command.Argument, (ushort)(1 << target)));
+                }
+            }
+            session.AdvanceTick();
+        }
+        Equal(true, cast);
+        Equal(Ff7BattleOutcome.Victory, battle.Outcome);
+        Equal((short)28160, battle.BigShotChargeRotation);
+        Equal((short)-19712, battle.BigShotCounterRotation);
+        Equal(true, session.ConfirmBattleVictory());
+        session.AdvanceTick();
+        Ff7SessionSave saved = JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(session.Capture()))!;
+        Equal((short)28160, saved.BattleBigShotChargeRotation);
+        Equal((short)-19712, saved.BattleBigShotCounterRotation);
+        using Ff7Session cold = Ff7Session.Restore(installation, saved);
+        int restoredEntity = cold.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
+        cold.Host.StartEncounter(new(cold.Progress.NextEncounterRequestId, restoredEntity, 7, 0, new FieldBattleCommand(301)), 0);
+        Equal((short)28160, cold.Battle!.BigShotChargeRotation);
+        Equal((short)-19712, cold.Battle.BigShotCounterRotation);
+        Console.WriteLine("Big Shot original charge angles survived result confirmation, a field save and the next encounter.");
     }
 
     private static void CheckEncounterEscape(Ff7Session session)

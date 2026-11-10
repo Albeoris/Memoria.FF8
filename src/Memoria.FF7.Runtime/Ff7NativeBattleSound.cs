@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7BattleAuthoredSound(ushort Sound, byte Pan);
@@ -23,45 +21,6 @@ public sealed record Ff7BattleSoundUpdate(Ff7BattleSoundState State, IReadOnlyLi
 
 public static class Ff7NativeBattleSound
 {
-    public static Ff7BattleSoundState Schedule(Ff7BattleSoundState state, ReadOnlySpan<byte> operands)
-    {
-        if (operands.Length != 3)
-        {
-            throw new InvalidDataException("FFVII action sound requires one delay byte and one sound word.");
-        }
-
-        if (state.Pending.Length >= 60)
-        {
-            throw new InvalidOperationException("FFVII action sound exceeds its native secondary callback pool.");
-        }
-        return state with { Pending = [..state.Pending, new(BinaryPrimitives.ReadUInt16LittleEndian(operands[1..]), operands[0])] };
-    }
-
-    public static Ff7BattleSoundUpdate AdvancePresentation(Ff7BattleSoundState state, bool liveFrame, int currentAttacker, Func<int, short> projectedScreenX)
-    {
-        ArgumentNullException.ThrowIfNull(projectedScreenX);
-        if (!liveFrame)
-        {
-            return new(state, []);
-        }
-
-        List<Ff7BattleDelayedSound> pending = [];
-        List<Ff7BattleSoundReceipt> sounds = [];
-        long sequence = state.Sequence;
-        foreach (Ff7BattleDelayedSound sound in state.Pending)
-        {
-            if (sound.Delay != 0)
-            {
-                pending.Add(sound with { Delay = sound.Delay - 1 });
-            }
-            else
-            {
-                sounds.Add(new(checked(++sequence), sound.Sound, ActorPan(projectedScreenX(currentAttacker))));
-            }
-        }
-        return new(state with { Pending = pending.ToArray(), Sequence = sequence }, sounds.AsReadOnly());
-    }
-
     public static Ff7BattleSoundUpdate Impact(Ff7BattleSoundState state, int sound, int impactEffect, int sourceSlot, short targetScreenX)
     {
         if (sound == -1)

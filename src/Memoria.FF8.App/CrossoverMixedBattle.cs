@@ -6,7 +6,10 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverMixedBattleSnapshot(int Version, CrossoverBattleRoster Roster, Ff7BattleGuestVitalsBinding Vitals, CrossoverGunbladeHostSnapshot Attack);
+internal sealed record CrossoverMixedBattleSnapshot(int Version, CrossoverBattleRoster Roster, Ff7BattleGuestVitalsBinding Vitals, CrossoverGunbladeHostSnapshot Attack)
+{
+    public CrossoverGuestHostActionsSnapshot? Actions { get; init; }
+}
 
 internal sealed class CrossoverMixedBattle : IDisposable
 {
@@ -16,6 +19,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
     private readonly Ff7BattleGuestVitalsBinding vitals;
     public Ff7BattleSession Host { get; }
     public CrossoverGunbladeHostAttack Attack { get; }
+    public CrossoverGuestHostActions Actions { get; }
 
     public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host)
     {
@@ -29,6 +33,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
             NativeCharacterVitals origin = document.Characters.Restore(installed);
             CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
             CrossoverGunbladeHostSnapshot? savedAttack = null;
+            CrossoverGuestHostActionsSnapshot? savedActions = null;
             if (source.MixedBattlePayload is { Length: > 0 } payload)
             {
                 CrossoverMixedBattleSnapshot saved = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(payload) ?? throw new InvalidDataException("The saved mixed encounter is empty.");
@@ -39,6 +44,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
                 roster = saved.Roster;
                 vitals = saved.Vitals;
                 savedAttack = saved.Attack;
+                savedActions = saved.Actions;
             }
             else
             {
@@ -50,7 +56,8 @@ internal sealed class CrossoverMixedBattle : IDisposable
             NativeGlobalRandomState random = document.Progression?.Clocks.GlobalRandom ?? throw new NotSupportedException("Mixed combat requires the suspended FFVIII global RNG owner.");
             Attack = new(roster, kit, assets, game, random, () => host.Data.Cameras[0], _ => 128, savedAttack);
             Attack.PrepareStanding(host.VisualPlacement(roster.Guest.HostSlot));
-            host.BindGuestAttack(Attack);
+            Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions);
+            host.BindGuestAttack(Actions);
             Host = host;
         }
         catch
@@ -61,12 +68,13 @@ internal sealed class CrossoverMixedBattle : IDisposable
         }
     }
 
-    public byte[] Capture() => JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattleSnapshot(1, roster, vitals, Attack.Capture()));
+    public byte[] Capture() => JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattleSnapshot(1, roster, vitals, Attack.Capture()) { Actions = Actions.Capture() });
 
     public CrossoverBattleVitalsSettlementResult Settle(CombinedSessionSave source, Ff7Installation installation)
     {
-        Attack.CancelAtTerminal();
-        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture());
+        Actions.CancelAtTerminal();
+        CrossoverGuestMagicSettlement? magic = Actions.UsedMagic ? new(roster, Actions.Capture().Stock, Actions.OriginCrtRandom, Actions.CurrentCrtRandom) : null;
+        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic);
     }
 
     public void Dispose()

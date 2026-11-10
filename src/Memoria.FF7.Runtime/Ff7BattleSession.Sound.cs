@@ -79,6 +79,7 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
+        EnsureSecondaryEffects();
         Ff7BattleSoundState before = state.Sounds ?? Ff7BattleSoundState.Empty;
         foreach (Ff7BattleImpactPresentation impact in before.PendingHitmarks)
         {
@@ -89,7 +90,12 @@ public sealed partial class Ff7BattleSession
             }
             StartHitmark(impact.Target, style);
         }
-        AppendSounds(Ff7NativeBattleSound.AdvancePresentation(before with { DueImpacts = [], PendingHitmarks = [], DueEffects = [] }, liveFrame: true, state.SoundAttacker, SoundScreenX));
+        Ff7BattleSecondaryState secondary = Ff7BattleSecondaryEffects.Advance(state.SecondaryEffects!, SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), random.NextCrt);
+        state = state with { SecondaryEffects = secondary, Sounds = before with { DueImpacts = [], PendingHitmarks = [], DueEffects = [] } };
+        foreach (ushort sound in secondary.SoundIds)
+        {
+            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds!, sound, Ff7NativeBattleSound.ActorPan(SoundScreenX(state.SoundAttacker))));
+        }
         foreach (Ff7BattleAuthoredSound effect in before.DueEffects)
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds!, effect.Sound, effect.Pan));
@@ -135,6 +141,18 @@ public sealed partial class Ff7BattleSession
         if (before.Smog is null && after.Smog is not null)
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 138, Ff7NativeBattleSound.ActorPan(SoundScreenX(after.Command.ActorSlot))));
+        }
+        if (before.Destroyed is null && after.Destroyed is not null)
+        {
+            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 390, Ff7NativeBattleSound.ActorPan(SoundScreenX(after.Command.ActorSlot))));
+        }
+        if (before.SearchScope is null && after.SearchScope is not null)
+        {
+            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 98, Ff7NativeBattleSound.ActorPan(SoundScreenX(after.Command.ActorSlot))));
+        }
+        if (before.Rockets is null && after.Rockets is not null)
+        {
+            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 130, Ff7NativeBattleSound.ActorPan(SoundScreenX(after.Command.ActorSlot))));
         }
     }
 

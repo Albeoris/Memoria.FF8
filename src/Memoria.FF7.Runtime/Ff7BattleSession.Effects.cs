@@ -14,8 +14,11 @@ public sealed partial class Ff7BattleSession
             byte effect = Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data.AttackEffect;
             return effect switch
             {
+                0x13 when action.Rockets is null => action with { Rockets = Ff7BattleRocketEffect.Start(command.TargetMask) },
                 0x15 when action.Smog is null => action with { Smog = Ff7BattleSmogEffect.Start(command.TargetMask) },
                 0x40 when action.SmokeShot is null => action with { SmokeShot = Ff7BattleSmokeShotEffect.Start(command.TargetMask) },
+                0x4B when action.SearchScope is null => StartSearchScope(action),
+                0x5A when action.Destroyed is null => action with { Destroyed = Ff7BattleDestroyedEffect.Start(command.TargetMask) },
                 _ => action
             };
         }
@@ -53,6 +56,29 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActionState beforeEffects = action;
         ushort impacts = 0;
+        if (action.Rockets is { Completed: false } rockets)
+        {
+            Ff7BattleRocketUpdate update = Ff7BattleRocketEffect.Advance(rockets, () => JointPoint(action.Command.ActorSlot, 9), ImpactAnchor, random.NextCrt);
+            action = action with { Rockets = update.State };
+            impacts |= update.ImpactTargets;
+        }
+        if (action.SearchScope is { Completed: false } scope)
+        {
+            Ff7BattleSearchScopeUpdate update = Ff7BattleSearchScopeEffect.Advance(scope);
+            action = action with { SearchScope = update.State };
+            state = state with { SearchScopeScaleCounter = update.State.ScaleCounter };
+            if (update.State.Frame == 39)
+            {
+                state = state with { StageFade = Ff7BattleStageFade.FadeTo(state.StageFade ?? new(), 0, 10) };
+            }
+            impacts |= update.ImpactTargets;
+        }
+        if (action.Destroyed is { Completed: false } destroyed)
+        {
+            Ff7BattleDestroyedUpdate update = Ff7BattleDestroyedEffect.Advance(destroyed, slot => animations!.BoneCount(ActorModel(slot)), BonePosition, random.NextCrt);
+            action = action with { Destroyed = update.State };
+            impacts |= update.ImpactTargets;
+        }
         if (action.Smog is { Completed: false } smog)
         {
             Ff7BattleSmogUpdate update = Ff7BattleSmogEffect.Advance(smog, () => JointPoint(action.Command.ActorSlot, 9), ImpactAnchor, random.NextCrt);
@@ -124,6 +150,35 @@ public sealed partial class Ff7BattleSession
     }
 
     private Vector3 ImpactAnchor(int slot) => JointPoint(slot, 0);
+
+    private Ff7BattleActionState StartSearchScope(Ff7BattleActionState action)
+    {
+        Ff7BattleQueuedCommand command = action.Command;
+        Ff7BattleSearchScopeState scope = Ff7BattleSearchScopeEffect.Start(command.TargetMask, JointPoint(command.ActorSlot, 9), MeanImpactAnchor(command.TargetMask), state.SearchScopeScaleCounter);
+        state = state with { StageFade = Ff7BattleStageFade.FadeTo(state.StageFade ?? new(), 1024, 10) };
+        return action with { SearchScope = scope };
+    }
+
+    private Vector3 MeanImpactAnchor(ushort mask)
+    {
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        int count = 0;
+        foreach (Ff7BattleActorState actor in state.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0))
+        {
+            Vector3 point = ImpactAnchor(actor.Actor.Slot);
+            x += (short)point.X;
+            y += (short)point.Y;
+            z += (short)point.Z;
+            count++;
+        }
+        if (count == 0)
+        {
+            throw new InvalidDataException("FFVII effect anchor requires a selected physical target.");
+        }
+        return new((short)(x / count), (short)(y / count), (short)(z / count));
+    }
     private Vector3 JointPoint(int slot, int selector) => BonePosition(slot, animations!.JointSelector(ActorModel(slot), selector));
     private int CollisionRadius(int slot) => animations!.CollisionRadius(ActorModel(slot));
 

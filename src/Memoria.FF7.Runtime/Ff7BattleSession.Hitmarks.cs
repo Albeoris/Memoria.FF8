@@ -17,12 +17,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new NotSupportedException($"FFVII impact effect {effect:X4} has no original hitmark definition.");
         }
-        Ff7BattleHitmarkState hitmark = Ff7BattleHitmarkEffect.Start(target, animations.Hitmarks[index], (effect & 0x100) != 0);
-        state = state with { Hitmarks = [.. state.Hitmarks, hitmark] };
-    }
-
-    private void AdvanceHitmarks()
-    {
-        state = state with { Hitmarks = state.Hitmarks.Where(hitmark => !hitmark.Completed).Select(hitmark => Ff7BattleHitmarkEffect.Advance(hitmark, ImpactAnchor, CollisionRadius)).ToArray() };
+        Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
+        state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleHitmark(secondary, target, animations.Hitmarks[index], ImpactAnchor(target), CollisionRadius(target), (effect & 0x100) != 0) };
     }
 }
