@@ -22,6 +22,8 @@ Normal launches use GPU rendering in Debug and Release, including controlled lau
 
 Depth tests, alpha cutouts, texture windows, per-pixel perspective UVs, ordering and blend equations are retained by the GPU material stream. Hardware depth precision, sampling boundaries and color conversion can differ from the CPU reference by small rounding amounts. GPU regression tests use a hidden real graphics device and exercise blends, depth, field/movie composition and world/battle comparisons.
 
+World terrain uses a continuous presentation of the native horizon curve in both CPU and retained GPU rendering. Fractional camera depth and height remove the integer square steps that make the sea horizon shake during travel. The original depth threshold, height attenuation and signed height range remain; simulation, collision and native projection certificates retain their integer arithmetic. Frustum bounds include the continuous curve and its signed-height wrapping.
+
 Field model materials use centroid texture interpolation at MSAA edges, keeping both point-sampled alpha and smooth RGB inside the covered face instead of extrapolating into neighboring atlas texels. Depth and fog retain their separate pixel-center interpolation. Other materials keep their existing sampling policy; single-sample rendering uses the same pixel centers.
 
 The application embeds `src/Memoria.FF8.App/Shaders/Triangles.mgfxo`; ordinary builds do not require a shader compiler. After editing `Triangles.fx`, regenerate it from the product root with the pinned tool:

@@ -62,7 +62,7 @@ public sealed class WorldRoadUvScaleTests
         Invoke(renderer, "DrawTerrain", Triangle(flags), Vector3.Zero, false);
         IEnumerable queued = (IEnumerable)Field(renderer, "rasterTriangles");
         object triangle = Assert.Single(queued.Cast<object>());
-        Invoke(renderer, "Raster", Property(triangle, "A"), Property(triangle, "B"), Property(triangle, "C"), Property(triangle, "Texture"), false, 0, Size - 1, null);
+        Invoke(renderer, "Raster", Property(triangle, "A"), Property(triangle, "B"), Property(triangle, "C"), Property(triangle, "Texture"), false, 0, Size - 1, null, null);
         byte[] pixels = (byte[])Field(renderer, "pixels");
         int covered = 0;
         for (int index = 0; index < pixels.Length; index += 4)

@@ -104,7 +104,7 @@ public sealed partial class WorldTerrainRenderer
         }
         if (nativeTerrain)
         {
-            // Curvature depends on the uncurved camera depth. Bound the integer expression
+            // Curvature depends on the uncurved camera depth. Bound the continuous expression
             // over the entire segment before testing its curved box against the frustum.
             float depthMinimum = float.PositiveInfinity;
             float depthMaximum = float.NegativeInfinity;
@@ -115,20 +115,21 @@ public sealed partial class WorldTerrainRenderer
                 depthMinimum = MathF.Min(depthMinimum, depth);
                 depthMaximum = MathF.Max(depthMaximum, depth);
             }
-            int last = (Math.Clamp((int)MathF.Round(depthMaximum * 16), 0, 65535) >> 2) - 5216;
+            float last = Math.Clamp(depthMaximum * 16, 0, 65535) * 0.25f - 5216;
             if (last >= 0)
             {
-                int first = Math.Max(0, (Math.Clamp((int)MathF.Round(depthMinimum * 16), 0, 65535) >> 2) - 5216);
-                int nativeMinimum = -(int)(maximum.Y * 16);
-                int nativeMaximum = -(int)(minimum.Y * 16);
-                int a = (4096 - first) * nativeMinimum;
-                int b = (4096 - first) * nativeMaximum;
-                int c = (4096 - last) * nativeMinimum;
-                int d = (4096 - last) * nativeMaximum;
-                int heightMinimum = (first >> 6) * (first >> 6) + (Math.Min(Math.Min(a, b), Math.Min(c, d)) >> 12);
-                int heightMaximum = (last >> 6) * (last >> 6) + (Math.Max(Math.Max(a, b), Math.Max(c, d)) >> 12);
-                float curvedMinimum = heightMinimum < short.MinValue || heightMaximum > short.MaxValue ? -short.MaxValue / 16f : -heightMaximum / 16f;
-                float curvedMaximum = heightMinimum < short.MinValue || heightMaximum > short.MaxValue ? -short.MinValue / 16f : -heightMinimum / 16f;
+                float first = Math.Max(0, Math.Clamp(depthMinimum * 16, 0, 65535) * 0.25f - 5216);
+                float nativeMinimum = -maximum.Y * 16;
+                float nativeMaximum = -minimum.Y * 16;
+                float a = (4096 - first) * nativeMinimum;
+                float b = (4096 - first) * nativeMaximum;
+                float c = (4096 - last) * nativeMinimum;
+                float d = (4096 - last) * nativeMaximum;
+                float heightMinimum = first * first / 4096 + Math.Min(Math.Min(a, b), Math.Min(c, d)) / 4096;
+                float heightMaximum = last * last / 4096 + Math.Max(Math.Max(a, b), Math.Max(c, d)) / 4096;
+                bool wraps = heightMinimum < -32768 || heightMaximum >= 32768;
+                float curvedMinimum = wraps ? -32768 / 16f : -heightMaximum / 16;
+                float curvedMaximum = wraps ? 32768 / 16f : -heightMinimum / 16;
                 minimum.Y = MathF.Min(minimum.Y, curvedMinimum);
                 maximum.Y = MathF.Max(maximum.Y, curvedMaximum);
             }

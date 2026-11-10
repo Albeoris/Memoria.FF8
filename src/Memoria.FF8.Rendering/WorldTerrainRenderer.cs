@@ -298,16 +298,8 @@ public sealed partial class WorldTerrainRenderer
             Vector3 point = raw / 16 + offset;
             if (nativeTerrain)
             {
-                int cameraDepth = (int)MathF.Round(-Vector3.Transform(point, view).Z * 16);
-                int distance = (Math.Clamp(cameraDepth, 0, 65535) >> 2) - 5216;
-                if (distance >= 0)
-                {
-                    // Original 0x4022D0 lowers distant WMX geometry to make the horizon;
-                    // 5216 is a quarter-depth threshold, not the terrain's far clip.
-                    int nativeHeight = -(int)raw.Y;
-                    int curvedHeight = (distance >> 6) * (distance >> 6) + (((4096 - distance) * nativeHeight) >> 12);
-                    point.Y = -(short)curvedHeight / 16f;
-                }
+                float cameraDepth = -Vector3.Transform(point, view).Z * 16;
+                point.Y = -WorldTerrainCurvature.PresentationHeight(-raw.Y, cameraDepth) / 16;
             }
             return point;
         }

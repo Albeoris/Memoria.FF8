@@ -57,14 +57,16 @@ VSOutput WorldVertexMain(WorldVSInput input)
     float3 terrainPosition = input.Position + WorldOffset;
     if (WorldNativeCurvature > 0)
     {
-        int cameraDepth = (int)round(-mul(float4(terrainPosition, 1), WorldView).z * 16);
-        int distance = (clamp(cameraDepth, 0, 65535) >> 2) - 5216;
+        float cameraDepth = -mul(float4(terrainPosition, 1), WorldView).z * 16;
+        float distance = clamp(cameraDepth, 0, 65535) * 0.25 - 5216;
         if (distance >= 0)
         {
-            int nativeHeight = -(int)(input.Position.y * 16);
-            int curvedHeight = (distance >> 6) * (distance >> 6) + (((4096 - distance) * nativeHeight) >> 12);
-            int signedHeight = (curvedHeight << 16) >> 16;
-            terrainPosition.y = -signedHeight / 16.0;
+            // Keep presentation continuous between native depth/height steps.
+            float nativeHeight = -input.Position.y * 16;
+            float squareRoot = distance / 64;
+            float curvedHeight = squareRoot * squareRoot + (4096 - distance) * nativeHeight / 4096;
+            float signedHeight = curvedHeight - 65536 * floor((curvedHeight + 32768) / 65536);
+            terrainPosition.y = -signedHeight / 16;
         }
     }
     float3 camera = mul(float4(terrainPosition, 1), WorldView).xyz;

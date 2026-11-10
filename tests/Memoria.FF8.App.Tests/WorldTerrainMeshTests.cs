@@ -116,6 +116,29 @@ public sealed class WorldTerrainMeshTests
     }
 
     [Fact]
+    public void Retained_sea_geometry_matches_continuous_projection_while_crossing_an_integer_square_boundary()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        WorldTerrainMesh mesh = new([new(new Vector3(-80, 0, -1816), Vector2.Zero), new(new Vector3(80, 0, -1816), Vector2.UnitX), new(new Vector3(0, -100, -1816), Vector2.UnitY)]);
+        PixelImage texture = new(1, 1, [new Rgba32(60, 140, 220, 255)]);
+        TriangleMaterial material = Material(texture, 3000);
+        foreach (float movement in new[] { -0.03125f, 0f, 0.03125f })
+        {
+            WorldTerrainView view = new(Matrix4x4.CreateTranslation(0, 0, movement), Vector3.Zero, 1024, true);
+            renderer.Begin(Size, Size, new Vector4(0, 0, 0, 1), 0);
+            DrawReference(renderer, mesh, view, material);
+            renderer.End();
+            Color[] expected = GpuTestDevice.Read(renderer.Target);
+            Assert.True(expected.Count(pixel => pixel != Color.Black) > 100);
+            renderer.Begin(Size, Size, new Vector4(0, 0, 0, 1), 0);
+            renderer.DrawTerrain(mesh, view, material);
+            renderer.End();
+            AssertImages(expected, GpuTestDevice.Read(renderer.Target), renderer, $"sea-boundary-{movement}");
+        }
+    }
+
+    [Fact]
     public void Retained_and_streamed_draws_preserve_submission_order_and_material_changes()
     {
         using GpuTestDevice device = new();
@@ -259,14 +282,8 @@ public sealed class WorldTerrainMeshTests
         Vector3 position = source + view.Offset;
         if (view.NativeCurvature)
         {
-            int depth = (int)MathF.Round(-Vector3.Transform(position, view.View).Z * 16);
-            int distance = (Math.Clamp(depth, 0, 65535) >> 2) - 5216;
-            if (distance >= 0)
-            {
-                int height = -(int)(source.Y * 16);
-                int curved = (distance >> 6) * (distance >> 6) + (((4096 - distance) * height) >> 12);
-                position.Y = -unchecked((short)curved) / 16f;
-            }
+            float depth = -Vector3.Transform(position, view.View).Z * 16;
+            position.Y = -WorldTerrainCurvature.PresentationHeight(-source.Y * 16, depth) / 16;
         }
         return Vector3.Transform(position, view.View);
     }
