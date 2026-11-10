@@ -8,7 +8,7 @@ internal sealed record AutoPlayWalkingRoute(IReadOnlyList<WalkmeshPosition> Wayp
 
 internal sealed partial class GameWorld
 {
-    public bool TryFindAutoPlayWalkingRoute(AutoPlayTarget target, out AutoPlayWalkingRoute route)
+    public bool TryFindAutoPlayWalkingRoute(AutoPlayTarget target, out AutoPlayWalkingRoute route, AutoPlayIdleDeadline? idleDeadline = null)
     {
         route = new AutoPlayWalkingRoute([]);
         if (Field is null || !HasCurrentFieldAllocation || !Events.CanAcceptMovementInput || Events.PlayerActor is not ActorState player)
@@ -18,6 +18,7 @@ internal sealed partial class GameWorld
         FieldFixedPosition start = Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("Autoplay walking requires the retained native player position.");
         Vector3 destination = new(target.ApproachX ?? target.X, target.ApproachY ?? target.Y, target.ApproachZ ?? target.Z);
         int triangle = target.ApproachTriangle ?? target.Triangle;
+        using IDisposable? suspended = idleDeadline?.Suspend();
         return TryFindAutoPlayWalkingRoute(Field.Walkmesh, Events.Scene.LockedTriangles, start, player.WalkmeshTriangle, new WalkmeshPosition(destination, triangle), Events.AutoPlayMovementStepDistance, Events.ProbeAutoPlayMovement, out route);
     }
 

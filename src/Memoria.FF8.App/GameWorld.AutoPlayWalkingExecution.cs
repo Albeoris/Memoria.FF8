@@ -53,7 +53,7 @@ internal sealed partial class GameWorld
         return moved;
     }
 
-    public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress)
+    public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress, AutoPlayIdleDeadline? idleDeadline = null)
     {
         int field = Events.FieldId;
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
@@ -66,7 +66,7 @@ internal sealed partial class GameWorld
             {
                 return new(false, true);
             }
-            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route))
+            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline))
             {
                 return WalkAutoPlayRoute(route, onProgress, approachObjectId, approachTarget: contactTarget);
             }
@@ -76,7 +76,11 @@ internal sealed partial class GameWorld
             FieldFixedPosition position = Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("Autoplay approach requires a retained native player position.");
             Vector2 location = new(position.X / 4096f, position.Y / 4096f);
             float distance = Vector2.DistanceSquared(location, destination);
-            Vector2? advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Events.ProbeAutoPlayMovement);
+            Vector2? advance;
+            using (idleDeadline?.Suspend())
+            {
+                advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Events.ProbeAutoPlayMovement);
+            }
             if (advance is null)
             {
                 return new(false, false);

@@ -858,7 +858,7 @@ internal sealed partial class AutoPlayController
                     break;
                 }
                 RecordRecentAction("Walk " + variant.Id);
-                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
+                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (walk.Interrupted)
                 {
@@ -923,7 +923,7 @@ internal sealed partial class AutoPlayController
                 string checkpoint = BeforeVariant();
                 RecordRecentAction("Walk " + variant.Id);
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
-                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline);
+                AutoPlayWalkResult walk = world.WalkAutoPlayApproach(variant, ResetIdleDeadline, idleDeadline);
                 RecordRecentAction($"Approach {variant.Id}: {walk}; position={world.Events.Scene.NativePlayerPosition}");
                 if (!walk.Interrupted && !walk.Arrived)
                 {
@@ -1042,7 +1042,7 @@ internal sealed partial class AutoPlayController
             ResetIdleDeadline();
             return;
         }
-        if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline))
+        if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline, idleDeadline))
         {
             RecordRecentAction($"Walk into native position gate R{gate.Register} < {gate.ExclusiveUpperBound}");
             return;

@@ -1,6 +1,6 @@
 namespace Memoria.FF8;
 
-/// <summary>Bounds unproductive exploration work while excluding passive checkpoint processing.</summary>
+/// <summary>Bounds time without gameplay progress, excluding bounded read-only planning and checkpoint processing.</summary>
 internal sealed class AutoPlayIdleDeadline(TimeProvider clock, TimeSpan limit)
 {
     private readonly TimeProvider time = clock;

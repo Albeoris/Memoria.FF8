@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    internal bool WalkToAutoPlayPositionGate(NativePlayerPositionGate gate, Action onProgress)
+    internal bool WalkToAutoPlayPositionGate(NativePlayerPositionGate gate, Action onProgress, AutoPlayIdleDeadline? idleDeadline = null)
     {
         if (Field is null || Events.PlayerActor is not { } player)
         {
@@ -24,7 +24,7 @@ internal sealed partial class GameWorld
         {
             Vector3 p = candidate.Position;
             AutoPlayTarget target = new("position-gate", AutoPlayTargetKind.Talk, p.X, p.Y, p.Z, candidate.Triangle);
-            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route))
+            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline))
             {
                 AutoPlayWalkResult result = WalkAutoPlayRoute(route, onProgress);
                 return result.Interrupted || result.Arrived;
