@@ -139,13 +139,15 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    private bool UpdatePlayerMenu(KeyboardState keys, GamePadState pad)
+    private bool UpdatePlayerMenu(GameTime time, KeyboardState keys, GamePadState pad)
     {
         if (sharedInput.GameMenuRequested && playerMenu?.IsCapturingControls != true)
         {
             if (IsPlayerMenuOpen)
             {
+                Session!.AdvanceClock(time.ElapsedGameTime);
                 ClosePlayerMenu();
+                UpdateAudio();
                 return true;
             }
             if (!CanOpenPlayerMenu)
@@ -153,55 +155,64 @@ internal sealed partial class Ff7Scene
                 return false;
             }
             EnsurePlayerMenu();
+            Session!.Host.InitializeNativeMenuAudio();
             playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
             playerMenu.Open();
             pendingPressedKeys = 0;
             sharedInput.SuppressHeldUiInput();
             menuPointerPressed = Mouse.GetState().LeftButton == ButtonState.Pressed;
-            SetAudioPaused(true);
+            SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
+            Session.AdvanceClock(time.ElapsedGameTime);
+            UpdateAudio();
             return true;
         }
         if (!IsPlayerMenuOpen)
         {
             return false;
         }
-        if (!playerMenu!.UpdateControlsCapture(keys, pad, !focusPaused))
-        {
-            if (semanticInput.MenuVertical != 0)
-            {
-                playerMenu.Navigate(semanticInput.MenuVertical < 0 ? MenuInput.Up : MenuInput.Down);
-            }
-            if (semanticInput.MenuHorizontal != 0)
-            {
-                playerMenu.Navigate(semanticInput.MenuHorizontal < 0 ? MenuInput.Left : MenuInput.Right);
-            }
-            if (semanticInput.MenuPage != 0)
-            {
-                playerMenu.Navigate(semanticInput.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
-            }
-            if (semanticInput.Confirm)
-            {
-                playerMenu.Navigate(MenuInput.Confirm);
-            }
-            if (semanticInput.Cancel)
-            {
-                playerMenu.Navigate(MenuInput.Cancel);
-            }
-            MouseState mouse = Mouse.GetState();
-            bool pressed = mouse.LeftButton == ButtonState.Pressed;
-            if (pressed && !menuPointerPressed && playerMenu.View is { } view)
-            {
-                view.Resize(device.Viewport.Width, device.Viewport.Height);
-                view.Pointer(mouse.X, mouse.Y, true);
-            }
-            menuPointerPressed = pressed;
-        }
-        if (!playerMenu.IsOpen)
+        Session!.AdvanceClock(time.ElapsedGameTime);
+        UpdateSharedMenuInput(playerMenu!, keys, pad, ref menuPointerPressed);
+        if (!playerMenu!.IsOpen)
         {
             ClosePlayerMenu();
         }
         UpdateAudio();
         return true;
+    }
+
+    private void UpdateSharedMenuInput(MenuController menu, KeyboardState keys, GamePadState pad, ref bool pointerPressed)
+    {
+        if (!menu.UpdateControlsCapture(keys, pad, !focusPaused))
+        {
+            if (semanticInput.MenuVertical != 0)
+            {
+                menu.Navigate(semanticInput.MenuVertical < 0 ? MenuInput.Up : MenuInput.Down);
+            }
+            if (semanticInput.MenuHorizontal != 0)
+            {
+                menu.Navigate(semanticInput.MenuHorizontal < 0 ? MenuInput.Left : MenuInput.Right);
+            }
+            if (semanticInput.MenuPage != 0)
+            {
+                menu.Navigate(semanticInput.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
+            }
+            if (semanticInput.Confirm)
+            {
+                menu.Navigate(MenuInput.Confirm);
+            }
+            if (semanticInput.Cancel)
+            {
+                menu.Navigate(MenuInput.Cancel);
+            }
+            MouseState mouse = Mouse.GetState();
+            bool pressed = mouse.LeftButton == ButtonState.Pressed;
+            if (pressed && !pointerPressed && menu.View is { } view)
+            {
+                view.Resize(device.Viewport.Width, device.Viewport.Height);
+                view.Pointer(mouse.X, mouse.Y, true);
+            }
+            pointerPressed = pressed;
+        }
     }
 
     private void ClosePlayerMenu()

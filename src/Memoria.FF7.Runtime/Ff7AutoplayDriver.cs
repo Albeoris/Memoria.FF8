@@ -110,7 +110,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             return default;
         }
-        Vector3 position = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
         int dx = (target.X4096 >> 12) - (player.X4096 >> 12);
         int dy = (target.Y4096 >> 12) - (player.Y4096 >> 12);
         if (session.GetTalkTarget()?.Entity == entity)
@@ -120,7 +119,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         int range = target.TalkRadius + player.CollisionRadius;
         if (dx * dx + dy * dy >= range * range)
         {
-            return Approach(position, target.Triangle, run);
+            return ApproachTalkRange(target, run);
         }
         if (dx == 0 && dy == 0)
         {

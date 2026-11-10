@@ -11,16 +11,7 @@ public sealed partial class Ff7FieldHost
     public int ResolveNativeSoundPlaybackPan(FieldAudioCommand command, bool streamed)
     {
         int channel = command.Operation switch { 0x20 or 0x28 => 1, 0x29 => 2, 0x2A => 3, 0x2B => 4, _ => throw new ArgumentException("A native sound start command is required.", nameof(command)) };
-        if (!streamed)
-        {
-            return Process.SoundChannelBufferPans[channel - 1]?.Pan ?? Process.SoundChannelPans[channel - 1];
-        }
-        int authored = unchecked((byte)command.Parameter0);
-        if (authored > 127)
-        {
-            throw new NotSupportedException("FFVII streamed sound panning exceeds the admitted native table.");
-        }
-        return authored;
+        return ResolveNativeSoundPlaybackPan(new Ff7NativeSoundRequest(channel, command.Parameter1, unchecked((byte)command.Parameter0), command.Operation == 0x20), streamed);
     }
 
     public void ConfigureNativeSoundResources(Func<int, Ff7NativeSoundDescription> describe, bool restoring = false)

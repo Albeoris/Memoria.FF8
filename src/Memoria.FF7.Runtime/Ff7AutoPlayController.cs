@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null)
+public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null, Action<bool>? advanceShop = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
@@ -69,6 +69,38 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
             {
                 if (CompleteIfReached())
                 {
+                    return;
+                }
+                if (session.Shop is { Phase: not Ff7ShopPhase.Completed } shop)
+                {
+                    present?.Invoke();
+                    lastSafe = session.Capture();
+                    string shopProgress = $"shop:{shop.RequestId}:{shop.Phase}:{shop.Tick}";
+                    if (previousProgress != shopProgress)
+                    {
+                        previousProgress = shopProgress;
+                        deadline.Reset();
+                    }
+                    if (deadline.Expired)
+                    {
+                        throw new TimeoutException("FFVII autoplay made no native shop progress within its idle deadline.");
+                    }
+                    bool cancel = shop.Phase == Ff7ShopPhase.Interactive;
+                    AutoPlayRecording.AppendRecent(recent, $"{session.Field.Name} shop {shop.ShopId}:{shop.Tick} {(cancel ? "cancel" : "native callback")}");
+                    if (advanceShop is null)
+                    {
+                        session.AdvanceShop(cancel);
+                        session.AdvanceClock(TimeSpan.FromSeconds(1d / 60));
+                    }
+                    else
+                    {
+                        advanceShop(cancel);
+                    }
+                    Steps++;
+                    if (session.Shop?.Phase == Ff7ShopPhase.Completed)
+                    {
+                        CaptureCheckpoint();
+                    }
                     return;
                 }
                 bool continuingTick = session.HasPendingTick;

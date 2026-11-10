@@ -9,6 +9,7 @@ public sealed partial class Ff7AutoPlayEventCoverage
     {
         ObserveRoomReset(observation);
         ObserveParkScene(observation);
+        ObserveItemShopCoverage(observation);
         ObserveWallMarketScene(observation);
         ObserveWallMarketInn(observation);
         if (!Ff7FieldEventCoverageCatalog.RecognizesReunion(session) || observation.Field != session.Field.Name || observation.Generation != session.FieldGeneration)
@@ -52,4 +53,6 @@ public sealed partial class Ff7AutoPlayEventCoverage
         ledger.Complete(active.Id, observation.ProgressWitness, $"native child-owned room reset {observation.TransitionOwner!.ProgramCounter:X4} at {observation.Generation}:{observation.Tick}");
         Publish();
     }
+
+    partial void ObserveItemShopCoverage(Ff7NativeTickObservation observation);
 }

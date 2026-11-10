@@ -2,17 +2,21 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
-    public void AdvanceNativeShop(bool cancel = false)
+    public void AdvanceNativeShop(bool cancel = false, bool confirmedExit = false)
     {
         if (Process.Menu is not { Mode: 8, Completed: false } menu)
         {
             throw new InvalidOperationException("No native shop is active.");
         }
         Ff7ShopState state = menu.Shop ?? new(menu.RequestId, menu.Parameter);
-        Ff7ShopState next = state.Advance(cancel);
-        if (cancel && next.Phase == Ff7ShopPhase.Closing && state.Phase != Ff7ShopPhase.Closing)
+        if (state.Tick == 0)
         {
-            SubmitNativeSound(new(5, 4));
+            InitializeNativeMenuAudio();
+        }
+        Ff7ShopState next = state.Advance(cancel, confirmedExit);
+        if ((cancel || confirmedExit) && next.Phase == Ff7ShopPhase.Closing && state.Phase != Ff7ShopPhase.Closing)
+        {
+            SubmitNativeSound(new(5, confirmedExit ? 1 : 4));
         }
         PublishShop(next);
         if (next.Phase == Ff7ShopPhase.Completed)

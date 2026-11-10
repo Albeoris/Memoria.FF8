@@ -35,11 +35,17 @@ public sealed class AutoPlayEventCoverageLedger
             return;
         }
         AutoPlayEventCoverageScope[] history = state.History ?? [];
+        int restoredIndex = Array.FindLastIndex(history, entry => entry.Id == scope);
+        AutoPlayEventCoverageScope entered = restoredIndex >= 0 ? history[restoredIndex] : new(scope, []);
+        if (restoredIndex >= 0)
+        {
+            history = history.Where((_, index) => index != restoredIndex).ToArray();
+        }
         if (state.Current is { } previous)
         {
             history = [.. history, previous];
         }
-        AutoPlayEventCoverageState next = state with { Current = new(scope, []), History = history };
+        AutoPlayEventCoverageState next = state with { Current = entered, History = history };
         Validate(next);
         state = next;
     }

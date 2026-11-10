@@ -94,8 +94,8 @@ internal sealed partial class Ff7Scene : IDisposable
     public void SetFocusPaused(bool paused)
     {
         focusPaused = paused;
-        SetAudioPaused(paused || userPaused || debugMenu || IsPlayerMenuOpen || error is not null);
-        if (paused || userPaused || debugMenu || IsPlayerMenuOpen || error is not null)
+        SetAudioPaused(paused || userPaused || debugMenu || error is not null);
+        if (paused || userPaused || debugMenu || error is not null)
         {
             movie?.Suspend();
         }
@@ -183,7 +183,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateTitle();
                 return;
             }
-            if (UpdatePlayerMenu(keys, pad))
+            if (UpdateShop(gameTime, keys, pad) || UpdatePlayerMenu(gameTime, keys, pad))
             {
                 return;
             }
@@ -231,6 +231,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
+                if (IsShopMenuPresentation)
+                {
+                    tickRemainder = 0;
+                    break;
+                }
             }
             PublishCurrentMovieCameraFrame();
         }
@@ -286,6 +291,7 @@ internal sealed partial class Ff7Scene : IDisposable
             {
                 DrawPlayerMenu(windowBounds);
                 DrawNamingMenu(windowBounds);
+                DrawShop(batch, windowBounds);
             }
             DrawMovieSkipHint(windowBounds);
             if (debugMenu)
@@ -316,6 +322,7 @@ internal sealed partial class Ff7Scene : IDisposable
         autoPlay = null;
         DisposeNamingPresentation();
         DisposePlayerMenu();
+        DisposeShopMenu();
         StopAudio();
         Session?.Dispose();
         StopMovie();
@@ -595,6 +602,7 @@ internal sealed partial class Ff7Scene : IDisposable
         StopMovie();
         DisposeNamingPresentation();
         DisposePlayerMenu();
+        DisposeShopMenu();
         StopAudio();
         Session?.Dispose();
         DisposeDialoguePresentation();

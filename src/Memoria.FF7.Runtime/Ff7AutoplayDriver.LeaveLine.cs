@@ -22,23 +22,33 @@ public sealed partial class Ff7AutoplayDriver
         }
         Vector3 direct = center + new Vector3(normal * (player.CollisionRadius * 2 + 1), 0);
         IReadOnlyList<PcWalkmeshTriangle> mesh = session.Field.Walkmesh;
-        HashSet<int> reachable = [player.Triangle];
-        Queue<int> queue = new();
-        queue.Enqueue(player.Triangle);
-        while (queue.TryDequeue(out int index))
+        HashSet<int> reachable = ReachableTriangles(player.Triangle);
+        List<(int Triangle, float HeightDifference)> directTriangles = [];
+        foreach (int index in reachable)
         {
-            PcWalkmeshTriangle triangle = mesh[index];
-            foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
+            if (Contains(mesh[index], direct, out float height))
             {
-                if (adjacent >= 0 && (process.BlockedTriangles[adjacent >> 3] & (1 << (adjacent & 7))) == 0 && reachable.Add(adjacent))
-                {
-                    queue.Enqueue(adjacent);
-                }
+                directTriangles.Add((index, Math.Abs(height - direct.Z)));
             }
         }
-        if (reachable.Any(index => Contains(mesh[index], direct)))
+        bool MakesNativeProgress(Vector3 goal)
         {
-            return Steer(direct, run);
+            Ff7AutoplayInput proposed = Steer(goal, run);
+            if (proposed.Horizontal == 0 && proposed.Vertical == 0)
+            {
+                return false;
+            }
+            var direction = Directions.Single(value => value.X == proposed.Horizontal && value.Y == proposed.Vertical);
+            Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+            Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
+            Vector2 after = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
+            Vector2 destination = new(goal.X, goal.Y);
+            return probe.Moved && Vector2.DistanceSquared(after, destination) < Vector2.DistanceSquared(position, destination);
+        }
+        if (directTriangles.Count > 0 && MakesNativeProgress(direct))
+        {
+            var target = directTriangles.OrderBy(value => value.HeightDifference).ThenBy(value => value.Triangle).First();
+            return Approach(direct, target.Triangle, run);
         }
         List<(Vector3 Point, int Triangle)> candidates = [];
         foreach (int index in reachable.Order())
@@ -58,16 +68,26 @@ public sealed partial class Ff7AutoplayDriver
         {
             throw new NotSupportedException("FFVII LINE leave requires a reachable walkmesh point outside its native contact predicate.");
         }
-        var goal = candidates.OrderBy(value => Vector3.DistanceSquared(value.Point, center)).ThenBy(value => value.Triangle).First();
+        var ordered = candidates.OrderBy(value => Vector3.DistanceSquared(value.Point, center)).ThenBy(value => value.Triangle).ToArray();
+        foreach (var candidate in ordered)
+        {
+            if (MakesNativeProgress(candidate.Point))
+            {
+                return Approach(candidate.Point, candidate.Triangle, run);
+            }
+        }
+        var goal = ordered[0];
         return Approach(goal.Point, goal.Triangle, run);
     }
 
-    private static bool Contains(PcWalkmeshTriangle triangle, Vector3 point)
+    private static bool Contains(PcWalkmeshTriangle triangle, Vector3 point, out float height)
     {
         static float Cross(Vector3 a, Vector3 b, Vector3 p) => (b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X);
         float ab = Cross(triangle.A, triangle.B, point);
         float bc = Cross(triangle.B, triangle.C, point);
         float ca = Cross(triangle.C, triangle.A, point);
-        return ab >= 0 && bc >= 0 && ca >= 0 || ab <= 0 && bc <= 0 && ca <= 0;
+        float area = Cross(triangle.A, triangle.B, triangle.C);
+        height = area == 0 ? 0 : (bc * triangle.A.Z + ca * triangle.B.Z + ab * triangle.C.Z) / area;
+        return area != 0 && (ab >= 0 && bc >= 0 && ca >= 0 || ab <= 0 && bc <= 0 && ca <= 0);
     }
 }

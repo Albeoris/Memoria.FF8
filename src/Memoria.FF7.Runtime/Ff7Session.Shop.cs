@@ -9,7 +9,7 @@ public sealed partial class Ff7Session
     public Ff7ShopResources ShopResources => shopResources ??= Ff7ShopResources.Load(installation);
     public Ff7ShopState? Shop => Host.Process.Menu is { Mode: 8 } menu ? menu.Shop ?? new(menu.RequestId, menu.Parameter, menu.Completed ? Ff7ShopPhase.Completed : Ff7ShopPhase.Opening) : null;
 
-    public void AdvanceShop(bool cancel = false)
+    public void AdvanceShop(bool cancel = false, bool confirmedExit = false)
     {
         Ff7ShopState state = Shop ?? throw new InvalidOperationException("No native shop is active.");
         if (state.Phase == Ff7ShopPhase.Completed)
@@ -17,7 +17,7 @@ public sealed partial class Ff7Session
             return;
         }
         _ = ShopResources.Get(state.ShopId);
-        Host.AdvanceNativeShop(cancel);
+        Host.AdvanceNativeShop(cancel, confirmedExit);
     }
 
     public IReadOnlyList<Ff7ShopMateriaEntry> ShopMateriaInventory => Ff7NativeMateriaInventory.Normalize(Progress.Materia).Select(materia => new Ff7ShopMateriaEntry(materia.NativeSlot!.Value, materia.MateriaId, materia.AbilityPoints, ShopResources.DescribeMateria(materia.MateriaId).Name, ShopResources.DescribeMateria(materia.MateriaId).Description, ShopResources.MateriaSalePrice(materia.MateriaId, materia.AbilityPoints))).ToArray();

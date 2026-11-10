@@ -40,10 +40,14 @@ internal static class NativeShopTests
         Ff7Progress rich = progress with { Gil = uint.MaxValue - 1 };
         Check(Ff7NativeShopTransactions.Apply(rich, state, resources, new(1, Ff7ShopTransactionKind.Sell, Ff7ShopStockKind.Item, 0, 1)).Progress.Gil == uint.MaxValue, "Native normal-item sale Gil must saturate on unsigned overflow.");
         MateriaTransactions(progress, resources);
-        Throws<NotSupportedException>(() => Ff7NativeShopTransactions.Apply(progress, state, resources, buy with { NativeId = 128 }));
+        GearTransactions(progress, resources);
+        Throws<NotSupportedException>(() => Ff7NativeShopTransactions.Apply(progress, state, resources, buy with { NativeId = 320 }));
         Throws<InvalidDataException>(() => (state with { Alpha = 1 }).Validate());
         Throws<InvalidDataException>(() => (bought.State with { LastTransaction = bought.Receipt with { Transaction = buy with { Quantity = 0 } } }).Validate());
+        Throws<InvalidDataException>(() => (bought.State with { LastTransaction = bought.Receipt with { Total = bought.Receipt.Total + 1 } }).Validate());
+        Throws<InvalidDataException>(() => Host(new() { Menu = new(123, 8, 8, Shop: new(123, 8)), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = 124 }));
         Console.WriteLine("PASS original shop resources, item constraints, typed atomic transactions and cold receipts");
+        NativeShopContinuationTests.Run();
     }
 
     private static void MenuOwnershipAndTiming()
@@ -85,11 +89,29 @@ internal static class NativeShopTests
         Ff7FieldHost legacy = Host(new() { Menu = new(321, 8, 8), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = 321 });
         legacy.AdvanceNativeShop();
         Check(legacy.Process.Menu!.Shop is { Tick: 1, Alpha: 245 }, "Absent old-save shop presentation must recover its original opening default without refusing the saved field owner.");
+        Ff7FieldHost confirmed = Host(new() { Menu = new(654, 8, 8, Shop: new(654, 8, Ff7ShopPhase.Interactive, 0, 0, 27)), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = 654 });
+        List<Ff7NativeSoundRequest> exitSounds = [];
+        confirmed.NativeSoundRequested = exitSounds.Add;
+        confirmed.AdvanceNativeShop(confirmedExit: true);
+        Check(exitSounds.SequenceEqual(new[] { new Ff7NativeSoundRequest(5, 1) }) && confirmed.Process.Menu!.Shop!.Phase == Ff7ShopPhase.Closing, "Confirming the native Exit command must emit confirm1 rather than cancel4.");
+        for (int callback = 0; callback < 27; callback++)
+        {
+            confirmed.AdvanceNativeShop(confirmedExit: true);
+        }
+        Check(confirmed.Process.Menu is { Completed: true, Shop.Tick: 55 } && exitSounds.Count == 1, "Confirmed Exit changed native closing timing or repeated its sound while closing.");
         Console.WriteLine("PASS native shop27/27 callback timing, global owner, field poll and cold continuation");
     }
 
     private static void NativeModuleSounds()
     {
+        Ff7FieldHost initialized = Host(new() { Menu = new(777, 8, 8, Shop: new(777, 8)), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = 777, SoundChannelVolumes = [127, 127, 127, 127, 1], SoundChannelGainPublications = [127, 127, 127, 127, 1] });
+        initialized.AdvanceNativeShop();
+        long menuGainVersion = initialized.Process.SoundChannelGainVersions[4];
+        Check(initialized.Process.SoundChannelVolumes[4] == 127 && initialized.Process.SoundChannelGainPublications[4] == 127 && menuGainVersion > 0, "The original menu module entry must publish native UI-channel5 volume127.");
+        Ff7FieldHost initializedCold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(initialized.Capture()))!);
+        initialized.AdvanceNativeShop();
+        initializedCold.AdvanceNativeShop();
+        Check(initialized.Process.SoundChannelGainVersions[4] == menuGainVersion && JsonSerializer.Serialize(initialized.Capture()) == JsonSerializer.Serialize(initializedCold.Capture()), "A cold shop callback replayed native module audio initialization.");
         Ff7FieldHost host = Host(new());
         host.ConfigureNativeSoundResources(sound => new(22050, false, sound == 17));
         List<Ff7NativeSoundRequest> requests = [];
@@ -97,6 +119,8 @@ internal static class NativeShopTests
         host.SubmitNativeSound(new(5, 4));
         Check(requests.SequenceEqual(new[] { new Ff7NativeSoundRequest(5, 4) }) && host.Process.SoundChannelBufferPans[4]?.Sample == 4 && host.Process.SoundChannelPans[4] == 64 && host.Process.SoundChannelBaseFrequencies[4] == 22050, "Native UI audio must use the actual fifth resident channel and shared pan/frequency owner.");
         Check(host.Process.SoundChannelBufferPans.Take(4).All(buffer => buffer is null), "Native UI audio contaminated a field resident channel.");
+        Check(host.ResolveNativeSoundPlaybackPan(new Ff7NativeSoundRequest(5, 4, 128), false) == 64, "A resident sound must retain its buffer pan when an original raw authored byte exceeds127.");
+        Throws<NotSupportedException>(() => host.ResolveNativeSoundPlaybackPan(new Ff7NativeSoundRequest(5, 4, 128), true));
         host.SubmitNativeSound(new(5, 17));
         host.NativeSoundLoopAlreadyPlaying = (_, _) => true;
         host.SubmitNativeSound(new(5, 17, 32));
@@ -131,6 +155,23 @@ internal static class NativeShopTests
         Throws<InvalidDataException>(() => Ff7NativeShopTransactions.Apply(progress, state, resources, new(1, Ff7ShopTransactionKind.Sell, Ff7ShopStockKind.Materia, 49, 1, 1)));
         Check((resources.MateriaAcquisitionFlags(44) & 2) != 0, "Native materia acquisition must retain its existing global flag publication contract.");
         Console.WriteLine("PASS native materia slot holes, first-empty allocation, AP sale prices and cold transaction identity");
+    }
+
+    private static void GearTransactions(Ff7Progress baseline, Ff7ShopResources resources)
+    {
+        byte[] equipped = new byte[132];
+        equipped[28] = 17;
+        Ff7Progress progress = baseline with { Inventory = [new(145, 97)], AvailableCharacters = 2, Characters = [new(1, "A", 1, 0, 1, 1, equipped), new(2, "B", 1, 0, 1, 1, equipped.ToArray())] };
+        Ff7ShopState state = new(456, 6, Ff7ShopPhase.Interactive, 0, 0);
+        Check(Ff7NativeShopTransactions.MaximumQuantity(progress, resources, 6, Ff7ShopTransactionKind.Buy, Ff7ShopStockKind.Item, 145) == 1, "Native gear purchase capacity must include matching equipment only on available characters.");
+        Ff7ShopTransactionResult bought = Ff7NativeShopTransactions.Apply(progress, state, resources, new(1, Ff7ShopTransactionKind.Buy, Ff7ShopStockKind.Item, 145, 1));
+        Check(bought.Receipt.Applied && bought.Progress.Gil == 680 && bought.Progress.Inventory.Single().Quantity == 98 && bought.Progress.Characters[0].NativeRecord[28] == 17, "Buying gear must change carried native stock and Gil without equipping it.");
+        Check(Ff7NativeShopTransactions.MaximumQuantity(bought.Progress, resources, 6, Ff7ShopTransactionKind.Buy, Ff7ShopStockKind.Item, 145) == 0, "Native carried-plus-equipped gear capacity exceeded99.");
+        Ff7ShopTransactionResult sold = Ff7NativeShopTransactions.Apply(bought.Progress, bought.State, resources, new(2, Ff7ShopTransactionKind.Sell, Ff7ShopStockKind.Item, 145, 1));
+        Check(sold.Progress.Gil == 840 && sold.Progress.Inventory.Single().Quantity == 97 && sold.Progress.Characters[0].NativeRecord[28] == 17, "Selling carried gear must use the native half-price and preserve equipped records.");
+        Ff7Progress protectedWeapon = baseline with { Inventory = [new(128, 1)] };
+        Check(!resources.DescribeItem(128).CanSell && !Ff7NativeShopTransactions.Apply(protectedWeapon, state, resources, new(1, Ff7ShopTransactionKind.Sell, Ff7ShopStockKind.Item, 128, 1)).Receipt.Applied, "The original Buster Sword sale-restriction bit must prevent a transaction.");
+        Console.WriteLine("PASS native gear inventory prices, restrictions and available-character equipment capacity");
     }
 
     private static Ff7FieldHost Host(Ff7FieldProcess process)

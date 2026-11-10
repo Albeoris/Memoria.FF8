@@ -10,7 +10,7 @@ internal sealed partial class Ff7Scene
     private InputFrame semanticInput;
     private bool userPaused;
 
-    public bool IsMenuPresentation => IsTitle || debugMenu || IsPlayerMenuOpen || namingMenus?.IsOpen == true;
+    public bool IsMenuPresentation => IsTitle || debugMenu || IsPlayerMenuOpen || IsShopMenuPresentation || namingMenus?.IsOpen == true;
     public GameUi.UiPreferences PresentationPreferences => dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
     public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, false, Session?.World is not null);
 

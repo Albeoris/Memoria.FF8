@@ -6,7 +6,7 @@ public sealed record Ff7ShopTransactionResult(Ff7Progress Progress, Ff7ShopState
 
 public static class Ff7NativeShopTransactions
 {
-    public static bool Supports(Ff7ShopStockKind stockKind, int nativeId) => stockKind == Ff7ShopStockKind.Item && nativeId is >= 0 and < 128 || stockKind == Ff7ShopStockKind.Materia && nativeId is >= 0 and < 96;
+    public static bool Supports(Ff7ShopStockKind stockKind, int nativeId) => stockKind == Ff7ShopStockKind.Item && nativeId is >= 0 and < 320 || stockKind == Ff7ShopStockKind.Materia && nativeId is >= 0 and < 96;
 
     public static uint UnitPrice(Ff7Progress progress, Ff7ShopResources resources, Ff7ShopTransactionKind kind, Ff7ShopStockKind stockKind, int nativeId, int nativeSlot = -1)
     {
@@ -46,7 +46,7 @@ public static class Ff7NativeShopTransactions
             throw new ArgumentOutOfRangeException(nameof(kind));
         }
         Ff7ShopStockEntry entry = resources.Get(shopId).Stock.Single(item => item.Kind == stockKind && item.NativeId == nativeId);
-        return Math.Max(0, Math.Min(99 - owned, entry.Price == 0 ? 99 : checked((int)Math.Min(99u, progress.Gil / entry.Price))));
+        return Math.Max(0, Math.Min(99 - owned - EquippedCount(progress, nativeId), entry.Price == 0 ? 99 : checked((int)Math.Min(99u, progress.Gil / entry.Price))));
     }
 
     public static Ff7ShopTransactionResult Apply(Ff7Progress progress, Ff7ShopState state, Ff7ShopResources resources, Ff7ShopTransaction transaction)
@@ -114,11 +114,35 @@ public static class Ff7NativeShopTransactions
         return selected;
     }
 
+    private static int EquippedCount(Ff7Progress progress, int nativeId)
+    {
+        if (nativeId < 128)
+        {
+            return 0;
+        }
+        int offset = nativeId < 256 ? 28 : nativeId < 288 ? 29 : 30;
+        int first = nativeId < 256 ? 128 : nativeId < 288 ? 256 : 288;
+        int count = 0;
+        for (int id = 0; id < 9; id++)
+        {
+            if ((progress.AvailableCharacters & (1 << id)) == 0)
+            {
+                continue;
+            }
+            Ff7CharacterState character = progress.Characters.SingleOrDefault(character => character.Id == id) ?? throw new InvalidDataException("The native available-character equipment owner is absent.");
+            if (character.NativeRecord[offset] + first == nativeId)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static void RequireSupportedShopItem(Ff7ShopStockKind stockKind, int nativeId)
     {
         if (!Supports(stockKind, nativeId))
         {
-            throw new NotSupportedException("This native shop transaction requires its materia or equipment inventory contract.");
+            throw new NotSupportedException("This native shop stock kind or original inventory identity requires its native transaction contract.");
         }
     }
 }

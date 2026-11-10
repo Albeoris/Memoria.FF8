@@ -6,6 +6,11 @@ public sealed partial class Ff7FieldHost
 {
     public Action<Ff7NativeSoundRequest>? NativeSoundRequested { get; set; }
 
+    public void InitializeNativeMenuAudio()
+    {
+        SetSoundVolume(5, 0, 127);
+    }
+
     public void SubmitNativeSound(Ff7NativeSoundRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -26,9 +31,13 @@ public sealed partial class Ff7FieldHost
 
     public int ResolveNativeSoundPlaybackPan(Ff7NativeSoundRequest request, bool streamed)
     {
-        if (request.Channel is < 1 or > 5 || request.Pan is < 0 or > 127)
+        if (request.Channel is < 1 or > 5 || request.Pan is < 0 or > 255)
         {
             throw new InvalidDataException("The native module sound pan request is invalid.");
+        }
+        if (streamed && request.Pan > 127)
+        {
+            throw new NotSupportedException("FFVII streamed sound panning exceeds the admitted native table.");
         }
         return streamed ? request.Pan : Process.SoundChannelBufferPans[request.Channel - 1]?.Pan ?? Process.SoundChannelPans[request.Channel - 1];
     }

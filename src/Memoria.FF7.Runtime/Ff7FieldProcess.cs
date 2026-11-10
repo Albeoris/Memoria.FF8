@@ -202,7 +202,7 @@ public sealed record Ff7FieldProcess
     {
         CameraShakeX?.Validate();
         Menu?.Shop?.Validate();
-        if (Menu is { Shop: { } shop } menu && (menu.Mode != 8 || shop.RequestId != menu.RequestId || shop.ShopId != menu.Parameter || menu.Completed != (shop.Phase == Ff7ShopPhase.Completed)))
+        if (Menu is { Shop: { } shop } menu && (menu.Mode != 8 || shop.RequestId != menu.RequestId || shop.ShopId != menu.Parameter || menu.Completed != (shop.Phase == Ff7ShopPhase.Completed) || !menu.Completed && (GlobalCommand != Ff7GlobalCommand.Menu || GlobalRequestId != menu.RequestId) || GlobalCommand == Ff7GlobalCommand.Menu && GlobalRequestId != menu.RequestId))
         {
             throw new InvalidDataException("The native shop and global menu owners disagree.");
         }

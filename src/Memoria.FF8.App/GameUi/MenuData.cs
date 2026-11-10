@@ -142,6 +142,7 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 public sealed class MenuItem
 {
     public int MaximumQuantity { get; set; } = 100;
+    public bool CanSell { get; set; } = true;
     public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
     public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
     public Dictionary<byte, string> NativeMagazinePageUnavailableReasons { get; set; } = [];

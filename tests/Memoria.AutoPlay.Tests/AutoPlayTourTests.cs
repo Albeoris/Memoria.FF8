@@ -38,6 +38,14 @@ internal static class AutoPlayTourTests
         cold.PublishCatalog([room with { Availability = "predicate-b" }, story], true, "Native availability changed.");
         Check(!cold.Complete, "A changed native availability predicate must reopen its required room visit.");
         Check(new AutoPlayEventCoverageLedger(new()).Capture().Tour is null, "Older coverage snapshots must not manufacture optional visits.");
+        coverage.PublishCatalog([new("talk", "native-a")], true);
+        coverage.Begin("talk", "native-request");
+        coverage.Complete("talk", "native-return", "returned");
+        coverage.Enter("side-room");
+        coverage.Enter("field-b");
+        Check(coverage.Current!.Events.Single().Status == AutoPlayEventCoverageStatus.Completed, "A native return to the same resource/story epoch must retain its already observed local interaction.");
+        coverage.PublishCatalog([new("talk", "native-b")], true);
+        Check(coverage.Current!.Events.Single().Status == AutoPlayEventCoverageStatus.Available, "A meaningful native predicate change after return must reopen that interaction.");
     }
 
     private static void Check(bool condition, string message)

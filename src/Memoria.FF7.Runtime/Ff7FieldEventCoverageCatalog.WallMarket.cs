@@ -22,9 +22,9 @@ public static class Ff7WallMarketTourCatalog
             new("gateway:1:200", 200, "mkt_m", AutoPlayTourKind.OptionalGameplay, "Native side-room entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
             new("gateway:2:201", 201, "mkt_s1", AutoPlayTourKind.OptionalGameplay, "Native boutique entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
             new("gateway:3:202", 202, "mkt_s2", AutoPlayTourKind.OptionalGameplay, "Native side-room entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
-            new("gateway:4:203", 203, "mkt_s3", AutoPlayTourKind.OptionalGameplay, "Native side-room entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
+            new("gateway:4:203", 203, "mkt_s3", AutoPlayTourKind.OptionalGameplay, "Native story188 item-shop counter, complete shop callback lifecycle and return195 are physically proved.", story == 188, 195),
             new("gateway:5:198", 198, "mkt_ia", AutoPlayTourKind.OptionalGameplay, "Native side-room entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
-            new("gateway:6:199", 199, "mktinn", AutoPlayTourKind.OptionalGameplay, "Native inn entry and return195 are present; its current interactions are not yet reviewed.", false, 195),
+            new("gateway:6:199", 199, "mktinn", AutoPlayTourKind.OptionalGameplay, "The native story188 inn interactions, decline choice and return195 are physically proved; other epochs require their own review.", story == 188, 195),
             new("gateway:7:214", 214, "mrkt3", AutoPlayTourKind.StoryExit, "The existing story route reaches this native district only after local events and required side-room frontiers.", false, 195),
             new("gateway:8:194", 194, "mds6_3", AutoPlayTourKind.Return, "The reviewed park departure corridor returns to195 and contains no new current-story interaction.", true, 195)
         ];

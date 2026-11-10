@@ -34,9 +34,13 @@ public sealed record Ff7ShopState(long RequestId, int ShopId, Ff7ShopPhase Phase
         {
             throw new InvalidDataException("The native shop transaction receipt is invalid.");
         }
+        if (LastTransaction is { } quote && (!Ff7NativeShopTransactions.Supports(quote.Transaction.StockKind, quote.Transaction.NativeId) || quote.Total != unchecked(quote.UnitPrice * (uint)quote.Transaction.Quantity)))
+        {
+            throw new InvalidDataException("The native shop transaction quote is inconsistent.");
+        }
     }
 
-    public Ff7ShopState Advance(bool cancel = false)
+    public Ff7ShopState Advance(bool cancel = false, bool confirmedExit = false)
     {
         Validate();
         if (Phase == Ff7ShopPhase.Completed)
@@ -67,7 +71,7 @@ public sealed record Ff7ShopState(long RequestId, int ShopId, Ff7ShopPhase Phase
                 alpha = Math.Min(255, alpha + 10);
             }
         }
-        if (phase == Ff7ShopPhase.Interactive && cancel)
+        if (phase == Ff7ShopPhase.Interactive && (cancel || confirmedExit))
         {
             phase = Ff7ShopPhase.Closing;
         }

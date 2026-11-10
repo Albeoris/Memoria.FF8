@@ -102,6 +102,15 @@ public sealed partial class Ff7Session
         {
             return null;
         }
+        return PreviewTalkTarget(player);
+    }
+
+    internal Ff7Actor? PreviewTalkTarget(Ff7Actor player)
+    {
+        if (Host.Process.PlayerLocked || Host.Process.Join is not null)
+        {
+            return null;
+        }
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
         int best = 64;
         Ff7Actor? selected = null;

@@ -46,6 +46,11 @@ public sealed partial class Ff7AutoPlayEventCoverage
         {
             return;
         }
+        ChooseItemShopCoverageInput(driver, entry, ref input, ref handled);
+        if (handled)
+        {
+            return;
+        }
         ChooseWallMarketInnInput(driver, entry, ref input, ref handled);
         if (handled)
         {
@@ -81,4 +86,6 @@ public sealed partial class Ff7AutoPlayEventCoverage
         input = driver.Approach(new Vector3((line.X1 + line.X2) / 2f, (line.Y1 + line.Y2) / 2f, (line.Z1 + line.Z2) / 2f), run: !plan.WalkOnly);
         handled = true;
     }
+
+    partial void ChooseItemShopCoverageInput(Ff7AutoplayDriver driver, AutoPlayEventCoverageEntry entry, ref Ff7AutoplayInput input, ref bool handled);
 }

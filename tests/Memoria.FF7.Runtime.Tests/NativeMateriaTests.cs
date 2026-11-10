@@ -22,9 +22,10 @@ internal static class NativeMateriaTests
         Ff7Installation installation = Ff7Installation.Discover(root);
         using Ff7Session session = Ff7Session.Restore(installation, envelope.Ff7!);
         int count = session.Progress.Materia.Length;
+        int expectedSlot = Enumerable.Range(0, 200).First(slot => Ff7NativeMateriaInventory.Normalize(session.Progress.Materia).All(materia => materia.NativeSlot != slot));
         FieldHostRequest request = new(long.MaxValue - 100, 3, 5, 0, new FieldMateriaCommand(0x12345635));
         Check(session.Host.Execute(request).Value == -1, "Native materia success must return the empty sentinel.");
-        Check(session.Progress.Materia.Length == count + 1 && session.Progress.Materia[^1] == new Ff7MateriaState(53, 0x123456), "Encoded materia ID/AP or first-free inventory insertion changed.");
+        Check(session.Progress.Materia.Length == count + 1 && session.Progress.Materia.Single(materia => materia.NativeSlot == expectedSlot) == new Ff7MateriaState(53, 0x123456, expectedSlot), "Encoded materia ID/AP or first-free inventory insertion changed.");
         session.Host.Execute(request);
         Check(session.Progress.Materia.Length == count + 1, "Repeated host request duplicated materia.");
         Ff7SessionSave captured = JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(session.Capture()))!;

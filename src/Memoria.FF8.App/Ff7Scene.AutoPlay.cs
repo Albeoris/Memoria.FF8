@@ -27,7 +27,7 @@ internal sealed partial class Ff7Scene
                 if (autoPlay is null || !autoPlay.Running)
                 {
                     Ff7OpeningAutoPlayPolicy policy = new(Session, Ff7AutoPlayGoal.MidgarWorldMap);
-                    autoPlay = new Ff7AutoPlayController(Session, policy.ChooseInput, checkpoint: SaveAutoPlayCheckpoint, advanceTick: () => Session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, hasReachedGoal: policy.HasReachedGoal);
+                    autoPlay = new Ff7AutoPlayController(Session, policy.ChooseInput, checkpoint: SaveAutoPlayCheckpoint, advanceTick: () => Session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, hasReachedGoal: policy.HasReachedGoal, advanceShop: cancel => Session.AdvanceShop(cancel));
                     autoPlay.Start();
                 }
                 else
