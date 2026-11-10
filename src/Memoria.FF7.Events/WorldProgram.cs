@@ -1,4 +1,6 @@
 using Memoria.FF7.Formats;
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 
 namespace Memoria.FF7.Events;
 
@@ -19,10 +21,25 @@ public sealed class WorldProgram
                 throw new InvalidDataException("FFVII world dispatch contains duplicate or invalid functions.");
             }
         }
+        byte[] identity = new byte[checked(code.Length * 2 + functions.Count * 4)];
+        int cursor = 0;
+        foreach ((int header, int offset) in functions.OrderBy(value => value.Key))
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(identity.AsSpan(cursor), checked((ushort)header));
+            BinaryPrimitives.WriteUInt16LittleEndian(identity.AsSpan(cursor + 2), checked((ushort)offset));
+            cursor += 4;
+        }
+        foreach (ushort word in code)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(identity.AsSpan(cursor), word);
+            cursor += 2;
+        }
+        Identity = Convert.ToHexString(SHA256.HashData(identity));
     }
 
     public int Find(int header) => functions.GetValueOrDefault(header);
     public int WordCount => code.Length;
+    public string Identity { get; }
 
     internal ushort Read(int address)
     {

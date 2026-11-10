@@ -21,7 +21,7 @@ internal sealed partial class Ff7Scene
 
     private void UpdateMovieSkip(TimeSpan elapsed)
     {
-        Ff7Movie? state = Session?.Host.Process.Movie;
+        Ff7Movie? state = Session?.World is null ? Session?.Host.Process.Movie : null;
         var identity = state is { Playing: true } ? (Session!.FieldGeneration, state.RequestId) : ((long, long?)?)null;
         if (movieSkipIdentity != identity)
         {
@@ -104,7 +104,7 @@ internal sealed partial class Ff7Scene
 
     private void UpdateMovie()
     {
-        Ff7Movie? state = Session?.Host.Process.Movie;
+        Ff7Movie? state = Session?.World is null ? Session?.Host.Process.Movie : null;
         if (state is not { Playing: true })
         {
             if (movie is not null)
@@ -147,7 +147,7 @@ internal sealed partial class Ff7Scene
 
     private void PublishCurrentMovieCameraFrame()
     {
-        if (error is null && Session?.Host.Process.Movie is { Playing: true } state)
+        if (error is null && Session?.World is null && Session?.Host.Process.Movie is { Playing: true } state)
         {
             var identity = MovieIdentity(state);
             Ff7MovieSource? source = movieSourceIdentity == identity ? movieSource : preparedMovieIdentity == identity ? preparedMovieSource : null;

@@ -176,6 +176,14 @@ internal sealed partial class Ff7Scene
         RefreshNativeFrequencies();
         switch (command.Operation)
         {
+            case 0x10:
+            case 0x14:
+            case 0x18:
+                return;
+            case 0xF1:
+                soundChannels.StopAll();
+                pendingSounds = null;
+                return;
             case 0xA8:
             case 0xA9:
             case 0xAA:

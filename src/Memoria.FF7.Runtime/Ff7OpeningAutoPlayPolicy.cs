@@ -4,8 +4,15 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Original opening story goals expressed solely through physical field controls.</summary>
-public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
+public enum Ff7AutoPlayGoal
 {
+    ChurchArrival,
+    MidgarWorldMap
+}
+
+public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session, Ff7AutoPlayGoal goal = Ff7AutoPlayGoal.ChurchArrival)
+{
+    private readonly Ff7MidgarAutoPlayPolicy midgar = new(session);
     private long generation = -1;
     private int stage;
 
@@ -15,10 +22,14 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     private ushort ConfirmOnContact(Ff7Line line) => line.Push || line.Touch || line.OnLine ? ConfirmPulse : (ushort)0;
 
-    public string Goal => "Reach the church through the original story sequence";
+    public string Goal => goal == Ff7AutoPlayGoal.MidgarWorldMap ? "Leave Midgar and enter the original world map" : "Reach the church through the original story sequence";
 
     public bool HasReachedGoal()
     {
+        if (goal == Ff7AutoPlayGoal.MidgarWorldMap)
+        {
+            return session.World is { } world && world.Process is { Initialized: true, EntrySelector: 1, WorldId: 0 } && world.CanSave;
+        }
         Ff7FieldProcess process = session.Host.Process;
         if (session.HasPendingTick || session.Field.Name != "chrin_1b" || session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) != 140 || (process.PreviousMap is ushort previousMap && previousMap != 127) || process.Movie is { Playing: true })
         {
@@ -37,6 +48,10 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
+        if (goal == Ff7AutoPlayGoal.MidgarWorldMap && midgar.ChooseDialogueSelection(dialogue) is int selection)
+        {
+            return selection;
+        }
         if (session.Field.Name == "chrin_2" && dialogue.Text == 17 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 4)
         {
             return 3;
@@ -54,6 +69,14 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
 
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
+        if (session.World is not null)
+        {
+            return default;
+        }
+        if (goal == Ff7AutoPlayGoal.MidgarWorldMap && midgar.TryChooseInput(driver, out Ff7AutoplayInput midgarInput))
+        {
+            return midgarInput;
+        }
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         if (player is null)
         {
@@ -97,6 +120,22 @@ public sealed class Ff7OpeningAutoPlayPolicy(Ff7Session session)
         int z = player.Z4096 >> 12;
         switch (session.Field.Name)
         {
+            case "ealin_1":
+                return driver.Gateway(190);
+            case "eals_1":
+                if (session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 170)
+                {
+                    return driver.Gateway(177);
+                }
+                Ff7Line houseEntrance = session.Host.Process.Lines.Single(line => line.Entity == 9);
+                return driver.Approach(new((houseEntrance.X1 + houseEntrance.X2) / 2f, (houseEntrance.Y1 + houseEntrance.Y2) / 2f, houseEntrance.Z1));
+            case "mds5_1":
+                if (x < -640 && y < 350 && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) < 170)
+                {
+                    var marketEntrance = session.Field.Walkmesh[118];
+                    return driver.Approach((marketEntrance.A + marketEntrance.B + marketEntrance.C) / 3, 118);
+                }
+                return driver.Gateway(session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) < 170 ? 187 : 172);
             case "mds5_2":
                 return driver.Gateway(172);
             case "mds5_3":

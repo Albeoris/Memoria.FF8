@@ -15,6 +15,7 @@ public sealed record Ff7WorldView(Matrix4x4 NativeView, Matrix4x4 NativeRotation
 /// <summary>Builds the original world camera transform from immutable simulation-owned parameters.</summary>
 public sealed class Ff7WorldCameraProjection(Ff7WorldPresentationData data)
 {
+    private readonly Ff7WorldMath math = new(data);
     public Ff7WorldView Create(Vector3 focus, int heading, int pitch, int distance, int groundHeight, int roll, int focal, int width, int height, int viewMode)
     {
         if (distance <= 0 || focal <= 0 || width <= 0 || height <= 0 || data.ArcAngles.Count != 512 || viewMode is < 0 or > 3)
@@ -31,7 +32,7 @@ public sealed class Ff7WorldCameraProjection(Ff7WorldPresentationData data)
         }
         int ratio = checked(((y << 4) - groundHeight) << 8) / (z << 4);
         int angle = data.ArcAngles[Math.Clamp(ratio, 0, 511)] + 0x800;
-        Matrix4x4 rotation = Rotation(angle, heading, 0) * Rotation(0, 0, roll);
+        Matrix4x4 rotation = Ff7WorldMath.Quantize(Rotation(angle, heading, 0) * Rotation(0, 0, roll));
         Matrix4x4 view = Matrix4x4.CreateTranslation(-focus.X, -groundHeight, -focus.Z) * rotation * Matrix4x4.CreateTranslation(0, 0, distance);
         float scale = height / 240f;
         return new(view, rotation, focal * scale, width, height, (viewMode == 0 ? 120 : 160) * scale);
@@ -39,7 +40,6 @@ public sealed class Ff7WorldCameraProjection(Ff7WorldPresentationData data)
 
     public Matrix4x4 Rotation(int x, int y, int z)
     {
-        float Radians(int angle) => (float)((float)(angle * data.DegreesPerAngleUnit) * data.RadiansPerDegree);
-        return Matrix4x4.CreateRotationX(Radians(x)) * Matrix4x4.CreateRotationY(Radians(y)) * Matrix4x4.CreateRotationZ(Radians(z));
+        return math.Rotation(x, y, z);
     }
 }

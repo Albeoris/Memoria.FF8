@@ -49,31 +49,44 @@ public sealed partial class Ff7WorldRuntime
         switch (request.Command.Operation)
         {
             case WorldOperation.Window:
-                window = (window ?? new(0, 0, 0, 8, 8)) with { X = unchecked((short)values[0]), Y = unchecked((short)values[1]), Width = unchecked((short)values[2]), Height = unchecked((short)values[3]) };
+                int width = unchecked((short)values[2]);
+                int height = unchecked((short)values[3]);
+                int x = Math.Max(8, (int)unchecked((short)values[0]));
+                int y = Math.Max(8, (int)unchecked((short)values[1]));
+                if (x + width > 312)
+                {
+                    x = 312 - width;
+                }
+                if (y + height > 224)
+                {
+                    y = 224 - height;
+                }
+                window = (window ?? new(0, 0, 0, 8, 8)) with { X = x, Y = y, Width = width, Height = height };
                 return new(true);
             case WorldOperation.WindowAttributes:
                 if (window is null)
                 {
                     throw new InvalidDataException("FFVII world dialogue attributes require a configured native window.");
                 }
-                window = window with { Style = values[0], Flags = values[1] };
+                window = window with { Style = unchecked((sbyte)values[0]), Flags = unchecked((short)values[1]) };
                 return new(true);
             case WorldOperation.Text:
             case WorldOperation.Choice:
                 if (dialogue is not { Completed: false })
                 {
-                    if (window is null || (uint)values[0] >= Texts.Count)
+                    int text = unchecked((byte)values[0]);
+                    if (window is null || (uint)text >= Texts.Count)
                     {
                         throw new InvalidDataException("FFVII world dialogue requires a valid window and text index.");
                     }
-                    int? first = values.Length == 3 ? unchecked((short)values[1]) : null;
-                    int? last = values.Length == 3 ? unchecked((short)values[2]) : null;
-                    dialogue = new(request.Id, 0, values[0], first, last, first ?? 0, Presentation: new(0, 0, 0));
+                    int? first = values.Length == 3 ? unchecked((byte)values[1]) : null;
+                    int? last = values.Length == 3 ? unchecked((byte)values[2]) : null;
+                    dialogue = new(request.Id, 0, text, first, last, lastSelection, Presentation: new(0, 0, 0));
                     AdvanceWorldDialogue();
                 }
                 return new(true);
             case WorldOperation.CloseWindow:
-                if (dialogue is { Completed: false, Presentation: { NativeState: not 7 } presentation })
+                if (dialogue is { Completed: false, Presentation: { NativeState: 2 or 4 or 6 or 8 or 11 or 13 } presentation })
                 {
                     dialogue = dialogue with { AwaitingInput = false, Presentation = presentation with { NativeState = 7, ConfirmPending = false } };
                 }
@@ -103,6 +116,26 @@ public sealed partial class Ff7WorldRuntime
         return dialogue is { Completed: false } && dialogue.RequestId == requestId && (dialogue.Presentation?.NativeState is 13 or 14 || (window!.Flags & 1) == 0);
     }
 
+    public void UpdateDialogue(Ff7Dialogue updated)
+    {
+        ArgumentNullException.ThrowIfNull(updated);
+        EnsureHealthy();
+        if (dialogue is null || dialogue.Completed || dialogue.RequestId != updated.RequestId || dialogue.Window != updated.Window || dialogue.Text != updated.Text || dialogue.FirstChoice != updated.FirstChoice || dialogue.LastChoice != updated.LastChoice)
+        {
+            throw new InvalidDataException("FFVII world dialogue update changed its native request ownership.");
+        }
+        Ff7DialogueCursor.Validate(updated, FieldText.Read(Texts[updated.Text].Span));
+        if (updated.Selected is < 0 or > 255 || (updated.Completed || updated.Presentation?.NativeState == 7) && updated.FirstChoice is int first && updated.LastChoice is int last && (updated.Selected < first || updated.Selected > last))
+        {
+            throw new InvalidDataException("FFVII world dialogue selection is outside its native question bounds.");
+        }
+        dialogue = updated;
+        if (updated.Completed)
+        {
+            lastSelection = unchecked((short)updated.Selected);
+        }
+    }
+
     public void CompleteDialogue(long requestId, int selected)
     {
         if (!CanConfirmDialogue(requestId) || !dialogue!.AwaitingInput)
@@ -114,10 +147,17 @@ public sealed partial class Ff7WorldRuntime
         {
             updated = Ff7DialogueCursor.Select(updated, selected);
         }
-        dialogue = Ff7DialogueCursor.Confirm(updated, FieldText.Read(Texts[updated.Text].Span));
+        UpdateDialogue(Ff7DialogueCursor.Confirm(updated, FieldText.Read(Texts[updated.Text].Span)));
     }
 
     private void RestoreDialogue(Ff7WorldProcess state)
+    {
+        window = state.Window;
+        dialogue = state.Dialogue;
+        lastSelection = state.LastSelection;
+    }
+
+    private void ValidateDialogue(Ff7WorldProcess state)
     {
         if (state.Dialogue is Ff7Dialogue saved)
         {
@@ -127,8 +167,5 @@ public sealed partial class Ff7WorldRuntime
             }
             Ff7DialogueCursor.Validate(saved, FieldText.Read(Texts[saved.Text].Span));
         }
-        window = state.Window;
-        dialogue = state.Dialogue;
-        lastSelection = state.LastSelection;
     }
 }

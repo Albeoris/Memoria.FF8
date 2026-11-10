@@ -41,7 +41,7 @@ public static class CameraSpaceTriangleSubmission
         return new(new Vector2(width / 2f + vertex.Position.X * reciprocal * focal, height / 2f - vertex.Position.Y * reciprocal * focal), reciprocal, vertex.Uv * reciprocal, vertex.Color * reciprocal);
     }
 
-    public static int Draw(ITriangleRenderer renderer, CameraSpaceVertex a, CameraSpaceVertex b, CameraSpaceVertex c, int width, int height, float focal, in TriangleMaterial material)
+    public static int Draw(ITriangleRenderer renderer, CameraSpaceVertex a, CameraSpaceVertex b, CameraSpaceVertex c, int width, int height, float focal, in TriangleMaterial material, bool cull = false, bool clockwiseFront = false)
     {
         Span<CameraSpaceVertex> clipped = stackalloc CameraSpaceVertex[4];
         int count = ClipNear([a, b, c], clipped);
@@ -53,7 +53,17 @@ public static class CameraSpaceTriangleSubmission
                 CameraSpaceScreenVertex vertex = Project(source, width, height, focal);
                 return new(vertex.Position, vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, vertex.ColorOverZ / vertex.ReciprocalZ ?? Vector4.One);
             }
-            renderer.Draw(Vertex(clipped[0]), Vertex(clipped[index]), Vertex(clipped[index + 1]), material);
+            TriangleVertex first = Vertex(clipped[0]);
+            TriangleVertex second = Vertex(clipped[index]);
+            TriangleVertex third = Vertex(clipped[index + 1]);
+            Vector2 ab = second.Position - first.Position;
+            Vector2 ac = third.Position - first.Position;
+            float area = ab.X * ac.Y - ab.Y * ac.X;
+            if (cull && (clockwiseFront ? area < 0 : area >= 0))
+            {
+                continue;
+            }
+            renderer.Draw(first, second, third, material);
             submitted++;
         }
         return submitted;

@@ -737,6 +737,19 @@ internal static class NativeProcessTests
         Equal((ushort)31, restored.Process.PaletteRows[0][0]);
         Equal((ushort)1024, restored.Process.PaletteRows[0][1]);
         Equal((ushort)31, host.Process.PaletteRows[0][0]);
+        ushort[] range = Enumerable.Repeat((ushort)0x1234, 1024).ToArray();
+        range[17] = 31;
+        range[18] = 0;
+        range[19] = 0x8000;
+        Ff7FieldHost ranged = Host(new Ff7FieldProcess { PaletteBuffer = range });
+        ranged.Execute(Request(6, new FieldPaletteCommand(FieldPaletteOperation.Multiply, 0, 16, 3, First: 17)));
+        Equal((ushort)0x1234, ranged.Process.PaletteBuffer[272]);
+        Equal((ushort)0x8000, ranged.Process.PaletteBuffer[273]);
+        Equal((ushort)0x1234, ranged.Process.PaletteBuffer[274]);
+        Equal((ushort)0x8000, ranged.Process.PaletteBuffer[275]);
+        Equal((ushort)0x1234, ranged.Process.PaletteBuffer[276]);
+        Ff7FieldHost coldRange = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(ranged.Capture()))!);
+        Equal(JsonSerializer.Serialize(ranged.Capture()), JsonSerializer.Serialize(coldRange.Capture()));
     }
 
     private static void NamingMenuOwnership()

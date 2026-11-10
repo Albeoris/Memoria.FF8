@@ -4,13 +4,13 @@ namespace Memoria.FF8.Rendering;
 
 public sealed class Ff7ModelMaterialState
 {
-        public TriangleBlend Blend = TriangleBlend.Replace;
-        public bool DepthTest = true;
-        public bool DepthWrite = true;
-        public bool Cull;
-        public bool Gouraud = true;
-        public float AlphaReference = 1f / 255;
-        public TriangleSampler Sampler = TriangleSampler.PointWrap;
+    public TriangleBlend Blend = TriangleBlend.Replace;
+    public bool DepthTest = true;
+    public bool DepthWrite = true;
+    public bool Cull;
+    public bool Gouraud = true;
+    public float AlphaReference = 1f / 255;
+    public TriangleSampler Sampler = TriangleSampler.PointWrap;
 
     public void Apply(PcRenderState state)
     {

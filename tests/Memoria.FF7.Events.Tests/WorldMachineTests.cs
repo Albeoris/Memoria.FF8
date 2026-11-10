@@ -8,6 +8,7 @@ internal static class WorldMachineTests
     {
         AliasesAndArithmetic();
         SchedulerAndColdRestore();
+        MeshPreemption();
         CorruptionAndUnsupported();
         Console.WriteLine("PASS world VM bank aliases, signed operands, native scheduler, cold snapshot and corruption");
     }
@@ -54,15 +55,37 @@ internal static class WorldMachineTests
     {
         WorldMachine machine = new(new(new([new(0, 1)], new ushort[] { 0, 0x203 })), new byte[1280], new Host());
         WorldSnapshot snapshot = machine.Capture();
+        Throws<InvalidDataException>(() => machine.Restore(snapshot with { ProgramIdentity = "different" }));
         Throws<InvalidDataException>(() => machine.Restore(snapshot with { Local = new byte[63] }));
         Throws<InvalidDataException>(() => machine.Restore(snapshot with { Stack = new WorldStackValue[5] }));
         Throws<InvalidDataException>(() => machine.Restore(snapshot with { System = snapshot.System with { ProgramCounter = 2 } }));
         WorldMachine unsupported = new(new(new([new(0, 1)], new ushort[] { 0, 0x356 })), new byte[1280], new Host());
         unsupported.StartSystem(0);
+        WorldSnapshot beforeFailure = unsupported.Capture();
         Throws<NotSupportedException>(unsupported.Tick);
+        Throws<InvalidOperationException>(() => unsupported.Capture());
+        Throws<InvalidOperationException>(unsupported.Tick);
+        unsupported.Restore(beforeFailure);
+        Check(JsonSerializer.Serialize(unsupported.Capture()) == JsonSerializer.Serialize(beforeFailure), "A failed tick may continue only from its previous completed native snapshot.");
         WorldMachine underflow = new(new(new([new(0, 1)], new ushort[] { 0, 0x303 })), new byte[1280], new Host());
         underflow.StartSystem(0);
         Throws<InvalidDataException>(underflow.Tick);
+    }
+
+    private static void MeshPreemption()
+    {
+        ushort[] code = [0, 0x110, 2, 0x305, 0x306, 0x203, 0x110, 33, 0x303, 0x203];
+        PcWorldEvents events = new([new(0, 1), new(0x86E4, 6)], code);
+        Host host = new();
+        WorldMachine machine = new(new(events), new byte[1280], host);
+        machine.StartSystem(0);
+        machine.Tick();
+        machine.StartMesh(2, 3, 4);
+        WorldSnapshot suspended = machine.Capture();
+        Check(suspended.System.Priority == 3 && suspended.System.Calls is [{ ProgramCounter: 4, MoveCounter: 1, Priority: 0 }], "Native mesh dispatch must preempt with priority3 and suspend the exact move counter/PC.");
+        host.Requests.Clear();
+        machine.Tick();
+        Check(host.Requests.Count == 2 && host.Requests[0].Command.Operation == WorldOperation.Speed && host.Requests[1].Command.Operation == WorldOperation.Move && machine.Capture().System.ProgramCounter == 0, "Nested RET must restore and continue the original script in the same native pass.");
     }
 
     private static void Check(bool condition, string message)

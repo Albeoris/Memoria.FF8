@@ -3,6 +3,58 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void LineSlipOperandsAndContinuation()
+    {
+        foreach (byte value in new byte[] { 0, 1, 255 })
+        {
+            byte[] code = Code(0, 0x2B, value, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+            RecordingHost host = new() { Complete = false };
+            FieldMachine vm = New(code, host);
+            vm.Initialize();
+            vm.AdvanceTick();
+            FieldVmSnapshot saved = vm.Capture();
+            FieldHostRequest pending = saved.PendingRequests!.Single();
+            Check(0, pending.Entity);
+            Check(new FieldLineCommand(FieldLineOperation.Slip, Value: value), pending.Command);
+            Check(17, saved.Entities[0].ProgramCounter);
+            RecordingHost coldHost = new() { Complete = true };
+            FieldMachine cold = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!, coldHost);
+            cold.AdvanceTick();
+            Check(pending.Id, coldHost.Requests.Single().Id);
+            Check((byte)99, cold.Variables.ReadByte(FieldBank.MapByte, 20));
+        }
+        FieldMachine unused = New(Code(0, 0x0D, 1, 0), new RecordingHost { Complete = true });
+        unused.Initialize();
+        Throws<FieldExecutionException>(() => unused.AdvanceTick());
+    }
+
+    public static void PaletteRangeMultiplyOperandsAndContinuation()
+    {
+        byte[] code = Code(0, 0xDF, 0x56, 0x1B, 0xD3, 7, 8, 4, 6, 8, 10, 12, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+        RecordingHost host = new() { Complete = false };
+        FieldMachine vm = New(code, host);
+        vm.Initialize();
+        vm.Variables.WriteByte(FieldBank.MapByte, 4, 17);
+        vm.Variables.WriteWord(FieldBank.MapWord, 6, 0x12AA);
+        vm.Variables.WriteByte(FieldBank.Persistent0Byte, 8, 129);
+        vm.Variables.WriteByte(FieldBank.Persistent2Byte, 10, 255);
+        vm.Variables.WriteByte(FieldBank.Persistent1Byte, 12, 255);
+        vm.AdvanceTick();
+        FieldVmSnapshot saved = vm.Capture();
+        FieldHostRequest pending = saved.PendingRequests!.Single();
+        Check(new FieldPaletteCommand(FieldPaletteOperation.Multiply, 7, 8, 256, Red: 255, Green: 129, Blue: 170, First: 17), pending.Command);
+        Check(17, saved.Entities[0].ProgramCounter);
+        RecordingHost coldHost = new() { Complete = true };
+        FieldMachine cold = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!, coldHost);
+        cold.AdvanceTick();
+        Check(pending.Id, coldHost.Requests.Single().Id);
+        Check((byte)99, cold.Variables.ReadByte(FieldBank.MapByte, 20));
+        FieldProgram truncated = new(code.Take(27).ToArray(), new[] { Enumerable.Repeat((ushort)16, 32).ToArray() });
+        FieldMachine invalid = new(truncated, host: new RecordingHost { Complete = true });
+        invalid.Initialize();
+        Throws<FieldExecutionException>(() => invalid.AdvanceTick());
+    }
+
     public static void NewFadeOperandsAndContinuation()
     {
         foreach (short duration in new short[] { 300, -1, short.MinValue })

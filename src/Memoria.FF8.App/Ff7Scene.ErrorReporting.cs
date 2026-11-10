@@ -16,7 +16,7 @@ internal sealed partial class Ff7Scene
 
     private void RememberReportCheckpoint()
     {
-        if (Session is null || reportCheckpoint?.Ff7?.FieldGeneration == Session.FieldGeneration && Session.Machine.Tick % 30 != 0)
+        if (Session is null || reportCheckpoint?.Ff7 is { } previous && previous.FieldGeneration == Session.FieldGeneration && (previous.World is null) == (Session.World is null) && (Session.World?.Machine.TickCount ?? Session.Machine.Tick) % 30 != 0)
         {
             return;
         }
@@ -55,7 +55,7 @@ internal sealed partial class Ff7Scene
                     unavailable = "Report continuation validation failed: " + failure.Message;
                 }
             }
-            ErrorIncident incident = ErrorIncident.Capture(exception, "FFVII field", new { Game = "FFVII", Field = Session?.Field.Name, Tick = Session?.Machine.Tick, Generation = Session?.FieldGeneration }, save: save, saveUnavailableReason: unavailable);
+            ErrorIncident incident = ErrorIncident.Capture(exception, Session?.World is null ? "FFVII field" : "FFVII world", new { Game = "FFVII", Field = Session?.Field.Name, World = Session?.World?.Resources.World, Tick = Session?.World?.Machine.TickCount ?? Session?.Machine.Tick, Generation = Session?.FieldGeneration }, save: save, saveUnavailableReason: unavailable);
             incident.Persist();
             errorReporter.Incident = incident;
             errorReporter.Evidence = Task.FromResult(incident);

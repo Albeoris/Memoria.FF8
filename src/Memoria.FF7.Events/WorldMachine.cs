@@ -27,6 +27,7 @@ public sealed partial class WorldMachine
     private long nextRequestId = 1;
     private bool unloading;
     private bool moved;
+    private bool faulted;
 
     public WorldMachine(WorldProgram program, byte[] sharedPersistent, IWorldHost host)
     {
@@ -74,6 +75,16 @@ public sealed partial class WorldMachine
         }
     }
 
+    public void StartMesh(int chunkX, int chunkZ, int eventId)
+    {
+        if (chunkX is < 0 or >= 36 || chunkZ is < 0 or >= 28 || eventId is < 0 or > 15)
+        {
+            throw new ArgumentOutOfRangeException(nameof(eventId));
+        }
+        active = system;
+        Start(system, 0x8000 | ((chunkZ * 36 + chunkX) << 4 & 0x3FF0) | eventId, 3);
+    }
+
     private void Start(Entity entity, int header, int priority)
     {
         if (entity.Pc != 0 && entity.Priority >= priority && !(entity.Priority == priority && priority == 3))
@@ -99,6 +110,20 @@ public sealed partial class WorldMachine
 
     public void Tick()
     {
+        EnsureHealthy();
+        try
+        {
+            ExecuteTick();
+        }
+        catch
+        {
+            faulted = true;
+            throw;
+        }
+    }
+
+    private void ExecuteTick()
+    {
         Run(system);
         // Allocation prepends to the native list; models created by the system participate in this tick.
         Entity? entity = models.FirstOrDefault();
@@ -109,6 +134,14 @@ public sealed partial class WorldMachine
             entity = index + 1 < models.Count ? models[index + 1] : null;
         }
         TickCount++;
+    }
+
+    private void EnsureHealthy()
+    {
+        if (faulted)
+        {
+            throw new InvalidOperationException("FFVII world execution failed during a tick; restore the last completed snapshot before continuing or saving.");
+        }
     }
 
     private void Run(Entity entity)
@@ -335,5 +368,3 @@ public sealed partial class WorldMachine
 
     private static NotSupportedException Unsupported(ushort opcode, int address) => new($"Unsupported FFVII world opcode {opcode:X4} at word {address:X4}.");
 }
-
-

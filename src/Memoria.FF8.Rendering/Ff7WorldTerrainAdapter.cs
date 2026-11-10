@@ -13,10 +13,10 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
     private readonly Dictionary<(int Block, int Mesh), IReadOnlyList<Ff7WorldTerrainBatch>> meshes = new();
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
 
-    public int DrawNative(ITriangleRenderer renderer, PcWorldMesh mesh, Vector3 nativeOrigin, Ff7WorldView view, int animationFrame, int curvatureThreshold = 5000)
+    public int DrawNative(ITriangleRenderer renderer, PcWorldMesh mesh, Vector3 nativeOrigin, Ff7WorldView view, Func<int, int> textureFrame, int curvatureThreshold = 5000)
     {
         ArgumentNullException.ThrowIfNull(renderer);
-        ArgumentOutOfRangeException.ThrowIfNegative(animationFrame);
+        ArgumentNullException.ThrowIfNull(textureFrame);
         if (mesh.Vertices.Count > 121 || mesh.Normals.Count != mesh.Vertices.Count)
         {
             throw new NotSupportedException("FFVII terrain requires original bounded vertex and normal channels.");
@@ -29,14 +29,12 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
             position = Curve(position, view, curvatureThreshold);
             cameraPositions[index] = view.ToCamera(position);
             Vector3 normal = Vector3.TransformNormal(mesh.Normals[index] / 4096f, view.NativeRotation);
-            float factor = MathF.Max(0, (normal.X + normal.Y + normal.Z) * (110f / 255) + 64f / 255);
-            float channel = MathF.Round(MathF.Min(255, 255 * factor), MidpointRounding.ToEven) / 255;
-            colors[index] = new(channel, channel, channel, 1);
+            colors[index] = Ff7WorldLighting.Terrain(normal);
         }
         int submitted = 0;
         foreach (PcWorldTriangle triangle in mesh.Triangles)
         {
-            PcTexture texture = textures.Read(triangle.TextureIndex, animationFrame);
+            PcTexture texture = textures.Read(triangle.TextureIndex, textureFrame(triangle.TextureIndex));
             if (!images.TryGetValue(texture, out PixelImage? image))
             {
                 image = Ff7FieldRenderer.DecodeTexture(texture);
@@ -53,7 +51,7 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
                 DepthScale = 1,
                 PreserveTargetAlpha = false
             };
-            submitted += CameraSpaceTriangleSubmission.Draw(renderer, Vertex(triangle.A, triangle.UvA), Vertex(triangle.B, triangle.UvB), Vertex(triangle.C, triangle.UvC), view.Width, view.Height, view.Focal, material);
+            submitted += CameraSpaceTriangleSubmission.Draw(renderer, Vertex(triangle.A, triangle.UvA), Vertex(triangle.B, triangle.UvB), Vertex(triangle.C, triangle.UvC), view.Width, view.Height, view.Focal, material, cull: true, clockwiseFront: true);
         }
         return submitted;
     }

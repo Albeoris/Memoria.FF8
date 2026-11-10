@@ -74,7 +74,7 @@ internal sealed partial class Ff7Scene
         {
             return false;
         }
-        if (!commonDialoguePages.TryGetValue((Session!.FieldGeneration, dialogue.RequestId), out var presentation) || presentation.NativePage != dialogue.Page)
+        if (!commonDialoguePages.TryGetValue((DialogueGeneration, dialogue.RequestId), out var presentation) || presentation.NativePage != dialogue.Page)
         {
             return true;
         }
@@ -85,7 +85,7 @@ internal sealed partial class Ff7Scene
 
     private bool CanSelectCommonDialogueChoice(Ff7Dialogue dialogue)
     {
-        return UseNativeDialogue || commonDialoguePages.TryGetValue((Session!.FieldGeneration, dialogue.RequestId), out var presentation) && presentation.NativePage == dialogue.Page && presentation.Pages[presentation.Pager.PageIndex].HasChoices;
+        return UseNativeDialogue || commonDialoguePages.TryGetValue((DialogueGeneration, dialogue.RequestId), out var presentation) && presentation.NativePage == dialogue.Page && presentation.Pages[presentation.Pager.PageIndex].HasChoices;
     }
 
     private void ToggleDialoguePresentation()
@@ -111,7 +111,7 @@ internal sealed partial class Ff7Scene
         IReadOnlyList<DialogueVisualPage> pages = preferences.TextLayoutMode == GameTextLayoutMode.OriginalCompatible
             ? DialogueLayout.CreateNative(document, state, nativeWindow, measurer.LineHeight, measurer.Measure)
             : DialogueLayout.Create(document, state, nativeWindow, measurer.LineHeight, measurer.Measure);
-        var identity = (Session!.FieldGeneration, dialogue.RequestId);
+        var identity = (DialogueGeneration, dialogue.RequestId);
         string key = document.Text + "\u0001" + preferences.DialogueFontFamily + ":" + preferences.DialogueFontSize + ":" + preferences.TextLayoutMode;
         if (!commonDialoguePages.TryGetValue(identity, out var presentation) || presentation.NativePage != dialogue.Page || presentation.Key != key)
         {

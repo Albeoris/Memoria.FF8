@@ -154,6 +154,10 @@ public sealed partial class Ff7FieldHost
 
     private void ApplyAudio(FieldAudioCommand audio)
     {
+        if (audio.Operation is 0x10 or 0x14 or 0x18 or 0xF1)
+        {
+            ApplyNativeModuleAudio(audio);
+        }
         Process = Process with { Audio = audio };
         int? restartedChannel = null;
         switch (audio.Operation)

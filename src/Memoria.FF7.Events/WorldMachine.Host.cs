@@ -116,7 +116,8 @@ public sealed partial class WorldMachine
 
     public WorldSnapshot Capture()
     {
-        return new(1, TickCount, nextRequestId, unloading, (byte[])local.Clone(), stack.ToArray(), CaptureEntity(system), models.Select(CaptureEntity).ToArray());
+        EnsureHealthy();
+        return new(1, program.Identity, TickCount, nextRequestId, unloading, (byte[])local.Clone(), stack.ToArray(), CaptureEntity(system), models.Select(CaptureEntity).ToArray());
     }
 
     private static WorldEntitySnapshot CaptureEntity(Entity entity)
@@ -127,7 +128,7 @@ public sealed partial class WorldMachine
     public void Restore(WorldSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (snapshot.Version != 1 || snapshot.Tick < 0 || snapshot.NextRequestId < 1 || snapshot.Local is null || snapshot.Local.Length != 64 || snapshot.Stack is null || snapshot.Stack.Length > 4 || snapshot.System is null || snapshot.System.Model != -1 || snapshot.Models is null || snapshot.Models.Length > 16)
+        if (snapshot.Version != 1 || snapshot.ProgramIdentity != program.Identity || snapshot.Tick < 0 || snapshot.NextRequestId < 1 || snapshot.Local is null || snapshot.Local.Length != 64 || snapshot.Stack is null || snapshot.Stack.Length > 4 || snapshot.System is null || snapshot.System.Model != -1 || snapshot.Models is null || snapshot.Models.Length > 16)
         {
             throw new InvalidDataException("FFVII world snapshot has an invalid version or storage shape.");
         }
@@ -158,6 +159,7 @@ public sealed partial class WorldMachine
         TickCount = snapshot.Tick;
         nextRequestId = snapshot.NextRequestId;
         unloading = snapshot.Unloading;
+        faulted = false;
     }
 
     private Entity RestoreEntity(WorldEntitySnapshot source)
@@ -184,6 +186,3 @@ public sealed partial class WorldMachine
         };
     }
 }
-
-
-

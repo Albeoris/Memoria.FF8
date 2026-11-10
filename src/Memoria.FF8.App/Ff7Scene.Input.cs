@@ -15,6 +15,27 @@ internal sealed partial class Ff7Scene
     private int moveVertical;
     private bool runHeld;
 
+    private long DialogueGeneration => Session!.World is null ? Session.FieldGeneration : ~Session.FieldGeneration;
+    private IReadOnlyList<Ff7Dialogue> ActiveDialogues => Session!.World?.Process.Dialogues ?? Session.Host.Process.Dialogues;
+    private IReadOnlyList<Ff7Window> ActiveWindows => Session!.World?.Process.Windows ?? Session.Host.Process.Windows;
+
+    private bool CanConfirmDialogue(long requestId)
+    {
+        return Session!.World?.CanConfirmDialogue(requestId) ?? Session.Host.CanConfirmDialogue(requestId);
+    }
+
+    private void UpdateDialogue(Ff7Dialogue dialogue)
+    {
+        if (Session!.World is { } world)
+        {
+            world.UpdateDialogue(dialogue);
+        }
+        else
+        {
+            Session.Host.UpdateDialogue(dialogue);
+        }
+    }
+
     private void UpdateSessionInput()
     {
         Ff7Session session = Session!;
@@ -24,7 +45,7 @@ internal sealed partial class Ff7Scene
         pendingPressedKeys |= pressed;
         moveHorizontal = 0;
         moveVertical = 0;
-        Ff7Dialogue? dialogue = session.Host.Process.Dialogues.LastOrDefault(item => !item.Completed && session.Host.CanConfirmDialogue(item.RequestId));
+        Ff7Dialogue? dialogue = ActiveDialogues.LastOrDefault(item => !item.Completed && CanConfirmDialogue(item.RequestId));
         if (dialogue is not null)
         {
             if (dialogue.ChoiceReady && CanSelectCommonDialogueChoice(dialogue) && dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
@@ -38,8 +59,8 @@ internal sealed partial class Ff7Scene
                 {
                     selected = selected >= last ? first : selected + 1;
                 }
-                session.Host.UpdateDialogue(dialogue with { Selected = selected });
-                dialogue = session.Host.Process.Dialogues.Single(item => item.RequestId == dialogue.RequestId);
+                UpdateDialogue(dialogue with { Selected = selected });
+                dialogue = ActiveDialogues.Single(item => item.RequestId == dialogue.RequestId);
             }
             if (semanticInput.Confirm)
             {
@@ -53,11 +74,11 @@ internal sealed partial class Ff7Scene
                     return;
                 }
                 Ff7Dialogue confirmed = Ff7DialogueCursor.Confirm(dialogue, Tokens(dialogue));
-                session.Host.UpdateDialogue(confirmed);
+                UpdateDialogue(confirmed);
             }
             return;
         }
-        if (semanticInput.Confirm)
+        if (semanticInput.Confirm && session.World is null)
         {
             session.TryTalk();
         }
@@ -75,10 +96,11 @@ internal sealed partial class Ff7Scene
 
     private IReadOnlyList<FieldTextToken> Tokens(Ff7Dialogue dialogue)
     {
-        var identity = (Session!.FieldGeneration, dialogue.Text);
+        var identity = (DialogueGeneration, dialogue.Text);
         if (!dialogueTokens.TryGetValue(identity, out IReadOnlyList<FieldTextToken>? tokens))
         {
-            tokens = FieldText.Read(Session.Field.Scripts.Texts[dialogue.Text].Span);
+            IReadOnlyList<ReadOnlyMemory<byte>> texts = Session!.World?.Texts ?? Session.Field.Scripts.Texts;
+            tokens = FieldText.Read(texts[dialogue.Text].Span);
             dialogueTokens.Add(identity, tokens);
         }
         Ff7DialogueCursor.Validate(dialogue, tokens);
@@ -91,14 +113,14 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        foreach (Ff7Dialogue dialogue in Session.Host.Process.Dialogues.Where(item => !item.Completed))
+        foreach (Ff7Dialogue dialogue in ActiveDialogues.Where(item => !item.Completed))
         {
-            Ff7Window window = Session.Host.Process.Windows.Single(item => item.Id == dialogue.Window);
+            Ff7Window window = ActiveWindows.Single(item => item.Id == dialogue.Window);
             if (window.Style is not (0 or 1 or 2))
             {
                 throw new NotSupportedException($"FFVII dialogue window style {window.Style} is unsupported.");
             }
-            if (DrawSpecialWindow(batch, dialogue, window, bounds))
+            if (Session.World is null && DrawSpecialWindow(batch, dialogue, window, bounds))
             {
                 continue;
             }

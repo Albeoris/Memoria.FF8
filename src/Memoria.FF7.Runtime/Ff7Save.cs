@@ -76,6 +76,7 @@ public sealed record Ff7SessionSave
     public required Ff7FieldProcess Process { get; init; }
     public Ff7AudioPresentationState? AudioPresentation { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
+    public Ff7WorldProcess? World { get; init; }
 
     public void Validate()
     {
@@ -86,6 +87,10 @@ public sealed record Ff7SessionSave
         Progress.Validate();
         Process.Validate();
         AudioPresentation?.Validate();
+        if (World is not null && (TickContinuation is not null || World.WorldId is not (0 or 2 or 3) || World.EntrySelector is < 0 or > 65535 || World.Vm is null))
+        {
+            throw new InvalidDataException("FFVII world continuation conflicts with its field scheduler or resource identity.");
+        }
         if ((TickContinuation is null) != (Vm.CycleCursor is null) || TickContinuation is not null && (TickContinuation.Input is null || TickContinuation.Input != Vm.Input))
         {
             throw new InvalidDataException("A partial FFVII field tick requires matching scheduler and latched-input ownership.");

@@ -36,7 +36,7 @@ internal sealed partial class Ff7ModelAppearance
         }
     }
 
-    internal static Ff7ModelAppearance CreateFieldCharacter(GameAssets assets, int character, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original)
+    internal static Ff7ModelAppearance CreateFieldCharacter(GameAssets assets, int character, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, bool worldModel = false)
     {
         Ff8FieldAnatomy anatomy = Ff8FieldAnatomy.Profiles.Single(profile => profile.Character == character);
         string[] address = anatomy.Source.Split('/');
@@ -59,13 +59,21 @@ internal sealed partial class Ff7ModelAppearance
         Ff7FootContactBinding feet = new(sourceAnatomy.FootGeometryOwners(original), [anatomy.LeftLeg[^1], anatomy.RightLeg[^1]]);
         Ff7SemanticRetargeter retarget = new(target, descriptor, original, calibration.Transform, bindings, feet);
         Dictionary<string, string> native = new(StringComparer.OrdinalIgnoreCase);
+        List<string> loops = ["aaff.a", "aaga.a"];
         if (character == 0 && target.Animations.Count >= 3)
         {
             native["acfe.a"] = catalog.GetAnimation(entry.Id, 0).Id;
             native["aaff.a"] = catalog.GetAnimation(entry.Id, 1).Id;
             native["aaga.a"] = catalog.GetAnimation(entry.Id, 2).Id;
+            if (worldModel)
+            {
+                native[Path.GetFileNameWithoutExtension(descriptor.Animations[0]) + ".a"] = catalog.GetAnimation(entry.Id, 0).Id;
+                string walk = Path.GetFileNameWithoutExtension(descriptor.Animations[1]) + ".a";
+                native[walk] = catalog.GetAnimation(entry.Id, 1).Id;
+                loops.Add(walk);
+            }
         }
-        return new(assets, catalog, entry.Id, Path.GetFileName(descriptor.Hrc), calibration.Transform, native, retarget, ["aaff.a", "aaga.a"])
+        return new(assets, catalog, entry.Id, Path.GetFileName(descriptor.Hrc), calibration.Transform, native, retarget, loops)
         {
             calibrationDescriptorScale = float.Parse(descriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = GeneralFieldProfileVersion + "/" + character + "/" + catalog.GetSource(entry.Id).RigId

@@ -12,7 +12,7 @@ public sealed partial class FieldMachine
             case 0x09:
                 int[] splittingParty = ReadParty();
                 return Host(id, new FieldPartySplit(B(id, 14), splittingParty[0], splittingParty[1], splittingParty[2], R16(id, 1, 4), R16(id, 2, 6), R8(id, 3, 8), R16(id, 4, 9), R16(id, 5, 11), R8(id, 6, 13), new FieldByteOperand(Bank(id, 3), B(id, 8)), new FieldByteOperand(Bank(id, 6), B(id, 13))), 15);
-            case 0x0D:
+            case 0x2B:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
             case 0x0F when B(id, 1) == 0xF5:
                 return Host(id, new FieldControlCommand(FieldControlKind.CursorDisabled, B(id, 2)), 3);
@@ -379,6 +379,8 @@ public sealed partial class FieldMachine
             case 0xE9:
             case 0xEA:
                 return Host(id, new FieldPaletteCommand(opcode == 0xE9 ? FieldPaletteOperation.Add : FieldPaletteOperation.Multiply, R8(id, 1, 4), R8(id, 2, 5), B(id, 9) + 1, R8(id, 5, 8), R8(id, 4, 7), R8(id, 3, 6)), 10);
+            case 0xDF:
+                return Host(id, new FieldPaletteCommand(FieldPaletteOperation.Multiply, B(id, 4), B(id, 5), R8(id, 6, 10) + 1, R8(id, 4, 9), R8(id, 3, 8), R8(id, 2, 7), First: R8(id, 1, 6)), 11);
             case 0xDD:
                 return ActorProperty(id, FieldActorPropertyKind.StopAnimation, 0, 1);
             case 0xDA:

@@ -73,6 +73,4 @@ public interface IWorldHost
 public sealed record WorldStackValue(ushort Opcode, int Value);
 public sealed record WorldCallSnapshot(int ProgramCounter, byte MoveCounter, byte Priority);
 public sealed record WorldEntitySnapshot(int Model, int ProgramCounter, byte MoveCounter, byte Priority, bool ScriptDisabled, int CalledModel, WorldCallSnapshot[] Calls);
-public sealed record WorldSnapshot(int Version, long Tick, long NextRequestId, bool Unloading, byte[] Local, WorldStackValue[] Stack, WorldEntitySnapshot System, WorldEntitySnapshot[] Models);
-
-
+public sealed record WorldSnapshot(int Version, string ProgramIdentity, long Tick, long NextRequestId, bool Unloading, byte[] Local, WorldStackValue[] Stack, WorldEntitySnapshot System, WorldEntitySnapshot[] Models);

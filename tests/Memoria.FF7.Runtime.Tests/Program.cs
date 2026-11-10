@@ -3,6 +3,13 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--palette-only", StringComparer.Ordinal))
+{
+    NativeProcessTests.RunPalette();
+    Console.WriteLine("PASS native palette buffer ranges, color arithmetic and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--world-only", StringComparer.Ordinal))
 {
     WorldRuntimeTests.Run();
@@ -45,6 +52,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay successful target completion", NativeAutoPlayTests.RunCompletion),
     ("native autoplay observed church target", NativeAutoPlayTests.RunGoal),
     ("native autoplay crowd escape and pure previews", NativeAutoPlayCrowdTests.Run),
+    ("native autoplay occupied waypoint and pure previews", NativeAutoPlayCrowdTests.RunOccupiedWaypoint),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
@@ -217,4 +225,3 @@ static void Throws<T>(Action action) where T : Exception
     }
     throw new InvalidOperationException("Expected " + typeof(T).Name);
 }
-

@@ -19,6 +19,14 @@ public sealed record Ff7WorldCharacterDescriptor(string HrcName, int ScaleWord, 
 
 public sealed partial class Ff7PcExecutableData
 {
+    internal static int[] LoadWorldTextureAnimationIds(Ff7Installation installation)
+    {
+        using FileStream stream = OpenSupportedImage(installation);
+        using PEReader pe = new(stream, PEStreamOptions.LeaveOpen);
+        byte[] source = ReadVirtual(stream, pe, 0x96B448, 44);
+        return Enumerable.Range(0, 22).Select(index => (int)BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(index * 2))).ToArray();
+    }
+
     public static Ff7WorldPresentationData LoadWorldPresentation(Ff7Installation installation, Ff7WorldResources resources)
     {
         byte[] source = resources.ReadRequired("atn.tbl");

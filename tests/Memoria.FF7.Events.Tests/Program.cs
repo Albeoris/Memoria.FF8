@@ -1,6 +1,20 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--line-slip-only", StringComparer.Ordinal))
+{
+    ExtendedTests.LineSlipOperandsAndContinuation();
+    Console.WriteLine("PASS native SLIP raw operands, opcode identity and cold continuation");
+    return 0;
+}
+
+if (args.Contains("--palette-only", StringComparer.Ordinal))
+{
+    ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation();
+    Console.WriteLine("PASS native palette range multiply operands and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--world-only", StringComparer.Ordinal))
 {
     WorldMachineTests.Run();
@@ -36,6 +50,7 @@ if (args.Contains("--model-effect-only", StringComparer.Ordinal))
 
 var tests = new (string Name, Action Run)[]
 {
+    ("native SLIP raw operands and cold continuation", ExtendedTests.LineSlipOperandsAndContinuation),
     ("typed bank aliases and widths", BankWidths),
     ("native saturated byte addition and cold continuation", SaturatedByteAddTests.Run),
     ("native saturated byte subtraction and cold continuation", SaturatedByteAddTests.RunSubtract),
@@ -78,6 +93,7 @@ var tests = new (string Name, Action Run)[]
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
+    ("native palette range multiply operands and continuation", ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation),
     ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
     ("native fixed animation movement operands and continuation", ExtendedTests.FixedAnimationMoveOperandsAndContinuation),
     ("native fixed facing movement operands and continuation", ExtendedTests.FixedFacingMoveOperandsAndContinuation),
@@ -517,4 +533,3 @@ static void YieldedContinuationBoundary()
         Equal(item.InvalidPc, captureFault.Context.ProgramCounter);
     }
 }
-

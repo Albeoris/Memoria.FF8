@@ -5,6 +5,44 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeAutoPlayCrowdTests
 {
+    public static void RunOccupiedWaypoint()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_AUTOPLAY_OCCUPIED_WAYPOINT_CHECKPOINT");
+        string? destinationText = Environment.GetEnvironmentVariable("MEMORIA_FF7_AUTOPLAY_OCCUPIED_WAYPOINT_DESTINATION");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path) || !int.TryParse(destinationText, out int destination))
+        {
+            Console.WriteLine("SKIP installed occupied waypoint navigation: resources or external fixture selection are unset.");
+            return;
+        }
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7!;
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        foreach (bool run in new[] { true, false })
+        {
+            using Ff7Session session = Ff7Session.Restore(installation, saved);
+            Ff7AutoplayDriver driver = new(session);
+            string before = JsonSerializer.Serialize(session.Capture());
+            for (int query = 0; query < 25; query++)
+            {
+                _ = driver.Gateway(destination, run);
+            }
+            Check(before == JsonSerializer.Serialize(session.Capture()), "Occupied-waypoint previews changed native state.");
+            int budget = run ? 300 : 600;
+            for (int tick = 0; tick < budget && session.FieldGeneration == saved.FieldGeneration; tick++)
+            {
+                driver.Apply(driver.Gateway(destination, run));
+                session.AdvanceTick();
+            }
+            Ff7Actor controlled = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+            Check(session.FieldGeneration != saved.FieldGeneration, $"The occupied triangle centroid still trapped physical navigation with run={run} at triangle{controlled.Triangle},({controlled.X4096 >> 12},{controlled.Y4096 >> 12}).");
+            using Ff7Session cold = Ff7Session.Restore(installation, session.Capture());
+            Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Occupied-waypoint continuation did not cold-restore exactly.");
+        }
+        Check(File.ReadAllBytes(path).SequenceEqual(original), "The occupied-waypoint probe changed its source checkpoint.");
+    }
+
     public static void Run()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

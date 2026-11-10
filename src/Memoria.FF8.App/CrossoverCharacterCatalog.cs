@@ -10,7 +10,7 @@ internal sealed record CharacterCompatibility(int SupportedClips, int TotalClips
 {
     internal IReadOnlyList<CharacterAnimationGap> ExcludedSources { get; init; } = [];
     internal double Percentage => TotalClips == 0 ? 0 : 100d * SupportedClips / TotalClips;
-    internal string Summary => $"{Percentage:0.#}% ({SupportedClips}/{TotalClips} native body clips)";
+    internal string Summary => $"{Percentage:0.#}% ({SupportedClips}/{TotalClips} native field body clips)";
     internal static string ColorName(double percentage) => percentage == 100 ? "Cyan" : percentage > 75 ? "Green" : percentage >= 50 ? "Yellow" : percentage >= 25 ? "Orange" : "Red";
 }
 

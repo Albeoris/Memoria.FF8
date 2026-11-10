@@ -18,7 +18,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
     public bool Completed { get; private set; }
     public string? Error { get; private set; }
     public Exception? Failure { get; private set; }
-    public string Status => $"{(Completed ? "Completed: " : "")}{session.Field.Name}, frame {session.Host.Process.Tick}, {Steps} steps";
+    public string Status => $"{(Completed ? "Completed: " : "")}{(session.World is { } world ? $"World {world.Resources.World}, frame {world.Process.Tick}" : $"{session.Field.Name}, frame {session.Host.Process.Tick}")}, {Steps} steps";
     public long Steps { get; private set; }
     public IReadOnlyList<string> RecentActions => recent.ToArray();
 
@@ -87,6 +87,12 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     + string.Join(";", observed.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
                     + string.Join(";", observed.Process.Actors.Select(actor => $"{actor.X4096},{actor.Y4096},{actor.Z4096},{actor.Triangle},{actor.Ladder?.Step},{actor.Jump?.Step}"))
                     + string.Join(";", observed.Process.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
+                if (observed.World is { } world)
+                {
+                    progress = $"world:{world.WorldId}:{world.MovementEnabled}:{world.MainState}:{world.FadeAlpha}:"
+                        + string.Join(";", world.Entities.Select(entity => $"{entity.Model},{entity.X},{entity.Y},{entity.Z},{entity.TerrainResolved}"))
+                        + string.Join(";", world.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
+                }
                 if (progress != previousProgress)
                 {
                     previousProgress = progress;
@@ -172,6 +178,19 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
 
     private void ConfirmDefaultDialogueAndNames()
     {
+        if (session.World is { } world)
+        {
+            foreach (Ff7Dialogue dialogue in world.Process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && world.CanConfirmDialogue(dialogue.RequestId)).ToArray())
+            {
+                if (advanceDialoguePresentation?.Invoke(dialogue) == true)
+                {
+                    continue;
+                }
+                Ff7Dialogue selected = chooseDialogueSelection?.Invoke(dialogue) is int selection ? Ff7DialogueCursor.Select(dialogue, selection) : dialogue;
+                world.UpdateDialogue(Ff7DialogueCursor.Confirm(selected, FieldText.Read(world.Texts[dialogue.Text].Span)));
+            }
+            return;
+        }
         if (session.Host.Process.Menu is { Completed: false, Mode: 6 } menu)
         {
             session.CompleteNamingMenu(menu.RequestId, session.Progress.Characters.Single(character => character.Id == menu.Parameter).Name);

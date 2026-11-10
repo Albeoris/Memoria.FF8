@@ -3,7 +3,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical = 0, ushort Held = 0, bool Talk = false);
+public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical = 0, ushort Held = 0, bool Talk = false, bool Run = true);
 
 /// <summary>Native FFVII navigation and interaction adapter. The host owns scheduling, recording and presentation.</summary>
 public sealed partial class Ff7AutoplayDriver(Ff7Session session)
@@ -15,10 +15,20 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private int waypointTargetTriangle = -1;
     private Vector3? finalTarget;
     private bool finalApproach;
+    private long gatewayGeneration = -1;
+    private int gatewayDestination = -1;
+    private Vector3? gatewayCrossingTarget;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
     public void Apply(Ff7AutoplayInput input)
     {
+        if (session.World is { } world)
+        {
+            ushort previousHeld = world.Process.Input?.Held ?? 0;
+            session.SetInput(input.Held, (ushort)(input.Held & ~previousHeld));
+            session.MovePlayer(input.Horizontal, input.Vertical, input.Run);
+            return;
+        }
         if (session.Host.Process.Transition is not null)
         {
             return;
@@ -31,31 +41,46 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             finalApproach = false;
             ResetObstacleEscape();
         }
-        ushort pressed = (ushort)(input.Held & ~session.Machine.Input.Held);
-        session.SetInput(input.Held, pressed);
-        session.MovePlayer(input.Horizontal, input.Vertical, true);
+        ushort held = input.Held;
+        ushort pressed = (ushort)(held & ~session.Machine.Input.Held);
+        session.SetInput(held, pressed);
+        session.MovePlayer(input.Horizontal, input.Vertical, input.Run);
         if (input.Talk)
         {
             session.TryTalk();
         }
     }
 
-    public Ff7AutoplayInput Gateway(int destinationField)
+    public Ff7AutoplayInput Gateway(int destinationField, bool run = true)
     {
         PcFieldGateway gateway = session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField);
-        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        Vector3 midpoint = (gateway.A + gateway.B) / 2;
-        Vector2 edge = new(gateway.B.X - gateway.A.X, gateway.B.Y - gateway.A.Y);
-        Vector2 normal = Vector2.Normalize(new(-edge.Y, edge.X));
-        Vector2 position = new(player.X4096 / 4096f, player.Y4096 / 4096f);
-        if (Vector2.Dot(position - new Vector2(midpoint.X, midpoint.Y), normal) > 0)
+        if (gatewayGeneration != session.FieldGeneration || gatewayDestination != destinationField)
         {
-            normal = -normal;
+            gatewayGeneration = session.FieldGeneration;
+            gatewayDestination = destinationField;
+            gatewayCrossingTarget = null;
         }
-        return Approach(midpoint + new Vector3(normal * 96, 0));
+        if (gatewayCrossingTarget is Vector3 crossingTarget)
+        {
+            return Steer(crossingTarget, run);
+        }
+        Vector3 midpoint = (gateway.A + gateway.B) / 2;
+        PcWalkmeshTriangle interior = session.Field.Walkmesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, midpoint))!;
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        if (player is not null && player.Triangle == interior.Index && Math.Abs(player.Z4096 / 4096f - midpoint.Z) < 32 && Vector2.DistanceSquared(new(player.X4096 / 4096f, player.Y4096 / 4096f), new(midpoint.X, midpoint.Y)) < 64 * 64)
+        {
+            Vector2 edge = new(gateway.B.X - gateway.A.X, gateway.B.Y - gateway.A.Y);
+            Vector2 normal = Vector2.Normalize(new(-edge.Y, edge.X));
+            if (Vector2.Dot(new Vector2(player.X4096 / 4096f - midpoint.X, player.Y4096 / 4096f - midpoint.Y), normal) > 0)
+            {
+                normal = -normal;
+            }
+            gatewayCrossingTarget = midpoint + new Vector3(normal * 96, 0);
+            return Steer(gatewayCrossingTarget.Value, run);
+        }
+        return Approach(midpoint, interior.Index, run);
     }
-
-    public Ff7AutoplayInput Steer(Vector3 target)
+    public Ff7AutoplayInput Steer(Vector3 target, bool run = true)
     {
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         if (player is null)
@@ -74,7 +99,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         int desired = session.Host.Movement!.Direction(dx, dy);
         var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128));
-        return new(direction.X, direction.Y);
+        return new(direction.X, direction.Y, Run: run);
     }
 
     public Ff7AutoplayInput TalkTo(int entity)
@@ -103,10 +128,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         int desired = session.Host.Movement!.Direction(dx, dy);
         var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128));
-        return new(direction.X, direction.Y);
+        return new(direction.X, direction.Y, Run: true);
     }
 
-    public Ff7AutoplayInput Approach(Vector3 target, int? targetTriangle = null)
+    public Ff7AutoplayInput Approach(Vector3 target, int? targetTriangle = null, bool run = true)
     {
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         if (player is null || session.Host.Process.PlayerLocked || session.Host.Process.Join is not null)
@@ -168,7 +193,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             waypointGeneration = session.FieldGeneration;
             waypointDestination = destination;
         }
-        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(true)) };
+        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
         Ff7NativeMovement movement = session.Host.Movement ?? throw new NotSupportedException("FFVII navigation requires native movement.");
         float best = float.PositiveInfinity;
         int bestRouteDistance = int.MaxValue;
@@ -191,6 +216,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 result = new(direction.X, direction.Y);
             }
         }
-        return TryObstacleEscape(controlled, target, waypoint, movement, out Ff7AutoplayInput escape) ? escape : result;
+        return TryObstacleEscape(controlled, target, waypoint, movement, out Ff7AutoplayInput escape) ? escape with { Run = run } : result with { Run = run };
     }
 }

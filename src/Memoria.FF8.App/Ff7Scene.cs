@@ -191,7 +191,7 @@ internal sealed partial class Ff7Scene : IDisposable
             UpdateAudio();
             if (autoPlay?.Running != true || autoPlay.Paused)
             {
-                if (UpdateNamingMenu())
+                if (Session.World is null && UpdateNamingMenu())
                 {
                     return;
                 }
@@ -199,12 +199,15 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             UpdateMovie();
             UpdateMovieSkip(gameTime.ElapsedGameTime);
-            SceneKind timingScene = Session.Host.Process.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field;
+            SceneKind timingScene = Session.World is not null ? SceneKind.WorldMap : Session.Host.Process.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field;
             tickRemainder += sharedClock.Advance(TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), timingScene).TotalSeconds;
             while (tickRemainder >= 1d / 30)
             {
                 tickRemainder -= 1d / 30;
-                CapturePreviousActors();
+                if (Session.World is null)
+                {
+                    CapturePreviousActors();
+                }
                 if (autoPlay?.Running == true && !autoPlay.Paused)
                 {
                     AdvanceAutoPlay();
@@ -252,8 +255,11 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             else
             {
-                DrawMovie(batch, bounds);
-                if (renderer is not null && error is null)
+                if (Session.World is null)
+                {
+                    DrawMovie(batch, bounds);
+                }
+                if ((renderer is not null || Session.World is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     batch.Draw(triangles.Target, new Rectangle(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height), Color.White);
@@ -261,6 +267,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 if (error is null)
                 {
                     DrawDialogues(batch, bounds);
+                    int worldFade = Session.World?.Process.FadeDisplayedAlpha ?? 0;
+                    if (worldFade > 0)
+                    {
+                        batch.Draw(pixel, windowBounds, Color.Black * (worldFade / 255f));
+                    }
                 }
             }
             DrawNamingMenu(windowBounds);
@@ -304,6 +315,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Session.PresentationCommand = PresentationCommand;
         renderedGeneration = -1;
         renderer = null;
+        ResetWorldPresentation();
         dialogueTokens.Clear();
         commonDialoguePages.Clear();
         reportCheckpoint = null;
@@ -317,6 +329,11 @@ internal sealed partial class Ff7Scene : IDisposable
     private void RenderField(Rectangle bounds)
     {
         Ff7Session session = Session!;
+        if (session.World is { } world)
+        {
+            RenderWorld(world, bounds);
+            return;
+        }
         if (renderer is null || renderedGeneration != session.FieldGeneration)
         {
             renderer = new Ff7FieldRenderer(session.Field, session.Models.Select((model, index) => (model, index)).ToDictionary(pair => pair.index, pair => pair.model), projection, appearance);

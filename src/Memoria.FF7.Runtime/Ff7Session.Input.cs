@@ -23,6 +23,11 @@ public sealed partial class Ff7Session
     }
     public void SetInput(ushort held, ushort pressed)
     {
+        if (World is not null)
+        {
+            World.SetButtons(held, pressed);
+            return;
+        }
         if (HasPendingTick)
         {
             deferredButtons = (held, pressed);
@@ -43,6 +48,11 @@ public sealed partial class Ff7Session
 
     public void MovePlayer(int horizontal, int vertical, bool run)
     {
+        if (World is not null)
+        {
+            World.SetMovement(horizontal, vertical, run);
+            return;
+        }
         if (HasPendingTick)
         {
             deferredMovement = (horizontal, vertical, run);
@@ -53,6 +63,10 @@ public sealed partial class Ff7Session
 
     public bool TryTalk()
     {
+        if (World is not null)
+        {
+            return false;
+        }
         if (HasPendingTick || Host.Process.PlayerLocked || Host.Process.Join is not null)
         {
             return false;

@@ -26,5 +26,14 @@ public sealed class WorldPresentationResourcesTests
         Assert.Equal(512, data.ArcAngles.Count);
         Assert.Equal((short)0, data.ArcAngles[0]);
         Assert.Equal(360f / 4096, data.DegreesPerAngleUnit);
+        Ff7WorldTextureResources textures = new(installation, resources);
+        Ff7WorldTextureAnimationResources clock = new(installation, resources, textures.Descriptors);
+        Assert.Equal(22, clock.Cycles.Count);
+        foreach (Ff7WorldTextureCycle cycle in clock.Cycles)
+        {
+            Assert.Equal(0, clock.Frame(cycle.TextureIndex, 0));
+            Assert.Equal(1, clock.Frame(cycle.TextureIndex, (uint)cycle.Divisor));
+            Assert.Equal(0, clock.Frame(cycle.TextureIndex, (uint)(cycle.Divisor * cycle.FrameCount)));
+        }
     }
 }

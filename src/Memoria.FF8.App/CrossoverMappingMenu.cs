@@ -336,7 +336,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         if (choosingAppearance)
         {
-            Label("Percent = executable clips / readable named HRC+clip pairs; exclusions in details.", 24, 405, Color.LightGray, 12);
+            Label("Field body clips = executable / readable HRC+clip pairs; exclusions in details.", 24, 405, Color.LightGray, 12);
             Label("Page/Alternate: missing actions. Cloth, hair, weapons use target local bind pose.", 24, 423, Color.LightGray, 12);
         }
         else

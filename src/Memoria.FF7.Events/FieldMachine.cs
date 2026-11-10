@@ -34,6 +34,14 @@ public sealed partial class FieldMachine
 
     public void SetMovementInput(int horizontal, int vertical, bool run)
     {
+        if (horizontal != 0 || vertical != 0)
+        {
+            const ushort runButton = 0x40;
+            static ushort Project(ushort value, bool enabled) => enabled ? (ushort)(value | runButton) : (ushort)(value & ~runButton);
+            bool previous = (Input.Released & runButton) != 0 || (Input.Held & runButton) != 0 && (Input.Pressed & runButton) == 0;
+            bool previousRaw = (Input.RawReleased & runButton) != 0 || (Input.RawHeld & runButton) != 0 && (Input.RawPressed & runButton) == 0;
+            Input = Input with { Held = Project(Input.Held, run), Pressed = Project(Input.Pressed, run && !previous), Released = Project(Input.Released, !run && previous), RawHeld = Project(Input.RawHeld, run), RawPressed = Project(Input.RawPressed, run && !previousRaw), RawReleased = Project(Input.RawReleased, !run && previousRaw) };
+        }
         Input = Input with { Horizontal = Math.Sign(horizontal), Vertical = Math.Sign(vertical), Run = run };
     }
 

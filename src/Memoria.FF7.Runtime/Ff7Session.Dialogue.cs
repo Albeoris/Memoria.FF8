@@ -9,8 +9,18 @@ public sealed partial class Ff7Session
 
     public string ExpandDialogueToken(FieldTextToken token)
     {
-        int[] scriptParty = Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray();
+        int[] scriptParty = Enumerable.Range(9, 3).Select(address => (int)(World?.ReadPersistentByte(256 + address) ?? Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address))).ToArray();
         return Ff7DialogueCursor.ExpandToken(token, Progress, scriptParty);
+    }
+
+    private void ConfigureWorldPresentation()
+    {
+        if (World is not null)
+        {
+            World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
+            World.ExpandDialogueToken = ExpandDialogueToken;
+            World.AudioRequested = Host.SubmitNativeAudio;
+        }
     }
     private readonly Dictionary<(long Generation, int Text), IReadOnlyList<FieldTextToken>> dialogueTokens = [];
 

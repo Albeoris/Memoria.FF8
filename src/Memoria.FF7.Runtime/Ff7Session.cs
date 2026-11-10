@@ -45,8 +45,9 @@ public sealed partial class Ff7Session : IDisposable
     public long FieldGeneration { get; private set; }
     public ushort MapId { get; private set; }
     public Action<FieldCommand>? PresentationCommand { get; set; }
+    public Ff7WorldRuntime? World { get; private set; }
 
-    public bool CanSave => !HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId));
+    public bool CanSave => World?.CanSave ?? (!HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId)));
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -105,6 +106,13 @@ public sealed partial class Ff7Session : IDisposable
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
             session.tickContinuation = save.TickContinuation;
             session.Progress = session.Progress with { Clock = session.Clock };
+            if (save.World is Ff7WorldProcess world)
+            {
+                byte[] persistent = (byte[])save.Vm.PersistentVariables.Clone();
+                session.World = new(installation, persistent, world.EntrySelector, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), world.WorldId);
+                session.World.Restore(world);
+                session.ConfigureWorldPresentation();
+            }
             return session;
         }
         catch
@@ -121,6 +129,17 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick(bool advanceClock)
     {
+        if (World is not null)
+        {
+            if (advanceClock)
+            {
+                AdvanceNominalClockCallbacks();
+            }
+            ConfigureWorldPresentation();
+            World.Advance();
+            Host.AdvanceNativeMusicClock();
+            return;
+        }
         if (tickTailInProgress)
         {
             throw new InvalidOperationException("A failed field update tail requires its preceding standalone checkpoint.");
@@ -160,6 +179,13 @@ public sealed partial class Ff7Session : IDisposable
     {
         if (Host.Process.Transition is FieldTransitionCommand transition)
         {
+            if (transition.Map is >= 1 and <= 64)
+            {
+                byte[] persistent = Machine.Variables.CopyPersistent();
+                World = new(installation, persistent, transition.Map, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), Ff7WorldRuntime.ResolveWorldId(transition.Map));
+                ConfigureWorldPresentation();
+                return;
+            }
             FieldVariables variables = Machine.Variables;
             LoadField(transition.Map, variables);
             FieldGeneration++;
@@ -178,7 +204,12 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new InvalidOperationException("Snapshots require a completed field load and an atomic field-update tail.");
         }
-        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = Machine.Capture(), Process = Host.Capture(), TickContinuation = tickContinuation };
+        FieldVmSnapshot vm = Machine.Capture();
+        if (World is not null)
+        {
+            vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
+        }
+        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation, World = World?.Process };
     }
 
     private bool fieldLoadIncomplete;
@@ -359,6 +390,7 @@ public sealed partial class Ff7Session : IDisposable
 
     public void Dispose()
     {
+        World?.Dispose();
         characters.Dispose();
         fields.Dispose();
     }

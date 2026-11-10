@@ -41,13 +41,13 @@ public sealed partial class Ff7AutoplayDriver
             return false;
         }
         Vector2 previous = obstacleHistory.Dequeue();
-        float step = player.MoveSpeed / 4096f;
-        if (Vector2.DistanceSquared(position, previous) >= step * step * 64 || Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y)) <= step * step * 1024 || session.Host.Process.LineBlocked)
+        float step = player.MoveSpeed / 256f;
+        if (Vector2.DistanceSquared(position, previous) >= step * step * 64 || Vector3.DistanceSquared(new(position, player.Z4096 / 4096f), target) <= step * step * 4 || session.Host.Process.LineBlocked)
         {
             return false;
         }
         obstacleHistory.Clear();
-        FindObstacleEscape(player, new(waypoint.X, waypoint.Y), movement);
+        FindObstacleEscape(player, new(target.X, target.Y), movement);
         return TakeEscapeStep(player, movement, out input);
     }
 
@@ -79,7 +79,7 @@ public sealed partial class Ff7AutoplayDriver
     private void FindObstacleEscape(Ff7Actor player, Vector2 waypoint, Ff7NativeMovement movement)
     {
         const int maximumNodes = 1024;
-        const int framesPerEdge = 8;
+        const int framesPerEdge = 1;
         float cell = Math.Max(1, player.MoveSpeed * 4);
         (int X, int Y, int Triangle) Key(Ff7Actor actor) => ((int)MathF.Floor(actor.X4096 / cell), (int)MathF.Floor(actor.Y4096 / cell), actor.Triangle);
         float initialDistance = Vector2.Distance(Position(player), waypoint);
