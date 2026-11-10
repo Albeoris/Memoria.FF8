@@ -1395,7 +1395,9 @@ internal sealed partial class AutoPlayController
             }
             return;
         }
-        if (current.NativeCarRuntime is { EntityType: 35 } rental)
+        // Type 33 can use world entrances directly. Other car owners must first
+        // return to foot through the native dismount controls.
+        if (current.NativeCarRuntime is { EntityType: not 33 } rental)
         {
             if (rental.Speed != 0 || rental.CameraTransition is { Flags: not 0 } || NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory))
             {
@@ -1478,17 +1480,25 @@ internal sealed partial class AutoPlayController
     private void ParkAutoPlayRental(WorldMapScene scene)
     {
         (int X, int Z)? target = null;
-        for (int callback = 0; callback < 240; callback++)
+        HashSet<(int X, int Z)> rejected = [];
+        (int X, int Z)? rejectedConfirm = null;
+        for (int callback = 0; callback < 480; callback++)
         {
-            bool confirm = scene.IsAutoPlayRentalParkingTerrain() && !NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory);
+            WorldState current = scene.State;
+            bool canPark = rejectedConfirm != (current.X, current.Z) && scene.IsAutoPlayRentalParkingTerrain();
             PlayerAction action;
-            if (confirm)
+            if (canPark)
             {
-                action = new(PlayerActionKind.Confirm);
+                action = current.NativeCarRuntime!.Speed != 0 || NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory) ? new(PlayerActionKind.Wait) : new(PlayerActionKind.Confirm);
             }
             else
             {
-                target ??= scene.FindAutoPlayRentalParkingTerrain();
+                if (target is { } reached && scene.IsNearAutoPlayRentalParkingTarget(reached))
+                {
+                    rejected.Add(reached);
+                    target = null;
+                }
+                target ??= scene.FindAutoPlayRentalParkingTerrain(rejected);
                 if (target is not { } destination)
                 {
                     break;
@@ -1512,6 +1522,10 @@ internal sealed partial class AutoPlayController
             if (result.Trigger.Kind != PlayerTriggerKind.WorldMap || WorldControlWaitFrames(scene.State) > 0)
             {
                 return;
+            }
+            if (action.Kind == PlayerActionKind.Confirm)
+            {
+                rejectedConfirm = (scene.State.X, scene.State.Z);
             }
         }
         throw new NotSupportedException("The native rental car could not reach an admitted parking place within the bounded approach.");

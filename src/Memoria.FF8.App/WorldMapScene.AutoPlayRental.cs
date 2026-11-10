@@ -8,10 +8,21 @@ internal sealed partial class WorldMapScene
 {
     internal bool IsAutoPlayRentalParkingTerrain()
     {
-        return State.NativeCarRuntime is { } car && car.GroundCache!.Alternatives.All(item => CanParkRental(assets.ResolveNativeGroundIdentity(item.CurrentGround, replacements), car.EntityType));
+        WorldState current = State;
+        if (current.NativeCarRuntime is not { } car || !car.GroundCache!.Alternatives.All(item => CanParkRental(assets.ResolveNativeGroundIdentity(item.CurrentGround, replacements), car.EntityType)))
+        {
+            return false;
+        }
+        if (car.GardenObjects is not null || car.RagnarokObjects is not null)
+        {
+            return true;
+        }
+        NativeTrainWorldAllocation allocation = CarTransferAllocation(car);
+        int footEntity = allocation.Objects[allocation.ControlledObjectIndex].EntityType;
+        return ResolveCarDisembarkPlacement(current, car, footEntity) is { Accepted: true };
     }
 
-    internal (int X, int Z)? FindAutoPlayRentalParkingTerrain()
+    internal (int X, int Z)? FindAutoPlayRentalParkingTerrain(IReadOnlyCollection<(int X, int Z)> rejected)
     {
         WorldState current = State;
         byte entity = current.NativeCarRuntime!.EntityType;
@@ -23,13 +34,19 @@ internal sealed partial class WorldMapScene
                 (int dx, int dz) = Rotate(0, distance, heading);
                 int x = current.X + dx;
                 int z = current.Z - dz;
-                if (assets.LookupNativeGround(x, z, replacements, []) is { } ground && CanParkRental(ground.Ground.Triangle, entity))
+                if (rejected.All(place => SquaredDistance(place.X, place.Z, x, z) > 128L * 128) &&
+                    assets.LookupNativeGround(x, z, replacements, []) is { } ground && CanParkRental(ground.Ground.Triangle, entity))
                 {
                     return (x, z);
                 }
             }
         }
         return null;
+    }
+
+    internal bool IsNearAutoPlayRentalParkingTarget((int X, int Z) target)
+    {
+        return SquaredDistance(State.X, State.Z, target.X, target.Z) <= 64L * 64;
     }
 
     internal PlayerAction SteerAutoPlayRental(int x, int z)

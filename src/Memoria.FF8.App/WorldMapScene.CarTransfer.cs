@@ -72,6 +72,31 @@ internal sealed partial class WorldMapScene
         return WorldStationContactCertificate.Evaluate(assets, CarTransferAllocation(car), CarRailBanks(car), player, center.Y, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(entity), selected.Height, forceCircle: forceCircle, selectedShape: selected, appendedObjects: CarContactAppendedObjects(state, car, parked), ignoredObjectIndex: entity == car.EntityType || state.NativeCarRuntime is not null ? CarSelectedAllocationIndex(car) : null).ContactIndex;
     }
 
+    private WorldGardenPlacementResult? ResolveCarDisembarkPlacement(WorldState state, NativeCarWorldRuntimeState car, int footEntity)
+    {
+        WorldGardenPlacementResult? foot = null;
+        foreach (NativeWorldGroundAlternative alternative in car.GroundCache!.Alternatives)
+        {
+            WorldTriangle polygon = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements);
+            uint flags = polygon.GroundType | ((uint)polygon.TextureFlags << 8) | ((uint)polygon.VertexFlags << 16);
+            int height = state.NativeHeight - (polygon.GroundType <= 5 ? 320 : 0);
+            NativeWorldPathPosition body = new(state.X, state.NativeHeight, -state.Z);
+            int Contact(IReadOnlyList<WorldNativeGardenProbe> probes, int selected, int padding, bool circle) => CarTransferContact(state, car, probes, selected, padding, forceCircle: circle);
+            WorldGardenPlacementResult vehicle = assets.ResolveNativeGardenPlacement(body, checked((short)state.BodyYaw), car.EntityType, car.EntityType, 0, height, flags, car.GroundCache, replacements, Contact);
+            if (!vehicle.Accepted)
+            {
+                return null;
+            }
+            WorldGardenPlacementResult candidate = assets.ResolveNativeGardenPlacement(body, checked((short)state.BodyYaw), car.EntityType, footEntity, 256, height, flags, car.GroundCache, replacements, Contact);
+            if (foot is not null && foot != candidate)
+            {
+                throw new NotSupportedException("Car disembark placement differs across retained ground alternatives.");
+            }
+            foot = candidate;
+        }
+        return foot;
+    }
+
     private WorldState? PrepareCarDisembark(WorldState state, NativeWorldSalaryState salary)
     {
         if (state.NativeCarRuntime?.RagnarokObjects is not null)
@@ -93,27 +118,7 @@ internal sealed partial class WorldMapScene
         }
         NativeTrainWorldAllocation allocation = CarTransferAllocation(car);
         int footEntity = allocation.Objects[allocation.ControlledObjectIndex].EntityType;
-        WorldGardenPlacementResult? foot = null;
-        foreach (NativeWorldGroundAlternative alternative in car.GroundCache!.Alternatives)
-        {
-            WorldTriangle polygon = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements);
-            uint flags = polygon.GroundType | ((uint)polygon.TextureFlags << 8) | ((uint)polygon.VertexFlags << 16);
-            int height = state.NativeHeight - (polygon.GroundType <= 5 ? 320 : 0);
-            NativeWorldPathPosition body = new(state.X, state.NativeHeight, -state.Z);
-            int Contact(IReadOnlyList<WorldNativeGardenProbe> probes, int selected, int padding, bool circle) => CarTransferContact(state, car, probes, selected, padding, forceCircle: circle);
-            WorldGardenPlacementResult vehicle = assets.ResolveNativeGardenPlacement(body, checked((short)state.BodyYaw), car.EntityType, car.EntityType, 0, height, flags, car.GroundCache, replacements, Contact);
-            if (!vehicle.Accepted)
-            {
-                return null;
-            }
-            WorldGardenPlacementResult candidate = assets.ResolveNativeGardenPlacement(body, checked((short)state.BodyYaw), car.EntityType, footEntity, 256, height, flags, car.GroundCache, replacements, Contact);
-            if (foot is not null && foot != candidate)
-            {
-                throw new NotSupportedException("Car disembark placement differs across retained ground alternatives.");
-            }
-            foot = candidate;
-        }
-        if (foot?.Accepted != true)
+        if (ResolveCarDisembarkPlacement(state, car, footEntity) is not { Accepted: true } foot)
         {
             return null;
         }
@@ -131,7 +136,7 @@ internal sealed partial class WorldMapScene
             CameraOffsetZ = -7168,
             CameraTransition = new(183, 1024),
             ReloadSourceWorldFrame = null,
-            GroundCache = car.GroundCache with { Alternatives = car.GroundCache.Alternatives.Select(item => item with { Entries = [] }).ToArray() },
+            GroundCache = car.GroundCache! with { Alternatives = car.GroundCache.Alternatives.Select(item => item with { Entries = [] }).ToArray() },
             GroundYaw = car.GroundYaw,
             PreviousHorizontalInput = 0,
             MovementMagnitude20409F4 = car.MovementMagnitude20409F4,
