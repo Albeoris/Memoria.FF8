@@ -59,10 +59,10 @@ internal sealed partial class AutoPlayController
         return completed;
     }
 
-    internal static AutoPlayPlanStep? PlanWithExhaustedSurvey(AutoPlayRunState state, AutoPlayPlanner planner, string navigation, Func<AutoPlayVisit, bool>? needsRefresh, Func<AutoPlayNavigationVisit, bool> isCurrent, Func<AutoPlayVisitGuard, string?> readFingerprint, IReadOnlySet<string>? avoidFirstEvents = null)
+    internal static AutoPlayPlanStep? PlanWithExhaustedSurvey(AutoPlayRunState state, AutoPlayPlanner planner, string navigation, Func<AutoPlayVisit, bool>? needsRefresh, Func<AutoPlayNavigationVisit, bool> isCurrent, Func<AutoPlayVisitGuard, string?> readFingerprint, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
     {
         UpdateExhaustedSurveyTarget(state, state.RefreshTargetVisit);
-        AutoPlayPlanStep? next = planner.PlanNavigation(navigation, needsRefresh, state.RefreshTargetVisit, isCurrent, avoidFirstEvents: avoidFirstEvents);
+        AutoPlayPlanStep? next = planner.PlanNavigation(navigation, needsRefresh, state.RefreshTargetVisit, isCurrent, canTravel: canTravel, preferredGoal: preferredGoal);
         if (next is not null)
         {
             UpdateExhaustedSurveyTarget(state, next.RefreshVisitKey);
@@ -95,13 +95,13 @@ internal sealed partial class AutoPlayController
             }
             return false;
         }
-        next = planner.PlanNavigation(navigation, NeedsExactInspection, isCurrent: isCurrent, avoidFirstEvents: avoidFirstEvents);
+        next = planner.PlanNavigation(navigation, NeedsExactInspection, isCurrent: isCurrent, canTravel: canTravel, preferredGoal: preferredGoal);
         if (next?.RefreshVisitKey is string target && candidates.TryGetValue(target, out AutoPlayExhaustedSurveyRequest? requested))
         {
             state.PendingExhaustedSurvey = requested;
         }
         UpdateExhaustedSurveyTarget(state, next?.RefreshVisitKey);
-        return next ?? planner.PlanNavigation(navigation, isCurrent: isCurrent, allowRemoteConditionRoutes: true, avoidFirstEvents: avoidFirstEvents);
+        return next ?? planner.PlanNavigation(navigation, isCurrent: isCurrent, allowRemoteConditionRoutes: true, canTravel: canTravel, preferredGoal: preferredGoal);
     }
 
     private static AutoPlayEventCoverage[] SoftWalkingBlocks(AutoPlayRunState state, string navigation)

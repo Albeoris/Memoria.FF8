@@ -80,7 +80,7 @@ internal sealed partial class AutoPlayPlanner
         item.Routes.Remove(recorded);
     }
 
-    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null)
+    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
     {
         FindNavigationVisit(currentNavigationKey);
         AutoPlayPlanner shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null);
@@ -93,25 +93,55 @@ internal sealed partial class AutoPlayPlanner
         {
             current.Events.RemoveAll(item => avoidFirstEvents.Contains(item.Event.Id));
         }
+        HashSet<string> rejectedFirstEvents = new(StringComparer.Ordinal);
+        Dictionary<string, string>? visitByNavigation = canTravel is null ? null : State.NavigationVisits.ToDictionary(visit => visit.Key, visit => visit.VisitKey, StringComparer.Ordinal);
+        bool CheckTravel(AutoPlayPlanStep step)
+        {
+            AutoPlayEventRoute route = step.Route!;
+            if (canTravel!(step with { Route = route with { DestinationVisitKey = visitByNavigation![route.DestinationVisitKey] } }))
+            {
+                return true;
+            }
+            rejectedFirstEvents.Add(step.Event.Id);
+            return false;
+        }
         // Genuine unconsumed events precede reobserving the topology of already completed travel.
-        AutoPlayPlanStep? planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsExecution(FindEvent(FindNavigationVisit(visit.Key).VisitKey, item.Id)) ? 0 : 1);
+        AutoPlayPlanStep? planned;
+        do
+        {
+            rejectedFirstEvents.Clear();
+            planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsExecution(FindEvent(FindNavigationVisit(visit.Key).VisitKey, item.Id)) ? 0 : 1, canTravel is null ? null : CheckTravel, preferredGoal);
+            if (planned is { Route: null })
+            {
+                AutoPlayNavigationVisit localSource = FindNavigationVisit(planned.VisitKey);
+                AutoPlayEvent localEvent = localSource.Events.Single(item => item.Id == planned.Event.Id);
+                AutoPlayEventCoverage shared = FindEvent(localSource.VisitKey, localEvent.Id);
+                AutoPlayEventRoute? probe = NeedsExecution(shared) ? null : UnconfirmedNavigationRoutes(localSource, shadow.FindEvent(localSource.Key, localEvent.Id), shadow.State.Visits.Select(visit => visit.Visit.Key).ToHashSet(StringComparer.Ordinal)).FirstOrDefault();
+                if (probe is null)
+                {
+                    return planned with { VisitKey = localSource.VisitKey, Event = localEvent };
+                }
+                AutoPlayPlanStep probePlan = planned with { VisitKey = localSource.VisitKey, Event = localEvent with { DestinationVisitKey = probe.DestinationVisitKey }, IsTravel = true, Route = probe, Goal = new(localSource.Key, localEvent.Id, localEvent.ConditionSignature) };
+                if (canTravel?.Invoke(probePlan) != false)
+                {
+                    return probePlan;
+                }
+                current.Events.RemoveAll(item => item.Event.Id == localEvent.Id);
+                continue;
+            }
+            if (planned is not null || current.Events.RemoveAll(item => rejectedFirstEvents.Contains(item.Event.Id)) == 0)
+            {
+                break;
+            }
+        }
+        while (true);
         if (planned is null)
         {
             return null;
         }
         AutoPlayNavigationVisit source = FindNavigationVisit(planned.VisitKey);
         AutoPlayEvent observed = source.Events.Single(item => item.Id == planned.Event.Id);
-        if (planned.Route is null)
-        {
-            AutoPlayEventCoverage shared = FindEvent(source.VisitKey, observed.Id);
-            AutoPlayEventRoute? probe = NeedsExecution(shared) ? null : UnconfirmedNavigationRoutes(source, shadow.FindEvent(source.Key, observed.Id), shadow.State.Visits.Select(visit => visit.Visit.Key).ToHashSet(StringComparer.Ordinal)).FirstOrDefault();
-            if (probe is not null)
-            {
-                return planned with { VisitKey = source.VisitKey, Event = observed with { DestinationVisitKey = probe.DestinationVisitKey }, IsTravel = true, Route = probe };
-            }
-            return planned with { VisitKey = source.VisitKey, Event = observed };
-        }
-        AutoPlayNavigationVisit destination = FindNavigationVisit(planned.Route.DestinationVisitKey);
+        AutoPlayNavigationVisit destination = FindNavigationVisit(planned.Route!.DestinationVisitKey);
         AutoPlayEventRoute actual = planned.Route with { DestinationVisitKey = destination.VisitKey };
         return planned with { VisitKey = source.VisitKey, Event = observed with { DestinationVisitKey = destination.VisitKey }, Route = actual };
     }

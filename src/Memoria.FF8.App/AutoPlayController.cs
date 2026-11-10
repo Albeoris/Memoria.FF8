@@ -25,6 +25,9 @@ internal sealed class AutoPlayRunState
     public string? ActiveConditionSignature { get; set; }
     public List<AutoPlayChoiceSelection>? ActiveSelections { get; set; } = [];
     public AutoPlayEventRoute? ActiveTravelRoute { get; set; }
+    public AutoPlayTravelGoal? ActiveTravelGoal { get; set; }
+    public int? TravelStory { get; set; }
+    public HashSet<AutoPlayJourneyHop> JourneyHops { get; set; } = [];
     public string? ActiveBeforeCheckpoint { get; set; }
     public string? ActiveTargetId { get; set; }
     public string? ActiveAbsenceGuardKey { get; set; }
@@ -91,7 +94,6 @@ internal sealed partial class AutoPlayController
     private AutoPlayPlanner planner = new();
     private string? runDirectory;
     private readonly HashSet<GameWorld> watchedWorlds = [];
-    private readonly Dictionary<(string Navigation, FieldFixedPosition Position, string Event, string? Conditions), int> repeatedTravel = [];
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
 
@@ -189,7 +191,6 @@ internal sealed partial class AutoPlayController
     {
         bool? policy = requestedBattlePolicy ?? run.FullBattlePlaythroughOverride;
         run = new() { FullBattlePlaythroughOverride = policy };
-        repeatedTravel.Clear();
         if (policy is bool fullCombat)
         {
             session.SetFullBattlePlaythrough(fullCombat);
@@ -349,7 +350,6 @@ internal sealed partial class AutoPlayController
         run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
         restore(ReadCheckpoint(Path.Combine(directory, saved.Snapshot)));
         run = saved;
-        repeatedTravel.Clear();
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
             run.SurveyInvalidationUnknown = true;
@@ -395,7 +395,6 @@ internal sealed partial class AutoPlayController
                 int score = ProgressScore(run);
                 if (score != run.LastProgressScore)
                 {
-                    repeatedTravel.Clear();
                     run.LastProgressScore = score;
                     run.LastProgressStep = run.Steps;
                     ResetIdleDeadline();
@@ -747,6 +746,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        AutoPlayTravelGoal? preferredGoal = run.ActiveTravelGoal;
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
             RecordActiveControlReturn();
@@ -769,31 +769,13 @@ internal sealed partial class AutoPlayController
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }
         var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
-        FieldFixedPosition? planPosition = world.Events.Scene.NativePlayerPosition;
-        IReadOnlySet<string>? avoid = null;
-        if (resumedWalk is null && planPosition is not null && repeatedTravel.Count != 0)
-        {
-            AutoPlayNavigationVisit current = run.Coverage.NavigationVisits.Single(item => item.Key == navigation);
-            avoid = current.Events.Where(item => repeatedTravel.GetValueOrDefault((navigation, planPosition, item.Id, item.ConditionSignature)) >= 3).Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        }
-        AutoPlayPlanStep? Plan(IReadOnlySet<string>? avoidFirstEvents) => PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, avoidFirstEvents);
-        AutoPlayPlanStep? next = resumedWalk?.Plan ?? Plan(avoid);
-        if (next is null && avoid is { Count: > 0 })
-        {
-            next = Plan(null);
-        }
+        Func<AutoPlayPlanStep, bool>? canTravel = TravelAdmission(navigation);
+        AutoPlayPlanStep? next = resumedWalk?.Plan ?? PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
         if (next is null)
         {
+            run.ActiveTravelGoal = null;
             WaitForNativeFrontier();
             return;
-        }
-        if (resumedWalk is null && next.IsTravel && next.Route is not null && planPosition is not null)
-        {
-            var key = (navigation, planPosition, next.Event.Id, next.Event.ConditionSignature);
-            if (repeatedTravel.TryGetValue(key, out int attempts) || repeatedTravel.Count < 256)
-            {
-                repeatedTravel[key] = Math.Min(3, attempts + 1);
-            }
         }
         RecordRecentAction($"Plan {next.Event.Id}: destination={next.Route?.DestinationVisitKey}; refresh={next.RefreshVisitKey}");
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
@@ -817,6 +799,7 @@ internal sealed partial class AutoPlayController
             run.ActiveConditionSignature = source.ConditionSignature;
             run.ActiveSelections = [];
             run.ActiveTravelRoute = next.Route;
+            run.ActiveTravelGoal = next.Goal;
             run.ActiveBeforeCheckpoint = checkpoint;
             run.ActiveTargetId = selected.Id;
             run.ActiveAbsenceGuardKey = null;
@@ -1447,6 +1430,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        AutoPlayTravelGoal? preferredGoal = run.ActiveTravelGoal;
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
             RecordActiveControlReturn();
@@ -1464,7 +1448,7 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
         SaveLocationEntry();
-        AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex)) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
+        AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex), canTravel: TravelAdmission(navigation), preferredGoal: preferredGoal) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = StageAttempt($"world-{run.Steps:D10}.json", CaptureState());
@@ -1479,6 +1463,7 @@ internal sealed partial class AutoPlayController
         run.ActiveConditionSignature = signature;
         run.ActiveSelections = [];
         run.ActiveTravelRoute = next.Route;
+        run.ActiveTravelGoal = next.Goal;
         run.ActiveBeforeCheckpoint = beforeCheckpoint;
         run.ActiveTargetId = target.Id;
         run.ActiveAbsenceGuardKey = null;
@@ -2084,6 +2069,7 @@ internal sealed partial class AutoPlayController
             planner.Completed(source, eventId, source == destination && sameNavigation ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
         }
         RecordNavigationControlReturn(source, destination, eventId);
+        RecordJourneyHop(destination, destinationNavigation);
     }
 
     private PlayerActionResult Apply(PlayerAction action)

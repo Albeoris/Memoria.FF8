@@ -23,6 +23,58 @@ public sealed class AutoPlayNavigationPlannerTests
     }
 
     [Fact]
+    public void RepeatedTravelForOneGoalCanStillServeAStoryEvent()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "story");
+        planner.Observe(new("source", "region"), [exit]);
+        planner.ObserveNavigation("source", "source-nav", [exit]);
+        planner.Observe(new("destination", "region"), [story]);
+        planner.ObserveNavigation("destination", "destination-nav", [story]);
+        Connect(planner, "source", "exit", "destination", "source-nav", "destination-nav");
+
+        AutoPlayPlanStep refresh = planner.PlanNavigation("source-nav", _ => true, "destination-nav")!;
+        Assert.Equal(new AutoPlayTravelGoal("destination-nav"), refresh.Goal);
+        AutoPlayPlanStep progress = planner.PlanNavigation("source-nav", _ => true, "destination-nav", canTravel: step => step.Goal != refresh.Goal)!;
+        Assert.Equal("exit", progress.Event.Id);
+        Assert.Equal(new AutoPlayTravelGoal("destination-nav", "story", "story"), progress.Goal);
+        Assert.Null(planner.PlanNavigation("source-nav", _ => true, "destination-nav", canTravel: _ => false));
+
+        AutoPlayEvent ordinary = new("ordinary", AutoPlayEventKind.Interaction);
+        planner.Observe(new("source", "region"), [exit, ordinary]);
+        planner.ObserveNavigation("source", "source-nav", [exit, ordinary]);
+        Assert.Equal("ordinary", planner.PlanNavigation("source-nav", _ => true, "destination-nav")!.Event.Id);
+        Assert.Equal(refresh.Goal, planner.PlanNavigation("source-nav", _ => true, "destination-nav", preferredGoal: refresh.Goal)!.Goal);
+        Assert.Equal("ordinary", planner.PlanNavigation("source-nav", _ => true, "destination-nav", canTravel: _ => false, preferredGoal: refresh.Goal)!.Event.Id);
+    }
+
+    [Fact]
+    public void ARepeatedFirstHopCanBeReplacedByAnAlternatePathToTheSameGoal()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent direct = new("direct", AutoPlayEventKind.Transition, ConditionSignature: "direct");
+        AutoPlayEvent alternate = new("alternate", AutoPlayEventKind.Transition, ConditionSignature: "alternate");
+        AutoPlayEvent onward = new("onward", AutoPlayEventKind.Transition, ConditionSignature: "onward");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true);
+        planner.Observe(new("source", "region"), [direct, alternate]);
+        planner.ObserveNavigation("source", "source-nav", [direct, alternate]);
+        planner.Observe(new("middle", "region"), [onward]);
+        planner.ObserveNavigation("middle", "middle-nav", [onward]);
+        planner.Observe(new("destination", "region"), [story]);
+        planner.ObserveNavigation("destination", "destination-nav", [story]);
+        Connect(planner, "source", "direct", "destination", "source-nav", "destination-nav");
+        Connect(planner, "source", "alternate", "middle", "source-nav", "middle-nav");
+        Connect(planner, "middle", "onward", "destination", "middle-nav", "destination-nav");
+
+        AutoPlayPlanStep usual = planner.PlanNavigation("source-nav")!;
+        AutoPlayPlanStep reroute = planner.PlanNavigation("source-nav", canTravel: step => step.Event.Id != "direct")!;
+        Assert.Equal("direct", usual.Event.Id);
+        Assert.Equal("alternate", reroute.Event.Id);
+        Assert.Equal(usual.Goal, reroute.Goal);
+    }
+
+    [Fact]
     public void ARemoteLocalTransitionCanGuideTravelButRequiresFreshObservationAtItsSource()
     {
         AutoPlayPlanner planner = new();

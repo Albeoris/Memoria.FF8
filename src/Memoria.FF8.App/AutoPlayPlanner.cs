@@ -28,7 +28,8 @@ internal sealed class AutoPlayConditionCoverage
 internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
 internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
 internal sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
-internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null);
+internal sealed record AutoPlayTravelGoal(string NavigationKey, string? EventId = null, string? Conditions = null);
+internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null);
 internal sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
 internal sealed class AutoPlayEventCoverage
@@ -349,7 +350,7 @@ internal sealed partial class AutoPlayPlanner
     }
 
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
-    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null)
+    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
     {
         Dictionary<string, AutoPlayVisitCoverage> visits = IndexVisits(State.Visits, item => item.Visit.Key);
         if (!visits.TryGetValue(currentVisitKey, out AutoPlayVisitCoverage? current))
@@ -383,7 +384,23 @@ internal sealed partial class AutoPlayPlanner
                 }
             }
         }
-        var ordered = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
+        AutoPlayPlanStep? TravelToEvent(PlanCandidate candidate) => routes[candidate.Visit.Visit.Key] is { } first ? first with { Goal = new(candidate.Visit.Visit.Key, candidate.Coverage.Event.Id, candidate.Coverage.Event.ConditionSignature) } : null;
+        AutoPlayPlanStep RefreshPlan(string key) => routes[key]! with { RefreshVisitKey = key, Goal = new(key) };
+        bool CanReach(PlanCandidate candidate) => canTravel is null || TravelToEvent(candidate) is not { } first || canTravel(first);
+        bool CanRefresh(string key) => key != currentVisitKey && routes.ContainsKey(key) && (canTravel is null || canTravel(RefreshPlan(key)));
+        if (preferredGoal is { EventId: not null } goal)
+        {
+            PlanCandidate? continuation = candidates.FirstOrDefault(item => item.Visit.Visit.Key == goal.NavigationKey && item.Coverage.Event.Id == goal.EventId && item.Coverage.Event.ConditionSignature == goal.Conditions && CanReach(item));
+            if (continuation is not null)
+            {
+                return TravelToEvent(continuation) ?? new AutoPlayPlanStep(currentVisitKey, continuation.Coverage.Event, false);
+            }
+        }
+        else if (preferredGoal is { NavigationKey: string refreshGoal } && needsRefresh is not null && CanRefresh(refreshGoal) && (refreshVisitKey == refreshGoal || needsRefresh(visits[refreshGoal].Visit)))
+        {
+            return RefreshPlan(refreshGoal);
+        }
+        var ordered = candidates.Where(CanReach).OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0)
             .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
@@ -404,7 +421,7 @@ internal sealed partial class AutoPlayPlanner
             }
             else
             {
-                string? refresh = refreshVisitKey is not null && refreshVisitKey != currentVisitKey && routes.ContainsKey(refreshVisitKey) ? refreshVisitKey : routes.Keys.Where(key => key != currentVisitKey && needsRefresh(visits[key].Visit))
+                string? refresh = refreshVisitKey is not null && CanRefresh(refreshVisitKey) ? refreshVisitKey : routes.Keys.Where(key => key != currentVisitKey && needsRefresh(visits[key].Visit) && CanRefresh(key))
                     .OrderBy(key => phaseOrder(visits[key].Visit, routes[key]!.Event))
                     .ThenBy(key => visits[key].Visit.Region != current.Visit.Region)
                     .ThenBy(key => distances[key])
@@ -412,7 +429,7 @@ internal sealed partial class AutoPlayPlanner
                     .FirstOrDefault();
                 if (refresh is not null)
                 {
-                    return routes[refresh]! with { RefreshVisitKey = refresh };
+                    return RefreshPlan(refresh);
                 }
             }
         }
@@ -420,7 +437,7 @@ internal sealed partial class AutoPlayPlanner
         {
             return null;
         }
-        return routes[selected.Visit.Visit.Key] ?? new AutoPlayPlanStep(selected.Visit.Visit.Key, selected.Coverage.Event, false);
+        return TravelToEvent(selected) ?? new AutoPlayPlanStep(selected.Visit.Visit.Key, selected.Coverage.Event, false);
     }
 
     public int ReachableFrontierCount(string currentVisitKey, string? excludedVisit = null, string? excludedEvent = null, Func<AutoPlayVisit, bool>? needsRefresh = null)
