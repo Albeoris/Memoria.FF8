@@ -109,6 +109,10 @@ public sealed partial class Ff7Session : IDisposable
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.Progress = session.Progress with { Clock = session.Clock };
+            if (save.Battle is { } battle)
+            {
+                session.RestoreBattle(battle);
+            }
             if (save.World is Ff7WorldProcess world)
             {
                 byte[] persistent = (byte[])save.Vm.PersistentVariables.Clone();
@@ -130,7 +134,7 @@ public sealed partial class Ff7Session : IDisposable
         AdvanceTick(true);
     }
 
-    public void AdvanceTick(bool advanceClock)
+    public void AdvanceTick(bool advanceClock, bool waitForBattleCommand = false, bool confirmBattleLimit = false, bool escapeBattleHeld = false)
     {
         if (World is not null)
         {
@@ -149,6 +153,14 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (Host.HasUnfinishedBattle)
         {
+            if (Battle is not null)
+            {
+                if (advanceClock)
+                {
+                    AdvanceNominalClockCallbacks();
+                }
+                Battle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld);
+            }
             return;
         }
         if (tickContinuation is null && Host.Process.Transition is not null)
@@ -222,7 +234,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture() };
+        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), Battle = Battle?.Capture() };
     }
 
     private bool fieldLoadIncomplete;
@@ -261,7 +273,7 @@ public sealed partial class Ff7Session : IDisposable
             NativeFieldEntryFadeAlpha = executable.NativeFieldEntryFadeAlpha,
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,
-            BeginBattleRequest = request => new(true, CompleteDebugBattle(request)),
+            BeginBattleRequest = BeginFieldBattle,
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
@@ -418,6 +430,8 @@ public sealed partial class Ff7Session : IDisposable
     {
         CoverageOwner?.Dispose();
         World?.Dispose();
+        battleArchive?.Dispose();
+        battleMagicArchive?.Dispose();
         characters.Dispose();
         fields.Dispose();
     }

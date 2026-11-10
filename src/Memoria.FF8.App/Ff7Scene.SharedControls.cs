@@ -12,7 +12,7 @@ internal sealed partial class Ff7Scene
 
     public bool IsMenuPresentation => IsTitle || debugMenu || IsPlayerMenuOpen || IsShopMenuPresentation || namingMenus?.IsOpen == true;
     public GameUi.UiPreferences PresentationPreferences => dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
-    public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, false, Session?.World is not null);
+    public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, Session?.Battle is not null, Session?.World is not null);
 
     public void ConfigureSharedControls(KeyboardInput input, GameplayClock clock, Action<ControlsProfile>? writeControls = null)
     {

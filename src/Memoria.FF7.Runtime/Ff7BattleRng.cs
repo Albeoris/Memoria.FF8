@@ -17,7 +17,7 @@ public sealed class Ff7BattleRng
     private readonly byte[] indices;
     private int stream;
     private uint wordCounter;
-    private readonly uint crtSeed;
+    private uint crtSeed;
 
     public Ff7BattleRng(ReadOnlySpan<byte> kernelSection, Ff7BattleRngState state)
     {
@@ -62,6 +62,12 @@ public sealed class Ff7BattleRng
             stream = (stream + 1) & 7;
         }
         return (ushort)(low | NextByte() << 8);
+    }
+
+    public int NextCrt()
+    {
+        crtSeed = unchecked(crtSeed * 214013 + 2531011);
+        return (int)(crtSeed >> 16 & 32767);
     }
 
     public Ff7BattleRngState Capture()

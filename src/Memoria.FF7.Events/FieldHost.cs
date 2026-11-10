@@ -130,7 +130,8 @@ public enum FieldControlKind
     CursorDisabled,
     MovieCameraDisabled,
     MapDisplay,
-    PreviousMap
+    PreviousMap,
+    BattleMusicSuppressed
 }
 public sealed record FieldControlCommand(FieldControlKind Property, int Value, int Value2 = 0) : FieldCommand;
 public enum FieldBackgroundOperation

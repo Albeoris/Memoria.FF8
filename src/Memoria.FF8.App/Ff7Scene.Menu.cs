@@ -62,11 +62,13 @@ internal sealed partial class Ff7Scene
                 new("save", "Save", "Save the current continuation.", Action: new("ff7-save"), Enabled: CanSave),
                 new("load", "Load", "Load a saved continuation.", Action: new("ff7-load"), Enabled: ContinueRequested is not null),
                 new("world", "Switch world: FFVIII", "Choose associations before returning to the retained world.", Action: new("ff7-world"), Enabled: CanSave && envelope.Ff8Payload is { Length: > 0 }),
+                new("materia", "Materia", "Equip and link materia in the current party.", "ff7-materia"),
                 new("close", "Return", "Return to the game.", Action: new("ff7-close"))
             ]
         });
         playerMenu.Register(new() { Id = "ff7-items", Title = "Items", Help = "Items carried in this world.", Entries = menu => menu.Data.Items.Select(item => new MenuEntry(item.Id, $"{item.Name}   {item.Quantity}", item.Description)).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         playerMenu.Register(new() { Id = "ff7-status", Title = "Status", Help = "Current party.", Entries = menu => menu.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, $"{character.Name}   Lv {character.Level}   HP {character.CurrentHp}", $"MP {character.Stats["MP"]}   EXP {character.Experience}")).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
+        RegisterMateriaMenus(playerMenu);
         playerMenu.Register(new()
         {
             Id = "config",
@@ -105,6 +107,10 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
+        if (ApplyMateriaMenuAction(action))
+        {
+            return;
+        }
         if (action.Kind == "config")
         {
             if (!PlayerPreferenceKeys.Contains(action.SubjectId))

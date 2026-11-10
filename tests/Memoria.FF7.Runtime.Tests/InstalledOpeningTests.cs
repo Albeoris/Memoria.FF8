@@ -98,8 +98,10 @@ internal static class InstalledOpeningTests
 
         JsonObject legacy = JsonNode.Parse(saved)!.AsObject();
         legacy[nameof(Ff7SessionSave.Progress)]!.AsObject().Remove(nameof(Ff7Progress.RandomEncountersEnabled));
+        legacy[nameof(Ff7SessionSave.Progress)]!.AsObject().Remove(nameof(Ff7Progress.FullCombatEnabled));
         using Ff7Session legacyCold = Ff7Session.Restore(installation, legacy.Deserialize<Ff7SessionSave>()!);
         Equal(true, legacyCold.Progress.RandomEncountersEnabled);
+        Equal(false, legacyCold.Progress.FullCombatEnabled);
 
         original.AdvanceTick();
         cold.AdvanceTick();
@@ -116,6 +118,102 @@ internal static class InstalledOpeningTests
         Equal(false, (cold.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == requestId));
         Equal(0, cold.Progress.CompletedBattles.Length);
         Console.WriteLine("Original formation 300 held its field request over a cold restore and consumed the test completion once.");
+    }
+
+    public static void RunPlayableBattle()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed playable opening battle: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        original.SetRandomEncountersEnabled(false);
+        original.SetFullCombatEnabled(true);
+        for (int tick = 0; tick < 4500 && original.Battle is null; tick++)
+        {
+            Step(original, tick);
+        }
+        Ff7BattleSession battle = original.Battle ?? throw new Exception("Original opening script failed to start combat.");
+        Equal(300, battle.Formation.FormationId);
+        Equal(true, original.Host.HasUnfinishedBattle);
+        Equal(false, original.CanSave);
+        long fieldTick = original.Machine.Capture().Tick;
+        int startHp = original.Progress.Characters[0].HitPoints;
+        for (int tick = 0; tick < 1000 && battle.LastHit is null; tick++)
+        {
+            original.AdvanceTick();
+        }
+        Ff7BattleHit firstHit = battle.LastHit ?? throw new Exception("Opening enemy did not land its first action.");
+        Equal(4, firstHit.Source);
+        Equal(0, firstHit.Target);
+        Equal((ushort)273, firstHit.AttackId);
+        Equal(false, firstHit.Damage.Missed);
+        Equal(7, firstHit.Damage.Damage);
+        Equal((uint)(startHp - firstHit.Damage.Damage), battle.Actors[0].Actor.HitPoints);
+        Equal(fieldTick, original.Machine.Capture().Tick);
+        string saved = JsonSerializer.Serialize(original.Capture());
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(saved)!);
+        bool approached = false;
+        for (int tick = 0; tick < 6000 && battle.Outcome == Ff7BattleOutcome.Fighting; tick++)
+        {
+            SubmitAttack(battle);
+            SubmitAttack(cold.Battle!);
+            original.AdvanceTick();
+            cold.AdvanceTick();
+            approached |= battle.Action is { Command.ActorSlot: 0, Motion: { Remaining: > 0 } };
+            if (battle.LastHit?.Tick == battle.Tick || tick % 100 == 0)
+            {
+                Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            }
+        }
+        Equal(Ff7BattleOutcome.Victory, battle.Outcome);
+        Equal(true, approached);
+        Equal(0, original.Progress.CompletedBattles.Length);
+        Equal(true, original.ConfirmBattleVictory());
+        Equal(true, cold.ConfirmBattleVictory());
+        Equal(false, original.ConfirmBattleVictory());
+        original.AdvanceTick();
+        cold.AdvanceTick();
+        Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        Equal(false, original.Host.HasUnfinishedBattle);
+        Equal(1, original.Progress.CompletedBattles.Length);
+        Equal((ushort)300, original.Progress.CompletedBattles[0].Formation);
+        Console.WriteLine($"Original BATTLE 300 took native attack {firstHit.AttackId} for {firstHit.Damage.Damage} HP, restored cold and published one victory.");
+        CheckEncounterEscape(original);
+
+        static void SubmitAttack(Ff7BattleSession battle)
+        {
+            if (battle.ReadyPlayer is int slot)
+            {
+                Ff7BattleCommandOption attack = battle.Commands(slot).Single(command => command.Command == Ff7BattleCommand.Attack);
+                int target = battle.Actors.First(actor => actor.Actor.Slot >= 4 && (attack.ValidTargets & 1 << actor.Actor.Slot) != 0).Actor.Slot;
+                Equal(true, battle.Submit(slot, attack.Command, attack.Argument, (ushort)(1 << target)));
+            }
+        }
+    }
+
+    private static void CheckEncounterEscape(Ff7Session session)
+    {
+        long request = session.Progress.NextEncounterRequestId;
+        int entity = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
+        session.Host.StartEncounter(new(request, entity, 7, 0, new FieldBattleCommand(301)), 0);
+        Ff7BattleSession encounter = session.Battle ?? throw new InvalidOperationException("The field encounter did not start a native battle.");
+        for (int tick = 0; tick < 6000 && encounter.Outcome == Ff7BattleOutcome.Fighting; tick++)
+        {
+            session.AdvanceTick(advanceClock: false, escapeBattleHeld: true);
+        }
+        Equal(Ff7BattleOutcome.Escaped, encounter.Outcome);
+        Equal(true, session.ConfirmBattleEscape());
+        Equal(false, session.ConfirmBattleEscape());
+        Equal(8, session.Host.Process.BattleResult);
+        Equal((ushort)1, session.Progress.BattleEscapes);
+        Equal(1, session.Progress.CompletedBattles.Length);
+        session.AdvanceTick();
+        Equal<FieldHostRequest?>(null, session.Host.Process.EncounterRequest);
+        Console.WriteLine("The original formation 301 field owner consumed one flee result without awarding victory rewards.");
     }
 
     private static void RunFirstEnemyAction(Ff7Installation installation, Ff7Progress progress, FieldBattleCommand request)

@@ -7,14 +7,24 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    internal byte StartingEncounterInitiative { get; private set; }
+
     public void StartEncounter(FieldHostRequest request, byte initiative)
     {
         if (Process.GlobalCommand != Ff7GlobalCommand.None || Process.EncounterRequest is not null || request.Command is not FieldBattleCommand)
         {
             throw new InvalidOperationException("A FFVII random encounter requires its idle global battle owner.");
         }
-        Execute(request);
-        Process = Process with { EncounterRequest = request, EncounterInitiative = initiative };
+        StartingEncounterInitiative = initiative;
+        try
+        {
+            Execute(request);
+            Process = Process with { EncounterRequest = request, EncounterInitiative = initiative };
+        }
+        finally
+        {
+            StartingEncounterInitiative = 0;
+        }
     }
 
     public void ResumeEncounter()
@@ -24,7 +34,7 @@ public sealed partial class Ff7FieldHost
         {
             throw new InvalidOperationException("The FFVII random encounter result is not complete.");
         }
-        Process = Process with { EncounterRequest = null };
+        Process = Process with { EncounterRequest = null, EncounterInitiative = 0 };
     }
 }
 

@@ -2,7 +2,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null);
+public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null, uint? MaximumHitPoints = null, ushort? CurrentMagicPoints = null, ushort? MaximumMagicPoints = null);
 
 [Flags]
 public enum Ff7BattleDamageAffinity : byte
@@ -14,25 +14,24 @@ public enum Ff7BattleDamageAffinity : byte
     Absorb = 64
 }
 
-public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false)
+public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false, bool TargetsMagicPoints = false)
 {
+    public bool SuppressCritical { get; init; }
+
     public static Ff7BattleDamageAction FromAttack(Ff7BattleAttack attack)
     {
         ArgumentNullException.ThrowIfNull(attack);
-        if ((attack.SpecialFlags & 1) == 0)
-        {
-            throw new NotSupportedException("FFVII battle MP damage is unsupported.");
-        }
         int statusOperation = attack.StatusChange >> 6;
         bool hasStatus = statusOperation < 3 && attack.StatusMask != 0;
-        return new(attack.DamageCalculation, attack.Power, attack.Accuracy, LongRange: (attack.TargetFlags & 0x20) == 0, ForceCritical: (attack.SpecialFlags & 0x2000) == 0, Healing: attack.Elements != ushort.MaxValue && (attack.Elements & 0x200) != 0, CanBeBlinded: (attack.SpecialFlags & 4) == 0, UsePhysicalStats: (attack.SpecialFlags & 4) == 0, IgnoreDefense: (attack.SpecialFlags & 0x400) == 0, HasStatusOperation: hasStatus, AddsStatuses: hasStatus && statusOperation == 0);
+        bool physicalFamily = (attack.DamageCalculation >> 4) is 1 or 3 or 6 or 10 or 11;
+        return new(attack.DamageCalculation, attack.Power, attack.Accuracy, LongRange: (attack.TargetFlags & 0x20) == 0, ForceCritical: (attack.SpecialFlags & 0x2000) == 0, Healing: attack.Elements != ushort.MaxValue && (attack.Elements & 0x200) != 0, CanBeBlinded: (attack.SpecialFlags & 4) == 0, UsePhysicalStats: physicalFamily || (attack.SpecialFlags & 4) == 0, IgnoreDefense: (attack.SpecialFlags & 0x400) == 0, HasStatusOperation: hasStatus, AddsStatuses: hasStatus && statusOperation == 0, TargetsMagicPoints: (attack.SpecialFlags & 1) == 0);
     }
 }
 
-/// <summary>A negative damage value restores HP. The encounter owns application of this result.</summary>
+/// <summary>A negative damage value restores the targeted HP or MP pool.</summary>
 public readonly record struct Ff7BattleDamageResult(bool Missed, bool Critical, int Damage);
 
-/// <summary>Resolves the supported native per-target HP calculations against the battle random stream.</summary>
+/// <summary>Resolves the supported native per-target damage calculations against the battle random stream.</summary>
 public static class Ff7NativeBattleDamage
 {
     private const uint Sadness = 0x10;
@@ -83,7 +82,7 @@ public static class Ff7NativeBattleDamage
     {
         ArgumentNullException.ThrowIfNull(random);
         const Ff7BattleDamageAffinity supportedAffinities = Ff7BattleDamageAffinity.Double | Ff7BattleDamageAffinity.Half | Ff7BattleDamageAffinity.Nullify | Ff7BattleDamageAffinity.Absorb;
-        if (action.Formula is not (0x00 or 0x11 or 0x22 or 0x23 or 0x25 or 0x26 or 0x50) || (action.Affinity & ~supportedAffinities) != 0)
+        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
         {
             throw new NotSupportedException($"FFVII battle HP damage formula 0x{action.Formula:X2} or affinity 0x{(byte)action.Affinity:X2} is unsupported.");
         }
@@ -95,9 +94,15 @@ public static class Ff7NativeBattleDamage
         {
             return new(true, false, 0);
         }
-        if (action.Formula == 0x23 && target.CurrentHitPoints is not <= int.MaxValue)
+        uint? fractionBasis = action.Formula switch
         {
-            throw new InvalidDataException("FFVII fractional damage requires the target's current HP.");
+            0x23 => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
+            0x04 or 0x24 => action.TargetsMagicPoints ? target.MaximumMagicPoints : target.MaximumHitPoints,
+            _ => 0
+        };
+        if (fractionBasis is not <= int.MaxValue)
+        {
+            throw new InvalidDataException("FFVII fractional damage requires the target's native vitals.");
         }
 
         int accuracy = action.Accuracy;
@@ -106,8 +111,8 @@ public static class Ff7NativeBattleDamage
             accuracy /= 2;
         }
 
-        bool physical = action.Formula == 0x11;
-        bool hit = physical ? PhysicalHit(attacker, target, action, accuracy, random) : MagicHit(attacker, target, action, accuracy, random);
+        bool physical = action.Formula is 0x11 or 0xB1;
+        bool hit = physical ? PhysicalHit(attacker, target, action, accuracy, random) : (action.Formula >> 4) != 2 || MagicHit(attacker, target, action, accuracy, random);
         if (action.Power == 0)
         {
             return new(!hit, false, 0);
@@ -117,16 +122,16 @@ public static class Ff7NativeBattleDamage
         int damage;
         if (physical)
         {
-            critical = hit && CriticalHit(attacker, target, random);
+            critical = action.Formula == 0x11 && hit && !action.SuppressCritical && CriticalHit(attacker, target, random);
             critical |= action.ForceCritical;
             damage = PhysicalDamage(attacker, target, action, critical);
         }
         else
         {
-            damage = MagicDamage(attacker, target, action);
+            damage = action.Formula is 0x04 or 0x23 or 0x24 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : MagicDamage(attacker, target, action);
         }
 
-        if (action.Formula is not (0x23 or 0x26))
+        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }
@@ -144,7 +149,7 @@ public static class Ff7NativeBattleDamage
             return new(!hit, false, 0);
         }
 
-        damage = Math.Min(damage, 9999);
+        damage = Math.Min(damage, action.TargetsMagicPoints ? 999 : 9999);
         bool heals = action.Healing ^ absorb;
         return new(false, critical, heals ? -damage : damage);
     }
@@ -231,10 +236,6 @@ public static class Ff7NativeBattleDamage
 
     private static int MagicDamage(Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action)
     {
-        if (action.Formula == 0x23)
-        {
-            return unchecked((int)target.CurrentHitPoints!.Value * action.Power) / 32;
-        }
         if (action.Formula == 0x26)
         {
             return action.Power * 20;
@@ -248,6 +249,10 @@ public static class Ff7NativeBattleDamage
         }
         int defense = action.UsePhysicalStats ? ApplyModifier(target.Defense, target.DefenseModifier) : ApplyModifier(target.MagicDefense, target.MagicDefenseModifier);
         defense = action.IgnoreDefense ? 0 : Math.Min(512, defense);
+        if (action.Formula is 0x37 or 0x47)
+        {
+            return (512 - defense) * action.Power / 32;
+        }
         int damage = basis * (512 - defense) * action.Power / 8192;
         return ApplyDamageModifiers(damage, target.Statuses, barrier, action.Split);
     }

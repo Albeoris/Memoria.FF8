@@ -50,7 +50,7 @@ public sealed record BattleModelData(uint Type, IReadOnlyList<BattleBone> Bones,
         return new(type, Array.AsReadOnly(bones), body, weapon);
     }
 
-    private static IReadOnlyList<BattlePackedClip> ReadClips(ReadOnlyMemory<byte> pack, ref BinaryCursor cursor, int count)
+    internal static IReadOnlyList<BattlePackedClip> ReadClips(ReadOnlyMemory<byte> pack, ref BinaryCursor cursor, int count)
     {
         BattlePackedClip[] clips = new BattlePackedClip[count];
         for (int index = 0; index < clips.Length; index++)
@@ -80,7 +80,7 @@ public sealed record BattleActionBank(ushort CollisionRadius, ReadOnlyMemory<byt
         cursor.Seek(4);
         ushort radius = cursor.U16();
         cursor.Seek(TableStart);
-        ReadOnlyMemory<byte> joints = source.Slice(20, 16);
+        ReadOnlyMemory<byte> joints = source.Slice(18, 16);
         uint dataStart = cursor.U32();
         if (dataStart == 0)
         {

@@ -79,6 +79,8 @@ public sealed record Ff7SessionSave
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
     public AutoPlayEventCoverageState? EventCoverage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleSnapshot? Battle { get; init; }
 
     public void Validate()
     {
@@ -88,6 +90,10 @@ public sealed record Ff7SessionSave
         }
         Progress.Validate();
         Process.Validate();
+        if (Battle is not null && (World is not null || Process.GlobalCommand != Ff7GlobalCommand.Battle || Process.GlobalRequestId != Battle.RequestId || !Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == Battle.FormationId && !receipt.Reply.Completed)))
+        {
+            throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished field request.");
+        }
         AudioPresentation?.Validate();
         if (EventCoverage is not null)
         {

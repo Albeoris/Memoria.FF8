@@ -174,6 +174,9 @@ public sealed record Ff7FieldProcess
     public bool MenuDisabled { get; init; }
     public int BattleMode { get; init; }
     public int BattleMode2 { get; init; }
+    public ushort? BattleRequestFlags { get; init; }
+    public byte BattleRequestMode { get; init; }
+    public bool BattleMusicSuppressed { get; init; }
     public int BattleTable { get; init; }
     public int BattleResult { get; init; }
     public int CameraX { get; init; }

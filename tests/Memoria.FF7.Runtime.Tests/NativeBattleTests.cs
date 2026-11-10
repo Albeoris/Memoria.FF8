@@ -12,6 +12,7 @@ internal static class NativeBattleTests
     public static void Run()
     {
         NativeBattleAiTests.RunContracts();
+        NativeBattleCommandQueueTests.Run();
         byte[] kernel = new byte[3988];
         for (int index = 0; index < 256; index++)
         {

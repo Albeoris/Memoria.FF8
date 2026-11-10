@@ -16,6 +16,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldLineCommand(FieldLineOperation.Slip, Value: B(id, 1)), 2);
             case 0x0F when B(id, 1) == 0xF5:
                 return Host(id, new FieldControlCommand(FieldControlKind.CursorDisabled, B(id, 2)), 3);
+            case 0x0F when B(id, 1) == 0xFB:
+                return Host(id, new FieldControlCommand(FieldControlKind.BattleMusicSuppressed, B(id, 2)), 3);
             case 0x22:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode2, W(id, 1), W(id, 3)), 5);
             case 0x23:

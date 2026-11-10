@@ -1,0 +1,204 @@
+using Memoria.FF7.Formats;
+
+namespace Memoria.FF7.Runtime;
+
+public readonly record struct Ff7BattleActionVitals(uint Hp, uint MaxHp, ushort Mp, ushort MaxMp, uint Statuses, uint StatusImmunities = 0);
+
+public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Source, Ff7BattleActionVitals Target, Ff7BattleDamageResult Damage, uint AddedStatuses, uint RemovedStatuses);
+
+/// <summary>Resolves the native target transaction. The action owner publishes the receipt and spends costs once.</summary>
+public static class Ff7NativeBattleActionResolver
+{
+    public const uint Death = 1;
+    public const uint Sleep = 4;
+    public const uint Poison = 8;
+    public const uint Slow = 0x200;
+    public const uint Darkness = 0x04000000;
+
+    private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Slow | Darkness;
+    private const uint Petrify = 0x4000;
+    private const uint Peerless = 0x01000000;
+    private const uint DeathForce = 0x10000000;
+    private const uint Resist = 0x20000000;
+
+    public static Ff7BattleAttack ReadItem(ushort itemId, IReadOnlyList<KernelSection> kernel)
+    {
+        return TryReadItem(itemId, kernel) ?? throw new NotSupportedException($"FFVII item {itemId} has no supported in-battle action.");
+    }
+
+    public static Ff7BattleAttack? TryReadItem(ushort itemId, IReadOnlyList<KernelSection> kernel)
+    {
+        ArgumentNullException.ThrowIfNull(kernel);
+        ReadOnlySpan<byte> items = kernel.Single(section => section.Type == 4).Data.Span;
+        if (items.Length != 128 * Ff7BattleAttack.RecordSize)
+        {
+            throw new InvalidDataException("FFVII battle item requires an original consumable record.");
+        }
+        if (itemId >= 128)
+        {
+            return null;
+        }
+        ReadOnlySpan<byte> item = items.Slice(itemId * Ff7BattleAttack.RecordSize, Ff7BattleAttack.RecordSize);
+        Ff7BattleAttack record = Ff7BattleAttack.Read(item);
+        if ((item[10] & 1) != 0 || record.DamageCalculation is not (0x24 or 0x26 or 0x37 or 0x47) || (ReadStatusMask(record) & ~SupportedRecordStatuses) != 0 || record.AdditionalEffect != byte.MaxValue)
+        {
+            return null;
+        }
+        return record with { Accuracy = byte.MaxValue, CastingCost = 0 };
+    }
+
+    public static bool CanTarget(Ff7BattleActionVitals target, Ff7BattleAttack? record)
+    {
+        bool dead = (target.Statuses & Death) != 0;
+        return !dead || record is { SpecialFlags: var flags } && (flags & 0x900) != 0x900;
+    }
+
+    public static bool TrySpendCastingCost(Ff7BattleActionVitals source, Ff7BattleAttack record, out Ff7BattleActionVitals remaining)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        remaining = source;
+        if (record.CastingCost > source.Mp || (record.CastingCost != 0 && (source.Statuses & 0x80) != 0))
+        {
+            return false;
+        }
+        remaining = source with { Mp = (ushort)(source.Mp - record.CastingCost) };
+        return true;
+    }
+
+    public static bool TrySpendItem(IReadOnlyList<Ff7InventorySlot> inventory, ushort itemId, out Ff7InventorySlot[] remaining)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        remaining = inventory.ToArray();
+        int index = Array.FindIndex(remaining, slot => slot.ItemId == itemId);
+        if (index < 0 || remaining[index].Quantity <= 0)
+        {
+            return false;
+        }
+        if (remaining[index].Quantity == 1)
+        {
+            remaining = [.. remaining.AsSpan(0, index), .. remaining.AsSpan(index + 1)];
+        }
+        else
+        {
+            remaining[index] = remaining[index] with { Quantity = remaining[index].Quantity - 1 };
+        }
+        return true;
+    }
+
+    public static Ff7BattleActionReceipt Resolve(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false)
+    {
+        ArgumentNullException.ThrowIfNull(random);
+        int mode = record is null ? 3 : record.StatusChange >> 6;
+        uint mask = ReadStatusMask(record);
+        if ((mask & ~SupportedRecordStatuses) != 0 || record is { AdditionalEffect: not byte.MaxValue })
+        {
+            throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
+        }
+        bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
+        if (!admittedStatus && action.Power == 0 && action.Formula is not (0x00 or 0x50))
+        {
+            return new(source, target, new(true, false, 0), 0, 0);
+        }
+
+        Ff7BattleDamageActor projectedTarget = targetStats with { Statuses = target.Statuses, CurrentHitPoints = target.Hp, MaximumHitPoints = target.MaxHp, CurrentMagicPoints = target.Mp, MaximumMagicPoints = target.MaxMp };
+        Ff7BattleDamageAction projectedAction = action with { HasStatusOperation = admittedStatus, AddsStatuses = mode == 0 && mask != 0 };
+        Ff7BattleDamageResult damage = Ff7NativeBattleDamage.Resolve(sourceStats with { Statuses = source.Statuses }, projectedTarget, projectedAction, random);
+        if (damage.Missed || !CanTarget(target, record))
+        {
+            return new(source, target, new(true, false, 0), 0, 0);
+        }
+
+        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, record, action.Formula, admittedStatus ? mask : 0, mode);
+        if ((target.Statuses & (Petrify | Peerless)) != 0)
+        {
+            damage = damage with { Damage = 0 };
+        }
+        Ff7BattleActionVitals nextTarget = ApplyDamage(target with { Statuses = statuses }, damage.Damage, action.TargetsMagicPoints);
+        Ff7BattleActionVitals nextSource = sameActor ? nextTarget : source;
+        if (record is { SpecialFlags: var drainFlags } && (drainFlags & 0x10) == 0 && damage.Damage != 0)
+        {
+            uint oldPool = action.TargetsMagicPoints ? target.Mp : target.Hp;
+            int drain = (int)Math.Min(Math.Abs((long)damage.Damage), oldPool);
+            if (damage.Damage < 0)
+            {
+                drain = -drain;
+            }
+            nextSource = ApplyDamage(nextSource, -drain, action.TargetsMagicPoints);
+            if (sameActor)
+            {
+                nextTarget = nextSource;
+            }
+        }
+        return new(nextSource, nextTarget, damage, nextTarget.Statuses & ~target.Statuses, target.Statuses & ~nextTarget.Statuses);
+    }
+
+    private static uint ReadStatusMask(Ff7BattleAttack? record) => record is not null && record.StatusChange < 0xC0 ? record.StatusMask : 0;
+
+    private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)
+    {
+        int threshold = (record.StatusChange & 0x3F) * 4;
+        if (threshold >= 252)
+        {
+            return true;
+        }
+        if (action.Split)
+        {
+            threshold = threshold * 2 / 3;
+        }
+        int roll = (random.NextByte() * 100 >> 8) + 1;
+        return roll < threshold;
+    }
+
+    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, Ff7BattleAttack? record, byte formula, uint mask, int mode)
+    {
+        uint immunity = target.StatusImmunities;
+        if ((target.Statuses & Resist) != 0)
+        {
+            immunity |= 0x5FFFFFFF;
+        }
+        if ((target.Statuses & DeathForce) != 0)
+        {
+            immunity |= Death;
+        }
+        if ((target.Statuses & Peerless) != 0)
+        {
+            immunity |= 0x7FFFFFFF;
+        }
+        if ((immunity & 0x300) != 0)
+        {
+            immunity |= 0x300;
+        }
+        if (!enemy && mode == 1 && (mask & Death) != 0)
+        {
+            immunity &= ~Death;
+        }
+        if (record is { SpecialFlags: var flags } && (flags & 0x80) == 0)
+        {
+            immunity = 0;
+        }
+
+        uint add = mode == 0 && (target.Statuses & Petrify) == 0 ? mask : 0;
+        uint remove = mode == 1 ? mask : 0;
+        if ((formula >> 4) is 1 or 6 or 10 or 11)
+        {
+            remove |= target.Statuses & PhysicalWakeStatuses;
+        }
+        if ((add & Slow) != 0)
+        {
+            remove |= 0x100;
+        }
+        uint toggle = mode == 2 ? mask : 0;
+        return ((target.Statuses | (add & ~immunity)) & ~(remove & ~immunity)) ^ (toggle & ~immunity);
+    }
+
+    private static Ff7BattleActionVitals ApplyDamage(Ff7BattleActionVitals target, int damage, bool magicPoints)
+    {
+        if (magicPoints)
+        {
+            return target with { Mp = (ushort)Math.Clamp((long)target.Mp - damage, 0, target.MaxMp) };
+        }
+        uint hp = (uint)Math.Clamp((long)target.Hp - damage, 0, target.MaxHp);
+        return target with { Hp = hp, Statuses = hp == 0 ? target.Statuses | Death : target.Statuses };
+    }
+}

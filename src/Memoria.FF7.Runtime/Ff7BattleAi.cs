@@ -5,8 +5,8 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0);
-public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1);
-public sealed record Ff7BattleAiCommand(int ActorSlot, byte CommandId, ushort AttackId, int SceneAttackSlot, ushort TargetMask, byte[]? Message = null, byte Callback = 1);
+public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null);
+public sealed record Ff7BattleAiCommand(int ActorSlot, byte CommandId, ushort AttackId, int SceneAttackSlot, ushort TargetMask, byte[]? Message = null, byte Callback = 1, byte Priority = 2);
 public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] Commands, Ff7BattleAiActor[] ActorUpdates);
 
 /// <summary>Runs a single native enemy AI callback. The encounter owns the input projections and RNG.</summary>
@@ -16,6 +16,16 @@ public static class Ff7BattleAi
     private const ushort ActorMask = 0x03FF;
     private const int StackCapacity = 512;
     private const int InstructionLimit = 16384;
+
+    public static Ff7BattleAiResult RunActorCallback(Ff7BattleAiContext context, ReadOnlySpan<byte> localMemory, SceneBattleData formation, Ff7BattleRng random, ReadOnlyMemory<byte> kernelAttacks = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(formation);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(context.Callback, (byte)16);
+        SceneBattleEnemy enemy = formation.Enemies.SingleOrDefault(enemy => enemy.FormationSlot + 4 == context.ActorSlot) ?? throw new InvalidDataException("FFVII enemy AI callback has no formation actor owner.");
+        ReadOnlySpan<byte> script = enemy.Scripts is null ? [] : enemy.Scripts[context.Callback].Span;
+        return Run(script, context, localMemory, formation, random, kernelAttacks);
+    }
 
     public static Ff7BattleAiResult Run(ReadOnlySpan<byte> script, Ff7BattleAiContext context, ReadOnlySpan<byte> localMemory, SceneBattleData formation, Ff7BattleRng random, ReadOnlyMemory<byte> kernelAttacks = default)
     {
@@ -78,6 +88,7 @@ public static class Ff7BattleAi
         private readonly ushort knockedOutOpponents;
         private readonly ushort allocated;
         private readonly ushort self;
+        private readonly byte priority;
         private readonly Stack<Value> stack = new();
         private readonly List<Ff7BattleAiCommand> commands = new();
         private ushort updatedActors;
@@ -114,7 +125,7 @@ public static class Ff7BattleAi
                 }
             }
 
-            if (context.ActorSlot is < 4 or > 9 || actors[context.ActorSlot] is not Ff7BattleAiActor current || context.Callback >= 16 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
+            if (context.ActorSlot is < 4 or > 9 || actors[context.ActorSlot] is not Ff7BattleAiActor current || context.Callback >= 16 || context.QueuePriority is > 6 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
             {
                 throw new InvalidDataException("FFVII enemy AI context has an invalid owner or mask.");
             }
@@ -127,6 +138,7 @@ public static class Ff7BattleAi
             knockedOutOpponents = (ushort)(opposing & context.KnockedOutMask);
             allocated = (ushort)(party | enemies);
             self = (ushort)(1 << context.ActorSlot);
+            priority = context.QueuePriority ?? (context.Callback switch { 1 => (byte)2, 6 => (byte)6, _ => (byte)0 });
             target = opponents;
         }
 
@@ -537,7 +549,7 @@ public static class Ff7BattleAi
             int slot = self == 0 ? 0 : BitOperations.Log2(self);
             if (command == 0x24)
             {
-                commands.Add(new(slot, (byte)command, id, -1, target, Callback: context.Callback));
+                commands.Add(new(slot, (byte)command, id, -1, target, Callback: context.Callback, Priority: priority));
                 return;
             }
             if (command != 0x20)
@@ -545,7 +557,7 @@ public static class Ff7BattleAi
                 throw new NotSupportedException($"FFVII battle AI queue command 0x{command:X2} is unsupported.");
             }
             SceneBattleAttack attack = formation.Attacks.FirstOrDefault(attack => attack.Id == id) ?? throw new InvalidDataException($"FFVII battle AI attack {id} is absent from its scene.");
-            commands.Add(new(slot, (byte)command, id, attack.Slot, target, Callback: context.Callback));
+            commands.Add(new(slot, (byte)command, id, attack.Slot, target, Callback: context.Callback, Priority: priority));
         }
 
         private void QueueMessage()
@@ -562,7 +574,7 @@ public static class Ff7BattleAi
             }
             while (value != 0xFF);
             // The encounter's message owner allocates the native text slot when consuming this request.
-            commands.Add(new(context.ActorSlot, 0x21, 0, -1, target, script[start..pc].ToArray(), context.Callback));
+            commands.Add(new(context.ActorSlot, 0x21, 0, -1, target, script[start..pc].ToArray(), context.Callback, priority));
         }
 
         private uint ReadOperand(int size)

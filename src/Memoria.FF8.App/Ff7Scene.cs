@@ -183,6 +183,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateTitle();
                 return;
             }
+            if (Session.Battle is { } battle)
+            {
+                UpdateBattle(gameTime, battle);
+                return;
+            }
             if (UpdateShop(gameTime, keys, pad) || UpdatePlayerMenu(gameTime, keys, pad))
             {
                 return;
@@ -231,7 +236,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
-                if (IsShopMenuPresentation)
+                if (IsShopMenuPresentation || Session.Battle is not null)
                 {
                     tickRemainder = 0;
                     break;
@@ -257,7 +262,18 @@ internal sealed partial class Ff7Scene : IDisposable
         if (Session is not null && error is null)
         {
             PixelBounds target = ViewportLayout.FieldRenderTarget(windowBounds.Width, windowBounds.Height, RenderLimit);
-            RunGuarded(() => RenderField(new Rectangle(0, 0, target.Width, target.Height)));
+            Rectangle renderBounds = new(0, 0, target.Width, target.Height);
+            RunGuarded(() =>
+            {
+                if (Session.Battle is { } battle)
+                {
+                    RenderBattle(battle, renderBounds);
+                }
+                else
+                {
+                    RenderField(renderBounds);
+                }
+            });
         }
         batch.Begin(samplerState: SamplerState.PointClamp, blendState: BlendState.AlphaBlend);
         try
@@ -268,18 +284,25 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             else
             {
-                if (Session.World is null)
+                if (Session.World is null && Session.Battle is null)
                 {
                     DrawMovie(batch, bounds);
                 }
-                if ((renderer is not null || Session.World is not null) && error is null)
+                if ((renderer is not null || Session.World is not null || Session.Battle is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     batch.Draw(triangles.Target, new Rectangle(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height), Color.White);
                 }
                 if (error is null)
                 {
-                    DrawDialogues(batch, bounds);
+                    if (Session.Battle is { } battle)
+                    {
+                        DrawBattle(batch, bounds, battle);
+                    }
+                    else
+                    {
+                        DrawDialogues(batch, bounds);
+                    }
                     int worldFade = Session.World?.Process.FadeDisplayedAlpha ?? 0;
                     if (worldFade > 0)
                     {
@@ -336,6 +359,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Session.PresentationCommand = PresentationCommand;
         renderedGeneration = -1;
         renderer = null;
+        ResetBattlePresentation();
         ResetWorldPresentation();
         ResetInterpolationPresentation();
         dialogueTokens.Clear();
@@ -434,6 +458,15 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void ActivateDebugSelection()
     {
+        if (debugSelection == BattlePolicyDebugCommand)
+        {
+            if (Session is { } session)
+            {
+                session.SetFullCombatEnabled(!session.Progress.FullCombatEnabled);
+                notice = session.Progress.FullCombatEnabled ? "Full combat is enabled for the next battle." : "Instant victory is enabled for the next battle.";
+            }
+            return;
+        }
         if (debugSelection == RandomEncountersDebugCommand)
         {
             if (Session is { } session)
@@ -617,6 +650,8 @@ internal sealed partial class Ff7Scene : IDisposable
         DisposeDialoguePresentation();
         errorReporter?.Dispose();
         reportClipboard.Dispose();
+        battleArchive?.Dispose();
+        battleMagicArchive?.Dispose();
         triangles.Dispose();
         titleArtwork.Dispose();
         pixel.Dispose();

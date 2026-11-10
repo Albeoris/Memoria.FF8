@@ -40,6 +40,27 @@ internal static class NativeBattleAiTests
         ExpectInvalid(() => Ff7BattleAi.Run(invalidLocal, context, [], formation, random));
         byte[] truncated = [0x62, 0xFF, 0];
         ExpectInvalid(() => Ff7BattleAi.Run(truncated, context, [], formation, random));
+        RunMaskAndCounterContracts();
+    }
+
+    private static void RunMaskAndCounterContracts()
+    {
+        Ff7BattleAiActor[] actors = [new(0, 1, 8, 0, 0, 0, 100), new(2, 0x80000000, 8, 0, 0, 10, 100), new(4, 0x4000, 8, 0, 0, 30, 30), new(5, 0, 0x10, 0, 0, 30, 30), new(8, 0, 0, 0, 0, 30, 30)];
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, 3);
+        Check(masks == new Ff7BattleAiMasks(0x135, 0x15, 0x20, 5, 0x10, 0x30), "Allocated, targetable, script-active, knockout and ready masks must remain distinct.");
+        Check(masks.GaugeEligible == 0x20, "The battle clock must require enemy script-active and ignore a targetable-only enemy.");
+        Check(Ff7BattleAiCallbacks.ProjectMasks(actors, 2) == masks with { KnockedOut = 1, TurnEligible = 0x34 }, "The native special-battle mode must control the high-status knockout projection.");
+
+        Ff7BattleAiActor target = actors[3];
+        Ff7BattleAiCounterPlan physical = Ff7BattleAiCallbacks.SelectCounter(target, 2, 0x20, 0x20, 0, 0, 1, 0);
+        Check(physical.ProcessedMask == 0x21 && physical.Target.LastAttackerMask == 4 && physical.Callbacks.SequenceEqual(new byte[] { 2, 4 }), "A physical counter must run General first and retain physical source slot ownership.");
+        Check(Ff7BattleAiCallbacks.SelectCounter(target, 0, 0x20, 0x20, 0, 0, 0, 4).Callbacks.SequenceEqual(new byte[] { 2, 5 }), "A magical counter must follow the native attack flag.");
+        Check(Ff7BattleAiCallbacks.SelectCounter(target, 0, 0x20, 0, 0, 0, 0, 4).Callbacks.SequenceEqual(new byte[] { 2 }), "A contact without the typed-hit receipt must run only the general counter.");
+        Check(Ff7BattleAiCallbacks.SelectCounter(target, 0, 0x20, 0x20, 0, 0, 0x20, 0).Callbacks.Length == 0 && Ff7BattleAiCallbacks.SelectCounter(target with { Statuses = 4 }, 0, 0x20, 0x20, 0, 0, 0, 0).Callbacks.Length == 0, "Already processed and sleep-disabled counter owners must remain suppressed.");
+        Check(Ff7BattleAiCallbacks.SelectCounter(target, 0, 0x20, 0x20, 0x20, 0x20, 0, 0).Callbacks.Length == 0, "The native suppressed target mask must apply even to death callbacks.");
+        Ff7BattleAiCounterPlan death = Ff7BattleAiCallbacks.SelectCounter(target, 5, 0x20, 0x20, 0x20, 0, 0x20, 4);
+        Check(death.Callbacks.SequenceEqual(new byte[] { 3 }) && (death.Target.Conditions & 0x2000) != 0 && death.Target.LastAttackerMask == 0, "Death must take precedence and latch once, with an empty source mask for self-inflicted death.");
+        Check(Ff7BattleAiCallbacks.SelectCounter(death.Target, 5, 0, 0, 0x20, 0, 0, 0).Callbacks.Length == 0, "A latched death callback must not be repeated.");
     }
 
     public static void RunInstalled(SceneFormation opening, IReadOnlyList<KernelSection> kernel, Ff7Progress initial)
@@ -78,9 +99,16 @@ internal static class NativeBattleAiTests
             }
         }
         Check(firstEnemy == 4, "Original formation RNG and ATB must make actor slot 4 the first ready enemy.");
+        Ff7BattleCommandQueueState staged = Ff7BattleCommandQueue.StageReady(Ff7BattleCommandQueueState.Create(), firstEnemy, 0xFF);
+        Ff7BattleCommandQueueState coldStaged = JsonSerializer.Deserialize<Ff7BattleCommandQueueState>(JsonSerializer.Serialize(staged))!;
+        Ff7BattleQueueSelection selectedReady = Ff7BattleCommandQueue.TakeNext(Ff7BattleCommandQueue.PromoteReady(coldStaged));
+        Check(selectedReady.Entry?.Command is { Priority: 6, ActorSlot: 4, CommandId: 0xFF }, "The first original MP must dispatch its native class-6 readiness event before executing AI.");
         TurnBoundary readyBoundary = new(gauges, random.Capture(), new(), []);
         TurnBoundary first = Execute(readyBoundary, firstEnemy);
         Check(first.Pending.SequenceEqual(new Ff7BattleAiCommand[] { new(4, 0x20, 272, 0, 1) }), "The first original enemy turn did not queue MP4 Machine Gun against Cloud.");
+        Ff7BattleCommandQueueState queued = Ff7BattleCommandQueue.Enqueue(selectedReady.State, Ff7BattleQueuedCommand.FromAi(first.Pending[0]));
+        Ff7BattleCommandQueueState coldQueued = JsonSerializer.Deserialize<Ff7BattleCommandQueueState>(JsonSerializer.Serialize(queued))!;
+        Check(Ff7BattleCommandQueue.TakeNext(coldQueued).Entry?.Command is { Priority: 2, ActorSlot: 4, CommandId: 0x20, Argument: 0, AttackId: 272, TargetMask: 1, Callback: 1 }, "The original MP main callback must publish its own class-2 attack independently of the consumed readiness record.");
         Check(first.Random.Stream == 3 && first.Random.WordCounter == 4 && first.Random.Indices.SequenceEqual(new byte[] { 44, 22, 12, 7, 2, 1, 0, 0 }), "MP4 script consumed a different original battle RNG stream.");
         Check(first.Locals[4][12] == 2 && BinaryPrimitives.ReadUInt16LittleEndian(first.Locals[4].AsSpan(16)) == 272 && readyBoundary.Locals.Count == 0, "MP4 writes must be captured in its own actor-local bank.");
         Check(JsonSerializer.Serialize(Execute(Restore(readyBoundary), firstEnemy)) == JsonSerializer.Serialize(first), "Cold ready-state restore changed the native enemy queue publication.");
@@ -93,8 +121,7 @@ internal static class NativeBattleAiTests
         TurnBoundary Execute(TurnBoundary state, int slot)
         {
             Ff7BattleRng working = new(kernelBattle.Span, state.Random);
-            SceneBattleEnemy enemy = formation.Enemies.Single(candidate => candidate.FormationSlot + 4 == slot);
-            Ff7BattleAiResult turn = Ff7BattleAi.Run(enemy.Scripts![1].Span, new(slot, actors, occupied, 0), state.Locals.GetValueOrDefault(slot), formation, working, kernelAttacks);
+            Ff7BattleAiResult turn = Ff7BattleAi.RunActorCallback(new(slot, actors, occupied, 0), state.Locals.GetValueOrDefault(slot), formation, working, kernelAttacks);
             Dictionary<int, byte[]> locals = new(state.Locals) { [slot] = turn.LocalMemory };
             return state with { Random = working.Capture(), Locals = locals, Pending = [.. state.Pending, .. turn.Commands] };
         }
@@ -106,6 +133,9 @@ internal static class NativeBattleAiTests
         ReadOnlyMemory<byte> kernelBattle = kernel.Single(section => section.Type == 2).Data;
         ReadOnlyMemory<byte> kernelAttacks = kernel.Single(section => section.Type == 1).Data;
         int turns = 0;
+        int initializeCallbacks = 0;
+        int counterCallbacks = 0;
+        int deathCallbacks = 0;
         foreach (int id in selected)
         {
             SceneBattleData formation = SceneBattleData.Read(formations.Single(item => item.FormationId == id));
@@ -128,11 +158,48 @@ internal static class NativeBattleAiTests
             foreach (SceneBattleEnemy enemy in formation.Enemies)
             {
                 Execute(enemy, 0);
+                if (enemy.Scripts is { } scripts && !scripts[0].IsEmpty)
+                {
+                    initializeCallbacks++;
+                }
             }
             foreach (SceneBattleEnemy enemy in formation.Enemies)
             {
                 Execute(enemy, 1);
                 turns++;
+            }
+
+            foreach (SceneBattleEnemy enemy in formation.Enemies)
+            {
+                int slot = enemy.FormationSlot + 4;
+                Ff7BattleAiActor actor = actors[slot];
+                Ff7BattleAiActor[] hit = actors.Values.Select(item => item.Slot == slot ? item with { LastAttackerMask = 1 } : item).ToArray();
+                if (enemy.Scripts is { } scripts && !scripts[2].IsEmpty)
+                {
+                    CheckRestoredCallback(2, hit, 0);
+                    counterCallbacks++;
+                }
+                if (enemy.Scripts is { } deathScripts && !deathScripts[3].IsEmpty)
+                {
+                    hit[Array.FindIndex(hit, item => item.Slot == slot)] = actor with { Statuses = actor.Statuses | 1U, HitPoints = 0, LastAttackerMask = 1 };
+                    CheckRestoredCallback(3, hit, (ushort)(1 << slot));
+                    deathCallbacks++;
+                }
+
+                void CheckRestoredCallback(byte callback, Ff7BattleAiActor[] projected, ushort knockout)
+                {
+                    BossBoundary boundary = new(projected, locals[slot], random.Capture(), []);
+                    BossBoundary restored = JsonSerializer.Deserialize<BossBoundary>(JsonSerializer.Serialize(boundary))!;
+                    Check(Run(boundary) == Run(restored), $"Formation {id}, actor {slot}, callback {callback} changed after JSON restore.");
+
+                    string Run(BossBoundary state)
+                    {
+                        Ff7BattleRng working = new(kernelBattle.Span, state.Random);
+                        Ff7BattleAiResult result = Ff7BattleAi.RunActorCallback(new(slot, state.Actors, eligible, knockout, Callback: callback), state.Locals, formation, working, kernelAttacks);
+                        Check(result.Commands.All(command => command.Priority == 0), $"Formation {id}, actor {slot}, callback {callback} lost its native counter class.");
+                        return JsonSerializer.Serialize(new { Result = result, Random = working.Capture() });
+                    }
+                }
             }
 
             void Execute(SceneBattleEnemy enemy, int callback)
@@ -141,7 +208,7 @@ internal static class NativeBattleAiTests
                 try
                 {
                     Ff7BattleAiContext context = new(slot, actors.Values.ToArray(), eligible, 0, Callback: (byte)callback);
-                    Ff7BattleAiResult result = Ff7BattleAi.Run(enemy.Scripts is null ? [] : enemy.Scripts[callback].Span, context, locals.GetValueOrDefault(slot), formation, random, kernelAttacks);
+                    Ff7BattleAiResult result = Ff7BattleAi.RunActorCallback(context, locals.GetValueOrDefault(slot), formation, random, kernelAttacks);
                     locals[slot] = result.LocalMemory;
                     foreach (Ff7BattleAiActor actor in result.ActorUpdates)
                     {
@@ -171,8 +238,30 @@ internal static class NativeBattleAiTests
             }
         }
         Check(turns == 180, $"The opening route matrix must cover 180 enemy occurrences. Found {turns}.");
+        Check(initializeCallbacks == 53 && counterCallbacks == 20 && deathCallbacks == 2, "The opening route matrix must exercise all reached enemy initialization, general counter and death banks.");
+        RunFormationLayout(formations, kernelBattle);
         RunGuardScorpion(formations.Single(formation => formation.FormationId == 324), kernelBattle, kernelAttacks);
         RunAirBuster(formations.Single(formation => formation.FormationId == 364), kernelBattle, kernelAttacks);
+    }
+
+    private static void RunFormationLayout(IReadOnlyList<SceneFormation> formations, ReadOnlyMemory<byte> kernelBattle)
+    {
+        byte[] types = Enumerable.Range(0, 9).Select(layout => Ff7NativeAtb.BattleTypeForLayout((byte)layout)).ToArray();
+        Check(types.SequenceEqual(new byte[] { 0, 1, 2, 3, 4, 3, 3, 3, 5 }), "The original raw layout lookup must retain its ATB types.");
+        SceneFormation opening = formations.Single(formation => formation.FormationId == 300);
+        SceneFormation preemptiveAllowed = formations.Single(formation => formation.FormationId == 301);
+        Check(Ff7NativeAtb.ResolveLayout(opening.Layout, opening.BattleFlags, true) == 1 && Ff7NativeAtb.ResolveLayout(opening.Layout, 0, true) == 0 && Ff7NativeAtb.ResolveLayout(preemptiveAllowed.Layout, preemptiveAllowed.BattleFlags, false) == 0, "Preemptive layout must require both the incoming initiative flag and the native formation flag.");
+
+        SceneFormation airBuster = formations.Single(formation => formation.FormationId == 364);
+        SceneBattleData battle = SceneBattleData.Read(airBuster);
+        Ff7BattleAiActor[] actors = [new(0, 0, 0x48, 0, 0, 300, 300), new(1, 0, 8, 0, 0, 300, 300), new(2, 0, 8, 0, 0, 300, 300), new(4, 0, 31, 0, 0, 1200, 1200)];
+        Ff7BattleAiActor[] layout = Ff7NativeAtb.ApplyFormationConditions(airBuster.Layout, actors, battle);
+        Check(layout.Select(actor => actor.Conditions).SequenceEqual(new uint[] { 0x8A, 8, 0x8A, 0x9D }), "Native Air Buster side, exposure and front-row placement changed.");
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(layout, 0);
+        Check(masks is { Allocated: 0x17, Targetable: 0x17, ScriptActive: 0x10, TurnEligible: 0x17, GaugeEligible: 0x17 }, "Air Buster setup must preserve party and enemy mask ownership.");
+        Ff7BattleRng random = new(kernelBattle.Span, Ff7BattleRng.BeginBattle());
+        ushort[] gauges = Ff7NativeAtb.InitializeForLayout(masks.TurnEligible, airBuster.Layout, false, random);
+        Check(gauges.Take(3).All(gauge => gauge == 0xFFFE) && gauges[4] is > 0 and <= 0x0FFF && random.Capture().WordCounter == 4, "Raw layout 7 must consume each native actor's RNG and initialize as side-attack type 3.");
     }
 
     private static void RunGuardScorpion(SceneFormation scene, ReadOnlyMemory<byte> kernelBattle, ReadOnlyMemory<byte> kernelAttacks)

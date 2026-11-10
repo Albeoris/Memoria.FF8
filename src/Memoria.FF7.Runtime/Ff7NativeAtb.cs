@@ -1,9 +1,100 @@
+using Memoria.FF7.Formats;
+
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Original FFVII battle gauge initialization and one eligible battle-time update.</summary>
 public static class Ff7NativeAtb
 {
     public const int SlotCount = 10;
+
+    public static byte ResolveLayout(byte formationLayout, ushort formationFlags, bool preemptiveRequested)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(formationLayout, (byte)8);
+        return formationLayout == 0 && (formationFlags & 0x10) != 0 && preemptiveRequested ? (byte)1 : formationLayout;
+    }
+
+    public static byte BattleTypeForLayout(byte layout)
+    {
+        return layout switch
+        {
+            <= 4 => layout,
+            <= 7 => 3,
+            8 => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(layout))
+        };
+    }
+
+    public static ushort[] InitializeForLayout(ushort activeSlots, byte layout, bool forcePartyReady, Ff7BattleRng random)
+    {
+        return Initialize(activeSlots, BattleTypeForLayout(layout), forcePartyReady, random);
+    }
+
+    public static Ff7BattleAiActor[] ApplyFormationConditions(byte layout, IReadOnlyList<Ff7BattleAiActor> actors, SceneBattleData formation)
+    {
+        ArgumentNullException.ThrowIfNull(formation);
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, 0);
+        byte battleType = BattleTypeForLayout(layout);
+        int party = masks.Allocated & 7;
+        int enemies = masks.Allocated & 0x3F0;
+        int facing = 0;
+        int exposed = 0;
+        switch (battleType)
+        {
+            case 0 or 1:
+                exposed = enemies;
+                break;
+            case 2:
+                exposed = party;
+                break;
+            case 4:
+                foreach (Ff7BattleAiActor actor in actors)
+                {
+                    if (actor.Slot >= 4 && (actor.Conditions & 2) != 0)
+                    {
+                        facing |= 1 << actor.Slot;
+                    }
+                }
+                exposed = facing | (party & 2);
+                if (formation.FormationId == 0x3D6)
+                {
+                    exposed &= ~party;
+                }
+                break;
+            default:
+                facing = party & (layout == 7 ? 5 : ~5);
+                exposed = facing;
+                foreach (SceneBattleEnemy enemy in formation.Enemies)
+                {
+                    if (enemy.Placement.Position.Z >= 0)
+                    {
+                        exposed |= 1 << (enemy.FormationSlot + 4);
+                    }
+                }
+                break;
+        }
+
+        Ff7BattleAiActor[] result = new Ff7BattleAiActor[actors.Count];
+        for (int index = 0; index < result.Length; index++)
+        {
+            Ff7BattleAiActor actor = actors[index];
+            int bit = 1 << actor.Slot;
+            uint conditions = actor.Conditions & ~0x82U;
+            if ((facing & bit) != 0)
+            {
+                conditions |= 2;
+            }
+            if ((exposed & bit) != 0)
+            {
+                conditions |= 0x80;
+            }
+            if (actor.Slot < 3 && battleType >= 2)
+            {
+                conditions = battleType == 2 ? conditions ^ 0x40 : conditions & ~0x40U;
+            }
+            result[index] = actor with { Conditions = conditions };
+        }
+        return result;
+    }
 
     public static ushort[] Initialize(ushort activeSlots, byte battleType, bool forcePartyReady, Ff7BattleRng random)
     {

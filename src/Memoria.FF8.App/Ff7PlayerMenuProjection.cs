@@ -11,7 +11,7 @@ internal static class Ff7PlayerMenuProjection
     internal static MenuData Create(Ff7Progress progress, IReadOnlyList<int> party, Ff7CharacterPresentationIdentity identities, IReadOnlyDictionary<int, string> itemNames, IReadOnlyDictionary<int, string> itemDescriptions, string location, TimeSpan elapsed, bool canSave, Func<Ff7CharacterDisplayIdentity, UiImageSource> portrait)
     {
         MenuData data = new() { Location = location, Currency = checked((int)progress.Gil), PlayTime = elapsed, SaveAvailable = canSave, ShowSeeDRank = false };
-        data.SupportedActions.UnionWith(["config", "ff7-save", "ff7-load", "ff7-world", "ff7-close"]);
+        data.SupportedActions.UnionWith(["config", "ff7-save", "ff7-load", "ff7-world", "ff7-close", "ff7-materia-character", "ff7-materia-slot", "ff7-materia-equip"]);
         int[] partyOrder = party.Where(character => character != 255).Distinct().ToArray();
         IEnumerable<Ff7CharacterState> ordered = partyOrder.Select(id => progress.Characters.Single(character => character.Id == id)).Concat(progress.Characters.Where(character => !partyOrder.Contains(character.Id) && (progress.AvailableCharacters & (1 << character.Id)) != 0));
         foreach (Ff7CharacterState character in ordered)
