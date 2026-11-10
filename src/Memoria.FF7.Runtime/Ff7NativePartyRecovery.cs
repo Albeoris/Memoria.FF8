@@ -96,16 +96,7 @@ public static class Ff7NativePartyRecovery
                 }
                 if (materia[13] is 0x20 or 0x40 && materia[14] is 8 or 9)
                 {
-                    int level = 1;
-                    for (int index = 3; index >= 0; index--)
-                    {
-                        ushort threshold = BinaryPrimitives.ReadUInt16LittleEndian(materia[(index * 2)..]);
-                        if (threshold != ushort.MaxValue && (encoded >> 8) >= threshold * 100u)
-                        {
-                            level = index + 2;
-                            break;
-                        }
-                    }
+                    int level = Ff7NativeMateriaInventory.ReadLevel(materia, encoded >> 8);
                     if (materia[13] == 0x40)
                     {
                         while (level > 0 && materia[14 + level] == 255)

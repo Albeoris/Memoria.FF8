@@ -131,6 +131,8 @@ var tests = new (string Name, Action Run)[]
     ("native camera focus and tracking contracts", NativeProcessTests.RunViewOffset),
     ("native character growth contracts", NativeGrowthTests.Run),
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
+    ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
+    ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native field encounter-step contracts", NativeEncounterTests.Run),
     ("native field audio commands and continuation", NativeAudioTests.Run),
     ("native field initializer audio binding", NativeAudioTransitionTests.Run),
@@ -159,6 +161,7 @@ var tests = new (string Name, Action Run)[]
     ("native jump and actor position query contracts", NativeJumpTests.Run),
     ("installed native movement contracts", NativeMovementTests.RunInstalled),
     ("installed New Game and cold continuation", InstalledSession),
+    ("installed opening deferred battle handoff", InstalledOpeningTests.RunDeferredBattle),
     ("installed opening and cold process continuation", InstalledOpeningTests.Run)
 };
 var selected = tests.Where(test => args.Length == 0 || test.Name.Contains(args[0], StringComparison.OrdinalIgnoreCase)).ToArray();

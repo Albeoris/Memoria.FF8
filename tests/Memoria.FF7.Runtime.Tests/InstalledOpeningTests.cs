@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -59,6 +61,131 @@ internal static class InstalledOpeningTests
         {
             cold?.Dispose();
         }
+    }
+
+    public static void RunDeferredBattle()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed deferred opening battle: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        original.SetRandomEncountersEnabled(false);
+        FieldHostRequest? started = null;
+        original.Host.BeginBattleRequest = request =>
+        {
+            Equal<FieldHostRequest?>(null, started);
+            started = request;
+            return new(false);
+        };
+        for (int tick = 0; tick < 4500 && started is null; tick++)
+        {
+            Step(original, tick);
+        }
+        Equal((ushort)300, (started?.Command as FieldBattleCommand)?.Formation ?? ushort.MaxValue);
+        long requestId = started!.Id;
+        Ff7SessionSave checkpoint = original.Capture();
+        Equal(true, original.Host.HasUnfinishedBattle);
+        Equal(false, original.CanSave);
+        Equal(0, original.Progress.CompletedBattles.Length);
+        Equal(true, checkpoint.Vm.PendingRequests!.Any(request => request.Id == requestId));
+        string saved = JsonSerializer.Serialize(checkpoint);
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(saved)!);
+        Equal(false, cold.Progress.RandomEncountersEnabled);
+
+        JsonObject legacy = JsonNode.Parse(saved)!.AsObject();
+        legacy[nameof(Ff7SessionSave.Progress)]!.AsObject().Remove(nameof(Ff7Progress.RandomEncountersEnabled));
+        using Ff7Session legacyCold = Ff7Session.Restore(installation, legacy.Deserialize<Ff7SessionSave>()!);
+        Equal(true, legacyCold.Progress.RandomEncountersEnabled);
+
+        original.AdvanceTick();
+        cold.AdvanceTick();
+        Equal(saved, JsonSerializer.Serialize(original.Capture()));
+        Equal(saved, JsonSerializer.Serialize(cold.Capture()));
+        RunFirstEnemyAction(installation, cold.Progress, (FieldBattleCommand)started.Command);
+        Equal(saved, JsonSerializer.Serialize(cold.Capture()));
+        original.Host.PublishBattleResult(requestId, 0);
+        cold.Host.PublishBattleResult(requestId, 0);
+        original.AdvanceTick();
+        cold.AdvanceTick();
+        Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        Equal(false, cold.Host.HasUnfinishedBattle);
+        Equal(false, (cold.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == requestId));
+        Equal(0, cold.Progress.CompletedBattles.Length);
+        Console.WriteLine("Original formation 300 held its field request over a cold restore and consumed the test completion once.");
+    }
+
+    private static void RunFirstEnemyAction(Ff7Installation installation, Ff7Progress progress, FieldBattleCommand request)
+    {
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation source = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == request.Formation);
+        SceneBattleData formation = SceneBattleData.Read(source);
+        Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
+        Ff7CharacterState cloud = progress.Characters.Single(character => character.Id == progress.Party[0]);
+        Ff7BattlePlayerStats stats = Ff7NativeBattlePlayerStats.Create(cloud, kernel, executable.NativeMateriaStatModifiers);
+        Ff7Progress party = Ff7NativePartyRecovery.Publish(progress, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers).Progress;
+        ReadOnlySpan<byte> record = party.Characters.Single(character => character.Id == cloud.Id).NativeRecord;
+        Ff7BattleAiActor player = new(0, stats.Actor.Statuses, stats.Actor.BackRow ? 0x48u : 8u, (ushort)cloud.MagicPoints, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(record[58..]), (uint)cloud.HitPoints, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(record[56..]), stats.Actor.Defense, stats.Actor.MagicDefense);
+        Ff7BattleAiActor[] actors = [player, .. Ff7NativeEnemyInitialization.Create(formation).Select(enemy => new Ff7BattleAiActor(enemy.ActorSlot, enemy.Statuses, enemy.Conditions, enemy.MagicPoints, enemy.MaxMagicPoints, enemy.HitPoints, enemy.MaxHitPoints, enemy.Defense, enemy.MagicDefense))];
+        const ushort mask = 0x31;
+        ReadOnlySpan<byte> battleKernel = kernel.Single(section => section.Type == 2).Data.Span;
+        Ff7BattleRng random = new(battleKernel, Ff7BattleRng.BeginBattle(progress.BattleRng?.CrtSeed ?? 1));
+        ushort[] gauges = Ff7NativeAtb.Initialize(mask, source.Layout, false, random);
+        int denominator = Ff7NativeAtb.SpeedDenominator([cloud.NativeRecord[6]]);
+        ushort[] increments = new ushort[Ff7NativeAtb.SlotCount];
+        increments[0] = Ff7NativeAtb.Increment(0, stats.Actor.Dexterity, stats.Actor.DexterityModifier, stats.Actor.Statuses, denominator, 128);
+        foreach (SceneBattleEnemy candidate in formation.Enemies)
+        {
+            increments[candidate.FormationSlot + 4] = Ff7NativeAtb.Increment(candidate.FormationSlot + 4, candidate.Speed, 0, 0, denominator, 128);
+        }
+        int firstEnemy = -1;
+        for (int tick = 0; tick < 1000 && firstEnemy < 0; tick++)
+        {
+            foreach (Ff7BattleAiActor actor in actors)
+            {
+                if (Ff7NativeAtb.Advance(ref gauges[actor.Slot], increments[actor.Slot], false, false) && actor.Slot >= 4)
+                {
+                    firstEnemy = actor.Slot;
+                    break;
+                }
+            }
+        }
+        Equal(4, firstEnemy);
+        SceneBattleEnemy enemy = formation.Enemies.Single(candidate => candidate.FormationSlot + 4 == firstEnemy);
+        Ff7BattleAiCommand action = Ff7BattleAi.Run(enemy.Scripts![1].Span, new(firstEnemy, actors, mask, 0), [], formation, random).Commands.Single();
+        Equal((ushort)272, action.AttackId);
+        Equal((ushort)1, action.TargetMask);
+        Ff7BattleAttack attack = formation.Attacks.Single(candidate => candidate.Slot == action.SceneAttackSlot).Data;
+        Ff7BattleDamageResult damage = Ff7NativeBattleDamage.Resolve(Ff7NativeBattleDamage.FromEnemy(enemy), stats.Actor, Ff7BattleDamageAction.FromAttack(attack), random);
+
+        Equal(new Ff7BattleDamageResult(false, false, 4), damage);
+        Ff7BattleRngState afterHit = random.Capture();
+        Equal(5, afterHit.Stream);
+        Equal(6u, afterHit.WordCounter);
+        Equal(true, afterHit.Indices.SequenceEqual(new byte[] { 44, 22, 12, 9, 4, 3, 0, 0 }));
+
+        int animation = enemy.Attacks.Single(candidate => candidate.AttackId == action.AttackId).ActionAnimation;
+        using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        byte[] ReadModel(string name) => models.ReadEntry(models.Find(name).Single());
+        BattleModelData model = BattleModelData.Read(ReadModel("aqaa"), ReadModel("aqda"));
+        BattleActionBank bank = BattleActionBank.Read(ReadModel("aqab"));
+        BattleActionInstruction trigger = BattleActionInstructions.ReadUntilIdle(bank.Scripts[animation], model.BodyClips.Count).Single(instruction => instruction.Opcode == 0xF7);
+        Ff7BattleTargetCallbacks reaction = Ff7BattleTargetCallbacks.Schedule(action.TargetMask, trigger.Operands.Span[0]);
+        for (int callback = 0; callback < reaction.Delay; callback++)
+        {
+            reaction = reaction.Advance(false, out int? premature);
+            Equal<int?>(null, premature);
+        }
+        Ff7BattleTargetCallbacks restored = JsonSerializer.Deserialize<Ff7BattleTargetCallbacks>(JsonSerializer.Serialize(reaction))!;
+        Ff7BattleTargetCallbacks completed = reaction.Advance(false, out int? target);
+        Equal<int?>(0, target);
+        Equal(completed, restored.Advance(false, out int? coldTarget));
+        Equal(target, coldTarget);
+        Equal((ushort)0, completed.RemainingTargets);
+        Console.WriteLine($"Native request 300 first enemy action: slot {firstEnemy}, attack {action.AttackId}, HP delta {-damage.Damage}, reaction delay {reaction.Delay}.");
     }
 
     private static void Step(Ff7Session session, int tick)

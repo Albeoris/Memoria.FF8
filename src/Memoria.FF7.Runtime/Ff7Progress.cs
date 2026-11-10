@@ -21,6 +21,7 @@ public sealed record Ff7Progress
     public ushort AvailableCharacters { get; init; }
     public ushort LockedCharacters { get; init; }
     public Ff7EncounterState Encounters { get; init; } = new();
+    public bool RandomEncountersEnabled { get; init; } = true;
     public long NextEncounterRequestId { get; init; } = 1L << 60;
     public byte FieldRandomIndex { get; init; }
     public Ff7BattleRngState? BattleRng { get; init; }

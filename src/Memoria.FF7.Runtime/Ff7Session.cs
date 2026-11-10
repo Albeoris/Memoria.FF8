@@ -147,6 +147,10 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new InvalidOperationException("A failed field update tail requires its preceding standalone checkpoint.");
         }
+        if (Host.HasUnfinishedBattle)
+        {
+            return;
+        }
         if (tickContinuation is null && Host.Process.Transition is not null)
         {
             CompleteFieldTransition();
@@ -257,7 +261,7 @@ public sealed partial class Ff7Session : IDisposable
             NativeFieldEntryFadeAlpha = executable.NativeFieldEntryFadeAlpha,
             CameraProjection = new Ff7NativeCamera(loadedField.Cameras[0], loadedField.Triggers),
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,
-            CompleteBattleRequest = CompleteDebugBattle,
+            BeginBattleRequest = request => new(true, CompleteDebugBattle(request)),
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),

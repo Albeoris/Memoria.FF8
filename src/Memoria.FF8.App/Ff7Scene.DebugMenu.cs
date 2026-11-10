@@ -8,6 +8,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
+    private const int RandomEncountersDebugCommand = 4;
+    private const int DebugCommandCount = 5;
     private UiView? debugView;
     private bool debugPointerPressed;
 
@@ -35,8 +37,8 @@ internal sealed partial class Ff7Scene
         UiStack content = new() { Gap = 12 };
         UiList commands = new()
         {
-            Items = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start")],
-            EnabledItems = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle],
+            Items = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), "Random encounters: " + (Session?.Progress.RandomEncountersEnabled == false ? "Off" : "On")],
+            EnabledItems = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle, !IsTitle],
             SelectedIndex = debugSelection,
             SelectionChanged = index => debugSelection = index,
             Confirmed = index =>

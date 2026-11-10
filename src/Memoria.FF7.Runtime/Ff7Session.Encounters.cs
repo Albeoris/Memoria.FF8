@@ -32,6 +32,11 @@ public sealed partial class Ff7Session
 {
     private IReadOnlyList<PcFieldEncounterTable> encounterTables = [];
 
+    public void SetRandomEncountersEnabled(bool enabled)
+    {
+        Progress = Progress with { RandomEncountersEnabled = enabled };
+    }
+
     private void ResumeEncounter()
     {
         if (Host.Process.EncounterRequest is null)
@@ -50,7 +55,7 @@ public sealed partial class Ff7Session
         }
         int tableIndex = Host.Process.BattleTable != 0 ? 1 : 0;
         PcFieldEncounterTable table = encounterTables[tableIndex];
-        bool disabled = Host.Process.BattlesDisabled || Host.Process.Movie is { Playing: true };
+        bool disabled = !Progress.RandomEncountersEnabled || Host.Process.BattlesDisabled || Host.Process.Movie is { Playing: true };
         if (table.Enabled && !disabled && Progress.Encounters.MovementCounter == 224)
         {
             ValidateEncounterMateria();

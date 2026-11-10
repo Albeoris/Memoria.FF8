@@ -47,7 +47,19 @@ public sealed partial class Ff7FieldHost : IFieldHost
     }
 
     public Ff7FieldProcess Process { get; private set; }
-    public Func<FieldHostRequest, int>? CompleteBattleRequest { get; set; }
+    public Func<FieldHostRequest, FieldHostReply>? BeginBattleRequest { get; set; }
+    public bool HasUnfinishedBattle => Process is { GlobalCommand: Ff7GlobalCommand.Battle, GlobalRequestId: long id } && receipts.TryGetValue(id, out Ff7HostReceipt? receipt) && !receipt.Reply.Completed;
+
+    public void PublishBattleResult(long requestId, int result)
+    {
+        if (Process.GlobalCommand != Ff7GlobalCommand.Battle || Process.GlobalRequestId != requestId || !receipts.TryGetValue(requestId, out Ff7HostReceipt? receipt) || receipt.Request.Command is not FieldBattleCommand || receipt.Reply.Completed)
+        {
+            throw new InvalidOperationException("A FFVII battle result requires its unfinished field request.");
+        }
+        receipts[requestId] = receipt with { Reply = new(true, result) };
+        Process = Process with { BattleResult = result };
+    }
+
     public Func<ushort, int>? CompleteBattle { get; set; }
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
@@ -217,9 +229,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 {
                     return new(false);
                 }
-                int result = CompleteBattleRequest?.Invoke(request) ?? CompleteBattle?.Invoke(battle.Formation) ?? throw new NotSupportedException("FFVII debug victory requires an attached FFVII result and reward policy.");
-                Process = Process with { BattleResult = result, GlobalCommand = Ff7GlobalCommand.Battle, GlobalRequestId = request.Id };
-                return new(true, result);
+                FieldHostReply battleReply = BeginBattleRequest?.Invoke(request)
+                    ?? new(true, CompleteBattle?.Invoke(battle.Formation) ?? throw new NotSupportedException("FFVII battle requires an attached encounter owner."));
+                Process = Process with { BattleResult = battleReply.Completed ? battleReply.Value : Process.BattleResult, GlobalCommand = Ff7GlobalCommand.Battle, GlobalRequestId = request.Id };
+                return battleReply;
             case FieldPaletteCommand palette:
                 Palette(palette);
                 return new(true);

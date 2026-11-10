@@ -23,9 +23,18 @@ public sealed record PcTexture(int Width, int Height, int BytesPerPixel, IReadOn
         int paletteEntries = cursor.I32();
         cursor.Seek(0x68);
         int bpp = cursor.I32();
-        if (width <= 0 || height <= 0 || (long)width * height > maximumPixels || bpp is not (1 or 2 or 3 or 4) || paletteCount < 0 || colors < 0 || paletteEntries < 0 || (paletteCount > 0 && colors == 0) || (long)paletteCount * colors > paletteEntries || 0xECL + 4L * paletteEntries + (long)width * height * bpp > source.Length)
+        if (width <= 0 || height <= 0 || (long)width * height > maximumPixels || bpp is not (1 or 2 or 3 or 4) || paletteCount < 0 || colors < 0 || paletteEntries < 0 || (paletteCount > 0 && colors == 0) || 0xECL + 4L * paletteEntries + (long)width * height * bpp > source.Length)
         {
             throw new InvalidDataException("FF7 TEX dimensions, palettes or pixel bounds are invalid.");
+        }
+        // The native entry count sizes the stored CLUT. Battle textures can advertise more palettes than they store.
+        if ((long)paletteCount * colors > paletteEntries)
+        {
+            if (paletteEntries < colors || paletteEntries % colors != 0)
+            {
+                throw new InvalidDataException("FF7 TEX palette entries do not form complete palettes.");
+            }
+            paletteCount = paletteEntries / colors;
         }
         cursor.Seek(0xEC);
         IReadOnlyList<uint>[] palettes = new IReadOnlyList<uint>[paletteCount];

@@ -420,7 +420,7 @@ internal sealed partial class Ff7Scene : IDisposable
         if (semanticInput.MenuVertical != 0)
         {
             int direction = semanticInput.MenuVertical < 0 ? -1 : 1;
-            debugSelection = (debugSelection + direction + 4) % 4;
+            debugSelection = (debugSelection + direction + DebugCommandCount) % DebugCommandCount;
         }
         if (semanticInput.Confirm)
         {
@@ -434,6 +434,15 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void ActivateDebugSelection()
     {
+        if (debugSelection == RandomEncountersDebugCommand)
+        {
+            if (Session is { } session)
+            {
+                session.SetRandomEncountersEnabled(!session.Progress.RandomEncountersEnabled);
+                notice = session.Progress.RandomEncountersEnabled ? "Native random encounters are enabled." : "Random encounters are disabled. Scripted battles remain enabled.";
+            }
+            return;
+        }
         if (debugSelection == 3)
         {
             if (IsTitle)

@@ -1,7 +1,22 @@
+using System.Buffers.Binary;
+
 namespace Memoria.FF7.Runtime;
 
 public static class Ff7NativeMateriaInventory
 {
+    internal static int ReadLevel(ReadOnlySpan<byte> materia, uint abilityPoints)
+    {
+        for (int index = 3; index >= 0; index--)
+        {
+            ushort threshold = BinaryPrimitives.ReadUInt16LittleEndian(materia[(index * 2)..]);
+            if (threshold != ushort.MaxValue && abilityPoints >= threshold * 100u)
+            {
+                return index + 2;
+            }
+        }
+        return 1;
+    }
+
     public static Ff7MateriaState[] Normalize(IReadOnlyList<Ff7MateriaState> inventory)
     {
         ArgumentNullException.ThrowIfNull(inventory);
