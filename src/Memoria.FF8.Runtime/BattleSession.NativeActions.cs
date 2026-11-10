@@ -152,6 +152,11 @@ public sealed partial class BattleSession
             ObserveDiagnosticCounterAppend(packet, contactIndex);
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
+        if (command.NativeAiCallbackStage is not null && context.MultiCastMode == 0)
+        {
+            //487DF0 and483EF0 clear BYTE17 for each single AI header, including synchronous reflection and Return Damage.
+            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
+        }
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
         if (queueGraphics && NativeGraphics is { } graphics)
