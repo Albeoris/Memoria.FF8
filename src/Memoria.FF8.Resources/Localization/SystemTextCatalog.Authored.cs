@@ -406,7 +406,6 @@ public static partial class SystemTextCatalog
         defaults["inspector.ui.partyselectionview.drawself.confirm"] = "Confirm";
         defaults["inspector.ui.partyselectionview.drawself.empty"] = "Empty";
         defaults["inspector.ui.partyselectionview.drawself.help"] = "HELP";
-        defaults["inspector.ui.partyselectionview.drawself.lock"] = "LOCK";
         defaults["inspector.ui.partyselectionview.drawself.returning.to.field"] = "Returning to field";
         defaults["inspector.ui.partyselectionview.drawself.select.a.character.to.exchange"] = "Select a character to exchange.";
         defaults["inspector.ui.partyselectionview.drawself.select.a.party.member"] = "Select a party member.";

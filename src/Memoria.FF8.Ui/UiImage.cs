@@ -19,7 +19,8 @@ public enum UiImageKind
     ControllerButton,
     TripleTriadOutcome,
     SilverCrest,
-    TripleTriadCapture
+    TripleTriadCapture,
+    CharacterPortraitGrayscale
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

@@ -2,7 +2,7 @@ using Memoria.FF8.Events;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Explicit semantic inputs for the native party panes; no automatic occupied-cell replacement.</summary>
+/// <summary>Focusable actions for the native party panes; the event engine validates exchanges.</summary>
 public static class NativePartyMenuProjection
 {
     public static IReadOnlyList<PlayerAction> Inputs(NativePartyMenuState menu)
@@ -17,7 +17,7 @@ public static class NativePartyMenuProjection
             byte source = menu.TemporaryCombatParty[menu.SelectedPartySlot.Value];
             if (source == 255 || (menu.LockedMask & 1 << source) == 0)
             {
-                inputs.AddRange(menu.TemporaryReserveParty.Where(row => row == 255 || (menu.LockedMask & 1 << row) == 0).Distinct().Select(row => new PlayerAction(PlayerActionKind.SelectPartyMember, row)));
+                inputs.AddRange(menu.TemporaryReserveParty.Distinct().Select(row => new PlayerAction(PlayerActionKind.SelectPartyMember, row)));
             }
         }
         else if (menu.TemporaryCombatParty.All(row => row != 255))

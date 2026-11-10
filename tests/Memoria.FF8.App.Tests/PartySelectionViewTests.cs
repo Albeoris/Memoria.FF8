@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class PartySelectionViewTests
 {
-    private static NativePartyMenuState Menu => new(0, string.Empty, string.Empty, 0, 0, 0, 0, 0, NativePartyMenuPhase.Active, 2, [0, 1, 5], 0xFF, 1, 1, false, NativeFieldMenuKind.PartySelection, 2, 0, null, null, null, [2, 255, 3, 4, 255, 6, 7, 255], 2);
+    private static NativePartyMenuState Menu => new(0, string.Empty, string.Empty, 0, 0, 0, 0, 0, NativePartyMenuPhase.Active, 2, [0, 1, 5], 0xFF, 0x05, 1, false, NativeFieldMenuKind.PartySelection, 2, 0, null, null, null, [2, 255, 3, 4, 255, 6, 7, 255], 2);
 
     [Theory]
     [InlineData(640, 448, 1f)]
@@ -66,12 +66,12 @@ public sealed class PartySelectionViewTests
     }
 
     [Fact]
-    public void NavigationUsesPhysicalReserveCellsIncludingHoles()
+    public void NavigationUsesPhysicalReserveCellsIncludingLockedMembersAndHoles()
     {
         NativePartyMenuState menu = Menu;
         var inputs = NativePartyMenuProjection.Inputs(menu);
         int firstReserve = PartySelectionView.Navigate(menu, 0, 1, 0);
-        Assert.Equal(2, inputs[firstReserve].Value);
+        Assert.Equal(new PlayerAction(PlayerActionKind.SelectPartyMember, 2), inputs[firstReserve]);
         int empty = PartySelectionView.Navigate(menu, firstReserve, 1, 0);
         Assert.Equal(255, inputs[empty].Value);
         int belowEmpty = PartySelectionView.Navigate(menu, empty, 0, 1);
@@ -122,6 +122,8 @@ public sealed class PartySelectionViewTests
         view.Draw(canvas, new UiTheme());
         Assert.Equal(2, canvas.Pointers.Count);
         Assert.Equal(new[] { 0, 1, 5, 2, 3, 4, 6, 7 }, canvas.Images.Select(image => image.Source.Id));
+        Assert.Equal(new[] { 0, 2 }, canvas.Images.Where(image => image.Source.Kind == UiImageKind.CharacterPortraitGrayscale).Select(image => image.Source.Id));
+        Assert.DoesNotContain("LOCK", canvas.Texts);
         Assert.True(canvas.Images[3].Bounds.X < canvas.Images[4].Bounds.X);
         Assert.True(canvas.Images[6].Bounds.Y > canvas.Images[3].Bounds.Y);
         Assert.DoesNotContain(canvas.Texts, text => text.StartsWith("Slot ", StringComparison.Ordinal) || text.StartsWith("Reserve:", StringComparison.Ordinal));

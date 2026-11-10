@@ -104,12 +104,9 @@ public static class PartySelectionView
                 theme.Panel(canvas, BodyRect(bounds));
                 byte row = menu.TemporaryCombatParty![slot];
                 MenuCharacter? character = Character(row);
-                Portrait(canvas, character, new UiRect(62, bounds.Y + 14, 88, 128));
+                bool locked = row != 255 && (menu.LockedMask & 1 << row) != 0;
+                Portrait(canvas, character, new UiRect(62, bounds.Y + 14, 88, 128), locked);
                 Status(canvas, theme, character, new UiRect(174, bounds.Y + 18, 328, 124));
-                if (row != 255 && (menu.LockedMask & 1 << row) != 0)
-                {
-                    Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.lock", "LOCK"), 15, BodyRect(new UiRect(62, bounds.Y + 116, 88, 24)), theme.Muted);
-                }
                 bool active = focused is { Kind: PlayerActionKind.SelectPartySlot } action && action.Value == slot;
                 if (menu.SelectedPartySlot == slot)
                 {
@@ -127,13 +124,9 @@ public static class PartySelectionView
                 byte row = menu.TemporaryReserveParty![index];
                 UiRect cell = new(552 + index % 4 * 96, 120 + index / 4 * 150, 88, 138);
                 MenuCharacter? character = Character(row);
-                Portrait(canvas, character, new UiRect(cell.X + 12, cell.Y + 4, 64, 96));
                 bool locked = row != 255 && (menu.LockedMask & 1 << row) != 0;
+                Portrait(canvas, character, new UiRect(cell.X + 12, cell.Y + 4, 64, 96), locked);
                 Text(canvas, character?.Name ?? "", 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), locked || lockedSource ? theme.Muted : theme.Foreground);
-                if (locked)
-                {
-                    Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.lock", "LOCK"), 13, BodyRect(new UiRect(cell.X + 20, cell.Y + 78, 62, 22)), theme.Muted);
-                }
                 if (focused is { Kind: PlayerActionKind.SelectPartyMember } action && action.Value == row && Array.IndexOf(menu.TemporaryReserveParty, row) == index)
                 {
                     theme.Pointer(canvas, cell.X - 8, BodyY(cell.Y + 42), 16 * bodyScale);
@@ -166,11 +159,11 @@ public static class PartySelectionView
             return row == 255 ? null : data.Characters.FirstOrDefault(character => character.Id == $"character-{row}");
         }
 
-        private void Portrait(IUiCanvas canvas, MenuCharacter? character, UiRect bounds)
+        private void Portrait(IUiCanvas canvas, MenuCharacter? character, UiRect bounds, bool locked)
         {
             if (character?.NativeId is int nativeId)
             {
-                canvas.Image(new UiImageSource(UiImageKind.CharacterPortrait, nativeId), BodyRect(bounds));
+                canvas.Image(new UiImageSource(locked ? UiImageKind.CharacterPortraitGrayscale : UiImageKind.CharacterPortrait, nativeId), BodyRect(bounds));
             }
         }
 

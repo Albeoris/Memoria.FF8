@@ -27,7 +27,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.TripleTriadCapture or UiImageKind.TripleTriadOutcome or UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
 
-    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
+    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.CharacterPortraitGrayscale or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
 
     public PixelImage? ReadControllerButton(int nativeIconId)
     {
@@ -79,6 +79,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.ControllerButton => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetControllerButtonIcon(source.Id),
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
+            UiImageKind.CharacterPortraitGrayscale => ToGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),
             UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).AngeloPortrait,
             UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory, resources)).GetFront(source.Id),

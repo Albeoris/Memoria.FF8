@@ -43,8 +43,11 @@ internal sealed partial class RecreateGame
                 if (input.Confirm && choices.Count > 0)
                 {
                     PlayerActionResult result = world!.Apply(choices[partyMenuCandidate]);
-                    fieldAudio?.PlayUiSound(result.Accepted ? MenuSound.Confirm : MenuSound.Cancel);
-                    partyMenuCandidate = events.PartyMenu?.SelectedPartySlot ?? 0;
+                    fieldAudio?.PlayUiSound(result.Accepted ? MenuSound.Confirm : MenuSound.Error);
+                    if (result.Accepted)
+                    {
+                        partyMenuCandidate = events.PartyMenu?.SelectedPartySlot ?? 0;
+                    }
                     fieldSeconds = 0;
                     return;
                 }
