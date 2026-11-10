@@ -178,6 +178,11 @@ public sealed partial class BattleRenderer
         }
         NativeBattleCameraProjection projection = earlier.FocalLengthOverride is ushort focal ? pilotProjection with { FocalLength = focal } : pilotProjection;
         Vector3 projected = earlier.ScreenSpace ? world : NativeBattlePilotVisualGeometry.Project(world, projection);
+        if (earlier.ProjectionScreenBounds is { } bounds)
+        {
+            projected.X = Math.Clamp(projected.X, bounds.X, bounds.Z);
+            projected.Y = Math.Clamp(projected.Y, bounds.Y, bounds.W);
+        }
         projected.X *= earlier.ScreenScale;
         projected.Y *= earlier.ScreenScale;
         if (!earlier.ScreenOffsets.IsDefaultOrEmpty)

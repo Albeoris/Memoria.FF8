@@ -54,7 +54,7 @@ public static class NativeBattleShadowPackets
             NativeBattleGeometryPrimitive? primitive = accepted ? new(bucket, words, payload) : null;
             if (primitive is not null && triangle >= 0 && pilotIdentity is { } identity && pilotWorldVertices is not null)
             {
-                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + triangle) }, pilotWorldVertices[0], pilotWorldVertices[previous], pilotWorldVertices[current], default, 3) { DepthQuantum = 4, DepthOffset = -300 } };
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + triangle) }, pilotWorldVertices[0], pilotWorldVertices[previous], pilotWorldVertices[current], default, 3) { ProjectionScreenBounds = new(-8192, -8192, 8184, 8184), DepthQuantum = 4, DepthOffset = -300 } };
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, data.Length).ToImmutableArray(), primitive));
             if (accepted)

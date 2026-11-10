@@ -31,6 +31,6 @@ internal static class NativeBattleCinematicVisualIdentity
             int index = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(indices + corner * 2)) / 8;
             vertices[corner] = world[index];
         }
-        return primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + faceIndex) }, vertices[0], vertices[1], vertices[2], corners == 4 ? vertices[3] : default, checked((byte)corners)) { DepthScale = depthScale } };
+        return primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + faceIndex) }, vertices[0], vertices[1], vertices[2], corners == 4 ? vertices[3] : default, checked((byte)corners)) { ProjectionScreenBounds = new(-8192, -8192, 8184, 8184), DepthScale = depthScale } };
     }
 }

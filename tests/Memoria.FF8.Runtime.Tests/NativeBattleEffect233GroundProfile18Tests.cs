@@ -215,6 +215,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
             NativeBattlePilotVisualGeometry geometry = attempt.Primitive!.PilotGeometry!;
             Assert.Equal((ushort)233, geometry.Identity.Effect);
             Assert.Equal(0.125f, geometry.ScreenScale);
+            Assert.Equal(new System.Numerics.Vector4(-8192, -8192, 8184, 8184), geometry.ProjectionScreenBounds);
             Assert.Empty(attempt.Primitive.VertexPayload4);
             Assert.True(geometry.UseSourceDepths);
             Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);

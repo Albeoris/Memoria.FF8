@@ -63,6 +63,8 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
     public bool UseSourceDepths { get; init; }
     public ImmutableArray<Vector2> ScreenOffsets { get; init; } = [];
     public float ScreenScale { get; init; } = 1;
+    /// <summary>Raw projected XY limits, applied before producer scaling and authored screen offsets.</summary>
+    public Vector4? ProjectionScreenBounds { get; init; }
     public ushort? FocalLengthOverride { get; init; }
     public bool ScreenSpace { get; init; }
 

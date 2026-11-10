@@ -110,7 +110,7 @@ public static class NativeBattleWaterParticleRectanglePackets
             if (pilotIdentity is { } identity && pilotMatrix is { } matrix)
             {
                 System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, points[corner]), projection);
-                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(0), World(1), World(2), World(3), 4) };
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(0), World(1), World(2), World(3), 4) { ProjectionScreenBounds = new(-8192, -8192, 8184, 8184) } };
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocated = checked(allocated + length);
