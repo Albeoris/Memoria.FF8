@@ -23,9 +23,14 @@ public sealed partial class MenuController
         });
     }
 
+    private string ModSettingLabel(BehaviorModSetting setting)
+    {
+        return SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}", setting.Label);
+    }
+
     private IReadOnlyList<MenuEntry> ModSettingsEntries()
     {
-        List<MenuEntry> entries = modSettingsDraft.Select((setting, index) => new MenuEntry("mod-setting-" + index, setting.Label, "", Action: new("mod-settings-value"))).ToList();
+        List<MenuEntry> entries = modSettingsDraft.Select((setting, index) => new MenuEntry("mod-setting-" + index, ModSettingLabel(setting), "", Action: new("mod-settings-value"))).ToList();
         entries.Add(new("save", SystemText("mods.settings.save", "Save"), "", Action: new("mod-settings-save")));
         entries.Add(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back")));
         return entries;
@@ -43,7 +48,7 @@ public sealed partial class MenuController
             UiNumericSlider slider = new()
             {
                 Id = "mod-setting-" + index,
-                Text = setting.Label,
+                Text = ModSettingLabel(setting),
                 Min = setting.Min,
                 Max = setting.Max,
                 Step = 1,

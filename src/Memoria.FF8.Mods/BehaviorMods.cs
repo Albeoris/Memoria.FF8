@@ -80,7 +80,7 @@ public sealed class BehaviorMods
         {
             throw new InvalidDataException("Configuration overrides undeclared behavior parameter meltdown.defenseReductionPercent.");
         }
-        return declared is int value ? [new("meltdown", "defenseReductionPercent", "Defense reduction (%)", 0, 100, value, configured ?? value)] : [];
+        return declared is int value ? [new("meltdown", "defenseReductionPercent", "Vit/Spr reduction", 0, 100, value, configured ?? value)] : [];
     }
 
     internal static bool IsDocumentError(Exception exception)
