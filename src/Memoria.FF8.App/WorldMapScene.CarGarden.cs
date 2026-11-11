@@ -211,7 +211,7 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < garden.Objects.Length; index++)
         {
             NativeGardenWorldObject item = garden.Objects[index];
-            if (index == garden.Allocation.FootObjectIndex || !includeCar && index == garden.Allocation.SavedCarIndex || !projection.IsNear(item.Position))
+            if (item.ShapeId is 2 or 3 || index == garden.Allocation.FootObjectIndex || !includeCar && index == garden.Allocation.SavedCarIndex || !projection.IsNear(item.Position))
             {
                 continue;
             }

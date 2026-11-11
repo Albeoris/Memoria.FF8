@@ -111,6 +111,12 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < garden.Objects.Length; index++)
         {
             NativeGardenWorldObject item = garden.Objects[index];
+            // The Garden allocation retains the chocobo slots from the loader.
+            // Native 5472C0 hides them before projection while the chocobo process is idle.
+            if (item.ShapeId is 2 or 3)
+            {
+                continue;
+            }
             if (item.ShapeId == 94)
             {
                 if (projection.IsNear(item.Position))

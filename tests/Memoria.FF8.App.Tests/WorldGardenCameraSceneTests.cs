@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -6,6 +7,23 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class WorldGardenCameraSceneTests
 {
+    [Fact]
+    public void DormantChocoboAllocationsDoNotInterruptGardenRendering()
+    {
+        GameSession session = Fixture(46);
+        session.SetEventMemory(session.State.EventMemory.Write(1536, 1, NativeScalarValue.Exact(1)));
+        using WorldMapScene scene = new(session, TestResources.GameDirectory);
+        NativeGardenWorldRuntimeState garden = scene.State.NativeGardenRuntime!;
+        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(garden.ProjectionCamera!);
+        Assert.Equal(new byte[] { 2, 3 }, garden.Objects.Where(item => item.EntityType == 49).Select(item => item.ShapeId));
+        Assert.True(projection.IsNear(default));
+        Assert.True(projection.ProjectNode(default) is { Visible: true });
+
+        Assert.NotEmpty(scene.Render(160, 112));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 6)).Accepted);
+        Assert.NotEmpty(scene.Render(160, 112, interpolation: 0.5f));
+    }
+
     [Fact]
     public void FreshOriginalGardenToggleManualYawAndSaveReceiptRestoreTheSameNextCallback()
     {
@@ -51,7 +69,7 @@ public sealed partial class WorldGardenCameraSceneTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
     }
 
-    internal static GameSession Fixture()
+    internal static GameSession Fixture(short gardenSpawn = 41)
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -69,7 +87,7 @@ public sealed partial class WorldGardenCameraSceneTests
             WorldState precedingTerrainOwner = precedingCar.State;
             NativeSavedWorldCarReturn retiredCar = NativeSavedWorldCarReturn.Create(precedingTerrainOwner, checked((ushort)session.State.FieldId), 455, 0);
             NativeSavedWorldState saved = session.State.SavedWorld!.WithCarReturn(retiredCar);
-            session.Restore(session.State with { SavedWorld = saved, World = null, WorldArrival = new(41, 48, -1), WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 750).WriteBytes(264, 1, 0).WriteBytes(265, 1, 0), DepartingWorldState = precedingTerrainOwner });
+            session.Restore(session.State with { SavedWorld = saved, World = null, WorldArrival = new(gardenSpawn, 48, -1), WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 750).WriteBytes(264, 1, 0).WriteBytes(265, 1, 0), DepartingWorldState = precedingTerrainOwner });
         }
         return session;
     }
