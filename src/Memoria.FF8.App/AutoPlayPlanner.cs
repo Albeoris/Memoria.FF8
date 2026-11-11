@@ -391,15 +391,16 @@ internal sealed partial class AutoPlayPlanner
         AutoPlayPlanStep RefreshPlan(string key) => routes[key]! with { RefreshVisitKey = key, Goal = new(key) };
         bool CanReach(PlanCandidate candidate) => canTravel is null || TravelToEvent(candidate) is not { } first || canTravel(first);
         bool CanRefresh(string key) => key != currentVisitKey && routes.ContainsKey(key) && (canTravel is null || canTravel(RefreshPlan(key)));
+        bool HasHigherPriorityProgression(int priority) => candidates.Any(item => progressionOrder(item.Visit.Visit, item.Coverage.Event) < priority && CanReach(item));
         if (preferredGoal is { EventId: not null } goal)
         {
             PlanCandidate? continuation = candidates.FirstOrDefault(item => item.Visit.Visit.Key == goal.NavigationKey && item.Coverage.Event.Id == goal.EventId && item.Coverage.Event.ConditionSignature == goal.Conditions && CanReach(item));
-            if (continuation is not null)
+            if (continuation is not null && !HasHigherPriorityProgression(Math.Min(0, progressionOrder(continuation.Visit.Visit, continuation.Coverage.Event))))
             {
                 return TravelToEvent(continuation) ?? new AutoPlayPlanStep(currentVisitKey, continuation.Coverage.Event, false);
             }
         }
-        else if (preferredGoal is { NavigationKey: string refreshGoal } && needsRefresh is not null && CanRefresh(refreshGoal) && (refreshVisitKey == refreshGoal || needsRefresh(visits[refreshGoal].Visit)))
+        else if (preferredGoal is { NavigationKey: string refreshGoal } && needsRefresh is not null && CanRefresh(refreshGoal) && (refreshVisitKey == refreshGoal || needsRefresh(visits[refreshGoal].Visit)) && !HasHigherPriorityProgression(0))
         {
             return RefreshPlan(refreshGoal);
         }

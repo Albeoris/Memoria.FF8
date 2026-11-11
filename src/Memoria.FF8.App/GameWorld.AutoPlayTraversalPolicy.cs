@@ -24,6 +24,10 @@ internal static class AutoPlayTraversalPolicy
             ("756:350" or "756:351", "756:gateway:4" or "756:gateway:5" or "756:gateway:6") => -4,
             ("760:350" or "760:351", "760:gateway:3" or "760:gateway:4" or "760:gateway:5") => -5,
             ("761:350" or "761:351", "761:talk:15") => -6,
+            // NG-027: Carry the maintenance assignment between the two soldiers.
+            ("781:458" or "781:460", "781:gateway:2") => -1,
+            ("772:458" or "772:460", "772:talk:15") => -1,
+            ("777:459", "777:talk:7") => -1,
             _ => 0
         };
     }

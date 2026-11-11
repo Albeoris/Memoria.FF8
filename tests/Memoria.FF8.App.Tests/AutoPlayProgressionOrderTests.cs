@@ -26,6 +26,21 @@ public sealed class AutoPlayProgressionOrderTests
         Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionEntryOrder(new(visit, "bg"), new(eventId, AutoPlayEventKind.Transition)));
     }
 
+    [Fact]
+    public void MissileBaseReusesTheObservedMaintenanceRouteBeforeTheLauncherEntrance()
+    {
+        AutoPlayPlanner planner = new(progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        planner.Observe(new("781:458", "gm"), [new("781:gateway:1", AutoPlayEventKind.Transition), new("781:gateway:2", AutoPlayEventKind.Transition, "772:458")]);
+        planner.Observe(new("772:458", "gm"), [new("772:talk:15", AutoPlayEventKind.Transition, ChangesStory: true)]);
+        planner.Completed("781:458", "781:gateway:2", "772:458", observedStoryChanged: false, selections: []);
+
+        AutoPlayPlanStep next = planner.Plan("781:458", preferredGoal: new("781:458", "781:gateway:1"))!;
+
+        Assert.True(next.IsTravel);
+        Assert.Equal("781:gateway:2", next.Event.Id);
+        Assert.Equal("772:talk:15", planner.Plan("772:458")!.Event.Id);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
