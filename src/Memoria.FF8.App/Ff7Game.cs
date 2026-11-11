@@ -63,7 +63,8 @@ internal sealed partial class Ff7Game : Game
     {
         base.Initialize();
 #if MEMORIA_NATIVE
-        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics);
+        nint nativeWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
+        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeWindow);
 #endif
         IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
         if (launchOptions?.IsDiagnosticGraphicalHost != true && launchOptions?.ResolutionSpecified != true && launchOptions?.ControlExclusive != true)
