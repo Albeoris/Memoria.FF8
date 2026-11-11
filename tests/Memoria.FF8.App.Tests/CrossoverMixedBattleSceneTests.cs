@@ -4,8 +4,10 @@ using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF7.Events;
 using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Media;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -18,7 +20,12 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Explicit_guest_option_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit)
+    public void Explicit_guest_option_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit) => RunOpeningBattle(useLimit, useWorldSwitch: false);
+
+    [Fact]
+    public void World_switch_offers_field_only_and_squall_combat_for_the_same_mapping() => RunOpeningBattle(useLimit: false, useWorldSwitch: true);
+
+    private void RunOpeningBattle(bool useLimit, bool useWorldSwitch)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -44,12 +51,44 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         scene.ConfigureCharacterIdentity(ff8Root!);
         scene.Continue(source);
         Assert.False(scene.MixedCombatEnabled);
-        Press(Keys.F2);
-        Press(Keys.Up);
-        Press(Keys.Enter);
+        using SpriteBatch batch = new(device.Device);
+        if (useWorldSwitch)
+        {
+            using Texture2D pixel = new(device.Device, 1, 1);
+            using SystemTextRenderer text = new(device.Device);
+            using MonoGameUiCanvas canvas = new(device.Device, batch, pixel, text, ff8Root!);
+            CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 0);
+            using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme());
+            List<bool?> selections = [];
+            menu.Confirmed += (selectedMappings, enabled) =>
+            {
+                Assert.Equal(mappings, selectedMappings);
+                Assert.NotNull(enabled);
+                selections.Add(enabled);
+                scene.Continue(source with { Mappings = selectedMappings });
+                Assert.False(scene.MixedCombatEnabled);
+                Assert.Null(scene.SetMixedCombat(enabled.Value));
+            };
+            menu.Apply(MenuInput.Down);
+            menu.Apply(MenuInput.Down);
+            menu.Apply(MenuInput.Down);
+            menu.Apply(MenuInput.Right);
+            menu.Apply(MenuInput.Confirm);
+            Assert.False(scene.MixedCombatEnabled);
+            menu.Apply(MenuInput.Left);
+            menu.Apply(MenuInput.Confirm);
+            Assert.Equal(new bool?[] { false, true }, selections);
+        }
+        else
+        {
+            Press(Keys.F2);
+            Press(Keys.Up);
+            Press(Keys.Enter);
+            Press(Keys.F2);
+        }
         Assert.True(scene.MixedCombatEnabled);
-        Press(Keys.F2);
         Ff7Session session = scene.Session!;
+        Assert.True(session.Progress.FullCombatEnabled);
         for (int tick = 0; tick < 4500 && session.Battle is null; tick++)
         {
             if (session.Host.Process.Movie is { Playing: true } movie)
@@ -70,12 +109,19 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             session.AdvanceTick();
         }
         Assert.NotNull(session.Battle);
-        using SpriteBatch batch = new(device.Device);
         using RenderTarget2D target = device.CreateTarget(320, 240);
         Draw();
+        string originName = document.Progression!.SceneFacts!.Names[0];
+        Assert.Equal(originName, session.Battle!.Name(0));
         Assert.Equal(useLimit ? 60U : 486U, session.Battle!.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
         CombinedSessionSave active = scene.Capture();
         Assert.NotEmpty(active.MixedBattlePayload!);
+        if (useWorldSwitch)
+        {
+            ColdContinue(active);
+            Assert.Equal(originName, scene.Session!.Battle!.Name(0));
+            return;
+        }
         scene.Continue(active);
         session = scene.Session!;
         bool submitted = false;

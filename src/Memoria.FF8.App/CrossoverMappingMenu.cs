@@ -54,8 +54,11 @@ internal sealed class CrossoverMappingMenu : IDisposable
         previousMouse = mouse;
     }
 
-    public event Action<CharacterAppearanceMapping[]>? Confirmed;
+    public event Action<CharacterAppearanceMapping[], bool?>? Confirmed;
     public event Action? Cancelled;
+
+    private bool OffersSquallCombat => destinationGame == SessionGame.Ff7 && mappings.Any(mapping => mapping.StoryCharacter == 0 && mapping.AppearanceCharacter == 0);
+    private int EntryCount => choosingAppearance ? AppearanceNames.Length : StoryNames.Length + (OffersSquallCombat ? 3 : 2);
 
     public void SetNotice(string value)
     {
@@ -80,7 +83,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
             }
             return;
         }
-        int count = choosingAppearance ? AppearanceNames.Length : StoryNames.Length + 2;
+        int count = EntryCount;
         switch (input)
         {
             case MenuInput.Up:
@@ -172,8 +175,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         if (clicked && !showingMissing && viewport.Contains(mouse.X, mouse.Y))
         {
             Point point = new((mouse.X - viewport.X) * 640 / Math.Max(1, viewport.Width), (mouse.Y - viewport.Y) * 480 / Math.Max(1, viewport.Height));
-            int count = choosingAppearance ? AppearanceNames.Length : StoryNames.Length + 2;
-            int selected = Enumerable.Range(0, count).FirstOrDefault(id => Cell(id, choosingAppearance).Contains(point), -1);
+            int selected = Enumerable.Range(0, EntryCount).FirstOrDefault(id => Cell(id).Contains(point), -1);
             if (selected >= 0)
             {
                 selection = selected;
@@ -190,13 +192,17 @@ internal sealed class CrossoverMappingMenu : IDisposable
             mappings = CharacterMappingAssociations.Assign(mappings, selectedStory, selected);
             choosingAppearance = false;
             selection = selectedStory;
-            notice = StoryNames[selectedStory] + " -> " + AppearanceNames[selected] + ". Native game progress stays independent.";
+            notice = StoryNames[selectedStory] + " -> " + AppearanceNames[selected] + ".";
         }
         else if (selected == StoryNames.Length)
         {
-            Confirmed?.Invoke(mappings.ToArray());
+            Confirmed?.Invoke(mappings.ToArray(), OffersSquallCombat ? true : null);
         }
-        else if (selected == StoryNames.Length + 1)
+        else if (selected == StoryNames.Length + 1 && OffersSquallCombat)
+        {
+            Confirmed?.Invoke(mappings.ToArray(), false);
+        }
+        else if (selected >= StoryNames.Length)
         {
             Cancelled?.Invoke();
         }
@@ -297,10 +303,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         string destination = destinationGame == SessionGame.Ff7 ? "FINAL FANTASY VII" : "FINAL FANTASY VIII";
         Label(choosingAppearance ? "Appearance for " + StoryNames[selectedStory] : "World switch: " + destination, 24, 16, Color.White, 22);
-        int count = choosingAppearance ? AppearanceNames.Length : StoryNames.Length + 2;
+        int count = EntryCount;
         for (int id = 0; id < count; id++)
         {
-            Rectangle cell = Cell(id, choosingAppearance);
+            Rectangle cell = Cell(id);
             Rectangle panel = Scale(cell);
             currentTheme.Panel(canvas, new UiRect(panel.X, panel.Y, panel.Width, panel.Height));
             if (selection == id)
@@ -309,7 +315,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
             }
             if (!choosingAppearance && id >= StoryNames.Length)
             {
-                Label(id == StoryNames.Length ? "Continue in " + (destinationGame == SessionGame.Ff7 ? "FFVII" : "FFVIII") : "Cancel", cell.X + 12, cell.Y + 9, Color.White);
+                string action = id == StoryNames.Length
+                    ? OffersSquallCombat ? "FFVII with Squall" : "Continue in " + (destinationGame == SessionGame.Ff7 ? "FFVII" : "FFVIII")
+                    : id == StoryNames.Length + 1 && OffersSquallCombat ? "Field appearance only" : "Cancel";
+                Label(action, cell.X + (OffersSquallCombat ? 20 : 12), cell.Y + 9, Color.White);
                 continue;
             }
             Texture2D portrait = choosingAppearance ? appearancePortraits[id] : storyPortraits[id];
@@ -341,7 +350,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else
         {
-            Label("Associations affect FFVII appearance. FFVIII keeps its native characters.", 24, 445, Color.LightGray, 12);
+            string help = OffersSquallCombat
+                ? "FFVII with Squall uses his FFVIII HP, equipment and commands in battle."
+                : "Associations affect FFVII appearance. FFVIII keeps its native characters.";
+            Label(help, 24, 445, Color.LightGray, 12);
         }
         Label(notice ?? "Confirm selects; Cancel returns; Alternate clears a selected association.", 24, 462, Color.LightGray, 12);
         batch.End();
@@ -362,13 +374,17 @@ internal sealed class CrossoverMappingMenu : IDisposable
         return new(viewport.X + fit.X, viewport.Y + fit.Y, fit.Width, fit.Height);
     }
 
-    private static Rectangle Cell(int id, bool candidates)
+    private Rectangle Cell(int id)
     {
-        if (!candidates && id >= StoryNames.Length)
+        if (!choosingAppearance && id >= StoryNames.Length)
         {
+            if (OffersSquallCombat)
+            {
+                return new Rectangle(24 + (id - StoryNames.Length) * 202, 405, 188, 38);
+            }
             return new Rectangle(24 + (id - StoryNames.Length) * 304, 405, 288, 38);
         }
-        return new Rectangle(24 + id % 3 * 202, 58 + id / 3 * (candidates ? 82 : 108), 188, candidates ? 74 : 96);
+        return new Rectangle(24 + id % 3 * 202, 58 + id / 3 * (choosingAppearance ? 82 : 108), 188, choosingAppearance ? 74 : 96);
     }
 
     private static Texture2D Texture(GraphicsDevice device, PixelImage image)

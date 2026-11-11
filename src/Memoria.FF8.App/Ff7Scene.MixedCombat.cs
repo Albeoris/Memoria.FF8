@@ -24,21 +24,27 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    internal string? MixedCombatUnavailableReason()
+    internal string? MixedCombatUnavailableReason() => MixedCombatUnavailableReason(!MixedCombatEnabled);
+
+    private string? MixedCombatUnavailableReason(bool enabled)
     {
-        if (Session is null && envelope.MixedCombat is null)
-        {
-            return "Start or continue FFVII before selecting a combat guest.";
-        }
         if (Session?.Battle is not null || mixedCombat is not null)
         {
             return "Finish the current battle before changing its combat owner.";
+        }
+        if (!enabled)
+        {
+            return null;
+        }
+        if (Session is not { } session)
+        {
+            return "Start or continue FFVII before selecting a combat guest.";
         }
         if (identityFf8Directory is null || envelope.Ff8Payload is not { Length: > 0 })
         {
             return "Switch from an FFVIII save to supply Squall's original character and equipment.";
         }
-        if (Session is not null && !Session.Progress.Party.Contains(0))
+        if (!session.Progress.Party.Contains(0))
         {
             return "The current mixed profile binds Squall to Cloud's occupied story slot.";
         }
@@ -47,38 +53,45 @@ internal sealed partial class Ff7Scene
 
     internal void ToggleMixedCombat()
     {
-        if (MixedCombatUnavailableReason() is { } unavailable)
+        bool enabled = !MixedCombatEnabled;
+        notice = SetMixedCombat(enabled) ?? (enabled
+            ? "Squall owns Cloud's battle slot. His Revolver and Gunblade trigger use his FFVIII character. His available commands use his FFVIII stock and equipment."
+            : "Native FFVII characters own the next battle.");
+    }
+
+    internal string? SetMixedCombat(bool enabled)
+    {
+        if (!enabled && !MixedCombatEnabled)
         {
-            notice = unavailable;
-            return;
+            return null;
         }
-        if (envelope.MixedCombat is null)
+        if (MixedCombatUnavailableReason(enabled) is { } unavailable)
+        {
+            return unavailable;
+        }
+        if (enabled)
         {
             using GameAssets origin = new(identityFf8Directory!);
             using BattleAssets battle = new(identityFf8Directory!);
             GameplaySaveComponentDocument source = CrossoverSaveAdapter.ReadFf8(envelope);
             if (source.Progression?.Clocks.GlobalRandom is null)
             {
-                notice = "Save FFVIII with its current gameplay codec before selecting a combat guest.";
-                return;
+                return "Save FFVIII with its current gameplay codec before selecting a combat guest.";
             }
             CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(source.Characters.Restore(origin.ReadNewGameCharacterVitals()), battle);
             if (kit.OpeningCombatUnavailableReason() is { } unsupported)
             {
-                notice = unsupported;
-                return;
+                return unsupported;
             }
             envelope = envelope with { MixedCombat = new(0), MixedBattlePayload = null };
-            AttachMixedFieldVitals();
             Session!.SetFullCombatEnabled(true);
-            notice = "Squall owns Cloud's battle slot. His Revolver and Gunblade trigger use his FFVIII character. His available commands use his FFVIII stock and equipment.";
         }
         else
         {
             envelope = envelope with { MixedCombat = null, MixedBattlePayload = null };
-            AttachMixedFieldVitals();
-            notice = "Native FFVII characters own the next battle.";
         }
+        AttachMixedFieldVitals();
+        return null;
     }
 
     private void EnsureMixedBattle(Ff7BattleSession battle)
