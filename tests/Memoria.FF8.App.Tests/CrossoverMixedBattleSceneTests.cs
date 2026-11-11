@@ -71,7 +71,9 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
         ControlsProfile controls = ControlsProfile.CreateDefault()
             .WithBinding(ControlAction.RotateLeft, ControlDevice.Keyboard, new([Keys.B], []))
-            .WithBinding(ControlAction.RotateRight, ControlDevice.Keyboard, new([Keys.N], []));
+            .WithBinding(ControlAction.RotateRight, ControlDevice.Keyboard, new([Keys.N], []))
+            .WithBinding(ControlAction.CameraLeft, ControlDevice.Keyboard, new([Keys.L], []))
+            .WithBinding(ControlAction.CameraRight, ControlDevice.Keyboard, new([Keys.M], []));
         scene.ConfigureSharedControls(new KeyboardInput { Profile = controls }, new GameplayClock());
         CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, characterId);
         if (useWorldSwitch)
@@ -289,14 +291,34 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             Press(Keys.B);
             Assert.Same(ff7, scene.ActivePlayerMenu);
             Press(Keys.RightShift);
-            Assert.Same(ff8, scene.ActivePlayerMenu);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
             Press(Keys.LeftShift);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            Press(Keys.M);
+            Assert.Same(ff8, scene.ActivePlayerMenu);
+            Press(Keys.L);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            PressController(Buttons.LeftShoulder);
+            Assert.Same(ff8, scene.ActivePlayerMenu);
+            PressController(Buttons.RightShoulder);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            PressController(Buttons.LeftTrigger);
+            Assert.Same(ff8, scene.ActivePlayerMenu);
+            PressController(Buttons.RightTrigger);
             Assert.Same(ff7, scene.ActivePlayerMenu);
             Press(Keys.V);
             Assert.False(scene.IsPlayerMenuOpen);
             Press(Keys.V);
             Assert.Same(ff7, scene.ActivePlayerMenu);
             Press(Keys.V);
+
+            void PressController(Buttons button)
+            {
+                GameTime time = new(TimeSpan.Zero, TimeSpan.Zero);
+                scene.Update(time, default, new GamePadState(Vector2.Zero, Vector2.Zero, 0, 0, Buttons.None));
+                scene.Update(time, default, new GamePadState(Vector2.Zero, Vector2.Zero, button == Buttons.LeftTrigger ? 1 : 0, button == Buttons.RightTrigger ? 1 : 0, button));
+                Assert.Null(scene.Error);
+            }
         }
 
         void Press(Keys key)

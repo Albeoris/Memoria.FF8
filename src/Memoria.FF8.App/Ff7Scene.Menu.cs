@@ -201,7 +201,7 @@ internal sealed partial class Ff7Scene
             return false;
         }
         AdvancePlayerMenuClock(time.ElapsedGameTime);
-        if (menu.ScreenId == "main" && !menu.IsSelectingCharacter && (sharedInput.UiCharacterPage != 0 || sharedInput.UiShiftPage != 0) && HasActiveGuestMenu)
+        if (menu.ScreenId == "main" && !menu.IsSelectingCharacter && (sharedInput.UiCharacterPage != 0 || sharedInput.UiPaneFocus != 0) && HasActiveGuestMenu)
         {
             MenuController next = ReferenceEquals(menu, playerMenu) ? EnsureGuestPlayerMenu() : playerMenu!;
             menu.Close();
