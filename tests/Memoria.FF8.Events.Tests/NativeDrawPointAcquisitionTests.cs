@@ -65,6 +65,8 @@ internal static partial class Program
                 return (session, engine);
             }
             (GameSession session, EventEngine engine) = Create();
+            List<(int MagicId, int Acquired, int Stock)> awards = [];
+            engine.DrawPointMagicAcquired += awards.Add;
             void StepRestored()
             {
                 JsonElement state = engine.Capture();
@@ -101,6 +103,7 @@ internal static partial class Program
                     Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Unavailable shared draw selection refused cancellation.");
                     StepRestored();
                     Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Canceled shared draw changed stock/depletion or retained its wait.");
+                    Require(awards.Count == 0, "Canceled shared draw published a stock award.");
                     continue;
                 }
                 Require(engine.Scene.DrawPointInteraction is { RandomStateBefore: 1, RandomStateAfter: 1103527590 } automatic && automatic.Selection == receiver && Phase() == 4 && engine.CurrentDialogue is null, "Shared draw did not select its eligible receiver automatically without dialogue.");
@@ -124,6 +127,8 @@ internal static partial class Program
                 int sharedDepletion = (session.EventRandom!.DrawPoints!.Depletion[index / 4] >> (2 * (index & 3))) & 3;
                 Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == Math.Min(100, initialCount + sharedQuantity) && sharedDepletion == ((catalog.PointBytes[index] & 0x40) != 0 ? 2 : 3) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Automatic shared draw lost capped stock, depletion or same-callback completion.");
                 Require(session.EventRandom.State == 1103527590 && engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 67) == 1, "Automatic shared draw repeated RNG or its acquisition sound.");
+                int sharedAcquired = Math.Min(sharedQuantity, 100 - initialCount);
+                Require(awards.SequenceEqual([(magic, sharedAcquired, initialCount + sharedAcquired)]), "Shared draw did not publish one capped award with the shared pool total.");
                 continue;
             }
             Require(engine.Scene.DrawPointInteraction is { Message: 2, RandomStateBefore: 1, RandomStateAfter: 1103527590 } issued && issued.PointIndex == index && issued.EligibleCombatSlots == expectedEligible && issued.Quantity > 2 && Phase() == 1 && engine.CurrentDialogue?.Text == catalog.FormatMessage(2, magic), "Eligible draw point lost its original message, equipped command, point index, sampled quantity or first phase.");
@@ -155,6 +160,7 @@ internal static partial class Program
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Original draw selection Cancel refused.");
                 StepRestored();
                 Require(engine.Scene.DrawPointInteraction is null && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Canceled selection awarded/depleted or retained its operand/control wait.");
+                Require(awards.Count == 0, "Canceled personal draw published a stock award.");
                 continue;
             }
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Choose, 2)).Accepted, "Explicit character draw selection refused.");
@@ -169,6 +175,7 @@ internal static partial class Program
                 engine.Step();
             }
             Require(Phase() == 6 && !engine.NativeDrawPointAcquisitionActive && engine.Frame - launched >= 38 && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount, "Acquisition did not wait for all eight native spark records before stock writes.");
+            Require(awards.Count == 0, "Personal draw published an award before updating inventory.");
             StepRestored();
             Require(session.EventRandom!.State == 1103527590 && engine.Scene.DrawPointInteraction!.Quantity == quantity, "Draw acquisition or wait resampled script RNG/quantity.");
             if (full)
@@ -195,6 +202,7 @@ internal static partial class Program
                 JsonElement owner = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
                 Require(owner.GetProperty("Results").GetProperty("0").GetInt32() == 53 && owner.GetProperty("Results").GetProperty("3").GetInt32() == 53, "Successful draw invented result0=1 instead of preserving the issuing result register.");
             }
+            Require(full ? awards.Count == 0 : awards.SequenceEqual([(magic, expectedAcquired, initialCount + expectedAcquired)]), "Personal draw published an incorrect or duplicate stock award.");
         }
         Console.WriteLine("Eligible DRAWPOINT: original discovery/selection, explicit Cancel, actual spark completion, full-stock retry, accepted-unit cap/message variable7, depletion2/3, shared automatic acquisition/full-pool cancellation, capacity presentation and independent restore at phases1..7 passed.");
     }

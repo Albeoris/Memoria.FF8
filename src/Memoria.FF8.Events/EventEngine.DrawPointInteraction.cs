@@ -19,6 +19,7 @@ public sealed record NativeDrawPointInteraction([property: JsonRequired] int Fie
 public sealed partial class EventEngine
 {
     public Func<NativeDrawPointCatalog>? ReadNativeDrawPointCatalog { get; set; }
+    public event Action<(int MagicId, int Acquired, int Stock)>? DrawPointMagicAcquired;
 
     private (NativeDrawPointCatalog Catalog, NativeCharacterVitals Vitals, byte Eligible) PrepareDrawPointParty()
     {
@@ -389,12 +390,14 @@ public sealed partial class EventEngine
         NativeDrawPointInteraction current = Scene.DrawPointInteraction!;
         NativeCharacterVitals vitals = services.CharacterVitals!;
         int acquired = 0;
-        if ((current.EligibleCombatSlots & (1 << current.CombatSlot!.Value)) != 0)
+        int magicId = current.PointByte & 63;
+        int combatSlot = current.CombatSlot!.Value;
+        byte row = vitals.CombatParty[combatSlot];
+        if ((current.EligibleCombatSlots & (1 << combatSlot)) != 0)
         {
-            byte row = vitals.CombatParty[current.CombatSlot.Value];
             for (; acquired < current.Quantity; acquired++)
             {
-                NativeCharacterVitals next = vitals.AddMagicUnit(row, current.PointByte & 63, out int result);
+                NativeCharacterVitals next = vitals.AddMagicUnit(row, magicId, out int result);
                 if (result != 0)
                 {
                     break;
@@ -410,6 +413,10 @@ public sealed partial class EventEngine
             ShowDrawPointMessage(fiber, ReadNativeDrawPointCatalog!(), acquired > 0 ? 5 : 6);
         }
         actors[fiber.ObjectId].NativeMovementAccelerationTarget = acquired > 0 ? (short)7 : (short)1;
+        if (acquired > 0 && magicId != 0)
+        {
+            DrawPointMagicAcquired?.Invoke((magicId, acquired, vitals.GetMagicCount(row, magicId)));
+        }
     }
 
     private void RecordDrawPointChoice(DialogueState dialogue, int? choice)

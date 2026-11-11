@@ -66,6 +66,9 @@ internal sealed partial class RecreateGame : Game
     private readonly GameLoopMetrics metrics = new();
     private Func<string>? saveNotice;
     private double saveNoticeSeconds;
+    private double drawPointNoticeSeconds;
+    private SceneEventState? drawPointNoticeScene;
+    private (int MagicId, int Acquired, int Stock) drawPointAward;
     private bool userPaused;
     private readonly UpdateSaveHandoff updateSave;
 
@@ -351,6 +354,7 @@ internal sealed partial class RecreateGame : Game
             ExitGame();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        drawPointNoticeSeconds = Math.Max(0, drawPointNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateAutoPlay(gameTime, input))
         {
             base.Update(gameTime);
@@ -502,6 +506,13 @@ internal sealed partial class RecreateGame : Game
         var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
         next.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         fieldAudio?.Attach(next.Events);
+        drawPointNoticeSeconds = 0;
+        next.Events.DrawPointMagicAcquired += award =>
+        {
+            drawPointAward = award;
+            drawPointNoticeScene = next.Events.Scene;
+            drawPointNoticeSeconds = 2.5;
+        };
         next.WorldVehicleSound += frame => fieldAudio?.PresentWorldVehicleSounds(frame);
         resumeGameplayAudio = session.State.EventState is not null || session.State.DepartingFieldState is not null || session.State.WorldEventState is not null;
         return next;
@@ -1513,6 +1524,7 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, error, true);
         }
         DrawGameUi(bounds);
+        bool showDrawPointNotice = drawPointNoticeSeconds > 0 && !saveMenu.IsOpen && saveNoticeSeconds <= 0 && sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && gameMenus?.IsOpen != true && events?.Scene == drawPointNoticeScene;
         if (saveMenu.IsOpen)
         {
             DrawPlayerSaveMenu(bounds, uiScale);
@@ -1521,7 +1533,15 @@ internal sealed partial class RecreateGame : Game
         {
             DrawNoticeUi(bounds, saveNotice(), false);
         }
-        DrawAutoPlayStatus(bounds);
+        else if (showDrawPointNotice && world is not null)
+        {
+            string spell = liveMenuCatalog?.MagicName(drawPointAward.MagicId) ?? world.ValidationAssets.ReadNativeDrawPointCatalog().MagicNames[drawPointAward.MagicId];
+            DrawNoticeUi(bounds, FormatAuthored("draw-point.stock-award", "Stocked {0} ({1}/100) {2}.", drawPointAward.Acquired, drawPointAward.Stock, spell), false);
+        }
+        if (!showDrawPointNotice)
+        {
+            DrawAutoPlayStatus(bounds);
+        }
         if (userPaused && sceneInspector is null)
         {
             DrawNoticeUi(bounds, "Paused", true);

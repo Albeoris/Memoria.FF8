@@ -623,6 +623,7 @@ public static partial class SystemTextCatalog
         defaults["refinement.summary.owned"] = "Owned   ";
         defaults["refinement.summary.quantity"] = "Quantity   ";
         defaults["salary.rank-pay"] = "Rank {0}   {1} gil";
+        defaults["draw-point.stock-award"] = "Stocked {0} ({1}/100) {2}.";
         defaults["salary.title"] = "SeeD salary";
         defaults["save.bank.active"] = "ACTIVE  \u00B7  ";
         defaults["save.bank.memoria"] = "Memoria";
