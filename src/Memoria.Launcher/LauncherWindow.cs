@@ -175,7 +175,7 @@ internal sealed partial class LauncherWindow : Window
             closeAfterLaunch.IsCheckedChanged += (_, _) => SaveSelection(includeWithoutInstallation: true);
             await LoadGraphicsBackendAsync();
             string? previous = settings.LastGameDirectory;
-            SetFf7GameDirectory(settings.Ff7GameDirectory);
+            PopulateFf7Installations(settings.Ff7GameDirectory, []);
             SetModelSourceDirectory(settings.ModelSourceDirectory);
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
             string? language = GameResourceLanguages.Normalize(settings.ResourceLanguage);
@@ -185,6 +185,13 @@ internal sealed partial class LauncherWindow : Window
             if (installations.Items.Count > 0)
             {
                 installations.SelectedIndex = 0;
+            }
+            List<string> ff7Warnings = [];
+            IReadOnlyList<GameInstallation> ff7Found = await Task.Run(() => GameInstallationDiscovery.Find(ff7Warnings.Add, discoveryLifetime.Token, ff7: true), discoveryLifetime.Token);
+            PopulateFf7Installations(settings.Ff7GameDirectory, ff7Found);
+            if (ff7Warnings.Count > 0)
+            {
+                ff7Status.Text += Environment.NewLine + string.Join(Environment.NewLine, ff7Warnings);
             }
             status.Text = warnings.Count > 0 ? string.Join(Environment.NewLine, warnings) : "Choose your installed game folder, then press Play. Browse to select a folder manually.";
             await RefreshMediaStatusAsync();
