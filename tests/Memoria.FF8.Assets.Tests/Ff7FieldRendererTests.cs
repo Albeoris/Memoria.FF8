@@ -430,6 +430,74 @@ public sealed class Ff7FieldRendererTests
         Assert.Equal((byte)0, changed.Pixels[1].A);
     }
 
+    [Fact]
+    public void BackgroundAtlasKeepsTileOrderAndReusesPagesUntilPaletteChanges()
+    {
+        byte[] pixels = new byte[65536];
+        pixels[0] = 1;
+        pixels[32] = 2;
+        PcFieldTexturePage page = new(0, 0, 1, pixels);
+        PcFieldTile first = new(0, 0, -20, 0, 0, 0, 0, 0, 16, 16, 0, 4095, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
+        PcFieldTile second = first with { Index = 1, DestinationX = -10 };
+        PcFieldTile blended = first with { Layer = 2, DestinationX = -15, Blending = 1, BlendMode = 1, SourceX2 = 32, State = 1, Z = 4000000 };
+        PcFieldTile inactive = blended with { Index = 1, State = 2, TextureId2 = 3 };
+        PcFieldBackground background = new(320, 240, new byte[] { 1 }, [[first, second], [], [blended, inactive], []], [page]);
+        PcFieldPalettes raw = new(0, 0, 3, new IReadOnlyList<ushort>[] { new ushort[] { 31, 0, 31 << 5 } });
+        PcFieldCamera camera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, Vector3.Zero, 0, 0);
+        Ff7FieldResources field = new("atlas-fixture", null!, null!, null!, [camera], [], null!, raw, background);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
+        ushort[] parameters = new ushort[256];
+        ushort[][] rows = raw.CreateCachedBackgroundRows(background);
+        Ff7FieldRenderFrame frame = new(0, Vector2.Zero, [], parameters, PaletteRows: rows);
+        Capture hidden = new();
+        renderer.Render(hidden, 320, 240, frame);
+        Assert.Equal(4, hidden.Count);
+        Assert.Same(hidden.Materials[0].Texture, hidden.Materials[2].Texture);
+
+        parameters[0] = 1;
+        Capture visible = new();
+        renderer.Render(visible, 320, 240, frame);
+        Assert.Equal(6, visible.Count);
+        var atlas = visible.Materials[0].Texture!;
+        Assert.All(visible.Materials, material => Assert.Same(atlas, material.Texture));
+        Assert.Equal(new[] { 140f, 150f, 145f }, visible.Positions.Where((_, index) => index % 6 == 0).Select(position => position.X));
+        Assert.Equal(new[] { TriangleBlend.Replace, TriangleBlend.Replace, TriangleBlend.Add }, visible.Materials.Where((_, index) => index % 2 == 0).Select(material => material.Blend));
+        Assert.Equal(0.4f, visible.Depths[12]);
+        Assert.False(visible.Materials[4].DepthWrite);
+
+        PcFieldTile[] orderedTiles = [first, second, blended];
+        for (int index = 0; index < orderedTiles.Length; index++)
+        {
+            PcFieldTile tile = orderedTiles[index];
+            Vector4 region = visible.TexelRectangles[index * 2];
+            Assert.Equal(tile.PixelSize, region.Z);
+            Assert.Equal(tile.PixelSize, region.W);
+            var decoded = Ff7FieldRenderer.DecodeTile(background, raw, tile);
+            for (int row = 0; row < tile.PixelSize; row++)
+            {
+                Assert.Equal(decoded.Pixels.AsSpan(row * tile.PixelSize, tile.PixelSize).ToArray(), atlas.Pixels.AsSpan(((int)region.Y + row) * atlas.Width + (int)region.X, tile.PixelSize).ToArray());
+            }
+        }
+
+        parameters[0] = 0;
+        Capture hiddenAgain = new();
+        renderer.Render(hiddenAgain, 320, 240, frame);
+        Assert.Equal(4, hiddenAgain.Count);
+        Assert.All(hiddenAgain.Materials, material => Assert.Same(atlas, material.Texture));
+
+        rows[0][1] = 0;
+        Capture changed = new();
+        renderer.Render(changed, 320, 240, frame with { PaletteVersion = 1 });
+        var updated = changed.Materials[0].Texture!;
+        Assert.NotSame(atlas, updated);
+        Assert.Equal((byte)255, atlas[0, 0].R);
+        Assert.Equal((byte)0, updated[0, 0].A);
+
+        Capture reset = new();
+        renderer.Render(reset, 320, 240, frame with { PaletteRows = null });
+        Assert.Equal((byte)255, reset.Materials[0].Texture![0, 0].R);
+    }
+
     [Theory]
     [InlineData("md1stin")]
     [InlineData("nmkin_4")]
@@ -483,6 +551,7 @@ public sealed class Ff7FieldRendererTests
         renderer.Render(triangles, 320, 240, new(0, Vector2.Zero, [new(0, 0, 3800 * 4096, 28500 * 4096, 310 * 4096, 0, 0, 0)], new ushort[256]));
         Assert.True(triangles.Count > field.Background.Layers[0].Count * 2);
         Assert.True(triangles.ModelTriangles > 0);
+        Assert.Single(triangles.Materials.Where((_, index) => triangles.TexelRectangles[index].Z > 0).Select(material => material.Texture).Distinct());
         Assert.All(triangles.Depths, depth => Assert.True(float.IsFinite(depth)));
         Assert.True(triangles.BeginCalled && triangles.EndCalled);
         Capture movie = new();
@@ -526,6 +595,7 @@ public sealed class Ff7FieldRendererTests
         public List<TriangleMaterial> Materials { get; } = [];
         public List<Vector2> Positions { get; } = [];
         public List<Vector2> Uvs { get; } = [];
+        public List<Vector4> TexelRectangles { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -537,6 +607,7 @@ public sealed class Ff7FieldRendererTests
         {
             Colors.AddRange([a.Color, b.Color, c.Color]);
             Materials.Add(material);
+            TexelRectangles.Add(a.TextureTexelRectangle);
             Positions.AddRange([a.Position, b.Position, c.Position]);
             Uvs.AddRange([a.Uv, b.Uv, c.Uv]);
             Clips.Add(material.ClipRectangle);

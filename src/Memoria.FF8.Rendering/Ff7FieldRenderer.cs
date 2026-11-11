@@ -56,10 +56,10 @@ public sealed class Ff7FieldRenderer
     private readonly IReadOnlyDictionary<int, Ff7FieldModelResources> models;
     private readonly Ff7ProjectionDepth projection;
     private readonly IFf7ActorAppearance? appearance;
-    private readonly Dictionary<PcFieldTile, PixelImage> tileImages = [];
-    private long paletteVersion = -1;
+    private PcFieldTile[]? backgroundTiles;
+    private Dictionary<PcFieldTile, BackgroundAtlasRegion> backgroundAtlas = [];
+    private long paletteVersion;
     private IReadOnlyList<ushort[]>? paletteRows;
-    private PcFieldPalettes? renderedPalettes;
     private readonly Dictionary<(PcPolygonModel Model, int Group), int[]> modelNormalBindings = [];
     private readonly Dictionary<PcTexture, PixelImage> modelImages = new(ReferenceEqualityComparer.Instance);
 
@@ -80,21 +80,15 @@ public sealed class Ff7FieldRenderer
         {
             throw new InvalidDataException("FF7 field render dimensions, camera or background parameter state is invalid.");
         }
-        if (frame.PaletteRows is { Count: > 0 } && (!ReferenceEquals(paletteRows, frame.PaletteRows) || paletteVersion != frame.PaletteVersion))
+        bool drawBackground = !frame.MovieActive || frame.DrawBackgroundDuringMovie;
+        if (drawBackground)
         {
-            if (frame.PaletteRows.Count != field.Palettes.Palettes.Count || frame.PaletteRows.Any(row => row.Length != field.Palettes.ColorsPerPalette))
-            {
-                throw new InvalidDataException("FFVII presented palette dimensions differ from the selected field.");
-            }
-            paletteRows = frame.PaletteRows;
-            paletteVersion = frame.PaletteVersion;
-            renderedPalettes = field.Palettes with { Palettes = frame.PaletteRows.Select(row => (IReadOnlyList<ushort>)row).ToArray() };
-            tileImages.Clear();
+            PrepareBackground(frame);
         }
         renderer.Begin(width, height, new Vector4(0, 0, 0, frame.MovieActive ? 0 : 1));
         try
         {
-            if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+            if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, false);
             }
@@ -103,7 +97,7 @@ public sealed class Ff7FieldRenderer
             {
                 DrawActor(renderer, width, height, frame, actor, modelState);
             }
-            if (!frame.MovieActive || frame.DrawBackgroundDuringMovie)
+            if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, true);
             }
@@ -175,19 +169,57 @@ public sealed class Ff7FieldRenderer
         return Array.AsReadOnly(transforms);
     }
 
+    private void PrepareBackground(Ff7FieldRenderFrame frame)
+    {
+        IReadOnlyList<ushort[]>? liveRows = frame.PaletteRows is { Count: > 0 } ? frame.PaletteRows : null;
+        bool samePalette = backgroundTiles is not null && ReferenceEquals(paletteRows, liveRows) && (liveRows is null || paletteVersion == frame.PaletteVersion);
+        backgroundTiles ??= field.Background.Layers.SelectMany(layer => layer).OrderBy(tile => tile.Blending != 0).ToArray();
+        if (samePalette && Array.TrueForAll(backgroundTiles, tile => !IsVisible(tile, frame) || backgroundAtlas.ContainsKey(tile)))
+        {
+            return;
+        }
+
+        PcFieldPalettes palettes = field.Palettes;
+        if (liveRows is not null)
+        {
+            if (liveRows.Count != palettes.Palettes.Count || liveRows.Any(row => row.Length != palettes.ColorsPerPalette))
+            {
+                throw new InvalidDataException("FFVII presented palette dimensions differ from the selected field.");
+            }
+            palettes = palettes with { Palettes = liveRows };
+        }
+
+        // Pack tiles in submission order within each pass so adjacent tiles can
+        // batch without changing native equal-depth or blend ordering.
+        // Decode a conditional tile only when its native visibility first admits it.
+        PcFieldTile[] tiles = Array.FindAll(backgroundTiles, tile => IsVisible(tile, frame) || samePalette && backgroundAtlas.ContainsKey(tile));
+        PixelImage[] images = Array.ConvertAll(tiles, tile => DecodeTile(field.Background, palettes, tile, liveRows is not null));
+        Dictionary<PixelImage, BackgroundAtlasRegion> regions = BackgroundTextureAtlas.Build(images);
+        Dictionary<PcFieldTile, BackgroundAtlasRegion> atlas = new(tiles.Length);
+        for (int index = 0; index < tiles.Length; index++)
+        {
+            atlas.Add(tiles[index], regions[images[index]]);
+        }
+
+        backgroundAtlas = atlas;
+        paletteRows = liveRows;
+        paletteVersion = frame.PaletteVersion;
+    }
+
+    private static bool IsVisible(PcFieldTile tile, Ff7FieldRenderFrame frame)
+    {
+        return tile.Layer == 0 || tile.State == 0 || (frame.BackgroundParameters[tile.Parameter] & tile.State) != 0;
+    }
+
     private void DrawBackground(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, bool blended)
     {
         foreach (PcFieldTile tile in field.Background.Layers.SelectMany(layer => layer))
         {
-            if ((tile.Blending != 0) != blended || tile.Layer > 0 && tile.State != 0 && (frame.BackgroundParameters[tile.Parameter] & tile.State) == 0)
+            if ((tile.Blending != 0) != blended || !IsVisible(tile, frame))
             {
                 continue;
             }
-            if (!tileImages.TryGetValue(tile, out PixelImage? image))
-            {
-                image = DecodeTile(field.Background, renderedPalettes ?? field.Palettes, tile, frame.PaletteRows is { Count: > 0 });
-                tileImages.Add(tile, image);
-            }
+            BackgroundAtlasRegion region = backgroundAtlas[tile];
             // Native background records persist normalized device depth scaled by ten million.
             float z = tile.Layer == 0 ? 0.9997f : tile.Z / 10000000f;
             if (!float.IsFinite(z) || z < 0 || z > 1)
@@ -202,9 +234,9 @@ public sealed class Ff7FieldRenderer
                 3 => TriangleBlend.QuarterAdd,
                 _ => throw new NotSupportedException($"FF7 tile blend {tile.BlendMode} is unsupported.")
             } : TriangleBlend.Replace;
-            TriangleMaterial material = new(image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
+            TriangleMaterial material = new(region.Image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = new(160 + tile.DestinationX + frame.CameraOffsetPixels.X, 120 + tile.DestinationY + frame.CameraOffsetPixels.Y);
-            TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), new Vector2(image.Width, image.Height) * (height / 240f), z, FieldColor(frame), material, Vector2.One);
+            TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), new Vector2(tile.PixelSize * (height / 240f)), z, FieldColor(frame), material, region.End, region.Start, pointSampleRectangle: true);
         }
     }
 
