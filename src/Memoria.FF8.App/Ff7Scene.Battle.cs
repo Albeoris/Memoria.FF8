@@ -1,10 +1,10 @@
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
@@ -18,7 +18,9 @@ internal sealed partial class Ff7Scene
     private Ff7BattleSession? presentedBattle;
     private IReadOnlyList<string>? battleSpellNames;
     private Ff7BattleCommandOption? selectedBattleCommand;
+    private Ff7BattleCommand? battleCommandPage;
     private int battleCommandIndex;
+    private int battleActionIndex;
     private int battleTargetIndex;
     private bool battleTargetGroup;
     private int? battleInputOwner;
@@ -62,6 +64,7 @@ internal sealed partial class Ff7Scene
                     }
                 }
                 tickRemainder = 0;
+                restoredNativeBattle = null;
                 ResetBattlePresentation();
                 sharedInput.SuppressHeldUiInput();
             }
@@ -71,6 +74,8 @@ internal sealed partial class Ff7Scene
         {
             battleInputOwner = battle.ReadyPlayer;
             battleCommandIndex = 0;
+            battleActionIndex = 0;
+            battleCommandPage = null;
             selectedBattleCommand = null;
         }
         if (battleInputOwner is int owner)
@@ -104,7 +109,7 @@ internal sealed partial class Ff7Scene
         {
             tickRemainder -= tickDuration;
             battle.SetCameraMenuPhase(selectedBattleCommand is null ? (short)-1 : (short)0);
-            session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld);
+            session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null || battleCommandPage is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld);
             pendingLimitConfirm = false;
         }
         UpdateAudio();
@@ -138,116 +143,73 @@ internal sealed partial class Ff7Scene
             if (semanticInput.Confirm && battle.Submit(owner, current.Command, current.Argument, mask, useAll))
             {
                 selectedBattleCommand = null;
+                battleCommandPage = null;
             }
             return;
         }
-        Ff7BattleCommandOption[] commands = battle.Commands(owner).Where(option => option.ValidTargets != 0).ToArray();
+        Ff7BattleCommandOption[] commands = AvailableBattleCommands(battle, owner);
         if (commands.Length == 0)
         {
             return;
         }
-        battleCommandIndex = (Math.Min(battleCommandIndex, commands.Length - 1) + Math.Sign(semanticInput.MenuVertical) + commands.Length) % commands.Length;
-        if (semanticInput.Confirm)
+        if (battleCommandPage is { } page)
         {
-            selectedBattleCommand = commands[battleCommandIndex];
-            battleTargetIndex = 0;
-            battleTargetGroup = false;
-        }
-    }
-
-    private void DrawBattle(SpriteBatch batch, Rectangle bounds, Ff7BattleSession battle)
-    {
-        if (battle.ResultReady)
-        {
-            DrawWindow(batch, new Rectangle(50, 91, 220, 67), bounds);
-            string result = battle.Outcome switch { Ff7BattleOutcome.Victory => "Victory!", Ff7BattleOutcome.Escaped => "Escaped", _ => "Game Over" };
-            DrawPlain(batch, result, 62, 103, bounds);
-            if (battle.Outcome == Ff7BattleOutcome.Victory)
+            Ff7BattleCommandOption[] actions = commands.Where(option => option.Command == page).ToArray();
+            if (semanticInput.Cancel || actions.Length == 0)
             {
-                Ff7BattleReward reward = battle.PreviewVictory();
-                DrawPlain(batch, $"{reward.Experience} EXP   {reward.AbilityPoints} AP   {reward.Gil} Gil", 62, 122, bounds);
+                battleCommandPage = null;
+                return;
             }
-            DrawPlain(batch, "Confirm", 62, 140, bounds);
-            return;
-        }
-        DrawWindow(batch, new Rectangle(113, 171, 207, 69), bounds);
-        DrawPlain(batch, "Party        HP       MP      ATB", 120, 176, bounds);
-        foreach (Ff7BattleActorState actor in battle.Actors.Where(actor => actor.Actor.Slot < 3))
-        {
-            int slot = actor.Actor.Slot;
-            int y = 191 + slot * 14;
-            DrawPlain(batch, battle.Name(slot), 120, y, bounds, slot == battle.ReadyPlayer ? 6 : 7);
-            DrawPlain(batch, $"{actor.Actor.HitPoints}/{actor.Actor.MaxHitPoints}", 190, y, bounds);
-            DrawPlain(batch, actor.Actor.MagicPoints.ToString(), 252, y, bounds);
-            Rectangle gauge = new(276, y + 5, 36, 5);
-            batch.Draw(pixel, Logical(gauge, bounds), Color.DarkSlateGray);
-            if (actor.Gauge != 0)
+            if (page == Ff7BattleCommand.Magic)
             {
-                gauge.Width = Math.Max(1, gauge.Width * actor.Gauge / ushort.MaxValue);
-                batch.Draw(pixel, Logical(gauge, bounds), actor.AwaitingTurn ? Color.Yellow : Color.LightBlue);
-            }
-            if (actor.LimitGauge != 0)
-            {
-                Rectangle limit = new(276, y + 11, Math.Max(1, 36 * actor.LimitGauge / byte.MaxValue), 2);
-                batch.Draw(pixel, Logical(limit, bounds), actor.LimitGauge == byte.MaxValue ? Color.Yellow : Color.LightCoral);
-            }
-        }
-        if (battle.BeatRushSelecting)
-        {
-            DrawWindow(batch, new Rectangle(0, 173, 114, 67), bounds);
-            DrawPlain(batch, "Beat Rush", 8, 179, bounds);
-            DrawPlain(batch, battle.BeatRushVisible!.Value.ToString(), 8, 199, bounds, 6);
-            DrawPlain(batch, "Confirm to stop", 8, 221, bounds);
-        }
-        else if (battle.ReadyPlayer is int ready)
-        {
-            DrawWindow(batch, new Rectangle(0, 157, 114, 83), bounds);
-            if (selectedBattleCommand is { } selected)
-            {
-                Ff7BattleActorState[] targets = BattleTargets(battle, selected);
-                int cursor = Math.Min(battleTargetIndex, targets.Length - 1);
-                DrawRows(targets.Select(target => battle.Name(target.Actor.Slot)).ToArray(), cursor);
-                if (selected.GroupUses > 0)
-                {
-                    DrawPlain(batch, battleTargetGroup ? "All targets" : "Single target", 8, 143, bounds, 6);
-                }
+                BattleDrawLayout layout = BattleDrawLayout.Calculate(actions.Length);
+                (int column, int row) = layout.GetCell(Math.Min(battleActionIndex, actions.Length - 1));
+                column = MoveBattleChoice(column, layout.Columns, semanticInput.MenuHorizontal);
+                row = MoveBattleChoice(row, layout.ColumnRows(column), semanticInput.MenuVertical);
+                battleActionIndex = layout.GetIndex(column, row);
             }
             else
             {
-                DrawRows(battle.Commands(ready).Where(command => command.ValidTargets != 0).Select(CommandName).ToArray(), battleCommandIndex);
+                battleActionIndex = MoveBattleChoice(battleActionIndex, actions.Length, semanticInput.MenuVertical);
             }
-        }
-        string? message = battle.EscapeBlocked ? "Can't escape!" : battle.Message ?? ActionTitle(battle);
-        int messageColor = 7;
-        if (mixedCombat?.Actions.RenzokukenTrigger is { } trigger)
-        {
-            message ??= "Renzokuken";
-            if (trigger.Widget is { Visible: true, ClosingPhase: 0, Input.Phase: not 8 } widget)
+            if (semanticInput.Confirm)
             {
-                string binding = sharedInput.BindingHint(ControlAction.RotateRight);
-                message = $"Renzokuken  {widget.Input.ContactIndex + 1}/{widget.Block.Timeline.InputThresholds.Length}  {binding} Trigger";
-                messageColor = trigger.TriggerWindowOpen ? 6 : 7;
+                SelectBattleAction(actions[battleActionIndex]);
+            }
+            return;
+        }
+        Ff7BattleCommand[] categories = commands.Select(option => option.Command).Distinct().ToArray();
+        battleCommandIndex = MoveBattleChoice(battleCommandIndex, categories.Length, semanticInput.MenuVertical);
+        if (semanticInput.Confirm)
+        {
+            Ff7BattleCommand category = categories[battleCommandIndex];
+            if (category is Ff7BattleCommand.Magic or Ff7BattleCommand.Item || category == Ff7BattleCommand.Limit && commands.Count(option => option.Command == category) > 1)
+            {
+                battleCommandPage = category;
+                battleActionIndex = 0;
+            }
+            else
+            {
+                SelectBattleAction(commands.First(option => option.Command == category));
             }
         }
-        if (message is { Length: > 0 })
-        {
-            DrawWindow(batch, new Rectangle(10, 9, 300, 23), bounds);
-            DrawPlain(batch, message, 16, 15, bounds, messageColor);
-        }
-        if (battle.DisplayedHit is { } hit && battle.Tick - hit.Tick < Ff7BattleSession.LogicUpdatesPerSecond)
-        {
-            string value = hit.Damage.Missed ? "Miss" : Math.Abs(hit.Damage.Damage).ToString();
-            DrawPlain(batch, $"{battle.Name(hit.Target)}  {value}", 16, 40, bounds, hit.Damage.Damage < 0 ? 6 : 7);
-        }
+    }
 
-        void DrawRows(string[] rows, int cursor)
-        {
-            int start = Math.Max(0, Math.Min(cursor - 2, rows.Length - 5));
-            for (int row = start; row < Math.Min(rows.Length, start + 5); row++)
-            {
-                DrawPlain(batch, rows[row], 8, 162 + (row - start) * 15, bounds, row == cursor ? 6 : 7);
-            }
-        }
+    private static Ff7BattleCommandOption[] AvailableBattleCommands(Ff7BattleSession battle, int owner)
+    {
+        return battle.Commands(owner).Where(option => option.ValidTargets != 0).ToArray();
+    }
+
+    private static int MoveBattleChoice(int index, int count, int direction)
+    {
+        return (Math.Min(index, count - 1) + Math.Sign(direction) + count) % count;
+    }
+
+    private void SelectBattleAction(Ff7BattleCommandOption option)
+    {
+        selectedBattleCommand = option;
+        battleTargetIndex = 0;
+        battleTargetGroup = false;
     }
 
     private string? ActionTitle(Ff7BattleSession battle)
@@ -279,27 +241,27 @@ internal sealed partial class Ff7Scene
         return limit switch { 0x80 => "Braver", 0x87 => "Big Shot", 0x95 => "Beat Rush", _ => Ff7BattleCommand.Limit.ToString() };
     }
 
-    private string CommandName(Ff7BattleCommandOption option)
+    private string CommandName(Ff7BattleCommandOption option, bool guest)
     {
         if (option.Command == Ff7BattleCommand.Item)
         {
-            if (mixedCombat is { Actions.HasOriginItems: true } mixed && mixed.Host.ReadyPlayer == mixed.Attack.ActorSlot)
+            if (guest && mixedCombat is { Actions.HasOriginItems: true } mixed)
             {
-                return mixed.Actions.ItemName(option.Argument) + " " + option.Cost;
+                return mixed.Actions.ItemName(option.Argument);
             }
-            return BattleItemName(option.Argument) + " " + option.Cost;
+            return BattleItemName(option.Argument);
         }
         if (option.Command == Ff7BattleCommand.Magic)
         {
-            if (mixedCombat is { } mixed && Session?.Battle is { } battle && battle.ReadyPlayer == battle.GuestVitals?.HostSlot)
+            if (guest && mixedCombat is { } mixed)
             {
-                return mixed.Actions.MagicName(option.Argument) + " " + option.Cost;
+                return mixed.Actions.MagicName(option.Argument);
             }
-            return BattleSpellName(option.Argument) + " " + option.Cost + " MP";
+            return BattleSpellName(option.Argument);
         }
         if (option.Command == Ff7BattleCommand.Limit)
         {
-            return mixedCombat is { } mixed && mixed.Host.ReadyPlayer == mixed.Attack.ActorSlot && option.Argument == 0
+            return guest && option.Argument == 0
                 ? "Renzokuken"
                 : BattleLimitName(option.Argument);
         }
@@ -368,6 +330,8 @@ internal sealed partial class Ff7Scene
         pendingLimitConfirm = false;
         selectedBattleCommand = null;
         battleCommandIndex = 0;
+        battleActionIndex = 0;
+        battleCommandPage = null;
         battleTargetIndex = 0;
         battleTargetGroup = false;
     }

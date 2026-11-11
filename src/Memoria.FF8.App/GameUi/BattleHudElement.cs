@@ -7,8 +7,9 @@ namespace Memoria.FF8.GameUi;
 internal sealed partial class BattleHudElement : UiElement
 {
     private readonly BattleHudController controller;
-    private float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
-    private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
+    private BattleHudLayout Layout => new(Bounds);
+    private float Scale => Layout.Scale;
+    private float Left => Layout.Left;
     private float CommandWidth { get; set; } = 194;
     private float CommandPanelY { get; set; } = 516;
     private float CommandContentY { get; set; } = 530;
@@ -17,7 +18,7 @@ internal sealed partial class BattleHudElement : UiElement
     private float TargetContentOffset { get; set; } = 27;
     private float TargetColumnWidth { get; set; }
     private float TargetRowHeight { get; set; }
-    private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
+    private float Top => Layout.Top;
 
     public BattleHudElement(BattleHudController controller)
     {
@@ -28,7 +29,7 @@ internal sealed partial class BattleHudElement : UiElement
 
     private UiRect Rect(float x, float y, float width, float height)
     {
-        return new UiRect(Left + x * Scale, Top + y * Scale, width * Scale, height * Scale);
+        return Layout.Rect(x, y, width, height);
     }
 
     private void Text(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float height, float size = 18, bool muted = false, UiColor? color = null)
@@ -89,14 +90,14 @@ internal sealed partial class BattleHudElement : UiElement
         }
         if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
-            theme.Panel(canvas, Rect(240, 12, 480, 84));
+            theme.Panel(canvas, Layout.MessagePanel);
             if (canvas is IBattleMessageCanvas rich)
             {
-                rich.BattleMessage(battleMessage, 20 * Scale * controller.TextScale, Rect(256, 24, 448, 60), controller.BattlePresentationSeconds);
+                rich.BattleMessage(battleMessage, 20 * Scale * controller.TextScale, Layout.MessageText, controller.BattlePresentationSeconds);
             }
             else
             {
-                Text(canvas, theme, battleMessage.Text, 256, 24, 448, 60, 20);
+                canvas.Text(battleMessage.Text, 20 * Scale * controller.TextScale, Layout.MessageText, theme.Foreground);
             }
         }
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
@@ -144,7 +145,7 @@ internal sealed partial class BattleHudElement : UiElement
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         float captionContentHeight = Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale;
         float commandOffset = Math.Max(14, captionContentHeight) - 14;
-        CommandPanelHeight = (session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28 + (controller.SelectingNativeSlots ? 28 : 0)) + commandOffset;
+        CommandPanelHeight = session.Outcome != BattleOutcome.Active ? 76 + commandOffset : BattleHudLayout.CommandPanel(CommandWidth, rows, captionContentHeight, controller.SelectingNativeSlots ? 28 : 0).Height;
         CommandPanelY = Math.Min(516, 660 - CommandPanelHeight);
         CommandContentY = CommandPanelY + 14 + commandOffset;
         if (controller.SelectingNativeSlots)
@@ -170,13 +171,13 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 ChoiceText(canvas, theme, rollLabel, 60, CommandContentY - 28, CommandWidth - 38, 20, false);
             }
-            int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
-            for (int row = 0; row < 4 && start + row < choices.Count; row++)
+            int start = BattleHudLayout.CommandStart(controller.ChoiceIndex, choices.Count);
+            for (int row = 0; row < BattleHudLayout.VisibleCommandRows && start + row < choices.Count; row++)
             {
-                float y = CommandContentY + row * 28;
+                float y = CommandContentY + row * BattleHudLayout.CommandRowHeight;
                 if (start + row == controller.ChoiceIndex)
                 {
-                    theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
+                    Layout.DrawCommandPointer(canvas, theme, BattleHudLayout.CommandX, y);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
@@ -210,7 +211,7 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 continue;
             }
-            float y = 528 + index * 38;
+            float y = BattleHudLayout.PartyTop + index * BattleHudLayout.PartyRowHeight;
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
@@ -228,15 +229,12 @@ internal sealed partial class BattleHudElement : UiElement
                 int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate % 16);
                 int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
                 // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
-                nameColor = Modulate(nameColor, shade);
-                hpColor = Modulate(hpColor, shade);
+                nameColor = BattleHudLayout.Modulate(nameColor, shade);
+                hpColor = BattleHudLayout.Modulate(hpColor, shade);
             }
-            Text(canvas, theme, label, 520, y, 150, 30, 22, color: nameColor);
-            canvas.AlignedText(hp.ToString(), 22 * Scale * controller.TextScale, Rect(674, y, 56, 30), hpColor, UiAlignment.End);
-            Text(canvas, theme, "/", 738, y, 14, 30, 22, color: new UiColor(255, 255, 255));
-            Text(canvas, theme, maximumHp.ToString(), 760, y, 64, 30, 22, color: new UiColor(255, 255, 255));
+            Layout.DrawVitals(canvas, label, hp, maximumHp, y, controller.TextScale, nameColor, hpColor);
             BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
-            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, statuses.Battle);
+            DrawGauge(canvas, Layout.AtbGauge(y), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, statuses.Battle);
             DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
@@ -257,29 +255,19 @@ internal sealed partial class BattleHudElement : UiElement
         }
     }
 
-    private static UiColor Modulate(UiColor color, int shade)
-    {
-        return new((byte)Math.Min(255, color.R * shade / 128), (byte)Math.Min(255, color.G * shade / 128), (byte)Math.Min(255, color.B * shade / 128), color.A);
-    }
-
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
         bool group = controller.SelectingTargetGroup;
         string? selectedTargetId = controller.SelectedTarget?.Id;
         DrawTargetModelPointers(canvas, theme, targets, group, selectedTargetId);
-        float nameWidth = targets.Select(actor => canvas.MeasureText(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
-        float x = 54;
         int columns = Math.Max(1, (targets.Count + 3) / 4);
-        TargetColumnWidth = Math.Min(Math.Max(324, 6 * MathF.Floor((nameWidth + 54) / 6)), (496 - x) / columns);
+        (TargetPanel, TargetColumnWidth, TargetRowHeight, TargetContentOffset) = Layout.MeasureTargets(canvas, theme, targets.Select(controller.CombatantDisplayName), columns, controller.TextScale);
+        float x = TargetPanel.X;
+        float y = TargetPanel.Y;
         float textInset = columns > 1 ? 54 : 30;
         float textWidth = TargetColumnWidth - textInset - 12;
-        TargetRowHeight = Math.Max(39, canvas.MeasureText("Mg", 24 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 6);
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
-        TargetContentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale);
-        float panelHeight = 4 * TargetRowHeight + TargetContentOffset + 12;
-        float y = Math.Min(609 - 4 * TargetRowHeight, 660 - panelHeight);
-        TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, panelHeight);
         string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? controller.SystemText("battle.hud.target-allies", "TARGET  < ALLIES >") : controller.SystemText("battle.hud.target-enemies", "TARGET  < ENEMIES >") : controller.SystemText("battle.hud.target", "TARGET");
         theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), caption, captionSize);
         for (int index = 0; index < targets.Count; index++)
@@ -332,7 +320,7 @@ internal sealed partial class BattleHudElement : UiElement
         }
     }
 
-    private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, uint statuses)
+    internal static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, uint statuses)
     {
         canvas.Fill(bounds, new UiColor(22, 22, 27));
         UiRect inner = bounds.Inset(2);

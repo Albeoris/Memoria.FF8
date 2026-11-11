@@ -6,7 +6,7 @@ namespace Memoria.FF8.GameUi;
 
 internal sealed partial class BattleHudElement
 {
-    private UiRect ResultRect(float x, float y, float width, float height) => Rect(x * 2.5f, y * 3, width * 2.5f, height * 3);
+    private UiRect ResultRect(float x, float y, float width, float height) => Layout.ResultRect(x, y, width, height);
 
     private void ResultLabel(IUiCanvas canvas, UiTheme theme, string text, float x, float y, float width, bool centered = false, UiColor? color = null)
     {

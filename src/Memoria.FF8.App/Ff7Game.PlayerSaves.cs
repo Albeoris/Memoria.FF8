@@ -113,7 +113,7 @@ internal sealed partial class Ff7Game
         playerSaves.SaveFf7(slot, scene.Capture());
         if (slot == 0)
         {
-            scene.ShowNotice("Quick Saved");
+            scene.ShowNotice("Quick Saved", NoticeWindow.QuickSaveDurationSeconds);
         }
     }
 

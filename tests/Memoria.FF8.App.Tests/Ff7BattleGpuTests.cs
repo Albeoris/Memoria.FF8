@@ -51,9 +51,12 @@ public sealed class Ff7BattleGpuTests
     public void OpeningFieldRequestDrawsOriginalBattleThroughSceneHost()
     {
         Ff7Installation installation = Installation();
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(ff8Root), "Select original FFVIII resources for the shared battle presentation.");
         using GpuTestDevice device = new();
         using Ff7Scene scene = new(device.Device, installation, "", new(50, 32000), MovieSource, audioEnabled: false);
         using SpriteBatch batch = new(device.Device);
+        scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
         using RenderTarget2D output = device.CreateTarget(320, 240);
         scene.StartNewGame();
         Ff7Session session = Assert.IsType<Ff7Session>(scene.Session);
@@ -91,7 +94,6 @@ public sealed class Ff7BattleGpuTests
         long beforeDebug = battle.Tick;
         Press(Keys.F2);
         Assert.True(scene.IsDebugMenuOpen);
-        Press(Keys.Up);
         Press(Keys.Up);
         Press(Keys.Enter);
         Assert.False(session.Progress.RandomEncountersEnabled);

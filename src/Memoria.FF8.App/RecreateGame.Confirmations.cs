@@ -76,7 +76,6 @@ internal sealed partial class RecreateGame
         }
         PreparePlayerSlotSave();
         await SaveOriginalPlayerSlotWithGuardianForceReviewAsync(slot);
-        saveNotice = null;
-        saveNoticeSeconds = 0;
+        noticeWindow.Clear();
     }
 }

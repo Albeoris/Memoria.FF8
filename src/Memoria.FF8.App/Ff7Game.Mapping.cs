@@ -19,7 +19,7 @@ internal sealed partial class Ff7Game
             return;
         }
         CrossoverMappingMenu menu = scene.CreateMappingMenu(launchOptions!.GameDirectory, ReadControlKeys(), Mouse.GetState());
-        menu.Confirmed += (mappings, _) =>
+        menu.Confirmed += mappings =>
         {
             try
             {

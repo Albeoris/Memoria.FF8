@@ -5,6 +5,8 @@ namespace Memoria.FF8;
 /// <summary>A directed presentation association. Editing it never changes either game's native actor or progress.</summary>
 internal static class CharacterMappingAssociations
 {
+    internal static bool UsesSquallCombat(IEnumerable<CharacterAppearanceMapping> mappings) => mappings.Any(mapping => mapping.StoryGame == SessionGame.Ff7 && mapping.StoryCharacter == 0 && mapping.AppearanceGame == SessionGame.Ff8 && mapping.AppearanceCharacter == 0);
+
     internal static void Validate(IEnumerable<CharacterAppearanceMapping> mappings)
     {
         HashSet<int> stories = [];

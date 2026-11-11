@@ -18,9 +18,8 @@ public sealed class BattleNoticePresentationTests
         using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap))
         {
-            UiView view = new(new NoticeElement("Quick saved."));
-            view.Resize(width, height);
-            view.Draw(canvas, new UiTheme { FontFamily = fontFamily });
+            NoticeWindow notice = new();
+            notice.Draw(canvas, new UiTheme { FontFamily = fontFamily }, width, height, "Quick saved.");
         }
         int scale = width / 960;
         Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(200 * scale, 40 * scale).ToArgb());

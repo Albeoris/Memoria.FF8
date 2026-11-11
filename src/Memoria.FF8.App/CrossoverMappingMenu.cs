@@ -54,11 +54,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
         previousMouse = mouse;
     }
 
-    public event Action<CharacterAppearanceMapping[], bool?>? Confirmed;
+    public event Action<CharacterAppearanceMapping[]>? Confirmed;
     public event Action? Cancelled;
 
-    private bool OffersSquallCombat => destinationGame == SessionGame.Ff7 && mappings.Any(mapping => mapping.StoryCharacter == 0 && mapping.AppearanceCharacter == 0);
-    private int EntryCount => choosingAppearance ? AppearanceNames.Length : StoryNames.Length + (OffersSquallCombat ? 3 : 2);
+    private int EntryCount => choosingAppearance ? AppearanceNames.Length : StoryNames.Length + 2;
 
     public void SetNotice(string value)
     {
@@ -196,11 +195,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else if (selected == StoryNames.Length)
         {
-            Confirmed?.Invoke(mappings.ToArray(), OffersSquallCombat ? true : null);
-        }
-        else if (selected == StoryNames.Length + 1 && OffersSquallCombat)
-        {
-            Confirmed?.Invoke(mappings.ToArray(), false);
+            Confirmed?.Invoke(mappings.ToArray());
         }
         else if (selected >= StoryNames.Length)
         {
@@ -315,10 +310,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
             }
             if (!choosingAppearance && id >= StoryNames.Length)
             {
-                string action = id == StoryNames.Length
-                    ? OffersSquallCombat ? "FFVII with Squall" : "Continue in " + (destinationGame == SessionGame.Ff7 ? "FFVII" : "FFVIII")
-                    : id == StoryNames.Length + 1 && OffersSquallCombat ? "Field appearance only" : "Cancel";
-                Label(action, cell.X + (OffersSquallCombat ? 20 : 12), cell.Y + 9, Color.White);
+                Label(id == StoryNames.Length ? "Continue in " + (destinationGame == SessionGame.Ff7 ? "FFVII" : "FFVIII") : "Cancel", cell.X + 12, cell.Y + 9, Color.White);
                 continue;
             }
             Texture2D portrait = choosingAppearance ? appearancePortraits[id] : storyPortraits[id];
@@ -350,8 +342,8 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else
         {
-            string help = OffersSquallCombat
-                ? "FFVII with Squall uses his FFVIII HP, equipment and commands in battle."
+            string help = destinationGame == SessionGame.Ff7 && CharacterMappingAssociations.UsesSquallCombat(mappings)
+                ? "Squall takes Cloud's slot in battle with his FFVIII equipment and commands."
                 : "Associations affect FFVII appearance. FFVIII keeps its native characters.";
             Label(help, 24, 445, Color.LightGray, 12);
         }
@@ -378,10 +370,6 @@ internal sealed class CrossoverMappingMenu : IDisposable
     {
         if (!choosingAppearance && id >= StoryNames.Length)
         {
-            if (OffersSquallCombat)
-            {
-                return new Rectangle(24 + (id - StoryNames.Length) * 202, 405, 188, 38);
-            }
             return new Rectangle(24 + (id - StoryNames.Length) * 304, 405, 288, 38);
         }
         return new Rectangle(24 + id % 3 * 202, 58 + id / 3 * (choosingAppearance ? 82 : 108), 188, choosingAppearance ? 74 : 96);

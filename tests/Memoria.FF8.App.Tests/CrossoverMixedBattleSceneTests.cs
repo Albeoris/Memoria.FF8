@@ -20,10 +20,10 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Explicit_guest_option_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit) => RunOpeningBattle(useLimit, useWorldSwitch: false);
+    public void Squall_mapping_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit) => RunOpeningBattle(useLimit, useWorldSwitch: false);
 
     [Fact]
-    public void World_switch_offers_field_only_and_squall_combat_for_the_same_mapping() => RunOpeningBattle(useLimit: false, useWorldSwitch: true);
+    public void World_switch_mapping_owns_combat_without_changing_a_restored_native_battle() => RunOpeningBattle(useLimit: false, useWorldSwitch: true);
 
     private void RunOpeningBattle(bool useLimit, bool useWorldSwitch)
     {
@@ -49,42 +49,31 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         using GpuTestDevice device = new();
         using Ff7Scene scene = new(device.Device, installation, "", new(50, 32000), Movie, source, audioEnabled: false);
         scene.ConfigureCharacterIdentity(ff8Root!);
-        scene.Continue(source);
+        scene.Continue(source with { MixedCombat = new(0) });
         Assert.False(scene.MixedCombatEnabled);
         using SpriteBatch batch = new(device.Device);
+        scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 0);
         if (useWorldSwitch)
         {
             using Texture2D pixel = new(device.Device, 1, 1);
             using SystemTextRenderer text = new(device.Device);
             using MonoGameUiCanvas canvas = new(device.Device, batch, pixel, text, ff8Root!);
-            CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 0);
             using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme());
-            List<bool?> selections = [];
-            menu.Confirmed += (selectedMappings, enabled) =>
+            menu.Confirmed += selectedMappings =>
             {
                 Assert.Equal(mappings, selectedMappings);
-                Assert.NotNull(enabled);
-                selections.Add(enabled);
                 scene.Continue(source with { Mappings = selectedMappings });
-                Assert.False(scene.MixedCombatEnabled);
-                Assert.Null(scene.SetMixedCombat(enabled.Value));
+                scene.PrepareMappedCombatForSwitch();
             };
             menu.Apply(MenuInput.Down);
             menu.Apply(MenuInput.Down);
             menu.Apply(MenuInput.Down);
-            menu.Apply(MenuInput.Right);
             menu.Apply(MenuInput.Confirm);
-            Assert.False(scene.MixedCombatEnabled);
-            menu.Apply(MenuInput.Left);
-            menu.Apply(MenuInput.Confirm);
-            Assert.Equal(new bool?[] { false, true }, selections);
         }
         else
         {
-            Press(Keys.F2);
-            Press(Keys.Up);
-            Press(Keys.Enter);
-            Press(Keys.F2);
+            scene.Continue(source with { Mappings = mappings });
         }
         Assert.True(scene.MixedCombatEnabled);
         Ff7Session session = scene.Session!;
@@ -109,6 +98,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             session.AdvanceTick();
         }
         Assert.NotNull(session.Battle);
+        Ff7SessionSave nativeBattle = session.Capture();
         using RenderTarget2D target = device.CreateTarget(320, 240);
         Draw();
         string originName = document.Progression!.SceneFacts!.Names[0];
@@ -120,6 +110,10 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         {
             ColdContinue(active);
             Assert.Equal(originName, scene.Session!.Battle!.Name(0));
+            ColdContinue(source with { Mappings = mappings, Ff7 = nativeBattle });
+            Assert.Equal(nativeBattle.Battle!.Tick, scene.Session!.Battle!.Tick);
+            Assert.Null(scene.Session.Battle.GuestVitals);
+            Assert.Equal("Cloud", scene.Session.Battle.Name(0));
             return;
         }
         scene.Continue(active);

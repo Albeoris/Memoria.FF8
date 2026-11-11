@@ -40,7 +40,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private int titleSelection;
     private bool debugMenu;
     private int debugSelection;
-    private string? notice;
+    private readonly NoticeWindow noticeWindow = new();
     private string? error;
     private bool focusPaused;
 
@@ -87,9 +87,14 @@ internal sealed partial class Ff7Scene : IDisposable
         pendingPressedKeys = 0;
     }
 
-    public void ShowNotice(string message)
+    public void ShowNotice(string message, double durationSeconds = NoticeWindow.DefaultDurationSeconds)
     {
-        notice = message;
+        ShowNotice(() => message, durationSeconds);
+    }
+
+    public void ShowNotice(Func<string> message, double durationSeconds)
+    {
+        noticeWindow.Show(message, durationSeconds);
     }
 
     public void SetFocusPaused(bool paused)
@@ -142,6 +147,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 movieSkipGesture.Reset();
                 return;
             }
+            noticeWindow.Advance(gameTime.ElapsedGameTime);
             if (playerMenu?.IsCapturingControls != true && PlayerSaveRequested is not null && (semanticInput.Save || semanticInput.QuickLoad || semanticInput.SaveMenu || semanticInput.LoadMenu))
             {
                 PlayerSaveRequested.Invoke(semanticInput);
@@ -164,7 +170,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 debugView = null;
                 debugPointerPressed = true;
                 SetAudioPaused(debugMenu);
-                notice = null;
+                noticeWindow.Clear();
                 if (debugMenu)
                 {
                     movie?.Suspend();
@@ -241,6 +247,10 @@ internal sealed partial class Ff7Scene : IDisposable
                     ApplyLogicalInput();
                     Session.AdvanceTick(advanceClock: false);
                 }
+                if (Session.Battle is { } startedBattle)
+                {
+                    EnsureMixedBattle(startedBattle);
+                }
                 RememberReportCheckpoint();
                 UpdateAudio();
                 if (IsShopMenuPresentation || Session.Battle is not null)
@@ -304,7 +314,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     if (Session.Battle is { } battle)
                     {
-                        DrawBattle(batch, bounds, battle);
+                        DrawBattle(windowBounds, battle);
                     }
                     else
                     {
@@ -328,9 +338,9 @@ internal sealed partial class Ff7Scene : IDisposable
             {
                 DrawDebugMenu(batch, windowBounds);
             }
-            if (notice is not null && !debugMenu)
+            if (!debugMenu && dialogueCanvas is not null && noticeWindow.Text is { } notice)
             {
-                DrawPlain(batch, notice, 8, 220, bounds, 6);
+                noticeWindow.Draw(dialogueCanvas, SharedTheme(), windowBounds.Width, windowBounds.Height, notice);
             }
             if (error is not null)
             {
@@ -360,7 +370,12 @@ internal sealed partial class Ff7Scene : IDisposable
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
+        restoredNativeBattle = session.Battle is { GuestVitals: null } nativeBattle ? nativeBattle : null;
         AttachCharacterIdentity(session);
+        if (!restoring && MixedCombatEnabled)
+        {
+            session.SetFullCombatEnabled(true);
+        }
         Session.Host.NativeBlinkCamera = BlinkCamera;
         Session.DialogueMessageSpeed = native => Ff7DialoguePresentationPolicy.MessageSpeed(native, dialoguePreferences?.Invoke().FieldMessageSpeed ?? 3);
         RestoreAudioPresentation(savedAudio, restoring);
@@ -374,7 +389,7 @@ internal sealed partial class Ff7Scene : IDisposable
         commonDialoguePages.Clear();
         reportCheckpoint = null;
         error = null;
-        notice = null;
+        noticeWindow.Clear();
         debugMenu = false;
         tickRemainder = 0;
         RememberReportCheckpoint();
@@ -472,17 +487,12 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void ActivateDebugSelection()
     {
-        if (debugSelection == MixedCombatDebugCommand)
-        {
-            ToggleMixedCombat();
-            return;
-        }
         if (debugSelection == BattlePolicyDebugCommand)
         {
             if (Session is { } session)
             {
                 session.SetFullCombatEnabled(!session.Progress.FullCombatEnabled);
-                notice = session.Progress.FullCombatEnabled ? "Full combat is enabled for the next battle." : "Instant victory is enabled for the next battle.";
+                ShowNotice(session.Progress.FullCombatEnabled ? "Full combat is enabled for the next battle." : "Instant victory is enabled for the next battle.");
             }
             return;
         }
@@ -491,7 +501,7 @@ internal sealed partial class Ff7Scene : IDisposable
             if (Session is { } session)
             {
                 session.SetRandomEncountersEnabled(!session.Progress.RandomEncountersEnabled);
-                notice = session.Progress.RandomEncountersEnabled ? "Native random encounters are enabled." : "Random encounters are disabled. Scripted battles remain enabled.";
+                ShowNotice(session.Progress.RandomEncountersEnabled ? "Native random encounters are enabled." : "Random encounters are disabled. Scripted battles remain enabled.");
             }
             return;
         }
@@ -499,7 +509,7 @@ internal sealed partial class Ff7Scene : IDisposable
         {
             if (IsTitle)
             {
-                notice = "Start or continue a game before starting auto-play.";
+                ShowNotice("Start or continue a game before starting auto-play.");
                 return;
             }
             ApplyAutoPlayCommand(autoPlay?.Running == true && !autoPlay.Paused ? "pause" : "start");
@@ -515,7 +525,7 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         if (!CanSave)
         {
-            notice = "Available only where saving is allowed.";
+            ShowNotice("Available only where saving is allowed.");
         }
         else if (debugSelection == 0)
         {
@@ -527,7 +537,7 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         else
         {
-            notice = "No suspended FFVIII session is available.";
+            ShowNotice("No suspended FFVIII session is available.");
         }
     }
 

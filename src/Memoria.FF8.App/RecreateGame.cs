@@ -66,8 +66,7 @@ internal sealed partial class RecreateGame : Game
     private ControlQueue? updateControls;
     private string? pendingCapture;
     private readonly GameLoopMetrics metrics = new();
-    private Func<string>? saveNotice;
-    private double saveNoticeSeconds;
+    private readonly GameUi.NoticeWindow noticeWindow = new();
     private double drawPointNoticeSeconds;
     private SceneEventState? drawPointNoticeScene;
     private (int MagicId, int Acquired, int Stock) drawPointAward;
@@ -360,7 +359,7 @@ internal sealed partial class RecreateGame : Game
             return;
         }
         UpdateDiagnosticExit(gameTime);
-        saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        noticeWindow.Advance(gameTime.ElapsedGameTime);
         drawPointNoticeSeconds = Math.Max(0, drawPointNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateAutoPlay(gameTime, input))
         {
@@ -966,19 +965,18 @@ internal sealed partial class RecreateGame : Game
             var saved = ff7Scene.Capture();
             playerSaves.SaveFf7(slot, saved);
             crossover = saved;
-            ff7Scene.ShowNotice("Saved");
+            ff7Scene.ShowNotice(slot == 0 ? "Quick Saved" : "Saved", slot == 0 ? GameUi.NoticeWindow.QuickSaveDurationSeconds : GameUi.NoticeWindow.DefaultDurationSeconds);
             return;
         }
         PreparePlayerSlotSave();
         playerSaves.Save(slot, session, ValidatePlayerState, writeGameplay: WritePlayerGameplaySave, combinedSession: crossover is not null);
         if (slot == 0)
         {
-            ShowSaveNotice("Quick Saved", 1);
+            ShowSaveNotice("Quick Saved", GameUi.NoticeWindow.QuickSaveDurationSeconds);
         }
         else
         {
-            saveNotice = null;
-            saveNoticeSeconds = 0;
+            noticeWindow.Clear();
         }
     }
 
@@ -1031,8 +1029,7 @@ internal sealed partial class RecreateGame : Game
         StopAutoPlayForPlayerSession();
         RestorePlayerState(state);
         RestoreCrossover(savedCrossover);
-        saveNotice = null;
-        saveNoticeSeconds = 0;
+        noticeWindow.Clear();
     }
 
 
@@ -1112,8 +1109,7 @@ internal sealed partial class RecreateGame : Game
         dialoguePages.Clear();
         selectedChoice = 0;
         enteredName = "Squall";
-        saveNotice = null;
-        saveNoticeSeconds = 0;
+        noticeWindow.Clear();
         fieldSeconds = 0;
         error = null;
         fieldFaulted = false;
@@ -1126,20 +1122,19 @@ internal sealed partial class RecreateGame : Game
         }
     }
 
-    private void ShowSaveNotice(string message, double durationSeconds = 5)
+    private void ShowSaveNotice(string message, double durationSeconds = GameUi.NoticeWindow.DefaultDurationSeconds)
     {
         ShowSaveNotice(() => message, durationSeconds);
     }
 
-    private void ShowSaveNotice(Func<string> message, double durationSeconds = 5)
+    private void ShowSaveNotice(Func<string> message, double durationSeconds = GameUi.NoticeWindow.DefaultDurationSeconds)
     {
         if (InFf7)
         {
-            ff7Scene?.ShowNotice(message());
+            ff7Scene?.ShowNotice(message, durationSeconds);
             return;
         }
-        saveNotice = message;
-        saveNoticeSeconds = durationSeconds;
+        noticeWindow.Show(message, durationSeconds);
     }
 
     private void StartNewGameSession()
@@ -1625,14 +1620,14 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, error, true);
         }
         DrawGameUi(bounds);
-        bool showDrawPointNotice = drawPointNoticeSeconds > 0 && !saveMenu.IsOpen && saveNoticeSeconds <= 0 && sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && gameMenus?.IsOpen != true && events?.Scene == drawPointNoticeScene;
+        bool showDrawPointNotice = drawPointNoticeSeconds > 0 && !saveMenu.IsOpen && noticeWindow.RemainingSeconds <= 0 && sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && gameMenus?.IsOpen != true && events?.Scene == drawPointNoticeScene;
         if (saveMenu.IsOpen)
         {
             DrawPlayerSaveMenu(bounds, uiScale);
         }
-        else if (saveNoticeSeconds > 0 && saveNotice is not null)
+        else if (noticeWindow.Text is { } notice)
         {
-            DrawNoticeUi(bounds, saveNotice(), false);
+            DrawNoticeUi(bounds, notice, false);
         }
         else if (showDrawPointNotice && world is not null)
         {

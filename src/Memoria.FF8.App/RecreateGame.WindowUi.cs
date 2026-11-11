@@ -11,9 +11,7 @@ internal sealed partial class RecreateGame
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
     private string? nativePartyWindowKey;
-    private UiView? topNoticeWindowUi;
     private UiView? bottomNoticeWindowUi;
-    private string? topNoticeWindowText;
     private string? bottomNoticeWindowText;
 
     private void DrawTitleUi(Rectangle bounds)
@@ -75,33 +73,30 @@ internal sealed partial class RecreateGame
     }
     private void DrawNoticeUi(Rectangle bounds, string message, bool bottom)
     {
-        if (bottom && errorIncident is not null && error is not null && message == error)
+        if (!bottom)
+        {
+            if (uiCanvas is not null)
+            {
+                noticeWindow.Draw(uiCanvas, uiTheme, bounds.Width, bounds.Height, message);
+            }
+            return;
+        }
+        if (errorIncident is not null && error is not null && message == error)
         {
             DrawWindowView(BuildErrorReportView(), bounds);
             return;
         }
-        UiView? view = bottom ? bottomNoticeWindowUi : topNoticeWindowUi;
-        string? previous = bottom ? bottomNoticeWindowText : topNoticeWindowText;
-        if (view is null || previous != message)
+        if (bottomNoticeWindowUi is null || bottomNoticeWindowText != message)
         {
             UiAnchorPanel root = new();
-            UiPanel panel = new() { Anchors = bottom ? new UiAnchors(0.03f, 0.69f, 0.97f, 0.97f) : new UiAnchors(0.25f, 0.018f, 0.75f, 0.143f), Padding = 14 };
+            UiPanel panel = new() { Anchors = new UiAnchors(0.03f, 0.69f, 0.97f, 0.97f), Padding = 14 };
             panel.Children.Add(new UiLabel { Text = message, FontSize = 19 });
             root.Children.Add(panel);
-            view = bottom ? CreateWindowView(root) : new UiView(new GameUi.NoticeElement(message));
-            if (bottom)
-            {
-                bottomNoticeWindowUi = view;
-                bottomNoticeWindowText = message;
-            }
-            else
-            {
-                topNoticeWindowUi = view;
-                topNoticeWindowText = message;
-            }
+            bottomNoticeWindowUi = CreateWindowView(root);
+            bottomNoticeWindowText = message;
         }
 
-        DrawWindowView(view, bounds);
+        DrawWindowView(bottomNoticeWindowUi, bounds);
     }
 
     private static UiView CreateWindowView(UiElement root)

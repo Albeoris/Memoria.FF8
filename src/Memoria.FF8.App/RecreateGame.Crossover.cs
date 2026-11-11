@@ -104,7 +104,7 @@ internal sealed partial class RecreateGame
         }
         CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination);
         menu.Cancelled += CloseCrossoverSetup;
-        menu.Confirmed += (mappings, mixedCombat) =>
+        menu.Confirmed += mappings =>
         {
             try
             {
@@ -115,7 +115,7 @@ internal sealed partial class RecreateGame
                 else
                 {
                     pendingCrossoverMappings = mappings;
-                    SwitchToFf7(mixedCombat);
+                    SwitchToFf7();
                 }
                 CloseCrossoverSetup();
             }
@@ -196,7 +196,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void SwitchToFf7(bool? mixedCombat)
+    private void SwitchToFf7()
     {
         string? reason = Ff8WorldSwitchUnavailable();
         if (reason is not null)
@@ -215,16 +215,8 @@ internal sealed partial class RecreateGame
                 using Ff7Session firstVisit = Ff7Session.NewGame(Ff7Installation.Discover(options.Ff7GameDirectory!));
                 return firstVisit.Capture();
             }, target => prepared = PrepareFf7Scene(current with { ActiveGame = SessionGame.Ff7, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, Ff7 = target }));
-            CombinedSessionSave switched = transaction.State;
-            if (mixedCombat is bool enabled)
-            {
-                if (prepared!.SetMixedCombat(enabled) is { } unavailable)
-                {
-                    throw new NotSupportedException(unavailable);
-                }
-                switched = prepared.Capture();
-            }
-            CommitPreparedFf7Scene(switched, prepared!);
+            prepared!.PrepareMappedCombatForSwitch();
+            CommitPreparedFf7Scene(prepared.Capture(), prepared);
         }
         catch
         {

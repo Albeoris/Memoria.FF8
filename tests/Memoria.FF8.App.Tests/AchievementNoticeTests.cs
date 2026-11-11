@@ -24,8 +24,8 @@ public sealed class AchievementNoticeTests
 
             typeof(RecreateGame).GetMethod("PresentAchievementChange", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(game, [new AchievementChange(previous, current)]);
 
-            Func<string> notice = (Func<string>)typeof(RecreateGame).GetField("saveNotice", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game)!;
-            Assert.Equal(unlocked ? "Achievement unlocked: Test achievement" : showProgress ? "Test achievement: 1/100" : "Quick Saved", notice());
+            NoticeWindow notice = (NoticeWindow)typeof(RecreateGame).GetField("noticeWindow", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(game)!;
+            Assert.Equal(unlocked ? "Achievement unlocked: Test achievement" : showProgress ? "Test achievement: 1/100" : "Quick Saved", notice.Text);
         }
         finally
         {
