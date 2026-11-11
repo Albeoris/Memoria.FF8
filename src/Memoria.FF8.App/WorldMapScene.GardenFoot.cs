@@ -5,26 +5,24 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private sealed class GardenFootCallback(uint buttons, NativeWorldEntryMemory memory)
+    private sealed class GardenFootCallback(NativeWorldEntryMemory memory)
     {
-        public uint Buttons { get; } = buttons;
         public NativeWorldEntryMemory Memory { get; } = memory;
         public bool ConsumeScriptRequest { get; set; }
         public WorldState? CameraState { get; set; }
         public NativeGardenWorldObject? BoardingTarget { get; set; }
     }
 
-    // This context exists only across one synchronous physical callback. All retained
-    // input, contacts, camera, cache and object owners live in the resulting WorldState.
+    // This context exists only across one synchronous physical callback.
     private GardenFootCallback? gardenFootCallback;
 
-    private WorldState StepGardenFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepGardenFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (gardenFootCallback is not null)
         {
             throw new InvalidOperationException("Garden foot callbacks cannot be nested.");
         }
-        gardenFootCallback = new GardenFootCallback(buttons, memory);
+        gardenFootCallback = new GardenFootCallback(memory);
         try
         {
             WorldState after = StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
@@ -64,7 +62,7 @@ internal sealed partial class WorldMapScene
         };
     }
 
-    private WorldState PrepareGardenFootCallback(WorldState cameraState)
+    private WorldState PrepareGardenFootCallback(WorldState cameraState, NativeWorldInputHistory buttons)
     {
         GardenFootCallback callback = gardenFootCallback ?? throw new InvalidOperationException("Parked Garden foot movement requires its current ordinary callback input.");
         NativeFootWorldRuntimeState foot = cameraState.NativeFootRuntime!;
@@ -74,10 +72,10 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         _ = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         garden = garden with { AnimationVariant = foot.AnimationVariant, Forest = foot.Forest!, CameraPitch = foot.Forest!.CameraPitch, ProjectionCamera = camera, GroundCache = foot.GroundCache!, GroundYaw = checked((short)foot.GroundYaw!.Value) };
-        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(callback.Buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory, cameraState.EventUi?.ScriptMode ?? 0);
-        NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(input);
+        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory, cameraState.EventUi?.ScriptMode ?? 0);
+        NativeGardenTransferAdmission admission = NativeGardenTransferState.EvaluateInput(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
-        garden = garden with { Buttons = garden.Buttons.Observe(callback.Buttons) };
+        garden = garden with { Buttons = garden.Buttons.Observe(buttons.CurrentButtons) };
         if (admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
         {
             NativeGardenWorldObject target = garden.Objects[garden.Allocation.Garden64Index];

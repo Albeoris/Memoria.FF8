@@ -79,14 +79,10 @@ internal sealed partial class WorldMapScene
             }
             return cameraState with { Frame = before.Frame + 1, NativeGardenRuntime = garden };
         }
-        NativeGardenButtonHistory buttonHistory = garden.Buttons;
-        if (buttonHistory.LastObservedButtons is null && salary.InputHistory?.PreviousButtons is ushort previousButtons)
-        {
-            buttonHistory = buttonHistory.Observe(previousButtons);
-        }
-        NativeGardenTransferAdmission admission = buttonHistory.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory, scriptMode));
+        NativeWorldInputHistory input = salary.InputHistory ?? throw new InvalidDataException("Garden movement requires the current world input sample.");
+        NativeGardenTransferAdmission admission = NativeGardenTransferState.EvaluateInput(garden.TransferControls.PrepareInput(input, 48, before.Frame + 1, garden.Transfer, memory, scriptMode));
         consumeGardenRequest = admission.ConsumeScriptRequest;
-        garden = garden with { Buttons = garden.Buttons.Observe(buttons) };
+        garden = garden with { Buttons = garden.Buttons.Observe(input.CurrentButtons) };
         cameraState = cameraState with { NativeGardenRuntime = garden };
         if (admission.Action)
         {

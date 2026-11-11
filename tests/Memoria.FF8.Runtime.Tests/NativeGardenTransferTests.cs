@@ -64,24 +64,22 @@ public sealed class NativeGardenTransferTests
     public void InputRequiresAnActualEdgeAndPreservesTheSeparateViewAndScriptPaths()
     {
         NativeGardenTransferInput input = new(0, 0, 48, 0, 0, false, -1, 0, 0, false);
-        NativeGardenButtonHistory history = NativeGardenButtonHistory.UnknownAtLoad();
-        Assert.False(history.Evaluate(input).Action);
-        Assert.Throws<NotSupportedException>(() => history.Evaluate(input with { CurrentButtons = 0x40 }));
-        history = history.Observe(0);
-        Assert.True(history.Evaluate(input with { CurrentButtons = 0x40 }).Action);
-        history = history.Observe(0x40);
-        Assert.False(history.Evaluate(input with { CurrentButtons = 0x40 }).Action);
-        Assert.True(history.Evaluate(input with { CurrentButtons = 2 }).ToggleView);
-        Assert.False(history.Evaluate(input with { CurrentButtons = 2 }).Action);
+        Assert.False(NativeGardenTransferState.EvaluateInput(input).Action);
+        NativeGardenTransferAdmission first = NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 0x42, PreviousButtons = null });
+        Assert.False(first.Action);
+        Assert.False(first.ToggleView);
+        Assert.True(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 0x40 }).Action);
+        Assert.False(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 0x40, PreviousButtons = 0x40 }).Action);
+        Assert.True(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 2, PreviousButtons = 0x40 }).ToggleView);
+        Assert.False(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 2 }).Action);
         Assert.True(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 0x42 }).Action);
         Assert.False(NativeGardenTransferState.EvaluateInput(input with { CurrentButtons = 0x42, EntityType = 0 }).Action);
         NativeGardenTransferInput busy = input with { CurrentButtons = 0x40, PreviousButtons = 0, ScriptMode = 8, TransitionPhase = int.MinValue, Activity = true, ActiveWorldScript = 3, ScriptRequest = 0x40 };
         Assert.True(NativeGardenTransferState.EvaluateInput(busy).Action);
         Assert.True(NativeGardenTransferState.EvaluateInput(busy).ConsumeScriptRequest);
+        Assert.True(NativeGardenTransferState.EvaluateInput(busy with { PreviousButtons = null }).ConsumeScriptRequest);
         Assert.False(NativeGardenTransferState.EvaluateInput(busy with { ScriptRequest = 0 }).Action);
         Assert.False(NativeGardenTransferState.EvaluateInput(busy with { Cooldown = 1 }).Action);
-        NativeGardenButtonHistory restored = JsonSerializer.Deserialize<NativeGardenButtonHistory>(JsonSerializer.Serialize(history))!;
-        Assert.Equal(history.Evaluate(input), restored.Evaluate(input));
     }
 
     [Theory]
@@ -104,15 +102,15 @@ public sealed class NativeGardenTransferTests
     {
         NativeGardenTransferControlState controls = new(1, NativeGardenTransferControlState.CurrentRule, 0, -1, false);
         NativeWorldEntryMemory memory = NativeWorldEntryMemory.CreateNewGame();
-        NativeGardenButtonHistory buttons = NativeGardenButtonHistory.UnknownAtLoad().Observe(0);
-        Assert.False(buttons.Evaluate(controls.PrepareInput(0x40, 48, 1, null, memory)).Action);
-        Assert.True(buttons.Evaluate(controls.PrepareInput(0x40, 48, 24, null, memory)).Action);
+        NativeWorldInputHistory buttons = NativeWorldInputHistory.Sample(NativeWorldInputHistory.FromColdProcess(), 0x40);
+        Assert.False(NativeGardenTransferState.EvaluateInput(controls.PrepareInput(buttons, 48, 1, null, memory)).Action);
+        Assert.True(NativeGardenTransferState.EvaluateInput(controls.PrepareInput(buttons, 48, 24, null, memory)).Action);
         memory = memory.WriteBytes(264, 1, 0x40);
         NativeGardenTransferState transfer = NativeGardenTransferState.Create(24, 2, 0, default);
-        NativeGardenTransferInput scripted = controls.BeginLowering().PrepareInput(0, 48, 24, transfer, memory);
+        NativeGardenTransferInput scripted = controls.BeginLowering().PrepareInput(NativeWorldInputHistory.Sample(buttons, 0), 48, 24, transfer, memory);
         Assert.Equal((byte)8, scripted.ScriptMode);
         Assert.Equal(int.MinValue, scripted.TransitionPhase);
-        Assert.True(buttons.Evaluate(scripted).Action);
+        Assert.True(NativeGardenTransferState.EvaluateInput(scripted).Action);
         NativeGardenTransferControlState restored = JsonSerializer.Deserialize<NativeGardenTransferControlState>(JsonSerializer.Serialize(controls.BeginLowering()))!;
         Assert.Equal(0, restored.AfterLowering().TransitionPhase);
         Assert.Throws<NotSupportedException>(() => (controls with { ActiveWorldScript = 0 }).Validate());

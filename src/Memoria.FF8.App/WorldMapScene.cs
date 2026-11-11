@@ -798,7 +798,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (before.NativeGardenRuntime is not null)
         {
-            return StepGardenFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepGardenFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, mapButtons: buttons);
     }
@@ -900,7 +900,8 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldState? ragnarokCameraState = null;
         if (before.NativeGardenRuntime is not null)
         {
-            gardenCameraState = PrepareGardenFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }));
+            NativeWorldInputHistory input = salary.InputHistory ?? throw new InvalidDataException("Parked Garden movement requires the current world input sample.");
+            gardenCameraState = PrepareGardenFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }), input);
             before = before with { NativeGardenRuntime = gardenCameraState.NativeGardenRuntime };
             foot = gardenCameraState.NativeFootRuntime!;
         }

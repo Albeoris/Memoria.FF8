@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public readonly record struct NativeGardenTransferInput(uint CurrentButtons, uint PreviousButtons, int EntityType, byte ScriptMode, int TransitionPhase, bool Activity, int ActiveWorldScript, int Cooldown, byte ScriptRequest, bool ViewToggleBlocked);
+public readonly record struct NativeGardenTransferInput(uint CurrentButtons, uint? PreviousButtons, int EntityType, byte ScriptMode, int TransitionPhase, bool Activity, int ActiveWorldScript, int Cooldown, byte ScriptRequest, bool ViewToggleBlocked);
 public readonly record struct NativeGardenTransferAdmission(bool Action, bool ConsumeScriptRequest, bool ToggleView, bool RisingAction);
 public readonly record struct NativeGardenTransferStep(NativeGardenTransferState State, NativeWorldPathPosition GardenPosition, bool Completed);
 
@@ -76,7 +76,8 @@ public sealed record NativeGardenTransferState
 
     public static NativeGardenTransferAdmission EvaluateInput(NativeGardenTransferInput input)
     {
-        uint rising = input.CurrentButtons & (input.CurrentButtons ^ input.PreviousButtons);
+        // An older save can lack the preceding sample. Admit only proved edges.
+        uint rising = input.PreviousButtons is uint previous ? input.CurrentButtons & ~previous : 0;
         bool edge = (rising & 0x40) != 0;
         if (input.Cooldown > 0)
         {

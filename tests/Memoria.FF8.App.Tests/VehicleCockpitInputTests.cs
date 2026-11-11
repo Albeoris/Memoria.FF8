@@ -35,19 +35,31 @@ public sealed class VehicleCockpitInputTests
         Assert.Equal(PlayerTriggerKind.FieldTransition, result.Trigger.Kind);
     }
 
-    [Fact]
-    public void PhysicalBoardingButtonReachesTheParkedGarden()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ParkedGardenBoardingUsesTheSharedPreviousButtonSample(bool semanticConfirm)
     {
         GameSession session = WorldGardenCameraSceneTests.Fixture();
+        using (WorldMapScene mounted = new(session, TestResources.GameDirectory))
+        {
+            mounted.Apply(new(PlayerActionKind.Wait, Frames: 24));
+            mounted.Apply(new(PlayerActionKind.WorldButtons, 0x40));
+            mounted.Apply(new(PlayerActionKind.Wait, Frames: 31));
+            mounted.Apply(new(PlayerActionKind.Wait));
+        }
+        WorldState foot = session.State.World!;
+        Assert.NotNull(foot.NativeFootRuntime);
+        Assert.Equal((ushort)0, session.State.WorldProcess!.InputHistory!.CurrentButtons);
+        session.Restore(session.State with { World = foot with { NativeGardenRuntime = foot.NativeGardenRuntime! with { Buttons = NativeGardenButtonHistory.UnknownAtLoad() } } });
         using WorldMapScene scene = new(session, TestResources.GameDirectory);
-        scene.Apply(new(PlayerActionKind.Wait, Frames: 24));
-        scene.Apply(new(PlayerActionKind.WorldButtons, 0x40));
-        scene.Apply(new(PlayerActionKind.Wait, Frames: 31));
-        scene.Apply(new(PlayerActionKind.Wait));
-        Assert.NotNull(scene.State.NativeFootRuntime);
-        PlayerAction action = ControllerGameplayInput.CreateWorldAction(default, session.State, 0x40);
-        Assert.Equal((ushort)0x40, action.WorldButtons);
-        scene.Apply(action);
+        PlayerAction action = new(PlayerActionKind.Confirm);
+        if (!semanticConfirm)
+        {
+            action = ControllerGameplayInput.CreateWorldAction(default, session.State, 0x40);
+            Assert.Equal((ushort)0x40, action.WorldButtons);
+        }
+        Assert.True(scene.Apply(action).Accepted);
         Assert.Null(scene.State.NativeFootRuntime);
         Assert.Null(scene.State.NativeGardenRuntime!.Transfer);
         Assert.True(ControllerGameplayInput.WorldOwnsMenu(session.State));

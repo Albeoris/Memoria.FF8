@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+/// <summary>Retained save data for Garden callbacks. Transfer admission reads the shared world input buffer.</summary>
 public sealed record NativeGardenButtonHistory([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] uint? LastObservedButtons)
 {
     public const string CurrentRule = "ff8-en-garden-input-54a7f0-observed-levels-v1";
@@ -14,22 +15,6 @@ public sealed record NativeGardenButtonHistory([property: JsonRequired] int Vers
         {
             throw new InvalidDataException("Garden input requires its explicit retained button-history owner.");
         }
-    }
-
-    public NativeGardenTransferAdmission Evaluate(NativeGardenTransferInput input)
-    {
-        Validate();
-        if (LastObservedButtons is uint previous)
-        {
-            return NativeGardenTransferState.EvaluateInput(input with { PreviousButtons = previous });
-        }
-        if ((input.CurrentButtons & 0x42) != 0)
-        {
-            throw new NotSupportedException("Garden action/view edge requires the preceding actual button level; release both inputs for an ordinary callback first.");
-        }
-        // Both relevant current bits are zero, so every possible previous
-        // DWORD gives the same absent edges. This does not assert a prior0.
-        return NativeGardenTransferState.EvaluateInput(input with { PreviousButtons = input.CurrentButtons });
     }
 
     public NativeGardenButtonHistory Observe(uint buttons)
