@@ -17,41 +17,58 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
         this.publish = publish;
     }
 
-    public Ff7GuestFieldVitalsView Read()
+    public IReadOnlyList<int> StoryCharacters => read().GetMixedCombatBindings().Select(binding => binding.StoryCharacter).ToArray();
+
+    public Ff7GuestFieldVitalsView Read() => ReadAll().Single();
+
+    public IReadOnlyList<Ff7GuestFieldVitalsView> ReadAll()
     {
         CombinedSessionSave source = read();
-        Ff7MixedCombatBinding binding = source.MixedCombat ?? throw new InvalidOperationException("Field vitals require a mapped FFVIII character.");
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
         NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
-        int row = ReadGuestRow(vitals, binding.OriginCharacter);
-        NativeCharacterVital saved = vitals.Records[row];
-        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row));
+        return source.GetMixedCombatBindings().Select(binding => ReadGuest(document, vitals, binding)).ToArray();
     }
 
-    public void Recover(bool clearStatuses) => Update(null, clearStatuses);
-    public void AddHitPoints(short amount) => Update(amount, false);
+    public void Recover(bool clearStatuses) => RecoverCharacters(StoryCharacters, clearStatuses);
+    public void RecoverCharacters(IReadOnlyCollection<int> storyCharacters, bool clearStatuses) => Update(storyCharacters, null, clearStatuses);
+    public void AddHitPoints(short amount) => AddHitPoints(StoryCharacters.Single(), amount);
+    public void AddHitPoints(int storyCharacter, short amount) => Update([storyCharacter], amount, false);
 
-    private void Update(short? amount, bool clearStatuses)
+    private void Update(IReadOnlyCollection<int> storyCharacters, short? amount, bool clearStatuses)
     {
         CombinedSessionSave source = read();
-        Ff7MixedCombatBinding binding = source.MixedCombat ?? throw new InvalidOperationException("Field vitals require a mapped FFVIII character.");
+        Ff7MixedCombatBinding[] affected = source.GetMixedCombatBindings().Where(binding => storyCharacters.Contains(binding.StoryCharacter)).ToArray();
+        if (affected.Length == 0)
+        {
+            return;
+        }
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
         NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
-        int row = ReadGuestRow(vitals, binding.OriginCharacter);
-        NativeCharacterVital saved = vitals.Records[row];
-        ushort maximum = vitals.GetMagicMaximumHitPoints(row);
-        ushort hp = amount is short delta ? checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum)) : maximum;
-        NativeHpWord exact = vitals.WithSavedHitPoints(row, hp).Records[row].HitPoints;
-        ushort statuses = (ushort)(saved.Status & ~(clearStatuses ? Ff7GuestBattleStatuses.SupportedOrigin : 1));
-        if (hp == 0)
-        {
-            statuses |= 1;
-        }
         NativeCharacterVital[] rows = (NativeCharacterVital[])document.Characters.Records.Clone();
-        rows[row] = saved with { HitPoints = exact, Status = statuses };
+        foreach (Ff7MixedCombatBinding binding in affected)
+        {
+            int row = ReadGuestRow(vitals, binding.OriginCharacter);
+            NativeCharacterVital saved = vitals.Records[row];
+            ushort maximum = vitals.GetMagicMaximumHitPoints(row);
+            ushort hp = amount is short delta ? checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum)) : maximum;
+            NativeHpWord exact = vitals.WithSavedHitPoints(row, hp).Records[row].HitPoints;
+            ushort statuses = (ushort)(saved.Status & ~(clearStatuses ? Ff7GuestBattleStatuses.SupportedOrigin : 1));
+            if (hp == 0)
+            {
+                statuses |= 1;
+            }
+            rows[row] = saved with { HitPoints = exact, Status = statuses };
+        }
         using MemoryStream destination = new();
         GameplaySaveCodec.Write(destination, document with { Characters = document.Characters with { Records = rows } });
         publish(source with { Ff8Payload = destination.ToArray() });
+    }
+
+    private static Ff7GuestFieldVitalsView ReadGuest(GameplaySaveComponentDocument document, NativeCharacterVitals vitals, Ff7MixedCombatBinding binding)
+    {
+        int row = ReadGuestRow(vitals, binding.OriginCharacter);
+        NativeCharacterVital saved = vitals.Records[row];
+        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row));
     }
 
     internal static string ReadGuestName(GameplaySaveComponentDocument document, int character)

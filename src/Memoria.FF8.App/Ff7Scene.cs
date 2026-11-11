@@ -251,10 +251,6 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     EnsureMixedBattle(startedBattle);
                 }
-                else if (envelope.Mappings.Length > 0)
-                {
-                    RefreshMappedFieldCombat(Session);
-                }
                 RememberReportCheckpoint();
                 UpdateAudio();
                 if (IsShopMenuPresentation || Session.Battle is not null)
@@ -369,12 +365,17 @@ internal sealed partial class Ff7Scene : IDisposable
         DisposeShopMenu();
         StopAudio();
         ResetMixedCombat();
-        Session?.Dispose();
+        if (Session is { } previous)
+        {
+            previous.PartyChanged -= RefreshMappedFieldCombat;
+            previous.Dispose();
+        }
         StopMovie();
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
-        restoredNativeBattle = session.Battle is { GuestVitals: null } nativeBattle ? nativeBattle : null;
+        session.PartyChanged += RefreshMappedFieldCombat;
+        restoredNativeBattle = session.Battle is { GuestVitalsBindings.Count: 0 } nativeBattle ? nativeBattle : null;
         AttachCharacterIdentity(session);
         if (!restoring && MixedCombatEnabled)
         {

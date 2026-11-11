@@ -106,7 +106,7 @@ internal sealed partial class CrossoverGuestHostActions
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
-        CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model with { Index = 0 }, target.Slot, plan.Variant, plan.Finisher is not null, distance, yaw, random, options, limitUiRandom);
+        CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model with { Index = 0 }, target.Slot, plan.Variant, plan.Finisher is not null, distance, yaw, encounter.CrtRandom, options, limitUiRandom);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         CrossoverNativeLimitCamera camera = CrossoverNativeLimitCamera.Capture(program.Model, limitResource.PoseSource!, placement, target.Placement.Position, host.GuestEffectTargetAnchor(target.Slot));
         limit = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, plan, program) { Camera = camera };
@@ -137,7 +137,7 @@ internal sealed partial class CrossoverGuestHostActions
                 rough = current.Rough ?? BeginRough(current);
                 CrossoverNativeRoughDivideStep next = roughDivideProgram.Advance(rough, limitProgram.BindReplacement(program.Effect), ReadForeignPosition, projection, roll);
                 current = current with { Rough = next.State };
-                random = next.State.Frame.Random;
+                encounter.CrtRandom = next.State.Frame.Random;
                 if (next.Contact)
                 {
                     presented = program.Trigger.Consumed + 1;
@@ -153,7 +153,7 @@ internal sealed partial class CrossoverGuestHostActions
                 CrossoverNativeRenzokukenProgramStep next = limitProgram.Advance(program, projection, roll);
                 program = next.State;
                 limitUiRandom = program.Trigger.Random;
-                random = program.Effect.Frame.Random;
+                encounter.CrtRandom = program.Effect.Frame.Random;
                 if (next.Timing is { } timing)
                 {
                     hit = CrossoverNativeRenzokukenPlan.ProjectContact(kit, timing.Timing);
@@ -256,7 +256,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return null;
         }
-        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Finisher is not (null or 0) || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || (saved.Rough?.Frame.Random ?? saved.Program.Effect.Frame.Random) != random || saved.Program.Trigger.Random != limitUiRandom || saved.FinisherNumericTick > saved.HostTick || saved.Plan.Finisher is null && (saved.FinisherNumericTick is not null || saved.Rough is not null) || saved.Rough is not null && (saved.FinisherNumericTick is null || !saved.Program.FinisherReady))
+        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Finisher is not (null or 0) || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || (saved.Rough?.Frame.Random ?? saved.Program.Effect.Frame.Random) != encounter.CrtRandom || saved.Program.Trigger.Random != limitUiRandom || saved.FinisherNumericTick > saved.HostTick || saved.Plan.Finisher is null && (saved.FinisherNumericTick is not null || saved.Rough is not null) || saved.Rough is not null && (saved.FinisherNumericTick is null || !saved.Program.FinisherReady))
         {
             throw new InvalidDataException("The saved guest Renzokuken contradicts its native source and host queue occurrence.");
         }

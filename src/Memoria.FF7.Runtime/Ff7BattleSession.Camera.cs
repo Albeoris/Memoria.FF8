@@ -23,7 +23,9 @@ public sealed partial class Ff7BattleSession
     {
         get
         {
-            IFf7BattleGuestCamera? guest = guestAttack as IFf7BattleGuestCamera;
+            IFf7BattleGuestCamera? guest = state.Action is { Command.GuestAttack: true } action
+                ? GetGuestAttack(action.Command.ActorSlot) as IFf7BattleGuestCamera
+                : state.GuestSlots is null ? guestAttacks.FirstOrDefault(guest => guest is not null) as IFf7BattleGuestCamera : null;
             if (guest?.LeasedCamera is { } lease)
             {
                 return lease;

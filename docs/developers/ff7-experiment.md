@@ -35,7 +35,7 @@ FFVII keeps its own VM, story, inventory, RNG, script PCs and save permissions. 
 
 Appearance profiles retain native target idle/walk/run bindings and retarget admitted source actions through anatomical bindings and the common pose pipeline. Profiles are versioned, older identifiers remain supported and exact rig/allocation validation stays strict. Recognized authored bind-relative repairs do not emulate out-of-allocation reads. Catalog membership is not a guarantee of artistic contact quality, all model variants or combat compatibility.
 
-The character mapping enables full combat when switching to FFVII and places the mapped FFVIII character in the corresponding FFVII story slot. The guest reads equipment, HP, junctions and stock from the character's record in the suspended FFVIII save. The FFVII encounter currently admits one active FFVIII guest. A restored encounter keeps the combat owners recorded when it began.
+The character mapping enables full combat when switching to FFVII. Each occupied mapped FFVII party slot can use a different FFVIII guest, up to all three slots. Each guest reads equipment, HP, junctions and stock from their own character record in the suspended FFVIII save. FFVIII's item inventory and random streams are shared by the guests. A restored encounter keeps the combat owners recorded when it began.
 
 FFVII battles use the common battle HUD and popup windows. FFVII party members show MP below HP and spell costs in the Magic list's right column. The FFVIII guest uses their spell stock in that column.
 

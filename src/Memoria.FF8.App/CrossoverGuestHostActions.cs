@@ -25,7 +25,12 @@ internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSna
     public CrossoverGuestRenzokukenHostState? Limit { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleUiRandomState? LimitUiRandom { get; init; }
+
+    public CrossoverGuestEncounterSnapshot EncounterState() => new(Stock, OriginCrtRandom, CrtRandom, NextOrdinal, CommittedSpells, LegacyBattleMaskContinuation, Audio, Items);
+    public CrossoverGuestActorSnapshot ActorState() => new(Fire, LimitSelection, Limit, LimitUiRandom);
 }
+
+internal sealed record CrossoverGuestActorSnapshot(CrossoverGuestFireHostState? Fire, CrossoverNativeRenzokukenSelection? LimitSelection, CrossoverGuestRenzokukenHostState? Limit, NativeBattleUiRandomState? LimitUiRandom);
 
 /// <summary>One host provider for native Gunblade and the admitted original spell profiles.</summary>
 internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit
@@ -37,49 +42,27 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     private readonly CrossoverGunbladeHostAttack attack;
     private readonly CrossoverNativeMagicPresentation fireProgram;
     private readonly CrossoverNativeSpriteRenderer compositor;
-    private NativeCharacterVitals working;
-    private NativeCrtRandomState random;
-    private readonly NativeCrtRandomState? originRandom;
-    private long nextOrdinal;
+    private readonly CrossoverGuestEncounter encounter;
     private CrossoverGuestFireHostState? fire;
     private Ff7BattleGuestPhysicalHit? prepared;
-    private ImmutableArray<CrossoverGuestCommittedSpell> committedSpells;
-    private readonly bool legacyBattleMaskContinuation;
-    private CrossoverGuestAudioState audio;
     private readonly NativeBattleGraphicsRules graphicsRules;
     private Func<int, Ff7BattleActorGeometry>? readForeignGeometry;
-    private CrossoverGuestItemInventory? items;
 
     public CrossoverGuestHostActions(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, NativeCharacterVitals origin, NativeCrtRandomState? crt, CrossoverGunbladeHostAttack attack, Ff7BattleSession host, GameAssets game, BattleAssets assets, CrossoverGuestHostActionsSnapshot? saved = null, GameplaySaveEconomy? originEconomy = null, ushort? originLimitOptions = null, NativeBattleUiRandomState? originLimitUiRandom = null)
+        : this(roster, kit, attack, host, game, assets, new(roster, origin, host, attack.GlobalRandom, crt, originEconomy, saved?.EncounterState()), saved?.ActorState(), originLimitOptions, originLimitUiRandom)
+    {
+    }
+
+    public CrossoverGuestHostActions(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, CrossoverGunbladeHostAttack attack, Ff7BattleSession host, GameAssets game, BattleAssets assets, CrossoverGuestEncounter encounter, CrossoverGuestActorSnapshot? saved, ushort? originLimitOptions, NativeBattleUiRandomState? originLimitUiRandom)
     {
         this.roster = roster;
         this.kit = kit;
         this.assets = assets;
+        this.encounter = encounter;
         graphicsRules = game.ReadNativeBattleGraphicsRules();
-        audio = saved?.Audio ?? CrossoverGuestAudioState.Create();
-        audio.Validate(roster.EncounterId, host.Tick);
         this.attack = attack;
         this.host = host;
-        items = originEconomy is null ? null : saved?.Items?.Restore(originEconomy, host.RequestId, attack.ActorSlot, host.Tick) ?? CrossoverGuestItemInventory.Begin(originEconomy);
-        if (saved?.Items is not null && items is null)
-        {
-            throw new InvalidDataException("The saved guest item stock has no suspended origin economy.");
-        }
         ValidateItemQueue();
-        working = saved?.Stock.Restore(roster, origin) ?? origin.DeepCopy();
-        string encounter = $"mixed:{roster.EncounterId:N}";
-        legacyBattleMaskContinuation = saved?.LegacyBattleMaskContinuation == true || saved is { NextOrdinal: > 1 } && saved.Stock.Magic.EncounterId != encounter;
-        working = saved is null || saved.NextOrdinal == 1 && saved.Fire is null
-            ? MagicCastingService.BeginEncounter(working, encounter)
-            : working with { MagicSystem = working.MagicSystem with { EncounterId = encounter } };
-        originRandom = saved?.OriginCrtRandom ?? crt;
-        random = saved?.CrtRandom ?? crt ?? NativeCrtRandomState.FromColdProcess();
-        nextOrdinal = saved?.NextOrdinal ?? 1;
-        if (nextOrdinal < 1 || nextOrdinal - 1 > working.MagicSystem.CommittedActionIds.Length)
-        {
-            throw new InvalidDataException("The guest action ordinal exceeds its recorded spell costs.");
-        }
-        committedSpells = saved?.CommittedSpells ?? Enumerable.Range(1, checked((int)(nextOrdinal - 1))).Select(ordinal => new CrossoverGuestCommittedSpell(ordinal, 1, kit.RecordRow)).ToImmutableArray();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
         fireProgram = new(game, sourceResource);
@@ -92,7 +75,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         limitSelection?.Validate(host.Tick);
         limit = RestoreLimit(saved?.Limit);
         compositor = new(assets.ReadNativePrimitiveTables(), game.ReadNativeEffectMeshes(), graphicsRules.SummonColors!);
-        if (nextOrdinal < 1 || saved is not null && saved.OriginCrtRandom != crt || fire is { } active && ((active.Invocation.GuestCommand == 4 ? !CrossoverGuestItemInventory.Supports(active.Invocation.GuestAbility) : active.Invocation.GuestAbility is not (1 or 4 or 7 or 21)) || active.Presentation.Ability != active.Invocation.GuestAbility || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || !OwnsActiveCost(active)))
+        if (fire is { } active && ((active.Invocation.GuestCommand == 4 ? !CrossoverGuestItemInventory.Supports(active.Invocation.GuestAbility) : active.Invocation.GuestAbility is not (1 or 4 or 7 or 21)) || active.Presentation.Ability != active.Invocation.GuestAbility || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || !OwnsActiveCost(active)))
         {
             throw new InvalidDataException("The saved guest spell owner contradicts its native encounter and committed stock.");
         }
@@ -100,10 +83,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             fire = fire with { Presentation = CrossoverNativeMagicPresentation.Restore(fire.Presentation) };
         }
-        this.kit = CrossoverFf8BattleKit.Read(working, assets, kit.CharacterId);
+        this.kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId);
         attack.ReprojectKit(this.kit);
         Ff7BattleGuestProjection currentProjection = Projection(this.kit);
-        Ff7BattleGuestProjection savedProjection = host.GuestProjection ?? throw new InvalidDataException("The host guest has no original stat binding.");
+        Ff7BattleGuestProjection savedProjection = host.GetGuestProjection(ActorSlot) ?? throw new InvalidDataException("The host guest has no original stat binding.");
         Ff7BattleGuestProjection restoredProjection = savedProjection with
         {
             Dexterity = savedProjection.Dexterity ?? currentProjection.Dexterity,
@@ -117,22 +100,32 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         if (savedProjection != restoredProjection)
         {
-            host.ReprojectGuestVitals(currentProjection);
+            host.ReprojectGuestVitals(ActorSlot, currentProjection);
         }
-        host.BindGuestSpeed(ProjectSpeed(kit.Stats.Speed));
-        if (committedSpells.IsDefault || committedSpells.Length != nextOrdinal - 1 || committedSpells.Where((cost, index) => cost.Ordinal != index + 1 || cost.Spell is not (1 or 4 or 7 or 21) || cost.OriginRow != kit.RecordRow).Any())
-        {
-            throw new InvalidDataException("The guest spell cost ledger contradicts its action ordinals.");
-        }
+        host.BindGuestSpeed(ActorSlot, ProjectSpeed(kit.Stats.Speed));
+        encounter.Register(this);
+    }
+
+    internal void ReprojectWorkingKit()
+    {
+        kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId);
+        attack.ReprojectKit(kit);
+        host.ReprojectGuestVitals(ActorSlot, Projection(kit));
     }
 
     private bool OwnsActiveCost(CrossoverGuestFireHostState active)
     {
         if (active.Invocation.GuestCommand == 4)
         {
-            return active.StockAction is null && active.Presentation.Command == 4 && active.ItemCost is { Refunded: false } cost && items?.Ledger.Contains(cost) == true && cost.Selection.TargetSlot == active.Invocation.TargetSlot && cost.Selection.ItemId == active.Invocation.GuestAbility && cost.Selection.SubmittedAt <= active.Invocation.StartedAt;
+            return active.StockAction is null && active.Presentation.Command == 4 && active.ItemCost is { Refunded: false } cost &&
+                cost.Selection.ActorSlot == ActorSlot && cost.Selection.TargetSlot == active.Invocation.TargetSlot && cost.Selection.ItemId == active.Invocation.GuestAbility &&
+                cost.Selection.SubmittedAt <= active.Invocation.StartedAt &&
+                encounter.Items?.Ledger.Any(debit => !debit.Refunded && debit.Ordinal == cost.Ordinal && debit.Selection == cost.Selection && debit.OriginSlot == cost.OriginSlot) == true;
         }
-        return active.Presentation.Command == 2 && active.ItemCost is null && active.StockAction is { } stock && stock.Ordinal < nextOrdinal && CrossoverBattleBridge.HasCommittedStock(roster, working, stock);
+        return active.Presentation.Command == 2 && active.ItemCost is null && active.StockAction is { } stock && stock.Actor.Occurrence == ActorSlot &&
+            stock.Target.Occurrence == active.Invocation.TargetSlot && stock.Ability.NativeId == active.Invocation.GuestAbility &&
+            encounter.CommittedSpells.Any(cost => cost.Ordinal == stock.Ordinal && cost.OriginRow == stock.OriginRow && cost.Spell == stock.Ability.NativeId) &&
+            CrossoverBattleBridge.HasCommittedStock(roster, encounter.Working, stock);
     }
 
     private void ValidateItemQueue()
@@ -142,8 +135,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             return;
         }
         Ff7BattleCommandQueueState queue = host.Capture().Queue;
-        Ff7BattleQueuedCommand[] selected = queue.Ready.Concat(queue.Slots.Select(slot => slot?.Command)).OfType<Ff7BattleQueuedCommand>().Where(command => command is { GuestAttack: true, CommandId: 4 }).ToArray();
-        if (items?.Pending is { Selection: { } pending })
+        Ff7BattleQueuedCommand[] selected = queue.Ready.Concat(queue.Slots.Select(slot => slot?.Command)).OfType<Ff7BattleQueuedCommand>().Where(command => command is { GuestAttack: true, CommandId: 4 } && command.ActorSlot == ActorSlot).ToArray();
+        if (encounter.Items?.PendingFor(ActorSlot) is { Selection: { } pending })
         {
             if (selected is not [var command] || command.ActorSlot != pending.ActorSlot || command.Argument != pending.ItemId || command.TargetMask != 1 << pending.TargetSlot)
             {
@@ -181,17 +174,32 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     public string MagicName(ushort ability) => ability is 1 or 4 or 7 or 21 ? kit.Spells.Single(spell => IsSpell(spell, ability)).Name ?? throw new InvalidDataException("The original spell has no localized source name.") : throw new NotSupportedException("The guest ability has no admitted native spell name.");
     public ImmutableArray<NativeBattleModuleDraw> LastSounds { get; private set; } = [];
     public ImmutableArray<NativeBattleFireSound> LastFireSounds { get; private set; } = [];
-    public NativeCharacterVitals WorkingStock => working;
-    public NativeCrtRandomState CurrentCrtRandom => random;
-    public NativeCrtRandomState? OriginCrtRandom => originRandom;
-    public bool UsedMagic => nextOrdinal > 1;
-    public bool LegacyBattleMaskContinuation => legacyBattleMaskContinuation;
+    public CrossoverGunbladeHostAttack Attack => attack;
+    public NativeCharacterVitals WorkingStock => encounter.Working;
+    public NativeCrtRandomState CurrentCrtRandom => encounter.CrtRandom;
 
-    public CrossoverGuestHostActionsSnapshot Capture() => new(CrossoverBattleStockSnapshot.Capture(roster, working), originRandom, random, nextOrdinal, fire is { } current ? current with { Presentation = CrossoverNativeMagicPresentation.Capture(current.Presentation) } : null) { CommittedSpells = committedSpells, LegacyBattleMaskContinuation = legacyBattleMaskContinuation, Audio = audio, Items = items is null ? null : items with { Slots = items.Slots.ToArray() }, LimitSelection = limitSelection, Limit = CaptureLimit(), LimitUiRandom = limitUiRandom };
-    public ImmutableArray<CrossoverGuestAudioReceipt> PeekSoundRequests() => audio.Pending;
-    public void AcknowledgeSoundRequests(long throughOrdinal) => audio = audio.Acknowledge(throughOrdinal);
+    public CrossoverGuestActorSnapshot CaptureActor() => new(fire is { } current ? current with { Presentation = CrossoverNativeMagicPresentation.Capture(current.Presentation) } : null, limitSelection, CaptureLimit(), limitUiRandom);
+
+    public CrossoverGuestHostActionsSnapshot Capture()
+    {
+        CrossoverGuestEncounterSnapshot shared = encounter.Capture();
+        CrossoverGuestActorSnapshot actor = CaptureActor();
+        return new(shared.Stock, shared.OriginCrtRandom, shared.CrtRandom, shared.NextOrdinal, actor.Fire)
+        {
+            CommittedSpells = shared.CommittedSpells,
+            LegacyBattleMaskContinuation = shared.LegacyBattleMaskContinuation,
+            Audio = shared.Audio,
+            Items = shared.Items,
+            LimitSelection = actor.LimitSelection,
+            Limit = actor.Limit,
+            LimitUiRandom = actor.LimitUiRandom
+        };
+    }
+
+    public ImmutableArray<CrossoverGuestAudioReceipt> PeekSoundRequests() => encounter.Audio.Pending;
+    public void AcknowledgeSoundRequests(long throughOrdinal) => encounter.Audio = encounter.Audio.Acknowledge(throughOrdinal);
     public bool Supports(Ff7BattleGuestAttackTarget target) => attack.Supports(target);
-    public int MagicStock(ushort ability) => ability is 1 or 4 or 7 or 21 && kit.Commands.Contains((byte)2) && kit.Spells.Any(spell => IsSpell(spell, ability)) ? MagicCastingService.Quote(working, kit.RecordRow, ability, MagicCastContext.Battle).Available : 0;
+    public int MagicStock(ushort ability) => ability is 1 or 4 or 7 or 21 && kit.Commands.Contains((byte)2) && kit.Spells.Any(spell => IsSpell(spell, ability)) ? MagicCastingService.Quote(encounter.Working, kit.RecordRow, ability, MagicCastContext.Battle).Available : 0;
     public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => ability is 1 or 4 or 7 or 21 && (ability != 21 ? attack.Supports(target) : target.Slot == ActorSlot || target.Slot is >= 0 and < 3 && readForeignGeometry is not null && host.IsActorPresentationReady(target.Slot)) && kit.Spells.Any(spell => IsSpell(spell, ability));
 
     public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability)
@@ -218,9 +226,9 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         prepared = value;
     }
 
-    public bool HasOriginItems => items is not null;
+    public bool HasOriginItems => encounter.Items is not null;
     public IReadOnlyList<ushort> ItemIds => kit.Commands.Contains((byte)4) && HasOriginItems ? [1, 7, 16] : [];
-    public int ItemStock(ushort item) => ItemIds.Contains(item) ? items!.Slots.SingleOrDefault(stock => stock.ItemId == item)?.Count ?? 0 : 0;
+    public int ItemStock(ushort item) => ItemIds.Contains(item) ? encounter.Items!.Slots.SingleOrDefault(stock => stock.ItemId == item)?.Count ?? 0 : 0;
     public string ItemName(ushort item) => OriginalItem(item).Name ?? throw new InvalidDataException("The original item has no localized source name.");
 
     public bool SupportsItem(ushort item, Ff7BattleGuestAttackTarget target)
@@ -248,16 +256,16 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     public void ReserveItem(Ff7BattleGuestItemSelection selection)
     {
-        if (items is null || selection.RequestId != host.RequestId || selection.ActorSlot != ActorSlot || selection.SubmittedAt != host.Tick || ItemStock(selection.ItemId) == 0)
+        if (encounter.Items is not { } inventory || selection.RequestId != host.RequestId || selection.ActorSlot != ActorSlot || selection.SubmittedAt != host.Tick || ItemStock(selection.ItemId) == 0)
         {
             throw new InvalidDataException("The guest item does not belong to the current original inventory and host turn.");
         }
-        items = items.Reserve(selection);
+        encounter.Items = inventory.Reserve(selection);
     }
 
     public void CancelItem(int target, ushort item)
     {
-        items = (items ?? throw new InvalidDataException("The guest has no origin inventory owner.")).Complete(target, item, refund: true);
+        encounter.Items = (encounter.Items ?? throw new InvalidDataException("The guest has no origin inventory owner.")).Complete(ActorSlot, target, item, refund: true);
     }
 
     public void PrepareItem(Ff7BattleGuestPhysicalHit value)
@@ -284,7 +292,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     private void BeginItem(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
     {
-        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || items?.Pending is not { } cost || !SupportsItem(invocation.GuestAbility, target) || cost.Selection.ItemId != invocation.GuestAbility || cost.Selection.TargetSlot != target.Slot)
+        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || encounter.Items is not { } inventory || inventory.PendingFor(ActorSlot) is not { } cost || !SupportsItem(invocation.GuestAbility, target) || cost.Selection.ItemId != invocation.GuestAbility || cost.Selection.TargetSlot != target.Slot)
         {
             throw new InvalidDataException("The guest item requires one reserved origin unit and one prepared host receipt.");
         }
@@ -295,8 +303,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         byte healing = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
         NativeBattleContactPresentation contactPresentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, 255);
         NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(target.Slot == ActorSlot ? (byte)0 : (byte)3, contactPresentation.Sequence, contactPresentation.Flags2, contactPresentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
-        CrossoverNativeMagicPresentationState program = fireProgram.Begin(model with { Index = 0 }, target.Slot, random, contact, invocation.GuestAbility, 4);
-        items = items.Complete(target.Slot, invocation.GuestAbility, refund: false);
+        CrossoverNativeMagicPresentationState program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, invocation.GuestAbility, 4);
+        encounter.Items = inventory.Complete(ActorSlot, target.Slot, invocation.GuestAbility, refund: false);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, null, program, false) { ItemCost = cost };
         prepared = null;
@@ -316,7 +324,9 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         if (invocation.GuestAbility == 0)
         {
+            attack.GlobalRandom = encounter.GlobalRandom;
             attack.Begin(invocation, source, target);
+            encounter.GlobalRandom = attack.GlobalRandom;
             return;
         }
         if (invocation.GuestAbility is not (1 or 4 or 7 or 21) || Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || !SupportsMagic(invocation.GuestAbility, target))
@@ -325,7 +335,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, invocation.GuestAbility);
         CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == target.Slot).Combat;
-        CrossoverBattleAdmission admission = CrossoverBattleBridge.Prepare(roster, kit, working, nextOrdinal, ability, targetId, [new(roster.Version, ability, targetId.Origin, targetId.Kind, targetId.NativeId)]);
+        CrossoverBattleAdmission admission = CrossoverBattleBridge.Prepare(roster, kit, encounter.Working, encounter.NextOrdinal, ability, targetId, [new(roster.Version, ability, targetId.Origin, targetId.Kind, targetId.NativeId)]);
         CrossoverBattleAction stockAction = admission.Action ?? throw new InvalidOperationException(admission.Reason);
         NativeCharacterVitals reserved = admission.Vitals;
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
@@ -338,19 +348,17 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         CrossoverNativeMagicPresentationState program;
         try
         {
-            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, random, contact, invocation.GuestAbility);
+            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, invocation.GuestAbility);
         }
         catch
         {
-            working = CrossoverBattleBridge.ReleaseStock(roster, reserved, stockAction);
+            encounter.Working = CrossoverBattleBridge.ReleaseStock(roster, reserved, stockAction);
             throw;
         }
-        working = CrossoverBattleBridge.CommitStock(roster, reserved, stockAction);
-        committedSpells = committedSpells.Add(new(nextOrdinal, invocation.GuestAbility, kit.RecordRow));
-        kit = CrossoverFf8BattleKit.Read(working, assets, kit.CharacterId);
-        attack.ReprojectKit(kit);
-        host.ReprojectGuestVitals(Projection(kit));
-        nextOrdinal++;
+        encounter.Working = CrossoverBattleBridge.CommitStock(roster, reserved, stockAction);
+        encounter.CommittedSpells = encounter.CommittedSpells.Add(new(encounter.NextOrdinal, invocation.GuestAbility, kit.RecordRow));
+        encounter.NextOrdinal++;
+        encounter.ReprojectKits(ActorSlot);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false);
         prepared = null;
@@ -366,9 +374,11 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         if (fire is not { } current)
         {
-            attack.AttackCrtRandom = random;
+            attack.AttackCrtRandom = encounter.CrtRandom;
+            attack.GlobalRandom = encounter.GlobalRandom;
             Ff7BattleGuestAttackUpdate update = attack.Advance(hostTick);
-            random = attack.AttackCrtRandom ?? random;
+            encounter.GlobalRandom = attack.GlobalRandom;
+            encounter.CrtRandom = attack.AttackCrtRandom ?? encounter.CrtRandom;
             if (attack.Visual is { } visual)
             {
                 foreach (NativeBattleModuleSound sound in attack.LastModuleSounds)
@@ -419,7 +429,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
                 return new(point, point, 0, 0, scale);
             }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), () => CrossoverNativeCureForeignTarget.Read(host, current.Invocation.TargetSlot, (readForeignGeometry ?? throw new InvalidDataException("The host ally geometry owner is unavailable."))(current.Invocation.TargetSlot), current.Placement.Matrix));
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
-            random = next.State.Random;
+            encounter.CrtRandom = next.State.Random;
             LastSounds = next.Sounds;
             LastFireSounds = next.FireSounds;
             foreach (NativeBattleModuleDraw sound in next.Sounds)
@@ -464,7 +474,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, current.HostTick, current.Subticks, current.HalfSubtick, completed: false);
             fire = null;
         }
-        if (items?.Pending is { Selection: { } pending })
+        if (encounter.Items?.PendingFor(ActorSlot) is { Selection: { } pending })
         {
             CancelItem(pending.TargetSlot, pending.ItemId);
         }
@@ -482,7 +492,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             NativeBattleModuleAnchor anchor = sound.Anchor ?? throw new InvalidDataException("The guest sound has neither an explicit pan nor a native position.");
             sound = sound with { Pan = CrossoverNativeSpriteRenderer.Camera(host.CameraOutput, originToHost).ReadPan(new(anchor.X, anchor.Y, anchor.Z)) };
         }
-        audio = audio.Append(EncounterId, hostTick, kind, sound);
+        encounter.Audio = encounter.Audio.Append(EncounterId, hostTick, kind, sound);
     }
     internal static Ff7BattleGuestProjection Projection(CrossoverFf8BattleKit kit) => new(checked((ushort)kit.MaximumHitPoints), Project(kit.Level, 7, 6, 100, 99), Project(kit.Stats.Luck, 16, 14, 255, 255), Project(kit.Stats.Vitality, 6, 24, 255, 255), Project(kit.Stats.Spirit, 5, 17, 255, 255))
     {

@@ -92,10 +92,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         this.readHostPan = readHostPan;
         this.readHostImpactAnchor = readHostImpactAnchor;
         this.readHostTargetBone = readHostTargetBone;
-        if (roster.Guest.Combat.NativeId != kit.CharacterId)
-        {
-            throw new InvalidDataException("The guest Attack kit does not belong to the bound combat actor.");
-        }
+        ActorSlot = (roster.Guests.SingleOrDefault(guest => guest.Combat.NativeId == kit.CharacterId) ?? throw new InvalidDataException("The guest Attack kit does not belong to a bound combat actor.")).HostSlot;
         body = assets.LoadPlayer(kit.CharacterId);
         weapon = assets.ResolvePlayerRenderWeapon(kit.CharacterId, kit.Weapon, body);
         resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
@@ -126,7 +123,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         }
     }
 
-    public int ActorSlot => roster.Guest.HostSlot;
+    public int ActorSlot { get; }
     public Guid EncounterId => roster.EncounterId;
     public Ff7BattleGuestInvocation? Invocation => state.Invocation;
     public long HostTick => state.HostTick;
@@ -163,6 +160,11 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
     public ImmutableArray<NativeBattleModuleSound> LastModuleSounds { get; private set; } = [];
     public NativeBattleSequenceParticle? LastContactEffect { get; private set; }
     public NativeCrtRandomState? AttackCrtRandom { get; set; }
+    public NativeGlobalRandomState GlobalRandom
+    {
+        get => state.GlobalRandom;
+        set => state = state with { GlobalRandom = value };
+    }
 
     public void PrepareStanding(Ff7BattlePlacement source)
     {

@@ -114,6 +114,10 @@ public sealed record Ff7SessionSave
         {
             throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished field request.");
         }
+        if (Battle is { } battle)
+        {
+            Ff7BattleSession.ValidateGuestVitalsSnapshot(battle);
+        }
         AudioPresentation?.Validate();
         if (EventCoverage is not null)
         {
@@ -134,12 +138,32 @@ public sealed record Ff7SessionSave
     }
 }
 
+public sealed record Ff7GuestBattleSettlementCharacter(int StoryCharacter, int OriginRow, ushort SettledHp, string DormantCharacterHash)
+{
+    internal bool IsValid => StoryCharacter is >= 0 and <= 8 && OriginRow is >= 0 and <= 7 && SettledHp <= 9999 && IsHash(DormantCharacterHash);
+
+    internal static bool IsHash(string hash) => hash is { Length: 64 } && hash.All(Uri.IsHexDigit);
+}
+
 public sealed record Ff7GuestBattleSettlementReceipt(Guid EncounterId, long FieldGeneration, long RequestId, int FormationId, int StoryCharacter, int OriginRow, string SourceFf8Hash, string SettledFf8Hash, ushort SettledHp, string DormantCharacterHash)
 {
     public Ff7BattleOutcome Outcome { get; init; } = Ff7BattleOutcome.Victory;
-    internal bool IsValid => EncounterId != Guid.Empty && FieldGeneration >= 0 && RequestId > 0 && FormationId is >= 0 and <= 1023 && StoryCharacter is >= 0 and <= 8 && OriginRow is >= 0 and <= 7 && SettledHp <= 9999 && IsHash(SourceFf8Hash) && IsHash(SettledFf8Hash) && IsHash(DormantCharacterHash);
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7GuestBattleSettlementCharacter[]? AdditionalGuests { get; init; }
 
-    private static bool IsHash(string hash) => hash is { Length: 64 } && hash.All(Uri.IsHexDigit);
+    public IReadOnlyList<Ff7GuestBattleSettlementCharacter> GetGuests() => [new(StoryCharacter, OriginRow, SettledHp, DormantCharacterHash), .. AdditionalGuests ?? []];
+
+    internal bool IsValid
+    {
+        get
+        {
+            IReadOnlyList<Ff7GuestBattleSettlementCharacter> guests = GetGuests();
+            return EncounterId != Guid.Empty && FieldGeneration >= 0 && RequestId > 0 && FormationId is >= 0 and <= 1023
+                && Ff7GuestBattleSettlementCharacter.IsHash(SourceFf8Hash) && Ff7GuestBattleSettlementCharacter.IsHash(SettledFf8Hash)
+                && (AdditionalGuests is null or { Length: 1 or 2 }) && guests.All(guest => guest is { IsValid: true })
+                && guests.Select(guest => guest.StoryCharacter).Distinct().Count() == guests.Count && guests.Select(guest => guest.OriginRow).Distinct().Count() == guests.Count;
+        }
+    }
 }
 
 /// <summary>The inactive FFVIII payload retains its own codec and required execution contract.</summary>
@@ -160,7 +184,11 @@ public sealed record CombinedSessionSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7MixedCombatBinding? MixedCombat { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7MixedCombatBinding[]? MixedCombatBindings { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? MixedBattlePayload { get; init; }
+
+    public IReadOnlyList<Ff7MixedCombatBinding> GetMixedCombatBindings() => MixedCombatBindings ?? (MixedCombat is { } binding ? [binding] : []);
 
     public void ValidateCharacterNameOverrides()
     {
@@ -185,15 +213,19 @@ public sealed record CombinedSessionSave
             throw new NotSupportedException("The appearance mapping requires a supported character identity and explicit rig profile.");
         }
         ValidateCharacterNameOverrides();
-        if (MixedCombat is { } mixed && (mixed.StoryCharacter is < 0 or > 8 || mixed.OriginCharacter is < 0 or > 10 || mixed.RulesVersion != 1 || Ff8Payload is not { Length: > 0 }))
+        IReadOnlyList<Ff7MixedCombatBinding> mixed = GetMixedCombatBindings();
+        if (MixedCombatBindings is not null && (MixedCombat is not null || MixedCombatBindings.Length is < 2 or > 3)
+            || mixed.Count > 0 && (Ff8Payload is not { Length: > 0 } || mixed.Any(binding => binding is not { StoryCharacter: >= 0 and <= 8, OriginCharacter: >= 0 and <= 10, RulesVersion: 1 })
+            || mixed.Select(binding => binding.StoryCharacter).Distinct().Count() != mixed.Count || mixed.Select(binding => binding.OriginCharacter).Distinct().Count() != mixed.Count))
         {
             throw new InvalidDataException("Mixed combat requires an explicit supported origin character and suspended save.");
         }
-        if (MixedBattlePayload is { Length: > 0 } && (MixedCombat is null || Ff7?.Battle?.GuestVitals is null))
-        {
-            throw new InvalidDataException("A mixed action payload requires its active native host battle and explicit binding.");
-        }
         Ff7?.Validate();
+        IReadOnlyList<Ff7BattleGuestSlotState> slots = Ff7?.Battle?.GetGuestSlotStates() ?? [];
+        if ((MixedBattlePayload is { Length: > 0 } || slots.Count > 1) && (slots.Count == 0 || mixed.Count != slots.Count || slots.Any(slot => !mixed.Contains(new(slot.Binding.StoryCharacter, slot.Binding.OriginCharacter)))))
+        {
+            throw new InvalidDataException("A mixed action payload requires its active native host battle and matching explicit bindings.");
+        }
         if (GuestBattleSettlements is { } settlements && (Ff7 is null || Ff8Payload is not { Length: > 0 } || settlements.Any(receipt => receipt is null || !receipt.IsValid || !ValidGuestSettlementHost(receipt)) || settlements.Select(receipt => receipt.EncounterId).Distinct().Count() != settlements.Length || settlements.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != settlements.Length))
         {
             throw new InvalidDataException("Combined guest settlements require unique encounter identities and matching committed host battle results.");
@@ -218,7 +250,13 @@ public sealed record CombinedSessionSave
         {
             return true;
         }
-        return receipt.Outcome == Ff7BattleOutcome.Defeat && Ff7.Battle is { Outcome: Ff7BattleOutcome.Defeat, GuestVitals: { } binding } battle && binding.EncounterId == receipt.EncounterId && battle.RequestId == receipt.RequestId && battle.FormationId == receipt.FormationId;
+        if (receipt.Outcome != Ff7BattleOutcome.Defeat || Ff7.FieldGeneration != receipt.FieldGeneration || Ff7.Battle is not { Outcome: Ff7BattleOutcome.Defeat } battle || battle.RequestId != receipt.RequestId || battle.FormationId != receipt.FormationId)
+        {
+            return false;
+        }
+        IReadOnlyList<Ff7BattleGuestSlotState> slots = battle.GetGuestSlotStates();
+        IReadOnlyList<Ff7GuestBattleSettlementCharacter> guests = receipt.GetGuests();
+        return slots.Count == guests.Count && slots.All(slot => slot.Binding.EncounterId == receipt.EncounterId && slot.Binding.SourcePayloadSha256 == receipt.SourceFf8Hash && guests.Any(guest => guest.StoryCharacter == slot.Binding.StoryCharacter && guest.OriginRow == slot.Binding.OriginRow));
     }
 }
 

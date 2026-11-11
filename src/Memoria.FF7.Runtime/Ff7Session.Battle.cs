@@ -40,7 +40,7 @@ public sealed partial class Ff7Session
         SceneFormation formation = GetBattleFormation(command.Formation);
         if (!Progress.FullCombatEnabled)
         {
-            Progress = Ff7DebugVictory.Apply(Progress, formation, battleKernel!, FieldGeneration, request.Id, GuestFieldVitals?.Read().StoryCharacter);
+            Progress = Ff7DebugVictory.Apply(Progress, formation, battleKernel!, FieldGeneration, request.Id, guestStoryCharacters: GuestFieldVitals?.StoryCharacters);
             return new(true);
         }
         if (Battle is not null)
@@ -83,18 +83,18 @@ public sealed partial class Ff7Session
 
     public bool ConfirmBattleVictory()
     {
-        return ConfirmBattleVictory(null);
+        return ConfirmGuestBattleVictory([]);
     }
 
     public bool ConfirmGuestBattleVictory(Ff7BattleGuestVitalsBinding binding)
     {
         ArgumentNullException.ThrowIfNull(binding);
-        return ConfirmBattleVictory(binding);
+        return ConfirmGuestBattleVictory([binding]);
     }
 
-    private bool ConfirmBattleVictory(Ff7BattleGuestVitalsBinding? guest)
+    public bool ConfirmGuestBattleVictory(IReadOnlyList<Ff7BattleGuestVitalsBinding> guests)
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Victory, ResultReady: true } battle || battle.GuestVitals != guest)
+        if (Battle is not { Outcome: Ff7BattleOutcome.Victory, ResultReady: true } battle || !battle.GuestVitalsBindings.SequenceEqual(guests))
         {
             return false;
         }
@@ -112,14 +112,14 @@ public sealed partial class Ff7Session
 
     public bool ConfirmBattleEscape()
     {
-        return ConfirmBattleEscape(null);
+        return ConfirmGuestBattleEscape([]);
     }
 
-    public bool ConfirmGuestBattleEscape(Ff7BattleGuestVitalsBinding binding) => ConfirmBattleEscape(binding);
+    public bool ConfirmGuestBattleEscape(Ff7BattleGuestVitalsBinding binding) => ConfirmGuestBattleEscape([binding]);
 
-    private bool ConfirmBattleEscape(Ff7BattleGuestVitalsBinding? guest)
+    public bool ConfirmGuestBattleEscape(IReadOnlyList<Ff7BattleGuestVitalsBinding> guests)
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Escaped, ResultReady: true } battle || battle.GuestVitals != guest)
+        if (Battle is not { Outcome: Ff7BattleOutcome.Escaped, ResultReady: true } battle || !battle.GuestVitalsBindings.SequenceEqual(guests))
         {
             return false;
         }
@@ -137,14 +137,14 @@ public sealed partial class Ff7Session
 
     public bool ConfirmBattleDefeat()
     {
-        return ConfirmBattleDefeat(null);
+        return ConfirmGuestBattleDefeat([]);
     }
 
-    public bool ConfirmGuestBattleDefeat(Ff7BattleGuestVitalsBinding binding) => ConfirmBattleDefeat(binding);
+    public bool ConfirmGuestBattleDefeat(Ff7BattleGuestVitalsBinding binding) => ConfirmGuestBattleDefeat([binding]);
 
-    private bool ConfirmBattleDefeat(Ff7BattleGuestVitalsBinding? guest)
+    public bool ConfirmGuestBattleDefeat(IReadOnlyList<Ff7BattleGuestVitalsBinding> guests)
     {
-        if (Battle is not { Outcome: Ff7BattleOutcome.Defeat, ReturnsAfterDefeat: true, ResultReady: true } battle || battle.GuestVitals != guest)
+        if (Battle is not { Outcome: Ff7BattleOutcome.Defeat, ReturnsAfterDefeat: true, ResultReady: true } battle || !battle.GuestVitalsBindings.SequenceEqual(guests))
         {
             return false;
         }

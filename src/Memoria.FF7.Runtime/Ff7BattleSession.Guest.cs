@@ -61,22 +61,25 @@ public interface IFf7BattleGuestMagic
 
 public sealed partial class Ff7BattleSession
 {
-    private IFf7BattleGuestAttack? guestAttack;
+    private readonly IFf7BattleGuestAttack?[] guestAttacks = new IFf7BattleGuestAttack?[3];
+
+    private IFf7BattleGuestAttack? GetGuestAttack(int slot) => (uint)slot < guestAttacks.Length ? guestAttacks[slot] : null;
 
     public void BindGuestAttack(IFf7BattleGuestAttack guest)
     {
         ArgumentNullException.ThrowIfNull(guest);
-        if (guestAttack is not null || animations is null || guest.ActorSlot is < 0 or >= 3 || !state.Actors.Any(actor => actor.Actor.Slot == guest.ActorSlot) || state.GuestVitals is { } binding && (binding.EncounterId != guest.EncounterId || binding.HostSlot != guest.ActorSlot))
+        bool hasProjectedGuests = state.GuestSlots is not null || state.GuestVitals is not null;
+        if (GetGuestAttack(guest.ActorSlot) is not null || animations is null || guest.ActorSlot is < 0 or >= 3 || !state.Actors.Any(actor => actor.Actor.Slot == guest.ActorSlot) || (hasProjectedGuests ? GetGuestBinding(guest.ActorSlot)?.EncounterId != guest.EncounterId : guestAttacks.Any(current => current is not null)))
         {
             throw new InvalidOperationException("A guest attack requires one occupied host slot and original battle geometry.");
         }
-        if (state.Action is { Command.GuestAttack: true } active)
+        if (state.Action is { Command.GuestAttack: true } active && active.Command.ActorSlot == guest.ActorSlot)
         {
             Ff7BattleCommandQueue.ValidateCommand(active.Command);
             bool matches = active.GuestLimit is { } limitState
                 ? guest is IFf7BattleGuestLimit limit && (limitState.PresentationCompleted ? guest.Invocation is null : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && limit.PublishedContacts == limitState.Contacts)
                 : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && guest.ContactPublished == active.Applied;
-            if (!matches || guest.HostTick != Tick || guest.ActorSlot != active.Command.ActorSlot)
+            if (!matches || guest.HostTick != Tick)
             {
                 throw new InvalidDataException("The guest presentation does not match the saved host action occurrence.");
             }
@@ -85,11 +88,11 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("The guest presentation has no active host action occurrence.");
         }
-        if (state.Queue.Ready.Any(command => command is { GuestAttack: true } && command.ActorSlot != guest.ActorSlot) || state.Queue.Slots.Any(entry => entry?.Command is { GuestAttack: true } command && command.ActorSlot != guest.ActorSlot))
+        if (!hasProjectedGuests && (state.Action is { Command.GuestAttack: true } other && other.Command.ActorSlot != guest.ActorSlot || state.Queue.Ready.Any(command => command is { GuestAttack: true } && command.ActorSlot != guest.ActorSlot) || state.Queue.Slots.Any(entry => entry?.Command is { GuestAttack: true } command && command.ActorSlot != guest.ActorSlot)))
         {
             throw new InvalidDataException("The saved guest queue belongs to a different host slot.");
         }
-        guestAttack = guest;
+        guestAttacks[guest.ActorSlot] = guest;
         state = state with { GuestPresentationAttached = true };
     }
 
@@ -101,7 +104,7 @@ public sealed partial class Ff7BattleSession
 
     private bool SubmitGuestAbility(int slot, int targetSlot, ushort ability)
     {
-        if (Outcome != Ff7BattleOutcome.Fighting || guestAttack is not { } guest || slot != guest.ActorSlot || ReadyPlayer != slot || !CanAct(Actor(slot)) || targetSlot is < 0 or > 9 || targetSlot == 3 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && IsAlive(actor) && (actor.Actor.Conditions & 8) != 0))
+        if (Outcome != Ff7BattleOutcome.Fighting || GetGuestAttack(slot) is not { } guest || ReadyPlayer != slot || !CanAct(Actor(slot)) || targetSlot is < 0 or > 9 || targetSlot == 3 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && IsAlive(actor) && (actor.Actor.Conditions & 8) != 0))
         {
             return false;
         }
@@ -172,18 +175,22 @@ public sealed partial class Ff7BattleSession
 
     private void AdvanceGuestAttack()
     {
-        if (state.Action is not { Command.GuestAttack: true } active)
+        Ff7BattleActionState? active = state.Action is { Command.GuestAttack: true } action ? action : null;
+        if (active is not null && active.StartedAt != Tick)
         {
-            if (guestAttack is { } idle)
+            AdvanceActiveGuestAttack(active);
+        }
+        foreach (IFf7BattleGuestAttack? guest in guestAttacks)
+        {
+            if (guest is not null && guest.ActorSlot != active?.Command.ActorSlot)
             {
-                AdvanceGuestIdle(idle);
+                AdvanceGuestIdle(guest);
             }
-            return;
         }
-        if (active.StartedAt == Tick)
-        {
-            return;
-        }
+    }
+
+    private void AdvanceActiveGuestAttack(Ff7BattleActionState active)
+    {
         IFf7BattleGuestAttack guest = RequireGuestAttack(active.Command);
         Ff7BattleGuestInvocation invocation = GuestInvocation(active.Command, active.StartedAt);
         if (active.GuestLimit is not null)
@@ -347,5 +354,5 @@ public sealed partial class Ff7BattleSession
     }
 
     private IFf7BattleGuestAttack RequireGuestAttack(Ff7BattleQueuedCommand command)
-        => guestAttack is { } guest && guest.ActorSlot == command.ActorSlot ? guest : throw new NotSupportedException("Resume the guest attack with its original presentation and origin state.");
+        => GetGuestAttack(command.ActorSlot) ?? throw new NotSupportedException("Resume the guest attack with its original presentation and origin state.");
 }

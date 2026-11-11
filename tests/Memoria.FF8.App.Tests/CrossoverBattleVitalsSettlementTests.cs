@@ -10,6 +10,53 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper output)
 {
     [Fact]
+    public void Field_guest_recovery_publishes_once_and_updates_only_the_selected_origin_rows()
+    {
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8Root), "Select the original FFVIII installation.");
+        using GameAssets game = new(ff8Root!);
+        NativeCharacterVitals installed = game.ReadNewGameCharacterVitals();
+        int squall = installed.FindPhysicalRow(0);
+        int zell = installed.FindPhysicalRow(1);
+        NativeCharacterVitals injured = installed.WithSavedHitPoints(squall, 35).WithSavedHitPoints(zell, 70);
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with { Characters = GameplaySaveCharacters.Capture(injured) };
+        using MemoryStream payload = new();
+        GameplaySaveCodec.Write(payload, document);
+        CombinedSessionSave envelope = new() { ActiveGame = SessionGame.Ff8, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, MixedCombatBindings = [new(0, 0), new(1, 1)] };
+        using MemoryStream combined = new();
+        CombinedSessionCodec.Write(combined, envelope);
+        combined.Position = 0;
+        envelope = CombinedSessionCodec.Read(combined);
+        Assert.Null(envelope.MixedCombat);
+        Assert.Equal(new Ff7MixedCombatBinding[] { new(0, 0), new(1, 1) }, envelope.GetMixedCombatBindings());
+        Assert.Throws<InvalidDataException>(() => (envelope with { MixedCombatBindings = [new(0, 0), new(1, 0)] }).Validate());
+        Assert.Throws<InvalidDataException>(() => (envelope with { MixedCombat = new(0, 0) }).Validate());
+        int publications = 0;
+        using CrossoverGuestFieldVitals field = new(ff8Root!, () => envelope, updated =>
+        {
+            envelope = updated;
+            publications++;
+        });
+        Assert.Equal(new[] { (0, 35), (1, 70) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
+        field.AddHitPoints(1, -10);
+        field.AddHitPoints(2, -10);
+        Assert.Equal(1, publications);
+        Assert.Equal(new[] { (0, 35), (1, 60) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
+        field.RecoverCharacters([1], false);
+        Assert.Equal(2, publications);
+        Assert.Equal(new[] { (0, 35), (1, (int)installed.GetMagicMaximumHitPoints(zell)) }, field.ReadAll().Select(guest => (guest.StoryCharacter, (int)guest.Hp)));
+        field.AddHitPoints(1, -10);
+        field.RecoverCharacters([0, 1], true);
+        Assert.Equal(4, publications);
+        Assert.All(field.ReadAll(), guest => Assert.Equal(guest.MaximumHp, guest.Hp));
+        GameplaySaveComponentDocument settled = CrossoverSaveAdapter.ReadFf8(envelope);
+        NativeCharacterVital[] originalRows = (NativeCharacterVital[])settled.Characters.Records.Clone();
+        originalRows[squall] = document.Characters.Records[squall];
+        originalRows[zell] = document.Characters.Records[zell];
+        Assert.Equal(JsonSerializer.Serialize(document), JsonSerializer.Serialize(settled with { Characters = settled.Characters with { Records = originalRows } }));
+    }
+
+    [Fact]
     public void Opening_MP_damage_recovery_and_victory_preserve_Cloud_and_update_the_exact_Squall_payload()
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

@@ -3,6 +3,13 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--guest-only", StringComparer.Ordinal))
+{
+    NativeGuestLimitTests.Run();
+    GuestBattleConversionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-saves-only", StringComparer.Ordinal))
 {
     NativeSaveBankTests.Run();

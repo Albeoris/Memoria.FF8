@@ -8,7 +8,7 @@ namespace Memoria.FF8;
 /// <summary>Read-only FFVII party/inventory projection for the existing shared menu.</summary>
 internal static class Ff7PlayerMenuProjection
 {
-    internal static MenuData Create(Ff7Progress progress, IReadOnlyList<int> party, Ff7CharacterPresentationIdentity identities, IReadOnlyDictionary<int, string> itemNames, IReadOnlyDictionary<int, string> itemDescriptions, string location, TimeSpan elapsed, bool canSave, Func<Ff7CharacterDisplayIdentity, UiImageSource> portrait, Ff7GuestFieldVitalsView? guest = null)
+    internal static MenuData Create(Ff7Progress progress, IReadOnlyList<int> party, Ff7CharacterPresentationIdentity identities, IReadOnlyDictionary<int, string> itemNames, IReadOnlyDictionary<int, string> itemDescriptions, string location, TimeSpan elapsed, bool canSave, Func<Ff7CharacterDisplayIdentity, UiImageSource> portrait, IReadOnlyList<Ff7GuestFieldVitalsView>? guests = null)
     {
         MenuData data = new() { Location = location, Currency = checked((int)progress.Gil), PlayTime = elapsed, SaveAvailable = canSave, ShowSeeDRank = false };
         data.SupportedActions.UnionWith(["config", "ff7-save", "ff7-load", "ff7-world", "ff7-close", "ff7-materia-character", "ff7-materia-slot", "ff7-materia-equip"]);
@@ -21,7 +21,7 @@ internal static class Ff7PlayerMenuProjection
             display.Stats["MP"] = character.MagicPoints;
             ushort maximumHp = BinaryPrimitives.ReadUInt16LittleEndian(character.NativeRecord.AsSpan(56));
             display.MaximumHp = maximumHp is 0 or ushort.MaxValue ? null : maximumHp;
-            if (guest?.StoryCharacter == character.Id)
+            if (guests?.SingleOrDefault(guest => guest.StoryCharacter == character.Id) is { } guest)
             {
                 display.Name = guest.Name;
                 display.Level = guest.Level;

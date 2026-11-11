@@ -12,8 +12,8 @@ internal sealed partial class Ff7Scene
     private Ff7BattleSession? restoredNativeBattle;
     public event Action<CombinedSessionSave>? MixedCombatSettled;
     public event Action<CombinedSessionSave>? MixedOriginResumeRequested;
-    internal bool MixedCombatEnabled => envelope.MixedCombat is not null;
-    internal bool MixedTriggerWindowOpen => mixedCombat is { } mixed && (mixed.Actions.RenzokukenTrigger?.TriggerWindowOpen ?? mixed.Attack.TriggerWindowOpen);
+    internal bool MixedCombatEnabled => envelope.GetMixedCombatBindings().Count > 0;
+    internal bool MixedTriggerWindowOpen => mixedCombat?.ActiveGuest is { } guest && (guest.RenzokukenTrigger?.TriggerWindowOpen ?? guest.Attack.TriggerWindowOpen);
     internal bool CanResumeMixedOrigin => Session is null && envelope.Ff8Payload is { Length: > 0 } && envelope.GuestBattleSettlements?.LastOrDefault()?.Outcome == Ff7BattleOutcome.Defeat;
 
     private void ResumeMixedOrigin()
@@ -27,37 +27,50 @@ internal sealed partial class Ff7Scene
 
     private void ApplyMappedCombat(Ff7Session session)
     {
-        if (session.Battle?.GuestVitals is null && envelope.Ff8Payload is { Length: > 0 } && envelope.Mappings.Length > 0 && envelope.MixedCombat is null)
+        if (session.Battle?.GuestVitalsBindings is not { Count: > 0 })
         {
-            session.SetFullCombatEnabled(true);
-        }
-        if (session.Battle?.GuestVitals is null)
-        {
-            envelope = envelope with { MixedCombat = ResolveMappedCombat(session, requireSingle: false) };
+            if (envelope.Ff8Payload is { Length: > 0 } && envelope.Mappings.Length > 0 && !MixedCombatEnabled)
+            {
+                session.SetFullCombatEnabled(true);
+            }
+            SetMappedCombat(ResolveMappedCombat(session));
         }
         AttachMixedFieldVitals();
     }
 
-    private Ff7MixedCombatBinding? ResolveMappedCombat(Ff7Session session, bool requireSingle)
+    private Ff7MixedCombatBinding[] ResolveMappedCombat(Ff7Session session, bool requireUnique = false)
     {
         if (envelope.Ff8Payload is not { Length: > 0 })
         {
-            return null;
+            return [];
         }
-        CharacterAppearanceMapping[] active = envelope.Mappings.Where(mapping => session.Progress.Party.Contains(mapping.StoryCharacter)).Take(2).ToArray();
-        if (active.Length > 1 && requireSingle)
+        Ff7MixedCombatBinding[] active = envelope.Mappings.Where(mapping => session.Progress.Party.Contains(mapping.StoryCharacter)).OrderBy(mapping => mapping.StoryCharacter).Select(mapping => new Ff7MixedCombatBinding(mapping.StoryCharacter, mapping.AppearanceCharacter)).ToArray();
+        if (active.Select(binding => binding.OriginCharacter).Distinct().Count() != active.Length)
         {
-            throw new NotSupportedException("This FFVII encounter can bind one FFVIII guest. Multiple mapped characters occupy the current party.");
+            if (requireUnique)
+            {
+                throw new NotSupportedException("The same FFVIII character is mapped to more than one occupied FFVII party slot.");
+            }
+            return [];
         }
-        return active.Length == 1 ? new(active[0].StoryCharacter, active[0].AppearanceCharacter) : null;
+        return active;
+    }
+
+    private void SetMappedCombat(Ff7MixedCombatBinding[] bindings)
+    {
+        envelope = envelope with
+        {
+            MixedCombat = bindings.Length == 1 ? bindings[0] : null,
+            MixedCombatBindings = bindings.Length > 1 ? bindings : null
+        };
     }
 
     private void RefreshMappedFieldCombat(Ff7Session session)
     {
-        Ff7MixedCombatBinding? mapped = ResolveMappedCombat(session, requireSingle: false);
-        if (mapped != envelope.MixedCombat)
+        Ff7MixedCombatBinding[] mapped = ResolveMappedCombat(session);
+        if (!mapped.SequenceEqual(envelope.GetMixedCombatBindings()))
         {
-            envelope = envelope with { MixedCombat = mapped };
+            SetMappedCombat(mapped);
             AttachMixedFieldVitals();
         }
     }
@@ -69,7 +82,7 @@ internal sealed partial class Ff7Scene
             return;
         }
         Ff7Session session = Session ?? throw new InvalidOperationException("Mixed combat requires the destination FFVII session.");
-        ResolveMappedCombat(session, requireSingle: true);
+        ResolveMappedCombat(session, requireUnique: true);
         string directory = identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat.");
         using GameAssets origin = new(directory);
         using BattleAssets battle = new(directory);
@@ -97,42 +110,51 @@ internal sealed partial class Ff7Scene
             return;
         }
         Ff7Session session = Session ?? throw new InvalidOperationException("A mixed encounter requires its native FFVII session.");
-        Ff7MixedCombatBinding? binding = battle.GuestVitals is null ? ResolveMappedCombat(session, requireSingle: true) : envelope.MixedCombat;
-        if (binding is null)
+        if (battle.GuestVitalsBindings.Count == 0)
+        {
+            SetMappedCombat(ResolveMappedCombat(session, requireUnique: true));
+        }
+        if (!MixedCombatEnabled)
         {
             return;
         }
-        envelope = envelope with { MixedCombat = binding };
         restoredNativeBattle = null;
         ResetMixedCombat();
         CombinedSessionSave source = envelope with { Ff7 = session.Capture(), ActiveGame = SessionGame.Ff7 };
-        mixedCombat = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle);
-        mixedCombat.Actions.BindForeignGeometry(slot =>
+        CrossoverMixedBattle mixed = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle);
+        mixed.BindForeignGeometry(slot =>
         {
+            if (mixed.GuestAt(slot) is { } guest)
+            {
+                return CrossoverFf8BattleActorRenderer.CaptureActorGeometry(guest.Visual ?? throw new InvalidDataException("The mapped ally has no loaded battle pose."));
+            }
             Ff7BattleActorState actor = battle.Actors.Single(actor => actor.Actor.Slot == slot);
             return BattleRenderer(battle).CaptureActorGeometry(BattleActorVisual(battle, actor));
         });
+        mixedCombat = mixed;
     }
 
     private CombinedSessionSave CaptureMixedCombat(CombinedSessionSave saved)
     {
-        return saved with { MixedBattlePayload = mixedCombat?.Capture() ?? (saved.Ff7?.Battle?.GuestVitals is null ? null : saved.MixedBattlePayload) };
+        return saved with { MixedBattlePayload = mixedCombat?.Capture() ?? (Session?.Battle?.GuestVitalsBindings is { Count: > 0 } ? saved.MixedBattlePayload : null) };
     }
 
     private void ReadMixedTrigger()
     {
         if (sharedInput.GunbladeTriggerRequested)
         {
-            mixedCombat?.Actions.PressTrigger();
+            mixedCombat?.ActiveGuest?.PressTrigger();
         }
     }
 
-    private bool IsMixedBattleSlot(int slot) => mixedCombat?.Attack.ActorSlot == slot;
+    private bool IsMixedBattleSlot(int slot) => mixedCombat?.GuestAt(slot) is not null;
 
-    private CrossoverFf8BattleActorVisual? MixedBattleVisual(Ff7BattleSession battle)
+    private IReadOnlyList<CrossoverFf8BattleActorVisual> MixedBattleVisuals(Ff7BattleSession battle)
     {
         EnsureMixedBattle(battle);
-        return mixedCombat is { } mixed && battle.IsActorPresentationReady(mixed.Attack.ActorSlot) ? mixed.Actions.Visual : null;
+        return mixedCombat is { } mixed
+            ? mixed.Guests.Where(guest => battle.IsActorPresentationReady(guest.ActorSlot) && mixed.ActiveGuest?.SuppressForeignActor(guest.ActorSlot) != true).Select(guest => guest.Visual).OfType<CrossoverFf8BattleActorVisual>().ToArray()
+            : [];
     }
 
     private bool TrySettleMixedBattle(Ff7BattleSession battle)
@@ -185,11 +207,11 @@ internal sealed partial class Ff7Scene
             return;
         }
         session.GuestFieldVitals = null;
-        if (session.Battle?.GuestVitals is null)
+        if (session.Battle?.GuestVitalsBindings is not { Count: > 0 })
         {
             envelope = envelope with { MixedBattlePayload = null };
         }
-        if (envelope.MixedCombat is not null)
+        if (MixedCombatEnabled)
         {
             mixedFieldVitals = new(identityFf8Directory ?? throw new InvalidOperationException("Guest field vitals require the selected FFVIII installation."), () => envelope, saved =>
             {

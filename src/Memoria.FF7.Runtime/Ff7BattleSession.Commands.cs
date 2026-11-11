@@ -59,6 +59,7 @@ public sealed partial class Ff7BattleSession
         commands.Add(new(Ff7BattleCommand.Defend, 0, (ushort)(1 << slot), true, false));
         if (IsGuestVitalsSlot(slot))
         {
+            IFf7BattleGuestAttack? guestAttack = GetGuestAttack(slot);
             IFf7BattleGuestItems? items = guestAttack as IFf7BattleGuestItems;
             List<Ff7BattleCommandOption> guest = items?.HasOriginItems == true ? [] : commands.Where(option => option.Command == Ff7BattleCommand.Item).ToList();
             if (guestAttack is not null)
@@ -117,7 +118,7 @@ public sealed partial class Ff7BattleSession
         {
             return argument is 1 or 4 or 7 or 21 && !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
-        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Item && guestAttack is IFf7BattleGuestItems { HasOriginItems: true })
+        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Item && GetGuestAttack(slot) is IFf7BattleGuestItems { HasOriginItems: true })
         {
             return !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestItem(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
@@ -445,9 +446,13 @@ public sealed partial class Ff7BattleSession
             _ => throw new NotSupportedException($"FFVII battle command {command.CommandId:X2} has no action consumer.")
         };
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
-        if (state.GuestVitals is { } guest && (command.TargetMask & (1 << guest.HostSlot)) != 0)
+        foreach (Ff7BattleGuestSlotState guest in state.GetGuestSlotStates())
         {
-            ValidateGuestIncoming(command, guest.HostSlot, record);
+            int guestSlot = guest.Binding.HostSlot;
+            if ((command.TargetMask & (1 << guestSlot)) != 0)
+            {
+                ValidateGuestIncoming(command, guestSlot, record);
+            }
         }
         if (record is not null && !Ff7NativeBattleActionResolver.TrySpendCastingCost(sourceVitals, record, out sourceVitals))
         {
@@ -516,14 +521,13 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity);
         Ff7BattleActionReceipt result;
-        if (IsGuestVitalsSlot(targetSlot))
+        if (GetGuestProjection(targetSlot) is { } projection)
         {
-            Ff7BattleGuestProjection? projection = GuestProjection;
-            if (projection?.OriginElementDefenses is { } defenses)
+            if (projection.OriginElementDefenses is { } defenses)
             {
                 action = action with { GuestElementAdjustment = Ff7GuestBattleElements.DefenseAdjustment(elements, defenses) };
             }
-            IReadOnlyList<byte>? statusResistances = projection?.OriginStatusResistances is { } statuses ? statuses : null;
+            IReadOnlyList<byte>? statusResistances = projection.OriginStatusResistances is { } statuses ? statuses : null;
             result = Ff7NativeBattleActionResolver.ResolveGuestContact(Stats(source), sourceVitals, Stats(target), targetVitals, action, Ff7GuestBattleStatuses.ProjectIncoming(record), random, source.Actor.Slot == targetSlot, statusResistances);
         }
         else
@@ -637,7 +641,8 @@ public sealed partial class Ff7BattleSession
 
     internal Ff7Progress PublishVictory(Ff7Progress progress, long fieldGeneration)
     {
-        return Ff7DebugVictory.ApplyResolved(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, random, IsDefeated, state.GuestVitals?.StoryCharacter);
+        int[] guestStoryCharacters = state.GetGuestSlotStates().Select(guest => guest.Binding.StoryCharacter).ToArray();
+        return Ff7DebugVictory.ApplyResolved(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, random, IsDefeated, guestStoryCharacters: guestStoryCharacters);
     }
 
     public Ff7BattleReward PreviewVictory()

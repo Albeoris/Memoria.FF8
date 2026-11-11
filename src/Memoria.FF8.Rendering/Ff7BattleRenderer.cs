@@ -14,6 +14,8 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
 {
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
     public CrossoverNativeEffectVisual? GuestEffects { get; init; }
+    public IReadOnlyList<CrossoverFf8BattleActorVisual> Guests { get; init; } = [];
+    public IReadOnlyList<CrossoverNativeEffectVisual> GuestEffectLayers { get; init; } = [];
     public Ff7BattleBeatRushState? BeatRush { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public IReadOnlyList<Ff7BattleHitmarkState>? Hitmarks { get; init; }
@@ -91,6 +93,9 @@ public sealed partial class Ff7BattleRenderer
         Ff7BattlePrimaryState? primary = frame.PrimaryEffects ?? frame.SearchScope?.Primary ?? frame.Cure?.Primary ?? frame.Bolt?.Primary ?? frame.Destroyed?.Primary ?? frame.Fire?.Primary ?? frame.Ice?.Primary ?? frame.Braver?.Primary ?? frame.BeatRush?.Primary ?? frame.BigShot?.Primary ?? frame.SmokeShot?.Primary ?? frame.Smog?.Primary ?? frame.Rockets?.Primary;
         Ff7BattleStageFadeState? stageFade = frame.StageFade ?? primary?.StageFade;
         ModelColorBlend? stageTint = stageFade is { Alpha: < 255 } fade ? new(fade.Red, fade.Green, fade.Blue, fade.Alpha) : null;
+        IReadOnlyList<CrossoverFf8BattleActorVisual> guests = frame.Guests.Count > 0 ? frame.Guests : frame.Guest is { } guest ? [guest] : [];
+        IReadOnlyList<CrossoverNativeEffectVisual> guestEffects = frame.GuestEffectLayers.Count > 0 ? frame.GuestEffectLayers : frame.GuestEffects is { } effectLayer ? [effectLayer] : [];
+        CrossoverNativeStageColor? guestStageColor = guestEffects.Select(effect => effect.StageColor).FirstOrDefault(color => color is not null);
         CameraView view = CameraView.Create(frame.Camera, width, height);
         renderer.Begin(width, height, new Vector4(0, 0, 0, 1), 0);
         try
@@ -98,15 +103,15 @@ public sealed partial class Ff7BattleRenderer
             Ff7ModelMaterialState material = new() { Cull = true };
             foreach (Ff7BattleArenaPart part in arena.Geometry)
             {
-                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: frame.GuestEffects?.StageColor);
+                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: guestStageColor);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
                 DrawActor(renderer, actor, view, material);
             }
-            if (frame.Guest is { } guest)
+            foreach (CrossoverFf8BattleActorVisual actor in guests)
             {
-                CrossoverFf8BattleActorRenderer.Draw(renderer, guest, view.Transform, width, height, view.Focal);
+                CrossoverFf8BattleActorRenderer.Draw(renderer, actor, view.Transform, width, height, view.Focal);
             }
             foreach (Ff7BattleHitmarkState hitmark in frame.Hitmarks ?? [])
             {
@@ -181,7 +186,10 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawPrimaryEffects(renderer, primary, view);
             }
-            frame.GuestEffects?.Draw(renderer, frame.Camera, width, height);
+            foreach (CrossoverNativeEffectVisual guestEffect in guestEffects)
+            {
+                guestEffect.Draw(renderer, frame.Camera, width, height);
+            }
         }
         finally
         {

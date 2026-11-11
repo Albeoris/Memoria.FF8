@@ -5,7 +5,15 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF8.Rendering;
 
 public sealed record Ff7BattleActorFace(Vector3 A, Vector3 B, Vector3 C, int Part, int Group, int Polygon, PcRenderState Material);
-public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> Faces, ImmutableArray<Vector3> SkeletonPoints);
+public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> Faces, ImmutableArray<Vector3> SkeletonPoints)
+{
+    public Vector3? GuestRoot { get; init; }
+    public Vector3? GuestEffectAnchor { get; init; }
+    public ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> GuestFaces { get; init; } = [];
+
+    public IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> FaceVertices()
+        => GuestFaces.IsEmpty ? Faces.Select(face => (face.A, face.B, face.C)) : GuestFaces;
+}
 
 public sealed partial class Ff7BattleRenderer
 {

@@ -241,27 +241,28 @@ internal sealed partial class Ff7Scene
         return limit switch { 0x80 => "Braver", 0x87 => "Big Shot", 0x95 => "Beat Rush", _ => Ff7BattleCommand.Limit.ToString() };
     }
 
-    private string CommandName(Ff7BattleCommandOption option, bool guest)
+    private string CommandName(Ff7BattleCommandOption option, int owner)
     {
+        CrossoverGuestHostActions? guest = mixedCombat?.GuestAt(owner);
         if (option.Command == Ff7BattleCommand.Item)
         {
-            if (guest && mixedCombat is { Actions.HasOriginItems: true } mixed)
+            if (guest is { HasOriginItems: true })
             {
-                return mixed.Actions.ItemName(option.Argument);
+                return guest.ItemName(option.Argument);
             }
             return BattleItemName(option.Argument);
         }
         if (option.Command == Ff7BattleCommand.Magic)
         {
-            if (guest && mixedCombat is { } mixed)
+            if (guest is not null)
             {
-                return mixed.Actions.MagicName(option.Argument);
+                return guest.MagicName(option.Argument);
             }
             return BattleSpellName(option.Argument);
         }
         if (option.Command == Ff7BattleCommand.Limit)
         {
-            return guest && option.Argument == 0
+            return guest is not null && option.Argument == 0
                 ? "Renzokuken"
                 : BattleLimitName(option.Argument);
         }
@@ -305,7 +306,7 @@ internal sealed partial class Ff7Scene
         foreach (Ff7BattleActorState actor in battle.Actors)
         {
             int slot = actor.Actor.Slot;
-            if (!battle.IsActorPresentationReady(slot) || IsMixedBattleSlot(slot) || mixedCombat?.Actions.SuppressForeignActor(slot) == true)
+            if (!battle.IsActorPresentationReady(slot) || IsMixedBattleSlot(slot) || mixedCombat?.ActiveGuest?.SuppressForeignActor(slot) == true)
             {
                 continue;
             }
@@ -319,7 +320,7 @@ internal sealed partial class Ff7Scene
             }
             visuals.Add(BattleActorVisual(battle, actor));
         }
-        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
+        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [] });
     }
 
     private void ResetBattlePresentation()

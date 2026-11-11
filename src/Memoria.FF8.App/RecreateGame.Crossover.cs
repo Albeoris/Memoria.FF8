@@ -247,7 +247,11 @@ internal sealed partial class RecreateGame
 
     private void SwitchToFf8(CombinedSessionSave outgoing)
     {
-        WorldSwitch transaction = new(crossover ?? throw new InvalidOperationException("No combined game is active."));
+        if (crossover is null)
+        {
+            throw new InvalidOperationException("No combined game is active.");
+        }
+        WorldSwitch transaction = new(outgoing);
         GameState? prepared = null;
         transaction.ToFf8(new(ff7Scene?.CanSave == true), outgoing.Ff7!, (payload, codec) =>
         {
@@ -270,7 +274,7 @@ internal sealed partial class RecreateGame
         {
             RestorePlayerState(prepared);
         }
-        crossover = transaction.State with { Mappings = outgoing.Mappings, CharacterNameOverrides = outgoing.CharacterNameOverrides };
+        crossover = transaction.State;
         ff7Scene?.Dispose();
         ff7Scene = null;
         suspendedFf8Session = null;

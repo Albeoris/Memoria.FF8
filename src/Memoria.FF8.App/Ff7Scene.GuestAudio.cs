@@ -36,13 +36,13 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        foreach (CrossoverGuestAudioReceipt receipt in mixed.Actions.PeekSoundRequests())
+        foreach (CrossoverGuestAudioReceipt receipt in mixed.PeekSoundRequests())
         {
             if (audioEnabled && !discard)
             {
                 EnsureGuestSoundOutput().PlayBattleModuleSoundStrict(receipt.Sound);
             }
-            mixed.Actions.AcknowledgeSoundRequests(receipt.Ordinal);
+            mixed.AcknowledgeSoundRequests(receipt.Ordinal);
         }
     }
 

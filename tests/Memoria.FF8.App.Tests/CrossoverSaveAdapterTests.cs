@@ -134,12 +134,12 @@ public sealed class CrossoverSaveAdapterTests
             CombinedSessionSave ff7Active = combined with { ActiveGame = SessionGame.Ff7, Ff7 = Ff7Fixture() };
             CombinedSessionCodec.Save(path, ff7Active);
             PlayerSaveEntry ff7Entry = Assert.Single(store.ReadEntries(false), item => item.Slot == 1);
-            Assert.True(ff7Entry.CanLoad);
-            Assert.Contains("FINAL FANTASY VII", ff7Entry.Label);
+            Assert.False(ff7Entry.CanLoad);
+            Assert.False(ff7Entry.CanCopy);
+            Assert.Equal("save.slot.empty", ff7Entry.DetailsSystemId);
             Assert.Null(ff7Entry.PlayTime);
             Assert.Empty(ff7Entry.PartyPortraits);
-            store.Transfer(1, 2);
-            Assert.Equal(File.ReadAllBytes(path), File.ReadAllBytes(store.GetPath(2)));
+            Assert.Throws<InvalidDataException>(() => store.Load(1));
         }
         finally
         {

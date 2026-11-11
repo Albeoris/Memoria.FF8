@@ -23,14 +23,20 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(bindings);
         ArgumentNullException.ThrowIfNull(appearances);
-        if (bindings.Count != 1 || bindings[0].GuestCharacter is < 0 or > 10)
+        if (bindings.Count is < 1 or > 3 || bindings.Any(binding => binding.GuestCharacter is < 0 or > 10))
         {
-            throw new NotSupportedException("The current mixed roster requires one mapped FFVIII combatant.");
+            throw new NotSupportedException("A mixed roster requires one to three mapped FFVIII combatants.");
         }
-        CrossoverBattleBinding binding = bindings[0];
-        if (binding.HostSlot is < 0 or > 2 || !host.Actors.Any(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter))
+        if (bindings.Select(binding => binding.HostSlot).Distinct().Count() != bindings.Count || bindings.Select(binding => binding.GuestCharacter).Distinct().Count() != bindings.Count)
         {
-            throw new InvalidDataException("The mixed combat binding does not match an occupied FFVII story slot.");
+            throw new NotSupportedException("Each FFVIII combatant and FFVII party slot may be mapped once per encounter.");
+        }
+        foreach (CrossoverBattleBinding binding in bindings)
+        {
+            if (binding.HostSlot is < 0 or > 2 || !host.Actors.Any(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter))
+            {
+                throw new InvalidDataException("The mixed combat binding does not match an occupied FFVII story slot.");
+            }
         }
 
         ImmutableArray<CrossoverBattleParticipant>.Builder roster = ImmutableArray.CreateBuilder<CrossoverBattleParticipant>(host.Actors.Length);
@@ -41,7 +47,8 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
             CrossoverBattleActorId story = new(SessionGame.Ff7, party ? CrossoverBattleActorKind.Character : CrossoverBattleActorKind.Enemy, actor.Identity, slot);
             CharacterAppearanceMapping? appearance = party ? appearances.SingleOrDefault(mapping => mapping.StoryGame == SessionGame.Ff7 && mapping.StoryCharacter == actor.Identity) : null;
             CrossoverBattleActorId presentation = appearance is null ? story : new(appearance.AppearanceGame, CrossoverBattleActorKind.Character, appearance.AppearanceCharacter, slot);
-            CrossoverBattleActorId combat = slot == binding.HostSlot ? new(SessionGame.Ff8, CrossoverBattleActorKind.Character, binding.GuestCharacter, slot) : story;
+            CrossoverBattleBinding? binding = bindings.SingleOrDefault(candidate => candidate.HostSlot == slot);
+            CrossoverBattleActorId combat = binding is null ? story : new(SessionGame.Ff8, CrossoverBattleActorKind.Character, binding.GuestCharacter, slot);
             roster.Add(new(slot, story, presentation, combat));
         }
         CrossoverBattleRoster result = new(CurrentVersion, encounterId, host.RequestId, host.FormationId, roster.MoveToImmutable());
@@ -92,14 +99,19 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
                 throw new InvalidDataException("An FFVII encounter enemy requires its original combat identity and capabilities.");
             }
         }
-        if (guests != 1)
+        if (guests == 0)
         {
-            throw new InvalidDataException("The mixed roster requires exactly one original FFVIII combat owner.");
+            throw new InvalidDataException("The mixed roster requires at least one original FFVIII combat owner.");
         }
     }
 
     [JsonIgnore]
-    public CrossoverBattleParticipant Guest => Participants.Single(actor => actor.Combat.Origin == SessionGame.Ff8);
+    public IEnumerable<CrossoverBattleParticipant> Guests => Participants.Where(actor => actor.Combat.Origin == SessionGame.Ff8);
+
+    [JsonIgnore]
+    public CrossoverBattleParticipant Guest => Guests.Single();
+
+    public CrossoverBattleParticipant GuestAt(int hostSlot) => Guests.Single(actor => actor.HostSlot == hostSlot);
 }
 
 internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, int MaximumHitPoints, int Level, byte Weapon, BattlePlayerStats Stats, NativeBattleStatusAllocation Statuses, BattleNativeAction Attack, BattleNativeLimitDefinition Limit, byte FinisherFlags, ImmutableArray<byte> Commands, ImmutableArray<BattleNativeAction> Spells)
@@ -195,11 +207,8 @@ internal static class CrossoverBattleBridge
         {
             throw new InvalidDataException("Mixed action requires a valid action occurrence and native FFVIII ability identity.");
         }
-        ValidateGuestOwner(vitals, kit.RecordRow, roster.Guest.Combat.NativeId);
-        if (kit.CharacterId != roster.Guest.Combat.NativeId)
-        {
-            throw new InvalidDataException("The native action kit does not belong to this FFVIII guest.");
-        }
+        CrossoverBattleParticipant guest = roster.Guests.SingleOrDefault(actor => actor.Combat.NativeId == kit.CharacterId) ?? throw new InvalidDataException("The native action kit does not belong to an FFVIII guest in this encounter.");
+        ValidateGuestOwner(vitals, kit.RecordRow, guest.Combat.NativeId);
         CrossoverBattleParticipant target = roster.Participants.SingleOrDefault(actor => actor.Combat == targetId) ?? throw new InvalidDataException("Mixed action target has no combat occurrence in the active encounter.");
         if (ability.Kind == CrossoverBattleAbilityKind.Draw && !target.ProvidesDrawStock)
         {
@@ -244,7 +253,7 @@ internal static class CrossoverBattleBridge
             }
             working = MagicCastingService.Reserve(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation);
         }
-        return new(new(ordinal, roster.Guest.Combat, targetId, ability, kit.RecordRow, reservation), action, working, null);
+        return new(new(ordinal, guest.Combat, targetId, ability, kit.RecordRow, reservation), action, working, null);
 
         CrossoverBattleAdmission Denied(string reason) => new(null, null, vitals, reason);
     }
@@ -273,12 +282,12 @@ internal static class CrossoverBattleBridge
         ArgumentNullException.ThrowIfNull(working);
         ArgumentNullException.ThrowIfNull(action);
         roster.Validate();
-        ValidateGuestOwner(working, action.OriginRow, roster.Guest.Combat.NativeId);
         string? expected = action.Ability.Kind == CrossoverBattleAbilityKind.Spell ? ReservationKey(roster, action.Ordinal) : null;
-        if (action.Ordinal < 1 || action.Actor != roster.Guest.Combat || action.Ability.Origin != action.Actor.Origin || action.Ability.Kind is not (CrossoverBattleAbilityKind.Attack or CrossoverBattleAbilityKind.Spell) || !roster.Participants.Any(actor => actor.Combat == action.Target) || action.StockReservation != expected)
+        if (action.Ordinal < 1 || !roster.Guests.Any(guest => guest.Combat == action.Actor) || action.Ability.Origin != action.Actor.Origin || action.Ability.Kind is not (CrossoverBattleAbilityKind.Attack or CrossoverBattleAbilityKind.Spell) || !roster.Participants.Any(actor => actor.Combat == action.Target) || action.StockReservation != expected)
         {
             throw new InvalidDataException("Mixed action does not belong to its saved actor and encounter.");
         }
+        ValidateGuestOwner(working, action.OriginRow, action.Actor.NativeId);
         if (expected is not null && working.MagicSystem.Reservations.SingleOrDefault(item => item.ActionId == expected) is { } reserved && (reserved.ActorRow != action.OriginRow || reserved.SpellId != action.Ability.NativeId || reserved.Context != MagicCastContext.Battle || reserved.Count != 1))
         {
             throw new InvalidDataException("Mixed magic action differs from its origin stock reservation.");

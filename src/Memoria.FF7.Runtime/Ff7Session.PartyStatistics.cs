@@ -18,6 +18,6 @@ public sealed partial class Ff7Session
         {
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, updated);
         }
-        Progress = PreserveGuestFieldCharacter(Progress, published.Progress);
+        Progress = PreserveGuestFieldCharacters(Progress, published.Progress);
     }
 }

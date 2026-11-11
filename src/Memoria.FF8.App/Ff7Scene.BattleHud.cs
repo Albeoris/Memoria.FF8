@@ -37,14 +37,13 @@ internal sealed partial class Ff7Scene
             }
             else if (battleCommandPage is { } page)
             {
-                bool guest = battle.GuestVitals?.HostSlot == ready;
-                BattleChoiceRow[] actions = commands.Where(option => option.Command == page).Select(option => new BattleChoiceRow(CommandName(option, guest), BattleCommandValue(option, guest))).ToArray();
+                bool guest = IsMixedBattleSlot(ready);
+                BattleChoiceRow[] actions = commands.Where(option => option.Command == page).Select(option => new BattleChoiceRow(CommandName(option, ready), BattleCommandValue(option, guest))).ToArray();
                 DrawBattleChoices(canvas, theme, layout, textScale, page.ToString().ToUpperInvariant(), actions, battleActionIndex, page == Ff7BattleCommand.Magic);
             }
             else
             {
-                bool guest = battle.GuestVitals?.HostSlot == ready;
-                BattleChoiceRow[] categories = commands.GroupBy(option => option.Command).Select(group => new BattleChoiceRow(group.Key == Ff7BattleCommand.Limit && group.Count() == 1 ? CommandName(group.First(), guest) : group.Key.ToString())).ToArray();
+                BattleChoiceRow[] categories = commands.GroupBy(option => option.Command).Select(group => new BattleChoiceRow(group.Key == Ff7BattleCommand.Limit && group.Count() == 1 ? CommandName(group.First(), ready) : group.Key.ToString())).ToArray();
                 DrawBattleChoices(canvas, theme, layout, textScale, "COMMAND", categories, battleCommandIndex);
             }
         }
@@ -78,7 +77,7 @@ internal sealed partial class Ff7Scene
                 nameColor = BattleHudLayout.Modulate(nameColor, shade);
                 hpColor = BattleHudLayout.Modulate(hpColor, shade);
             }
-            int? mp = battle.GuestVitals?.HostSlot == slot ? null : actor.Actor.MagicPoints;
+            int? mp = battle.GuestVitalsBindings.Any(binding => binding.HostSlot == slot) ? null : actor.Actor.MagicPoints;
             layout.DrawVitals(canvas, battle.Name(slot), actor.Actor.HitPoints, actor.Actor.MaxHitPoints, y, textScale, nameColor, hpColor, mp, actor.Actor.MaxMagicPoints);
             BattleHudElement.DrawGauge(canvas, layout.AtbGauge(y), actor.Gauge / (float)ushort.MaxValue, actor.AwaitingTurn, alive, false, 0);
             if (actor.LimitGauge != 0)
@@ -181,7 +180,7 @@ internal sealed partial class Ff7Scene
             UiRect label = layout.Rect(x + inset, rowY, columnWidth - inset - 12, rowHeight);
             canvas.Text(battle.Name(slot), fontSize, label, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
         }
-        string title = CommandName(action, battle.GuestVitals?.HostSlot == ready);
+        string title = CommandName(action, ready);
         if (action.GroupUses > 0)
         {
             title += battleTargetGroup ? "   All targets" : "   Single target";
@@ -220,7 +219,7 @@ internal sealed partial class Ff7Scene
         string? message = battle.EscapeBlocked ? "Can't escape!" : battle.Message ?? ActionTitle(battle);
         UiColor highlight = new(255, 255, 0);
         UiColor messageColor = theme.Foreground;
-        if (mixedCombat?.Actions.RenzokukenTrigger is { } trigger)
+        if (mixedCombat?.ActiveGuest?.RenzokukenTrigger is { } trigger)
         {
             message ??= "Renzokuken";
             if (trigger.Widget is { Visible: true, ClosingPhase: 0, Input.Phase: not 8 } widget)

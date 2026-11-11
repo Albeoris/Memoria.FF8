@@ -47,6 +47,7 @@ public sealed partial class Ff7Session : IDisposable
     public float FieldNearPlane => executable.NativePresentation.NearPlane(MapId);
     public Action<FieldCommand>? PresentationCommand { get; set; }
     public Ff7WorldRuntime? World { get; private set; }
+    public event Action<Ff7Session>? PartyChanged;
 
     public bool CanSave => World?.CanSave ?? (!HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId)));
 
@@ -322,10 +323,10 @@ public sealed partial class Ff7Session : IDisposable
             Ff7PartyRecoveryResult recovered = recovery.AllCharacters
                 ? Ff7NativePartyRecovery.ApplyAll(Progress, materiaRecords, executable.NativeMateriaStatModifiers)
                 : Ff7NativePartyRecovery.Apply(Progress, materiaRecords, executable.NativeMateriaStatModifiers);
-            Ff7Progress recoveredProgress = PreserveGuestFieldCharacter(Progress, recovered.Progress);
-            if (GuestFieldVitals is { } guest && (recovery.AllCharacters || Progress.Party.Contains(guest.Read().StoryCharacter)))
+            Ff7Progress recoveredProgress = PreserveGuestFieldCharacters(Progress, recovered.Progress);
+            if (GuestFieldVitals is { } guest)
             {
-                guest.Recover(recovery.AllCharacters);
+                guest.RecoverCharacters(recovery.AllCharacters ? guest.StoryCharacters : Progress.Party, recovery.AllCharacters);
             }
             Progress = recoveredProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
@@ -348,10 +349,10 @@ public sealed partial class Ff7Session : IDisposable
         if (command is FieldHitPointCommand health)
         {
             Ff7PartyRecoveryResult adjusted = Ff7NativePartyRecovery.AddHitPoints(Progress, health.Character, health.Amount, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
-            Ff7Progress adjustedProgress = PreserveGuestFieldCharacter(Progress, adjusted.Progress);
-            if (GuestFieldVitals is { } guest && guest.Read().StoryCharacter == health.Character && Progress.Party.Contains(health.Character))
+            Ff7Progress adjustedProgress = PreserveGuestFieldCharacters(Progress, adjusted.Progress);
+            if (Progress.Party.Contains(health.Character))
             {
-                guest.AddHitPoints(health.Amount);
+                GuestFieldVitals?.AddHitPoints(health.Character, health.Amount);
             }
             Progress = adjustedProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
@@ -394,7 +395,7 @@ public sealed partial class Ff7Session : IDisposable
                     updated[slot] = member;
                 }
             }
-            Progress = Progress with { Party = updated, AvailableCharacters = (ushort)(Progress.AvailableCharacters | projection.VisibilityOrMask) };
+            PublishFieldParty(Progress with { Party = updated, AvailableCharacters = (ushort)(Progress.AvailableCharacters | projection.VisibilityOrMask) });
             return new(true);
         }
         if (command is FieldPartyCommand party)
@@ -431,7 +432,7 @@ public sealed partial class Ff7Session : IDisposable
                 default:
                     throw new NotSupportedException("FFVII party availability and locking require their separate native masks.");
             }
-            Progress = Progress with { Party = members };
+            PublishFieldParty(Progress with { Party = members });
             return new(true);
         }
         if (PresentationCommand is null)
@@ -440,6 +441,16 @@ public sealed partial class Ff7Session : IDisposable
         }
         PresentationCommand(command);
         return new(true);
+    }
+
+    private void PublishFieldParty(Ff7Progress progress)
+    {
+        bool changed = !Progress.Party.SequenceEqual(progress.Party);
+        Progress = progress;
+        if (changed)
+        {
+            PartyChanged?.Invoke(this);
+        }
     }
 
     public void Dispose()

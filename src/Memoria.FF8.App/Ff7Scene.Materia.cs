@@ -19,7 +19,11 @@ internal sealed partial class Ff7Scene
             Id = "ff7-materia",
             Title = "Materia",
             Help = "Choose a party member.",
-            Entries = controller => controller.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, character.Name, "View weapon and armor slots.", Action: new("ff7-materia-character", character.Id))).ToArray()
+            Entries = controller =>
+            {
+                string[] guests = (Session?.GuestFieldVitals?.StoryCharacters ?? []).Select(id => "ff7-character/" + id).ToArray();
+                return controller.Data.Characters.Where(character => character.InParty && !guests.Contains(character.Id)).Select(character => new MenuEntry(character.Id, character.Name, "View weapon and armor slots.", Action: new("ff7-materia-character", character.Id))).ToArray();
+            }
         });
         menu.Register(new()
         {

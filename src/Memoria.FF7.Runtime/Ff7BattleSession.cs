@@ -59,6 +59,14 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public byte? GuestBaseDexterity { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public long? GuestLimitReadyAt { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleGuestSlotState[]? GuestSlots { get; init; }
+
+    public IReadOnlyList<Ff7BattleGuestSlotState> GetGuestSlotStates()
+    {
+        return GuestSlots ?? (GuestVitals is { } binding ? [new(binding, GuestProjection, GuestBaseDexterity, GuestLimitReadyAt)] : []);
+    }
+
     public Ff7BattleSoundState? Sounds { get; init; }
     public Ff7BattleSoundReceipt[] SoundRequests { get; init; } = [];
     public short[]? SoundProjectedX { get; init; }
@@ -134,10 +142,7 @@ public sealed partial class Ff7BattleSession
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
             state = CopySnapshot(snapshot);
-            if (state.GuestBaseDexterity is byte dexterity)
-            {
-                RefreshGuestSpeedDenominator(state.GuestVitals!.HostSlot, dexterity);
-            }
+            RefreshGuestSpeedDenominator();
             InitializeActorModels(snapshot.Tick == 0);
             InitializeCamera(cameraPresentationCounter, snapshot.Tick == 0);
             if (animations is not null)
@@ -221,7 +226,7 @@ public sealed partial class Ff7BattleSession
 
     public string Name(int slot)
     {
-        if (state.GuestVitals is { } guest && guest.HostSlot == slot)
+        if (GetGuestBinding(slot) is { } guest)
         {
             return guest.OriginName;
         }
@@ -366,7 +371,7 @@ public sealed partial class Ff7BattleSession
             }
             Ff7BattleDamageActor stats = Stats(actor);
             ushort gauge = actor.Gauge;
-            byte? guestDexterity = IsGuestVitalsSlot(slot) ? GuestProjection?.Dexterity : null;
+            byte? guestDexterity = GetGuestProjection(slot)?.Dexterity;
             ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
             bool ready = Ff7NativeAtb.Advance(ref gauge, increment, false, false);
             actor = actor with { Gauge = gauge, AwaitingTurn = ready };
@@ -475,9 +480,9 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         Replace(actor with { Gauge = 0, AwaitingTurn = false });
-        if (IsGuestVitalsSlot(slot) && state.GuestLimitReadyAt is not null)
+        if (GetGuestSlotState(slot) is { LimitReadyAt: not null } guest)
         {
-            state = state with { GuestLimitReadyAt = null };
+            SetGuestSlotState(guest with { LimitReadyAt = null });
         }
     }
 
@@ -541,6 +546,7 @@ public sealed partial class Ff7BattleSession
         {
             Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(),
             Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
+            GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),
             Action = CopyActionPrimaryEffects(CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action)),
             Queue = queue with
             {

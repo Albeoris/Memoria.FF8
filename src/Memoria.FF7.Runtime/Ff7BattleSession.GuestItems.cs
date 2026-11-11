@@ -4,7 +4,7 @@ public sealed partial class Ff7BattleSession
 {
     public bool SubmitGuestItem(int slot, int targetSlot, ushort item)
     {
-        if (Outcome != Ff7BattleOutcome.Fighting || guestAttack is not IFf7BattleGuestItems { HasOriginItems: true } items || slot != guestAttack.ActorSlot || ReadyPlayer != slot || !CanAct(Actor(slot)) || items.ItemStock(item) <= 0 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && GuestItemTarget(items, item, actor)))
+        if (Outcome != Ff7BattleOutcome.Fighting || GetGuestAttack(slot) is not IFf7BattleGuestItems { HasOriginItems: true } items || ReadyPlayer != slot || !CanAct(Actor(slot)) || items.ItemStock(item) <= 0 || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && GuestItemTarget(items, item, actor)))
         {
             return false;
         }

@@ -10,13 +10,13 @@ internal sealed record CrossoverNativeCureForeignTarget(int HostSlot, NativeBatt
 {
     public static CrossoverNativeCureForeignTarget Read(Ff7BattleSession host, int slot, Ff7BattleActorGeometry geometry, Matrix4x4 originToHost)
     {
-        if (slot is < 0 or >= 3 || geometry.SkeletonPoints.IsDefaultOrEmpty || geometry.Faces.IsDefaultOrEmpty || !Matrix4x4.Invert(originToHost, out Matrix4x4 inverse))
+        if (slot is < 0 or >= 3 || geometry.SkeletonPoints.IsDefaultOrEmpty || geometry.Faces.IsDefaultOrEmpty && geometry.GuestFaces.IsDefaultOrEmpty || !Matrix4x4.Invert(originToHost, out Matrix4x4 inverse))
         {
             throw new InvalidDataException("Mixed Cure requires the actual posed host ally geometry.");
         }
-        NativeBattleVector position = Word(Vector3.Transform(host.RenderActorPlacement(slot).Position, inverse));
+        NativeBattleVector position = Word(Vector3.Transform(geometry.GuestRoot ?? host.RenderActorPlacement(slot).Position, inverse));
         NativeBattleVector first = Word(Vector3.Transform(geometry.SkeletonPoints[0], inverse));
-        NativeBattleVector second = Word(Vector3.Transform(host.GuestEffectTargetAnchor(slot), inverse));
+        NativeBattleVector second = Word(Vector3.Transform(geometry.GuestEffectAnchor ?? host.GuestEffectTargetAnchor(slot), inverse));
         NativeBattleVector[] joints = geometry.SkeletonPoints.Select(point => Local(point, inverse, position)).ToArray();
         NativeBattleEffectLocalBounds bounds = new(new(joints.Min(point => point.X), joints.Min(point => point.Y), joints.Min(point => point.Z)), new(joints.Max(point => point.X), joints.Max(point => point.Y), joints.Max(point => point.Z)));
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], position.X, position.Y, position.Z, 4096);

@@ -31,7 +31,7 @@ public sealed partial class Ff7Session
 
     public bool EquipMateria(int characterId, int equippedSlot, int? inventorySlot)
     {
-        if (Battle is not null || Host.Process.GlobalCommand != Ff7GlobalCommand.None)
+        if (Battle is not null || Host.Process.GlobalCommand != Ff7GlobalCommand.None || GuestFieldVitals?.StoryCharacters.Contains(characterId) == true)
         {
             return false;
         }
@@ -64,7 +64,7 @@ public sealed partial class Ff7Session
         Ff7Progress candidate = Progress with { Characters = characters, Materia = Ff7NativeMateriaInventory.Normalize(inventory) };
         candidate.Validate();
         Ff7PartyRecoveryResult adjusted = Ff7NativePartyRecovery.Publish(candidate, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
-        Progress = adjusted.Progress;
+        Progress = PreserveGuestFieldCharacters(Progress, adjusted.Progress);
         return true;
     }
 

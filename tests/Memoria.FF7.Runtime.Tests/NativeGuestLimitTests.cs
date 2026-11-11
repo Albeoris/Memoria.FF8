@@ -78,8 +78,72 @@ internal static class NativeGuestLimitTests
             }
         }
         Check(previous == 2 && presented == 2 && death && released && source.Invocation is null, "The guest Limit failed to retain the final original KO presentation and release.");
+        CheckMultipleGuests(original.Progress);
 
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
+
+        void CheckMultipleGuests(Ff7Progress progress)
+        {
+            progress = progress with { Party = [0, 1, 255] };
+            Ff7BattleSession live = CreatePair();
+            Ff7BattleGuestVitalsBinding first = new(id, new('A', 64), 0, 0, 0, 0, 400, 486, 6, 14, 24, 17) { OriginName = "Squall" };
+            Ff7BattleGuestVitalsBinding second = new(id, first.SourcePayloadSha256, 1, 1, 2, 2, 300, 600, 8, 12, 26, 19) { OriginName = "Quistis" };
+            live.BindGuestVitals(first);
+            live.ReprojectGuestVitals(0, new(486, 6, 14, 24, 17) { Dexterity = 24 });
+            live.BindGuestSpeed(0, 20);
+            live.BindGuestVitals(second);
+            live.ReprojectGuestVitals(1, new(620, 8, 12, 27, 19) { Dexterity = 64 });
+            live.BindGuestSpeed(1, 60);
+            Check(live.Name(0) == "Squall" && live.Name(1) == "Quistis" && live.GuestVitalsBindings.SequenceEqual([first, second]), "The guest roster did not retain both actor identities.");
+
+            Ff7BattleSnapshot pair = live.Capture();
+            Ff7BattleGuestSlotState[] slots = pair.GuestSlots!;
+            Check(slots[0].BaseDexterity == 20 && slots[1].BaseDexterity == 60 && slots[1].Projection?.MaximumHp == 620 && pair.Actors[1].Actor.HitPoints == 300, "The guest projections did not remain independent.");
+            Check(pair.GuestVitals is null && pair.GuestProjection is null, "The multi-guest snapshot retained stale singular fields.");
+            for (int slot = 0; slot < 2; slot++)
+            {
+                pair.Actors[slot] = pair.Actors[slot] with { Gauge = ushort.MaxValue - 1 };
+            }
+            int targetIndex = Array.FindIndex(pair.Actors, actor => actor.Actor.Slot == 4);
+            Ff7BattleActorState target = pair.Actors[targetIndex];
+            pair.Actors[targetIndex] = target with { Actor = target.Actor with { HitPoints = 6000, MaxHitPoints = 6000 } };
+            live = CreatePair(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(pair)));
+            AttackProbe left = new(id, 0);
+            AttackProbe right = new(id, 1);
+            live.BindGuestAttack(right);
+            live.BindGuestAttack(left);
+            live.Advance();
+            Check(live.GetGuestLimitReadyAt(0) == live.Tick && live.GetGuestLimitReadyAt(1) == live.Tick && left.ReadyCalls == 1 && right.ReadyCalls == 1, "Each guest must receive its own Limit readiness event.");
+            Check(live.Submit(0, Ff7BattleCommand.Attack, 0, 0x10) && live.Submit(1, Ff7BattleCommand.Attack, 0, 0x10), "The two ready guests could not stage their own actions.");
+            for (int step = 0; step < 20 && live.Action is null; step++)
+            {
+                live.Advance(waitForCommand: true);
+            }
+            Check(live.Action?.Command.ActorSlot == 0 && left.Invocation is { ActorSlot: 0 } && right.Invocation is null && right.HostTick == live.Tick, "The host did not dispatch the first action or advance the second guest's idle clock.");
+
+            Ff7BattleSession restored = CreatePair(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(live.Capture())));
+            AttackProbe restoredLeft = new(id, 0, left.Invocation, left.HostTick, left.ContactPublished);
+            AttackProbe restoredRight = new(id, 1, right.Invocation, right.HostTick, right.ContactPublished);
+            restored.BindGuestAttack(restoredRight);
+            restored.BindGuestAttack(restoredLeft);
+            bool sawFirst = false;
+            bool sawSecond = false;
+            for (int step = 0; step < 40; step++)
+            {
+                live.Advance(waitForCommand: true);
+                restored.Advance(waitForCommand: true);
+                Check(JsonSerializer.Serialize(live.Capture()) == JsonSerializer.Serialize(restored.Capture()), "The multi-guest queue or vitals diverged after JSON restore.");
+                sawFirst |= live.LastHit is { Source: 0, Target: 4 };
+                sawSecond |= live.LastHit is { Source: 1, Target: 4 };
+                if (sawSecond && live.Action is null)
+                {
+                    break;
+                }
+            }
+            Check(sawFirst && sawSecond && live.Action is null && live.GetGuestLimitReadyAt(0) is null && live.GetGuestLimitReadyAt(1) is null && left.HostTick == live.Tick && right.HostTick == live.Tick, "The guests did not finish both queued attacks and clear their own readiness.");
+
+            Ff7BattleSession CreatePair(Ff7BattleSnapshot? snapshot = null) => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 2, snapshot: snapshot, animations: animations);
+        }
     }
 
     private static void Check(bool condition, string message)
@@ -140,6 +204,51 @@ internal static class NativeGuestLimitTests
             PublishedContacts++;
             Ff7BattleGuestPhysicalHit hit = new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), new(0x11, age == 2 ? (byte)1 : byte.MaxValue, 255, UsePhysicalStats: true) { SuppressCritical = true }, 0);
             return new(hit, false);
+        }
+
+        public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick)
+        {
+            HostTick = hostTick;
+        }
+    }
+
+    private sealed class AttackProbe(Guid encounter, int slot, Ff7BattleGuestInvocation? invocation = null, long tick = 0, bool contactPublished = false) : IFf7BattleGuestAttack, IFf7BattleGuestLimit
+    {
+        public int ActorSlot => slot;
+        public Guid EncounterId => encounter;
+        public Ff7BattleGuestInvocation? Invocation { get; private set; } = invocation;
+        public long HostTick { get; private set; } = tick;
+        public bool ContactPublished { get; private set; } = contactPublished;
+        public bool LimitReady => false;
+        public int PublishedContacts => 0;
+        public int ReadyCalls { get; private set; }
+
+        public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null;
+        public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => false;
+
+        public void ObserveLimitReady(long hostTick, Ff7BattleAiActor source)
+        {
+            Check(source.Slot == slot, "A guest received another slot's readiness event.");
+            ReadyCalls++;
+        }
+
+        public void Begin(Ff7BattleGuestInvocation action, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
+        {
+            Check(action.ActorSlot == slot && action.StartedAt == HostTick, "A guest received another slot's action or stale clock.");
+            Invocation = action;
+            ContactPublished = false;
+        }
+
+        public Ff7BattleGuestAttackUpdate Advance(long hostTick)
+        {
+            HostTick = hostTick;
+            if (ContactPublished)
+            {
+                Invocation = null;
+                return new(null, true);
+            }
+            ContactPublished = true;
+            return new(new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), new(0x11, 1, 255, UsePhysicalStats: true) { SuppressCritical = true }, 0), false);
         }
 
         public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick)

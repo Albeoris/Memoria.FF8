@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Rendering;
@@ -165,9 +166,9 @@ internal sealed class CrossoverNativeCureProgram(GameAssets game, NativeBattleGr
         {
             NativeBattleCureActorMatrices matrices = NativeBattlePoseMatrices.CureActorMatrices8D7110(target.World, current.State.CopiedCamera!, new(0, actor.VerticalOffset, 0), 1, actor.Center, 8192);
             ushort? rejectBackfaces = ActorContextF4() is short known ? unchecked((ushort)known) : null;
-            foreach (Ff7BattleActorFace face in target.Geometry.Faces)
+            foreach ((Vector3 a, Vector3 b, Vector3 c) in target.Geometry.FaceVertices())
             {
-                NativeBattleGeometryPrimitive? overlay = NativeBattleCureActorPackets.ProjectTriangleOverlay8D7430(target.LocalVertex(face.A), target.LocalVertex(face.B), target.LocalVertex(face.C), matrices.MainCamera, matrices.OverlayCamera, projection, rejectBackfaces, 17);
+                NativeBattleGeometryPrimitive? overlay = NativeBattleCureActorPackets.ProjectTriangleOverlay8D7430(target.LocalVertex(a), target.LocalVertex(b), target.LocalVertex(c), matrices.MainCamera, matrices.OverlayCamera, projection, rejectBackfaces, 17);
                 if (overlay is not null)
                 {
                     AppendEffect(new([new(overlay, 0, 0)], overlay.Words.Length * 4));
