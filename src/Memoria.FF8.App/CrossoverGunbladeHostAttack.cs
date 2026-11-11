@@ -317,14 +317,12 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
 
     private Ff7BattleGuestPhysicalHit ProjectContact(NativeBattleTriggerReceipt contact)
     {
-        byte level = Project(kit.Level, 7, 6, 100, 99);
-        byte attack = Project(kit.Stats.Strength, 17, 36, 255, 255);
-        byte luck = Project(kit.Stats.Luck, 16, 14, 255, 255);
-        Ff7BattleDamageActor source = new(level, attack, 0, 0, luck, 0, 0, 0, 0);
         byte power = checked((byte)(8 * (contact.Timing / 20 + 2)));
         Ff7BattleDamageAction action = new(0x11, power, 96, UsePhysicalStats: true) { SuppressCritical = true };
-        return new(source, action, 0);
+        return new(ProjectPhysicalSource(kit), action, 0);
     }
+
+    internal static Ff7BattleDamageActor ProjectPhysicalSource(CrossoverFf8BattleKit kit) => new(Project(kit.Level, 7, 6, 100, 99), Project(kit.Stats.Strength, 17, 36, 255, 255), 0, 0, Project(kit.Stats.Luck, 16, 14, 255, 255), 0, 0, 0, 0);
 
     private static long HostTime(long tick) => checked(tick * TimeSpan.TicksPerSecond) / Ff7BattleSession.LogicUpdatesPerSecond;
 

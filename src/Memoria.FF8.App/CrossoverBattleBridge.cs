@@ -105,6 +105,7 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
 internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, int MaximumHitPoints, int Level, byte Weapon, BattlePlayerStats Stats, NativeBattleStatusAllocation Statuses, BattleNativeAction Attack, BattleNativeLimitDefinition Limit, byte FinisherFlags, ImmutableArray<byte> Commands, ImmutableArray<BattleNativeAction> Spells)
 {
     public uint StatusPassives { get; init; }
+    public byte RenzokukenPower { get; init; }
 
     public static CrossoverFf8BattleKit ReadSquall(NativeCharacterVitals vitals, BattleAssets resources)
     {
@@ -123,7 +124,11 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         }
         BattleNativePlayerStatRules rules = resources.ReadPlayerNativeStatRules(vitals, row);
         ImmutableArray<BattleNativeAction> spells = resources.NativeActions.Where(action => action.Command == 2 && action.KernelSection == 1 && action.ActionId != 0).ToImmutableArray();
-        return new(row, saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row), rules.Level, saved.Weapon, resources.ReadPlayerStats(vitals, row), resources.ReadPlayerNativeStatusData(vitals, row), resources.ReadPlayerNativeAttackData(vitals, row), resources.ReadNativeLimitDefinition(0), rules.WeaponRecord[2], resources.ReadPlayerNativeCommandSlots(vitals, row), spells) { StatusPassives = rules.NativeStatusPassiveFlags ?? throw new InvalidDataException("The native character ability passives are missing.") };
+        return new(row, saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row), rules.Level, saved.Weapon, resources.ReadPlayerStats(vitals, row), resources.ReadPlayerNativeStatusData(vitals, row), resources.ReadPlayerNativeAttackData(vitals, row), resources.ReadNativeLimitDefinition(0), rules.WeaponRecord[2], resources.ReadPlayerNativeCommandSlots(vitals, row), spells)
+        {
+            StatusPassives = rules.NativeStatusPassiveFlags ?? throw new InvalidDataException("The native character ability passives are missing."),
+            RenzokukenPower = rules.CharacterRecord[33]
+        };
     }
 }
 

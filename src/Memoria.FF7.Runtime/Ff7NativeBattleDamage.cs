@@ -17,6 +17,8 @@ public enum Ff7BattleDamageAffinity : byte
 public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false, bool TargetsMagicPoints = false)
 {
     public bool SuppressCritical { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AlwaysHits { get; init; }
 
     public static Ff7BattleDamageAction FromAttack(Ff7BattleAttack attack)
     {
@@ -157,7 +159,7 @@ public static class Ff7NativeBattleDamage
     private static bool PhysicalHit(Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, int accuracy, Ff7BattleRng random)
     {
         int hitRate = 255;
-        if (!action.BackAttack && !GuaranteesHit(action.Affinity) && (target.Statuses & GuaranteedPhysicalHit) == 0)
+        if (!action.AlwaysHits && !action.BackAttack && !GuaranteesHit(action.Affinity) && (target.Statuses & GuaranteedPhysicalHit) == 0)
         {
             int dexterity = ApplyModifier(attacker.Dexterity, attacker.DexterityModifier);
             int attackerEvade = ApplyModifier(attacker.Evade + (attacker.IsEnemy ? 0 : attacker.Dexterity / 4), attacker.EvadeModifier);
