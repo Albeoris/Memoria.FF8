@@ -149,6 +149,7 @@ public sealed partial class MenuController
         screenId = ResolveJunctionDashboard(screenId);
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
         ClearBattleLearningReview();
+        learnedAngeloAbilityId = null;
         exitGame = null;
         pendingJunctionExchange = null;
         pendingGuardianForceTransfer = null;
@@ -230,6 +231,7 @@ public sealed partial class MenuController
         junctionPlan = null;
         junctionReview = false;
         ClearBattleLearningReview();
+        learnedAngeloAbilityId = null;
         exitGame = null;
         if (ScreenId == "mode-review")
         {

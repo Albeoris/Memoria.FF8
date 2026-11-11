@@ -156,6 +156,7 @@ public sealed partial class MenuController
         Place(body, identity, 0, 0);
         UiList abilities = NativePageCommands(false, 42, 25);
         abilities.Id = "angelo-abilities";
+        abilities.ItemTextColor = index => index < Entries.Count ? AngeloLearnedAbilityColor(Entries[index].Id) : null;
         abilities.PageSize = 8;
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;

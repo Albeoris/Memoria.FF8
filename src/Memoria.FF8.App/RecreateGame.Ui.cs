@@ -38,6 +38,17 @@ internal sealed partial class RecreateGame
     private string UiPreferencesPath => globalSettings.UiPreferencesPath;
     private string ControlsPreferencesPath => globalSettings.ControlsPreferencesPath;
 
+    private bool PresentAngeloLearning(NativeLimitProgress? before)
+    {
+        if (gameMenus?.PresentAngeloLearning(before, session.State.LimitProgress) != true)
+        {
+            return false;
+        }
+        keyboard.SuppressHeldUiInput();
+        SynchronizeUiMoviePause();
+        return true;
+    }
+
     private void InitializeGameUi()
     {
         newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };

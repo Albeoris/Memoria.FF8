@@ -630,6 +630,7 @@ internal sealed partial class RecreateGame : Game
             }
             UpdateDialoguePages(elapsed);
             DialogueState? dialogue = events!.CurrentDialogue;
+            NativeLimitProgress? previousLimits = session.State.LimitProgress;
             if (dialogue != presentedDialogue)
             {
                 presentedDialogue = dialogue;
@@ -669,7 +670,7 @@ internal sealed partial class RecreateGame : Game
                     }
                 }
             }
-            if (events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+            if (PresentAngeloLearning(previousLimits) || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
             {
                 fieldSeconds = 0;
                 return;
@@ -678,6 +679,7 @@ internal sealed partial class RecreateGame : Game
             while (fieldSeconds + 1e-9 >= 1d / EventEngine.SimulationFps)
             {
                 fieldSeconds -= 1d / EventEngine.SimulationFps;
+                previousLimits = session.State.LimitProgress;
                 if ((input.Horizontal != 0 || input.Vertical != 0) && events.IsUserControlEnabled && !events.IsMovementBlockedByDialogue)
                 {
                     metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -input.Horizontal, Vertical: input.Vertical)).FramesAdvanced);
@@ -688,6 +690,11 @@ internal sealed partial class RecreateGame : Game
                     metrics.Simulate(1);
                 }
                 world.CommitFieldPresentation();
+                if (PresentAngeloLearning(previousLimits))
+                {
+                    fieldSeconds = 0;
+                    return;
+                }
                 if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.NativeGameOver || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
                 {
                     SynchronizeNativeNamePrompt();
@@ -795,9 +802,10 @@ internal sealed partial class RecreateGame : Game
             worldSimulationClock.Accumulate(options.ControlStep ? TimeSpan.Zero : elapsed);
             while (worldSimulationClock.TryStep())
             {
+                NativeLimitProgress? previousLimits = session.State.LimitProgress;
                 PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, keyboard.HeldControlButtons);
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
-                if (session.State.Scene != SceneKind.WorldMap)
+                if (PresentAngeloLearning(previousLimits) || session.State.Scene != SceneKind.WorldMap)
                 {
                     worldSimulationClock.Reset();
                     return;
