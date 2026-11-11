@@ -1,6 +1,9 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -32,6 +35,55 @@ public sealed class Ff7PlayerSaveRoutingTests
         Assert.Equal(expected == "save-menu", frame.SaveMenu);
         Assert.Equal(expected == "load-menu", frame.LoadMenu);
         Assert.Equal(0, continued);
+    }
+
+    [Fact]
+    public void Opening_continuation_round_trips_through_memoria_slots_before_native_saving_is_allowed()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(root), "Select the original FFVII installation.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7Session opening = Ff7Session.NewGame(installation);
+        CombinedSessionSave envelope = new()
+        {
+            ActiveGame = SessionGame.Ff7,
+            Ff8Payload = [1, 2, 3],
+            Ff8PayloadFormat = "test",
+            Mappings = [new(SessionGame.Ff7, 0, SessionGame.Ff8, 0, "test")]
+        };
+        Ff7Scene scene = CreateTitle(envelope);
+        Assert.False(scene.CanSaveMemoria);
+        Assert.Throws<InvalidOperationException>(() => scene.CapturePlayerSave(0));
+        Set(scene, "installation", installation);
+        Set(scene, "<Session>k__BackingField", opening);
+        Assert.Equal("md1stin", opening.Field.Name);
+        Assert.True(scene.CanSaveMemoria);
+        Assert.False(scene.CanSave);
+        Assert.Throws<InvalidOperationException>(() => scene.CapturePlayerSave(PlayerSaveStore.MemoriaSlotCount + 1));
+
+        string temporary = Path.Combine(Path.GetTempPath(), "memoria-ff7-opening-save-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporary);
+        try
+        {
+            PlayerSaveStore store = new(Path.Combine(temporary, "checkpoint.ffsave"), directory: Path.Combine(temporary, "player"), discoverOriginalSaves: false, game: SessionGame.Ff7);
+            store.SaveFf7(0, scene.CapturePlayerSave(0));
+            store.SaveFf7(1, scene.CapturePlayerSave(1));
+            int quickSlot = Assert.Single(store.ReadQuickEntries()).Slot;
+            foreach (int slot in new[] { quickSlot, 1 })
+            {
+                CombinedSessionSave saved = store.LoadFf7(slot);
+                Assert.Equal(envelope.Ff8Payload, saved.Ff8Payload);
+                Assert.Equal(envelope.Mappings, saved.Mappings);
+                using Ff7Session restored = Ff7Session.Restore(installation, saved.Ff7!);
+                Assert.Equal(JsonSerializer.Serialize(opening.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                restored.AdvanceTick();
+                Assert.True(restored.Host.Process.Tick > opening.Host.Process.Tick);
+            }
+        }
+        finally
+        {
+            Directory.Delete(temporary, recursive: true);
+        }
     }
 
     [Fact]
@@ -97,6 +149,7 @@ public sealed class Ff7PlayerSaveRoutingTests
         Set(scene, "sharedClock", new GameplayClock());
         Set(scene, "soundChannels", new Ff7SoundChannels());
         Set(scene, "movieSkipGesture", new MovieSkipGesture());
+        Set(scene, "noticeWindow", new NoticeWindow());
         Set(scene, "envelope", envelope);
         return scene;
     }

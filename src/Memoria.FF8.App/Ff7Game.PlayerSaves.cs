@@ -48,7 +48,7 @@ internal sealed partial class Ff7Game
 
     private void OpenPlayerSaveMenu(PlayerSaveMenuMode mode)
     {
-        if (mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave && !scene.CanSave)
+        if (mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave && !scene.CanSaveMemoria)
         {
             scene.ShowNotice("Saving is unavailable at the current FFVII boundary.");
             return;
@@ -105,12 +105,9 @@ internal sealed partial class Ff7Game
 
     private void SavePlayerSlot(int slot)
     {
-        if (!scene.CanSave)
-        {
-            throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
-        }
+        CombinedSessionSave saved = scene.CapturePlayerSave(slot);
         playerSaves.SetQuickSaveCount(scene.PresentationPreferences.QuickSaveCount);
-        playerSaves.SaveFf7(slot, scene.Capture());
+        playerSaves.SaveFf7(slot, saved);
         if (slot == 0)
         {
             scene.ShowNotice("Quick Saved", NoticeWindow.QuickSaveDurationSeconds);

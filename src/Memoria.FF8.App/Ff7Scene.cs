@@ -64,6 +64,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public Ff7Session? Session { get; private set; }
     public bool CanSave => error is null && Session?.CanSave == true;
+    internal bool CanSaveMemoria => error is null && Session?.CanSaveMemoria == true;
     public bool IsTitle => Session is null;
     public bool UseHostDebugMenu { get; set; }
     public int RenderLimit { get; set; } = 2048;
@@ -124,6 +125,16 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7Session restored = Ff7Session.Restore(installation, ff7);
         envelope = saved;
         Attach(restored, ff7.AudioPresentation, restoring: true);
+    }
+
+    internal CombinedSessionSave CapturePlayerSave(int slot)
+    {
+        bool original = slot > PlayerSaveStore.MemoriaSlotCount;
+        if (original ? !CanSave : !CanSaveMemoria)
+        {
+            throw new InvalidOperationException(original ? "Original FFVII slots require the game to allow saving." : "Saving is unavailable at the current FFVII boundary.");
+        }
+        return Capture();
     }
 
     public CombinedSessionSave Capture()

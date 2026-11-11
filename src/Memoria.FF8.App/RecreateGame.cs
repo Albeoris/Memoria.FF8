@@ -887,9 +887,9 @@ internal sealed partial class RecreateGame : Game
     {
         if (input.LoadMenu || input.SaveMenu)
         {
-            if (input.SaveMenu && (InFf7 ? ff7Scene?.CanSave != true : session.State.Scene == SceneKind.Title || fieldFaulted))
+            if (input.SaveMenu && (InFf7 ? ff7Scene?.CanSaveMemoria != true : session.State.Scene == SceneKind.Title || fieldFaulted))
             {
-                ShowSaveNotice("Start or load a running game before saving.");
+                ShowSaveNotice(InFf7 ? "Saving is unavailable at the current FFVII boundary." : "Start or load a running game before saving.");
             }
             else
             {
@@ -958,11 +958,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (InFf7)
         {
-            if (ff7Scene?.CanSave != true)
-            {
-                throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
-            }
-            var saved = ff7Scene.Capture();
+            var saved = ff7Scene!.CapturePlayerSave(slot);
             playerSaves.SaveFf7(slot, saved);
             crossover = saved;
             ff7Scene.ShowNotice(slot == 0 ? "Quick Saved" : "Saved", slot == 0 ? GameUi.NoticeWindow.QuickSaveDurationSeconds : GameUi.NoticeWindow.DefaultDurationSeconds);

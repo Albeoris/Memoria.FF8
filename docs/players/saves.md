@@ -16,6 +16,8 @@ Difficulty is stored in each Memoria save and standalone battle snapshot. Saves 
 
 The active game selects its own player save bank. F5/F6 and F9/F10 have the same actions in both games. FFVII slots and quick saves live in the `ff7` subdirectory of the player save directory; FFVIII retains its existing directory. Each browser shows only its own game. Loading stays in the current game. Use **Switch world** or **Return** explicitly to cross between games.
 
+In FFVII fields, use F5 for a Memoria quick save or F6 to select a Memoria slot, including during the opening before the first original save point. Direct saves to original slots and world switching still require the game's save permission.
+
 In FFVII, the two Original tabs cover native PC banks `save00.ff7` through `save09.ff7`, with 15 slots per file. Choose an original save folder, then use **Transfer** (the configured Card action, S by default) to copy between Memoria and original banks. Import and export currently support native field saves. Native world-map saves can be copied between original slots but cannot yet be imported or exported as Memoria continuations. Native conversion restarts field initialization and omits exact VM positions, dormant FFVIII state and appearance mappings; keep a Memoria slot for those. This supports classic PC bank files; cloud account metadata and other edition formats are outside this conversion.
 
 Recognized FFVII saves in the former shared directory remain readable from the FFVII browser. New FFVII manual saves use its own subdirectory and leave the old manual files unchanged. Quick-save rotation and retention apply only to the current game's quick saves.
