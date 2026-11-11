@@ -10,14 +10,21 @@ public sealed partial class MenuController
 
     private bool HasSelectedModSettings => selectedModId is not null && modService?.ReadBehaviorSettings(selectedModId).Count > 0;
 
+    private string? ModSettingLockReason(BehaviorModSetting setting)
+    {
+        return modSettingsPackageId is null ? null : modService?.GetBehaviorSettingLockReason(modSettingsPackageId, setting.Behavior, setting.Parameter);
+    }
+
+    private string? ModSettingsLockReason => modSettingsDraft.Select(ModSettingLockReason).FirstOrDefault(reason => reason is not null);
+
     private void RegisterModSettingsScreen()
     {
         string? packageName = modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name;
         Register(new MenuScreenDefinition
         {
             Id = "mod-settings",
-            Title = packageName is null ? "Mods · Settings" : FormatSystemText("mods.settings.package-title", "Mods · {0} · Settings", packageName),
-            Help = "Adjust the draft, then choose Save. Cancel discards your changes.",
+            Title = packageName is null ? SystemText("mods.settings.title", "Mods · Settings") : FormatSystemText("mods.settings.package-title", "Mods · {0} · Settings", packageName),
+            Help = SystemText("mods.settings.help", "Adjust the draft, then choose Save. Cancel discards your changes."),
             Entries = _ => ModSettingsEntries(),
             BuildContent = (_, root) => root.Children.Add(BuildModSettingsEditor())
         });
@@ -28,32 +35,42 @@ public sealed partial class MenuController
         return SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}", setting.Label);
     }
 
+    private string ModSettingDescription(BehaviorModSetting setting)
+    {
+        string description = SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}.description", setting.Description);
+        string bounds = FormatSystemText("mods.settings.range", "Range: {0}{3}–{1}{3} · Step: {2}{3}", setting.Min, setting.Max, setting.Step, setting.Unit);
+        return string.IsNullOrWhiteSpace(description) ? bounds : description + "\n" + bounds;
+    }
+
     private IReadOnlyList<MenuEntry> ModSettingsEntries()
     {
-        List<MenuEntry> entries = modSettingsDraft.Select((setting, index) => new MenuEntry("mod-setting-" + index, ModSettingLabel(setting), "", Action: new("mod-settings-value"))).ToList();
-        entries.Add(new("save", SystemText("mods.settings.save", "Save"), "", Action: new("mod-settings-save")));
+        List<MenuEntry> entries = modSettingsDraft.Select((setting, index) => new MenuEntry("mod-setting-" + index, ModSettingLabel(setting), ModSettingLockReason(setting) ?? ModSettingDescription(setting), Action: new("mod-settings-value"), Enabled: ModSettingLockReason(setting) is null)).ToList();
+        entries.Add(new("save", SystemText("mods.settings.save", "Save"), ModSettingsLockReason ?? "", Action: new("mod-settings-save"), Enabled: ModSettingsLockReason is null));
         entries.Add(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back")));
         return entries;
     }
 
     private UiElement BuildModSettingsEditor()
     {
-        float[] rows = Enumerable.Repeat(1f, modSettingsDraft.Length + 4).ToArray();
+        float[] rows = [1, .. Enumerable.Repeat(1.5f, modSettingsDraft.Length), 0.8f, 0.8f, 1.2f];
         UiGrid grid = Grid(rows, [1]);
         Place(grid, Header(), 0);
         for (int index = 0; index < modSettingsDraft.Length; index++)
         {
             int selected = index;
             BehaviorModSetting setting = modSettingsDraft[index];
+            bool locked = ModSettingLockReason(setting) is not null;
             UiNumericSlider slider = new()
             {
                 Id = "mod-setting-" + index,
                 Text = ModSettingLabel(setting),
-                Min = setting.Min,
                 Max = setting.Max,
-                Step = 1,
+                Min = setting.Min,
+                Step = setting.Step,
                 Value = setting.Value,
-                ValueFormat = "0'%'",
+                ValueFormat = "0'" + setting.Unit.Replace("'", "''", StringComparison.Ordinal) + "'",
+                Enabled = !locked,
+                ReadOnly = locked,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,
                 ValueWidth = 72 * TextScale,
@@ -61,11 +78,20 @@ public sealed partial class MenuController
                 FocusChanged = focused => SelectConfigRow(focused, selected),
                 ValueChanged = value =>
                 {
+                    if (ModSettingLockReason(setting) is not null)
+                    {
+                        return;
+                    }
                     modSettingsDraft[selected] = setting with { Value = (int)Math.Clamp(value, setting.Min, setting.Max) };
                     _view = null;
                 }
             };
-            Place(grid, Panel(null, slider), index + 1);
+            UiGrid option = Grid([1, 1], [1]);
+            Place(option, slider, 0);
+            UiLabel description = Label(ModSettingDescription(setting), 16, UiTextFlow.Wrap);
+            description.Id = "mod-setting-description-" + index;
+            Place(option, description, 1);
+            Place(grid, Panel(null, option), index + 1);
         }
         for (int index = modSettingsDraft.Length; index < modSettingsDraft.Length + 2; index++)
         {
@@ -75,6 +101,7 @@ public sealed partial class MenuController
             {
                 Id = entry.Id,
                 Text = entry.Label,
+                Enabled = entry.Enabled,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,
                 FocusChanged = focused => SelectConfigRow(focused, selected),
@@ -82,7 +109,9 @@ public sealed partial class MenuController
             };
             Place(grid, Panel(null, button), index + 1);
         }
-        Place(grid, Footer(), rows.Length - 1);
+        UiLabel help = Label(ModSettingsLockReason ?? CurrentScreen.Help, 16, UiTextFlow.Wrap);
+        help.Id = "mod-settings-help";
+        Place(grid, Panel(null, help), rows.Length - 1);
         return grid;
     }
 
@@ -112,6 +141,12 @@ public sealed partial class MenuController
         }
         if (ScreenId != "mod-settings" || modService is null || modSettingsPackageId is null)
         {
+            return true;
+        }
+        if (ModSettingsLockReason is { } lockReason)
+        {
+            Message = lockReason;
+            _view = null;
             return true;
         }
         foreach (BehaviorModSetting setting in modSettingsDraft)

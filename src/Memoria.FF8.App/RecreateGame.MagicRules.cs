@@ -119,13 +119,22 @@ internal sealed partial class RecreateGame
         EnsureMagicRuleBoundary();
         GameplayPreferences preferences = ((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { Difficulty = BattleDifficulty.Hardcore }).NormalizeForDifficulty();
         MagicModePreview preview = session.PreviewGameplayPreferences(preferences);
+        void ApplyHardcorePreferences()
+        {
+            if (resourceHost is not null && !resourceHost.SetGameplayDifficulty(BattleDifficulty.Hardcore))
+            {
+                resourceHost.SetGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
+                throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
+            }
+            session.ApplyGameplayPreferences(preview);
+        }
         if (preferences.SharedMagicStock != session.State.GameplayPreferences.SharedMagicStock)
         {
-            gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview));
+            gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), ApplyHardcorePreferences);
         }
         else
         {
-            session.ApplyGameplayPreferences(preview);
+            ApplyHardcorePreferences();
         }
         return true;
     }

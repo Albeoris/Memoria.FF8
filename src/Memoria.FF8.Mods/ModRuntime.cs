@@ -117,7 +117,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             lock (gate)
             {
-                return ModServiceView.Create(catalog, installedPackages, autoEnable, reloadRequested || pending is not null, diagnostics, updateOutcome, changedPackageIds);
+                ModServiceView view = ModServiceView.Create(catalog, installedPackages, autoEnable, reloadRequested || pending is not null, diagnostics, updateOutcome, changedPackageIds);
+                return view with { Packages = Array.AsReadOnly(view.Packages.Select(package => IsRequiredHardcorePackage(package.Package.Id) ? package with { CanToggle = false } : package).ToArray()) };
             }
         }
     }
@@ -185,6 +186,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
             if (package is null)
             {
                 return new(false, $"Unknown mod package: {packageId}.");
+            }
+            if (GetPackageLockReason(packageId) is string lockReason)
+            {
+                return new(false, lockReason);
             }
             if (enabled && package.HasLocalization && !installedPackages.Any(other => other.Id != package.Id && other.HasLocalization && other.RequestedEnabled))
             {
@@ -379,11 +384,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (result.UsablePackageIds is not null)
                 {
                     HashSet<string> usable = new(result.UsablePackageIds, StringComparer.OrdinalIgnoreCase);
-                    candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics);
+                    candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics) { Hardcore = candidate.Hardcore };
                 }
                 else
                 {
-                    candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics);
+                    candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics) { Hardcore = candidate.Hardcore };
                 }
                 autoEnable = nextAutoEnable;
                 installedPackages = candidate.Packages;
@@ -516,7 +521,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             notices.Add(new("watcher-error", error));
         }
-        List<string> identities = [nextAutoEnable.ToString(), string.Join(";", localizationOrder ?? [])];
+        List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), string.Join(";", localizationOrder ?? [])];
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
@@ -575,7 +580,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         throw new PackagePriorityException(id, exception.Message);
                     }
                 }
-                bool requested = explicitEnabled ?? nextAutoEnable;
+                bool requested = IsRequiredHardcorePackage(id) || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase));
                 bool compatible = isCompatible(format) || localizationOnly;
@@ -652,7 +657,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         forceRevalidate = false;
         Dictionary<string, int> priorities = packages.ToDictionary(package => package.Id, package => package.Priority, StringComparer.OrdinalIgnoreCase);
         IEnumerable<ModFile> orderedFiles = files.OrderBy(file => file.Format).ThenByDescending(file => file.Format is ModFormat.Tonberry or ModFormat.Demaster ? priorities[file.PackageId] : 0);
-        return new(catalog.Generation + 1, packages, orderedFiles, notices);
+        return new(catalog.Generation + 1, packages, orderedFiles, notices) { Hardcore = hardcore };
     }
 
     private sealed class PackagePriorityException(string packageId, string message) : IOException(message)
@@ -841,7 +846,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             installedPackages = Array.AsReadOnly(installedPackages.Select(package =>
             {
                 bool? enabled = ReadPackageEnabled(package);
-                return package with { ExplicitEnabled = enabled, RequestedEnabled = enabled ?? autoEnable };
+                return package with { ExplicitEnabled = enabled, RequestedEnabled = IsRequiredHardcorePackage(package.Id) || (enabled ?? autoEnable) };
             }).ToArray());
         }
         catch (Exception exception) when (IsFileError(exception))

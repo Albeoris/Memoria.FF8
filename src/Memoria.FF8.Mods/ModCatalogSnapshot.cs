@@ -23,6 +23,7 @@ public sealed class ModCatalogSnapshot
         }
     }
 
+    public bool Hardcore { get; init; }
     public long Generation { get; }
     public ReadOnlyCollection<ModPackage> Packages { get; }
     public ReadOnlyCollection<ModFile> Files { get; }

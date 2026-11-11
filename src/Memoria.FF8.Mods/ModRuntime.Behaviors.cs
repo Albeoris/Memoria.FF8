@@ -18,7 +18,7 @@ public sealed partial class ModRuntime
             }
             try
             {
-                return ReadBehaviorSettingsCore(package);
+                return ApplyBehaviorSettingPolicy(package, ReadBehaviorSettingsCore(package));
             }
             catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
             {
@@ -32,6 +32,11 @@ public sealed partial class ModRuntime
         lock (gate)
         {
             ThrowIfDisposed();
+            string? lockReason = GetBehaviorSettingLockReason(packageId, behavior, parameter);
+            if (lockReason is not null)
+            {
+                return new(false, lockReason);
+            }
             ModPackage? package = installedPackages.FirstOrDefault(item => item.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
             if (package is null || package.Format != ModFormat.Memoria)
             {
@@ -46,9 +51,9 @@ public sealed partial class ModRuntime
                 {
                     return new(false, $"The package does not declare behavior parameter {behavior}.{parameter}.");
                 }
-                if (value < setting.Min || value > setting.Max)
+                if (value < setting.Min || value > setting.Max || (value - setting.Min) % setting.Step != 0)
                 {
-                    return new(false, $"{behavior}.{parameter} must be between {setting.Min} and {setting.Max}.");
+                    return new(false, $"{behavior}.{parameter} must be between {setting.Min} and {setting.Max} in steps of {setting.Step}.");
                 }
                 string path = BehaviorConfigurationPath(package);
                 ValidatePreferencePath(path);

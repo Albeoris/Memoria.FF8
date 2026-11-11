@@ -13,6 +13,8 @@ public interface IModService
     ModOperationResult SetAutoEnableNewMods(bool enabled);
     IReadOnlyList<BehaviorModSetting> ReadBehaviorSettings(string packageId) => [];
     ModOperationResult SetBehaviorSetting(string packageId, string behavior, string parameter, int value) => new(false, "Behavior settings are unavailable.");
+    string? GetPackageLockReason(string packageId) => null;
+    string? GetBehaviorSettingLockReason(string packageId, string behavior, string parameter) => null;
     void Refresh();
     IDisposable Subscribe(Action<ModCatalogSnapshot> changed);
 }

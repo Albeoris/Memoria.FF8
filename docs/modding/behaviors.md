@@ -2,35 +2,57 @@
 
 [Documentation](../README.md) / Modding
 
-Memoria behavior payloads modify explicitly supported properties of existing abilities. They do not define new abilities, run patch bytes or replace an entire kernel resource. The engine owns the type, allowed range and UI for each parameter.
+Behavior payloads modify recognized properties of existing abilities. They do not define new abilities or execute arbitrary patches. The engine owns each parameter's integer contract and hard limits. Schema version 2 describes the menu controls in the package itself: label, description, control, unit, minimum, maximum, step and default.
 
-A package's `gameplay/behaviors.json` declares its defaults:
+A package's `gameplay/behaviors.json` declares defaults and UI metadata:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "meltdown": {
-    "defenseReductionPercent": 50
+    "VitalityReductionPercent": {
+      "label": "Vitality reduction",
+      "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Vit 0.",
+      "control": "slider",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 50
+    },
+    "SpiritReductionPercent": {
+      "label": "Spirit reduction",
+      "description": "Percentage by which Meltdown reduces effective Spirit after successfully applying Vit 0.",
+      "control": "slider",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 25
+    }
   }
 }
 ```
 
-The writable package's `config.json` contains only user overrides:
+The writable package's `config.json` contains only user value overrides:
 
 ```json
 {
   "meltdown": {
-    "defenseReductionPercent": 65
+    "VitalityReductionPercent": 65,
+    "SpiritReductionPercent": 35
   }
 }
 ```
 
-The bundled Meltdown package uses 50 by default. **Mods ? Meltdown ? Settings** exposes a percentage slider from 0 to 100 with a step of 1, and Save/Cancel. Zero leaves Vit/Spr unchanged; 100 retains the original full reduction. Resetting to a package default removes that parameter's override. Enablement remains the ordinary Mods preference, separate from the parameter document.
+**Mods > Meltdown > Settings** displays both descriptions and their range/step beside independent percentage sliders. Save applies the draft; Cancel discards it. Returning to a package default removes that override. Both known parameters have engine hard limits 0 through 100; a descriptor can narrow the range and choose an integer step. `slider` and `%` are the supported control/unit for this contract. Nonempty labels/descriptions, ordered bounds and aligned defaults/overrides are validated before publication. Unknown or duplicate fields, fractional values and unsupported controls are rejected.
 
-The reduction applies once to each current resolved stat: `floor(stat * (100 - percent) / 100)`. Thus it composes with resource/stat modifications without overwriting their values. Damage and status resistance use the same effective stats; Smart Attack forecasts do too. The percentage is attached only when the existing Meltdown spell successfully applies an absent Vit 0, for enemies and players alike. Other producers of Vit 0 retain their original effect. Repeated application does not stack or replace a live effect. Curing the status clears its percentage.
+The shipped defaults reduce Vitality by 50% and Spirit by 25%. Each current resolved stat uses `floor(stat * (100 - reductionPercent) / 100)`. The two stats are independent: zero keeps that stat unchanged, and 100 reduces it to zero. Existing stat/resource modifications therefore compose before the reduction. Physical damage uses the Vitality percentage; magical damage and magical status resistance use the Spirit percentage. Smart Attack forecasts use the same rules and give no status priority when neither stat would benefit.
 
-Settings changes follow normal battle tuning boundaries: they affect new battles. Already applied percentages are saved facts and survive reload, including after the mod is disabled. Old saves without a recorded percentage preserve the original full reduction. Damage, status application chance, targeting and reflection retain their ordinary contracts.
+The percentages attach only when the existing Meltdown spell successfully applies an absent Vit 0, for enemies and players alike. Other Vit 0 producers retain their native behavior. Reapplication does not stack or replace a live effect; curing the status clears its percentages. Settings apply to new battles. Applied percentages are saved facts and survive reload. Older saves with a single percentage restore it to both stats, and saves without percentage data retain the native full reduction. Legacy schema1 payloads and scalar `defenseReductionPercent` configs remain readable; saving an option writes the separate current keys while preserving the other choice.
 
-Each active behavior parameter has one package owner. Two active packages declaring `meltdown.defenseReductionPercent` cause diagnostics naming both owners; the candidate configuration is rejected and the previous committed configuration stays active. Disable one owner to resolve it. No silent load-order winner or multiplication is used. Unrelated mods, including resource replacements, remain independent. Unknown, duplicate, fractional or out-of-range fields fail validation. An override may only configure a parameter declared by its own package. A `config.json` in a package without this behavior payload is outside this format and is left alone.
+In **Hardcore**, the installed Meltdown package is required and uses fixed reductions of **50% Vitality and 25% Spirit**. Enable/Disable, both sliders and Save are locked with an explanation. The backend rejects disable/option writes too; global auto-enable settings and saved `enabled = 0` do not bypass the requirement. Ordinary activation and option files are preserved. Loading a non-Hardcore game or changing the Title profile restores those ordinary preferences. New Game, save reconstruction and a transition to Hardcore require successful publication of the requested mod profile; pending or conflicting changes cannot silently leave the ordinary profile in use. Deleting the package itself is not prevented or repaired.
 
-Built-in Memoria packages appear first with the same silver Griever crest used for Memoria saves. That display grouping does not alter resource precedence. Bundled files remain in `Data/BundledMods/Memoria`; user settings are written under the writable `Mods/Memoria` overlay and survive replacing the program files. Source builds use the same separation.
+Each behavior parameter has one active package owner. Two packages declaring the same parameter cause diagnostics naming both owners; the candidate configuration is rejected and the committed configuration remains active. Packages declaring different parameters can coexist. No hidden load-order winner or multiplication is used. A config may override only its own package's declared parameters. Unrelated packages' `config.json` files are left alone.
+
+Built-in Memoria packages appear first with the silver Griever crest used for Memoria saves. This presentation order does not alter resource precedence. Bundled defaults live in `Data/BundledMods/Memoria`; writable settings stay under `Mods/Memoria` and survive program updates. Source builds use the same separation.

@@ -1,6 +1,25 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "meltdown": {
-    "defenseReductionPercent": 50
+    "VitalityReductionPercent": {
+      "label": "Vitality reduction",
+      "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Vit 0.",
+      "control": "slider",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 50
+    },
+    "SpiritReductionPercent": {
+      "label": "Spirit reduction",
+      "description": "Percentage by which Meltdown reduces effective Spirit after successfully applying Vit 0.",
+      "control": "slider",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 25
+    }
   }
 }

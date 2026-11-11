@@ -354,7 +354,7 @@ public sealed partial class BattleSession
                     Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
                     return;
                 }
-                int spirit = EffectiveNativeDefense(recipient, recipient.Spirit);
+                int spirit = EffectiveNativeDefense(recipient, recipient.Spirit, false);
                 damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer, Difficulty));
             }
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
@@ -407,7 +407,7 @@ public sealed partial class BattleSession
             {
                 MarkNativeContactFlags(0, 2);
             }
-            int vitality = native.AttackType == 36 ? 0 : EffectiveNativeDefense(recipient, recipient.Defense);
+            int vitality = native.AttackType == 36 ? 0 : EffectiveNativeDefense(recipient, recipient.Defense, true);
             damage = native.AttackType switch
             {
                 7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : native.Power * recipient.CurrentHp / 16,
@@ -440,7 +440,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            int spirit = native.AttackType is 15 or 22 ? 0 : EffectiveNativeDefense(recipient, recipient.Spirit);
+            int spirit = native.AttackType is 15 or 22 ? 0 : EffectiveNativeDefense(recipient, recipient.Spirit, false);
             bool magic = native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
             bool magicCure = native.AttackType is 3 or 21;
             bool fixedDamage = native.AttackType is 27 or 28 or 29 or 35;

@@ -265,21 +265,22 @@ public sealed class SmartAttackTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(50)]
-    [InlineData(100)]
-    public void MeltdownForecastAppliesVitZeroBetweenCastsWithoutChangingBattle(int reduction)
+    [InlineData(0, 0)]
+    [InlineData(50, 25)]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    public void MeltdownForecastAppliesVitZeroBetweenCastsWithoutChangingBattle(int vitalityReduction, int spiritReduction)
     {
         BattleNativeAction meltdown = Spell(49, 32) with { Statuses1 = 0x1000000, StatusAttack = 200 };
         BattleDefinition definition = Create([meltdown], [new(49, 100)], enemyHp: 60_000, actorStatus: 0x20000).Capture().Definition;
-        BattleSession battle = new(definition with { Tuning = new() { MeltdownDefenseReductionPercent = reduction }, Combatants = [definition.Combatants[0] with { NativePlayerStatRules = null }, definition.Combatants[1] with { Spirit = 200, NativeStatusResistances = new byte[40] }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition with { Tuning = new() { MeltdownVitalityReductionPercent = vitalityReduction, MeltdownSpiritReductionPercent = spiritReduction }, Combatants = [definition.Combatants[0] with { NativePlayerStatRules = null }, definition.Combatants[1] with { Spirit = 200, NativeStatusResistances = new byte[40] }] }, BattleAtbMode.TurnBased);
         int magic = battle.Combatants[0].Magic;
         BattleDamageForecast expected = BattleActionForecaster.FromNativePhases(draw =>
         {
             int first = NativeBattleDamage.Magic(magic, 200, 32, draw(), false);
             int threshold = 255 * (255 * (200 + magic / 4 - 200 / 4) / 100) / 255;
             bool applied = threshold >= draw();
-            int second = NativeBattleDamage.Magic(magic, applied ? 200 * (100 - reduction) / 100 : 200, 32, draw(), false);
+            int second = NativeBattleDamage.Magic(magic, applied ? 200 * (100 - spiritReduction) / 100 : 200, 32, draw(), false);
             return first + second;
         }, 60_000);
         string before = JsonSerializer.Serialize(battle.Capture());
@@ -295,8 +296,25 @@ public sealed class SmartAttackTests
     {
         BattleNativeAction meltdown = Spell(49, 1) with { Statuses1 = 0x1000000, StatusAttack = 255 };
         BattleDefinition definition = Create([Spell(1, 80), meltdown], [new(1, 100), new(49, 100)], enemyHp: 60_000).Capture().Definition;
-        BattleSession battle = new(definition with { Tuning = new() { MeltdownDefenseReductionPercent = 0 } }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition with { Tuning = new() { MeltdownVitalityReductionPercent = 0, MeltdownSpiritReductionPercent = 0 } }, BattleAtbMode.TurnBased);
         Assert.Equal(1, battle.PreviewSmartAttack("party", "enemy").ActionId);
+    }
+
+    [Theory]
+    [InlineData(100, 0, 200, 200, 49)]
+    [InlineData(0, 100, 200, 200, 49)]
+    [InlineData(100, 0, 0, 200, 1)]
+    [InlineData(0, 100, 200, 0, 1)]
+    public void MeltdownPriorityRequiresAnActualBenefitFromEitherStat(int vitalityReduction, int spiritReduction, int vitality, int spirit, int expectedSpell)
+    {
+        BattleNativeAction meltdown = Spell(49, 1) with { Statuses1 = 0x1000000, StatusAttack = 255 };
+        BattleDefinition definition = Create([Spell(1, 80), meltdown], [new(1, 100), new(49, 100)], enemyHp: 60_000).Capture().Definition;
+        BattleSession battle = new(definition with
+        {
+            Tuning = new() { MeltdownVitalityReductionPercent = vitalityReduction, MeltdownSpiritReductionPercent = spiritReduction },
+            Combatants = [definition.Combatants[0], definition.Combatants[1] with { Defense = vitality, Spirit = spirit }]
+        }, BattleAtbMode.TurnBased);
+        Assert.Equal(expectedSpell, battle.PreviewSmartAttack("party", "enemy").ActionId);
     }
 
     private static BattleSession Create(BattleNativeAction[] spells, BattleStock[] stocks, int enemyHp = 100, bool infinite = false, uint actorStatus = 0, int[]? defenses = null, bool mug = false, uint enemyFlags = 0, bool nativeLimit = false)

@@ -83,7 +83,8 @@ internal sealed partial class RecreateGame
                 }
             }
         };
-        gameMenus.ConnectMods(resourceHost!.Mods);
+        resourceHost!.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
+        gameMenus.ConnectMods(resourceHost.Mods);
         gameMenus.ConnectModLibrary(resourceHost.ModLibrary);
         gameMenus.ConnectGameplayTuning(() =>
         {

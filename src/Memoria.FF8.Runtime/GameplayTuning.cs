@@ -11,13 +11,53 @@ public sealed record GameplayTuning
     /// <summary>The default retains native per-action primary caps; other values override the primary damage cap.</summary>
     public int MaximumDamage { get; init; } = 9999;
     public RareItemProbabilities RareItem { get; init; } = new();
-    /// <summary>Defense reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
-    public int MeltdownDefenseReductionPercent { get; init; } = 100;
+    private int? meltdownVitalityReductionPercent;
+    private int? meltdownSpiritReductionPercent;
+    private int? legacyMeltdownReductionPercent;
+    /// <summary>Vitality reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
+    public int MeltdownVitalityReductionPercent
+    {
+        get => meltdownVitalityReductionPercent ?? legacyMeltdownReductionPercent ?? 100;
+        init => meltdownVitalityReductionPercent = value;
+    }
+    /// <summary>Spirit reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
+    public int MeltdownSpiritReductionPercent
+    {
+        get => meltdownSpiritReductionPercent ?? legacyMeltdownReductionPercent ?? 100;
+        init => meltdownSpiritReductionPercent = value;
+    }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MeltdownDefenseReductionPercent
+    {
+        get => null;
+        init => legacyMeltdownReductionPercent = value;
+    }
     public bool UnrestrictedScanRotation { get; init; }
+
+    public bool Equals(GameplayTuning? other)
+    {
+        return other is not null && DrawBonus == other.DrawBonus && ApMultiplier == other.ApMultiplier && ExperienceMultiplier == other.ExperienceMultiplier && GuardianExperienceMultiplier == other.GuardianExperienceMultiplier && UnlimitedMagic == other.UnlimitedMagic && MaximumDamage == other.MaximumDamage && RareItem == other.RareItem && MeltdownVitalityReductionPercent == other.MeltdownVitalityReductionPercent && MeltdownSpiritReductionPercent == other.MeltdownSpiritReductionPercent && UnrestrictedScanRotation == other.UnrestrictedScanRotation;
+    }
+
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(DrawBonus);
+        hash.Add(ApMultiplier);
+        hash.Add(ExperienceMultiplier);
+        hash.Add(GuardianExperienceMultiplier);
+        hash.Add(UnlimitedMagic);
+        hash.Add(MaximumDamage);
+        hash.Add(RareItem);
+        hash.Add(MeltdownVitalityReductionPercent);
+        hash.Add(MeltdownSpiritReductionPercent);
+        hash.Add(UnrestrictedScanRotation);
+        return hash.ToHashCode();
+    }
 
     public void Validate()
     {
-        if (MeltdownDefenseReductionPercent is < 0 or > 100 || DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
+        if (MeltdownVitalityReductionPercent is < 0 or > 100 || MeltdownSpiritReductionPercent is < 0 or > 100 || DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
         {
             throw new InvalidDataException("Gameplay rule values exceed their supported ranges.");
         }

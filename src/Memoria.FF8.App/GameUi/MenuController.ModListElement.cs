@@ -209,7 +209,7 @@ public sealed partial class MenuController
             controls["mod-selected-toggle"].Visible = showInspector && packages.Length > 0;
             controls["mod-diagnostics"].Visible = showInspector;
             controls["mod-settings"].Visible = showInspector && menus.HasSelectedModSettings;
-            controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected)?.CanToggle == true;
+            controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected) is { CanToggle: true } selectedPackage && menus.modService?.GetPackageLockReason(selectedPackage.Package.Id) is null;
             if (packages.ElementAtOrDefault(selected) is { } package)
             {
                 ((UiButton)controls["mod-selected-toggle"]).Text = package.Package.RequestedEnabled ? menus.SystemText("ui.arrange.text.disable", "Disable") : menus.SystemText("ui.arrange.text.enable", "Enable");
@@ -253,7 +253,7 @@ public sealed partial class MenuController
             float hintX = controls["mod-auto"].Bounds.Right + 8;
             if (controls["mod-auto"].Visible && !hasLibraryActivity)
             {
-                canvas.Text(menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+                canvas.Text(menus.modService?.GetPackageLockReason(menus.selectedModId ?? "") ?? menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             }
         }
 

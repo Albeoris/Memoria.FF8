@@ -219,6 +219,7 @@ internal sealed partial class RecreateGame : Game
         try
         {
             SynchronizeGuardianModProfile();
+            resourceHost?.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
             resourceHost?.Pump();
             world?.SynchronizeGameplayTuning();
             RefreshLocalizationPresentation();
@@ -1049,6 +1050,12 @@ internal sealed partial class RecreateGame : Game
 
     private void StartNewGameSession()
     {
+        if (resourceHost is not null && !resourceHost.SetGameplayDifficulty(uiPreferences.Difficulty))
+        {
+            ShowSaveNotice(GameResourceHost.GameplayDifficultyProfilePending);
+            gameMenus?.Open("mods", true);
+            return;
+        }
         GameSession fresh = GameWorld.CreateColdProcess(options.GameDirectory);
         fresh.StartNewGame(fresh.State.NativeBattleMemory);
         fresh.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, TripleTriad = uiPreferences.TripleTriad, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });

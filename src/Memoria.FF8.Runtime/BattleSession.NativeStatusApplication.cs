@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         uint before = NativeBattleStatusBits(recipient);
         bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
         int attack = physical ? actor.Attack : actor.Magic;
-        int defense = EffectiveNativeDefense(recipient, physical ? recipient.Defense : recipient.Spirit);
+        int defense = EffectiveNativeDefense(recipient, physical ? recipient.Defense : recipient.Spirit, physical);
         for (int bit = 0; bit < 7; bit++)
         {
             uint mask = 1u << bit;
@@ -51,7 +51,8 @@ public sealed partial class BattleSession
         uint after = recipient.NativeStatus1;
         if ((before & 0x1000000) == 0 && (after & 0x1000000) != 0 && IsNativeMeltdown(action))
         {
-            recipient.MeltdownDefenseReductionPercent = definition.Tuning.MeltdownDefenseReductionPercent;
+            recipient.MeltdownVitalityReductionPercent = definition.Tuning.MeltdownVitalityReductionPercent;
+            recipient.MeltdownSpiritReductionPercent = definition.Tuning.MeltdownSpiritReductionPercent;
         }
         uint speed = after & 0xE;
         uint crisis = after & 0x300;

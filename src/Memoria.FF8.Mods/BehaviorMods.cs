@@ -3,23 +3,40 @@ using System.Text.Json;
 
 namespace Memoria.FF8.Mods;
 
-public sealed record BehaviorModSetting(string Behavior, string Parameter, string Label, int Min, int Max, int DefaultValue, int Value);
+public sealed record BehaviorModSetting(string Behavior, string Parameter, string Label, int Min, int Max, int DefaultValue, int Value)
+{
+    public string Description { get; init; } = string.Empty;
+    public string Control { get; init; } = "slider";
+    public string Unit { get; init; } = "%";
+    public int Step { get; init; } = 1;
+}
 
 /// <summary>Known, declarative gameplay parameters selected by the active packages.</summary>
 public sealed class BehaviorMods
 {
     public const string PayloadPath = "gameplay/behaviors.json";
     public const string ConfigurationPath = "config.json";
-    public static BehaviorMods Empty { get; } = new(null);
+    public const int HardcoreVitalityReductionPercent = 50;
+    public const int HardcoreSpiritReductionPercent = 25;
+    public const string VitalityReductionParameter = "VitalityReductionPercent";
+    public const string SpiritReductionParameter = "SpiritReductionPercent";
+    private const string LegacyReductionParameter = "defenseReductionPercent";
+    private static readonly string[] Parameters = [VitalityReductionParameter, SpiritReductionParameter];
+    public static BehaviorMods Empty { get; } = new(null, null, null, null);
 
-    private BehaviorMods(int? meltdownDefenseReductionPercent, string? meltdownPackageId = null)
+    private BehaviorMods(int? vitality, int? spirit, string? vitalityPackageId, string? spiritPackageId)
     {
-        MeltdownDefenseReductionPercent = meltdownDefenseReductionPercent;
-        MeltdownPackageId = meltdownPackageId;
+        MeltdownVitalityReductionPercent = vitality;
+        MeltdownSpiritReductionPercent = spirit;
+        MeltdownVitalityPackageId = vitalityPackageId;
+        MeltdownSpiritPackageId = spiritPackageId;
     }
 
-    public int? MeltdownDefenseReductionPercent { get; }
-    public string? MeltdownPackageId { get; }
+    public int? MeltdownVitalityReductionPercent { get; }
+    public int? MeltdownSpiritReductionPercent { get; }
+    public string? MeltdownVitalityPackageId { get; }
+    public string? MeltdownSpiritPackageId { get; }
+    public string? MeltdownPackageId => MeltdownVitalityPackageId == MeltdownSpiritPackageId ? MeltdownVitalityPackageId : null;
 
     public static bool IsPayloadPath(string relativePath)
     {
@@ -29,8 +46,7 @@ public sealed class BehaviorMods
     public static bool TryPrepare(ModCatalogSnapshot catalog, out BehaviorMods result, out IReadOnlyList<ModDiagnostic> diagnostics)
     {
         List<ModDiagnostic> errors = [];
-        ModFile? owner = null;
-        int? selected = null;
+        Dictionary<string, (ModFile Owner, int Value)> selected = new(StringComparer.Ordinal);
         HashSet<string> inactivePackages = catalog.Packages.Where(package => package.Status != ModEffectiveStatus.Active).Select(package => package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (IGrouping<string, ModFile> package in catalog.Files.Where(file => file.Format == ModFormat.Memoria && !inactivePackages.Contains(file.PackageId) && (IsPayloadPath(file.RelativePath) || file.RelativePath.Equals(ConfigurationPath, StringComparison.OrdinalIgnoreCase))).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
@@ -48,18 +64,16 @@ public sealed class BehaviorMods
                     throw new InvalidDataException("A package must have a single behavior payload and a single configuration document.");
                 }
                 payload = declarations.Single();
-                IReadOnlyList<BehaviorModSetting> settings = ReadSettings(payload.ReadBytes(), configurations.SingleOrDefault()?.ReadBytes());
-                foreach (BehaviorModSetting setting in settings)
+                foreach (BehaviorModSetting setting in ReadSettings(payload.ReadBytes(), configurations.SingleOrDefault()?.ReadBytes()))
                 {
-                    if (owner is not null)
+                    if (selected.TryGetValue(setting.Parameter, out var existing))
                     {
-                        string message = $"Behavior parameter {setting.Behavior}.{setting.Parameter} is declared by both {owner.PackageId}:{owner.RelativePath} and {payload.PackageId}:{payload.RelativePath}.";
-                        errors.Add(new("Memoria.BehaviorConflict", message, owner.PackageId, owner.RelativePath));
+                        string message = $"Behavior parameter {setting.Behavior}.{setting.Parameter} is declared by both {existing.Owner.PackageId}:{existing.Owner.RelativePath} and {payload.PackageId}:{payload.RelativePath}.";
+                        errors.Add(new("Memoria.BehaviorConflict", message, existing.Owner.PackageId, existing.Owner.RelativePath));
                         errors.Add(new("Memoria.BehaviorConflict", message, payload.PackageId, payload.RelativePath));
                         continue;
                     }
-                    owner = payload;
-                    selected = setting.Value;
+                    selected.Add(setting.Parameter, (payload, setting.Value));
                 }
             }
             catch (Exception exception) when (IsDocumentError(exception))
@@ -67,20 +81,29 @@ public sealed class BehaviorMods
                 errors.Add(new("Memoria.InvalidBehaviorMod", exception.Message, package.Key, payload?.RelativePath ?? ConfigurationPath));
             }
         }
-        result = errors.Count == 0 ? new(selected, owner?.PackageId) : Empty;
+        selected.TryGetValue(VitalityReductionParameter, out var vitality);
+        selected.TryGetValue(SpiritReductionParameter, out var spirit);
+        result = errors.Count == 0 ? new(vitality.Owner is null ? null : vitality.Value, spirit.Owner is null ? null : spirit.Value, vitality.Owner?.PackageId, spirit.Owner?.PackageId) : Empty;
         diagnostics = errors.AsReadOnly();
         return errors.Count == 0;
     }
 
     internal static IReadOnlyList<BehaviorModSetting> ReadSettings(byte[] payload, byte[]? configuration)
     {
-        int? declared = Parse(payload, true);
-        int? configured = configuration is null ? null : Parse(configuration, false);
-        if (configured is not null && declared is null)
+        List<BehaviorModSetting> settings = ParsePayload(payload);
+        Dictionary<string, int> configured = configuration is null ? new(StringComparer.Ordinal) : ParseConfiguration(configuration);
+        foreach ((string parameter, int value) in configured)
         {
-            throw new InvalidDataException("Configuration overrides undeclared behavior parameter meltdown.defenseReductionPercent.");
+            int index = settings.FindIndex(setting => setting.Parameter == parameter);
+            if (index < 0)
+            {
+                throw new InvalidDataException($"Configuration overrides undeclared behavior parameter meltdown.{parameter}.");
+            }
+            BehaviorModSetting setting = settings[index];
+            ValidateValue(value, setting.Min, setting.Max, setting.Step, parameter);
+            settings[index] = setting with { Value = value };
         }
-        return declared is int value ? [new("meltdown", "defenseReductionPercent", "Vit/Spr reduction", 0, 100, value, configured ?? value)] : [];
+        return settings;
     }
 
     internal static bool IsDocumentError(Exception exception)
@@ -88,26 +111,126 @@ public sealed class BehaviorMods
         return exception is JsonException or InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException;
     }
 
-    private static int? Parse(byte[] bytes, bool payload)
+    private static JsonDocument ParseDocument(byte[] bytes)
     {
         string json = new UTF8Encoding(false, true).GetString(bytes).TrimStart('\uFEFF');
-        using JsonDocument document = JsonDocument.Parse(json);
+        return JsonDocument.Parse(json);
+    }
+
+    private static List<BehaviorModSetting> ParsePayload(byte[] bytes)
+    {
+        using JsonDocument document = ParseDocument(bytes);
         JsonElement root = document.RootElement;
-        ValidateObject(root, payload ? ["schemaVersion", "meltdown"] : ["meltdown"]);
-        if (payload && (!root.TryGetProperty("schemaVersion", out JsonElement version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int schemaVersion) || schemaVersion != 1))
+        ValidateObject(root, ["schemaVersion", "meltdown"]);
+        int version = ReadInteger(root, "schemaVersion");
+        if (version is not (1 or 2))
         {
-            throw new InvalidDataException("Behavior schemaVersion must be the integer 1.");
+            throw new InvalidDataException("Behavior schemaVersion must be the integer 1 or 2.");
         }
         if (!root.TryGetProperty("meltdown", out JsonElement meltdown))
         {
-            return null;
+            return [];
         }
-        ValidateObject(meltdown, ["defenseReductionPercent"]);
-        if (!meltdown.TryGetProperty("defenseReductionPercent", out JsonElement percent) || percent.ValueKind != JsonValueKind.Number || !percent.TryGetInt32(out int value) || value is < 0 or > 100)
+        if (version == 1)
         {
-            throw new InvalidDataException("meltdown.defenseReductionPercent must be an integer from 0 to 100.");
+            ValidateObject(meltdown, [LegacyReductionParameter]);
+            int value = ReadInteger(meltdown, LegacyReductionParameter);
+            ValidateValue(value, 0, 100, 1, LegacyReductionParameter);
+            return Parameters.Select(parameter => new BehaviorModSetting("meltdown", parameter, parameter == VitalityReductionParameter ? "Vitality reduction" : "Spirit reduction", 0, 100, value, value)
+            {
+                Description = parameter == VitalityReductionParameter ? "Percentage by which Meltdown reduces Vitality." : "Percentage by which Meltdown reduces Spirit."
+            }).ToList();
+        }
+        ValidateObject(meltdown, Parameters);
+        List<BehaviorModSetting> settings = [];
+        foreach (JsonProperty property in meltdown.EnumerateObject())
+        {
+            JsonElement metadata = property.Value;
+            ValidateObject(metadata, ["label", "description", "control", "unit", "min", "max", "step", "default"]);
+            string label = ReadText(metadata, "label");
+            string description = ReadText(metadata, "description");
+            string control = ReadText(metadata, "control");
+            string unit = ReadText(metadata, "unit");
+            if (unit != "%")
+            {
+                throw new InvalidDataException("Meltdown percentage settings require the % unit.");
+            }
+            if (control != "slider")
+            {
+                throw new InvalidDataException($"Unsupported behavior control: {control}.");
+            }
+            int min = ReadInteger(metadata, "min");
+            int max = ReadInteger(metadata, "max");
+            int step = ReadInteger(metadata, "step");
+            int defaultValue = ReadInteger(metadata, "default");
+            if (min < 0 || max > 100 || min > max || step < 1 || step > 100 || (max - min) % step != 0)
+            {
+                throw new InvalidDataException($"meltdown.{property.Name} requires percentage limits within 0 to 100 and a positive step dividing its range.");
+            }
+            ValidateValue(defaultValue, min, max, step, property.Name);
+            settings.Add(new("meltdown", property.Name, label, min, max, defaultValue, defaultValue) { Description = description, Control = control, Unit = unit, Step = step });
+        }
+        return settings;
+    }
+
+    private static Dictionary<string, int> ParseConfiguration(byte[] bytes)
+    {
+        using JsonDocument document = ParseDocument(bytes);
+        JsonElement root = document.RootElement;
+        ValidateObject(root, ["meltdown"]);
+        Dictionary<string, int> values = new(StringComparer.Ordinal);
+        if (!root.TryGetProperty("meltdown", out JsonElement meltdown))
+        {
+            return values;
+        }
+        ValidateObject(meltdown, [VitalityReductionParameter, SpiritReductionParameter, LegacyReductionParameter]);
+        if (meltdown.TryGetProperty(LegacyReductionParameter, out _))
+        {
+            if (meltdown.EnumerateObject().Count() != 1)
+            {
+                throw new InvalidDataException("Legacy Meltdown configuration cannot be combined with separate parameters.");
+            }
+            int value = ReadInteger(meltdown, LegacyReductionParameter);
+            ValidateValue(value, 0, 100, 1, LegacyReductionParameter);
+            foreach (string parameter in Parameters)
+            {
+                values.Add(parameter, value);
+            }
+            return values;
+        }
+        foreach (JsonProperty property in meltdown.EnumerateObject())
+        {
+            int value = ReadInteger(meltdown, property.Name);
+            ValidateValue(value, 0, 100, 1, property.Name);
+            values.Add(property.Name, value);
+        }
+        return values;
+    }
+
+    private static void ValidateValue(int value, int min, int max, int step, string parameter)
+    {
+        if (value < min || value > max || (value - min) % step != 0)
+        {
+            throw new InvalidDataException($"meltdown.{parameter} must be an integer from {min} to {max} in steps of {step}.");
+        }
+    }
+
+    private static int ReadInteger(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out JsonElement property) || property.ValueKind != JsonValueKind.Number || !property.TryGetInt32(out int value))
+        {
+            throw new InvalidDataException($"Behavior field {name} must be an integer.");
         }
         return value;
+    }
+
+    private static string ReadText(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out JsonElement property) || property.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(property.GetString()))
+        {
+            throw new InvalidDataException($"Behavior field {name} must be nonempty text.");
+        }
+        return property.GetString()!;
     }
 
     private static void ValidateObject(JsonElement element, string[] allowed)

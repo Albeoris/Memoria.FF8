@@ -61,7 +61,7 @@ internal sealed partial class GameResourceHost
 
     private bool IsLocalizationOnlyChange(ModCatalogSnapshot candidate)
     {
-        if (Mods.Catalog.Generation == 0)
+        if (Mods.Catalog.Generation == 0 || candidate.Hardcore != Mods.Catalog.Hardcore)
         {
             return false;
         }

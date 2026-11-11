@@ -7,7 +7,8 @@ namespace Memoria.FF8;
 internal sealed class GameplayTuningPolicy
 {
     private readonly Dictionary<JunctionGameplaySetting, (decimal Value, string Owner)> settings = [];
-    private (int Value, string Owner)? meltdown;
+    private readonly Dictionary<string, (int Value, string Owner)> behaviorSettings = [];
+    private bool hardcoreMeltdown;
     public static GameplayTuningPolicy Empty { get; } = new();
 
     public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null)
@@ -16,11 +17,24 @@ internal sealed class GameplayTuningPolicy
         {
             throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(diagnostic => diagnostic.Message)));
         }
-        GameplayTuningPolicy policy = new();
-        if (behaviorMods.MeltdownDefenseReductionPercent is int reduction)
+        if (catalog.Hardcore && catalog.Packages.Any(package => package.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) && package.Status == ModEffectiveStatus.Active) && (!string.Equals(behaviorMods.MeltdownVitalityPackageId, "Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) || !string.Equals(behaviorMods.MeltdownSpiritPackageId, "Memoria/Meltdown", StringComparison.OrdinalIgnoreCase)))
         {
-            ModPackage owner = catalog.Packages.Single(package => package.Id.Equals(behaviorMods.MeltdownPackageId, StringComparison.OrdinalIgnoreCase));
-            policy.meltdown = (reduction, owner.Name);
+            throw new InvalidDataException("Hardcore requires the installed Meltdown package to declare both VitalityReductionPercent and SpiritReductionPercent.");
+        }
+        GameplayTuningPolicy policy = new();
+        AddBehavior(nameof(GameplayTuning.MeltdownVitalityReductionPercent), behaviorMods.MeltdownVitalityReductionPercent, behaviorMods.MeltdownVitalityPackageId, BehaviorMods.HardcoreVitalityReductionPercent);
+        AddBehavior(nameof(GameplayTuning.MeltdownSpiritReductionPercent), behaviorMods.MeltdownSpiritReductionPercent, behaviorMods.MeltdownSpiritPackageId, BehaviorMods.HardcoreSpiritReductionPercent);
+
+        void AddBehavior(string field, int? value, string? packageId, int hardcoreValue)
+        {
+            if (value is not int reduction)
+            {
+                return;
+            }
+            ModPackage owner = catalog.Packages.Single(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+            bool required = catalog.Hardcore && owner.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase);
+            policy.hardcoreMeltdown |= required;
+            policy.behaviorSettings.Add(field, (required ? hardcoreValue : reduction, owner.Name));
         }
         foreach (ModPackage package in catalog.Packages.Where(package => package.Format == ModFormat.Junction && package.Status == ModEffectiveStatus.Active))
         {
@@ -55,9 +69,14 @@ internal sealed class GameplayTuningPolicy
                 _ => throw new NotSupportedException($"Unsupported gameplay setting {setting}.")
             };
         }
-        if (meltdown is { } behavior)
+        foreach (var (field, behavior) in behaviorSettings)
         {
-            result = result with { MeltdownDefenseReductionPercent = behavior.Value };
+            result = field switch
+            {
+                nameof(GameplayTuning.MeltdownVitalityReductionPercent) => result with { MeltdownVitalityReductionPercent = behavior.Value },
+                nameof(GameplayTuning.MeltdownSpiritReductionPercent) => result with { MeltdownSpiritReductionPercent = behavior.Value },
+                _ => throw new NotSupportedException($"Unsupported behavior setting {field}.")
+            };
         }
         result.Validate();
         return result;
@@ -65,9 +84,9 @@ internal sealed class GameplayTuningPolicy
 
     public string? UnavailableReason(string field)
     {
-        if (field == nameof(GameplayTuning.MeltdownDefenseReductionPercent) && meltdown is { } behavior)
+        if (behaviorSettings.TryGetValue(field, out var behavior))
         {
-            return $"Controlled by {behavior.Owner}. Change its mod option to release this rule.";
+            return hardcoreMeltdown ? ModRuntime.HardcoreMeltdownLockReason : $"Controlled by {behavior.Owner}. Change its mod option to release this rule.";
         }
         foreach (var (setting, entry) in settings)
         {
@@ -101,7 +120,7 @@ internal sealed class GameplayTuningPolicy
         return configured;
     }
 
-    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(meltdown is null ? [] : new[] { nameof(GameplayTuning.MeltdownDefenseReductionPercent) }).Distinct();
+    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(behaviorSettings.Keys).Distinct();
 
     private static string Field(JunctionGameplaySetting setting) => setting switch
     {

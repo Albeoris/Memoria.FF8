@@ -152,17 +152,18 @@ public sealed class SmartAttackExecutionTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(50)]
-    [InlineData(100)]
-    public void InstalledMeltdownAppliesRecordedReductionAndContinuesAfterJsonRestore(int reduction)
+    [InlineData(0, 0)]
+    [InlineData(50, 25)]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    public void InstalledMeltdownAppliesRecordedReductionAndContinuesAfterJsonRestore(int vitalityReduction, int spiritReduction)
     {
         BattleDefinition definition = Create(true, false, true, enemyHp: 60_000).Capture().Definition;
         NativeCharacterVitals vitals = definition.MagicVitals!.ChangeMagicStock(0, 49, 10, MagicOperationReason.ScriptReward, out _);
         BattleSession battle = new(definition with
         {
             MagicVitals = vitals,
-            Tuning = new() { MeltdownDefenseReductionPercent = reduction },
+            Tuning = new() { MeltdownVitalityReductionPercent = vitalityReduction, MeltdownSpiritReductionPercent = spiritReduction },
             Combatants = [definition.Combatants[0], definition.Combatants[1] with { Defense = 200, Spirit = 150 }]
         }, BattleAtbMode.TurnBased);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 49);
@@ -171,14 +172,16 @@ public sealed class SmartAttackExecutionTests
         Complete(restored);
         NativeBattleStatusSnapshot status = battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!;
         Assert.Equal(0x1000000u, status.Battle & 0x1000000);
-        Assert.Equal(reduction, status.MeltdownDefenseReductionPercent);
+        Assert.Equal(vitalityReduction, status.MeltdownVitalityReductionPercent);
+        Assert.Equal(spiritReduction, status.MeltdownSpiritReductionPercent);
         Assert.Equal(9, battle.MagicVitals!.GetMagicCount(1, 49));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         BattleSession after = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         after.AdvanceTurn();
         after.QueueAction("caster", "enemy", BattleAbility.Magic, 1);
         Complete(after);
-        Assert.Equal(reduction, after.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.MeltdownDefenseReductionPercent);
+        Assert.Equal(vitalityReduction, after.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.MeltdownVitalityReductionPercent);
+        Assert.Equal(spiritReduction, after.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.MeltdownSpiritReductionPercent);
         Assert.True(after.Combatants.Single(actor => actor.Id == "enemy").CurrentHp < battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
     }
 

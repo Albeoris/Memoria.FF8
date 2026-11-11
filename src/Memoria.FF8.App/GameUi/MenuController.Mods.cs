@@ -249,6 +249,10 @@ public sealed partial class MenuController
             details.Add(view.Package.Format.ToString());
             details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off"))));
             details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", ModStatusText(view)));
+            if (modService?.GetPackageLockReason(view.Package.Id) is { } lockReason)
+            {
+                details.Add(lockReason);
+            }
             if (view.Package.JunctionMetadata?.Behaviors.Contains(JunctionBehavior.InstantManualSkip) == true)
             {
                 details.Add(SystemText("ui.moddetails.details.instant.manual.skip.is.built.into.the.engine", "Instant manual skip is built into the engine and is always enabled."));
@@ -406,9 +410,9 @@ public sealed partial class MenuController
             case "mod-toggle":
                 selectedModId = action.SubjectId;
                 ModPackageView? view = service.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(action.SubjectId, StringComparison.OrdinalIgnoreCase));
-                if (view is null || !view.CanToggle)
+                if (view is null || !view.CanToggle || service.GetPackageLockReason(view.Package.Id) is not null)
                 {
-                    SetSystemMessage(() => (view is null ? null : ModProblemText(view)) ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));
+                    SetSystemMessage(() => (view is null ? null : service.GetPackageLockReason(view.Package.Id) ?? ModProblemText(view)) ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));
                     _view = null;
                     return true;
                 }

@@ -23,6 +23,13 @@ internal sealed partial class GameWorld
 
     public void SynchronizeGameplayTuning()
     {
+        if (session.State.Scene != SceneKind.Title)
+        {
+            if (modelOverrides is GameResourceHost host && !host.SetGameplayDifficulty(session.State.GameplayPreferences.Difficulty))
+            {
+                throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
+            }
+        }
         GameplayTuning configured = session.State.ConfiguredGameplayTuning ?? session.State.GameplayPreferences.Tuning;
         GameplayTuning effective = GameplayPolicy.Apply(configured);
         if (ReadGameplayTuning() == effective || session.MagicMutationUnavailableReason is not null)
@@ -54,6 +61,10 @@ internal sealed partial class GameWorld
         if (battle is not null && preferences.GuardianFormsEnabled != session.State.GameplayPreferences.GuardianFormsEnabled)
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
+        }
+        if (modelOverrides is GameResourceHost host && !host.SetGameplayDifficulty(preferences.Difficulty))
+        {
+            throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
         }
         session.SetGameplayPreferences(preferences);
         if (battle is not null)

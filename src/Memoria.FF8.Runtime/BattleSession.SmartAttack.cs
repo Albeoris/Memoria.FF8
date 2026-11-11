@@ -165,7 +165,7 @@ public sealed partial class BattleSession
     private bool CanSmartApplyMeltdown(BattleCombatant actor, BattleCombatant target, BattleNativeAction action)
     {
         uint statuses = NativeBattleStatusBits(target);
-        if (IsNativeMeltdown(action) && definition.Tuning.MeltdownDefenseReductionPercent == 0 || (statuses & 0x1000000) != 0 || (NativeSavedStatusBits(target) & 5) != 0 || (statuses & 0x200800) != 0)
+        if (IsNativeMeltdown(action) && ReduceMeltdownDefense(target.Defense, definition.Tuning.MeltdownVitalityReductionPercent) == target.Defense && ReduceMeltdownDefense(target.Spirit, definition.Tuning.MeltdownSpiritReductionPercent) == target.Spirit || (statuses & 0x1000000) != 0 || (NativeSavedStatusBits(target) & 5) != 0 || (statuses & 0x200800) != 0)
         {
             return false;
         }
@@ -195,7 +195,7 @@ public sealed partial class BattleSession
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
         string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.NativeStatusResistances), string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
-        state += "|" + definition.Tuning.MeltdownDefenseReductionPercent + "|" + target.MeltdownDefenseReductionPercent;
+        state += "|" + definition.Tuning.MeltdownVitalityReductionPercent + "|" + definition.Tuning.MeltdownSpiritReductionPercent + "|" + target.MeltdownVitalityReductionPercent + "|" + target.MeltdownSpiritReductionPercent;
         state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.NativeIndex}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
@@ -205,7 +205,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(target);
         ushort saved = NativeSavedStatusBits(target);
         bool immune = (native.Statuses1 & 0x4000000) == 0 && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0);
-        int spirit = native.AttackType == 22 ? 0 : EffectiveNativeDefense(target, target.Spirit);
+        int spirit = native.AttackType == 22 ? 0 : EffectiveNativeDefense(target, target.Spirit, false);
         int[] powers = new int[casts];
         List<NativeMagicStock> stocks = actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToList();
         for (int cast = 0; cast < casts; cast++)
@@ -262,7 +262,7 @@ public sealed partial class BattleSession
                 }
                 if (vitZero && (statuses & 0x1000000) == 0)
                 {
-                    currentSpirit = native.AttackType == 22 ? 0 : ReduceMeltdownDefense(target.Spirit, IsNativeMeltdown(native) ? definition.Tuning.MeltdownDefenseReductionPercent : 100);
+                    currentSpirit = native.AttackType == 22 ? 0 : ReduceMeltdownDefense(target.Spirit, IsNativeMeltdown(native) ? definition.Tuning.MeltdownSpiritReductionPercent : 100);
                 }
                 total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, NativePrimaryDamageLimit(native.AttackFlags));
             }
@@ -288,7 +288,7 @@ public sealed partial class BattleSession
                 return 0;
             }
             bool critical = !gunblade && NativeBattleDamage.PhysicalCritical(native?.Critical ?? 0, actor.Luck, draw());
-            int vitality = EffectiveNativeDefense(target, target.Defense);
+            int vitality = EffectiveNativeDefense(target, target.Defense, true);
             int damage = gunblade ? NativeGunbladeAttack.Damage(actor.Attack, vitality, native?.Power ?? actor.PhysicalPower, draw(), HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : (short)0) : NativeBattleDamage.Physical(actor.Attack, vitality, native?.Power ?? actor.PhysicalPower, draw());
             if ((statuses & 0x20) != 0)
             {
