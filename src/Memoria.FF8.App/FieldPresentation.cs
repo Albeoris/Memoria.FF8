@@ -68,7 +68,7 @@ internal sealed class FieldPresentation
         FieldBackgroundBlend? background = before is null ? null : new(ToBackground(before.Scroll), ToBackground(latest.Scroll), fraction);
         DrawPointParticleBlend? particles = before?.DrawPointParticles is { } oldParticles && latest.DrawPointParticles is not null ? new(oldParticles, fraction) : null;
         FieldFadeSample? fade = latest.Fade is null ? null : before?.Fade is { } previousFade ? FieldFadeSample.Interpolate(previousFade, latest.Fade, fraction) : FieldFadeSample.FromNative(latest.Fade.Draw);
-        IReadOnlyDictionary<int, Vector3>? shades = latest.BackgroundShades?.ToDictionary(pair => pair.Key, pair => before?.BackgroundShades?.TryGetValue(pair.Key, out Vector3 old) == true ? Vector3.Lerp(old, pair.Value, fraction) : pair.Value);
+        IReadOnlyDictionary<int, Vector3>? shades = latest.BackgroundShades?.ToDictionary(pair => pair.Key, pair => before?.BackgroundShades?.TryGetValue(pair.Key, out Vector3 old) == true ? FieldColorInterpolation.Interpolate(old, pair.Value, fraction) : pair.Value);
         FieldParticleBlend? fieldParticles = before?.FieldParticles is { } previousPool && before.FieldParticleSprites is { } previousSprites && latest.FieldParticles is not null ? new(previousPool, previousSprites, fraction) : null;
         return new FieldPresentationSample(actors, background, particles, fade, shades, fieldParticles);
     }
@@ -146,7 +146,7 @@ internal sealed class FieldPresentation
             Z = Lerp(before.Z, after.Z, fraction),
             Direction = before.Direction + MathF.IEEERemainder(after.Direction - before.Direction, 256) * fraction,
             RootTranslationZ = Lerp(before.RootTranslationZ, after.RootTranslationZ, fraction),
-            PresentationPolygonColor = compatible && fraction < 1 ? Vector(before.PolygonColor, after.PolygonColor, fraction) : null,
+            PresentationPolygonColor = compatible && fraction < 1 ? Color(before.PolygonColor, after.PolygonColor, fraction) : null,
             GroundShadowCentre = Vector(before.GroundShadowCentre, after.GroundShadowCentre, fraction),
             FirstControlRotation = sameAnimation ? Rotation(before.FirstControlRotation, after.FirstControlRotation, fraction) : after.FirstControlRotation,
             SkinTranslations = sameAnimation ? Translations(before.SkinTranslations, after.SkinTranslations, fraction) : after.SkinTranslations,
@@ -157,6 +157,8 @@ internal sealed class FieldPresentation
     private static float Lerp(float first, float second, float fraction) => first + (second - first) * fraction;
 
     private static Vector3? Vector(Vector3? first, Vector3? second, float fraction) => first is Vector3 a && second is Vector3 b ? Vector3.Lerp(a, b, fraction) : second;
+
+    private static Vector3? Color(Vector3? first, Vector3? second, float fraction) => first is Vector3 a && second is Vector3 b ? FieldColorInterpolation.Interpolate(a, b, fraction) : second;
 
     private static Vector3? Rotation(Vector3? first, Vector3? second, float fraction)
     {

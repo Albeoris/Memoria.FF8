@@ -36,17 +36,15 @@ public sealed record FieldFadeSample(NativeFadeDrawMode Mode, Vector3 Color)
         }
         if (before.Mode == after.Mode)
         {
-            // Weighted floating-point interpolation can overshoot even equal byte endpoints.
-            Vector3 color = Vector3.Lerp(before.Color, after.Color, fraction);
-            return after with { Color = Vector3.Clamp(color, Vector3.Min(before.Color, after.Color), Vector3.Max(before.Color, after.Color)) };
+            return after with { Color = FieldColorInterpolation.Interpolate(before.Color, after.Color, fraction) };
         }
         if (before.Mode == NativeFadeDrawMode.None && after.Mode is NativeFadeDrawMode.Add or NativeFadeDrawMode.Subtract)
         {
-            return after with { Color = after.Color * fraction };
+            return after with { Color = FieldColorInterpolation.Interpolate(Vector3.Zero, after.Color, fraction) };
         }
         if (after.Mode == NativeFadeDrawMode.None && before.Mode is NativeFadeDrawMode.Add or NativeFadeDrawMode.Subtract)
         {
-            return before with { Color = before.Color * (1 - fraction) };
+            return before with { Color = FieldColorInterpolation.Interpolate(before.Color, Vector3.Zero, fraction) };
         }
         return after;
     }

@@ -9,6 +9,96 @@ namespace Memoria.FF8.App.Tests;
 public sealed class FieldColorInterpolationTests
 {
     [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(-float.Epsilon)]
+    [InlineData(255.00002f)]
+    public void Bounded_color_interpolation_rejects_invalid_endpoints_before_clamping(float channel)
+    {
+        Vector3[] colors = [new(channel, 128, 255), new(0, channel, 255), new(0, 128, channel)];
+        foreach (Vector3 color in colors)
+        {
+            foreach (float fraction in new[] { 0f, 0.5f, 1f })
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() => FieldColorInterpolation.Interpolate(color, Vector3.Zero, fraction));
+                Assert.Throws<ArgumentOutOfRangeException>(() => FieldColorInterpolation.Interpolate(Vector3.Zero, color, fraction));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(-float.Epsilon)]
+    [InlineData(1.00001f)]
+    public void Bounded_color_interpolation_rejects_invalid_fractions(float fraction)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => FieldColorInterpolation.Interpolate(Vector3.Zero, new Vector3(255), fraction));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actor_and_background_constant_colors_remain_exact_at_fine_fractions(bool background)
+    {
+        for (int channel = 0; channel <= 255; channel++)
+        {
+            Vector3 color = new(channel);
+            object scene = new();
+            FieldActorSample actor = Actor(new object(), color);
+            FieldPresentationFrame first = Frame(scene, 7, actor) with { BackgroundShades = new Dictionary<int, Vector3> { [1] = color } };
+            FieldPresentationFrame last = first with { Frame = 8 };
+            FieldPresentation presentation = Prime(first, last);
+            float[] fractions = channel == 255 ? Enumerable.Range(0, 10001).Select(step => step / 10000f).ToArray() : [0, 0.0003f, 0.001f, 0.01f, 0.0185f, 0.1f, 0.33333334f, 0.5f, 0.9f, float.BitDecrement(1), 1];
+            foreach (float fraction in fractions)
+            {
+                FieldPresentationSample sample = presentation.Sample(last, fraction, false);
+                ActorVisual visual = Assert.Single(sample.Actors);
+                Assert.Equal(color, background ? sample.BackgroundShades![1] : visual.PresentationPolygonColor ?? visual.PolygonColor);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actor_and_background_colors_stay_between_mixed_channel_endpoints(bool background)
+    {
+        int[] endpoints = [0, 1, 127, 128, 254, 255];
+        float[] fractions = [0, float.BitIncrement(0), 0.0003f, 0.0185f, 0.1f, 0.33333334f, 0.5f, 0.9f, float.BitDecrement(1), 1];
+        foreach (int start in endpoints)
+        {
+            foreach (int target in endpoints)
+            {
+                Vector3 before = new(start, target, 255);
+                Vector3 after = new(target, start, 255);
+                object scene = new();
+                FieldActorSample actor = Actor(new object(), before);
+                FieldPresentationFrame first = Frame(scene, 7, actor) with { BackgroundShades = new Dictionary<int, Vector3> { [1] = before } };
+                FieldPresentationFrame last = Frame(scene, 8, actor with { Visual = actor.Visual with { PolygonColor = after } }) with { BackgroundShades = new Dictionary<int, Vector3> { [1] = after } };
+                string original = JsonSerializer.Serialize(new[] { first, last });
+                FieldPresentation presentation = Prime(first, last);
+                foreach (float fraction in fractions)
+                {
+                    FieldPresentationSample sample = presentation.Sample(last, fraction, false);
+                    ActorVisual visual = Assert.Single(sample.Actors);
+                    Vector3 color = background ? sample.BackgroundShades![1] : (visual.PresentationPolygonColor ?? visual.PolygonColor)!.Value;
+                    Assert.InRange(color.X, Math.Min(start, target), Math.Max(start, target));
+                    Assert.InRange(color.Y, Math.Min(start, target), Math.Max(start, target));
+                    Assert.Equal(255, color.Z);
+                    if (fraction == 0 || fraction == 1)
+                    {
+                        Assert.Equal(fraction == 0 ? before : after, color);
+                    }
+                }
+                Assert.Equal(original, JsonSerializer.Serialize(new[] { first, last }));
+            }
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Saturated_same_mode_fade_remains_valid_at_fine_presentation_fractions(bool subtract)

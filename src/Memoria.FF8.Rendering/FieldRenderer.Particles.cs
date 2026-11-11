@@ -34,7 +34,7 @@ public sealed partial class FieldRenderer
                 {
                     return centre + blendHistory.Offset(oldCorner - before.Centre, newCorner - quad.Centre, previous.Angle, particle.Angle);
                 }
-                quad = fraction == 0 ? before : new FieldParticleQuad(centre, Corner(before.A, quad.A), Corner(before.B, quad.B), Corner(before.C, quad.C), Corner(before.D, quad.D), before.Depth + (quad.Depth - before.Depth) * fraction, Vector3.Lerp(before.Color, quad.Color, fraction));
+                quad = fraction == 0 ? before : new FieldParticleQuad(centre, Corner(before.A, quad.A), Corner(before.B, quad.B), Corner(before.C, quad.C), Corner(before.D, quad.D), before.Depth + (quad.Depth - before.Depth) * fraction, FieldColorInterpolation.Interpolate(before.Color, quad.Color, fraction));
             }
             float orderingDepth = quad.Depth;
             ProjectedPoint Viewport(Vector2 point) => ToViewport(new ProjectedPoint(point.X, point.Y, orderingDepth));
