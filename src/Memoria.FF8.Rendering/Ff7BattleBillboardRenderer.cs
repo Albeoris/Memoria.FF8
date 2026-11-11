@@ -10,10 +10,12 @@ internal sealed class Ff7BattleBillboardRenderer
     private readonly IReadOnlyList<Quad>[] frames;
     private readonly PcTexture[] pages;
     private readonly Dictionary<(int Page, int Palette), PixelImage> images = [];
+    private readonly bool useColorKey;
 
-    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, int? paletteOverride = null, bool nativePageOrigin = false)
+    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, int? paletteOverride = null, bool nativePageOrigin = false, bool useColorKey = false)
     {
         this.pages = pages;
+        this.useColorKey = useColorKey;
         frames = new IReadOnlyList<Quad>[billboard.Count];
         for (int frame = 0; frame < frames.Length; frame++)
         {
@@ -89,7 +91,7 @@ internal sealed class Ff7BattleBillboardRenderer
             PcTexture texture = pages[page];
             byte[] header = texture.Header.ToArray();
             BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(0xD0), palette);
-            image = Ff7FieldRenderer.DecodeTexture(texture with { Header = header });
+            image = Ff7FieldRenderer.DecodeTexture(texture with { Header = header }, useColorKey);
             images.Add((page, palette), image);
         }
         return image;

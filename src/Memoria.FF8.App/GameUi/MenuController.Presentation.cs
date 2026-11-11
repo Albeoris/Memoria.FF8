@@ -91,7 +91,8 @@ public sealed partial class MenuController
     {
         var page = VectorRows([80, 0, 32], [3.2f, 1], 12);
         page.Id = "vector-main";
-        Place(page, VectorHeader(SelectedEntry?.Label ?? SystemText("ui.buildvectormain.caption.menu", "Menu"), SelectedEntry?.Help ?? CurrentScreen.Help), 0);
+        string title = ShowMainScreenTitle ? CurrentScreen.Title : SelectedEntry?.Label ?? SystemText("ui.buildvectormain.caption.menu", "Menu");
+        Place(page, VectorHeader(title, SelectedEntry?.Help ?? CurrentScreen.Help), 0);
         var party = VectorRows([18, 0, 18, Math.Max(72, ((CharacterChoices.Count(member => !member.InParty) + 2) / 3) * 56)], [1], 4);
         Place(page, party, 1);
         Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.a.c.t.i.v.e.p.a", "A C T I V E   P A R T Y"), 11, true), 0);

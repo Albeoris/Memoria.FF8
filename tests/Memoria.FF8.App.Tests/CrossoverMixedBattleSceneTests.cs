@@ -69,6 +69,10 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.False(scene.MixedCombatEnabled);
         using SpriteBatch batch = new(device.Device);
         scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        ControlsProfile controls = ControlsProfile.CreateDefault()
+            .WithBinding(ControlAction.RotateLeft, ControlDevice.Keyboard, new([Keys.B], []))
+            .WithBinding(ControlAction.RotateRight, ControlDevice.Keyboard, new([Keys.N], []));
+        scene.ConfigureSharedControls(new KeyboardInput { Profile = controls }, new GameplayClock());
         CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, characterId);
         if (useWorldSwitch)
         {
@@ -223,6 +227,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.NotNull(committed);
         Assert.Null(scene.Session!.Battle);
         Assert.NotNull(committed.GuestBattleSettlements);
+        Assert.Equal(2u, Assert.Single(committed.Ff7!.Progress.CompletedBattles).Reward.AbilityPoints);
         Assert.Null(committed.MixedBattlePayload);
         Assert.True(scene.MixedCombatEnabled);
         output.WriteLine($"Guest scene rendered and settled request {committed.GuestBattleSettlements![0].RequestId}, origin HP {committed.GuestBattleSettlements[0].SettledHp}");
@@ -230,7 +235,12 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         {
             return;
         }
+        Press(Keys.V);
         scene.Session.AdvanceTick();
+        if (!useWorldSwitch)
+        {
+            VerifyFieldMenu();
+        }
         string dormant = JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0));
         int fieldActor = scene.Session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
         scene.Session.Host.Execute(new(9000001, fieldActor, 7, 0, new FieldHitPointCommand(0, -100)));
@@ -238,6 +248,56 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         scene.Session.Host.Execute(new(9000002, fieldActor, 7, 0, new FieldPartyRecovery(true)));
         Assert.Equal((ushort)486, scene.Session.GuestFieldVitals.Read().Hp);
         Assert.Equal(dormant, JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0)));
+
+        void VerifyFieldMenu()
+        {
+            Ff7Session field = scene.Session!;
+            bool FieldMenuAvailable() => !field.HasPendingTick && Ff7Scene.CanOpenFieldPlayerMenu(field.Host.Process);
+            for (int tick = 0; tick < 300 && !FieldMenuAvailable(); tick++)
+            {
+                foreach (Ff7Dialogue dialogue in field.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed))
+                {
+                    field.Host.CompleteDialogue(dialogue.RequestId, dialogue.FirstChoice ?? 0);
+                }
+                field.AdvanceTick();
+            }
+            Ff7FieldProcess process = field.Host.Process;
+            Assert.True(FieldMenuAvailable(), $"Post-battle menu gate at {field.Field.Name}: pending={field.HasPendingTick}, command={process.GlobalCommand}, locked={process.PlayerLocked}, menuDisabled={process.MenuDisabled}, dialogues={process.Dialogues.Count(dialogue => !dialogue.Completed)}.");
+            Assert.False(field.CanSave);
+            scene.Update(new(TimeSpan.Zero, TimeSpan.Zero), new KeyboardState());
+            if (!scene.IsPlayerMenuOpen)
+            {
+                Press(Keys.V);
+            }
+            MenuController ff7 = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
+            Assert.Equal("Final Fantasy VII", ff7.CurrentScreen.Title);
+            Assert.Equal(new[] { "items", "magic", "materia", "equip", "status", "order", "limit", "config", "phs", "save" }, ff7.Entries.Take(10).Select(entry => entry.Id));
+            Press(Keys.N);
+            MenuController ff8 = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
+            Assert.Equal("Final Fantasy VIII", ff8.CurrentScreen.Title);
+            Assert.Equal(characterId, Assert.Single(ff8.Data.Characters, character => character.InParty).NativeId);
+            Draw();
+            CombinedSessionSave before = scene.Capture();
+            GameplaySaveComponentDocument beforeGuest = CrossoverSaveAdapter.ReadFf8(before);
+            ff8.Execute(new MenuAction("attack-mode", Value: "SmartMagic"));
+            CombinedSessionSave after = scene.Capture();
+            GameplaySaveComponentDocument afterGuest = CrossoverSaveAdapter.ReadFf8(after);
+            Assert.Equal(MagicAttackMode.SmartMagic, afterGuest.Characters.Restore(game.ReadNewGameCharacterVitals()).MagicSystem.AttackModes[originRow]);
+            Assert.Equal(beforeGuest.Characters.CombatParty, afterGuest.Characters.CombatParty);
+            Assert.Equal(JsonSerializer.Serialize(beforeGuest.Progression), JsonSerializer.Serialize(afterGuest.Progression));
+            Assert.Equal(JsonSerializer.Serialize(before.Ff7), JsonSerializer.Serialize(after.Ff7));
+            Press(Keys.B);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            Press(Keys.RightShift);
+            Assert.Same(ff8, scene.ActivePlayerMenu);
+            Press(Keys.LeftShift);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            Press(Keys.V);
+            Assert.False(scene.IsPlayerMenuOpen);
+            Press(Keys.V);
+            Assert.Same(ff7, scene.ActivePlayerMenu);
+            Press(Keys.V);
+        }
 
         void Press(Keys key)
         {

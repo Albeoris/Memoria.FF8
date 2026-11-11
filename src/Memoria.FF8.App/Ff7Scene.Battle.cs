@@ -70,6 +70,10 @@ internal sealed partial class Ff7Scene
             }
             return;
         }
+        if (CurrentBattleAtbMode == BattleAtbMode.TurnBased && sharedInput.BattleAdvanceTurnRequested)
+        {
+            battle.AdvanceTurn();
+        }
         if (battleInputOwner != battle.ReadyPlayer)
         {
             battleInputOwner = battle.ReadyPlayer;
@@ -104,12 +108,13 @@ internal sealed partial class Ff7Scene
         Ff7Session session = Session!;
         session.AdvanceClock(gameTime.ElapsedGameTime);
         tickRemainder += sharedClock.Advance(TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), SceneKind.Field, battle: true).TotalSeconds;
+        bool turnBased = CurrentBattleAtbMode == BattleAtbMode.TurnBased;
         const double tickDuration = 1d / Ff7BattleSession.LogicUpdatesPerSecond;
         while (tickRemainder >= tickDuration && !battle.ResultReady)
         {
             tickRemainder -= tickDuration;
             battle.SetCameraMenuPhase(selectedBattleCommand is null ? (short)-1 : (short)0);
-            session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null || battleCommandPage is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld);
+            session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null || battleCommandPage is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld, turnBasedBattle: turnBased);
             pendingLimitConfirm = false;
         }
         UpdateAudio();

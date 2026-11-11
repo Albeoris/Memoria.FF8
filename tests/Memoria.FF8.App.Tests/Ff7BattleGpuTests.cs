@@ -549,6 +549,7 @@ public sealed class Ff7BattleGpuTests
         SceneBattleData scene = SceneBattleData.Read(formation);
         Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic, grenadeTexture: Ff7BattleGrenadeResources.Load(installation));
         SceneCameraPlacement camera = scene.Cameras[0];
+        int machineGun = scene.Attacks.Single(attack => attack.Id == 0x110).Data.ImpactEffect;
         var anchor = scene.Enemies[0].Placement.Position + new System.Numerics.Vector3(0, -500, 0);
         renderer.Render(gpu, 320, 240, new(camera, []));
         Color[] baseline = GpuTestDevice.Read(gpu.Target);
@@ -558,6 +559,13 @@ public sealed class Ff7BattleGpuTests
             for (int frame = 0; frame <= state.Definition.FrameCount; frame++)
             {
                 state = Ff7BattleHitmarkEffect.Advance(state, _ => anchor, _ => 350);
+                if (style == machineGun && frame == 0)
+                {
+                    renderer.Render(gpu, 320, 240, new(camera, []) { Hitmarks = [state] });
+                    Color[] changed = baseline.Zip(GpuTestDevice.Read(gpu.Target)).Where(pair => pair.First != pair.Second).Select(pair => pair.Second).ToArray();
+                    Assert.NotEmpty(changed);
+                    Assert.True(changed.Count(pixel => pixel == Color.Black) * 4 < changed.Length, "The Machine Gun impact drew its indexed background over the arena.");
+                }
                 if (frame == 3)
                 {
                     renderer.Render(gpu, 320, 240, new(camera, []) { Hitmarks = [state] });

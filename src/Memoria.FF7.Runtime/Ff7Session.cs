@@ -143,7 +143,7 @@ public sealed partial class Ff7Session : IDisposable
         AdvanceTick(true);
     }
 
-    public void AdvanceTick(bool advanceClock, bool waitForBattleCommand = false, bool confirmBattleLimit = false, bool escapeBattleHeld = false)
+    public void AdvanceTick(bool advanceClock, bool waitForBattleCommand = false, bool confirmBattleLimit = false, bool escapeBattleHeld = false, bool turnBasedBattle = false)
     {
         if (World is not null)
         {
@@ -168,7 +168,7 @@ public sealed partial class Ff7Session : IDisposable
                 {
                     AdvanceNominalClockCallbacks();
                 }
-                Battle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld);
+                Battle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
             }
             return;
         }

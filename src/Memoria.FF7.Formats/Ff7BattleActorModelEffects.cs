@@ -22,6 +22,8 @@ public sealed record Ff7BattleBossDeathShakeUpdate(Ff7BattleBossDeathShakeState?
 
 public static class Ff7BattleActorDeath
 {
+    public static bool IsBossKind(byte kind) => kind is 16 or 17 or 18;
+
     public static Ff7BattleActorDeathUpdate Advance(Ff7BattleActorDeathState state, Ff7BattleActorModelModifiers current, Ff7BattleActorDeathResources? resources = null)
     {
         if (state.Target is < 0 or > 9 || state.Kind is not (0 or 1 or 17 or 18) || state.Remaining < -1 || state.Remaining > (state.Kind >= 17 ? 64 : 14))

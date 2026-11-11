@@ -16,17 +16,20 @@ internal sealed partial class Ff7Scene
     private Action<ControlsProfile>? writeSharedControls;
     private bool menuPointerPressed;
     private bool playerMenuClockChanged;
-    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
+    private bool pendingPlayerMenuRequest;
+    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Append("Battle ATB mode").ToHashSet(StringComparer.Ordinal);
 
-    internal bool IsPlayerMenuOpen => playerMenu?.IsOpen == true;
+    internal MenuController? ActivePlayerMenu => guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
+    internal bool IsPlayerMenuOpen => ActivePlayerMenu is not null;
+    private bool CanUsePlayerMenuPhs => Session?.CanUseMenuPhs == true;
 
     private bool CanOpenPlayerMenu => Session is { HasPendingTick: false } session && (session.World is { } world
-        ? CanOpenWorldPlayerMenu(world.Process, world.ReadPersistentByte(31))
-        : CanOpenFieldPlayerMenu(session.Host.Process, session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31)));
+        ? CanOpenWorldPlayerMenu(world.Process)
+        : CanOpenFieldPlayerMenu(session.Host.Process));
 
-    internal static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process, byte nativeControlFlags) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed) && (nativeControlFlags & 2) == 0;
+    internal static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed);
 
-    internal static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process, byte nativeControlFlags) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlLock == 0 && process.Dialogue is not { Completed: false } && (nativeControlFlags & 2) == 0;
+    internal static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlLock == 0 && process.Dialogue is not { Completed: false };
 
     private void EnsurePlayerMenu()
     {
@@ -34,7 +37,7 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        playerMenu = new(ReadPlayerMenuData, ApplyPlayerMenuAction);
+        playerMenu = new(ReadPlayerMenuData, ApplyPlayerMenuAction) { ShowMainScreenTitle = true };
         playerMenu.ConnectPreferences(() => PresentationPreferences, ApplyPlayerMenuAction);
         if (writeSharedControls is not null)
         {
@@ -51,30 +54,43 @@ internal sealed partial class Ff7Scene
         playerMenu.Register(new()
         {
             Id = "main",
-            Title = "Menu",
+            Title = "Final Fantasy VII",
             Help = "Select a command.",
             Layout = MenuLayout.Main,
             Entries = _ =>
             [
-                new("items", "Items", "View the items carried in this world.", "ff7-items"),
+                new("items", "Item", "View the items carried in this world.", "ff7-items"),
+                new("magic", "Magic", "View spells granted by equipped materia.", "ff7-magic"),
+                new("materia", "Materia", "Equip and link materia in the current party.", "ff7-materia"),
+                new("equip", "Equip", "View equipped weapons, armor and accessories.", "ff7-equip"),
                 new("status", "Status", "View the current party.", "ff7-status"),
+                new("order", "Order", "Change the party order or battle row.", "ff7-order"),
+                new("limit", "Limit", "View current Limit levels and learned slots.", "ff7-limit"),
                 new("config", "Config", "Shared controls, graphics, audio and interface preferences.", "config"),
+                new("phs", "PHS", CanUsePlayerMenuPhs ? "Exchange active and reserve party members." : "PHS is unavailable at this location.", "ff7-phs", Enabled: CanUsePlayerMenuPhs),
                 new("save", "Save", "Save the current continuation.", Action: new("ff7-save"), Enabled: CanSave),
                 new("load", "Load", "Load a saved continuation.", Action: new("ff7-load"), Enabled: ContinueRequested is not null),
                 new("world", "Switch world: FFVIII", "Choose associations before returning to the retained world.", Action: new("ff7-world"), Enabled: CanSave && envelope.Ff8Payload is { Length: > 0 }),
-                new("materia", "Materia", "Equip and link materia in the current party.", "ff7-materia"),
                 new("close", "Return", "Return to the game.", Action: new("ff7-close"))
             ]
         });
         playerMenu.Register(new() { Id = "ff7-items", Title = "Items", Help = "Items carried in this world.", Entries = menu => menu.Data.Items.Select(item => new MenuEntry(item.Id, $"{item.Name}   {item.Quantity}", item.Description)).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         playerMenu.Register(new() { Id = "ff7-status", Title = "Status", Help = "Current party.", Entries = menu => menu.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, $"{character.Name}   Lv {character.Level}   HP {character.CurrentHp}", $"MP {character.Stats["MP"]}   EXP {character.Experience}")).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         RegisterMateriaMenus(playerMenu);
+        RegisterNativeCharacterMenus(playerMenu);
         playerMenu.Register(new()
         {
             Id = "config",
             Title = "Config",
             Help = "Shared presentation and control preferences.",
-            Entries = menu => menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls").Append(new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed")).ToArray()
+            Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle ATB mode for the current host.", "config-combat")]
+        });
+        playerMenu.Register(new()
+        {
+            Id = "config-combat",
+            Title = "Combat",
+            Help = "Select the Battle ATB mode.",
+            Entries = menu => menu.ConfigEntries().Where(entry => entry.Id == "Battle ATB mode").ToArray()
         });
     }
 
@@ -107,7 +123,7 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
-        if (ApplyMateriaMenuAction(action))
+        if (ApplyMateriaMenuAction(action) || ApplyNativeCharacterMenuAction(action))
         {
             return;
         }
@@ -117,11 +133,15 @@ internal sealed partial class Ff7Scene
             {
                 throw new NotSupportedException("This FFVII menu exposes only shared presentation and speed preferences.");
             }
-            UiPreferences current = PresentationPreferences;
+            UiPreferences current = action.SubjectId == "Battle ATB mode" ? PresentationPreferences : dialoguePreferences?.Invoke() ?? new UiPreferences();
             UiPreferences updated = current.WithSetting(action.SubjectId, action.Value);
             if (updated != current)
             {
                 (setDialoguePreferences ?? throw new InvalidOperationException("Shared preferences are read-only in this host."))(updated);
+                if (action.SubjectId == "Battle ATB mode")
+                {
+                    SetSharedBattleAtbMode(updated.AtbMode);
+                }
                 playerMenu!.Presentation = updated.MenuPresentation;
             }
             return;
@@ -148,8 +168,9 @@ internal sealed partial class Ff7Scene
 
     private bool UpdatePlayerMenu(GameTime time, KeyboardState keys, GamePadState pad)
     {
-        if (sharedInput.GameMenuRequested && playerMenu?.IsCapturingControls != true)
+        if ((sharedInput.GameMenuRequested || pendingPlayerMenuRequest) && ActivePlayerMenu?.IsCapturingControls != true)
         {
+            pendingPlayerMenuRequest = false;
             if (IsPlayerMenuOpen)
             {
                 AdvancePlayerMenuClock(time.ElapsedGameTime);
@@ -159,6 +180,7 @@ internal sealed partial class Ff7Scene
             }
             if (!CanOpenPlayerMenu)
             {
+                pendingPlayerMenuRequest = Session is { } session && (session.HasPendingTick || session.Host.Process.GlobalCommand == Ff7GlobalCommand.Battle);
                 return false;
             }
             EnsurePlayerMenu();
@@ -174,13 +196,23 @@ internal sealed partial class Ff7Scene
             RefreshPlayerMenuPresentation();
             return true;
         }
-        if (!IsPlayerMenuOpen)
+        if (ActivePlayerMenu is not { } menu)
         {
             return false;
         }
         AdvancePlayerMenuClock(time.ElapsedGameTime);
-        UpdateSharedMenuInput(playerMenu!, keys, pad, ref menuPointerPressed);
-        if (!playerMenu!.IsOpen)
+        if (menu.ScreenId == "main" && !menu.IsSelectingCharacter && (sharedInput.UiCharacterPage != 0 || sharedInput.UiShiftPage != 0) && HasActiveGuestMenu)
+        {
+            MenuController next = ReferenceEquals(menu, playerMenu) ? EnsureGuestPlayerMenu() : playerMenu!;
+            menu.Close();
+            next.Presentation = PresentationPreferences.MenuPresentation;
+            next.Open();
+        }
+        else
+        {
+            UpdateSharedMenuInput(menu, keys, pad, ref menuPointerPressed);
+        }
+        if (!IsPlayerMenuOpen)
         {
             ClosePlayerMenu();
         }
@@ -203,6 +235,7 @@ internal sealed partial class Ff7Scene
         if (playerMenuClockChanged)
         {
             playerMenu?.InvalidateLiveData();
+            guestPlayerMenu?.InvalidateLiveData();
             playerMenuClockChanged = false;
         }
         UpdateAudio();
@@ -223,6 +256,10 @@ internal sealed partial class Ff7Scene
             if (semanticInput.MenuPage != 0)
             {
                 menu.Navigate(semanticInput.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
+            }
+            if (ReferenceEquals(menu, guestPlayerMenu) && sharedInput.UiCharacterPage != 0)
+            {
+                menu.Navigate(sharedInput.UiCharacterPage < 0 ? MenuInput.PageLeft : MenuInput.PageRight);
             }
             if (semanticInput.Confirm)
             {
@@ -246,6 +283,7 @@ internal sealed partial class Ff7Scene
     private void ClosePlayerMenu()
     {
         playerMenu?.Close();
+        guestPlayerMenu?.Close();
         pendingPressedKeys = 0;
         moveHorizontal = 0;
         moveVertical = 0;
@@ -255,13 +293,13 @@ internal sealed partial class Ff7Scene
 
     private void DrawPlayerMenu(Rectangle bounds)
     {
-        if (!IsPlayerMenuOpen)
+        if (ActivePlayerMenu is not { } menu)
         {
             return;
         }
-        playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
-        playerMenu.PrepareViewport(bounds.Width, bounds.Height);
-        UiView view = playerMenu.BuildView();
+        menu.Presentation = PresentationPreferences.MenuPresentation;
+        menu.PrepareViewport(bounds.Width, bounds.Height);
+        UiView view = menu.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(dialogueCanvas!, SharedTheme());
     }
@@ -270,6 +308,12 @@ internal sealed partial class Ff7Scene
     {
         playerMenu?.Close();
         playerMenu = null;
+        guestPlayerMenu?.Close();
+        guestPlayerMenu = null;
+        guestMenuAssets?.Dispose();
+        guestMenuAssets = null;
+        guestMenuCatalog = null;
+        pendingPlayerMenuRequest = false;
         playerMenuClockChanged = false;
         foreach (int id in menuPortraits.Values)
         {

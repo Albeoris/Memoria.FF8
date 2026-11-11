@@ -30,7 +30,7 @@ public sealed partial class Ff7BattleRenderer
                 {
                     throw new InvalidDataException("FFVII hitmark continuation has a different native frame count.");
                 }
-                sprites = new(frames, [texture], _ => 0, paletteOverride: cue.Palette);
+                sprites = new(frames, [texture], _ => 0, paletteOverride: cue.Palette, useColorKey: true);
                 hitmarks.Add((cue.Sprite, cue.Palette), sprites);
             }
             Vector3 anchor = SpriteAnchor(point.X, point.Y, point.Z, state.CollisionRadius, view) + new Vector3(state.Flipped ? -cue.OffsetX : cue.OffsetX, -cue.OffsetY, 0);

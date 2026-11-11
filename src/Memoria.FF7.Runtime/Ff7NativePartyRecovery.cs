@@ -6,9 +6,9 @@ public sealed record Ff7PartyRecoveryResult(Ff7Progress Progress, bool Underwate
 
 public static class Ff7NativePartyRecovery
 {
-    public static Ff7PartyRecoveryResult Publish(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
+    public static Ff7PartyRecoveryResult Publish(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, IReadOnlyCollection<int>? guestStoryCharacters = null)
     {
-        return ApplyCore(progress, materiaRecords, statModifiers, clearStatus: false, recovery: 0);
+        return ApplyCore(progress, materiaRecords, statModifiers, clearStatus: false, recovery: 0, guestStoryCharacters);
     }
 
     public static Ff7PartyRecoveryResult AddHitPoints(Ff7Progress progress, int characterId, short amount, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
@@ -46,7 +46,7 @@ public static class Ff7NativePartyRecovery
         return ApplyCore(recovered with { Party = progress.Party }, materiaRecords, statModifiers, clearStatus: true);
     }
 
-    private static Ff7PartyRecoveryResult ApplyCore(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, bool clearStatus, short recovery = 10000)
+    private static Ff7PartyRecoveryResult ApplyCore(Ff7Progress progress, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers, bool clearStatus, short recovery = 10000, IReadOnlyCollection<int>? guestStoryCharacters = null)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(materiaRecords);
@@ -58,7 +58,7 @@ public static class Ff7NativePartyRecovery
         bool underwater = false;
         Ff7CharacterState[] characters = progress.Characters.Select(character =>
         {
-            if (!progress.Party.Contains(character.Id))
+            if (!progress.Party.Contains(character.Id) || guestStoryCharacters?.Contains(character.Id) == true)
             {
                 return character;
             }

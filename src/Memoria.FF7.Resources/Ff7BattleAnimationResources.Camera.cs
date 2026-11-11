@@ -11,10 +11,21 @@ public sealed partial class Ff7BattleAnimationResources
     {
         if (!deathTypes.TryGetValue(prefix, out byte kind))
         {
-            kind = (byte)(Read(prefix + "ab")[2] & 0x3F);
+            kind = ReadDeathType(archive, prefix);
             deathTypes.Add(prefix, kind);
         }
         return kind;
+    }
+
+    public static bool HasBossDeath(SceneFormation formation, LgpArchive archive)
+    {
+        return formation.Enemies.Any(enemy => enemy.EnemyId >= 0 && Ff7BattleActorDeath.IsBossKind(ReadDeathType(archive, ModelPrefix(enemy.EnemyId, true))));
+    }
+
+    private static byte ReadDeathType(LgpArchive archive, string prefix)
+    {
+        byte[] action = archive.ReadEntry(archive.Find(prefix + "ab").Single());
+        return (byte)(action[2] & 0x3F);
     }
 
     public Ff7BattleCameraModelParameters CameraModelParameters(string prefix)

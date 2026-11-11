@@ -359,7 +359,7 @@ public sealed partial class BattleSession
         if (binding.InitialPosition is NativeBattleVector position)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics with { Models = graphics.Models.SetItem(index, model) }, index).PoseSource ?? throw new NotSupportedException("Native103 transform requires its actual current skeleton scaleWORD2.");
-            short scale = unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(2)) * 4));
+            short scale = pose.ReadModelScale5027D0();
             model = model with { Transform = new(position, position, 0, 0, scale) };
         }
         nativeGlobalRandom = randomState;

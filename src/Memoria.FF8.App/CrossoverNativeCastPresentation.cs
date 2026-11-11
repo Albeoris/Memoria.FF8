@@ -19,6 +19,10 @@ internal static class CrossoverNativeCastPresentation
         {
             throw new InvalidDataException("Mixed casting requires a loaded original FFVIII character and a native Magic, Item or Limit sequence.");
         }
+        NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original character skeleton.");
+        NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Mixed casting requires the original character transform.");
+        // The native casting callbacks size their effects from WORD38, independently of the body matrix.
+        model = model with { Transform = transform with { Scale38 = pose.ReadModelScale5027D0() } };
         return new(NativeBattleGraphicsModels.SelectSequence(model, commandSequences[command]), 3, false);
     }
 

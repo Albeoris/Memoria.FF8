@@ -31,6 +31,9 @@ public sealed record CrossoverNativeEffectVisual(CrossoverNativeSpriteRenderer R
 /// <summary>Original module sprite packets composed with the encounter camera and depth buffer.</summary>
 public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables tables, ImmutableArray<NativeBattleStaticMeshResource> meshes, NativeBattleSummonColors colors)
 {
+    private const int CameraWidth = 320;
+    private const int CameraHeight = 240;
+    private const int NativeDrawHeight = 216;
     private BattleRenderer? native;
 
     public static NativeBattleCameraProjection Camera(SceneCameraPlacement host, Matrix4x4 originToHost)
@@ -39,26 +42,14 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
         {
             throw new InvalidDataException("Mixed module projection requires an invertible origin placement.");
         }
-        Vector3 eye = Vector3.Transform(host.Position, inverse);
-        Vector3 forward;
-        Vector3 right;
-        Vector3 down;
-        if (host.Basis is { } basis)
-        {
-            forward = Vector3.Normalize(Vector3.TransformNormal(basis.Forward, inverse));
-            right = Vector3.Normalize(Vector3.TransformNormal(basis.Right, inverse));
-            down = -Vector3.Normalize(Vector3.TransformNormal(basis.Up, inverse));
-        }
-        else
-        {
-            Vector3 focus = Vector3.Transform(host.Focus, inverse);
-            forward = Vector3.Normalize(focus - eye);
-            right = Vector3.Normalize(Vector3.Cross(forward, -Vector3.UnitY));
-            down = -Vector3.Cross(right, forward);
-        }
+        BattleCameraBasis basis = BattleCameraBasis.Create(host);
+        Vector3 eye = Vector3.Transform(basis.Position, inverse);
+        Vector3 forward = Vector3.Normalize(Vector3.TransformNormal(basis.Forward, inverse));
+        Vector3 right = Vector3.Normalize(Vector3.TransformNormal(basis.Right, inverse));
+        Vector3 down = -Vector3.Normalize(Vector3.TransformNormal(basis.Up, inverse));
         ImmutableArray<short> words = [Q(right.X), Q(right.Y), Q(right.Z), Q(down.X), Q(down.Y), Q(down.Z), Q(forward.X), Q(forward.Y), Q(forward.Z)];
         NativeBattleActionMatrix view = new(words, NativePrecision53.RoundInteger(-Vector3.Dot(right, eye)), NativePrecision53.RoundInteger(-Vector3.Dot(down, eye)), NativePrecision53.RoundInteger(-Vector3.Dot(forward, eye)), 4096);
-        return new(view, host.FocalLength ?? 512, 160, 120);
+        return new(view, host.FocalLength ?? 512, CameraWidth / 2, CameraHeight / 2);
 
         static short Q(float value) => checked((short)NativePrecision53.RoundInteger(value * 4096d));
     }
@@ -108,16 +99,13 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),
             LastColorState = NativeBattlePrimitiveColorState.FromColdProcess()
         };
-        if (native is null || native.Width != width || native.Height != height)
-        {
-            native = new(width, height, new(0, 0, width, Math.Max(1, height * 216 / 240)));
-        }
-        native.TriangleRenderer = new HostPass(renderer, originToHostScale);
+        native ??= new(CameraWidth, CameraHeight, new(0, 0, CameraWidth, NativeDrawHeight));
+        native.TriangleRenderer = new HostPass(renderer, width, height, originToHostScale);
         native.RenderNativePrimitiveFrame(frame, source, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), textureWindowCache: executed.Cache);
         return native.DrawnTriangles;
     }
 
-    private sealed class HostPass(ITriangleRenderer host, float scale) : ITriangleRenderer
+    private sealed class HostPass(ITriangleRenderer host, int width, int height, float originToHostScale) : ITriangleRenderer
     {
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -133,6 +121,16 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             host.Draw(Map(a), Map(b), Map(c), mapped);
         }
 
-        private TriangleVertex Map(TriangleVertex source) => source with { Depth = source.ReciprocalW / scale };
+        private TriangleVertex Map(TriangleVertex source)
+        {
+            if (source.ReciprocalW == 1)
+            {
+                Vector2 screen = source.Position * new Vector2(width / (float)CameraWidth, height / (float)CameraHeight);
+                return source with { Position = screen, Depth = 1 / originToHostScale };
+            }
+            // Match the host's centered camera and its height-based focal length on both axes.
+            Vector2 position = (source.Position - new Vector2(CameraWidth / 2f, CameraHeight / 2f)) * (height / (float)CameraHeight) + new Vector2(width / 2f, height / 2f);
+            return source with { Position = position, Depth = source.ReciprocalW / originToHostScale };
+        }
     }
 }

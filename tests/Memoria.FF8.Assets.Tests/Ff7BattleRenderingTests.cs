@@ -9,6 +9,56 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class Ff7BattleRenderingTests
 {
     [Fact]
+    public void OpeningGuardsUseOpaqueMaterialsUntilTheDeathCallbackFadesThem()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original resources for FFVII battle rendering.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(archive, formation.LocationId);
+        Ff7BattleActorVisual[] actors = scene.Enemies.Select(enemy => new Ff7BattleActorVisual(Ff7BattleRenderer.EnemyModelPrefix(enemy.Placement.EnemyId), enemy.Placement.Position, MathF.PI, 0, 0, 0)).ToArray();
+        SceneCameraPlacement camera = scene.Cameras[0];
+        Capture stage = new();
+        renderer.Render(stage, 320, 240, new(camera, []));
+        Assert.Equal(TriangleBlend.HalfAdd, stage.LastBlend);
+
+        List<(TriangleMaterial Material, float Alpha)> submitted = [];
+        Capture capture = new((triangle, material) => submitted.Add((material, triangle.Color.W)));
+        renderer.Render(capture, 320, 240, new(camera, actors));
+        var opaque = submitted.Skip(stage.Triangles).ToArray();
+        Assert.NotEmpty(opaque);
+        Assert.All(opaque, draw =>
+        {
+            Assert.Equal(TriangleBlend.Replace, draw.Material.Blend);
+            Assert.True(draw.Material.DepthWrite);
+            Assert.Equal(1f, draw.Alpha);
+        });
+
+        Ff7BattleActorDeathUpdate death = Ff7BattleActorDeath.Advance(new(4, 0), new());
+        Ff7BattleActorModelModifiers fading = death.Write.Modifiers!;
+        submitted.Clear();
+        renderer.Render(capture, 320, 240, new(camera, [actors[0] with { ModelModifiers = fading }]));
+        var faded = submitted.Skip(stage.Triangles).ToArray();
+        Assert.NotEmpty(faded);
+        Assert.All(faded, draw =>
+        {
+            Assert.Equal(TriangleBlend.Alpha, draw.Material.Blend);
+            Assert.False(draw.Material.DepthWrite);
+            Assert.Equal(fading.Alpha / 255f, draw.Alpha, 5);
+        });
+
+        while (death.State is { } callback)
+        {
+            death = Ff7BattleActorDeath.Advance(callback, death.Write.Modifiers!);
+        }
+        submitted.Clear();
+        renderer.Render(capture, 320, 240, new(camera, [actors[0] with { ModelModifiers = death.Write.Modifiers }]));
+        Assert.Equal(stage.Triangles, submitted.Count);
+    }
+
+    [Fact]
     public void InstalledOpeningBattlesSubmitArenaAndAnimatedActorGeometry()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -140,11 +190,12 @@ public sealed class Ff7BattleRenderingTests
         Assert.Equal(transfer, events[^1].Opcode);
     }
 
-    private sealed class Capture : ITriangleRenderer
+    private sealed class Capture(Action<TriangleVertex, TriangleMaterial>? inspect = null) : ITriangleRenderer
     {
         public int Triangles { get; private set; }
         public int Textured { get; private set; }
         public Vector2 PositionSum { get; private set; }
+        public TriangleBlend LastBlend { get; private set; }
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -153,6 +204,8 @@ public sealed class Ff7BattleRenderingTests
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Triangles++;
+            LastBlend = material.Blend;
+            inspect?.Invoke(a, material);
             if (material.Texture is not null)
             {
                 Textured++;

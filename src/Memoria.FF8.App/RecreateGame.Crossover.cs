@@ -205,7 +205,7 @@ internal sealed partial class RecreateGame
         }
         byte[] payload = CaptureFf8Payload();
         CombinedSessionSave current = crossover ?? new CombinedSessionSave { ActiveGame = SessionGame.Ff8, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
-        current = current with { Mappings = pendingCrossoverMappings ?? current.Mappings };
+        current = current with { Mappings = pendingCrossoverMappings ?? current.Mappings, TurnBasedBattle = null };
         WorldSwitch transaction = new(current);
         Ff7Scene? prepared = null;
         try
@@ -242,6 +242,11 @@ internal sealed partial class RecreateGame
     private GameState RestoreFf8Payload(CombinedSessionSave saved)
     {
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(saved);
+        if (Ff7Scene.ReadBattleAtbMode(saved.TurnBasedBattle) is { } mode && document.Progression is { Rules: var rules } progression)
+        {
+            GameplayPreferences? pending = rules.PendingPreferences is { } preferences ? preferences with { AtbMode = mode } : null;
+            document = document with { Progression = progression with { Rules = rules with { Preferences = rules.Preferences with { AtbMode = mode }, PendingPreferences = pending } } };
+        }
         return GameplaySaveSessionLoader.Restore(document, options.GameDirectory, world?.ValidationAssets, resourceHost!.Resources, resourceHost, () => resourceHost.GameplayPolicy, initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost));
     }
 
@@ -257,7 +262,7 @@ internal sealed partial class RecreateGame
         {
             CombinedSessionSave target = outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec };
             CrossoverSaveAdapter.ReadFf8(target);
-            if (!suspendedFf8PayloadChanged && (suspendedFf8Session is not null || suspendedFf8World is not null))
+            if (!suspendedFf8PayloadChanged && outgoing.TurnBasedBattle is null && (suspendedFf8Session is not null || suspendedFf8World is not null))
             {
                 if (!ReferenceEquals(suspendedFf8Session, session) || !ReferenceEquals(suspendedFf8World, world))
                 {
@@ -274,7 +279,7 @@ internal sealed partial class RecreateGame
         {
             RestorePlayerState(prepared);
         }
-        crossover = transaction.State;
+        crossover = transaction.State with { TurnBasedBattle = null };
         ff7Scene?.Dispose();
         ff7Scene = null;
         suspendedFf8Session = null;
@@ -379,7 +384,7 @@ internal sealed partial class RecreateGame
         GameState restored = RestoreFf8Payload(saved);
         ValidatePlayerState(restored);
         RestorePlayerState(restored);
-        crossover = saved with { ActiveGame = SessionGame.Ff8 };
+        crossover = saved with { ActiveGame = SessionGame.Ff8, TurnBasedBattle = null };
         ff7Scene?.Dispose();
         ff7Scene = null;
         suspendedFf8Session = null;

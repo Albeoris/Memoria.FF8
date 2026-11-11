@@ -146,6 +146,8 @@ var tests = new (string Name, Action Run)[]
     ("native camera focus and tracking contracts", NativeProcessTests.RunViewOffset),
     ("native character growth contracts", NativeGrowthTests.Run),
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
+    ("FFVII Turn Based scheduling and cold continuation", NativeBattleTests.RunTurnBased),
+    ("FFVII Order and PHS native party continuation", NativePartyRecoveryTests.RunMenuParty),
     ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),

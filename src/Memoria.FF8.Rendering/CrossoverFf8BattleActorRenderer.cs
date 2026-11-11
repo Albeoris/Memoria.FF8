@@ -103,13 +103,19 @@ public static class CrossoverFf8BattleActorRenderer
                 }
             }
         });
-        NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(model, source);
         return new([], skeleton.ToImmutable())
         {
             GuestRoot = root,
-            GuestEffectAnchor = Vector3.Transform(new(anchor.X, anchor.Y, anchor.Z), visual.OriginToHost),
+            GuestEffectAnchor = EffectAnchor(visual),
             GuestFaces = faces.ToImmutable()
         };
+    }
+
+    public static Vector3 EffectAnchor(CrossoverFf8BattleActorVisual visual)
+    {
+        NativeBattlePoseSource source = visual.Body.NativePoseSource ?? throw new InvalidDataException("Mixed actor geometry requires the original body skeleton.");
+        NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(visual.Model, source);
+        return Vector3.Transform(new(anchor.X, anchor.Y, anchor.Z), visual.OriginToHost);
     }
 
     private static void VisitGeometry(CrossoverFf8BattleActorVisual visual, Action<BattleMesh, IReadOnlyList<PixelImage>, ImmutableArray<NativeBattleActionMatrix>, bool> visit)

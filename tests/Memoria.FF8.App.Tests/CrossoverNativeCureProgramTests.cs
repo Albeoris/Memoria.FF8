@@ -56,6 +56,7 @@ public sealed class CrossoverNativeCureProgramTests(ITestOutputHelper output)
         int changed = 0;
         bool hiddenCold = false;
         bool contactCold = false;
+        bool actorViewportChecked = false;
         for (int callback = 1; callback <= 300; callback++)
         {
             CrossoverNativeCureStep next = program.Advance(state, camera);
@@ -76,13 +77,17 @@ public sealed class CrossoverNativeCureProgramTests(ITestOutputHelper output)
                 contactCold |= state.ContactPublished;
                 state = CrossoverNativeCureProgram.Restore(JsonSerializer.Deserialize<CrossoverNativeCureState>(snapshot)!);
             }
+            if (!actorViewportChecked && (state.Model.Flags0 & 4) != 0 && state.Ordering.Packets.Any(packet => packet.Reference.Bank != "20DFAB8" && (byte)(packet.Words[1] >> 24) is 0x24 or 0x26 or 0x2C or 0x2E))
+            {
+                actorViewportChecked = CrossoverEffectViewportCapture.CheckProjection((renderer, width, height) => compositor.DrawOrdering(renderer, state.Ordering, state.Frame.Memory.Textures!, width, height, CrossoverGunbladeHostPlacement.OriginToHostScale, ReadPhysical));
+            }
             CrossoverFf8BattleActorVisual visual = new(body, weapon, state.Model, placement.Matrix) { BodyTextures = state.Model.BodyTextureSlots, Textures = state.Frame.Memory.Textures };
             arena.Render(new OverlayRenderer(gpu, () => triangles += compositor.DrawOrdering(gpu, state.Ordering, state.Frame.Memory.Textures!, 320, 240, CrossoverGunbladeHostPlacement.OriginToHostScale, ReadPhysical)), 320, 240, new(scene.Cameras[0], []) { Guest = visual });
             Color[] frame = GpuTestDevice.Read(gpu.Target);
             changed = Math.Max(changed, baseline.Zip(frame).Count(pair => pair.First != pair.Second));
             if (state.Complete)
             {
-                Assert.True(hiddenCold && contactCold && triangles > 0 && changed > 8);
+                Assert.True(hiddenCold && contactCold && actorViewportChecked && triangles > 0 && changed > 8);
                 Assert.Equal(1, contacts);
                 Assert.Equal(19, contactCallback);
                 Assert.Equal(51, callback);

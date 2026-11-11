@@ -39,6 +39,8 @@ The character mapping enables full combat when switching to FFVII. Each occupied
 
 FFVII battles use the common battle HUD and popup windows. FFVII party members show MP below HP and spell costs in the Magic list's right column. The FFVIII guest uses their spell stock in that column.
 
+The Battle ATB mode in Config → Combat applies to both battle systems. Classic advances ATB continuously during ordinary command selection. Turn Based advances to the next ready actor, holds ATB during a player decision, and keeps action presentation running. The configured Battle Advance Turn action advances to another readiness event when a player is already ready. FFVII victories award 1 AP per defeated ordinary enemy or 20 AP for a formation with a native boss death type.
+
 ### Mixed damage and statuses
 
 The FFVII encounter resolves the hit. An FFVIII Attack supplies the equipped weapon, junctioned stats and the elemental and status portions from the source record. Against an FFVII target, the translated element uses the target's native affinity. Against the FFVIII guest, the translated element and status use the guest's original junction defenses. An element with no counterpart is neutral. An unmapped status application leaves the target's original statuses as they were.
@@ -50,7 +52,9 @@ Common status mappings cover KO, Poison, Petrify, Blind, Silence, Berserk, Sleep
 
 The shared Attack path reads each guest's original actor and weapon sequence. Squall's supported Limit paths cover ordinary Renzokuken and Rough Divide. The other Limit commands and finishers require their own native execution and presentation contracts.
 
-The ordinary menu exposes native inventory/status browsing, shared Config/controls and the common save/load/world-switch flow. Item-use effects are not advertised. Native party vitals caches are published on entry without healing beyond the original upper clamp. Field scripts pause while native real play time and music continue; explicit focus/user/debug pause remains separate. Shops use original FFVII stock, item/materia/gear, Gil, AP prices and exactly-once receipts through the existing common shop layout. Their native fade callbacks stay at60Hz independently of UI FPS; confirmed Exit and Cancel retain distinct native sounds.
+The ordinary menu opens to Final Fantasy VII with Item, Magic, Materia, Equip, Status, Order, Limit, Config, PHS and Save, plus the common load and world-switch actions. Item, Magic, Equip and Limit currently display native data. Order changes the party's slot order and resident battle rows. PHS replaces active members with available reserves when native field or world permissions and story locks allow it. Either Shift key or the configured Rotate Left and Rotate Right actions switch between the two main pages when the active party includes an FFVIII guest. The Final Fantasy VIII page uses the suspended game's junctions, magic stock, GF, abilities, junction exchange, cards and tutorial.
+
+Native party vitals caches are published on entry without healing beyond the original upper clamp. Field scripts pause while native real play time and music continue. Shops use original FFVII stock, item/materia/gear, Gil, AP prices and exactly-once receipts through the existing common shop layout. Their native fade callbacks stay at60Hz independently of UI FPS. Confirmed Exit and Cancel retain distinct native sounds.
 
 Original assets are read from user-selected installations. No original game files or resource export/import workflow are included.
 

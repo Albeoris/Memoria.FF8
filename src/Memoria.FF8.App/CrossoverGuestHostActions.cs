@@ -416,15 +416,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             {
                 throw new InvalidDataException("Mixed Fire received multiple native callbacks in one host update.");
             }
-            Matrix4x4.Invert(current.Placement.Matrix, out Matrix4x4 inverse);
             CrossoverNativeMagicPresentationStep next = fireProgram.Advance(current.Presentation, () =>
             {
-                Vector3 anchor = Vector3.Transform(host.GuestEffectTargetAnchor(current.Invocation.TargetSlot), inverse);
-                return new(Word(anchor.X), Word(anchor.Y), Word(anchor.Z), Word(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale));
+                NativeBattleVector anchor = current.Placement.ResolvePosition(host.GuestEffectTargetAnchor(current.Invocation.TargetSlot));
+                return new(anchor.X, anchor.Y, anchor.Z, Word(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale));
             }, () =>
             {
-                Vector3 position = Vector3.Transform(host.VisualPlacement(current.Invocation.TargetSlot).Position, inverse);
-                NativeBattleVector point = new(Word(position.X), Word(position.Y), Word(position.Z));
+                NativeBattleVector point = current.Placement.ResolvePosition(host.RenderActorPlacement(current.Invocation.TargetSlot).Position);
                 short scale = checked((short)NativePrecision53.RoundInteger(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale * 4096 / 2000));
                 return new(point, point, 0, 0, scale);
             }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), () => CrossoverNativeCureForeignTarget.Read(host, current.Invocation.TargetSlot, (readForeignGeometry ?? throw new InvalidDataException("The host ally geometry owner is unavailable."))(current.Invocation.TargetSlot), current.Placement.Matrix));

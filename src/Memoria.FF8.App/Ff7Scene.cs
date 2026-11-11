@@ -114,7 +114,11 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public void StartNewGame()
     {
-        RunGuarded(() => Attach(Ff7Session.NewGame(installation)));
+        RunGuarded(() =>
+        {
+            retainedBattleAtbMode = ReadRetainedBattleAtbMode(envelope);
+            Attach(Ff7Session.NewGame(installation));
+        });
     }
 
     public void Continue(CombinedSessionSave saved)
@@ -122,7 +126,9 @@ internal sealed partial class Ff7Scene : IDisposable
         ArgumentNullException.ThrowIfNull(saved);
         saved.Validate();
         Ff7SessionSave ff7 = saved.Ff7 ?? throw new InvalidDataException("This save contains no FFVII continuation.");
+        BattleAtbMode? retainedMode = ReadRetainedBattleAtbMode(saved);
         Ff7Session restored = Ff7Session.Restore(installation, ff7);
+        retainedBattleAtbMode = retainedMode;
         envelope = saved;
         Attach(restored, ff7.AudioPresentation, restoring: true);
     }
@@ -287,6 +293,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Rectangle windowBounds = bounds;
         Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
+        Rectangle sceneBounds = bounds;
         if (Session is not null && error is null)
         {
             PixelBounds target = ViewportLayout.FieldRenderTarget(windowBounds.Width, windowBounds.Height, RenderLimit);
@@ -319,13 +326,14 @@ internal sealed partial class Ff7Scene : IDisposable
                 if ((renderer is not null || Session.World is not null || Session.Battle is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
-                    batch.Draw(triangles.Target, new Rectangle(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height), Color.White);
+                    sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
+                    batch.Draw(triangles.Target, sceneBounds, Color.White);
                 }
                 if (error is null)
                 {
                     if (Session.Battle is { } battle)
                     {
-                        DrawBattle(windowBounds, battle);
+                        DrawBattle(windowBounds, sceneBounds, battle);
                     }
                     else
                     {

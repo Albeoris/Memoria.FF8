@@ -16,6 +16,8 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
 
     public int BoneCount => Skeleton.IsDefaultOrEmpty ? throw new InvalidDataException("Native pose lacks its original skeleton.") : Skeleton[0];
 
+    public short ReadModelScale5027D0() => unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(Skeleton.AsSpan()[2..]) * 4));
+
     public void Validate()
     {
         if (!Model8FBoneAliases.IsDefaultOrEmpty && Model8FBoneAliases.Length != 16)

@@ -71,6 +71,7 @@ internal sealed class KeyboardInput
     public bool UiSwitchColumnRequested { get; private set; }
     public int UiPaneFocus { get; private set; }
     public int UiCharacterPage { get; private set; }
+    public int UiShiftPage { get; private set; }
     public bool UiDetailRequested { get; private set; }
     public bool UiConfirmRequested { get; private set; }
     public bool UiCancelRequested { get; private set; }
@@ -186,7 +187,8 @@ internal sealed class KeyboardInput
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
         bool Pressed(ControlAction action) => !NativeButtonsOwnInput && Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || effectiveMatches.Any(match => match.Action == action && match.Device == ControlDevice.Keyboard));
-        bool RecoveryPressed(Keys key) => !NativeButtonsOwnInput && active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled || ModsManagerEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool KeyboardPressed(Keys key) => !NativeButtonsOwnInput && active && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool RecoveryPressed(Keys key) => (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled || ModsManagerEnabled) && KeyboardPressed(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
         if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)
@@ -239,6 +241,7 @@ internal sealed class KeyboardInput
         UiTabRequested = tabRequested && !UiReverseTabRequested;
         UiPaneFocus = Pressed(ControlAction.CameraLeft) ? -1 : Pressed(ControlAction.CameraRight) ? 1 : 0;
         UiCharacterPage = (Pressed(ControlAction.RotateRight) ? 1 : 0) - (Pressed(ControlAction.RotateLeft) ? 1 : 0);
+        UiShiftPage = (KeyboardPressed(Keys.RightShift) ? 1 : 0) - (KeyboardPressed(Keys.LeftShift) ? 1 : 0);
         UiDetailRequested = Pressed(ControlAction.Card);
         UiConfirmRequested = Pressed(ControlAction.Confirm);
         UiCancelRequested = Pressed(ControlAction.Cancel);

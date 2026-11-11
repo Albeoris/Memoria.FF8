@@ -11,8 +11,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CrossoverRinoaHostAttackTests
 {
-    [Fact]
-    public void Formation_300_Rinoa_weapon_flies_draws_and_publishes_one_contact_across_JSON()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Formation_300_Rinoa_weapon_flies_draws_and_publishes_one_contact_across_JSON(bool lethal)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -28,6 +30,14 @@ public sealed class CrossoverRinoaHostAttackTests
         using GameAssets game = new(ff8Root!);
         using BattleAssets assets = new(ff8Root!);
         Ff7BattleSession host = Host(null);
+        if (lethal)
+        {
+            Ff7BattleSnapshot opening = host.Capture();
+            int index = Array.FindIndex(opening.Actors, actor => actor.Actor.Slot == 4);
+            Ff7BattleActorState guard = opening.Actors[index];
+            opening.Actors[index] = guard with { Actor = guard.Actor with { HitPoints = 1 } };
+            host = Host(opening);
+        }
         CrossoverBattleRoster roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), [new(0, 0, 4)], [new(SessionGame.Ff7, 0, SessionGame.Ff8, 4, "explicit")]);
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), assets, 4);
         CrossoverNativeSpriteRenderer compositor = new(assets.ReadNativePrimitiveTables(), game.ReadNativeEffectMeshes(), game.ReadNativeBattleGraphicsRules().SummonColors!);
@@ -68,6 +78,7 @@ public sealed class CrossoverRinoaHostAttackTests
             {
                 contacts++;
                 Assert.Equal(4, host.LastHit?.Target);
+                Assert.Equal(host.LastHit, host.DisplayedHit);
             }
         }
         Assert.Equal(1, contacts);
@@ -77,6 +88,20 @@ public sealed class CrossoverRinoaHostAttackTests
         Assert.Equal((byte)1, attack.Visual.Model.Sequence);
         Assert.Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal(JsonSerializer.Serialize(attack.Capture()), JsonSerializer.Serialize(restoredAttack.Capture()));
+        if (lethal)
+        {
+            Assert.Equal(0u, host.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints);
+            bool faded = false;
+            for (int tick = 0; tick < 150 && host.ActorModelOutput(4).Visible; tick++)
+            {
+                faded |= host.ActorModelOutput(4) is { Red: > 0, Alpha: < 255 };
+                host.Advance(waitForCommand: true);
+                restored.Advance(waitForCommand: true);
+                Assert.Equal(host.ActorModelOutput(4), restored.ActorModelOutput(4));
+            }
+            Assert.True(faded);
+            Assert.False(host.ActorModelOutput(4).Visible);
+        }
 
         Ff7BattleSession Host(Ff7BattleSnapshot? snapshot) => new(formation, origin.Progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: snapshot, animations: animations);
 

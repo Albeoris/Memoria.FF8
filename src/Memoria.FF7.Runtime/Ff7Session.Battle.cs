@@ -40,7 +40,9 @@ public sealed partial class Ff7Session
         SceneFormation formation = GetBattleFormation(command.Formation);
         if (!Progress.FullCombatEnabled)
         {
-            Progress = Ff7DebugVictory.Apply(Progress, formation, battleKernel!, FieldGeneration, request.Id, guestStoryCharacters: GuestFieldVitals?.StoryCharacters);
+            battleArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+            bool isBossBattle = Ff7BattleAnimationResources.HasBossDeath(formation, battleArchive);
+            Progress = Ff7DebugVictory.Apply(Progress, formation, battleKernel!, FieldGeneration, request.Id, guestStoryCharacters: GuestFieldVitals?.StoryCharacters, isBossBattle: isBossBattle);
             return new(true);
         }
         if (Battle is not null)

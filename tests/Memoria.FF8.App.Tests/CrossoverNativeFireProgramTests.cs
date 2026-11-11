@@ -39,6 +39,7 @@ public sealed class CrossoverNativeFireProgramTests(ITestOutputHelper output)
         int triangles = 0;
         int contactCallback = 0;
         bool cold = false;
+        bool viewportChecked = false;
         for (int callback = 1; callback <= 180 && !state.Complete; callback++)
         {
             CrossoverNativeFireStep next = Step(state);
@@ -58,12 +59,16 @@ public sealed class CrossoverNativeFireProgramTests(ITestOutputHelper output)
             }
             if (!state.Draws.IsEmpty)
             {
+                if (!viewportChecked)
+                {
+                    viewportChecked = CrossoverEffectViewportCapture.CheckProjection((renderer, width, height) => sprites.Draw(renderer, state.Draws, state.Textures, camera, width, height, CrossoverGunbladeHostPlacement.OriginToHostScale));
+                }
                 arena.Render(Overlay(), 320, 240, new(scene.Cameras[0], []));
                 Color[] frame = GpuTestDevice.Read(gpu.Target);
                 changedPixels = Math.Max(changedPixels, baseline.Zip(frame).Count(pair => pair.First != pair.Second));
             }
         }
-        Assert.True(state.Complete && cold);
+        Assert.True(state.Complete && cold && viewportChecked);
         Assert.Equal(1, contacts);
         Assert.Equal(8, contactCallback);
         Assert.True(triangles > 0 && changedPixels > 8 && sounds > 0);

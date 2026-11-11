@@ -7,7 +7,7 @@ public sealed partial class Ff7Session
 {
     public void PublishNativeMenuPartyStatistics()
     {
-        Ff7PartyRecoveryResult published = Ff7NativePartyRecovery.Publish(Progress, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
+        Ff7PartyRecoveryResult published = Ff7NativePartyRecovery.Publish(Progress, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers, GuestFieldVitals?.StoryCharacters);
         byte flags = World is { } world ? world.ReadPersistentByte(122) : Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
         byte updated = (byte)((flags & 127) | (published.Underwater ? 128 : 0));
         if (World is { } activeWorld)
@@ -18,6 +18,6 @@ public sealed partial class Ff7Session
         {
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, updated);
         }
-        Progress = PreserveGuestFieldCharacters(Progress, published.Progress);
+        Progress = published.Progress;
     }
 }

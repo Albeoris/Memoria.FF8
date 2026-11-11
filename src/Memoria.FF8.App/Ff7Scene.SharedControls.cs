@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF7.Runtime;
 using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
@@ -9,10 +10,44 @@ internal sealed partial class Ff7Scene
     private GameplayClock sharedClock = new();
     private InputFrame semanticInput;
     private bool userPaused;
+    private BattleAtbMode? retainedBattleAtbMode;
 
     public bool IsMenuPresentation => IsTitle || debugMenu || IsPlayerMenuOpen || IsShopMenuPresentation || namingMenus?.IsOpen == true;
-    public GameUi.UiPreferences PresentationPreferences => dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
+    public GameUi.UiPreferences PresentationPreferences
+    {
+        get
+        {
+            GameUi.UiPreferences preferences = dialoguePreferences?.Invoke() ?? new GameUi.UiPreferences();
+            return ReadBattleAtbMode(envelope.TurnBasedBattle) is { } mode
+                ? preferences with { AtbMode = mode }
+                : retainedBattleAtbMode is { } retained ? preferences with { AtbMode = retained } : preferences;
+        }
+    }
     public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, Session?.Battle is not null, Session?.World is not null);
+
+    private BattleAtbMode CurrentBattleAtbMode => PresentationPreferences.AtbMode;
+
+    private void SetSharedBattleAtbMode(BattleAtbMode mode)
+    {
+        envelope = envelope with { TurnBasedBattle = mode == BattleAtbMode.TurnBased };
+    }
+
+    private static BattleAtbMode? ReadRetainedBattleAtbMode(CombinedSessionSave saved)
+    {
+        return saved.Ff8PayloadFormat == CrossoverSaveAdapter.Ff8Codec && saved.Ff8Payload is { Length: > 0 }
+            ? CrossoverSaveAdapter.ReadFf8(saved).Progression?.Rules.Preferences.AtbMode
+            : null;
+    }
+
+    internal static BattleAtbMode? ReadBattleAtbMode(bool? turnBased)
+    {
+        return turnBased switch
+        {
+            true => BattleAtbMode.TurnBased,
+            false => BattleAtbMode.Normal,
+            null => null
+        };
+    }
 
     public void ConfigureSharedControls(KeyboardInput input, GameplayClock clock, Action<ControlsProfile>? writeControls = null)
     {

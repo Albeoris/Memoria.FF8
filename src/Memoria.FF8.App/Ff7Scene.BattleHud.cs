@@ -1,5 +1,8 @@
+using System.Globalization;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
@@ -10,7 +13,7 @@ internal sealed partial class Ff7Scene
 {
     private readonly record struct BattleChoiceRow(string Name, string Value = "");
 
-    private void DrawBattle(Rectangle bounds, Ff7BattleSession battle)
+    private void DrawBattle(Rectangle bounds, Rectangle sceneBounds, Ff7BattleSession battle)
     {
         IUiCanvas canvas = dialogueCanvas ?? throw new InvalidOperationException("FFVII battle requires the shared host presentation context.");
         UiTheme theme = SharedTheme();
@@ -48,6 +51,7 @@ internal sealed partial class Ff7Scene
             }
         }
         DrawBattleMessage(canvas, theme, layout, textScale, battle);
+        DrawBattleDamage(canvas, theme, layout.Scale * textScale, sceneBounds, battle);
     }
 
     internal static string BattleCommandValue(Ff7BattleCommandOption option, bool guest)
@@ -235,10 +239,31 @@ internal sealed partial class Ff7Scene
             theme.Panel(canvas, layout.MessagePanel);
             canvas.Text(message, fontSize, layout.MessageText, messageColor);
         }
-        if (battle.DisplayedHit is { } hit && battle.Tick - hit.Tick < Ff7BattleSession.LogicUpdatesPerSecond)
+    }
+
+    private void DrawBattleDamage(IUiCanvas canvas, UiTheme theme, float scale, Rectangle sceneBounds, Ff7BattleSession battle)
+    {
+        if (battle.DisplayedHit is not { } hit || battle.Tick - hit.Tick >= Ff7BattleSession.LogicUpdatesPerSecond)
         {
-            string value = hit.Damage.Missed ? "Miss" : Math.Abs(hit.Damage.Damage).ToString();
-            canvas.Text($"{battle.Name(hit.Target)}  {value}", fontSize, layout.Rect(48, 112, 320, 36), hit.Damage.Damage < 0 ? highlight : theme.Foreground);
+            return;
         }
+        System.Numerics.Vector3 anchor = mixedCombat?.GuestAt(hit.Target)?.Visual is { } guest
+            ? CrossoverFf8BattleActorRenderer.EffectAnchor(guest)
+            : battle.GuestEffectTargetAnchor(hit.Target);
+        DrawBattleDamagePopup(canvas, theme.Foreground, scale, sceneBounds, battle.GuestRenderCameraOutput, anchor, hit.Damage, battle.Tick - hit.Tick);
+    }
+
+    internal static void DrawBattleDamagePopup(IUiCanvas canvas, UiColor foreground, float scale, Rectangle sceneBounds, SceneCameraPlacement camera, System.Numerics.Vector3 anchor, Ff7BattleDamageResult damage, long age)
+    {
+        if (Ff7BattleRenderer.ProjectWorldPoint(camera, sceneBounds.Width, sceneBounds.Height, anchor) is not { } position)
+        {
+            return;
+        }
+        string value = damage.Missed ? "Miss" : Math.Abs(damage.Damage).ToString(CultureInfo.InvariantCulture);
+        float fontSize = 20 * scale;
+        float rise = age * sceneBounds.Height / (12f * Ff7BattleSession.LogicUpdatesPerSecond);
+        UiSize measured = canvas.MeasureText(value, fontSize, float.PositiveInfinity);
+        UiRect text = new(sceneBounds.X + position.X - measured.Width / 2, sceneBounds.Y + position.Y - measured.Height - rise, measured.Width, measured.Height);
+        canvas.OutlinedText(value, fontSize, text, damage.Damage < 0 ? new(255, 255, 0) : foreground, new(0, 0, 0), scale);
     }
 }

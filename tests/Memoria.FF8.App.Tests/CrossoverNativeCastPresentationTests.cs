@@ -38,6 +38,8 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         CrossoverNativeMagicPresentation presentation = new(game, resource);
         CrossoverNativeMagicPresentationState state = presentation.Begin(model, cure ? 0 : 4, NativeCrtRandomState.FromColdProcess(), cure ? new(0, 4, 0, 1, 0, 282, 0) : new(3, 4, 0, 0, 0, 83, 0), ability);
+        Assert.Equal(700, state.Cast.Model.Transform!.Scale38);
+        Assert.Equal(model.GeometryWorldMatrix, state.Cast.Model.GeometryWorldMatrix);
         BattleModel body = battle.LoadPlayer(0);
         BattleModel weapon = battle.ResolveWeaponModel(0, kit.Weapon, body)!;
         Ff7Installation installation = Ff7Installation.Discover(hostRoot!);
@@ -57,6 +59,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         int contacts = 0;
         int soundRequests = 0;
         bool castingCold = false;
+        bool castingGround = false;
         bool fireCold = false;
         bool cameraCold = false;
         int pendingShakes = 0;
@@ -65,6 +68,11 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         {
             CrossoverNativeMagicPresentationStep next = Step(state);
             state = next.State;
+            if (!castingGround && state.Draws.FirstOrDefault(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh && draw.MeshId == 7) is { } ground)
+            {
+                Assert.Equal(new NativeBattleVector(3078, 4096, 3078), ground.MeshScale);
+                castingGround = true;
+            }
             if (state.Blizzard is { } blizzard)
             {
                 Assert.True(blizzard.PendingViewTranslationY is 0 or 32);
@@ -97,7 +105,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
             }
             if (state.Complete)
             {
-                Assert.True(castingCold && fireCold);
+                Assert.True(castingGround && castingCold && fireCold);
                 if (ability == 1)
                 {
                     Assert.Equal(115, callback);

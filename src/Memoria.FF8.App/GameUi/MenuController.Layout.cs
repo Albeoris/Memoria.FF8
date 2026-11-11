@@ -256,7 +256,8 @@ public sealed partial class MenuController
     private UiElement Help()
     {
         string help = ScreenId == "main" && !IsSelectingCharacter ? FormatSystemText("ui.help.help.main.template", "{0} Menu", (SelectedEntry?.Label ?? SystemText("ui.help.help.main", "Main"))) : SelectedEntry?.Help ?? CurrentScreen.Help;
-        return Panel(SystemText("ui.help.panel.help", "HELP"), Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
+        string caption = ScreenId == "main" && ShowMainScreenTitle ? CurrentScreen.Title : SystemText("ui.help.panel.help", "HELP");
+        return Panel(caption, Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
     }
 
     private UiElement Footer()

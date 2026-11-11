@@ -1,11 +1,39 @@
+using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
+using Microsoft.Xna.Framework;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class Ff7BattleHudTests
 {
+    [Theory]
+    [InlineData(320, 240)]
+    [InlineData(960, 540)]
+    public void DamageDisplaysOnlyTheValueAndRisesFromTheProjectedTarget(int width, int height)
+    {
+        BattleUiTests.TestCanvas canvas = new();
+        UiColor white = new(255, 255, 255);
+        Rectangle viewport = new(31, 23, width, height);
+        SceneCameraPlacement camera = new(Vector3.Zero, new(0, 0, 1000)) { FocalLength = 480 };
+        Vector3 anchor = new(125, 0, 1000);
+        Ff7BattleDamageResult damage = new(false, false, 4);
+
+        Ff7Scene.DrawBattleDamagePopup(canvas, white, 1, viewport, camera, anchor, damage, 0);
+        var first = Assert.Single(canvas.TextDraws, draw => draw.Color == white);
+        Assert.All(canvas.TextDraws, draw => Assert.Equal("4", draw.Text));
+        Assert.Equal(viewport.Center.X + height / 4f, first.Bounds.X + first.Bounds.Width / 2, 3);
+        Assert.Equal(viewport.Center.Y, first.Bounds.Bottom);
+
+        canvas.TextDraws.Clear();
+        Ff7Scene.DrawBattleDamagePopup(canvas, white, 1, viewport, camera, anchor, damage, 30);
+        var later = Assert.Single(canvas.TextDraws, draw => draw.Color == white);
+        Assert.Equal(first.Bounds.X, later.Bounds.X);
+        Assert.True(later.Bounds.Y < first.Bounds.Y);
+    }
+
     [Theory]
     [InlineData(Ff7BattleCommand.Magic, false, 8, "8 MP")]
     [InlineData(Ff7BattleCommand.Magic, false, 0, "")]

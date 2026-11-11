@@ -176,6 +176,8 @@ public sealed record CombinedSessionSave
     public byte[]? Ff8Payload { get; init; }
     public string? Ff8PayloadFormat { get; init; }
     public Ff7SessionSave? Ff7 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TurnBasedBattle { get; init; }
     public CharacterAppearanceMapping[] Mappings { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, string>? CharacterNameOverrides { get; init; }

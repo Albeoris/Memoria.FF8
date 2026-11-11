@@ -22,9 +22,13 @@ internal static class NativeBattleTests
         SceneEnemyReward enemy = new(10, ReadOnlyMemory<byte>.Empty, 16, 10, 2, [new(3, 64), new(0, 0), new(1, 63), new(-1, 255)], ReadOnlyMemory<byte>.Empty);
         SceneFormation formation = new(300, 0, -1, 0, 0, 0, 0, [], [new(10, Vector3.Zero, 0, 0, 0), new(10, Vector3.Zero, 0, 0, 0)], [enemy], ReadOnlyMemory<byte>.Empty);
         Ff7BattleReward rewards = Ff7DebugVictory.ResolveRewards(formation, random);
-        Check(rewards.Gil == 20 && rewards.Experience == 32 && rewards.AbilityPoints == 4, "Every original enemy instance must contribute rewards.");
+        Check(rewards.Gil == 20 && rewards.Experience == 32 && rewards.AbilityPoints == 2, "Every defeated ordinary enemy instance must contribute one AP.");
         Check(rewards.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1), new(1, 1) }), "Drop selectors, inclusive zero-rate comparison or first successful slot changed.");
         Check(random.Capture().Indices[0] == 3, "Skipped steal slots must not consume drop randomness.");
+        Ff7BattleReward bossRewards = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), isBossBattle: true);
+        Check(bossRewards.AbilityPoints == 20 && bossRewards.Experience == rewards.Experience && bossRewards.Items.SequenceEqual(rewards.Items), "Boss victory must award 20 AP per formation without changing the other rewards.");
+        Ff7BattleReward partial = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), defeated: instance => ReferenceEquals(instance, formation.Enemies[1]));
+        Check(partial.AbilityPoints == 1 && partial.Experience == 16, "An enemy that was not defeated must not contribute to ordinary victory AP.");
         enemy = enemy with { Items = [new(-1, 63), new(1, 63), new(-1, 255), new(-1, 255)] };
         random = new(kernel, new(new byte[8]));
         rewards = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy] }, random);
@@ -58,6 +62,65 @@ internal static class NativeBattleTests
         Check(Ff7NativeAtb.Advance(ref gauge, 80, true, false) && gauge == ushort.MaxValue && !Ff7NativeAtb.Advance(ref gauge, 80, false, false), "A saturated gauge must emit a single readiness edge.");
     }
 
+    public static void RunTurnBased()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP FFVII Turn Based scheduling: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session session = Ff7Session.NewGame(installation);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        IReadOnlyList<short> modifiers = Ff7PcExecutableData.Load(installation).NativeMateriaStatModifiers;
+        Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, session.Progress, kernel, modifiers, 1, snapshot: snapshot);
+        Ff7BattleSnapshot entry = Create().Capture();
+        Ff7BattleSnapshot waiting = entry with
+        {
+            Tick = 1,
+            Actors = entry.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Gauge = ushort.MaxValue, AwaitingTurn = true } : actor with { Gauge = ushort.MaxValue - 256 }).ToArray()
+        };
+        Ff7BattleSession battle = Create(waiting);
+        for (int step = 0; step < 8; step++)
+        {
+            battle.Advance(turnBased: true);
+        }
+        Check(battle.ReadyPlayer == 0 && battle.Tick == 9 && battle.Actors.Select(actor => actor.Gauge).SequenceEqual(waiting.Actors.Select(actor => actor.Gauge)), "The ready party must hold ATB while presentation advances.");
+        Ff7BattleSession restored = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture())));
+        battle.AdvanceTurn();
+        restored.AdvanceTurn();
+        Check(battle.ReadyPlayer == 0 && battle.Tick == 9 && battle.Capture().Queue.Ready.Any(command => command?.ActorSlot >= 4), "Advance Turn must stage the next enemy turn without consuming the ready party turn or jumping presentation.");
+        Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(restored.Capture()), "Cold Turn Based continuation changed the next readiness edge.");
+
+        Ff7BattleSession classic = Create(waiting);
+        classic.Advance();
+        Check(classic.Actors.Where(actor => actor.Actor.Slot >= 4).Any(actor => actor.Gauge > ushort.MaxValue - 256), "Classic must keep filling enemy ATB during party decisions.");
+
+        Ff7BattleSession defending = Create(waiting);
+        Check(defending.Submit(0, Ff7BattleCommand.Defend, 0, 1), "The ready player must be able to submit a command.");
+        defending.Advance(turnBased: true);
+        Check(defending.Actors.Where(actor => actor.Actor.Slot >= 4).All(actor => actor.Gauge == ushort.MaxValue - 256), "Staged commands must take priority over automatic ATB refill.");
+        while (defending.Tick < 5)
+        {
+            defending.Advance(turnBased: true);
+        }
+        Check(defending.Actors.Single(actor => actor.Actor.Slot == 0).Defending, "Turn Based must dispatch queued commands on the presentation clock.");
+
+        Ff7BattleSnapshot sleeping = waiting with
+        {
+            Actors = waiting.Actors.Select(actor => actor.Actor.Slot == 0
+                ? actor with { Timers = new(0, 2, 0), Actor = actor.Actor with { Statuses = actor.Actor.Statuses | Ff7NativeBattleActionResolver.Sleep } }
+                : actor with { Gauge = 0 }).ToArray()
+        };
+        Ff7BattleSession automatic = Create(sleeping);
+        Check(automatic.ReadyPlayer is null, "A sleeping actor cannot own the decision.");
+        automatic.Advance(turnBased: true);
+        Check(automatic.ReadyPlayer == 0 && automatic.Tick == 2, "Automatic Turn Based time must expire Sleep and hand the decision back to the ready party.");
+    }
+
     private static void RunInstalled()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -80,7 +143,7 @@ internal static class NativeBattleTests
         Ff7Progress result = Ff7DebugVictory.Apply(initial, formation, kernel, 0, 1);
         Check(untouched == JsonSerializer.Serialize(initial), "The battle transaction mutated its incoming saved progression.");
         Ff7BattleReward reward = result.CompletedBattles.Single().Reward;
-        Check(reward.Gil == 20 && reward.Experience == 32 && reward.AbilityPoints == 4 && reward.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1) }), "Original opening formation reward/drop data changed.");
+        Check(reward.Gil == 20 && reward.Experience == 32 && reward.AbilityPoints == 2 && reward.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1) }), "Opening formation must award two AP and retain its original EXP, gil and drops.");
         Ff7CharacterState cloud = result.Characters[0];
         Check(cloud.Level == 7 && cloud.Experience == initial.Characters[0].Experience + 32 && result.Gil == initial.Gil + 20, "Opening native EXP/growth/gil application changed.");
         for (int slot = 0; slot < 16; slot++)
@@ -89,7 +152,7 @@ internal static class NativeBattleTests
             uint after = BinaryPrimitives.ReadUInt32LittleEndian(cloud.NativeRecord.AsSpan(64 + 4 * slot));
             if ((byte)before != 255)
             {
-                Check((byte)before == (byte)after && (after >> 8) == (before >> 8) + 4, "Original equipped materia did not receive native AP.");
+                Check((byte)before == (byte)after && (after >> 8) == (before >> 8) + 2, "Original equipped materia did not receive the same AP as the reward receipt.");
             }
         }
         Check(ReferenceEquals(result, Ff7DebugVictory.Apply(result, formation, kernel, 0, 1)), "Replayed victory must return the recorded transaction without awarding again.");
@@ -102,6 +165,9 @@ internal static class NativeBattleTests
         Check(restoredSession.Host.Execute(fieldRandom).Value == 202 && restoredSession.Progress.FieldRandomIndex == 1, "Cold field RNG receipt changed its value.");
         Check(restoredSession.Host.Execute(fieldRandom with { Id = long.MaxValue - 1 }).Value == 238 && restoredSession.Progress.FieldRandomIndex == 2, "Cold field RNG next value changed.");
         Check(result.Characters.Skip(1).All(character => character.NativeRecord.SequenceEqual(initial.Characters.Single(original => original.Id == character.Id).NativeRecord)), "Unrecruited characters received automatic rewards.");
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        Check(!Ff7BattleAnimationResources.HasBossDeath(formation, archive) && !Ff7BattleAnimationResources.HasBossDeath(formations[309], archive), "Ordinary fade and spinning death scripts must award ordinary AP.");
+        Check(new[] { 324, 364, 386, 464, 982 }.All(id => Ff7BattleAnimationResources.HasBossDeath(formations[id], archive)), "The installed Guard Scorpion, Air Buster, Aps, Rufus and Ruby Weapon formations must use boss AP.");
     }
 
     private static void RunStartingSpells(Ff7Progress progress, IReadOnlyList<KernelSection> kernel)

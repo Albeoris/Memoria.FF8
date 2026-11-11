@@ -6,6 +6,47 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePartyRecoveryTests
 {
+    public static void RunMenuParty()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP FFVII Order and PHS: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session initial = Ff7Session.NewGame(installation);
+        Ff7SessionSave source = initial.Capture();
+        using Ff7Session session = Ff7Session.Restore(installation, source with
+        {
+            Progress = source.Progress with { Party = [0, 1, 255], AvailableCharacters = 7, LockedCharacters = 1 }
+        });
+        byte front = session.Progress.Characters.Single(character => character.Id == 1).NativeRecord[32];
+        Equal(true, session.TryChangeMenuOrder(1, 1));
+        Equal((byte)(front ^ 1), session.Progress.Characters.Single(character => character.Id == 1).NativeRecord[32]);
+        Equal(true, session.TryChangeMenuOrder(0, 1));
+        Equal(true, session.Progress.Party.SequenceEqual(new[] { 1, 0, 255 }));
+
+        session.Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 29, 1);
+        session.Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 31, 1);
+        Equal(false, session.TryReplaceMenuPartyMember(1, 2));
+        session.Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 31, 0);
+        Equal(false, session.TryReplaceMenuPartyMember(0, 2));
+        Equal(false, session.TryReplaceMenuPartyMember(1, 4));
+        Equal(true, session.TryReplaceMenuPartyMember(1, 2));
+        Equal(true, session.Progress.Party.SequenceEqual(new[] { 2, 0, 255 }));
+
+        using MemoryStream stream = new();
+        CombinedSessionCodec.Write(stream, new() { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture(), TurnBasedBattle = false });
+        stream.Position = 0;
+        CombinedSessionSave restored = CombinedSessionCodec.Read(stream);
+        Equal((bool?)false, restored.TurnBasedBattle);
+        using Ff7Session resumed = Ff7Session.Restore(installation, restored.Ff7!);
+        Equal(true, resumed.Progress.Party.SequenceEqual(session.Progress.Party));
+        Equal((byte)(front ^ 1), resumed.Progress.Characters.Single(character => character.Id == 1).NativeRecord[32]);
+    }
+
     public static void RunAll()
     {
         byte[] underwater = new byte[20];

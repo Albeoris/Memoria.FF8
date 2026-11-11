@@ -9,15 +9,51 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7PlayerMenuTests
 {
     [Fact]
+    public void GuestPageHasOnlyUniqueFf8CommandsAndRequiresAnActivePartyBinding()
+    {
+        Ff7MixedCombatBinding[] bindings = [new(0, 4), new(2, 0), new(3, 1)];
+        Assert.Empty(Ff7Scene.ActiveGuestCharacters(bindings, [1, 255, 255]));
+        Assert.Equal(new[] { 0, 4 }, Ff7Scene.ActiveGuestCharacters(bindings, [2, 1, 0]));
+
+        MenuData data = new();
+        data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Squall", InParty = true });
+        MenuController menu = new(() => data) { ShowMainScreenTitle = true };
+        Ff7Scene.RegisterGuestMainMenu(menu);
+        menu.Open();
+        Assert.Equal("Final Fantasy VIII", menu.CurrentScreen.Title);
+        Assert.Equal(new[] { "junction", "magic", "gf", "ability", "switch", "card", "tutorial" }, menu.Entries.Select(entry => entry.Destination));
+        menu.SelectEntry("main", "magic");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(menu.IsSelectingCharacter);
+    }
+
+    [Fact]
+    public void MenuStatPublicationLeavesDormantFf7GuestGearOutsideTheNativePartyCalculation()
+    {
+        byte[] native = new byte[132];
+        Array.Fill(native, byte.MaxValue, 64, 64);
+        byte[] dormant = native.ToArray();
+        dormant[64] = 0;
+        Ff7Progress progress = new() { InitialKernelData = [1], Characters = [new(0, "Cloud", 6, 100, 314, 54, dormant), new(1, "Barret", 7, 120, 400, 30, native)], Party = [0, 1, 255], Inventory = [], Materia = [] };
+        short[] modifiers = new short[17 * 8];
+        Assert.Throws<InvalidDataException>(() => Ff7NativePartyRecovery.Publish(progress, [], modifiers));
+
+        Ff7PartyRecoveryResult published = Ff7NativePartyRecovery.Publish(progress, [], modifiers, [0]);
+        Assert.Same(progress.Characters[0], published.Progress.Characters[0]);
+        Assert.NotSame(progress.Characters[1], published.Progress.Characters[1]);
+        Assert.Equal(progress.Party, published.Progress.Party);
+        Assert.False(published.Underwater);
+    }
+
+    [Fact]
     public void OrdinaryFieldMenuDoesNotRequireSavePermissionAndRejectsNativeInteractions()
     {
         Ff7FieldProcess idle = new();
-        Assert.True(Ff7Scene.CanOpenFieldPlayerMenu(idle, 0));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle, 2));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { MenuDisabled = true }, 0));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { PlayerLocked = true }, 0));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { GlobalCommand = Ff7GlobalCommand.Menu }, 0));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { Dialogues = [new(1, 0, 0, null, null, 0)] }, 0));
+        Assert.True(Ff7Scene.CanOpenFieldPlayerMenu(idle));
+        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { MenuDisabled = true }));
+        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { PlayerLocked = true }));
+        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { GlobalCommand = Ff7GlobalCommand.Menu }));
+        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { Dialogues = [new(1, 0, 0, null, null, 0)] }));
     }
 
     [Fact]
@@ -25,12 +61,11 @@ public sealed class Ff7PlayerMenuTests
     {
         Ff7WorldProcess idle = new(0, 0, 1, null!, [], 0, true, 0, 0, null, [], -1, new(), 0, 0, MainState: 1, FadeAlpha: 0, FadeDisplayedAlpha: 0);
         string before = JsonSerializer.Serialize(idle);
-        Assert.True(Ff7Scene.CanOpenWorldPlayerMenu(idle, 0));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }, 0));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }, 0));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }, 0));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }, 0));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle, 2));
+        Assert.True(Ff7Scene.CanOpenWorldPlayerMenu(idle));
+        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }));
+        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
+        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }));
+        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }));
         Assert.Equal(before, JsonSerializer.Serialize(idle));
     }
 

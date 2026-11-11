@@ -78,6 +78,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         CombinedSessionSave source = new() { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture(), Ff8Payload = originalPayload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, MixedCombat = new(0) };
         using CrossoverMixedBattle mixed = new(ff8Root!, source, battle);
         int casts = 0;
+        HashSet<int> fadingEnemies = [];
         bool restoredCap = false;
         bool healedByPotion = false;
         int originalPotion = document.Economy.Items.Single(stock => stock.ItemId == 1).Count;
@@ -123,6 +124,14 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
                 casts++;
             }
             session.AdvanceTick();
+            foreach (Ff7BattleActorState enemy in battle.Actors.Where(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints == 0))
+            {
+                if (battle.ActorModelOutput(enemy.Actor.Slot) is { Visible: true, Red: > 0, Alpha: < 255 })
+                {
+                    Assert.Equal(Ff7BattleOutcome.Fighting, battle.Outcome);
+                    fadingEnemies.Add(enemy.Actor.Slot);
+                }
+            }
             if (recovery == 2 && battle.LastHit is { Source: 0, Target: 0, AttackId: 1 } potionHit && potionHit.Tick == battle.Tick)
             {
                 Assert.False(healedByPotion);
@@ -144,6 +153,8 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         }
         Assert.Equal(Ff7BattleOutcome.Victory, battle.Outcome);
         Assert.True(battle.ResultReady);
+        Assert.Equal(new[] { 4, 5 }, fadingEnemies.Order());
+        Assert.All(fadingEnemies, slot => Assert.False(battle.ActorModelOutput(slot).Visible));
         Assert.Equal(recovery == 0 ? 2 : 3, casts);
         Assert.Equal(recovery == 2, healedByPotion);
         Assert.Equal(originalPayload, source.Ff8Payload);

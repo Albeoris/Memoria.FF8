@@ -48,6 +48,7 @@ public sealed partial class MenuController
     }
 
     public bool IsOpen { get; private set; }
+    internal bool ShowMainScreenTitle { get; init; }
     public event Action? BattleDebugRequested;
     public event Action? QuitRequested;
     public event Action<string>? ScreenOpened;

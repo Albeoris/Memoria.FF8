@@ -214,6 +214,7 @@ public sealed partial class Ff7BattleSession
                 throw new InvalidDataException("The guest presentation already published its physical contact.");
             }
             ApplyGuestHit(active.Command, invocation.TargetSlot, hit);
+            state = state with { DisplayedHit = state.LastHit };
             active = active with { Applied = true };
         }
         if (update.AttackTargetCue is byte cue)
@@ -242,6 +243,10 @@ public sealed partial class Ff7BattleSession
             if (!active.Applied || guest.Invocation is not null)
             {
                 throw new InvalidDataException("The guest presentation completed without settling its original physical contact.");
+            }
+            if (invocation.TargetSlot >= 4 && state.ActorModels.Length != 0 && ActorModelState(invocation.TargetSlot).PresentedKnockedOut != true && state.LastHit is { Damage.Missed: false } finalHit && finalHit.Tick >= active.StartedAt && finalHit.Source == invocation.ActorSlot && finalHit.Target == invocation.TargetSlot && !IsAlive(Actor(invocation.TargetSlot)))
+            {
+                AdmitGuestKnockout(invocation);
             }
             FinishTurn(active.Command.ActorSlot);
             state = state with { Action = null };
@@ -288,6 +293,10 @@ public sealed partial class Ff7BattleSession
             if (!prepared.Receipt.Damage.Missed && !attack.Healing)
             {
                 state = state with { Reaction = new(targetSlot, Tick) };
+                if (targetSlot >= 4 && (receipt.AddedStatuses & Ff7NativeBattleActionResolver.Death) != 0)
+                {
+                    AdmitGuestKnockout(prepared.Invocation);
+                }
             }
             return;
         }
@@ -306,6 +315,12 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { Reaction = new(targetSlot, Tick) };
         }
+    }
+
+    private void AdmitGuestKnockout(Ff7BattleGuestInvocation invocation)
+    {
+        short selector = Actor(invocation.TargetSlot).Actor.HurtAction;
+        AdmitImpactModel(new(invocation.ActorSlot, invocation.TargetSlot, -1, -1, -1) { ModelAction = selector, PostActionKnockedOut = true });
     }
 
     private Ff7BattleGuestInvocation GuestInvocation(Ff7BattleQueuedCommand command, long startedAt)

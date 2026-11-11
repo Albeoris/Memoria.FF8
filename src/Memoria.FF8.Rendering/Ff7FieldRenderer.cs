@@ -403,7 +403,7 @@ public sealed class Ff7FieldRenderer
         return image;
     }
 
-    public static PixelImage DecodeTexture(PcTexture texture)
+    public static PixelImage DecodeTexture(PcTexture texture, bool useColorKey = false)
     {
         if (texture.RenderInfo.UsePaletteColorKey != 0)
         {
@@ -419,10 +419,15 @@ public sealed class Ff7FieldRenderer
             throw new NotSupportedException("FF7 indexed texture has an unsupported selected-palette or index-width contract.");
         }
         PixelImage image = new(texture.Width, texture.Height);
+        bool keyed = useColorKey && texture.BytesPerPixel == 1 && texture.RenderInfo.ColorKey != 0;
         ReadOnlySpan<byte> bytes = texture.Pixels.Span;
         for (int i = 0; i < image.Pixels.Length; i++)
         {
             uint color = texture.BytesPerPixel == 1 ? texture.Palettes[palette][bytes[i]] : System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes[(i * 4)..]);
+            if (keyed && bytes[i] == 0)
+            {
+                color = 0;
+            }
             image.Pixels[i] = new Rgba32((byte)(color >> 16), (byte)(color >> 8), (byte)color, (byte)(color >> 24));
         }
         return image;

@@ -241,7 +241,7 @@ public sealed partial class Ff7BattleSession
         return kernel[5].Data.Span[weaponId * 44 + 9];
     }
 
-    public void Advance(bool waitForCommand = false, bool confirmLimit = false, bool escapeHeld = false)
+    public void Advance(bool waitForCommand = false, bool confirmLimit = false, bool escapeHeld = false, bool turnBased = false)
     {
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
@@ -297,12 +297,41 @@ public sealed partial class Ff7BattleSession
         {
             AdvanceBeatRush(confirmLimit);
         }
+        else if (turnBased && !escapeHeld)
+        {
+            if (ReadyPlayer is null)
+            {
+                AdvanceTurn();
+            }
+        }
         else if (!waitForCommand)
         {
             state = state with { Escape = Ff7NativeBattleEscape.AdvanceClock(state.Escape, escapeHeld, BattleSpeed, Ff7NativeAtb.BattleTypeForLayout(Layout)) };
             AdvanceGauges();
         }
     }
+
+    /// <summary>Advance the native gauges and status timers to the next turn or queued action without advancing presentation.</summary>
+    public void AdvanceTurn()
+    {
+        const int maximumTimeSteps = 4096;
+        if (Outcome != Ff7BattleOutcome.Fighting || IntroActive || BeatRushSelecting || state.Action is not null || HasPrimaryPresentationCallbacks || !BattleQueueEmpty)
+        {
+            return;
+        }
+        ushort readyPlayers = ReadyPlayerMask();
+        for (int step = 0; step < maximumTimeSteps; step++)
+        {
+            if (!AdvanceGauges() || !BattleQueueEmpty || ReadyPlayerMask() != readyPlayers)
+            {
+                break;
+            }
+        }
+    }
+
+    private bool BattleQueueEmpty => state.Queue.ReadyRead == state.Queue.ReadyWrite && !state.Queue.Slots.Any(entry => entry is not null);
+
+    private ushort ReadyPlayerMask() => Mask(state.Actors.Where(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor)));
 
     private void AdvancePresentation(bool escapeHeld)
     {
@@ -330,7 +359,7 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
-        if (HasPrimaryPresentationCallbacks)
+        if (HasPrimaryPresentationCallbacks || (won || lost) && state.Actors.Any(actor => actor.Actor.Slot >= 4 && HasActorDeathPresentation(actor.Actor.Slot)))
         {
             return;
         }
@@ -347,8 +376,9 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private void AdvanceGauges()
+    private bool AdvanceGauges()
     {
+        bool changed = false;
         for (int index = 0; index < state.Actors.Length; index++)
         {
             Ff7BattleActorState actor = state.Actors[index];
@@ -358,6 +388,7 @@ public sealed partial class Ff7BattleSession
                 continue;
             }
             Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, BattleSpeed);
+            changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses;
             actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = status.Statuses } };
             state.Actors[index] = actor;
             if (status.PoisonDue)
@@ -374,6 +405,7 @@ public sealed partial class Ff7BattleSession
             byte? guestDexterity = GetGuestProjection(slot)?.Dexterity;
             ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
             bool ready = Ff7NativeAtb.Advance(ref gauge, increment, false, false);
+            changed |= gauge != actor.Gauge;
             actor = actor with { Gauge = gauge, AwaitingTurn = ready };
             state.Actors[index] = actor;
             if (ready && slot >= 4)
@@ -385,6 +417,7 @@ public sealed partial class Ff7BattleSession
                 ObserveGuestLimitReady(actor);
             }
         }
+        return changed;
     }
 
     private void Dispatch(Ff7BattleQueuedCommand command)

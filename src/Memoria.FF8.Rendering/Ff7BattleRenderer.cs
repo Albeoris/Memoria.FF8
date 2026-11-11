@@ -84,6 +84,13 @@ public sealed partial class Ff7BattleRenderer
         return LoadActor(modelPrefix).GetClip(clipIndex, false, limit).Count;
     }
 
+    public static Vector2? ProjectWorldPoint(SceneCameraPlacement camera, int width, int height, Vector3 world)
+    {
+        CameraView view = CameraView.Create(camera, width, height);
+        Vector3 point = view.Transform(world);
+        return point.Z >= 1 ? CameraSpaceTriangleSubmission.Project(new(point, Vector2.Zero), width, height, view.Focal).Position : null;
+    }
+
     public void Render(ITriangleRenderer renderer, int width, int height, Ff7BattleRenderFrame frame)
     {
         ArgumentNullException.ThrowIfNull(renderer);
@@ -107,7 +114,10 @@ public sealed partial class Ff7BattleRenderer
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
-                DrawActor(renderer, actor, view, material);
+                if (actor.ModelModifiers is not { Deferred: true })
+                {
+                    DrawActor(renderer, actor, view);
+                }
             }
             foreach (CrossoverFf8BattleActorVisual actor in guests)
             {
@@ -186,6 +196,13 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawPrimaryEffects(renderer, primary, view);
             }
+            foreach (Ff7BattleActorVisual actor in frame.Actors)
+            {
+                if (actor.ModelModifiers is { Deferred: true })
+                {
+                    DrawActor(renderer, actor, view);
+                }
+            }
             foreach (CrossoverNativeEffectVisual guestEffect in guestEffects)
             {
                 guestEffect.Draw(renderer, frame.Camera, width, height);
@@ -197,14 +214,16 @@ public sealed partial class Ff7BattleRenderer
         }
     }
 
-    private void DrawActor(ITriangleRenderer renderer, Ff7BattleActorVisual actor, CameraView view, Ff7ModelMaterialState material)
+    private void DrawActor(ITriangleRenderer renderer, Ff7BattleActorVisual actor, CameraView view)
     {
         if (actor.ModelModifiers is { Visible: false })
         {
             return;
         }
-        ModelColorBlend? tint = actor.ModelModifiers is { Alpha: < 255 } modifiers ? new(modifiers.Red, modifiers.Green, modifiers.Blue, modifiers.Alpha) : null;
-        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, colorBlend: tint));
+        byte alpha = actor.ModelModifiers?.Alpha ?? 255;
+        ModelColorBlend? tint = actor.ModelModifiers is { Alpha: < 255 } modifiers ? new(modifiers.Red, modifiers.Green, modifiers.Blue, alpha) : null;
+        Ff7ModelMaterialState material = new() { Cull = true };
+        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint));
     }
 
     private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null)
