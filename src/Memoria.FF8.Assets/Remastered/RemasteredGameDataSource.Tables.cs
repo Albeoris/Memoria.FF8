@@ -72,6 +72,11 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
 
     private ResourceContent? FindNamedTable(ResourceKey key)
     {
+        if (key.Path == "runtime/disc-wrapper")
+        {
+            _ = RequireNativeRuntimeProfile();
+            return new ResourceContent(key, "dll", 1, $"{Descriptor.Id}:{key}", OpenAuthenticatedRuntimeCode);
+        }
         if (key.Path.StartsWith("runtime/", StringComparison.Ordinal))
         {
             throw new NotImplementedException($"Remastered runtime resource '{key}' has no implemented edition contract.");

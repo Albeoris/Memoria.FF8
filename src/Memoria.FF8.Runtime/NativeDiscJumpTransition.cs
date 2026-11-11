@@ -2,16 +2,33 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>AF3DN1001F290 selects the requested marker and enters52F9E0 at phase6.</summary>
+/// <summary>The authenticated edition wrapper selects the requested marker and enters the native disc callback at phase6.</summary>
 public sealed record NativeSteamDiscMount([property: JsonRequired] int Version, [property: JsonRequired] byte SelectedDisc, [property: JsonRequired] string WrapperSha256, [property: JsonRequired] long MarkerLength, [property: JsonRequired] string MarkerSha256, [property: JsonRequired] string WorldFieldTableSha256)
 {
     public const string VerifiedWrapperSha256 = "539558E4F5CF495735CCC8D5E98A185E3660CEB8D5DDF21EB7558B02FBB21FEC";
+    public const string VerifiedRemasteredWrapperSha256 = "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108";
 
     public void Validate(byte expectedDisc)
     {
-        if (Version != 1 || SelectedDisc is < 1 or > 4 || SelectedDisc != expectedDisc || WrapperSha256 != VerifiedWrapperSha256 || MarkerLength <= 0 || !ValidHash(MarkerSha256) || !ValidHash(WorldFieldTableSha256))
+        bool verifiedWrapper = Version switch
+        {
+            1 => WrapperSha256 == VerifiedWrapperSha256,
+            2 => WrapperSha256 == VerifiedRemasteredWrapperSha256,
+            _ => false
+        };
+        if (!verifiedWrapper || SelectedDisc is < 1 or > 4 || SelectedDisc != expectedDisc || MarkerLength <= 0 || !ValidHash(MarkerSha256) || !ValidHash(WorldFieldTableSha256))
         {
             throw new InvalidDataException("Steam DISCJUMP requires its verified wrapper and actual selected nonempty marker and wm2field resources.");
+        }
+    }
+
+    public void Validate(byte expectedDisc, string executableHash)
+    {
+        Validate(expectedDisc);
+        bool matchingEdition = Version == 1 && executableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash || Version == 2 && executableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash;
+        if (!matchingEdition)
+        {
+            throw new InvalidDataException("Steam DISCJUMP requires the mount wrapper authenticated for its issuing runtime edition.");
         }
     }
 
@@ -39,6 +56,6 @@ public sealed record NativeDiscJumpTransition([property: JsonRequired] int Versi
         {
             throw new InvalidDataException("DISCJUMP requires its executed physical-slot request and native transition contract.");
         }
-        Mount.Validate(expectedDisc);
+        Mount.Validate(expectedDisc, ExecutableHash);
     }
 }

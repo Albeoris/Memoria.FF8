@@ -34,7 +34,7 @@ public sealed partial class EventEngine
                 return controls;
             }
             NativeSteamDiscMount mount = ReadSteamDiscMount(services.DiscProcess.SavedDisc204);
-            mount.Validate(services.DiscProcess.SavedDisc204);
+            mount.Validate(services.DiscProcess.SavedDisc204, NativeRuntimeProfile.ExecutableHash);
             preparedDiscMounts[(fiber.Sequence, fiber.Position)] = mount;
             return null;
         }
