@@ -37,7 +37,7 @@ public sealed partial class BattleSession
                 continue;
             }
             NativeBattleRawMesh mesh = geometry[meshIndex];
-            NativeBattleModelTextureBinding binding = model.BodyTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed body material relocation.");
+            NativeBattleModelTextureBinding? binding = resource.GeometryRelocated507550 ? null : model.BodyTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed body material relocation.");
             if (shared && meshIndex == 1)
             {
                 if (geometry.Length < 2 || linked.Length != 1)
