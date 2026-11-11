@@ -16,7 +16,16 @@ internal sealed partial class WorldMapScene
         NativeFootWorldRuntimeState foot = world.NativeFootRuntime ?? throw new InvalidDataException("Parked Garden loader requires its controlled normal-foot owner.");
         foot.RequireNativeGroundState();
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Parked Garden entry requires its retained native process owner.");
-        NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, foot.GroundCache!, process, assets.ReadGardenCameraDefaults(), NativeWorldFootCameraState.Create(world), selectedGroundHeight, ReadInitialTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
+        // The parked allocation shares the already initialized controlled foot camera and ground owners.
+        NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, foot.GroundCache!, process, assets.ReadGardenCameraDefaults(), NativeWorldFootCameraState.Create(world), selectedGroundHeight, ReadInitialTerrainOcclusion()) with
+        {
+            AuxiliaryEntry = auxiliaryEntry,
+            AnimationVariant = foot.AnimationVariant,
+            MapDisplayMode = foot.MapDisplayMode,
+            GroundYaw = checked((short)foot.GroundYaw!.Value),
+            Forest = foot.Forest!,
+            CameraPitch = foot.Forest!.CameraPitch
+        };
         garden = garden with { BackgroundRails = CreateBackgroundRails(allocation.Flags265, garden.ProjectionCamera!) };
         WorldState result = world with { NativeGardenRuntime = garden };
         if (auxiliaryEntry is not null)
